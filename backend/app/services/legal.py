@@ -1,9 +1,15 @@
-"""►►► **Die Rechtstexte – AGB, Datenschutz, Impressum: eine Datei je Fassung.** ◄◄◄
+"""►►► **Die Rechtstexte – AGB und Datenschutz sind Dokumente der Gesellschaft.** ◄◄◄
 
-``app/assets/legal/<art>/<JJJJ-MM-TT>.md`` – der Dateiname ist das Datum, ab dem die Fassung
-gilt. Eine neue Fassung ist eine **neue Datei**; die alte bleibt liegen, damit nachvollziehbar
-bleibt, was damals galt. Jedes Dokument eines Belegs hängt **die AGB an, die an seinem Tag
-galten**, und friert sie mit ein (``voucher_documents``).
+**AGB und Datenschutz** sind Pflichtfelder jeder eigenen Gesellschaft (``company.agb`` ·
+``company.privacy``): je ein Dokument in der einen Ablage, geändert wird durch ein neues
+Dokument im Feld, nie leer. Die Fassung gilt ab ``facts.valid_from`` (sonst ab der
+Freigabe). Jedes Papier eines Belegs hängt **die AGB der stellenden Gesellschaft an**, und
+friert sie mit ein. Die Website zeigt die AGB der Gesellschaft zum Land des Besuchers, den
+Datenschutz und das Impressum des Betreibers.
+
+``app/assets/legal/<art>/<JJJJ-MM-TT>.md`` ist die **Vorlage**: «Aus Vorlage» an der
+Gesellschaft legt daraus ein Dokument an (ein Mensch entscheidet, nie von selbst); das
+**Impressum** ist kein Dokument, sondern die Angaben des Betreibers in dieser Vorlage.
 
 **Ein Text für alle**: es gibt keine Teile für Geschäfts- und Endkunden – wo etwas nur für
 eine Seite gilt, sagt es der Satz selbst.
@@ -163,3 +169,105 @@ def _uid(company: Any) -> str:
     from . import voucher as voucher_svc
     return voucher_svc._uid(company) or ""
 
+
+
+# ---------------------------------------------------------------------------
+# Die Dokumente einer Gesellschaft
+# ---------------------------------------------------------------------------
+
+#: Welche Art in welchem Pflichtfeld der Gesellschaft steht. Das Impressum hat keins.
+FIELD_OF = {AGB: "company.agb", "datenschutz": "company.privacy"}
+MARKDOWN = "text/markdown"
+
+
+def document_of(db, company: Any, kind: str):
+    """Das Dokument im Pflichtfeld einer Gesellschaft – oder ``None``."""
+    from . import documents
+    if company is None or kind not in FIELD_OF or not getattr(company, "object_id", None):
+        return None
+    return documents.field_document(db, company.object_id, FIELD_OF[kind])
+
+
+def valid_from_of(doc: Any) -> date:
+    """Ab wann eine Fassung gilt – so, wie sie freigegeben wurde."""
+    try:
+        return date.fromisoformat(str((doc.facts or {}).get("valid_from")))
+    except ValueError:
+        return doc.created_at.date()
+
+
+def text_of(db, company: Any, kind: str = AGB) -> Optional[Text]:
+    """►►► **Der Rechtstext einer Gesellschaft** – mit ihren Werten eingesetzt. ◄◄◄
+
+    Ein Text aus der Vorlage (Markdown) wird Seite für Seite gesetzt; eine andere Datei (ein
+    PDF) nennt sich mit ihrer Nummer – angehängt wird, was sich setzen lässt."""
+    from . import documents, objects
+    doc = document_of(db, company, kind)
+    if doc is None:
+        return None
+    day = valid_from_of(doc)
+    raw = documents.raw_of(db, doc)
+    if doc.mime == MARKDOWN and raw is not None:
+        return parse(kind, day, fill(raw.decode("utf-8", "replace"), values_of(company)))
+    text = Text(kind=kind, valid_from=day, title=KINDS[kind][1])
+    text.intro.append(f"Es gilt das Dokument {objects.obj_nr(doc.object_id)} "
+                      f"«{doc.name}» in der Fassung vom {text.day}.")
+    return text
+
+
+def from_template(db, company: Any, kind: str, actor: Any):
+    """**«Aus Vorlage»** – ein Mensch übernimmt die Vorlage als Dokument seiner Gesellschaft
+    (``company.agb`` · ``company.privacy``). Gilt ab heute."""
+    from fastapi import HTTPException
+    from . import fields
+    if kind not in FIELD_OF:
+        raise HTTPException(status_code=400, detail=f"Eine Vorlage «{kind}» gibt es nicht.")
+    found = template(kind)
+    if found is None:
+        raise HTTPException(status_code=404, detail=f"Die Vorlage «{kind}» ist nicht hinterlegt.")
+    doc = _file_template(db, company, kind, found, date.today(), actor)
+    return fields.apply(db, actor=actor, doc=doc, object_id=company.object_id, part=None,
+                        field=FIELD_OF[kind])
+
+
+def template(kind: str, on: Optional[date] = None) -> Optional[tuple[date, str]]:
+    """Die Vorlage, wie sie an einem Tag gilt – Datum und roher Text (mit ``{{…}}``)."""
+    day = on or date.today()
+    valid = [d for d in versions(kind) if d <= day]
+    if not valid:
+        return None
+    return valid[-1], (DIR / kind / f"{valid[-1].isoformat()}.md").read_text(encoding="utf-8")
+
+
+def _file_template(db, company: Any, kind: str, found: tuple[date, str], valid: date,
+                   actor: Any):
+    """Die Vorlage als Dokument – dieselbe Vorlage ist dasselbe Dokument (Regel 1), auch für
+    zwei Gesellschaften; die Werte setzt erst das Papier ein."""
+    from . import documents
+    word = KINDS[kind][0]
+    doc, _ = documents.file(
+        db, raw=found[1].encode("utf-8"), filename=f"{word}.md", mime=MARKDOWN, art=word,
+        name=f"Vorlage vom {found[0].strftime('%d.%m.%Y')}", source="compose", refs=[],
+        actor=actor, facts={"kind": kind, "valid_from": valid.isoformat(),
+                            "template": found[0].isoformat()})
+    return doc
+
+
+def for_visitor(db, kind: str, country: Optional[str]) -> tuple[Optional[Text], Optional[str], dict[str, str]]:
+    """►►► **Was die Website zeigt** – ``(Text, Datei-Link, Werte)``. ◄◄◄ Die AGB der
+    Gesellschaft zum Land des Besuchers (``sites.company_for_country``), Datenschutz und
+    Impressum des Betreibers. Ein Text aus der Vorlage wird gesetzt; eine andere Datei (PDF)
+    zeigt die Seite, wie sie ist."""
+    from . import documents
+    company = (sites.company_for_country(db, country) if kind == AGB
+               else sites.find_operator(db))
+    values = values_of(company)
+    if kind not in FIELD_OF:
+        return current(kind, values=values), None, values
+    owner = company if document_of(db, company, kind) is not None else sites.find_operator(db)
+    doc = document_of(db, owner, kind)
+    if doc is None:
+        return None, None, values
+    if doc.mime == MARKDOWN:
+        return text_of(db, owner, kind), None, values_of(owner)
+    return None, documents.file_url(db, doc), values

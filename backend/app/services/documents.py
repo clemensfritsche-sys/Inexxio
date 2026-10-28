@@ -172,14 +172,19 @@ def _check_refs(db: Session, refs: list[RefIn]) -> list[RefIn]:
 
 
 def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: str, name: str,
-         source: str, refs: list[RefIn], actor: UserProfile,
+         source: str, refs: list[RefIn], actor: Optional[UserProfile],
          on_behalf: Optional[str] = None, text: Optional[str] = None,
-         keywords: Optional[str] = None, facts: Optional[dict] = None) -> tuple[Document, bool]:
+         keywords: Optional[str] = None, facts: Optional[dict] = None,
+         stored: Optional[Attachment] = None) -> tuple[Document, bool]:
     """►►► **Freigeben – die einzige Stelle, an der ein Dokument entsteht.** ◄◄◄
 
     Gibt ``(Dokument, schon_da)`` zurück: dieselbe Datei ein zweites Mal legt nichts an,
     sondern liefert das vorhandene (Regel 1). Art und Name sind Pflicht – ohne KI tippt sie
-    der Mensch (Regel 3); die Referenz darf leer sein."""
+    der Mensch (Regel 3); die Referenz darf leer sein.
+
+    Ohne ``actor`` gibt das System frei (ein Beleg, den die Partei über ihren Link auslöst;
+    die Übernahme beim Start). ``stored`` übernimmt eine Datei, die schon im Korb liegt,
+    statt sie ein zweites Mal abzulegen."""
     art, name = dd.clean(art, dd.ART_MAX), dd.clean(name, dd.NAME_MAX)
     if not art or not name:
         raise HTTPException(status_code=400, detail="Ohne Art und Name lässt sich nichts freigeben.")
@@ -192,21 +197,41 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
         return same, True
     refs = _check_refs(db, refs)
     mime = _sniff(raw, mime)
-    att = attachments.store_raw(db, raw, filename, mime, actor.id)
+    by = actor.id if actor is not None else None
+    att = stored if stored is not None else attachments.store_raw(db, raw, filename, mime, by)
     doc = Document(object_id=objects.next_object_id(db, "document"), art=art, name=name,
                    source=source, file_id=att.id, mime=mime, filename=filename or None,
-                   byte_size=len(raw), sha256=digest, created_by=actor.id,
+                   byte_size=len(raw), sha256=digest, created_by=by,
                    text=(text or None) and text[:20000], keywords=(keywords or None) and keywords[:4000],
                    facts=facts or None)
     db.add(doc)
     db.flush()
     for r in refs:
         db.add(DocumentRef(document_id=doc.id, object_id=r.object_id, part=r.part,
-                           field=r.field, created_by=actor.id))
+                           field=r.field, created_by=by))
     db.flush()
-    log_audit(db, "documents", "freigegeben", dd.title(art, name), actor.id,
-              object_id=doc.object_id, on_behalf=on_behalf)
+    log_audit(db, "documents", "freigegeben", dd.title(art, name), by,
+              object_id=doc.object_id, on_behalf=on_behalf or (None if actor else "system"))
     return doc, False
+
+
+def add_refs(db: Session, doc: Document, refs: list[RefIn], actor: Optional[UserProfile]) -> None:
+    """Referenzen an ein **vorhandenes** Dokument – wenn dieselbe Datei ein zweites Mal kommt
+    (Regel 1) und doch dorthin gehört, wohin die zweite Freigabe zeigte."""
+    have = {(r.object_id, r.part, r.field) for r in refs_of(db, [doc.id])[doc.id]}
+    for r in _check_refs(db, refs):
+        if (r.object_id, r.part, r.field) not in have:
+            db.add(DocumentRef(document_id=doc.id, object_id=r.object_id, part=r.part,
+                               field=r.field, created_by=actor.id if actor else None))
+    db.flush()
+
+
+def raw_of(db: Session, doc: Optional[Document]) -> Optional[bytes]:
+    """Die Datei eines Dokuments – oder ``None`` (gelöscht)."""
+    if doc is None or doc.file_id is None:
+        return None
+    row = db.query(Attachment.data).filter(Attachment.id == doc.file_id).first()
+    return bytes(row[0]) if row else None
 
 
 def attach(db: Session, doc: Document, object_id: int, actor: UserProfile) -> DocumentRef:

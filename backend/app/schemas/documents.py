@@ -125,3 +125,9 @@ class RequirementOut(BaseModel):
     object_id: int
     part: Optional[str] = None
     field: str
+
+
+class TemplateIn(BaseModel):
+    """«Aus Vorlage»: welche Gesellschaft, welcher Rechtstext (``agb`` · ``datenschutz``)."""
+    company: int
+    kind: str

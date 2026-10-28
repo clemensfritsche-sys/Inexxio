@@ -15,6 +15,7 @@ from decimal import Decimal
 import pytest
 
 from tests.runner import session
+from app.services import voucher_docs
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -52,7 +53,30 @@ def _house(db):
     house.phone = house.phone or "+41 71 744 00 00"
     house.iban = house.iban or "CH9300762011623852957"
     db.flush()
+    _legal_documents(db, house)
     return house
+
+
+def _legal_documents(db, company):
+    """AGB und Datenschutz sind Dokumente der Gesellschaft (``services/legal``) – aus der
+    Vorlage, wie die Übernahme beim Start sie anlegt."""
+    from app.services import documents, legal
+    for kind, field in legal.FIELD_OF.items():
+        if legal.document_of(db, company, kind) is None:
+            found = legal.template(kind)
+            doc = legal._file_template(db, company, kind, found, found[0], None)
+            documents.set_field(db, document_object_id=doc.object_id,
+                                object_id=company.object_id, part=None, field=field, actor=None)
+
+
+def _file(db, raw=b"x", mime="image/webp", filename="r.webp"):
+    """Ein freigegebenes Dokument – wie es ein Feld des Moduls verlangt."""
+    import uuid as _uuid
+    from app.services import documents
+    doc, _ = documents.file(db, raw=raw + _uuid.uuid4().hex.encode(), filename=filename,
+                            mime=mime, art="Rechnung", name="Test", source="file", refs=[],
+                            actor=None)
+    return doc
 
 
 def _person(db, name="Muster AG", *, country="CH", firm=True, own=False):
@@ -148,6 +172,7 @@ def _sold(db, **kw):
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     _do(db, order, step, "agree", party=who.object_id)
+    _do(db, order, step, "release", kind="confirmation")
     return order, step, row, who
 
 
@@ -183,13 +208,25 @@ def test_sale_from_offer_to_done(db):
     _do(db, order, step, "ask")
     assert row.unit_ids and len(row.unit_ids) == 3, "Mit dem Anbieten frieren die Stücke ein."
     offers = svc.documents_of(db, row, vo.OFFER_DOC)
-    assert len(offers) == 1 and "Offerte" in offers[0].html and "AGB" in offers[0].html
-    assert "vom 01.01.2026" in offers[0].html, "Das Dokument nennt das Datum der AGB."
+    paper = voucher_docs.paper_of(db, offers[0])
+    assert len(offers) == 1 and "Offerte" in paper and "AGB" in paper
+    assert "vom 01.01.2026" in paper, "Das Dokument nennt das Datum der AGB."
     assert svc.situation(db, row, order=order, step=step)["key"] == "sent"
     _do(db, order, step, "agree", party=who.object_id)
     assert row.stage == vo.AGREED and row.head, "Mit der Zusage friert der Kopf ein."
     assert row.incoterm_place == _house(db).city, "FCA: der Ort ist unsere Versandadresse."
-    assert svc.documents_of(db, row, vo.CONFIRM_DOC), "Die Auftragsbestätigung ging hinaus."
+    assert not svc.documents_of(db, row, vo.CONFIRM_DOC), "Kein Papier ohne Freigabe."
+    assert svc.situation(db, row, order=order, step=step)["primary"] == "release"
+    assert svc.papers_due(db, row) == [vo.CONFIRM_DOC] and "release" in svc.can(db, row, None)
+    shown = voucher_docs.preview(db, order=order, step=step, action="release",
+                                 payload={"kind": "confirmation"}, actor=None)
+    assert [p["word"] for p in shown] == ["Auftragsbestätigung"] and "AGB" in shown[0]["html"]
+    assert not svc.documents_of(db, svc.of_step(db, step.id), vo.CONFIRM_DOC), (
+        "Die Vorschau gibt nichts hinaus.")
+    row = svc.of_step(db, step.id)
+    _do(db, order, step, "release", kind="confirmation")
+    assert svc.documents_of(db, row, vo.CONFIRM_DOC), "Mit der Freigabe ging sie hinaus."
+    assert "release" not in svc.can(db, row, None), "Ein Papier geht einmal hinaus."
     passed = db.query(ProcessEvent).filter(ProcessEvent.step_id == step.id,
                                            ProcessEvent.kind == "step").count()
     assert passed == 3, "Mit der Zusage ziehen die Stücke von selbst weiter."
@@ -201,11 +238,14 @@ def test_sale_from_offer_to_done(db):
     _do(db, order, step, "bill")
     assert row.number == f"{order.object_id}-1" and row.amount == Decimal("1037.76")
     inv = svc.documents_of(db, row, vo.INVOICE_DOC)
-    assert inv and "Zahlteil" in inv[0].html, "Die Rechnung trägt den Schweizer Zahlteil."
+    assert inv and "Zahlteil" in voucher_docs.paper_of(db, inv[0]), "Die Rechnung trägt den Schweizer Zahlteil."
     _do(db, order, step, "pay", amount="1037.76", method="transfer")
     assert svc.is_done(db, row), "Saldo null ist erledigt – ohne Knopf."
-    assert svc.situation(db, row, order=order, step=step)["key"] == "done"
+    assert svc.situation(db, row, order=order, step=step)["key"] == "paper"
+    assert not svc.documents_of(db, row, vo.RECEIPT_DOC), "Die Quittung wartet auf die Freigabe."
+    _do(db, order, step, "release", kind="receipt")
     assert svc.documents_of(db, row, vo.RECEIPT_DOC), "Die Quittung ging hinaus."
+    assert svc.situation(db, row, order=order, step=step)["key"] == "done"
     assert not db.query(OrderUnit).filter(OrderUnit.order_id == order.id,
                                           OrderUnit.current_step_id == step.id,
                                           OrderUnit.released_at.is_(None)).count()
@@ -307,6 +347,7 @@ def test_write_off_settles_the_rest_not_doubles_it(db):
         _do(db, order, step, "writeoff")                      # ohne Grund
     _do(db, order, step, "writeoff", reason="rounding")
     assert svc.balance_of(db, row).open == 0 and svc.is_done(db, row)
+    _do(db, order, step, "release", kind="receipt")
     assert "ausgebucht (Rundung)" in svc.situation(db, row, order=order, step=step)["text"]
 
 
@@ -420,11 +461,7 @@ def test_export_fixes_the_rate_and_waits_for_the_proof(db):
     _do(db, order, step, "pay", amount=str(row.amount), method="transfer")
     assert not svc.is_done(db, row), "Erledigt erst mit dem Ausfuhrnachweis."
     assert svc.situation(db, row, order=order, step=step)["primary"] == "export"
-    from app.models import Attachment
-    att = Attachment(token=uuid.uuid4().hex, filename="x.webp", mime="image/webp", data=b"x")
-    db.add(att)
-    db.flush()
-    _do(db, order, step, "export", reference="26CH12345", original=att.id)
+    _do(db, order, step, "export", reference="26CH12345", original=_file(db).object_id)
     assert svc.is_done(db, row)
 
 
@@ -461,7 +498,6 @@ def test_our_own_company_is_never_the_counterparty(db):
 
 def test_supplier_invoice_needs_photo_and_a_decision_on_deviation(db):
     from fastapi import HTTPException
-    from app.models import Attachment
     from app.services import voucher as svc
     order, step, row, who = _scene(db, direction="out", first=True)
     _do(db, order, step, "incoterm", incoterm="EXW")
@@ -471,10 +507,7 @@ def test_supplier_invoice_needs_photo_and_a_decision_on_deviation(db):
     _do(db, order, step, "agree", party=who.object_id)
     with pytest.raises(HTTPException):
         _do(db, order, step, "bill", amount="450.00", reference="R-77")
-    att = Attachment(token=uuid.uuid4().hex, filename="r.webp", mime="image/webp", data=b"x")
-    db.add(att)
-    db.flush()
-    _do(db, order, step, "bill", amount="450.00", reference="R-77", original=att.id,
+    _do(db, order, step, "bill", amount="450.00", reference="R-77", original=_file(db).object_id,
         party_uid="CHE-111.222.333 MWST", vat="normal")
     assert svc.deviation(db, row) == Decimal("23.00")
     assert "pay" not in svc.can(db, row, None), "Bezahlt wird erst nach dem Entscheid."
@@ -690,9 +723,12 @@ def test_public_page_accepts_only_the_current_offer(db):
     docs.public_act(db, new, "agree")
     assert row.stage == vo.AGREED
     after = docs.public_view(db, new)
-    assert after["word"] == "Auftragsbestätigung" and after["stations"][1]["state"] == "active"
+    assert after["stations"][1]["state"] == "active" and not after["actions"]
+    _do(db, order, step, "release", kind="confirmation")
+    after = docs.public_view(db, new)
+    assert after["word"] == "Auftragsbestätigung", "Ein alter Link zeigt das neueste Papier."
     # Der Empfänger steht wie im ERP: Firma, darunter genau ein «z. H.».
-    paper = svc.documents_of(db, row, vo.CONFIRM_DOC)[-1].html
+    paper = voucher_docs.paper_of(db, svc.documents_of(db, row, vo.CONFIRM_DOC)[-1])
     assert "z. H. " in paper
     assert "z. H. z. H." not in paper
 
@@ -713,6 +749,7 @@ def test_the_other_party_sees_the_offer_closed_like_a_storno(db):
     lost = docs.public_view(db, offers[b.object_id])
     assert lost["note"]["kind"] == "cancelled" and not lost["actions"]
     assert all(s["state"] != "active" for s in lost["stations"]), "Kein Fortschritt der anderen."
+    _do(db, order, step, "release", kind="confirmation")
     won = docs.public_view(db, svc.documents_of(db, row, vo.CONFIRM_DOC)[-1])
     assert won["note"] is None and won["stations"][1]["state"] == "active"
 
@@ -797,7 +834,7 @@ def test_documents_name_the_serial_number(db):
         InstanceUnit, InstanceUnit.instance_id == Instance.id).filter(
         InstanceUnit.id.in_(row.unit_ids)).all()})
     assert numbers, "Ohne Stücke gibt es nichts zu prüfen."
-    html = svc.documents_of(db, row, vo.OFFER_DOC)[0].html
+    html = voucher_docs.paper_of(db, svc.documents_of(db, row, vo.OFFER_DOC)[0])
     assert "Seriennummer" in html and all(str(n) in html for n in numbers), (
         "Die Offerte nennt die Seriennummer nicht.")
 
@@ -818,18 +855,21 @@ def test_a_quote_names_the_party_as_the_head_does(db):
 
 
 def test_the_export_proof_takes_a_pdf(db):
-    """Der Ausfuhrnachweis ist ein hochgeladenes PDF (oder Bild) – keine Kamera.
+    """Der Ausfuhrnachweis ist ein Dokument – ein PDF bleibt ein PDF.
 
-    Bug-Formen: (a) ein PDF wird als «kein Bild» abgewiesen; (b) es wird umkodiert."""
-    from app.services import attachments, voucher as svc
+    Bug-Formen: (a) ein PDF wird als «kein Bild» abgewiesen; (b) es wird umkodiert;
+    (c) der Nachweis steht nicht im Pflichtfeld des Moduls."""
+    from app.services import documents, voucher as svc
     order, step, row, who = _scene(db, first=True, party=_person(db, country="DE"))
     _ready(db, order, step, row, incoterm="DAP")
     _do(db, order, step, "ask")
     _do(db, order, step, "agree", party=who.object_id)
     _do(db, order, step, "bill")
     _do(db, order, step, "pay", amount=str(row.amount), method="transfer")
-    raw = b"%PDF-1.7\n%test\n"
-    att = attachments.store_file(db, raw, "verfuegung.pdf", None)
-    assert att.mime == attachments.PDF and att.data == raw, "(a)/(b)"
-    _do(db, order, step, "export", reference="26CH12345", original=att.id)
+    doc = _file(db, raw=b"%PDF-1.7\n%test\n", mime="application/pdf", filename="v.pdf")
+    assert doc.mime == "application/pdf", "(a)"
+    assert documents.raw_of(db, doc).startswith(b"%PDF-1.7\n%test\n"), "(b)"
+    _do(db, order, step, "export", reference="26CH12345", original=doc.object_id)
     assert svc.is_done(db, row)
+    found = documents.field_document(db, order.object_id, "voucher.export", f"step:{step.id}")
+    assert found is not None and found.object_id == doc.object_id, "(c)"

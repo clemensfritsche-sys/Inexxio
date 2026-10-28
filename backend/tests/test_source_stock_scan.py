@@ -601,8 +601,9 @@ def test_the_scanner_lies_above_the_detail_and_below_the_notes():
 def test_the_object_registry_claims_only_what_it_can_serve():
     """Ein Typ, den kein Endpunkt liefern kann, ist eine Behauptung.
 
-    ``document`` stammt aus dem entfernten Dokumentmodul – jede Auflösung einer unbekannten
-    Nummer durchsuchte eine Tabelle, die es nicht mehr gibt. **Der Nummernraum ist davon
+    ``document`` stammte aus dem entfernten Dokumentmodul – jede Auflösung einer unbekannten
+    Nummer durchsuchte eine Tabelle, die es nicht mehr gab. Seit den Dokumenten (Oktober
+    2026) gibt es den Typ wieder, und er hat seine Seite (``routers/documents``). **Der Nummernraum ist davon
     getrennt**: er speist ``current_max_object_id`` → ``setval``, und eine Alt-Zeile mit der
     höchsten Nummer würde sonst ein zweites Mal vergeben.
 
@@ -613,7 +614,9 @@ def test_the_object_registry_claims_only_what_it_can_serve():
     """
     src = _read(BACKEND / "app" / "services" / "objects.py")
     models = src.split("_TYPE_MODELS = {")[1].split("}")[0]
-    assert '"document"' not in models, "Der Scan löst wieder auf ein totes Modul auf."
+    served = _read(BACKEND / "app" / "routers" / "documents.py")
+    assert '"document"' not in models or '@router.get("/{object_id}"' in served, (
+        "Der Scan löst auf einen Typ auf, den kein Endpunkt liefert.")
     assert "ObjectRef.object_id" in src.split("_OBJECT_ID_COLUMNS")[1][:300], (
         "Die Registry fällt aus dem Nummernraum – Nummern entfallener Typen könnten "
         "ein zweites Mal vergeben werden."

@@ -1029,6 +1029,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Voucher
+         * @description ►►► **Vorschau → Freigeben**: das Papier, das diese Handlung hinausgäbe – gerechnet von
+         *     derselben Handlung in einem Savepoint, danach zurückgerollt (``voucher_docs.preview``).
+         *     Erst «Freigeben» ruft die Handlung wirklich (``/voucher``).
+         */
+        post: operations["preview_voucher_api_v1_erp_orders__object_id__steps__step_id__voucher_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/steps/{step_id}/voucher/payment": {
         parameters: {
             query?: never;
@@ -1446,6 +1468,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/documents/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * From Template
+         * @description **«Aus Vorlage»** – AGB oder Datenschutz einer eigenen Gesellschaft aus der Vorlage
+         *     (``legal.from_template``); nur der Admin. Ein Mensch entscheidet, nie der Start.
+         */
+        post: operations["from_template_api_v1_erp_documents_template_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/documents/{object_id}/field": {
         parameters: {
             query?: never;
@@ -1675,7 +1718,8 @@ export interface paths {
         /**
          * Legal Text
          * @description **AGB, Datenschutz oder Impressum, wie sie heute gelten** – als A4-Dokument in der
-         *     Vorlage aller Dokumente, mit den Angaben des Betreibers aus dem ERP.
+         *     Vorlage aller Dokumente. Die AGB sind die der Gesellschaft zum Land des Besuchers
+         *     (``?country=XX`` übersteuert), Datenschutz und Impressum die des Betreibers.
          */
         get: operations["legal_text_api_v1_public_legal__kind__get"];
         put?: never;
@@ -3891,7 +3935,8 @@ export interface components {
         };
         /**
          * LegalOut
-         * @description Ein Rechtstext, wie er heute gilt – Art, Wort, Titel, Datum und das A4-Dokument.
+         * @description Ein Rechtstext, wie er heute gilt – Art, Wort, Titel, Datum und das A4-Dokument; ist
+         *     er eine andere Datei (PDF), steht statt des Papiers ihr Link da.
          */
         LegalOut: {
             /** Kind */
@@ -3900,10 +3945,15 @@ export interface components {
             word: string;
             /** Title */
             title: string;
-            /** Valid From */
+            /**
+             * Valid From
+             * @default
+             */
             valid_from: string;
             /** Html */
-            html: string;
+            html?: string | null;
+            /** Url */
+            url?: string | null;
         };
         /**
          * MailboxOut
@@ -4402,6 +4452,26 @@ export interface components {
              * @description **Die Vorschau**: die laufenden Aufträge, aus denen dieser Entwurf Stücke nähme – jeder mit dem Bild, das er nach der Freigabe hätte (Abzweigung, und Rückführpunkt nur, wenn zurückgeführt wird). Damit zeigt der Entwurf dieselbe Darstellung wie der freigegebene Auftrag; sie kommt aus derselben Ableitung (``flow.build``) und wird nicht daneben nachgebaut.
              */
             parents?: components["schemas"]["RelatedOrder"][];
+        };
+        /**
+         * PaperOut
+         * @description Ein Papier, wie es hinausginge – Wort, Nummer, A4-HTML.
+         */
+        PaperOut: {
+            /** Word */
+            word: string;
+            /** Number */
+            number?: string | null;
+            /** Html */
+            html: string;
+        };
+        /**
+         * PapersOut
+         * @description Was eine Handlung hinausgäbe – leer, wenn sie kein Papier erzeugt.
+         */
+        PapersOut: {
+            /** Papers */
+            papers?: components["schemas"]["PaperOut"][];
         };
         /**
          * PasskeyLoginResult
@@ -5248,6 +5318,16 @@ export interface components {
             age: number;
         };
         /**
+         * TemplateIn
+         * @description «Aus Vorlage»: welche Gesellschaft, welcher Rechtstext (``agb`` · ``datenschutz``).
+         */
+        TemplateIn: {
+            /** Company */
+            company: number;
+            /** Kind */
+            kind: string;
+        };
+        /**
          * TerritoryAssign
          * @description Ein Gebiet (Region ODER einzelnes Land) einer Gesellschaft zuweisen. ``None`` (oder die
          *     Gesellschaft, der es ohnehin zufiele) = Standard wiederherstellen.
@@ -6061,6 +6141,10 @@ export interface components {
             stages?: components["schemas"]["VoucherStage"][];
             /** Can */
             can?: string[];
+            /** Paper Verbs */
+            paper_verbs?: string[];
+            /** Paper Due */
+            paper_due?: string | null;
             /**
              * Prepaid
              * @default false
@@ -6174,7 +6258,7 @@ export interface components {
             /** Party Uid */
             party_uid?: string | null;
             /** Original */
-            original?: string | null;
+            original?: number | null;
             /** Deviation */
             deviation?: string | null;
             /** Deviation Note */
@@ -6182,7 +6266,7 @@ export interface components {
             /** Export Number */
             export_number?: string | null;
             /** Export Photo */
-            export_photo?: string | null;
+            export_photo?: number | null;
             /** Charged */
             charged?: string | null;
             /** Credited */
@@ -6595,6 +6679,7 @@ export interface components {
          *     ``pay``      eine **Zahlung** erfassen · ``refund`` erstatten · ``writeoff`` ausbuchen
          *                  (``reason``) · ``tip`` als Trinkgeld behalten · ``reverse`` falsch erfasst
          *                  (``entry``) · ``remind`` mahnen · ``export`` Ausfuhrnachweis
+         *     ``release``  ein anstehendes Papier freigeben (``kind``)
          *     ``ownership`` Eigentum danach · ``terms`` Fristen und Gültigkeit
          *     ``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage
          *
@@ -6608,6 +6693,8 @@ export interface components {
         VoucherUpdate: {
             /** Action */
             action: string;
+            /** Kind */
+            kind?: string | null;
             /** Party */
             party?: number | null;
             /** Parties */
@@ -8396,6 +8483,42 @@ export interface operations {
             };
         };
     };
+    preview_voucher_api_v1_erp_orders__object_id__steps__step_id__voucher_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoucherUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PapersOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     prepare_voucher_payment_api_v1_erp_orders__object_id__steps__step_id__voucher_payment_post: {
         parameters: {
             query?: never;
@@ -9002,6 +9125,39 @@ export interface operations {
             };
         };
     };
+    from_template_api_v1_erp_documents_template_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     set_field_api_v1_erp_documents__object_id__field_post: {
         parameters: {
             query?: never;
@@ -9358,7 +9514,9 @@ export interface operations {
     };
     legal_text_api_v1_public_legal__kind__get: {
         parameters: {
-            query?: never;
+            query?: {
+                country?: string | null;
+            };
             header?: never;
             path: {
                 kind: string;

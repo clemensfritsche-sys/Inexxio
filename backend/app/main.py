@@ -170,6 +170,8 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "export_photo_id", "BIGINT"),
     # ►►► **Dokumente** (Migration 157): «im Namen von» – jede Zeile ins Log liest sie.
     ("audit_log", "on_behalf", "VARCHAR(12)"),
+    # Das Papier eines Belegs ist ein Dokument (Migration 158).
+    ("voucher_documents", "document_id", "BIGINT REFERENCES documents(id)"),
     ("voucher_quotes", "reference", "VARCHAR(120)"),
     ("voucher_quotes", "link", "VARCHAR(500)"),
     ("voucher_lines", "text", "VARCHAR(300)"),
@@ -220,9 +222,9 @@ _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
 #: erfindet es beim nächsten unmapped gewordenen Pflichtfeld neu, und bis dahin laufen
 #: alle Inserts auf.
 _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
-    # Leer seit Migration ``152``: ``articles.status``, ``voucher_entries.kind``,
-    # ``user_profiles.invoice_same_as_shipping`` und ``.country`` sind gedroppt. Der
-    # nächste Eintrag entsteht, wenn wieder ein Pflichtfeld sein Mapping verliert.
+    # Das Papier eines Belegs steht im Dokument (Migration 158) – geschrieben wird hier
+    # nichts mehr; die Spalte fällt im Folge-Deploy weg.
+    ("voucher_documents", "html"),
 )
 
 # ►► **Ein Drop-Netz gibt es nicht mehr** (Cleanup Oktober 2026, B-22). Es lief bei jedem
@@ -247,6 +249,7 @@ _INDEX_SAFETY_NET = (
     ("ix_captures_order_id", "captures", "order_id"),
     ("ix_captures_step_id", "captures", "step_id"),
     ("ix_messages_group_id", "messages", "group_id"),
+    ("ix_voucher_documents_document_id", "voucher_documents", "document_id"),
 )
 
 # Roh-Indizes und CHECKs, die ``create_all`` nicht nachzieht (es legt sie nur mit einer
@@ -806,6 +809,7 @@ def _run_startup_fixups_once() -> None:
         _ensure_object_id_sequence()
         _backfill_object_registry()
         _ensure_company_object_id()   # Firma = nummerierter ERP-Datensatz
+        _adopt_documents()
     except Exception as e:
         print(f"WARNING: _run_startup_fixups_once() failed: {e}", flush=True)
     finally:
@@ -815,6 +819,23 @@ def _run_startup_fixups_once() -> None:
                 db.commit()
             except Exception:
                 pass
+        db.close()
+
+
+def _adopt_documents() -> None:
+    """**Was vor den Dokumenten entstand, kommt in die eine Ablage** (``services/adopt``) –
+    selbstbegrenzend, in eigener Sitzung; scheitert es, steht es im Log und der Start läuft."""
+    from .services import adopt
+    db = SessionLocal()
+    try:
+        done = adopt.run(db)
+        db.commit()
+        if any(done.values()):
+            print(f"INFO: Dokumente übernommen: {done}", flush=True)
+    except Exception as e:
+        db.rollback()
+        print(f"WARNING: Übernahme in die Ablage fehlgeschlagen: {e!r}", flush=True)
+    finally:
         db.close()
 
 

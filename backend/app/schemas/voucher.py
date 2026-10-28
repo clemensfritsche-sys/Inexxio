@@ -491,6 +491,10 @@ class VoucherEmbed(BaseModel):
     stages: list[VoucherStage] = Field(default_factory=list)
     #: **Auskunft UND Tor** – dieselbe Liste rendert die Knöpfe und weist ab.
     can: list[str] = Field(default_factory=list)
+    #: Die Verben, die ein Papier hinausgeben – die Karte zeigt es vorher und gibt frei.
+    paper_verbs: list[str] = Field(default_factory=list)
+    #: Das Papier, das jetzt ansteht (``confirmation`` · ``receipt``) – Verb ``release``.
+    paper_due: Optional[str] = None
     # ─── Fristen, Gültigkeit, Eigentum ──────────────────────────────────────────
     prepaid: bool = False
     payment_terms: list[VoucherTerm] = Field(default_factory=list)
@@ -538,14 +542,14 @@ class VoucherEmbed(BaseModel):
     corrects_hint: str = ""
     #: **Vorgeschlagen aus dem Log der Stücke** – die Rechnungen, über die sie liefen.
     corrects_suggested: list[VoucherCorrectable] = Field(default_factory=list)
-    #: Ausgabe: MWST-Nr. und Foto der Lieferantenrechnung, Abweichung und ihr Grund.
+    #: Ausgabe: MWST-Nr. und die Lieferantenrechnung (Dokumentnummer), Abweichung und Grund.
     party_uid: Optional[str] = None
-    original: Optional[str] = None
+    original: Optional[int] = None
     deviation: Optional[str] = None
     deviation_note: Optional[str] = None
-    #: Der Ausfuhrnachweis.
+    #: Der Ausfuhrnachweis – Nummer der Veranlagungsverfügung und ihr Dokument.
     export_number: Optional[str] = None
-    export_photo: Optional[str] = None
+    export_photo: Optional[int] = None
     charged: Optional[str] = None
     credited: Optional[str] = None
     paid: Optional[str] = None
@@ -584,6 +588,7 @@ class VoucherUpdate(BaseModel):
     ``pay``      eine **Zahlung** erfassen · ``refund`` erstatten · ``writeoff`` ausbuchen
                  (``reason``) · ``tip`` als Trinkgeld behalten · ``reverse`` falsch erfasst
                  (``entry``) · ``remind`` mahnen · ``export`` Ausfuhrnachweis
+    ``release``  ein anstehendes Papier freigeben (``kind``)
     ``ownership`` Eigentum danach · ``terms`` Fristen und Gültigkeit
     ``currency`` · ``issuer`` · ``incoterm`` – nur vor der Zusage
 
@@ -596,6 +601,8 @@ class VoucherUpdate(BaseModel):
     """
 
     action: str
+    #: ``release``: welches anstehende Papier (``confirmation`` · ``receipt``).
+    kind: Optional[str] = None
     #: Die Objektnummer der Gegenpartei, deren Zeile gemeint ist.
     party: Optional[int] = None
     #: Wen anfragen (``ask``). Leer heisst: **alle zugelassenen**.
@@ -642,7 +649,7 @@ class VoucherUpdate(BaseModel):
     reason: Optional[str] = None
     #: Die Geld-Zeile, die gegengebucht wird (``reverse``) – wie ``entry``.
     iban: Optional[str] = None
-    #: **Das Foto** (``attachments.id``) – Lieferantenrechnung (``bill``) bzw.
+    #: **Das Dokument** (Dokumentnummer) – Lieferantenrechnung (``bill``) bzw.
     #: Ausfuhrnachweis (``export``).
     original: Optional[int] = None
     #: Ausgabe: die MWST-Nummer auf der Lieferantenrechnung (``bill``).
@@ -653,3 +660,15 @@ class VoucherUpdate(BaseModel):
     def changes(self) -> dict[str, Any]:
         """Was tatsächlich gesendet wurde – ohne ``action``."""
         return self.model_dump(exclude={"action"}, exclude_unset=True)
+
+
+class PaperOut(BaseModel):
+    """Ein Papier, wie es hinausginge – Wort, Nummer, A4-HTML."""
+    word: str
+    number: Optional[str] = None
+    html: str
+
+
+class PapersOut(BaseModel):
+    """Was eine Handlung hinausgäbe – leer, wenn sie kein Papier erzeugt."""
+    papers: list[PaperOut] = Field(default_factory=list)

@@ -16,9 +16,10 @@ from ..domain import documents as dd
 from ..models import Attachment, Document, UserProfile
 from ..schemas.documents import (
     DeleteIn, DocumentDetail, DocumentRefOut, DocumentSummary, FiledOut, ProposalOut,
-    ProposedRef, RecordOut, RefIn, RequirementOut, SignatureOut, TargetIn,
+    ProposedRef, RecordOut, RefIn, RequirementOut, SignatureOut, TargetIn, TemplateIn,
 )
-from ..services import access, ai, documents as docs, fields, people, reading, records
+from ..services import (access, ai, document, documents as docs, fields, legal, people,
+                        reading, records, sites)
 from ..services import requirements as reqs
 
 router = APIRouter(prefix="/api/v1/erp/documents", tags=["documents"])
@@ -41,6 +42,18 @@ def summary(db: Session, doc: Document, status: str, q: str = "") -> DocumentSum
 def summaries(db: Session, found: list[Document], q: str = "") -> list[DocumentSummary]:
     sigs = docs.signatures_of(db, (d.id for d in found))
     return [summary(db, d, docs.status_of(d, sigs[d.id]), q) for d in found]
+
+
+def _legal_html(db: Session, doc: Document) -> Optional[str]:
+    """Ein Rechtstext aus der Vorlage (Markdown) – gesetzt wie auf der Website, mit den
+    Angaben des Betreibers."""
+    kind = (doc.facts or {}).get("kind")
+    raw = docs.raw_of(db, doc) if doc.mime == legal.MARKDOWN and kind in legal.KINDS else None
+    if raw is None:
+        return None
+    values = legal.of_operator(db)
+    text = legal.parse(kind, legal.valid_from_of(doc), legal.fill(raw.decode("utf-8", "replace"), values))
+    return document.standalone(text, sender=legal.sender_line(values))
 
 
 def detail(db: Session, doc: Document) -> DocumentDetail:
@@ -67,7 +80,8 @@ def detail(db: Session, doc: Document) -> DocumentDetail:
         signatures=[SignatureOut(id=s.id, person_object_id=s.person_object_id, name=s.name,
                                  signed_at=s.signed_at, declined_at=s.declined_at,
                                  reason=s.reason) for s in sigs],
-        html=raw.decode("utf-8", "replace") if raw and doc.mime == "text/html" else None,
+        html=(raw.decode("utf-8", "replace") if raw and doc.mime == "text/html"
+              else _legal_html(db, doc)),
         read_later=(doc.file_id is not None and not doc.text and ai.ready()
                     and (doc.mime in ai.IMAGE_TYPES or doc.mime == "application/pdf")),
     )
@@ -164,6 +178,19 @@ def open_requirements(db: Session = Depends(get_db), user: UserProfile = Depends
     return [RequirementOut(key=r.key, label=r.label, sentence=r.sentence, fields=list(r.fields),
                            object_id=r.object_id, part=r.part, field=r.field)
             for r in reqs.open_for(db, user)]
+
+
+@router.post("/template", response_model=DocumentDetail)
+def from_template(data: TemplateIn, db: Session = Depends(get_db),
+                  user: UserProfile = Depends(require_employee)):
+    """**«Aus Vorlage»** – AGB oder Datenschutz einer eigenen Gesellschaft aus der Vorlage
+    (``legal.from_template``); nur der Admin. Ein Mensch entscheidet, nie der Start."""
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Rechtstexte setzt nur der Admin.")
+    company = sites.require_own(db, data.company)
+    doc = legal.from_template(db, company, data.kind, user)
+    db.commit()
+    return detail(db, doc)
 
 
 @router.post("/{object_id}/field", response_model=DocumentDetail)

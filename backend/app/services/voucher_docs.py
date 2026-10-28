@@ -124,7 +124,7 @@ def build(db: Session, *, row: Voucher, kind: str, party: int,
         word=word, number=_number(row, kind, order), to=to,
         facts=_facts(db, row, kind, party, actor, theirs),
         currency=row.currency, sender=sender,
-        terms_of=legal.current(legal.AGB, values=legal.values_of(company)),
+        terms_of=legal.text_of(db, company, legal.AGB),
     )
     if kind == vo.REMINDER_DOC:
         _reminder(db, row, doc, level or 1)
@@ -316,9 +316,10 @@ def issue(db: Session, *, row: Voucher, kind: str, actor: Optional[UserProfile] 
     if party is None:
         return None
     doc = build(db, row=row, kind=kind, party=party, actor=actor, level=level)
+    paper = _file(db, row=row, kind=kind, level=level, doc=doc, party=party, actor=actor)
     rec = VoucherDocument(voucher_id=row.id, kind=kind, level=level, number=doc.number,
                           party_id=party, token=secrets.token_urlsafe(24),
-                          html=document.render(doc),
+                          document_id=paper.id,
                           agb=doc.terms_of.key if doc.terms_of else None)
     db.add(rec)
     db.flush()
@@ -327,6 +328,45 @@ def issue(db: Session, *, row: Voucher, kind: str, actor: Optional[UserProfile] 
     rec.message_id = msg.id if msg is not None else None
     db.flush()
     return rec
+
+
+def word_of(kind: str, level: Optional[int] = None) -> str:
+    """Das Wort eines Papiers – «Rechnung», «1. Mahnung» …"""
+    return (vo.remind_word(level or 1) if kind == vo.REMINDER_DOC
+            else vo.DOCUMENTS.get(kind, "Beleg"))
+
+
+def _file(db: Session, *, row: Voucher, kind: str, level: Optional[int], doc: document.Doc,
+          party: int, actor: Optional[UserProfile]):
+    """►►► **Das Papier ist ein Dokument** – in der einen Ablage, im Pflichtfeld
+    ``voucher.doc`` des Zahlungsmoduls (nie löschbar, 10 Jahre) und bei der Partei. ◄◄◄"""
+    from . import documents
+    order = db.query(Order).filter(Order.id == row.order_id).first()
+    person = db.query(UserProfile).filter(UserProfile.object_id == party).first()
+    word = word_of(kind, level)
+    name = " · ".join(x for x in (doc.number, person.display_name if person else None) if x)
+    refs = [documents.RefIn(object_id=order.object_id, part=f"step:{row.step_id}",
+                            field="voucher.doc"),
+            documents.RefIn(object_id=party)]
+    paper, existed = documents.file(
+        db, raw=document.render(doc).encode("utf-8"), filename=f"{word} {doc.number}.html",
+        mime="text/html", art=word, name=name or word, source="voucher", refs=refs,
+        actor=actor if actor is not None and actor.role in vs.STAFF_ROLES else None,
+        facts={"kind": kind, "number": doc.number})
+    if existed:
+        documents.add_refs(db, paper, refs, None)
+    return paper
+
+
+def paper_of(db: Session, rec: VoucherDocument) -> str:
+    """**Das Papier, wie es hinausging** – aus seinem Dokument."""
+    from ..models import Document
+    from . import documents
+    if rec.document_id is not None:
+        raw = documents.raw_of(db, db.query(Document).filter(Document.id == rec.document_id).first())
+        if raw is not None:
+            return raw.decode("utf-8", "replace")
+    return rec.html or ""
 
 
 def _mail(db: Session, *, row: Voucher, rec: VoucherDocument, doc: document.Doc, kind: str,
@@ -374,6 +414,26 @@ def _mail(db: Session, *, row: Voucher, rec: VoucherDocument, doc: document.Doc,
                   created_by=actor.id if staff else None, outgoing=live)
     write(db, msg, {"to": [party], "cc": [], "bcc": [], "about": []})
     return msg
+
+
+def preview(db: Session, *, order: Order, step: Any, action: str, payload: dict[str, Any],
+            actor: Optional[UserProfile]) -> list[dict[str, Any]]:
+    """►►► **Vorschau: was diese Handlung hinausgäbe – ohne dass etwas geschieht.** ◄◄◄
+
+    Dieselbe Handlung (``voucher.apply``) läuft in einem Savepoint, die entstandenen Papiere
+    werden gelesen, dann wird alles zurückgerollt – es gibt keine zweite Druckstelle, die vom
+    echten Papier abweichen könnte. Mails gehen ohnehin erst nach dem Festschreiben."""
+    row = vs.of_step(db, step.id)
+    before = {d.id for d in vs.documents_of(db, row)}
+    sp = db.begin_nested()
+    try:
+        vs.apply(db, order=order, step=step, action=action, payload=payload, actor=actor)
+        db.flush()
+        return [{"word": word_of(d.kind, d.level), "number": d.number, "html": paper_of(db, d)}
+                for d in vs.documents_of(db, vs.of_step(db, step.id)) if d.id not in before]
+    finally:
+        sp.rollback()
+        db.expire_all()
 
 
 def send_pending(db: Session) -> None:
@@ -463,7 +523,7 @@ def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
     money = vs.balance_of(db, row)
     return {
         "token": shown.token, "kind": shown.kind, "word": word, "number": shown.number,
-        "html": shown.html, "note": note, "actions": actions,
+        "html": paper_of(db, shown), "note": note, "actions": actions,
         "stations": _stations(db, row, closed=bool(gone)),
         "open": cur.money(money.open, row.currency) if money.open > 0 else None,
         "currency": row.currency,
