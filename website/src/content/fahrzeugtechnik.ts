@@ -74,9 +74,7 @@ export const fahrzeugtechnik: AreaPage = {
       a: 'Ja. Rinnen, Schurren, Trichter und Spiralschutz bestellen Sie auch als Teil. Mehr dazu unter [Verschleissteile](/fahrzeugtechnik/verschleissteile).',
     },
   ],
-  promises: ['garantie', 'inexxio365', 'erstservice'],
   service: { name: 'Fahrzeugtechnik', serviceType: 'Trommeltausch und Verschleissteile für Fahrmischer' },
-  keywords: ['Trommeltausch Fahrmischer', 'Fahrmischer Trommel', 'Fahrmischer Verschleissteile', 'Fahrmischer Reparatur'],
 };
 
 /**
@@ -149,7 +147,6 @@ export const trommeltausch: SubPage = {
     what: 'Trommel und Fahrgestell prüfen, neue Trommel aufsetzen, Antrieb und Hydraulik anschliessen, in Betrieb nehmen.',
     deliverables: 'Einen Fahrmischer, der wieder einsatzbereit ist – ohne neues Fahrzeug – und ein Protokoll mit Arbeiten und Teilen.',
   },
-  promises: ['garantie', 'inexxio365', 'erstservice'],
   scope: { title: drumPath.title, items: facts(drumPath.items) },
   faq: [
     {
@@ -172,7 +169,6 @@ export const trommeltausch: SubPage = {
     ratgeberTeile,
   ],
   service: { name: 'Trommeltausch für Fahrmischer', serviceType: 'Trommeltausch und Trommel-Revision für Fahrmischer' },
-  keywords: ['Trommeltausch', 'Fahrmischer Trommel', 'Mischtrommel', 'Trommel Revision', 'Fahrmischer Reparatur'],
 };
 
 /**
@@ -261,7 +257,6 @@ export const verschleissteile: SubPage = {
     ratgeberTeile,
   ],
   service: { name: 'Verschleissteile für Fahrmischer', serviceType: 'Beschaffung und Einbau von Verschleissteilen für Fahrmischer' },
-  keywords: ['Fahrmischer Verschleissteile', 'Fahrmischer Rinne', 'Auslaufschurre', 'Spiralschutz', 'Einfülltrichter'],
 };
 
 /** Kopf des Katalogs. */

@@ -16,6 +16,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { site, onErpPath } from '../src/config/site.mjs';
+import { newsletter } from '../src/config/newsletter.mjs';
 import { isLive } from '../src/lib/text.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -24,8 +25,12 @@ const LIVE = isLive();
 const SITE_URL = (process.env.SITE_URL ?? 'http://localhost:4321').replace(/\/+$/, '');
 /** Seiten, die das ERP auf derselben Domain ausliefert – Links dorthin sind gültig. */
 const ERP_PAGES = site.erpPaths.filter((p) => p.page).map((p) => p.path);
-/** Leistungsbudget (Kapitel 15), in Bytes gzip bzw. roh. */
-const BUDGET = { jsGzip: 30 * 1024, cssGzip: 40 * 1024, fonts: 120 * 1024, home: 1024 * 1024 };
+/**
+ * Leistungsbudget, in Bytes. **Eine Messart:** Text (HTML, JS, CSS) so, wie er über die Leitung
+ * geht – gzip; was schon komprimiert ist (Bilder, Video, Schriften), roh. Die Startseite zählt
+ * alles, was ein Desktop-Browser beim ersten Aufruf lädt, das Bühnenvideo eingeschlossen.
+ */
+const BUDGET = { jsGzip: 30 * 1024, cssGzip: 40 * 1024, fonts: 120 * 1024, home: 2400 * 1024 };
 /** Kapitel 8.2 – im sichtbaren Text verboten (klein geschrieben verglichen). */
 const FORBIDDEN = [
   'innovativ', 'ganzheitlich', 'massgeschneidert', 'maßgeschneidert', 'ihr zuverlässiger partner',
@@ -219,9 +224,11 @@ function checkWords(where, text) {
 
 function checkFirstMention(p) {
   const text = visibleText(p.main);
-  // «INEXXIO 365» und die «INEXXIO Zufriedenheitsgarantie» sind Angebote, keine Nennung der
-  // Firma – sie zählen nicht als erste Nennung.
-  const m = new RegExp(`${site.brand.name}(?! 365| Zufriedenheitsgarantie)`).exec(text);
+  // «INEXXIO 365», die «INEXXIO Zufriedenheitsgarantie» und der Newsletter «Post von INEXXIO»
+  // sind Namen von Angeboten, keine Nennung der Firma – sie zählen nicht als erste Nennung.
+  if (!newsletter.name.endsWith(site.brand.name)) fail('check-site', `Newsletter-Name «${newsletter.name}» endet nicht auf «${site.brand.name}» – Regel der ersten Nennung anpassen`);
+  const offer = newsletter.name.slice(0, newsletter.name.length - site.brand.name.length);
+  const m = new RegExp(`(?<!${offer})${site.brand.name}(?! 365| Zufriedenheitsgarantie)`).exec(text);
   if (!m) return;
   const first = m.index;
   const full = `${site.brand.name} (${site.brand.formerly})`;
@@ -231,6 +238,17 @@ function checkFirstMention(p) {
   const at = (s) => text.slice(first, first + s.length) === s;
   if (!at(full) && !at(legal) && !before.includes('HS Steiner')) {
     warn(p.path, `erste Nennung im Inhalt ist «${text.slice(first, first + full.length + 5)}…» statt «${full}»`);
+  }
+}
+
+/**
+ * Jedes `<use href="#…">` (das Logo steht EINMAL als Symbol, Lockup.astro) findet sein Ziel auf
+ * derselben Seite – genau einmal. Sonst fehlte das Zeichen still.
+ */
+function checkUseRefs(p) {
+  for (const id of new Set([...p.html.matchAll(/<use\b[^>]*\shref="#([^"]+)"/g)].map((m) => m[1]))) {
+    const n = p.html.split(` id="${id}"`).length - 1;
+    if (n !== 1) fail(p.path, `<use href="#${id}"> – das Ziel steht ${n}-mal auf der Seite (erwartet: einmal)`);
   }
 }
 
@@ -499,6 +517,25 @@ function imageWeight(html, local) {
   return sum;
 }
 
+/**
+ * Videogewicht wie im Browser auf dem Desktop: das Standbild (`poster`) und jede Quelle – das
+ * Bühnenvideo spielt dort von selbst und lädt darum ganz (Media.astro). Auf schmalen
+ * Bildschirmen und bei «reduzierter Bewegung» lädt nur das Standbild; gezählt wird der
+ * grössere Fall.
+ */
+function videoWeight(html) {
+  let sum = 0;
+  for (const [video] of html.matchAll(/<video\b[\s\S]*?<\/video>/g)) {
+    const urls = [video.match(/\sposter="([^"]+)"/)?.[1], ...[...video.matchAll(/<source\b[^>]*\ssrc="([^"]+)"/g)].map((m) => m[1])];
+    for (const url of urls.filter(Boolean).map(decode)) {
+      const file = url.startsWith('/') ? fileFor(url) : null;
+      if (!file) fail('Budget', `Video-Datei «${url}» fehlt in dist/`);
+      else sum += statSync(file).size;
+    }
+  }
+  return sum;
+}
+
 function checkBudget() {
   const fonts = files.filter((f) => f.endsWith('.woff2')).reduce((s, f) => s + statSync(f).size, 0);
   if (fonts > BUDGET.fonts) fail('Budget', `Schriften ${kb(fonts)} (höchstens ${kb(BUDGET.fonts)})`);
@@ -513,7 +550,9 @@ function checkBudget() {
     report.css = Math.max(report.css, css);
     if (p.path === '/') {
       const imgs = imageWeight(p.html, local);
-      report.home = Buffer.byteLength(p.html) + js + css + fonts + imgs;
+      const video = videoWeight(p.html);
+      report.home = gzipSync(p.html).length + js + css + fonts + imgs + video;
+      report.homeParts = { html: gzipSync(p.html).length, js, css, fonts, imgs, video };
       if (report.home > BUDGET.home) fail('/', `Startseite ${kb(report.home)} (höchstens ${kb(BUDGET.home)})`);
     }
   }
@@ -543,6 +582,7 @@ for (const p of pages) {
   }
   checkHeadings(p);
   checkLinks(p);
+  checkUseRefs(p);
   checkJsonLd(p);
   checkWords(p.path, visibleText(p.html));
   checkFirstMention(p);
@@ -563,6 +603,7 @@ if (errors.length) {
 }
 console.log(
   `check-site: ${pages.length} Seiten, ${listed.size} in der Sitemap, ${redirects} Weiterleitungen – in Ordnung` +
-    ` (JS max ${kb(budget.js)} · CSS max ${kb(budget.css)} gzip · Schriften ${kb(budget.fonts)} · Startseite ${kb(budget.home)})` +
+    ` (JS max ${kb(budget.js)} · CSS max ${kb(budget.css)} gzip · Schriften ${kb(budget.fonts)} · Startseite ${kb(budget.home)}` +
+    (budget.homeParts ? ` = HTML ${kb(budget.homeParts.html)} + JS + CSS + Schriften + Bilder ${kb(budget.homeParts.imgs)} + Video ${kb(budget.homeParts.video)}` : '') + ')' +
     (warnings.length ? `, ${warnings.length} Hinweise` : ''),
 );

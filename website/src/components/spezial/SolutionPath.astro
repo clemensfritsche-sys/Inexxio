@@ -43,7 +43,7 @@ const { title, start, end, items, id = 'ablauf' } = Astro.props;
 <style>
   .sp { position: relative; max-width: 1040px; margin: 40px auto 0; }
   .sp__line { position: absolute; left: 31px; top: 28px; bottom: 28px; width: 2px; margin-left: -1px; background: repeating-linear-gradient(180deg, var(--line-2) 0 8px, transparent 8px 14px); }
-  .sp__dot { position: absolute; left: 31px; top: 28px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 6px rgba(229, 26, 20, 0.15); animation: sp-go 7s cubic-bezier(0.45, 0, 0.2, 1) infinite; }
+  .sp__dot { position: absolute; left: 31px; top: 28px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 6px rgba(229, 26, 20, 0.15); animation: sp-go 7s cubic-bezier(0.45, 0, 0.2, 1) 2; }
   @keyframes sp-go { 0% { top: 28px; opacity: 0; } 6%, 88% { opacity: 1; } 100% { top: calc(100% - 40px); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .sp__dot { display: none; } }
   .sp__end { position: relative; display: flex; max-width: none; }

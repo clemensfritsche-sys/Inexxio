@@ -2,16 +2,21 @@
 /**
  * Bild ODER Video, das seine Fläche füllt (v4: Bühne, Bildkarten, Collage).
  * Das Foto kommt aus der Fotoliste (Photo.astro). Trägt der Eintrag in src/config/photos.mjs ein
- * `video` (Datei in public/video/) und steht die Stelle in Bühne oder Seitenkopf (`motion`), gibt
- * es statt des Fotos ein gewöhnliches Video: stumm, in Schleife, inline, mit Standbild (`poster`
- * = erstes Bild des Videos, gleicher Name als .webp). Kein Skript nötig – der Browser spielt es
- * selbst ab; spielt er nicht (Stromsparmodus), bleibt das Standbild. Bei «reduzierter Bewegung»
- * hält scripts/media.ts es an.
+ * `video` (Datei in public/video/) und steht die Stelle in der Bühne (`motion`), gibt es statt des
+ * Fotos ein gewöhnliches Video: stumm, in Schleife, inline, mit Standbild (`poster` = erstes Bild
+ * des Videos, gleicher Name als .webp).
+ *
+ * **Geladen wird das Video nur, wo es sich lohnt**: die Quelle trägt `media` (VIDEO_MEDIA) – auf
+ * schmalen Bildschirmen und bei «reduzierter Bewegung» passt keine Quelle, und es bleibt beim
+ * Standbild, ohne dass ein Byte Video geladen wird. `preload="metadata"`: vor dem Abspielen nur
+ * der Kopf. Ein Browser, der `media` an `<source>` nicht kennt, bekommt das Video von
+ * scripts/media.ts wieder abgenommen. Anhalten: der Knopf der Bühne (WCAG 2.2.2).
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { photo } from '../config/photos.mjs';
 import Photo from './Photo.astro';
+import { VIDEO_MEDIA } from '../scripts/media';
 
 interface Props {
   id: string;
@@ -30,8 +35,8 @@ for (const f of video ? [video, poster] : []) {
 ---
 <span class:list={['fill-media', cls]}>
   {video ? (
-    <video autoplay muted loop playsinline disablepictureinpicture preload={priority ? 'auto' : 'metadata'} poster={`/video/${poster}`} aria-hidden="true" data-media-video>
-      <source src={`/video/${video}`} type="video/mp4" />
+    <video autoplay muted loop playsinline disablepictureinpicture preload="metadata" poster={`/video/${poster}`} aria-hidden="true" data-media-video>
+      <source src={`/video/${video}`} type="video/mp4" media={VIDEO_MEDIA} />
     </video>
   ) : (
     <Photo id={id} sizes={sizes} priority={priority} />

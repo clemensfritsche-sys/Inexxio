@@ -34,7 +34,6 @@ export const spezialloesungen: SubPage = {
     what: 'Machbarkeit prüfen, konstruieren, im eigenen Betrieb bauen und bei Ihnen in Betrieb nehmen.',
     deliverables: 'Eine Maschine, die genau Ihre Aufgabe erledigt – mit Zeichnungen, Unterlagen und Service aus derselben Hand.',
   },
-  promises: ['garantie', 'inexxio365', 'erstservice'],
   scope: {
     title: 'Was wir bauen',
     lead: 'Einzelstücke und Kleinserien – keine Serienmaschinen.',
@@ -71,7 +70,6 @@ export const spezialloesungen: SubPage = {
     { href: '/fahrzeugtechnik/trommeltausch', label: 'Trommeltausch', text: 'Neue Trommel statt neuer Fahrmischer.' },
   ],
   service: { name: 'Speziallösungen', serviceType: 'Spezialmaschinenbau für Krane, Fahrzeuge und Baumaschinen' },
-  keywords: ['Spezialmaschinenbau', 'Sondermaschine Baustelle', 'Anbaugerät Baumaschine', 'Sonderkran', 'Sonderaufbau', 'Vorrichtungsbau'],
 };
 
 /** Das Prinzip: warum es Speziallösungen braucht – und was Sie davon haben. */
@@ -134,7 +132,6 @@ export const specialSteps = {
 
 /** Modul: Wer dahintersteht – sachlich, kurz, ohne fremde Logos. */
 export const specialBackground = {
-  eyebrow: 'Wer dahintersteht',
   title: 'Entwicklung, Fertigung und Montage unter einem Dach.',
   text: `${site.people.owner.name} ist Maschinenbauingenieur und hat jahrelang Baumaschinen entwickelt – von der Hydraulik bis zu vernetzten Steuerungen und IoT-Anwendungen. Er kennt die Wünsche, die Hersteller nicht erfüllen – und weiss, wie man eine Lösung baut, die auf der Baustelle hält.`,
   facts: [

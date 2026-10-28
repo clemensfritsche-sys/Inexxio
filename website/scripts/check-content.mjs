@@ -50,43 +50,64 @@ function scanDist() {
 
 const esc = (s) => String(s).replace(/\|/g, '\\|');
 
+/** Eine Tabelle Fotos – dieselbe Form für beide Abschnitte. */
+function photoTable(rows) {
+  const lines = ['| Foto | Beschreibung für den Fototag | Format | Verwendet auf |', '|---|---|---|---|'];
+  for (const { id, p, pages } of rows) {
+    const used = pages.length ? pages.map((x) => `\`${x}\``).join(', ') : 'noch nicht verwendet';
+    lines.push(`| \`${id}\` | ${esc(p.brief)} | ${p.ratio.replace('/', ':')} | ${used} |`);
+  }
+  return lines;
+}
+
+/**
+ * Zwei Abschnitte, weil es zwei Fragen sind: **was blockiert den Start** (ein Foto, das auf einer
+ * Seite fehlt – im Modus `live` bricht der Build daran ab) und **was ist für später** (ein Foto
+ * in der Liste, das noch keine Seite zeigt).
+ */
 function writeReport(missing) {
   const rows = Object.entries(photos)
     .filter(([, p]) => !p.file)
     .map(([id, p]) => ({ id, p, pages: [...(missing.get(id) ?? [])] }));
+  const blocking = rows.filter((r) => r.pages.length);
+  const later = rows.filter((r) => !r.pages.length);
   const disabled = Object.entries(site.features).filter(([, on]) => on === false);
   const lines = [
     '# Offene Punkte – Website INEXXIO (ehemals HS Steiner)',
     '',
     '> Generiert nach jedem `npm run build`. Nicht von Hand ändern – sobald ein Foto in',
     '> `src/config/photos.mjs` eine Datei hat, verschwindet seine Zeile von selbst.',
-    '> Solange hier ein Foto steht, bricht ein Build im Modus `live` ab.',
     '',
-    `**Stand:** ${rows.length} Fotos · ${disabled.length} abgeschaltete Sektionen`,
+    `**Stand:** ${blocking.length} Fotos blockieren den Start · ${later.length} für später · ${disabled.length} abgeschaltete ${disabled.length === 1 ? 'Sektion' : 'Sektionen'}`,
     '',
-    '## Fotos',
+    '## Blockiert den Start',
     '',
-    'Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualität der Seite.',
+    'Diese Fotos fehlen auf einer Seite. Solange hier eines steht, bricht ein Build im Modus `live`',
+    'ab. Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qualität der Seite.',
     '',
-    '| Foto | Beschreibung für den Fototag | Format | Verwendet auf |',
-    '|---|---|---|---|',
+    ...(blocking.length ? photoTable(blocking) : ['Nichts.']),
+    '',
+    '## Für später',
+    '',
+    'In der Fotoliste vorgesehen, aber auf keiner Seite verwendet – sie halten den Start nicht auf.',
+    '',
+    ...(later.length ? photoTable(later) : ['Nichts.']),
+    '',
+    '## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)',
+    '',
   ];
-  for (const { id, p, pages } of rows) {
-    const used = pages.length ? pages.map((x) => `\`${x}\``).join(', ') : 'noch nicht verwendet';
-    lines.push(`| \`${id}\` | ${esc(p.brief)} | ${p.ratio.replace('/', ':')} | ${used} |`);
-  }
-  lines.push('', '## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)', '');
   for (const [key] of disabled) lines.push(`- \`${key}\` – ohne echte Fotos abgeschaltet.`);
+  if (!disabled.length) lines.push('Keine.');
   lines.push('');
   const out = join(ROOT, 'OFFENE_PUNKTE.md');
   const text = lines.join('\n');
   if (!existsSync(out) || readFileSync(out, 'utf8') !== text) writeFileSync(out, text);
-  return rows.length;
+  return { blocking: blocking.length, later: later.length };
 }
 
 const missing = scanDist();
 const count = writeReport(missing);
-console.log(`check-content: ${count} fehlende Fotos → OFFENE_PUNKTE.md`);
+console.log(`check-content: ${count.blocking} Fotos blockieren den Start, ${count.later} für später → OFFENE_PUNKTE.md`);
 if (LIVE && missing.size) {
   console.error('\nModus «live» – die Ausgabe enthält noch Foto-Platzhalter.');
   process.exit(1);

@@ -135,7 +135,7 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
   .fq__vin :global(svg), .fq__vin img { display: block; width: 100%; height: 100%; max-width: none; object-fit: contain; }
   .fq__year { width: 86%; height: 70%; }
   .fq__tel { font-family: var(--font-display); font-size: 34px; font-weight: 600; fill: var(--ink); letter-spacing: -1px; }
-  .fq__pulse { transform-box: fill-box; transform-origin: center; animation: fq-pulse 2.4s ease-out infinite; }
+  .fq__pulse { transform-box: fill-box; transform-origin: center; animation: fq-pulse 2.4s ease-out 2; }
   @keyframes fq-pulse { 0% { transform: scale(0.5); opacity: 0.45; } 100% { transform: scale(2.4); opacity: 0; } }
   /* Mit Skript: das Bild der offenen Frage. */
   .fq[data-open] .fq__v:not(.fq__v--base) { opacity: 0; }

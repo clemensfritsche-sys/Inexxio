@@ -57,7 +57,6 @@ export const sharedFaq = {
  * Geschichte erzählte wie der Abschnitt «Geschichte» daneben (Rückmeldung 07.10.2026).
  */
 export const handover = {
-  eyebrow: 'Nachfolge geregelt',
   title: 'Aus HS Steiner wird {{brand.name}}',
   lead: handoverLead,
   timeline: [

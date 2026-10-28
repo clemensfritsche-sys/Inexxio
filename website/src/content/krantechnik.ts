@@ -60,7 +60,6 @@ export const krantechnik: AreaPage = {
   summary:
     '{{brand.name}} plant, baut und betreut Krane: Krane nach Mass auch für schwierige Gebäude – um Ecken, über Steigungen und Deckenversätze, in Scheunen und Hallen –, Boots- und Mastkrane und Bootslifte für Häfen, Clubs und Werften, Heukrananlagen ohne Kabine, bedient per Funk – dazu Kranservice und Modernisierung. Die erste Inspektion ist gratis. Mit INEXXIO 365 zahlen Sie eine fixe Monatsrate für die Einsatzbereitschaft – Ausfälle, Reparaturen und Ersatzteile übernehmen wir. Was Sie bei uns bekommen, deckt die Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
   steps: facts(cranePath.items),
-  promises: ['garantie', 'inexxio365', 'erstservice'],
   faq: [
     promiseFaq.garantie,
     promiseFaq.inexxio365,
@@ -69,7 +68,6 @@ export const krantechnik: AreaPage = {
     faqOtherMakes,
   ],
   service: { name: 'Krantechnik', serviceType: 'Bau, Prüfung, Wartung, Modernisierung und Reparatur von Kranen' },
-  keywords: ['Kran nach Mass', 'Kranservice Schweiz', 'Sonderkran', 'Kranbau Thurgau', 'Kranprüfung', 'Kurvenkran', 'Heukran Funkfernsteuerung'],
 };
 
 /** Die drei Karten der Bereichsseite (components/spezial/FieldCards.astro), je mit der Zeichnung aus dem Menü. */
@@ -106,7 +104,6 @@ export const kraneNachMass: SubPage = {
     what: 'Fotos einschätzen, aufmessen und die Tragfähigkeit klären, konstruieren, im eigenen Betrieb fertigen, montieren – danach Prüfung, Wartung und Reparatur aus derselben Hand.',
     deliverables: 'Einen Kran, der um Ihr Gebäude herum gebaut ist, mit Dokumentation und Kranbuch – und einen Ansprechpartner, der ihn kennt.',
   },
-  promises: ['garantie', 'inexxio365', 'erstservice'],
   scope: {
     title: 'Was zu jedem Kran gehört',
     lead: 'Gleich, ob Kurvenkran, Hallenkran oder Bootslift.',
@@ -132,7 +129,6 @@ export const kraneNachMass: SubPage = {
     ratgeberPruefung,
   ],
   service: { name: KNM, serviceType: 'Planung, Bau und Montage von Kranen und Bootsliften nach Mass, auch für schwierige Gebäude' },
-  keywords: ['Kran nach Mass', 'Sonderkran', 'Kurvenkran', 'Kran Kurvenfahrt', 'Kran mit Steigung', 'Heukran Kurve', 'Kran für Altbau', 'Sonderkran Thurgau', 'Industriekran', 'Bootslift', 'Bootskran'],
 };
 
 /**
@@ -243,7 +239,6 @@ export const kranservice: SubPage = {
     what: 'Prüfung, Wartung, Reparatur und Modernisierung durch Kranfachleute – vom einzelnen Einsatz bis INEXXIO 365.',
     deliverables: 'Einen Kran, der einsatzbereit ist, ein nachgeführtes Kranbuch und eine verbindliche Offerte vor jeder Arbeit.',
   },
-  promises: ['garantie', 'inexxio365', 'erstservice'],
   scope: {
     title: 'Was wir prüfen und warten',
     items: [
@@ -277,7 +272,6 @@ export const kranservice: SubPage = {
     ratgeberPruefung,
   ],
   service: { name: 'Kranservice', serviceType: 'Kranprüfung, Kranwartung, Kranmodernisierung und Kranreparatur' },
-  keywords: ['Kranservice', 'Kranprüfung', 'Kranwartung', 'Kranmodernisierung', 'INEXXIO 365', 'Kranbuch'],
 };
 
 /**
@@ -350,7 +344,6 @@ export const heukrananlagen: SubPage = {
     what: 'Saison-Check, Wartung, Reparatur und Modernisierung bestehender Anlagen. Neue Anlagen ohne Kabine, bedient per Funk: Besichtigung, Konzept, Fertigung, Montage.',
     deliverables: 'Eine Anlage, die zur Ernte läuft – und einen Ansprechpartner, der sie kennt.',
   },
-  promises: ['garantie', 'inexxio365', 'erstservice'],
   scope: {
     title: 'Was wir für Ihre Heukrananlage tun',
     lead: 'Zuerst für die Anlage, die Sie haben.',
@@ -382,7 +375,6 @@ export const heukrananlagen: SubPage = {
     ratgeberHeukran,
   ],
   service: { name: 'Heukrananlagen', serviceType: 'Service, Umbau und Bau von Heukrananlagen ohne Kabine, bedient per Funk' },
-  keywords: ['Heukran', 'Heukrananlage', 'Heukran Service', 'Heukran kaufen', 'Heudrehkran', 'Hackschnitzelkran', 'Heukran Funkfernsteuerung', 'Heukran ohne Kabine'],
 };
 
 /**

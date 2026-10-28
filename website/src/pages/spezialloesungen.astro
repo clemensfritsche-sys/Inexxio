@@ -60,7 +60,7 @@ const titel = pageTitle('/spezialloesungen');
     <div class="wrap grid sx-bg">
       <div class="col-4 sx-bg__fig"><Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" /></div>
       <div class="col-7 sx-bg__text">
-        <SectionHead eyebrow={b.eyebrow} title={b.title} id="hintergrund" class="head--flush" />
+        <SectionHead title={b.title} id="hintergrund" class="head--flush" />
         <Rich as="p" text={b.text} />
         <ul role="list" class="checklist">
           {b.facts.map((f) => <li><Icon name="check" size={20} /><Rich as="span" text={f} /></li>)}

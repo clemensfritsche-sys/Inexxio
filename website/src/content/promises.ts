@@ -29,8 +29,6 @@ export interface PromiseItem {
 }
 
 export const promises = {
-  eyebrow: 'Unsere Garantien',
-  eyebrowOne: 'Unsere Garantie',
   title: 'Einsatzbereit und zufrieden mit Garantie.',
   lead: 'Zwei Garantien für alles, was wir bauen, warten und reparieren – Krane, Fahrmischer und Spezialmaschinen.',
   items: {

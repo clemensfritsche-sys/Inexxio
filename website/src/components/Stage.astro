@@ -2,8 +2,10 @@
 /**
  * Bühne (v4, Porsche-Muster): ein Video oder Foto über die ganze Breite, wenig Text unten
  * links – eine Zeile darüber, die H1, ein Satz, «Anfrage stellen» und das Telefon in Glas.
- * Ein Foto zoomt sehr langsam (ein Video nicht – das Skalieren liess es ruckeln) (ruht bei «reduzierter Bewegung»). Der Kopf liegt durchsichtig
- * darüber (Base `stage`). Video: in src/config/photos.mjs beim Foto `video` eintragen.
+ * Ein Foto zoomt sehr langsam (ein Video nicht – das Skalieren liesse es ruckeln); beides ruht
+ * bei «reduzierter Bewegung» und hält auf Knopfdruck an (unten rechts, WCAG 2.2.2,
+ * scripts/media.ts). Der Kopf liegt durchsichtig darüber (Base `stage`). Video: in
+ * src/config/photos.mjs beim Foto `video` eintragen.
  */
 import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
@@ -24,7 +26,7 @@ interface Props {
 }
 const { photo, title, eyebrow, sub, primary = { label: site.cta.label, href: '#anfrage' }, phone = true, size = 'full' } = Astro.props;
 ---
-<section class:list={['stage', `stage--${size}`]} aria-labelledby="stage-title">
+<section class:list={['stage', `stage--${size}`]} aria-labelledby="stage-title" data-motion>
   <Media id={photo} motion priority sizes="100vw" class="stage__media" />
   <span class="stage__shade" aria-hidden="true"></span>
   <div class="wrap stage__in" data-hero>
@@ -36,6 +38,9 @@ const { photo, title, eyebrow, sub, primary = { label: site.cta.label, href: '#a
       {phone && <a class="btn stage__btn stage__btn--glass" href={`tel:${site.phone.e164}`}><Icon name="phone" size={18} /><span class="tnum">{site.phone.display}</span></a>}
     </div>
   </div>
+  <button type="button" class="stage__still" hidden data-motion-toggle aria-pressed="false" aria-label="Bewegung anhalten" data-label-pause="Bewegung anhalten" data-label-play="Bewegung fortsetzen">
+    <Icon name="pause" size={18} class="stage__still-pause" /><Icon name="play" size={18} class="stage__still-play" />
+  </button>
 </section>
 
 <style>
@@ -70,4 +75,20 @@ const { photo, title, eyebrow, sub, primary = { label: site.cta.label, href: '#a
     -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   }
   .stage__btn--glass:hover { background: rgba(255, 255, 255, 0.22); }
+  .stage.is-still :global(.stage__media .photo) { animation-play-state: paused; }
+  /* Anhalten (WCAG 2.2.2): rund, Glas wie der Telefon-Knopf, unten rechts im Raster der Seite. */
+  .stage__still {
+    position: absolute; z-index: 3; bottom: 32px; right: max(var(--gutter), calc((100% - var(--maxw)) / 2));
+    display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+    color: var(--white); border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.14);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); cursor: pointer;
+    transition: background-color 0.2s var(--ease);
+  }
+  .stage__still[hidden] { display: none; }
+  .stage__still:hover { background: rgba(255, 255, 255, 0.22); }
+  .stage__still:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .stage__still :global(.stage__still-play), .stage__still[aria-pressed='true'] :global(.stage__still-pause) { display: none; }
+  .stage__still[aria-pressed='true'] :global(.stage__still-play) { display: block; }
+  @media (max-width: 599px) { .stage__still { bottom: auto; top: calc(var(--header-h, 64px) + 16px); } }
+  @media (min-width: 960px) { .stage__still { bottom: 80px; } }
 </style>

@@ -149,7 +149,6 @@ strong { font-weight: 600; color: var(--ink); }
   letter-spacing: 0;
   color: var(--ink-3);
 }
-.label--red { color: var(--red-hover); } /* steht auf getöntem Grund (Notfall-Kasten) */
 /* Index (01 / …): Mono, rot, tabellarisch – der kleine Takt der Abschnitte. */
 .idx {
   font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.08em;
@@ -189,26 +188,16 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 /* ---------- Layout ---------- */
 .wrap { width: 100%; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-inline: auto; padding-inline: var(--gutter); }
 .section { padding-block: calc(var(--section-y) / 2); }
-.section--tight { padding-block: calc(var(--section-y) * 0.3); }
 .v4-head--center .head__in { margin-inline: auto; justify-items: center; }
 .section--paper { background: transparent; }
 .section--dark { background: var(--dark); color: var(--on-dark); --overline: var(--red-on-dark); }
 .section--dark h1, .section--dark h2, .section--dark h3, .section--dark h4, .section--dark strong { color: var(--white); }
 .section--dark .lead, .section--dark p { color: rgba(243, 244, 246, 0.72); }
-.section--rule { border-top: 0; }
 
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-6) var(--s-5); }
 @media (min-width: 960px) {
   .grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
-  .col-4 { grid-column: span 4; } .col-5 { grid-column: span 5; } .col-6 { grid-column: span 6; }
-  .col-7 { grid-column: span 7; } .col-8 { grid-column: span 8; } .col-12 { grid-column: 1 / -1; }
-}
-.cols-2, .cols-3 { display: grid; gap: var(--s-6) var(--s-5); grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 720px) {
-  .cols-2, .cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (min-width: 1024px) {
-  .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .col-4 { grid-column: span 4; } .col-7 { grid-column: span 7; }
 }
 
 /* Abschnittskopf v4 (SectionHead): grosse Überschrift, darunter höchstens ein grauer Satz. */
@@ -234,8 +223,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 /* Abstand der Abschnitte: 120 px (mobil 72 px). */
 .v4-section { padding-block: 72px 0; }
 @media (min-width: 960px) { .v4-section { padding-block: 120px 0; } }
-.v4-section--last { padding-bottom: 72px; }
-@media (min-width: 960px) { .v4-section--last { padding-bottom: 120px; } }
 
 /* Abschnitts-Link: hellgrau, ruhig – Rot bleibt der Anfrage. */
 .btn.btn--grey { --btn-h: 48px; padding: 0 22px; background: #E6E7EA; color: var(--ink); font-size: 0.9375rem; font-weight: 600; }
@@ -263,21 +250,22 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 /* Bild in einer Karte: füllt sie, zoomt beim Zeigen leicht. */
 .fill-media, .fill-media.fill-media :is(picture, .photo, .ph, video) { position: absolute; inset: 0; width: 100%; height: 100%; }
 .fill-media.fill-media :is(.photo, video) { object-fit: cover; }
-.fill-media picture.is-sample, .fill-media .ph { aspect-ratio: auto !important; }
+.fill-media .ph { aspect-ratio: auto !important; }
 .zoom-on-hover .fill-media .photo { transition: transform 1.4s var(--ease); }
 .zoom-on-hover:hover .fill-media .photo { transform: scale(1.05); }
 @media (prefers-reduced-motion: reduce) { .zoom-on-hover:hover .fill-media :is(.photo, video) { transform: none; } }
 
 /* Die Schemata bewegen sich ruhig: die Hälfte geht zurück; INEXXIO 365 zeigt erst die Kosten
    ohne (unregelmässig, Ausfall rot), dann gleichen sich die Balken an (mit) und der Ausfall ist
-   «zahlen wir». Ohne Bewegung steht der Endzustand («mit») – er trägt die Aussage allein. */
-  .gv-half { transform-box: fill-box; transform-origin: 0 50%; animation: gv-half 5s cubic-bezier(0.45, 0, 0.2, 1) infinite; }
+   «zahlen wir». Jede Bewegung läuft zweimal und hält dann an (WCAG 2.2.2, keine Endlosschleife);
+   danach und ohne Bewegung steht der Endzustand («mit») – er trägt die Aussage allein. */
+  .gv-half { transform-box: fill-box; transform-origin: 0 50%; animation: gv-half 5s cubic-bezier(0.45, 0, 0.2, 1) 2; }
   @keyframes gv-half { 0%, 30% { transform: none; } 55%, 85% { transform: translate(22px, 8px) rotate(3deg); } 100% { transform: none; } }
-  .ix365-bar { transform-box: fill-box; transform-origin: 50% 100%; animation: ix365-bar 10s cubic-bezier(0.45, 0, 0.2, 1) infinite; }
+  .ix365-bar { transform-box: fill-box; transform-origin: 50% 100%; animation: ix365-bar 10s cubic-bezier(0.45, 0, 0.2, 1) 2; }
   .ix365-hot { animation-name: ix365-bar, ix365-hot; }
-  .ix365-a { animation: ix365-a 10s ease infinite; }
-  .ix365-b { animation: ix365-b 10s ease infinite; }
-  .ix365-chip { animation: ix365-chip 10s ease infinite; }
+  .ix365-a { animation: ix365-a 10s ease 2; }
+  .ix365-b { animation: ix365-b 10s ease 2; }
+  .ix365-chip { animation: ix365-chip 10s ease 2; }
   @keyframes ix365-bar { 0% { transform: scaleY(0); } 8%, 40% { transform: scaleY(var(--a, 1)); } 52%, 94% { transform: scaleY(1); } 100% { transform: scaleY(0); } }
   @keyframes ix365-hot { 0%, 42% { fill: #E51A14; } 52%, 100% { fill: #E6E7EA; } }
   @keyframes ix365-a { 0%, 3% { opacity: 0; } 9%, 40% { opacity: 1; } 46%, 100% { opacity: 0; } }
@@ -339,12 +327,6 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 .arrow-link:hover .icon { transform: translateX(4px); }
 .section--dark .arrow-link, .on-dark .arrow-link { color: var(--white); }
 
-/* Kartenreihe (v4): Bildkarten mit 16 px Abstand – kein Rahmen um die Reihe. */
-.cardgrid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); list-style: none; padding: 0; }
-.cardgrid > * { min-width: 0; }
-@media (min-width: 760px) { .cardgrid--2, .cardgrid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
-@media (min-width: 1024px) { .cardgrid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-
 /* Signatur (DS .ix-grid-bg--fade): feines Schweizer Punktraster, zum Rand hin ausgeblendet.
    Ersetzt den roten Schein aus v2 – v3 kennt keinen Glow. Dekor, kein Inhalt. */
 .dots { position: relative; isolation: isolate; }
@@ -368,9 +350,6 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 .section--dark .checklist li { border-top-color: var(--line-dark); }
 .section--dark .checklist .icon { color: var(--white); }
 
-.rule-list { list-style: none; padding: 0; border-top: 1px solid var(--line); }
-.rule-list > li { padding: var(--s-4) 0; border-bottom: 1px solid var(--line); }
-.section--dark .rule-list, .section--dark .rule-list > li { border-color: var(--line-dark); }
 
 /* Faktentabelle («Auf einen Blick», Fristen) */
 .facts { width: 100%; border-collapse: collapse; font-size: 1rem; }

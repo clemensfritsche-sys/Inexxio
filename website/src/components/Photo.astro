@@ -2,7 +2,9 @@
 /**
  * Bildstelle aus der Fotoliste (src/config/photos.mjs).
  * Mit Datei: <picture> mit AVIF/WebP, srcset, festen Massen, Lazy Loading (Hero: eager +
- * fetchpriority="high").
+ * fetchpriority="high"). Der Rückfall im <img> ist WebP, nicht das Original (JPEG/PNG): jeder
+ * Browser, der `<picture>` nicht versteht, versteht heute WebP – ein PNG-Rückfall wöge ein
+ * Vielfaches und lädt nie.
  * Ohne Datei: grauer Rahmen «Foto fehlt» im richtigen Seitenverhältnis mit der
  * Bildbeschreibung – im Modus «live» ein Fehler (data-photo-missing → OFFENE_PUNKTE.md).
  * Beispielbilder fremder Urheber gibt es nicht (Weisung 25.10.2026): kein Bildnachweis nötig.
@@ -32,6 +34,7 @@ const alt = p.alt;
     src={src}
     alt={alt}
     formats={['avif', 'webp']}
+    fallbackFormat="webp"
     widths={[480, 800, 1200, 1600, 2000].filter((w) => w <= src.width)}
     sizes={sizes}
     loading={priority ? 'eager' : 'lazy'}

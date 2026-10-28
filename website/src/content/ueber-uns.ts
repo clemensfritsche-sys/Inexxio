@@ -69,18 +69,6 @@ export const ueberUns = {
       { title: 'Design.', text: 'Schön ist, was gut funktioniert.' },
     ],
   },
-  /** Die Zusagen – Über uns und /service zeigen dieselbe Liste (vorher stand «So arbeiten wir» daneben). */
-  promises: {
-    title: 'Worauf Sie sich verlassen können',
-    lead: 'Konkrete Zusagen statt schöner Worte – dazu die Zufriedenheitsgarantie: Nicht zufrieden? Die Hälfte übernehmen wir.',
-    items: [
-      { title: 'Verbindliche Offerte vor jeder Arbeit', text: 'Sie wissen vorher, was es kostet. Auf der Rechnung steht keine Überraschung.' },
-      { title: 'Keine Mindestlaufzeit', text: 'Sie bleiben, weil es passt – nicht, weil ein Vertrag Sie hält.' },
-      { title: 'Rückmeldung', text: 'Wir melden uns innert {{promises.responseTime}}.' },
-      { title: 'Protokoll', text: 'Jeder Einsatz dokumentiert, mit Protokoll.' },
-      { title: 'Ersatzteile', text: 'Die Ersatzteile für unsere Krananlagen liegen an Lager, oder wir fertigen sie neu an.' },
-    ],
-  },
   areaFaq: [
     {
       q: 'Kommen Sie auch ins Ausland?',

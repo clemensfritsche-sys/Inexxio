@@ -4,7 +4,6 @@
  * Konfiguration werden mit {{schlüssel}} eingesetzt.
  */
 import type { IconName } from '../components/Icon.astro';
-import type { PromiseKey } from './promises';
 export type AreaId = 'krantechnik' | 'fahrzeugtechnik' | 'spezialloesungen';
 /** OG-Bild: Standard oder das des Bereichs (public/og/, scripts/make-assets.mjs). */
 export type OgImage = 'default' | AreaId;
@@ -13,8 +12,7 @@ export interface LinkItem { href: string; label: string; text?: string; kind?: '
 export interface Action { label: string; href: string }
 export interface Step { title: string; text: string }
 
-
-/** Bereichsseite – alle drei mit derselben Struktur. */
+/** Bereichsseite (Krantechnik, Fahrzeugtechnik, Speziallösungen). */
 export interface AreaPage {
   id: AreaId;
   path: string;
@@ -23,13 +21,10 @@ export interface AreaPage {
   hero: { eyebrow: string; h1: string; lead: string; photo: string; primary: Action };
   /** «Auf einen Blick»: 2–3 sachliche Sätze – was, für wen, wo. */
   summary: string;
-  /** Ablauf in vier Schritten: Anfrage → Abklärung → Umsetzung → Bericht. */
+  /** Der Ablauf als Schritte. */
   steps: Step[];
   faq: Faq[];
   service: { name: string; serviceType: string };
-  keywords?: string[];
-  /** Welche Versprechen hier gelten (content/promises.ts) – direkt unter «Auf einen Blick». */
-  promises?: PromiseKey[];
 }
 
 /** Unterseite. */
@@ -51,9 +46,6 @@ export interface SubPage {
   /** 2–3 verwandte Leistungen, mindestens ein Ratgeber-Artikel. */
   related: LinkItem[];
   service: { name: string; serviceType: string };
-  keywords?: string[];
-  /** Welche Versprechen hier gelten (content/promises.ts) – direkt unter «Auf einen Blick». */
-  promises?: PromiseKey[];
 }
 
 export interface Entry { title: string; text: string; href: string; icon: IconName }
