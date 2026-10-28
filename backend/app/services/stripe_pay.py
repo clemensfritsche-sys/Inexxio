@@ -79,21 +79,12 @@ META_KEY = "voucher_id"
 log = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ►► EIN ROHFEHLER DES DIENSTES ERREICHT NIE DEN BILDSCHIRM (Testnotiz #1018)
+# ►► EIN ROHFEHLER DES DIENSTES ERREICHT NIE DEN BILDSCHIRM
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# *«Charge has already been refunded»* stand als Meldung in der Oberfläche – englisch,
-# technisch, und über eine Lage, die **wir** kennen. Ein Fehlertext des Zahlungsdienstes
-# ist für einen Entwickler geschrieben, nicht für den, der am Beleg steht.
-#
-# ►►► **Zwei Wege, und sie trennen sich hier.** ◄◄◄ Der **technische** Text geht ins Log
-# (dort sucht ihn, wer ihn braucht), der **verständliche** Satz an die Tür. Und er kommt
-# aus einer Zuordnung statt aus einer Übersetzung: ein Dienst-Fehler hat einen ``code``,
-# und der ist stabil – sein Wortlaut nicht.
-#
-# **Die Vorgabe nennt keine Ursache.** «Der Zahlungsdienst hat die Anfrage abgelehnt» sagt
-# weniger als eine geratene Erklärung, und weniger ist hier richtig: ein Satz, der eine
-# falsche Ursache behauptet, schickt jemanden in die falsche Richtung.
+# Der technische Text geht ins Log, an die Tür ein deutscher Satz – zugeordnet über den
+# ``code`` des Fehlers (stabil), nicht über den Wortlaut. Was wir nicht kennen, bleibt
+# allgemein: eine geratene Ursache schickt jemanden in die falsche Richtung.
 STRIPE_TROUBLE = ("Der Zahlungsdienst hat die Anfrage abgelehnt. Die technischen Angaben "
                   "stehen im Protokoll.")
 STRIPE_OFFLINE = ("Der Zahlungsdienst ist gerade nicht erreichbar. Bitte in einem Moment "
@@ -356,10 +347,10 @@ def _note_payment(db: Session, api: Any, data: dict[str, Any]) -> str:
     voucher_svc.record_payment(
         db, row=row, amount=amount,
         reference=str(data.get("id") or "") or None,
-        # **Kein Vermerk**: dass sie über den Dienst kam, sagt die Zahlungsart (#999).
+        # **Kein Vermerk**: dass sie über den Dienst kam, sagt die Zahlungsart.
         note=None,
         # Die Zahlung gehört an den Beleg, auch wenn die Rechnung inzwischen
-        # zurückgenommen wurde: das Geld ist geflossen (#842), der offene Betrag wird
+        # zurückgenommen wurde: das Geld ist geflossen, der offene Betrag wird
         # dann negativ, und die Erstattung steht als Handlung da.
         # **Wie bezahlt wurde, weiss der Dienst** – und nur er: von Hand erfasst wäre die
         # Karte eine Behauptung ohne Beleg (``dm.MANUAL_METHODS`` weist sie darum ab).

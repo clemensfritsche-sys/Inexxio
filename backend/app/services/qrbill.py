@@ -1,9 +1,5 @@
 """►►► **Die QR-Rechnung — damit eine Überweisung nicht abgetippt wird.** ◄◄◄
 
-*«Am besten einen international gültigen QR-Code, welcher vom Kunden gescannt werden
-kann, damit man die Überweisung teilautomatisch machen kann – also ohne manuelle Eingabe
-ins E-Banking.»* (Testnotiz #865)
-
 **Die ehrliche Antwort auf «international gültig»: einen weltweiten Standard gibt es
 nicht.** Es gibt zwei, und einer davon deckt unseren Fall vollständig ab:
 
@@ -105,18 +101,8 @@ def svg(text: str) -> str:
     ist genau dafür vorgeschrieben. Ein Bild ohne Kreuz wäre ein QR-Code, der zufällig
     dieselben Daten trägt.
 
-    ►►► **Wie GROSS er ist, entscheidet die Stelle, an der er steht** (Testnotiz #872).
-    ◄◄◄
-
-    Er trug einmal eine feste Kantenlänge (``size = 240``) und stand damit in einem
-    168 px breiten Kasten: 72 px zu breit, also ragte er heraus und sass sichtbar
-    ausser der Mitte. Eine zweite Zahl im Backend, die zur Breite im Browser passen
-    muss, geht beim ersten Umbau auseinander – und ein QR ohne Rand ist zudem einer,
-    den manche App nicht mehr liest.
-
-    Jetzt sagt das Bild nur noch sein **Seitenverhältnis** (``viewBox``, quadratisch)
-    und füllt seinen Kasten. ``display:block`` gehört dazu: als Inline-Element bekäme es
-    darunter die Grundlinien-Lücke, und schon stünde es wieder nicht mittig.
+    **Wie gross er ist, entscheidet die Stelle, an der er steht**: das Bild nennt nur sein
+    Seitenverhältnis (``viewBox``) und füllt seinen Kasten (``display:block``).
     """
     matrix = [list(row) for row in segno.make(text, error="m").matrix]
     n = len(matrix)

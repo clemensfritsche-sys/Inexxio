@@ -128,36 +128,11 @@ CUSTOMER = "An"
 SUPPLIER_HINT = "Leistungserbringer: wer die Leistung erbringt und den Beleg stellt."
 CUSTOMER_HINT = "Leistungsempfänger: wer die Leistung bezieht und bezahlt."
 
-#: ►►► **Rechnungs- und Lieferadresse sind ZWEI Angaben – auf JEDER Seite, IMMER**
-#: (Testnotizen #952/#975). ◄◄◄
-#:
-#: *«Mir gefällt das ziemlich gut mit Rechnungsadresse, Lieferadresse usw. Ich möchte, dass
-#: du das auch auf dem Leistungserbringer machst – also standardmässig immer bei
-#: Informationen ausweisen, global etablieren, auch wenn sie zweimal das Gleiche anzeigt.
-#: Eine Logik für alles, Komplexität und If/Else verringern.»*
-#:
-#: Ein Beleg beantwortet immer dieselben zwei Fragen: *wohin die Rechnung, wohin die
-#: Ware.* Steht nur eine Anschrift da, ist die Antwort «an dieselbe» – und die
-#: auszusprechen ist keine Doppelung, sondern die Auskunft.
-#:
-#: Erfunden wird nichts: die zweite Zeile entsteht aus Angaben, die am Benutzer
-#: stehen (Rechnungsadresse ≠ Hauptadresse). Wo **gar keine** Anschrift dasteht, gibt es
-#: auch keine Beschriftung – dort sagt die Seite, dass sie fehlt.
-#:
-#: *Die physische Lieferung selbst bleibt Sache des Bewegen-Moduls – hier steht die
-#: **Anschrift auf dem Beleg**, nicht der Transport.*
-#:
-#: ►►► **Und die zweite Beschriftung hängt an der ROLLE** (Testnotiz #979). ◄◄◄
-#:
-#: «Lieferadresse» heisst *wohin geliefert wird*. Beim **Leistungserbringer** ist es die
-#: Adresse, von der die Ware **abgeht**: im Handel, in der Logistik und im Zoll heisst sie
-#: **Versandadresse** (der Versender ist die Gegenrolle des Empfängers).
-#:
-#: **Nur diese eine Beschriftung ist rollenabhängig**, und das ist Absicht: die
-#: «Rechnungsadresse» beantwortet auf beiden Seiten dieselbe Frage – *welche Anschrift
-#: gilt in Rechnungssachen* (wohin sie geht ↔ von wo sie kommt) –, und sie steht so auch
-#: auf jedem gedruckten Beleg. Ein zweites Wort dafür wäre eine Unterscheidung ohne
-#: Unterschied.
+#: ►►► **Rechnungs- und Lieferadresse sind ZWEI Angaben – auf JEDER Seite, IMMER.** ◄◄◄
+#: Steht nur eine Anschrift da, steht sie unter beiden (die Auskunft «an dieselbe»); steht
+#: keine da, gibt es keine Beschriftung. Nur die zweite Beschriftung hängt an der Rolle:
+#: beim Leistungserbringer geht die Ware ab (**Versand**), beim Empfänger kommt sie an
+#: (**Lieferung**).
 BILLING_LABEL = "Rechnung"
 SHIPPING_LABEL = "Lieferung"
 SHIPPING_FROM_LABEL = "Versand"
@@ -166,7 +141,7 @@ SHIPPING_FROM_LABEL = "Versand"
 ISSUER_LABEL = "Unsere Gesellschaft"
 
 #: Was man an der Schwelle tut: die **Offerte** annehmen – der Auftrag ist das Ergebnis
-#: (#966). **Ein** Wort, weil es in beiden Richtungen dasselbe tut.
+#:. **Ein** Wort, weil es in beiden Richtungen dasselbe tut.
 AGREE_VERB = "Offerte annehmen"
 #: **Ein Wort für den Storno – in jeder Stufe.** Was er bewirkt, folgt aus der Stufe: vor
 #: der Zusage zieht er das Angebot zurück, danach den Auftrag, nach der Rechnung entsteht
@@ -177,29 +152,17 @@ UNDO = "Stornieren"
 # ►►► JEDE ZAHL IST EINE MENGE — das Vorzeichen sagt der BELEG, einmal ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# *«Im Begleichen-Teil möchte ich keine Minus-Beträge eingeben, das ist verwirrend – denn
-# am Anfang sage ich ja, ob es eine Ein- oder Ausgabe ist.»* (Testnotiz #1055)
-#
-# **Der Betrag ist eine MENGE.** Wohin das Geld fliesst, sagt der Beleg – mit seiner
-# **Richtung** und mit der Frage, ob er **mindert**. Darum stimmen alle Leser, die «ist der
-# Betrag grösser als null?» fragen (``pay_online``, ``next_payment``, ``settled``,
-# ``invoice_state``), auch an einer Gutschrift – ohne Sonderfall (#1054–#1056).
-#
-# **Das Minus verschwindet nicht, es bekommt einen Ort**: die **Buchhaltung** sieht eine
-# Gutschrift negativ, und sie leitet das aus ``corrects_id`` ab – an **einer** Stelle, wenn
-# es sie gibt. Eine Spalte mit Vorzeichen daneben wäre die zweite Wahrheit, und ein
-# ``signed()`` ohne Leser die zweite Wahrheit ohne Nutzen.
-#
-# **Was ein Mensch tippt, ist nie negativ.** Die eine Ausnahme ist die Korrektur einer
-# erfassten Zahlung – und dort **setzt das System** den Betrag (die Oberfläche belegt ihn
-# mit dem Gegenwert vor); niemand schreibt ein Minus.
+# **Der Betrag ist eine MENGE.** Wohin das Geld fliesst, sagen die **Richtung** und ob
+# der Beleg **mindert** (``corrects_id``); darum stimmen alle Leser, die «grösser als null?»
+# fragen, auch an einer Gutschrift. Was ein Mensch tippt, ist nie negativ – die eine
+# Ausnahme, die Gegenbuchung einer Geld-Zeile, setzt das System.
 
 #: Wie der Beleg heisst, der **fordert** – und wie der, der **mindert**.
 INVOICE_NOUN = "Rechnung"
 CREDIT_NOUN = "Gutschrift"
 #: Was man mit ihm tut: **wir** stellen ihn aus ↔ wir schreiben einen **fremden** ab.
 #: Zusammengesetzt aus **zwei Bits**; die Fuge ist ein Leerzeichen vor einem Infinitiv –
-#: in allen vier Fällen richtiges Deutsch, anders als eine gerechnete Beugung (#787).
+#: in allen vier Fällen richtiges Deutsch, anders als eine gerechnete Beugung.
 ISSUE_VERB = "stellen"
 RECORD_VERB = "erfassen"
 
@@ -209,15 +172,9 @@ RECORD_VERB = "erfassen"
 PAYMENT_NOUN = "Zahlung"
 REFUND_NOUN = "Erstattung"
 
-#: ►►► **Die drei Momente, die der Beleg erzählt** (Testnotiz #1052). ◄◄◄
-#:
-#: *«Zeit und dann Status – beispielsweise ‹gerade eben zugesagt›.»* Die **Form** dieser
-#: Aussage steht im Frontend (`lib/when.happened`), die **Wörter** stehen hier – an einem
-#: Ort für jedes Wort.
-#:
-#: Es sind **Partizipien in einem Satz** («Vor 3 Tagen storniert»), darum klein – und
-#: darum nicht dieselbe Angabe wie `label_of(CANCELLED)` («Storniert»): das ist die
-#: **Beschriftung einer Stufe**, und sie steht für sich.
+#: **Die drei Momente, die der Beleg erzählt** – Partizipien in einem Satz («vor 3 Tagen
+#: storniert», die Form steht in ``lib/when.happened``), darum klein und nicht dasselbe wie
+#: die Beschriftung einer Stufe (``label_of``).
 SENT_WORD = "offeriert"
 TAKEN_WORD = "angenommen"
 CANCELLED_WORD = "storniert"
@@ -228,7 +185,7 @@ def charge_word(*, collects: bool, minus: bool) -> str:
 
     *«Rechnung stellen»* · *«Gutschrift stellen»* · *«Rechnung erfassen»* · *«Gutschrift
     erfassen»*. Das ist zugleich die Stelle, an der eine Gutschrift **sichtbar** wird: der
-    Belegkopf nennt bewusst keine Belegart (#974/#977), also sagt es das Wort auf dem
+    Belegkopf nennt bewusst keine Belegart, also sagt es das Wort auf dem
     Knopf – dort, wo man handelt.
     """
     return (f"{CREDIT_NOUN if minus else INVOICE_NOUN} "
@@ -301,11 +258,11 @@ PARTY_REFERENCE = "Rechnungsnummer"
 
 #: ►►► **Die Überschriften des Belegs.** ◄◄◄ Eine fehlt mit Absicht: über den Konditionen
 #: stand «Konditionen», und die Zeilen darunter (Zahlungsfrist, Lieferfrist,
-#: Lieferbedingung) sagen selbst, was sie sind (Testnotiz #926).
+#: Lieferbedingung) sagen selbst, was sie sind.
 #:
-#: «Angebote» (#946) trägt unsere hinaus bzw. ihre herein; der Abschnitt **ist** ein
+#: «Angebote» trägt unsere hinaus bzw. ihre herein; der Abschnitt **ist** ein
 #: Schritt – sein Punkt vor der Überschrift sagt, wo der Beleg steht. *Wann offeriert
-#: wurde* steht an ihm, *wann zugesagt wurde* an der Zeile mit dem Zuschlag (#970).
+#: wurde* steht an ihm, *wann zugesagt wurde* an der Zeile mit dem Zuschlag.
 GOODS_TITLE = "Positionen"
 QUOTES_TITLE = "Angebote"
 
@@ -334,7 +291,7 @@ FREE_MIN = 1
 PAYMENT_TERM_LABEL = "Zahlungsfrist"
 LEAD_TERM_LABEL = "Lieferfrist"
 
-#: ►►► **Die beiden Zoll-Angaben – so, wie sie am Artikel heissen** (Testnotiz #964). ◄◄◄
+#: ►►► **Die beiden Zoll-Angaben – so, wie sie am Artikel heissen**. ◄◄◄
 #:
 #: Sie stehen hier, weil ``ask_problem`` sie **nennen** muss, wenn sie fehlen: «Ohne
 #: Zolltarifnummer …» ist eine Auskunft, «Ohne hs_code …» eine Fehlermeldung an den
@@ -524,27 +481,13 @@ def document_word(kind: str, level: Optional[int] = None) -> str:
     return DOCUMENTS.get(kind, "Beleg")
 
 # ---------------------------------------------------------------------------
-# ►►► DER ZUSTAND EINER FORDERUNG — abgeleitet, nie gespeichert (Testnotiz #991)
+# ►►► DER ZUSTAND EINER FORDERUNG — abgeleitet, nie gespeichert
 # ---------------------------------------------------------------------------
 #
-# *«Bitte definiere die Zahlungsstatus-Semantik inkl. Überzahlung.»*
-#
-# **Es ist eine Ableitung aus zwei Zahlen** – dem Betrag der Rechnung und dem, was von ihr
-# offen ist. Ein gespeichertes Zustandsfeld daneben wäre die zweite Wahrheit, und die eine
-# vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt.
-#
-# **Und die Töne sind die drei des Hauses** (``status-flow.TONE``): *done* = erledigt ·
-# *pending* = offen · *danger* = Problem. Eine vierte Farbe für Geld wäre eine zweite
-# Farbsprache – und ein Zustand, den niemand sonst im ERP lesen kann.
-#
-# ►►► **Die Überzahlung ist ein GUTHABEN, und dafür braucht es nichts Neues.** ◄◄◄
-#
-# Wer zu viel bezahlt hat, hat einen **negativen offenen Betrag** – die Zahl steht bereits
-# da, mit Vorzeichen und in derselben Spalte. Eine eigene Guthaben-Tabelle wäre ein zweites
-# Modell für eine Zahl, die schon dasteht, und sie müsste bei jeder Buchung nachgezogen
-# werden. Zurückgezahlt wird über den Weg, auf dem gezahlt wurde: eine gewöhnliche
-# **negative Zahlung** (bar, Überweisung) bzw. ``refund_online`` (Karte). Verrechnet wird
-# ein Guthaben **nicht automatisch**: welche Rechnung es mindern soll, weiss nur ein Mensch.
+# Eine Ableitung aus zwei Zahlen – Rechnungsbetrag und Offenes –, in den drei Tönen des
+# Hauses (done · pending · danger). **Eine Überzahlung ist ein negativer offener Betrag**,
+# kein eigenes Modell: zurück geht sie auf dem Weg, auf dem gezahlt wurde; verrechnet wird
+# sie nie von selbst.
 
 #: **Rundungstoleranz** – darunter gilt eine Forderung als beglichen.
 #:
@@ -645,7 +588,7 @@ class Direction:
             return "Erledigt"
         return self.stage_labels.get(stage, stage)
 
-    # **Eine Belegart nennt der Kopf nicht** (#974/#977); ``label_of`` gibt es, weil eine
+    # **Eine Belegart nennt der Kopf nicht**; ``label_of`` gibt es, weil eine
     # **Fehlermeldung** über die Stufe die Stufe nennen darf.
 
 

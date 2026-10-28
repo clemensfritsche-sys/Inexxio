@@ -43,7 +43,7 @@ class VoucherQuoteOut(BaseModel):
     id: int
     party_object_id: int
     #: **Wie die Partei auf dem Beleg steht** – Firma zuerst, die Person als «z. H.»
-    #: (``people.billing_name``); dieselbe Form wie der Kandidat davor (Chrome-Test).
+    #: (``people.billing_name``); dieselbe Form wie der Kandidat davor.
     party_name: str = ""
     party_attn: Optional[str] = None
     #: **Was bei ihm zu tun ist** – aus der Definition (``parties[].ref``). Sie gehört der
@@ -58,13 +58,13 @@ class VoucherQuoteOut(BaseModel):
     link: Optional[str] = None
     #: Der Tag auf dem Papier, an dem sie hinausging.
     sent_on: Optional[date] = None
-    #: ►►► **Wann die Zeile hinausging** (Testnotiz #968) – der **Moment**, nicht der Tag.
+    #: ►►► **Wann die Zeile hinausging** – der **Moment**, nicht der Tag.
     #:
     #: Er steht ohne eine eigene Spalte da: ``created_at`` der Angebotszeile *ist* dieser
     #: Moment, weil ``_ask`` sie genau dort anlegt. Die Oberfläche macht daraus «vor 3
     #: Tagen offeriert» und nennt im Hover Datum **und** Uhrzeit.
     sent_at: Optional[datetime] = None
-    #: ►►► **Wann bei dieser Zeile zugesagt wurde** (Testnotiz #969). ◄◄◄
+    #: ►►► **Wann bei dieser Zeile zugesagt wurde**. ◄◄◄
     #:
     #: ``None`` an jeder Zeile, die den Zuschlag nicht hat. An der gewählten ist es
     #: ``updated_at``: ``_agree`` setzt ``CHOSEN`` in einem Zug mit der Stufe, und danach
@@ -260,7 +260,7 @@ class VoucherEntryOut(BaseModel):
     booked_on: Optional[date] = None
     reference: Optional[str] = None
     note: Optional[str] = None
-    #: **Wann die Zeile erfasst wurde** (#1014) – der Moment, nicht der Belegtag. Aus ihm
+    #: **Wann die Zeile erfasst wurde** – der Moment, nicht der Belegtag. Aus ihm
     #: kommt «vor 5 Minuten»; ein Datum ohne Uhrzeit kann das nicht sagen.
     booked_at: Optional[datetime] = None
     method: Optional[str] = None
@@ -364,7 +364,7 @@ class VoucherSide(BaseModel):
     #: Reihenfolge, und eine zweite Fassung im Browser wäre die Stelle, an der eine Zeile
     #: verrutscht. Leer heisst «nicht hinterlegt»; erfunden wird nichts.
     address: list[str] = Field(default_factory=list)
-    #: ►►► **Die zweite Anschrift – und es gibt sie IMMER** (#952/#975). ◄◄◄ Ein Beleg
+    #: ►►► **Die zweite Anschrift – und es gibt sie IMMER**. ◄◄◄ Ein Beleg
     #: fragt auf jeder Seite dasselbe: *wohin die Rechnung, wohin die Ware.* Steht nur eine
     #: Anschrift da, trägt sie beide Beschriftungen – das ist die Auskunft «an dieselbe».
     #: Leer sind beide nur, wo **gar keine** hinterlegt ist; dann sind auch die
@@ -575,7 +575,7 @@ class VoucherUpdate(BaseModel):
 
     ``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**
     ``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden
-                 nennt; **nicht** dasselbe wie ``ask`` (#1000)
+                 nennt; **nicht** dasselbe wie ``ask``
     ``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)
     ``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``
     ``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei

@@ -1,18 +1,10 @@
-"""**Der Beleg als Dienst** — Angebotsspiegel, Positionen, Forderungen, Zahlungen.
+"""**Der Beleg als Dienst** — Angebotsspiegel, Positionen, Rechnung, Geld.
 
-Drei Formregeln (``docs/history/2026-09-neuaufbau-zahlungsmodul.md``):
-
-1. ►►► **Ein Verb wird an EINER Stelle deklariert.** ◄◄◄ ``VERBS`` sagt je Verb: *in
-   welcher Stufe · welche Stammdaten · wer darf · welche Funktion*.
-
-2. ►►► **Der Angebotsspiegel ist eine Tabelle** (``voucher_quotes``) – eine Zeile ändert
-   man an Ort, und «woran ist dieser Betrachter beteiligt» ist eine ``WHERE``-Zeile.
-
-3. ►►► **Die Position gibt es in EINER Form.** ◄◄◄ Eingefroren wird durch die **Stufe**:
-   solange ``offer``, zieht ``sync_lines`` aus dem Prozess nach.
-
-*Mit wem*, *was vereinbart ist* und *welche Zahlungsfrist* sind **Ableitungen** aus der
-gewählten Angebotszeile – derselbe Beleg kann darum nicht zwei Dinge sagen.
+Drei Formregeln: **ein Verb steht an EINER Stelle** (``VERBS``: Stufe · Stammdaten · wer
+darf · Funktion); **der Angebotsspiegel ist eine Tabelle** (``voucher_quotes``); **die
+Position gibt es in EINER Form**, eingefroren durch die Stufe (``sync_lines``). *Mit wem*,
+*was vereinbart ist* und *welche Frist gilt* sind Ableitungen aus der gewählten
+Angebotszeile.
 """
 
 from contextlib import contextmanager
@@ -93,15 +85,9 @@ class Verb:
 # ►►► WAS DIESES MODUL AN STAMMDATEN BRAUCHT ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# *«Wenn das Modul zu wenig Angaben hat, um seinen Prozess abzuwickeln, dann muss es Alarm
-# schlagen.»* – **Das ist kein neuer Mechanismus, es ist ``StepNeed`` für Stammdaten**:
-# eine Zeile (wo sie hingehört · was fehlt · warum), **kein** Zustand und **kein**
-# Pausenwert. Durchgesetzt über ``can``: fehlt etwas, führt ``can`` das Verb nicht – der
-# Knopf ist gar nicht da –, und ``assert_allowed`` weist an derselben Liste ab.
-#
-# **Gestaffelt und kumulativ**: eine Anfrage braucht weniger als eine Rechnung. Stünde
-# alles vor der ersten Handlung, hielte eine Angabe das Modul an, die erst in drei
-# Schritten zählt – und man müsste sie erfinden, um weiterzukommen.
+# **``StepNeed`` für Stammdaten**: je Lücke eine Zeile (wo · was · warum), kein Zustand.
+# Durchgesetzt über ``can`` (der Knopf fehlt) und ``assert_allowed`` (dieselbe Liste).
+# **Gestaffelt und kumulativ**: eine Anfrage braucht weniger als eine Rechnung.
 #
 # ``(seite, feld, beschriftung, grund)`` – ``seite`` ist ``us`` oder ``party``.
 REQUIRED_FOR: dict[str, tuple[tuple[str, str, str, str], ...]] = {
@@ -276,17 +262,11 @@ def party_of(db: Session, row: Voucher) -> Optional[int]:
 
 
 def addressee_of(db: Session, row: Voucher) -> Optional[int]:
-    """►►► **An wen geht dieser Beleg – jetzt, nicht erst mit der Zusage** (#939). ◄◄◄
+    """**An wen geht dieser Beleg – jetzt, nicht erst mit der Zusage.**
 
-    ``party_of`` beantwortet «mit wem wurde abgeschlossen» und ist vor der Zusage ``None``.
-    Für den **Belegkopf** ist das zu wenig: eine Offerte ist adressiert, sobald sie an
-    genau einen hinausgeht – und stand dort niemand, meldete der Kopf «Anschrift fehlt»,
-    obwohl oben ein Leistungsempfänger angefragt war.
-
-    **Genau einer, sonst keiner.** Werden mehrere angefragt, ist es ein Rundschreiben und
-    es gibt keinen einen Adressaten – eine geratene Auswahl wäre schlimmer als die leere
-    Zeile. Die **Vollständigkeitsprüfung** (``gaps``) fragt weiterhin ``party_of``: sie
-    entscheidet, ob jemand **gebunden** ist, und das tut erst die Zusage.
+    Die gebundene Partei, sonst der eine Angefragte, sonst der eine Gewählte, sonst der eine
+    Zugelassene – **genau einer, sonst keiner** (an mehrere ist es ein Rundschreiben ohne
+    einen Adressaten). Ob jemand gebunden ist, fragt ``party_of``.
     """
     chosen = party_of(db, row)
     if chosen is not None:
@@ -294,10 +274,6 @@ def addressee_of(db: Session, row: Voucher) -> Optional[int]:
     rows = quotes_of(db, row)
     if rows:
         return rows[0].party_id if len(rows) == 1 else None
-    # ►►► **Auch die blosse Wahl adressiert schon** (Testnotiz #1000). ◄◄◄ Wer gewählt,
-    # aber noch nicht angefragt ist, steht auf dem Beleg – sonst sagte der Kopf «Anschrift
-    # fehlt» über jemanden, den man eine Zeile höher ausgewählt hat. Dieselbe Regel wie
-    # oben: genau einer, sonst keiner.
     picked = parties_on(row)
     if picked:
         return picked[0] if len(picked) == 1 else None
@@ -309,16 +285,9 @@ def addressee_of(db: Session, row: Voucher) -> Optional[int]:
 
 
 def _possible_parties(db: Session, row: Voucher, step: ProcessStep) -> list[int]:
-    """►►► **Wer an diesem Beleg als Gegenpartei vorkommen KANN** (Testnotiz #962). ◄◄◄
-
-    Die **zugelassenen** aus der Definition und die **angefragten** aus dem Spiegel – in
-    dieser Reihenfolge, ohne Dubletten. Zwei Quellen, eine Liste: eine zugelassene Partei
-    ist noch keine angefragte, und eine frei gewählte steht in keiner Definition.
-
-    Gebraucht wird sie für die **Anschriften** im Belegkopf. Nur die Angefragten zu nennen
-    war zu eng – im Offertenschritt ist noch niemand angefragt, und genau dort will man
-    sehen, an wen man gleich schreibt.
-    """
+    """**Wer an diesem Beleg als Gegenpartei vorkommen KANN** – die zugelassenen, die
+    gewählten und die angefragten, in dieser Reihenfolge, ohne Dubletten (für die Anschriften
+    im Belegkopf und die Suche nach der Rechnung, die eine Gutschrift mindert)."""
     out: list[int] = []
     for number in (list(modules.Beleg.parties_allowed(step.config))
                    + parties_on(row)
@@ -329,14 +298,8 @@ def _possible_parties(db: Session, row: Voucher, step: ProcessStep) -> list[int]
 
 
 def parties_on(row: Voucher) -> list[int]:
-    """►►► **Wen dieser Beleg betrifft – die Wahl zur Laufzeit** (Testnotiz #1000). ◄◄◄
-
-    Die dritte Quelle neben Definition und Angebotsspiegel, und die einzige, die ein
-    Mensch **an diesem Beleg** setzt: wo die Vorlage niemanden nennt, steht hier, wen er
-    meint. **Leer ist der Normalfall**, nicht ein Fehler.
-
-    Die eine Lesestelle (``row.parties`` ist ``NOT NULL``).
-    """
+    """**Wen dieser Beleg betrifft – die Wahl am Beleg**, wo die Definition niemanden
+    nennt. Leer ist der Normalfall; die eine Lesestelle (``row.parties`` ist ``NOT NULL``)."""
     return [int(n) for n in row.parties]
 
 
@@ -347,16 +310,9 @@ def agreed_amount(db: Session, row: Voucher) -> Optional[Decimal]:
 
 
 def due_days_of(db: Session, row: Voucher) -> Optional[int]:
-    """**Die Zahlungsfrist** – aus ihr kommen Fälligkeit und Vorauszahlung.
-
-    ►►► **Die Vereinbarung, sonst der Entwurf** (Testnotiz #985). ◄◄◄ Steht ein Zuschlag,
-    gilt die Frist **seiner** Zeile – ab dort ist eine zweite Partei gebunden. Davor gilt,
-    was auf dem Beleg steht (``vouchers.payment_days``): die Zeile, die sie tragen würde,
-    gibt es noch gar nicht.
-
-    Zwei Wahrheiten sind es nicht – es sind zwei **Zeitpunkte**, und die Reihenfolge hier
-    ist die Regel dazu.
-    """
+    """**Die Zahlungsfrist** – aus ihr kommen Fälligkeit und Vorauszahlung: die der
+    gewählten Angebotszeile, vor der Zusage der Entwurf am Beleg (zwei Zeitpunkte, nicht
+    zwei Wahrheiten)."""
     q = chosen_quote(db, row)
     return q.payment_days if q is not None else row.payment_days
 
@@ -504,7 +460,7 @@ def sync_lines(db: Session, row: Voucher, order: Order,
     nachgezogen werden Artikel und Menge. Eine neue Zeile bekommt die **Leistung aus dem
     Modul** vorbelegt («Was ist zu tun?»).
 
-    **Zwei gleichzeitige Anzeigen legen dieselbe Zeile nicht zweimal an** (Cleanup B-37):
+    **Zwei gleichzeitige Anzeigen legen dieselbe Zeile nicht zweimal an**:
     ``ON CONFLICT DO NOTHING`` gegen ``uq_voucher_lines_article``.
 
     Danach passen Steuersatz und Währung zur Anschrift (``_fit``) – solange der Beleg
@@ -1110,14 +1066,8 @@ def embed_lines(db: Session, row: Voucher) -> list[dict[str, Any]]:
             "hs_code": ln.hs_code or (art.hs_code if art else None) or None,
             "origin_country": (ln.origin_country
                                or (art.origin_country if art else None) or None),
-            # ►►► **Ein Betrag verlässt den Dienst in der Stelligkeit seiner Währung**
-            # (Testnotiz #931). ◄◄◄ Die Spalte ist `NUMERIC(18, 4)` – gross genug für
-            # jede Währung –, und `str()` schreibt ihre volle Skala aus: «30.0000».
-            # Das ist keine Anzeigefrage der Oberfläche: dieselbe Zahl steht gleich im
-            # Eingabefeld, und wer sie dort liest, tippt vier Nachkommastellen weiter.
-            # Gerundet wird darum **hier**, an der einen Stelle, an der ein Betrag das
-            # Haus verlässt – und mit der Stelligkeit der Währung, nie fest auf zwei
-            # (JPY hat null, KWD drei).
+            # **Ein Betrag verlässt den Dienst in der Stelligkeit seiner Währung** – die
+            # Spalte hat vier Stellen, die Währung meist zwei (JPY null, KWD drei).
             "price": _money(ln.price, row.currency),
             "vat": vo.assert_vat(ln.vat),
             "vat_rate": str(vo.vat_of(ln.vat)),
@@ -1428,11 +1378,8 @@ def assert_allowed(db: Session, row: Voucher, action: str,
                        f"{'n' if len(missing) > 2 else ''})" if len(missing) > 1 else "")),
         )
     flow = vo.of(row.direction)
-    # ►►► **Und der Satz nennt den RICHTIGEN Grund** (gemessen bei #1057). ◄◄◄ Er sprach
-    # immer von der Stufe – auch dort, wo sie stimmte und allein der **Zugang** fehlte: ein
-    # Lieferant, der die Währung ändern wollte, las «geht hier nicht: der Beleg steht auf
-    # ‹Anfrage›», und genau dort stand er ja. Eine Begründung, die nicht stimmt, schickt
-    # jemanden in die falsche Richtung.
+    # **Der Satz nennt den richtigen Grund**: fehlt allein der Zugang (die Stufe stimmt),
+    # sagt er das, nicht die Stufe.
     if (action in VERBS and not VERBS[action].allows(flow)
             and viewer is not None and viewer.role not in STAFF_ROLES):
         raise HTTPException(
@@ -1568,11 +1515,8 @@ def _terms(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 
 def _add_party(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
                data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """►►► **Die Gegenpartei WÄHLEN** – wählen ist nicht anbieten (Testnotiz #1000). ◄◄◄
-
-    Festgehalten wird nur, wen der Beleg betrifft; hinaus geht er erst mit «Anbieten».
-    Geprüft wird die Wahl selbst (``_party``). Doppelt gewählt ist einmal gewählt.
-    """
+    """**Die Gegenpartei wählen** – wählen ist nicht anbieten: festgehalten wird nur, wen
+    der Beleg betrifft (geprüft von ``_party``); hinaus geht er erst mit «Anbieten»."""
     flow = vo.of(row.direction)
     number = _party(db, step=step, value=data.get("party"), flow=flow)
     if number is None:
@@ -1836,11 +1780,8 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 
 def _unask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
            data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """►►► **Eine Anfrage zurückziehen bzw. eine Wahl zurücknehmen** (#951, #1000). ◄◄◄
-
-    Dieselbe Handlung für beide Fälle: *diesen Partner von diesem Beleg wegnehmen*.
-    Soft-Delete wie überall; nur vor der Zusage.
-    """
+    """**Eine Anfrage zurückziehen bzw. eine Wahl zurücknehmen** – diesen Partner von
+    diesem Beleg wegnehmen (Soft-Delete), nur vor der Zusage."""
     number = _int(data.get("party"))
     if number is not None and number in parties_on(row):
         row.parties = [n for n in parties_on(row) if n != number]
@@ -2297,7 +2238,7 @@ def _iban(value: Any) -> Optional[str]:
 #: überzahlt …) prüft ``can`` – an derselben Stelle für Knopf und Tür.
 VERBS: dict[str, Verb] = {
     # **Vor der Zusage** – hier wird der Beleg geschrieben. Die Währung gehört dem, der
-    # den Preis nennt (Testnotiz #1057).
+    # den Preis nennt.
     "currency": Verb(stages=(vo.OFFER,), run=_currency, party=IF_THEY_PRICE),
     "issuer": Verb(stages=(vo.OFFER,), run=_issuer),
     "incoterm": Verb(stages=(vo.OFFER,), run=_incoterm),
@@ -2704,7 +2645,7 @@ def _ours(db: Session, row: Voucher) -> dict[str, Any]:
         "name": sites.legal_name(company),
         # Eine Adresse ohne Ort ist keine: ``of_company`` liefert immer ein Gerüst,
         # ``has_content`` fragt, ob wirklich etwas drinsteht. **Wer liefert, versendet**
-        # – daraus folgt die Beschriftung der zweiten Anschrift (#979).
+        # – daraus folgt die Beschriftung der zweiten Anschrift.
         **_addresses(address.lines(seat) if address.has_content(seat) else [],
                      [], sends=flow.collects),
         "uid": _uid(company),
@@ -2815,7 +2756,7 @@ def document_head(db: Session, row: Voucher, *, won: bool,
     ersten Umbenennen still falsch wird; ``ours`` **ist** die Struktur.
     """
     flow = vo.of(row.direction)
-    # **Der Adressat, nicht der Vertragspartner** (#939): steht genau einer an, ist er es
+    # **Der Adressat, nicht der Vertragspartner**: steht genau einer an, ist er es
     # längst – erst die Zusage bindet ihn.
     look = party_id if party_id is not None else addressee_of(db, row)
     # **Nach der Zusage ist unsere Seite eine Kopie** (``freeze``) – wie die Gegenseite.
@@ -2842,23 +2783,11 @@ def _labelled(side: dict[str, Any], *, sends: bool) -> dict[str, Any]:
 
 
 def _addresses(billed: list[str], shipped: list[str], *, sends: bool) -> dict[str, Any]:
-    """►►► **Die Anschriften einer Belegseite – beide, immer, beschriftet** (#975). ◄◄◄
+    """►►► **Die Anschriften einer Belegseite – beide, immer, beschriftet.** ◄◄◄
 
-    *«Standardmässig immer bei Informationen ausweisen, global etablieren, auch wenn sie
-    zweimal das Gleiche anzeigt. Eine Logik für alles, Komplexität und If/Else
-    verringern.»*
-
-    Ein Beleg stellt zwei Fragen – *wohin die Rechnung, wohin die Ware* –, und er stellt sie
-    auf **jeder** Seite gleich. Also **eine** Regel für beide Seiten: gibt es nur eine
-    Anschrift, steht sie unter beiden
-    Beschriftungen – das ist die Auskunft «an dieselbe», nicht eine Doppelung. Und wo **gar
-    keine** dasteht, gibt es auch keine Beschriftung: die Seite sagt dann, dass sie fehlt.
-
-    Erfunden wird nichts – ``shipped`` entsteht nur aus Angaben, die wirklich da sind.
-
-    ►►► **Und die zweite Beschriftung sagt die RICHTUNG** (Testnotiz #979). ◄◄◄ ``sends``
-    heisst «diese Seite ist der Leistungserbringer»: bei ihr geht die Ware **ab**, also
-    ist es die *Versandadresse*; beim Empfänger kommt sie **an**, also die *Lieferadresse*.
+    Eine Regel für beide Seiten: nur eine Anschrift → sie steht unter beiden Beschriftungen;
+    keine → keine Beschriftung. ``sends`` heisst «Leistungserbringer»: bei ihm geht die
+    Ware ab (Versand), beim Empfänger kommt sie an (Lieferung). Erfunden wird nichts.
     """
     if not billed:
         return {"address": [], "shipping": [],
@@ -2882,7 +2811,7 @@ def their_side(db: Session, row: Voucher, party_id: Optional[int], *,
     ``party_id is None`` heisst «dieser Betrachter darf sie nicht sehen» – dann ist die
     Seite leer, nicht erfunden.
 
-    **Welche Rolle sie hat, steht in der Richtung** (#979): die Gegenpartei ist genau dann
+    **Welche Rolle sie hat, steht in der Richtung**: die Gegenpartei ist genau dann
     der Leistungserbringer, wenn das Geld **nicht** zu uns fliesst.
 
     ►►► **Und am Adressaten steht, was noch wählbar ist** (``choice``) – Firma oder
@@ -2898,7 +2827,7 @@ def their_side(db: Session, row: Voucher, party_id: Optional[int], *,
         "object_id": party_id,
         "name": (lines or [""])[0],
         "attn": lines[1] if len(lines) > 1 else None,
-        # **Dieselbe Auflösung wie bei uns** (#975) – zwei Seiten, eine Regel.
+        # **Dieselbe Auflösung wie bei uns** – zwei Seiten, eine Regel.
         **_addresses(address.lines(address.make(
             street1=seat.get("line1") or "", street2=seat.get("line2") or "",
             zip=seat.get("postal_code") or "", city=seat.get("city") or "",
@@ -3074,43 +3003,21 @@ def ask_problem(db: Session, row: Voucher, step: ProcessStep,
                 lines: Optional[list[dict[str, Any]]] = None) -> Optional[str]:
     """►►► **Was fehlt noch, damit dieser Beleg HINAUSGEHEN kann?** ◄◄◄ – oder ``None``.
 
-    *«Diese Meldung erscheint nicht an der Stelle des Geschehens. Besser wäre, der
-    Submit-Button ist deaktiviert, bis alles vollständig ist – und beim Hover erklärt er
-    warum.»* (Testnotiz #1046)
-
-    Die Prüfung gab es längst, nur **erst beim Klick**: `_ask` wies ab, und der Satz landete
-    als rote Zeile am Kopf des Auftrags – weit weg von der Position, die er nennt. Jetzt ist
-    er eine **Ableitung**, die mitreist (``VoucherEmbed.ask_problem``), und derselbe Satz
-    ist das Tor: ``_assert_ask`` wirft ihn. **Zwei Formen einer Regel, ein Namensstamm** –
-    nie zwei Massstäbe.
-
-    *Warum hier ein gesperrter Knopf richtig ist, obwohl «ein Knopf, der nie etwas tun kann,
-    ist kein Angebot» die Hausregel ist (#950): dieser hier **kann** – sobald die Angaben
-    stehen. Dieselbe Form wie «Freigeben» am Auftragsentwurf, der seit jeher gesperrt
-    dasteht und im Hover sagt, was fehlt.*
-
-    **Was auf dem Beleg steht, ist Pflicht** (#964): Preis je Position, die beiden
-    **Zoll**-Angaben, die **Lieferbedingung** und die beiden **Fristen**. Gelesen wird
-    dabei der Wert, der auf dem Beleg **steht** (``embed_lines``: die Zeile, wo sie etwas
-    trägt, sonst der Artikel) – die rohe Spalte zu prüfen hiesse, eine Angabe zu
-    verlangen, die sichtbar längst dasteht.
-
-    **Der Satz nennt die Position**, nicht nur das Feld: «Ohne Zolltarifnummer …» über
-    einem Beleg mit zwölf Zeilen ist eine Sackgasse mit Ausrufezeichen.
-
-    ``parties``/``lines`` sind die Angaben, die der Aufrufer ohnehin hat – ``_ask`` kennt
-    die genannten Parteien, die Antwort kennt die Positionen. Ohne sie werden sie gelesen.
+    Zwei Formen einer Regel: der Satz reist mit (``VoucherEmbed.ask_problem``, der Knopf
+    steht gesperrt da und sagt im Hover, was fehlt), ``_assert_ask`` wirft ihn. Pflicht ist,
+    was auf dem Beleg steht – Preis je Position, bei einer Ausfuhr die Zoll-Angaben, bei Ware
+    die Lieferbedingung, beide Fristen, das Eigentum –, gelesen wie es dasteht
+    (``embed_lines``). Alles Fehlende auf einmal, je Position benannt. ``parties``/``lines``
+    gibt der Aufrufer mit, wo er sie schon hat.
     """
     flow = vo.of(row.direction)
     # **Ohne Gegenpartei gibt es nichts anzufragen** – zwei Quellen, dieselben wie in
-    # ``_ask``: was die Definition zulässt und wen der Beleg selbst schon trägt (#1000).
+    # ``_ask``: was die Definition zulässt und wen der Beleg selbst schon trägt.
     if parties is None:
         parties = modules.Beleg.parties_allowed(step.config) or parties_on(row)
     if not parties:
         return (f"Ohne {vo.PARTY} gibt es nichts anzufragen – dieses Modul lässt "
                 f"jeden zu, also muss hier stehen, wen es betrifft.")
-    # ►►► **Alles, was fehlt, auf einmal** (Chrome-Test) ◄◄◄ – vorher nannte der Satz nur
-    # den ersten Punkt, und man fand den nächsten erst nach dem Beheben des ersten.
     found: list[str] = []
     priced = flow.quoted_by == vo.BY_US
     # ►►► **Zoll nur bei einer Ausfuhr** – Tarif, Ursprung und Gewicht braucht der Zoll,
@@ -3166,7 +3073,7 @@ def terms_problem(lead: Optional[int], days: Optional[int]) -> Optional[str]:
     steht die Prüfung auf ``is None`` und nicht auf ``not value``.
 
     **Zwei Formen, ein Namensstamm**: ``_assert_terms`` wirft ihn an einer Angebotszeile,
-    ``ask_problem`` trägt ihn an den gesperrten Knopf (#1046).
+    ``ask_problem`` trägt ihn an den gesperrten Knopf.
     """
     for value, label in ((lead, vo.LEAD_TERM_LABEL), (days, vo.PAYMENT_TERM_LABEL)):
         if value is None:
@@ -3596,26 +3503,15 @@ def _quotes(db: Session, row: Voucher, step: ProcessStep, *,
     man bei genau diesem hier bestellt, und steht darum bei ihm – nicht als eine Angabe am
     Beleg, die man bei jedem Vorgang neu abschreibt.
 
-    ►►► **Und der MOMENT reist mit, nicht nur der Tag** (Testnotizen #968/#969). ◄◄◄
-
-    *«Kann hier noch eine kleine Info dazu, wann offeriert wurde – im Format ‹vor xx Tagen
-    offeriert›, und beim Hovern das genaue Datum und Uhrzeit.»*
-
-    Die Uhrzeit steht **schon da** und brauchte keine Spalte: ``created_at`` einer
-    Angebotszeile *ist* der Moment, in dem sie hinausging – ``_ask`` legt sie genau dort an
-    und nirgends sonst. Und ``updated_at`` der **gewählten** Zeile ist der Moment des
-    Zuschlags: ``_agree`` setzt ``CHOSEN`` in einem Zug mit der Stufe, und danach fasst
-    kein Verb sie mehr an (``quote``/``decline`` verlangen beide, dass sie es nicht ist).
-
-    ``sent_on`` bleibt daneben: es ist das **Datum auf dem Papier** – ein Beleg trägt einen
-    Tag, keine Uhrzeit. Der Moment ist die Auskunft darüber, wann es passierte.
+    **Der Moment reist mit**: ``created_at`` einer Zeile ist der Versand, ``updated_at``
+    der gewählten der Zuschlag (danach fasst sie kein Verb mehr an); ``sent_on`` ist der Tag
+    auf dem Papier.
     """
     rows = quotes_of(db, row)
     if not internal:
         own = viewer.object_id if viewer else None
         rows = [q for q in rows if q.party_id == own]
-    # **Derselbe Name wie im Kopf** (Chrome-Test): vorher stand vor dem Anbieten die Firma,
-    # danach die Person – zwei Namen für eine Partei. Jetzt Firma zuerst, «z. H.» darunter.
+    # **Derselbe Name wie im Kopf** – Firma zuerst, «z. H.» darunter.
     named = {q.party_id: (billing_of(db, row, q.party_id).get("lines") or [""])
              for q in rows}
     return [

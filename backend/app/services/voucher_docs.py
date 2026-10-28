@@ -523,7 +523,7 @@ def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
 
 
 def _gone_for(db: Session, row: Voucher, party: Optional[int]) -> Optional[tuple[str, str]]:
-    """►►► **Ist der Vorgang für diese Partei vorbei?** – EINE Regel für zwei Fälle (#1227). ◄◄◄
+    """►►► **Ist der Vorgang für diese Partei vorbei?** – EINE Regel für zwei Fälle. ◄◄◄
 
     Storniert ist er für alle. Hat eine **andere** Partei den Zuschlag, ist er für diese
     ebenso zu Ende: sie sieht ihr Papier, aber nicht, wie es mit der anderen weitergeht –
