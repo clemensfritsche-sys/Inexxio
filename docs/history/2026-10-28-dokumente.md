@@ -102,3 +102,8 @@ Fotos und Nachweise müssen nicht mitkommen.
   fein), konvexe Hülle, und ein Viereck zählt nur, wenn sein Rand trägt (innen heller als
   aussen, an allen vier Seiten): 10 von 10, zufällig 116 von 120, kein Schein-Blatt auf leerem
   Tisch. Wächter `frontend/scripts/doc-scan.test.mjs` (die alte Fassung fällt durch).
+- **KI las nichts, und niemand erfuhr es**: der Entwurf verschluckte einen Fehler der Anfrage
+  still, und jede Anfrage läuft über Firebase Hosting, das nach 60 s abbricht (Lesen wartete bis
+  90 s mit Wiederholung, Verfassen bis 240 s). Jetzt: Lesen höchstens 50 s, Verfassen 55 s, kein
+  zweiter Versuch, kürzere Antworten; `ai.problem()` nennt den Grund eines Ausfalls, und der
+  Entwurf zeigt oben über «Art», dass die KI liest – oder warum nicht.
