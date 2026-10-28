@@ -76,3 +76,6 @@ backend/app/assets/geoip/
 
 # Kontaktdaten aus dem ERP – beim Build geholt (scripts/erp-contact.mjs)
 website/src/config/erp-contact.json
+
+# Arbeitskopien von Agenten (lokal, nie im Repo)
+.claude/worktrees/
