@@ -23,7 +23,6 @@ import type {
   Genealogy,
   StepRecord,
   CompanySettings,
-  CompanyPerson,
   CompanyRef,
   AddressInput,
   PersonCreate,
@@ -36,7 +35,8 @@ import type {
   PlaceRef,
   PaymentSetup,
   TransferInfo,
-  DocumentSummary, DocumentDetail, DocumentProposal, DocumentTarget, DocumentRequirement, RecordRef,
+  DocumentSummary, DocumentDetail, DocumentProposal, DocumentTarget, RecordRef,
+  CompanySettingsUpdate, PublicDocument, BelegView, LegalText, VoucherPapers, ComposeResult, UploadResult,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -336,29 +336,29 @@ class ApiClient {
   // jemand angemeldet, reist sein Token mit – die Routen fragen nicht danach.
 
   /** **Ein Dokument über seinen Link** – das eingefrorene Papier, der Weg, die Handlungen. */
-  publicDocument(token: string): Promise<import('@/types/api').components['schemas']['PublicDocument']> {
+  publicDocument(token: string): Promise<PublicDocument> {
     return this.get(`/api/v1/public/document/${encodeURIComponent(token)}`);
   }
 
-  signDocument(token: string, image: string): Promise<import('@/types/api').components['schemas']['PublicDocument']> {
+  signDocument(token: string, image: string): Promise<PublicDocument> {
     return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/sign`, { image });
   }
 
-  declineDocument(token: string, reason: string): Promise<import('@/types/api').components['schemas']['PublicDocument']> {
+  declineDocument(token: string, reason: string): Promise<PublicDocument> {
     return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/decline`, { reason });
   }
 
-  publicBeleg(token: string): Promise<import('@/types/api').components['schemas']['BelegView']> {
+  publicBeleg(token: string): Promise<BelegView> {
     return this.get(`/api/v1/public/beleg/${encodeURIComponent(token)}`);
   }
 
   /** **Die Offerte annehmen** – als die Partei; die Antwort ist die neue Ansicht. */
-  acceptBeleg(token: string): Promise<import('@/types/api').components['schemas']['BelegView']> {
+  acceptBeleg(token: string): Promise<BelegView> {
     return this.post(`/api/v1/public/beleg/${encodeURIComponent(token)}/accept`, {});
   }
 
   /** **Die Offerte ablehnen** – als die Partei; die Antwort ist die neue Ansicht. */
-  declineBeleg(token: string): Promise<import('@/types/api').components['schemas']['BelegView']> {
+  declineBeleg(token: string): Promise<BelegView> {
     return this.post(`/api/v1/public/beleg/${encodeURIComponent(token)}/decline`, {});
   }
 
@@ -369,7 +369,7 @@ class ApiClient {
   }
 
   /** **Ein Rechtstext, wie er heute gilt** (AGB · Datenschutz · Impressum) – als A4-Dokument. */
-  publicLegal(kind: 'agb' | 'datenschutz' | 'impressum'): Promise<import('@/types/api').components['schemas']['LegalOut']> {
+  publicLegal(kind: 'agb' | 'datenschutz' | 'impressum'): Promise<LegalText> {
     return this.get(`/api/v1/public/legal/${kind}`);
   }
 
@@ -383,21 +383,21 @@ class ApiClient {
 
   // ─── Admin: Unternehmen (Gesellschaften) ───────────────────────────────────
   // EIN gleichrangiger Datensatztyp (`organization`), jede Zeile eine vollständige
-  // juristische Einheit (eigene Rechtsidentität). Anlegen/Ändern nur Admin. Die
-  // Plattform-/Systemkonfiguration bleibt getrennt (getSettings/updateSettings).
+  // juristische Einheit (eigene Rechtsidentität). Eigene anlegen/ändern nur Admin, fremde
+  // jedes Personal. Feldnamen wie im Backend (`CompanySettingsResponse`) – keine Übersetzung.
 
   getCompanies(): Promise<CompanySettings[]> {
-    return this.get<Record<string, unknown>[]>('/api/v1/admin/companies').then((rows) => rows.map(mapSettingsFromBackend));
+    return this.get('/api/v1/admin/companies');
   }
 
   getCompany(objectId: number): Promise<CompanySettings> {
-    return this.get<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}`).then(mapSettingsFromBackend);
+    return this.get(`/api/v1/admin/companies/${objectId}`);
   }
 
   /** Eine Firma anlegen – Name und Rechtsform sind Pflicht; ``is_own`` setzt nur ein Admin. */
   createCompany(data: { company_name: string; legal_form: string; uid_number?: string | null;
                         is_own?: boolean }): Promise<CompanySettings> {
-    return this.post<Record<string, unknown>>('/api/v1/admin/companies', data).then(mapSettingsFromBackend);
+    return this.post('/api/v1/admin/companies', data);
   }
 
   /** **Welche Firma ist gemeint?** – Vorschläge für das **Personal** (die Tür lässt nur
@@ -406,22 +406,22 @@ class ApiClient {
     return this.get(`/api/v1/erp/companies?search=${encodeURIComponent(search)}`);
   }
 
-  updateCompany(objectId: number, data: Partial<CompanySettings>): Promise<CompanySettings> {
-    return this.patch<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}`, mapSettingsToBackend(data)).then(mapSettingsFromBackend);
+  updateCompany(objectId: number, data: CompanySettingsUpdate): Promise<CompanySettings> {
+    return this.patch(`/api/v1/admin/companies/${objectId}`, data);
   }
 
   /** Diese Gesellschaft zum **Betreiber der Website** machen – genau EINE trägt den Titel. */
   setCompanyOperator(objectId: number): Promise<CompanySettings> {
-    return this.post<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}/operator`, {}).then(mapSettingsFromBackend);
+    return this.post(`/api/v1/admin/companies/${objectId}/operator`, {});
   }
 
   /** Ein Unternehmen **schliessen** (Soft-Delete; `reopenCompany` macht es rückgängig). */
   deactivateCompany(objectId: number): Promise<CompanySettings> {
-    return this.delete<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}`).then(mapSettingsFromBackend);
+    return this.delete(`/api/v1/admin/companies/${objectId}`);
   }
 
   reopenCompany(objectId: number): Promise<CompanySettings> {
-    return this.post<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}/reopen`, {}).then(mapSettingsFromBackend);
+    return this.post(`/api/v1/admin/companies/${objectId}/reopen`, {});
   }
 
   // ─── Gebiete (Weltkarte: welche Gesellschaft fakturiert welche Region) ─────────
@@ -460,7 +460,7 @@ class ApiClient {
 
   /** **Vorschau → Freigeben**: das Papier, das diese Handlung hinausgäbe – es geschieht nichts. */
   previewVoucher(orderObjectId: number, stepId: number,
-                 body: { action: string } & Record<string, unknown>): Promise<import('@/types/api').components['schemas']['PapersOut']> {
+                 body: { action: string } & Record<string, unknown>): Promise<VoucherPapers> {
     return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/voucher/preview`, body);
   }
 
@@ -472,7 +472,7 @@ class ApiClient {
 
   /** **Eine Runde Verfassen** – gespeichert wird nichts. */
   composeDocument(turns: { who: 'user' | 'ai'; text: string }[], current: Record<string, unknown> | null):
-    Promise<import('@/types/api').components['schemas']['ComposeOut']> {
+    Promise<ComposeResult> {
     return this.post('/api/v1/erp/documents/compose', { turns, current });
   }
 
@@ -723,11 +723,6 @@ class ApiClient {
     return this.get(`/api/v1/erp/documents/targets?${new URLSearchParams({ q })}`);
   }
 
-  /** Worauf Module warten – je Anforderung ein Satz. */
-  documentRequirements(): Promise<DocumentRequirement[]> {
-    return this.get('/api/v1/erp/documents/requirements');
-  }
-
   /** **Einen Entwurf lesen** – nichts wird gespeichert. */
   readDraft(files: Blob[], opts: { sender?: number | null; hint?: string } = {}): Promise<DocumentProposal> {
     const form = new FormData();
@@ -782,7 +777,7 @@ class ApiClient {
 
   // ─── Foto-/Bild-Upload (multipart) ──────────────────────────────────────────
   // Gibt eine relative URL (Token) zurück; die speichern die Verbraucher als String.
-  async uploadAttachment(file: File): Promise<import('@/types/api').components['schemas']['UploadResult']> {
+  async uploadAttachment(file: File): Promise<UploadResult> {
     const token = this.tokenProvider ? await this.tokenProvider(false).catch(() => null) : null;
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     const form = new FormData();
@@ -1025,61 +1020,6 @@ class ApiClient {
   clearFeedback(scope: 'done' | 'all'): Promise<{ deleted: number }> {
     return this.delete(`/api/v1/feedback?scope=${scope}`);
   }
-}
-
-// ─── CompanySettings field mapping (frontend ↔ backend) ──────────────────────
-
-function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
-  return {
-    object_id: (s.object_id as number | null) ?? null,
-    // Abgeleitet: Betreiber der Website (ein gewählter); has_address = trägt echte
-    // Ortsangaben (ADR 005).
-    is_operator: (s.is_operator as boolean) ?? false,
-    is_active: (s.is_active as boolean) ?? true,
-    // «Eigenes Unternehmen» – eine unserer Gesellschaften (CRM Schritt 1).
-    is_own: (s.is_own as boolean) ?? false,
-    people: (s.people as CompanyPerson[] | undefined) ?? [],
-    has_address: (s.has_address as boolean) ?? false,
-    company_name: (s.company_name as string) ?? '',
-    legal_form: (s.legal_form as string | null) ?? null,
-    // Der Datensatzname – Name UND Rechtsform (#984). Dieser Mapper baut Feld für Feld:
-    // was er nicht nennt, verschwindet still.
-    legal_name: (s.legal_name as string | undefined) ?? undefined,
-    street: (s.street as string) ?? '',
-    street_number: (s.street_nr as string | null) ?? null,
-    zip: (s.zip_code as string) ?? '',
-    city: (s.city as string) ?? '',
-    country: (s.country as string) ?? '',
-    currency: (s.currency as string) ?? 'CHF',
-    uid: (s.uid_number as string | null) ?? null,
-    vat_number: (s.vat_number as string | null) ?? null,
-    email: (s.email as string) ?? '',
-    phone: (s.phone as string | null) ?? null,
-    // Abgeleitet aus dem Deployment (read-only, #309) – keine Eingabe, kein Rückweg.
-    website: (s.website as string) ?? '',
-    // Ausgeschrieben, nicht maskiert (#870): die IBAN steht auf jeder Rechnung.
-    iban: (s.iban as string | null) ?? null,
-  };
-}
-
-function mapSettingsToBackend(s: Partial<CompanySettings>): Record<string, unknown> {
-  const fieldMap: Record<string, string> = {
-    street_number: 'street_nr',
-    zip: 'zip_code',
-    uid: 'uid_number',
-  };
-  // `website` ist abgeleitet (Deployment-Adresse, #309) – es zurückzuschicken hiesse,
-  // eine zweite Wahrheit anzulegen; das Backend nähme es ohnehin nicht an.
-  // `legal_name` ist ebenso abgeleitet (Name + Rechtsform, `sites.legal_name`) – es
-  // zurückzuschicken wäre die zweite Wahrheit neben den beiden Feldern, aus denen es kommt.
-  const skip = new Set(['website', 'is_operator', 'has_address', 'is_active',
-                        'legal_name', 'people']);
-  const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(s)) {
-    if (skip.has(k)) continue;
-    result[fieldMap[k] ?? k] = v;
-  }
-  return result;
 }
 
 export const api = new ApiClient();

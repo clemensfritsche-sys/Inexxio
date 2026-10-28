@@ -293,26 +293,27 @@ def test_a_company_is_named_the_same_in_the_feed_and_in_its_window():
     Anzeigefunktion.»*
 
     Die gemeinsame Funktion gab es (`organizationName`) – **die Angabe kam nur nie an**:
-    `mapSettingsFromBackend` baut sein Objekt Feld für Feld, und `legal_name` stand nicht
-    darin. Was ein solcher Mapper nicht nennt, verschwindet **still** – dieselbe
-    Fehlerform wie eine Pydantic-Klasse, die ein Feld nicht kennt, nur in der anderen
-    Richtung. Der Rückfall auf den blossen Namen griff damit an *jeder* Stelle, und die
-    Rechtsform stand im ganzen ERP nirgends.
+    ein handgeschriebener Mapper (`mapSettingsFromBackend`) baute das Objekt Feld für Feld,
+    und `legal_name` stand nicht darin. Was ein solcher Mapper nicht nennt, verschwindet
+    **still**. Heute gibt es keinen Mapper mehr: das Unternehmen IST der generierte Typ
+    (`CompanySettingsResponse`), geändert wird mit `CompanySettingsUpdate` – das die
+    abgeleiteten Felder gar nicht kennt.
 
-    Bug-Formen: (a) der Mapper verliert das Feld wieder; (b) eine Aufrufstelle baut sich
-    einen eigenen Namen daneben; (c) der abgeleitete Name wird zurückgeschickt.
+    Bug-Formen: (a) ein Mapper/eine Abschrift des Typs kehrt zurück und verliert das Feld;
+    (b) eine Aufrufstelle baut sich einen eigenen Namen daneben; (c) der abgeleitete Name
+    kann zurückgeschickt werden (Änderung typisiert als das ganze Unternehmen).
     """
     api = _code(_read(FRONTEND / "lib" / "api.ts"))
-    mapper = _body(api, "mapSettingsFromBackend", kind="function")
-    assert "legal_name" in mapper, (
-        "Der Mapper verliert die Rechtsform wieder (a) – sie kommt vom Server und "
-        "erreicht den Browser nicht, und niemand sieht es."
+    types = _code(_read(FRONTEND / "types" / "index.ts"))
+    assert "mapSettings" not in api and "interface CompanySettings" not in types, (
+        "Ein handgeschriebener Mapper bzw. Typ für das Unternehmen ist zurück (a) – was er "
+        "nicht nennt, erreicht den Browser nicht, und niemand sieht es."
     )
-    # (c) **Abgeleitet heisst: nicht zurückschreiben.**
-    back = _body(api, "mapSettingsToBackend", kind="function")
-    assert "'legal_name'" in back, (
-        "Der abgeleitete Name geht zurück an den Server (c) – die zweite Wahrheit neben "
-        "den beiden Feldern, aus denen er kommt."
+    assert "CompanySettings = components['schemas']['CompanySettingsResponse']" in types, "(a)"
+    # (c) **Abgeleitet heisst: nicht zurückschreiben** – die Änderung hat ihren eigenen Typ.
+    assert re.search(r"updateCompany\(objectId: number, data: CompanySettingsUpdate\)", api), (
+        "Die Änderung eines Unternehmens ist nicht mehr `CompanySettingsUpdate` (c) – der "
+        "abgeleitete Name könnte als zweite Wahrheit zurück an den Server gehen."
     )
     # (b) **Eine Anzeige, ein Aufruf** – im Feed wie in der Kopfzeile, ohne Rückfall.
     detail = _code(_read(FRONTEND / "components" / "erp" / "organization-detail.tsx"))

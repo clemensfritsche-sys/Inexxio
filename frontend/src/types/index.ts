@@ -23,10 +23,6 @@ export type UserProfile = Omit<UserProfileApi, 'role'> & {
 
 // ─── Article ────────────────────────────────────────────────────────────────
 
-// Aus der EINEN Statusliste (`domain/statuses`) – einen Entwurf gibt es nicht: der Artikel
-// entsteht erst mit seiner Freigabe. **Gesetzt wird er von niemandem**: er ist die
-// Projektion von `replaced_by_id` (Testnotiz #773).
-export type ArticleStatus = 'freigegeben' | 'inaktiv';
 export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'm3' | 'kg' | 'l';
 export type ArticleSerialization = 'unit' | 'batch';
 
@@ -34,7 +30,10 @@ type ArticleApi = components['schemas']['ArticleResponse'];
 
 // Aus dem Backend-Schema abgeleitet; Status/Einheit/Serialisierung auf Unions verengt.
 export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization'> & {
-  status: ArticleStatus;
+  // Aus der EINEN Statusliste (`domain/statuses`) – einen Entwurf gibt es nicht: der Artikel
+  // entsteht erst mit seiner Freigabe. **Gesetzt wird er von niemandem**: er ist die
+  // Projektion von `replaced_by_id` (Testnotiz #773).
+  status: 'freigegeben' | 'inaktiv';
   unit: ArticleUnit;
   serialization: ArticleSerialization;
 };
@@ -165,6 +164,8 @@ export type ModuleCatalog = components['schemas']['ModuleCatalog'];
  */
 export type VoucherEmbed = components['schemas']['VoucherEmbed'];
 export type PaperOut = components['schemas']['PaperOut'];
+/** Die Vorschau der Papiere einer Handlung (`voucher_docs.preview`). */
+export type VoucherPapers = components['schemas']['PapersOut'];
 /**
  * **Eine Angebotszeile** – eine Gegenpartei, ein Preis, zwei Fristen.
  *
@@ -199,7 +200,6 @@ export type CompanyRef = components['schemas']['CompanyRef'];
 /** **Eine Anschrift im Adressbuch einer Person** (`services/address_book`). */
 export type AddressEntry = components['schemas']['AddressOut'];
 export type AddressInput = components['schemas']['AddressIn'];
-export type CompanyPerson = components['schemas']['CompanyPerson'];
 export type NewCompany = components['schemas']['NewCompany'];
 export type PersonCreate = components['schemas']['PersonCreate'];
 export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization' | 'document';
@@ -210,44 +210,16 @@ export type DocumentDetail = components['schemas']['DocumentDetail'];
 export type DocumentRefOut = components['schemas']['DocumentRefOut'];
 export type DocumentProposal = components['schemas']['ProposalOut'];
 export type DocumentTarget = components['schemas']['TargetIn'];
-export type DocumentRequirement = components['schemas']['RequirementOut'];
 export type RecordRef = components['schemas']['RecordOut'];
 
-export interface CompanySettings {
-  object_id?: number | null;   // universelle ERP-Objektnummer des Unternehmens
-  // Abgeleitet: is_operator = Betreiber der Website (Impressum/Systemkonfiguration);
-  // has_address = trägt echte Ortsangaben.
-  is_operator?: boolean;
-  has_address?: boolean;
-  /** Aktiv? Eine geschlossene Gesellschaft bleibt lesbar und lässt sich wieder öffnen. */
-  is_active?: boolean;
-  /** **Eine unserer Gesellschaften?** Nur sie stellt Belege, beschäftigt Personal, besitzt
-   *  Gebiete und kann Betreiber sein. Kunden und Lieferanten sind derselbe Datensatztyp. */
-  is_own?: boolean;
-  /** Wer zu dieser Firma gehört – abgeleitet aus der Zuordnung an der Person. */
-  people?: CompanyPerson[];
-  company_name: string;
-  legal_form: string | null;
-  /** **Der Datensatzname** – Name und Rechtsform (#910), fertig vom Server
-   *  (`sites.legal_name`); hier zusammengesetzt wäre es eine zweite Fassung der Regel. */
-  legal_name?: string;
-  street: string;
-  street_number: string | null;
-  zip: string;
-  city: string;
-  country: string;
-  // Funktionswährung der Gesellschaft (ISO-3, auto aus dem Land vorbelegt).
-  currency: string;
-  // Rechtsidentität – das Minimum, das ein Beleg und das Impressum ausweisen müssen.
-  uid: string | null;
-  vat_number: string | null;
-  email: string;
-  phone: string | null;
-  /** **Abgeleitet** (read-only): die Adresse, unter der diese Installation läuft (#309). */
-  website: string;
-  /** Ausgeschrieben, nicht maskiert (#870) – sie steht auf jeder Rechnung, die wir stellen. */
-  iban: string | null;
-}
+/**
+ * **Ein Unternehmen** (`company_settings`), wie der Server es liefert – mit den Feldnamen
+ * des Backends (`street_nr`, `zip_code`, `uid_number`). Abgeleitet und nur lesbar:
+ * `is_operator`, `has_address`, `legal_name` (Name + Rechtsform), `website`, `people`.
+ */
+export type CompanySettings = components['schemas']['CompanySettingsResponse'];
+/** Was sich an einem Unternehmen ändern lässt – die Abgeleiteten fehlen hier von selbst. */
+export type CompanySettingsUpdate = components['schemas']['CompanySettingsUpdate'];
 
 // ─── Testnotizen (in-app Feedback, nur Testumgebung) ─────────────────────────
 // Eine angeheftete Notiz aus der laufenden Oberfläche. Bewusst OHNE Objektnummer –
@@ -297,8 +269,22 @@ export type HolidayOut = components['schemas']['HolidayOut'];
 export type HolidayIn = components['schemas']['HolidayIn'];
 export type TimeRulesIn = components['schemas']['TimeRulesIn'];
 export type NewsletterState = components['schemas']['NewsletterState'];
-export type PersonRef = components['schemas']['PersonRef'];
 export type Mailbox = components['schemas']['MailboxOut'];
 /** **Eine Zeile der Zahlungen** einer Person bzw. einer eigenen Gesellschaft – eine Ableitung
  *  aus den Zahlungsmodulen (`services/payments`). */
 export type PaymentRow = components['schemas']['PaymentRow'];
+
+// ─── Öffentliche Seiten: Beleg, Dokument, Rechtstexte ───────────────────────
+/** Die Kundenseite eines Belegs (`/beleg?t=…`) – Papier, Weg, Handlungen der Partei. */
+export type BelegView = components['schemas']['BelegView'];
+export type BelegNote = components['schemas']['NoteOut'];
+/** Eine Station des Wegs (Angebot · Auftrag · Rechnung · Bezahlt). */
+export type Station = components['schemas']['StationOut'];
+/** Die Seite eines Dokuments (`/dokument?t=…`) – Papier, Unterschriften, Handlungen. */
+export type PublicDocument = components['schemas']['PublicDocument'];
+/** AGB, Datenschutz oder Impressum als A4-Dokument bzw. Link auf die Datei. */
+export type LegalText = components['schemas']['LegalOut'];
+/** Eine Runde Verfassen (KI) – das Papier als A4-HTML, nichts gespeichert. */
+export type ComposeResult = components['schemas']['ComposeOut'];
+/** Ein hochgeladenes Bild, das kein Dokument ist (die gezeichnete Unterschrift). */
+export type UploadResult = components['schemas']['UploadResult'];
