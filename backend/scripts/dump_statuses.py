@@ -42,7 +42,7 @@ export interface StatusEntry {
   value: string;
   label: string;
   tone: StatusTone;
-  /** Welche Achsen ihn tragen können: unit | order | article. */
+  /** Welche Achsen ihn tragen können: unit | order | article | document. */
   axes: readonly string[];
   /** Nur für Zustände, die ein Stück tragen kann – sonst `null`. */
   stock: StockKind | null;

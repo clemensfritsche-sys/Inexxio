@@ -18,7 +18,7 @@ from .domain import timekeeping as timekeeping_domain
 from .models import UserProfile
 from .services import address_book, people, sites
 from .routers import (
-    admin, articles, attachments, auth, beleg, communication, contact, erp, feedback,
+    admin, articles, attachments, auth, beleg, communication, contact, documents, erp, feedback,
     health, website,
     instances, newsletter, orders, passkey, payments, payments_list, places, timekeeping,
 )
@@ -168,6 +168,8 @@ _COLUMN_SAFETY_NET = (
     ("vouchers", "deviation_note", "VARCHAR(200)"),
     ("vouchers", "export_number", "VARCHAR(60)"),
     ("vouchers", "export_photo_id", "BIGINT"),
+    # ►►► **Dokumente** (Migration 157): «im Namen von» – jede Zeile ins Log liest sie.
+    ("audit_log", "on_behalf", "VARCHAR(12)"),
     ("voucher_quotes", "reference", "VARCHAR(120)"),
     ("voucher_quotes", "link", "VARCHAR(500)"),
     ("voucher_lines", "text", "VARCHAR(300)"),
@@ -256,6 +258,11 @@ _INDEX_SAFETY_NET = (
 # gewünschte Form hat: ein bedingungsloser DROP nähme einen Riegel für die Dauer der
 # Anweisung weg.
 _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
+    # ►► **Dieselbe Datei ist dasselbe Dokument** (Migration 157, Regel 1) – solange es nicht
+    #    gelöscht ist. Ohne den Index entstünden bei zwei gleichzeitigen Freigaben zwei.
+    "DO $$ BEGIN IF to_regclass('public.documents') IS NOT NULL THEN "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_documents_sha256 "
+    "ON documents (sha256) WHERE deleted_at IS NULL AND sha256 IS NOT NULL; END IF; END $$;",
     # ►► **Die beiden Eindeutigkeitsregeln des Belegs** (Migration 134). Sie sind kein
     #    Beiwerk: ohne den ersten gäbe es zwei aktive Belege an einem Modul, ohne den
     #    zweiten dieselbe Position zweimal – und beides genau dann, wenn zwei Aufrufe
@@ -855,6 +862,37 @@ app.add_middleware(
 )
 
 
+#: Was keine Spur im Log hinterlassen muss: reine Lese-Anfragen.
+_READS = ("GET", "HEAD", "OPTIONS")
+
+
+@app.middleware("http")
+async def audit_writes(request: Request, call_next):
+    """►►► **Jede schreibende Anfrage ans ERP steht im Log** (``audit_log``, ``services/admin``). ◄◄◄
+
+    Eine Zeile je erfolgreichem Schreiben: wer, welche Handlung (Methode + Pfad), wann. So
+    fehlt keine Schreibstelle – auch eine, die selbst nichts Genaueres festhält. Was eine
+    Stelle genauer protokolliert (vorher/nachher, «im Namen von»), steht daneben. Scheitert
+    das Log, bleibt die Antwort: ein Log darf eine Handlung nie zerlegen."""
+    response = await call_next(request)
+    user_id = getattr(request.state, "user_id", None)
+    if (request.method in _READS or response.status_code >= 400 or user_id is None
+            or not request.url.path.startswith("/api/v1/")):
+        return response
+    from .core.database import SessionLocal
+    from .services.admin import log_audit
+    db = SessionLocal()
+    try:
+        log_audit(db, "request", request.method, request.url.path[:500], user_id)
+        db.commit()
+    except Exception as exc:                                   # noqa: BLE001
+        print(f"WARNING: audit_writes failed: {exc!r}", flush=True)
+        db.rollback()
+    finally:
+        db.close()
+    return response
+
+
 @app.exception_handler(IntegrityError)
 async def integrity_error_handler(request: Request, exc: IntegrityError):
     """Ein verletzter DB-Constraint ist ein **Eingabe**-Fehler, kein Serverabsturz.
@@ -1007,6 +1045,7 @@ app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(places.router)
 app.include_router(attachments.router)
+app.include_router(documents.router)
 app.include_router(payments.router)
 app.include_router(beleg.router)
 app.include_router(payments_list.router)
