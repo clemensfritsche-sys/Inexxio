@@ -11,6 +11,20 @@ from fastapi import HTTPException
 from app.domain import statuses as st
 from app.models import DocumentLink, Message, UserProfile
 from app.services import ai, composing, documents, signing
+from tests.runner import session
+from tests.test_zahlung_ablauf import _house
+
+
+@pytest.fixture
+def db():
+    """Eine Sitzung mit dem Betreiber – über sein Postfach geht die Mail zum Link."""
+    s = session()
+    _house(s)
+    try:
+        yield s
+    finally:
+        s.rollback()
+        s.close()
 
 
 def _person(db, role="employee", name="Lea"):
