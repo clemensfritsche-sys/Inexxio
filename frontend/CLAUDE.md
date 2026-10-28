@@ -1,15 +1,22 @@
-# Frontend – Next.js 14 (TypeScript)
+# Frontend – Next.js 16 (TypeScript)
 
 > **Ist-Stand.** Wie das Frontend so geworden ist (Testnotizen, Messungen in Chromium,
 > verworfene Anläufe), steht in `docs/history/2026-10-frontend-claude-md-chronik.md`. Im
 > Zweifel gilt der Code.
 
 ## Technologie
-Next.js 14 (statischer Export), TypeScript strict, Tailwind CSS, App Router. Dazu
-**punktuell**: React Query (`@tanstack/react-query`, **nur** im Konto: `konto/page.tsx`,
-`profile-section.tsx`), ZXing (nur als dynamisch geladener Rückfall des Scanners),
-`@stripe/stripe-js` (dynamisch, erst auf Klick in der Bezahlkarte). Das ERP lädt seine Daten
-sonst direkt über `lib/api.ts`.
+Next.js 16 (statischer Export, Turbopack), React 19, TypeScript 5.9 strict, Tailwind CSS 3,
+App Router, ESLint 9 (Flat Config `eslint.config.mjs`), Node 22. Dazu: React Query 5
+(`@tanstack/react-query`) für die **Listen des ERP-Feeds** (siehe «Datenfluss des Feeds») und
+im Konto (`konto/page.tsx`, `profile-section.tsx`, eigener Client); Firebase 12 (Auth);
+SimpleWebAuthn 14 (Passkeys, `lib/passkey.ts`); ZXing (nur als dynamisch geladener Rückfall
+des Scanners); `@stripe/stripe-js` 10 (dynamisch, erst auf Klick in der Bezahlkarte). Die
+Detailansichten laden ihre Daten direkt über `lib/api.ts`.
+- **Firebase bleibt auf 12**: 13 verlangt Node ≥ 24.12, die Workflows bauen mit Node 22.
+- **`@grpc/grpc-js` ist per `overrides` gehoben** (kommt nur über Firestore für Node herein,
+  das das Frontend nie lädt) – `npm audit` meldet 0 Lücken.
+- `next-env.d.ts` ist erzeugt (`next typegen` vor `type-check`, `next build`) und nicht im
+  Repo; `npm run lint` ist `eslint .` (`next lint` gibt es nicht mehr).
 
 ## Die Website ist NICHT hier – aber Kopf und Fuss kommen von ihr
 - Startseite und alle öffentlichen Seiten liefert `website/` (Astro); die CI kopiert dessen
@@ -36,6 +43,7 @@ npm install
 npm run dev        # http://localhost:3000
 npm run build      # build-islands + next build
 npm test           # node --test scripts/*.test.mjs
+npm run lint       # eslint .
 ```
 `Dockerfile` ist nur das Entwicklungsbild für `docker-compose.yml` (`npm run dev`);
 ausgeliefert wird der statische Export (`out/`) über Firebase Hosting – `next start` gibt es
@@ -60,8 +68,9 @@ src/components/
 └── feedback/  ← feedback-pin (Testnotizen; als Insel auch auf der Website)
 src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.ts (generiert) ·
                  process-status.ts · status-tone.ts · record-status.ts (isStaff) · account-cache.ts ·
-                 login-target.ts · legal-forms.ts … und **alle Hooks** als `use-*.ts`
-                 (use-autosave, use-search, use-profile-completion, use-google-maps, use-maps-key);
+                 login-target.ts · legal-forms.ts · feed.ts (Listen des Feeds, was ein Pfad
+                 ändert) … und **alle Hooks** als `use-*.ts` (use-autosave, use-search,
+                 use-profile-completion, use-google-maps, use-maps-key, use-feed);
                  nur Kamera und Decoder liegen beim Scanner (components/scan/)
 src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands.mjs)
@@ -128,6 +137,30 @@ Skill `inexxio-design-system`.
   Aussondern-Modi, Geld-Richtungen. Quelltext-Wächter liegen nach Bereich in
   `backend/tests/test_source_*.py`; jeder Aufruf in `lib/api.ts` muss eine Backend-Route
   treffen (`test_api_routes.py`).
+
+## Datenfluss des Feeds (`app/(erp)/erp/page.tsx`, `lib/feed.ts`, `lib/use-feed.ts`)
+- **Ein `QueryClient` im ERP-Layout** (`app/(erp)/layout.tsx` → `useFeedClient`). Jede Liste
+  des Feeds ist eine Query – **die einzige Datenquelle** dieser Liste (ein Wächter verbietet
+  einen `useState<…[]>` je Liste daneben, `test_source_process`). Schlüssel: `['feed',
+  'people' | 'articles' | 'orders' | 'companies' | 'todo']`, mit der Suche
+  `['feed', 'instances', q]` (seitenweise, `useInfiniteQuery`, 100 je Seite) und
+  `['feed', 'documents', q]`; dazu `['me']` (einmal je Seitenaufruf). Firmen, Dokumente und
+  «zu tun» fragen erst, wenn die Rolle feststeht (`enabled: staff`). Die Suche ist entprellt
+  (300 ms) und Teil des Schlüssels – was zu einer anderen Suche gehört, steht nicht da.
+- **Nach einem Schreibvorgang nur das Betroffene**: `lib/api.ts` meldet jede erfolgreiche
+  Anfrage, die kein GET ist, mit ihrem Pfad (`DATA_CHANGED`, `detail.path`); `useFeedClient`
+  invalidiert die Listen aus `feedsTouchedBy(path)` (Tabelle in `lib/feed.ts`, erster
+  Treffer gilt; **unbekannt → alle**, Prüfen/Lesen/leerer Postfach-Abgleich → keine).
+  Wächter: `scripts/feed.test.mjs`. Neue Nachrichten (`MESSAGES_CHANGED`) laden «zu tun» und
+  Personen, `TODO_CHANGED` «zu tun». Eine Antwort einer Anlage/Änderung schreibt der Feed
+  zusätzlich direkt in den Cache (`setQueryData`).
+- **Veraltet nach 60 s**: kehrt man nach einer Pause zurück (Tab sichtbar), lädt eine Liste
+  einmal nach – kein Polling. Kein eigener Wiederholungsweg (`retry: false`, `lib/api.ts`
+  wiederholt selbst); gleichzeitige Abrufe derselben Liste sind einer.
+- **Nichts scheitert still**: jede Query trägt `meta.what`, der `QueryCache` meldet ihren
+  Fehler über `tell()` («Nicht geladen: Aufträge – …»).
+- Die Detailansichten sind nicht umgebaut; `components/erp/documents.tsx` (Kacheln am
+  Datensatz) hört weiter selbst auf `DATA_CHANGED`.
 
 ## API-Client (`lib/api.ts`)
 Fetch-Wrapper mit Bearer-Token (Firebase). **Den Token setzt niemand**: `request()` fragt
@@ -266,9 +299,11 @@ Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.tes
 
 ## Konventionen
 - `'use client'` nur, wo nötig. Lucide React für alle Icons. TypeScript strict, kein `any`.
-- **`@typescript-eslint/no-unused-vars` ist scharf** (`.eslintrc.json`, CI; kennt auch
-  ungenutzte Typen) – ein ungenutzter Zustand ist die Form, in der ein Knopf ohne Wirkung
-  auftritt. Ein `export`, den keine andere Datei liest, gibt es nicht
+- **`@typescript-eslint/no-unused-vars` ist scharf** (`eslint.config.mjs`, CI; kennt auch
+  ungenutzte Typen; ein Wächter in `test_source_ui` liest die Datei) – ein ungenutzter Zustand
+  ist die Form, in der ein Knopf ohne Wirkung auftritt. Von den Hook-Regeln gelten die beiden
+  von vorher (`rules-of-hooks`, `exhaustive-deps`); die Compiler-Regeln von
+  `eslint-plugin-react-hooks` 7 sind aus, weil das Projekt den React Compiler nicht einsetzt. Ein `export`, den keine andere Datei liest, gibt es nicht
   (`backend/scripts/deadcode.py --frontend`; was bleibt, liest ein Wächter oder Test).
 - Einsprachig Deutsch (kein i18n verdrahtet).
 - **Eine Abhängigkeit ohne Import ist Altlast** – auf Unterpfade und dynamische Importe

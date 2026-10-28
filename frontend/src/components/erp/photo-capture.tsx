@@ -117,7 +117,6 @@ function Viewfinder({ busy, onShot, onCancel }: {
     <div className="rounded-ds-lg overflow-hidden relative"
       style={{ background: '#0b0b0c', aspectRatio: '4 / 3' }}>
       {live ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
         <video ref={videoRef} muted playsInline autoPlay
           style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (

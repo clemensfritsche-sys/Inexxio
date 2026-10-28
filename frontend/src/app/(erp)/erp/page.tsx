@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, User, FileText } from 'lucide-react';
 import { cn, formatObjectId, userDisplayName } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
@@ -27,14 +28,20 @@ import { DocumentDetail } from '@/components/erp/document-detail';
 import { DocumentDraft } from '@/components/erp/document-draft';
 import { statusCfg } from '@/lib/process-status';
 import { tell } from '@/lib/notice';
+import { feedKey } from '@/lib/feed';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
 // geteilt – EINE Quelle der Wahrheit für die Typ-Identität: lib/erp-record.ts.
 const INSTANCE_PAGE = 100;   // Seitengrösse des server-paginierten Instanz-Feeds
-// Ab wann gilt der Feed nach einer Pause als veraltet und wird bei der Rückkehr (Tab wieder
-// sichtbar / Fenster fokussiert) EINMAL nachgeladen. Bewusst kein Polling – das kostet
-// Cloud-Run-Zeit, ohne dass jemand hinschaut.
-const STALE_AFTER_MS = 60_000;
+
+/** «zu tun» je Objektnummer – die Zahl am Symbol. */
+const todoByObject = (rows: Todo[]) => new Map(rows.map((r) => [r.object_id, r]));
+
+/** Eine Seite kann sich mit der nächsten überschneiden, wenn dazwischen etwas dazukam. */
+function dedupeById(rows: InstanceSummary[]): InstanceSummary[] {
+  const seen = new Set<number>();
+  return rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+}
 
 type Row =
   | { type: 'user'; key: string; objectId: number | null; data: UserProfile }
@@ -153,36 +160,74 @@ function FeedItem({ row, sel, onClick, todo }: {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function ErpPage() {
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [articles, setArticles] = useState<Article[]>([]);
-  // Instanzen (höchste Kardinalität): server-paginiert + server-durchsucht.
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
-  const [instances, setInstances] = useState<InstanceSummary[]>([]);
-  const [instanceLoadingMore, setInstanceLoadingMore] = useState(false);
-  // Die letzte Seite war nicht voll → es gibt nichts mehr nachzuladen. Der Server nennt
-  // keine Gesamtzahl, also ist das die eine Auskunft, die er gibt.
-  const [instancesDone, setInstancesDone] = useState(false);
-  // **Für welche Suche die Instanzen gelten** – passt sie nicht zur Eingabe, sind sie alt
-  // und stehen nicht da (Chrome-Test: beim Tippen blitzten ungefilterte Treffer auf).
-  const [instancesFor, setInstancesFor] = useState('');
-  const firstInstancePage = (rows: InstanceSummary[], q: string) => {
-    setInstances(rows);
-    setInstancesFor(q);
-    setInstancesDone(rows.length < INSTANCE_PAGE);
-  };
-  // Unternehmen: ein ERP-Datensatztyp `organization` – eigene Gesellschaften und fremde
-  // Firmen. Geladen für jedes Personal.
-  const [companies, setCompanies] = useState<CompanySettings[]>([]);
-  // **Dokumente** – wie die Instanzen auf dem Server durchsucht (Nummer, Name, gelesener Text).
-  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
-  const [documentsFor, setDocumentsFor] = useState('');
-  const [loading, setLoading] = useState(true);
-  // **Kommunikation** (CRM Schritt 2): wer gerade arbeitet, und je Person die offenen
-  // Nachrichten im Verlauf – die Zahl am Symbol, nachgeladen, sobald jemand schreibt.
-  const [me, setMe] = useState<{ object_id: number; name: string } | null>(null);
-  const [staff, setStaff] = useState(false);
-  const [todos, setTodos] = useState<Map<number, Todo>>(new Map());
+  const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  // **Die Suche, für die der Server gefragt wird** – entprellt (300 ms), leer sofort. Sie ist
+  // Teil des Schlüssels: eine ältere Antwort kann eine neuere nicht überholen, und was zu
+  // einer anderen Suche gehört, steht nicht da (Chrome-Test: beim Tippen blitzten
+  // ungefilterte Treffer auf).
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    const q = search.trim();
+    const t = setTimeout(() => setQuery(q), q ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [search]);
+  const current = query === search.trim();
+
+  // ►►► **Die Listen des Feeds sind Queries** (`lib/feed.ts`, `lib/use-feed.ts`): EINE
+  // Datenquelle je Liste, nachgeladen nur, was ein Schreibvorgang betrifft, und beim
+  // Zurückkommen nach einer Pause. Ein Fehler meldet sich über `meta.what` (`lib/notice`).
+  const meQuery = useQuery({ queryKey: ['me'], queryFn: () => api.getMe(), staleTime: Infinity, meta: { what: 'Profil' } });
+  const profile = meQuery.data;
+  // Ins ERP kommt ohnehin nur Personal (`AuthGate staffOnly`) – `staff` sagt, dass die
+  // Antwort da ist. Firmen, Dokumente und «zu tun» fragen erst dann (Personal-Endpunkte).
+  const staff = !!profile && isStaff(profile.role);
+  const isAdmin = profile?.role === 'admin';
+  // **Kommunikation** (CRM Schritt 2): wer gerade arbeitet.
+  const me = profile?.object_id ? { object_id: profile.object_id, name: userDisplayName(profile) } : null;
+  const usersQuery = useQuery({ queryKey: feedKey('people'), queryFn: () => api.getErpRecords(), meta: { what: 'Personen' } });
+  const articlesQuery = useQuery({ queryKey: feedKey('articles'), queryFn: () => api.getArticles(), meta: { what: 'Artikel' } });
+  const ordersQuery = useQuery({ queryKey: feedKey('orders'), queryFn: () => api.getOrders(), meta: { what: 'Aufträge' } });
+  // Unternehmen: ein ERP-Datensatztyp `organization` – eigene Gesellschaften und fremde Firmen.
+  const companiesQuery = useQuery({
+    queryKey: feedKey('companies'), queryFn: () => api.getCompanies(), enabled: staff, meta: { what: 'Firmen' },
+  });
+  // Je Datensatz, was zu tun ist – die Zahl am Symbol.
+  const todoQuery = useQuery({
+    queryKey: feedKey('todo'), queryFn: () => api.todo(), enabled: staff, meta: { what: 'Zu tun' },
+    select: todoByObject,
+  });
+  // Instanzen (höchste Kardinalität): server-paginiert + server-durchsucht. Die letzte Seite
+  // war nicht voll → es gibt nichts mehr nachzuladen (der Server nennt keine Gesamtzahl).
+  const instancesQuery = useInfiniteQuery({
+    queryKey: [...feedKey('instances'), query],
+    queryFn: ({ pageParam }) => api.getInstances(INSTANCE_PAGE, pageParam, query),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => (last.length < INSTANCE_PAGE ? undefined : pages.reduce((n, p) => n + p.length, 0)),
+    meta: { what: 'Instanzen' },
+  });
+  // **Dokumente** – wie die Instanzen auf dem Server durchsucht (Nummer, Name, gelesener Text).
+  const documentsQuery = useQuery({
+    queryKey: [...feedKey('documents'), query], queryFn: () => api.getDocuments(query, 200),
+    enabled: staff, meta: { what: 'Dokumente' },
+  });
+
+  const users = usersQuery.data ?? [];
+  const articles = articlesQuery.data ?? [];
+  const orders = ordersQuery.data ?? [];
+  const companies = companiesQuery.data ?? [];
+  const todos = todoQuery.data ?? new Map<number, Todo>();
+  const instances = dedupeById(instancesQuery.data?.pages.flat() ?? []);
+  const documents = documentsQuery.data ?? [];
+  const instanceLoadingMore = instancesQuery.isFetchingNextPage;
+  const instancesDone = !instancesQuery.hasNextPage;
+  // Die Shell erscheint sofort; «Laden…» steht nur, bis die Kern-Listen geantwortet haben.
+  const loading = usersQuery.isPending || articlesQuery.isPending || ordersQuery.isPending;
+
+  /** Eine Liste im Cache ändern (Antwort einer Anlage/Änderung) – derselbe Speicher. */
+  const patchList = <T,>(list: 'people' | 'articles' | 'orders' | 'companies', fn: (rows: T[]) => T[]) =>
+    qc.setQueryData<T[]>(feedKey(list), (rows) => fn(rows ?? []));
+
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
   const [creating, setCreating] = useState<'article' | 'order' | 'person' | 'company' | 'document' | null>(null);
@@ -196,55 +241,30 @@ export default function ErpPage() {
    */
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
-  const [isAdmin, setIsAdmin] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(50);
   const plusRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   // Aktueller «mehr laden»-Handler (immer frisch, vom Sentinel-Observer aufgerufen).
   const loadMoreRef = useRef<() => void>(() => {});
-  const lastLoadRef = useRef<number>(0);   // Zeitpunkt des letzten Feed-Ladens (Rückkehr-Refresh)
 
   const scan = useScan();
 
+  // Neue oder verschickte Nachrichten, eine erledigte Aufgabe: «zu tun» ändert sich – und ein
+  // unbekannter Absender ist jetzt eine Person.
   useEffect(() => {
-    // Kern-Feeds (geringe Kardinalität) blockierend laden – die Shell erscheint
-    // sofort. Instanzen (höchste Kardinalität) danach nachladen.
-    lastLoadRef.current = Date.now();
-    Promise.allSettled([
-      api.getErpRecords(), api.getArticles(), api.getOrders(), api.getMe(),
-    ]).then(([u, a, o, me]) => {
-      if (u.status === 'fulfilled') setUsers(u.value);
-      if (a.status === 'fulfilled') setArticles(a.value);
-      if (o.status === 'fulfilled') setOrders(o.value);
-      if (me.status === 'fulfilled') {
-        setIsAdmin(me.value.role === 'admin');
-        if (me.value.object_id) setMe({ object_id: me.value.object_id, name: userDisplayName(me.value) });
-        // Firmen erst laden, wenn die Rolle feststeht – eigene wie fremde sieht jedes
-        // Personal (CRM Schritt 1); der Endpunkt ist Personal-only. Ins ERP kommt ohnehin
-        // nur Personal (`AuthGate staffOnly`) – `staff` sagt, dass die Antwort da ist.
-        if (isStaff(me.value.role)) {
-          setStaff(true);
-          api.getCompanies().then(setCompanies).catch(tell('Firmen'));
-        }
-      }
-      setLoading(false);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!staff) return;
-    const reload = () => api.todo()
-      .then((rows) => setTodos(new Map(rows.map((r) => [r.object_id, r]))))
-      .catch(tell('Zu tun'));
-    reload();
-    window.addEventListener(MESSAGES_CHANGED, reload);
-    window.addEventListener(TODO_CHANGED, reload);
-    return () => {
-      window.removeEventListener(MESSAGES_CHANGED, reload);
-      window.removeEventListener(TODO_CHANGED, reload);
+    const onMessages = () => {
+      void qc.invalidateQueries({ queryKey: feedKey('todo') });
+      void qc.invalidateQueries({ queryKey: feedKey('people') });
     };
-  }, [staff]);
+    const onTodo = () => { void qc.invalidateQueries({ queryKey: feedKey('todo') }); };
+    window.addEventListener(MESSAGES_CHANGED, onMessages);
+    window.addEventListener(TODO_CHANGED, onTodo);
+    return () => {
+      window.removeEventListener(MESSAGES_CHANGED, onMessages);
+      window.removeEventListener(TODO_CHANGED, onTodo);
+    };
+  }, [qc]);
 
   // ►►► Die Postfächer werden abgeglichen, solange das ERP offen ist (der Server drosselt
   // selbst, ohne Anbindung ist es ein No-op). Neues meldet sich wie jede andere Änderung.
@@ -300,33 +320,6 @@ export default function ErpPage() {
     }).catch(tell(`Datensatz ${oid}`, 'Nicht geöffnet'));
   }, []);
 
-  // Instanz-Feed: server-paginiert + server-durchsucht. Lädt Seite 0 beim Start und
-  // bei jeder (entprellten) Suchänderung neu; weitere Seiten via Infinite-Scroll.
-  useEffect(() => {
-    const q = search.trim();
-    // FIX: Antworten einer ÄLTEREN Suche konnten eine neuere überholen (Suche tippen und
-    // sofort löschen → 0ms- vor 300ms-Antwort) und Liste/Zähler inkonsistent überschreiben.
-    // Der Cleanup markiert den vorherigen Effekt als veraltet – späte Antworten verfallen.
-    let stale = false;
-    const t = setTimeout(() => {
-      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => { if (!stale) firstInstancePage(rows, q); }).catch(tell('Instanzen'));
-    }, q ? 300 : 0);
-    return () => { stale = true; clearTimeout(t); };
-  }, [search]);
-
-  // Dokument-Feed: auf dem Server durchsucht (auch im gelesenen Text), wie die Instanzen.
-  useEffect(() => {
-    if (!staff) return;
-    const q = search.trim();
-    let stale = false;
-    const load = () => api.getDocuments(q, 200).then((rows) => {
-      if (!stale) { setDocuments(rows); setDocumentsFor(q); }
-    }).catch(tell('Dokumente'));
-    const t = setTimeout(load, q ? 300 : 0);
-    window.addEventListener('inexxio:data-changed', load);
-    return () => { stale = true; clearTimeout(t); window.removeEventListener('inexxio:data-changed', load); };
-  }, [search, staff]);
-
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (plusRef.current && !plusRef.current.contains(e.target as Node)) setPlusOpen(false);
@@ -334,37 +327,6 @@ export default function ErpPage() {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
-
-  // **Daten geändert → nachladen**: `lib/api.ts` feuert 'inexxio:data-changed' nach jeder
-  // erfolgreichen Anfrage, die kein GET ist – der Feed lädt sofort nach. Re-Abo bei
-  // Suchänderung, damit die Instanzen mit der aktuellen Suche neu geladen werden.
-  useEffect(() => {
-    const q = search.trim();
-    function onDataChanged() {
-      lastLoadRef.current = Date.now();
-      api.getErpRecords().then(setUsers).catch(tell('Personen'));
-      api.getArticles().then(setArticles).catch(tell('Artikel'));
-      api.getOrders().then(setOrders).catch(tell('Aufträge'));
-      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => firstInstancePage(rows, q)).catch(tell('Instanzen'));
-    }
-    // **Rückkehr nach Pause**: Der Feed war ein Schnappschuss vom Seitenaufbau – wer das ERP
-    // ein paar Minuten liegen liess, sah alte Daten (und musste F5 drücken). Jetzt lädt er
-    // beim Zurückkommen nach, aber NUR wenn er wirklich veraltet ist (Schwelle unten) –
-    // kein Polling, kein Traffic beim kurzen Tab-Wechsel: ein Nachladen je Rückkehr.
-    function onBack() {
-      if (document.visibilityState !== 'visible') return;
-      if (Date.now() - lastLoadRef.current < STALE_AFTER_MS) return;
-      onDataChanged();
-    }
-    window.addEventListener('inexxio:data-changed', onDataChanged);
-    document.addEventListener('visibilitychange', onBack);
-    window.addEventListener('focus', onBack);
-    return () => {
-      window.removeEventListener('inexxio:data-changed', onDataChanged);
-      document.removeEventListener('visibilitychange', onBack);
-      window.removeEventListener('focus', onBack);
-    };
-  }, [search]);
 
   // Infinite scroll: Observer per Callback-Ref an den Sentinel hängen (robust, auch
   // wenn der Sentinel erst nach dem Nachladen der Daten erscheint). Ruft den stets
@@ -408,8 +370,7 @@ export default function ErpPage() {
     if (typeFilter && r.type !== typeFilter) return false;
     // Instanzen sind bereits server-seitig durchsucht (kein erneuter Client-Filter) –
     // aber nur, wenn sie zu DIESER Suche gehören.
-    if (r.type === 'instance') return instancesFor === search.trim();
-    if (r.type === 'document') return documentsFor === search.trim();
+    if (r.type === 'instance' || r.type === 'document') return current;
     if (search && !feedMatch(r, search.toLowerCase())) return false;
     return true;
   });
@@ -446,19 +407,9 @@ export default function ErpPage() {
   const hasMoreInstances = instancesRelevant && !instancesDone;
   const displayCount = (t: ErpRecordType): number => (t === 'instance' ? instances.length : (counts[t] ?? 0));
 
-  async function loadMoreInstances() {
-    if (instanceLoadingMore) return;
-    setInstanceLoadingMore(true);
-    try {
-      const next = await api.getInstances(INSTANCE_PAGE, instances.length, search.trim());
-      setInstancesDone(next.length < INSTANCE_PAGE);
-      setInstances((prev) => {
-        const seen = new Set(prev.map((i) => i.id));
-        return [...prev, ...next.filter((i) => !seen.has(i.id))];
-      });
-    } catch { /* ignore */ } finally {
-      setInstanceLoadingMore(false);
-    }
+  function loadMoreInstances() {
+    // Ein Fehler meldet sich über die Query (`meta.what`), nicht hier.
+    if (!instanceLoadingMore && current) void instancesQuery.fetchNextPage();
   }
 
   // Beim Sichtbarwerden des Sentinels: mehr Zeilen rendern + ggf. nächste Instanz-Seite laden.
@@ -543,46 +494,48 @@ export default function ErpPage() {
   }
 
   function handleCompanySaved(s: CompanySettings) {
-    setCompanies((prev) => prev.map((x) => (x.object_id === s.object_id ? s : x)));
+    patchList<CompanySettings>('companies', (rows) => rows.map((x) => (x.object_id === s.object_id ? s : x)));
     if (s.is_operator) {
       // Betreiber gewechselt: die ganze Liste neu laden, damit der frühere Betreiber
       // seinen Titel verliert (genau EINE Gesellschaft trägt is_operator). Und die im
       // Fenster mitgeführte Firmenangabe (Impressum) nachziehen.
-      api.getCompanies().then(setCompanies).catch(tell('Firmen'));
+      void qc.invalidateQueries({ queryKey: feedKey('companies') });
     }
   }
 
   /** Eine neu angelegte Firma bzw. Person in den Feed nehmen und öffnen. */
   function handleCompanyCreated(c: CompanySettings) {
-    setCompanies((prev) => [...prev, c]);
+    patchList<CompanySettings>('companies', (rows) => [...rows, c]);
     setCreating(null);
     if (c.object_id != null) setSel({ type: 'organization', objectId: c.object_id });
   }
 
   function handlePersonCreated(u: UserProfile) {
-    setUsers((prev) => [...prev, u]);
+    patchList<UserProfile>('people', (rows) => [...rows, u]);
     setCreating(null);
     if (u.object_id != null) setSel({ type: 'user', objectId: u.object_id });
   }
 
   function handleArticleSaved(a: Article) {
-    setArticles((prev) => (prev.some((x) => x.id === a.id) ? prev.map((x) => (x.id === a.id ? a : x)) : [...prev, a]));
+    patchList<Article>('articles', (rows) => (rows.some((x) => x.id === a.id) ? rows.map((x) => (x.id === a.id ? a : x)) : [...rows, a]));
     setCreating(null);
     if (a.object_id != null) setSel({ type: 'article', objectId: a.object_id });
   }
 
 
   function handleUserSaved(u: UserProfile) {
-    setUsers((prev) => prev.map((x) => (x.id === u.id ? u : x)));
+    patchList<UserProfile>('people', (rows) => rows.map((x) => (x.id === u.id ? u : x)));
   }
 
   // Erst hier existiert der Auftrag: die Anlage liefert ihn samt frisch vergebener
   // Objektnummer zurück, und der Feed übernimmt ihn ohne Nachladen.
   function handleOrderSaved(o: Order) {
     setCreating(null);
-    setOrders((prev) => (prev.some((x) => x.id === o.id) ? prev.map((x) => (x.id === o.id ? o : x)) : [...prev, o]));
+    patchList<OrderSummary>('orders', (rows) => (rows.some((x) => x.id === o.id) ? rows.map((x) => (x.id === o.id ? o : x)) : [...rows, o]));
     setSel({ type: 'order', objectId: o.object_id });
   }
+
+  const refreshArticles = () => { void qc.invalidateQueries({ queryKey: feedKey('articles') }); };
 
   function cancelCreate() {
     setCreating(null);
@@ -755,7 +708,7 @@ export default function ErpPage() {
           <ErpNavContext.Provider value={null}>
           {creating === 'article' && (
             <ArticleDetail key="new-article" record={null} onSaved={handleArticleSaved}
-              onRefresh={() => api.getArticles().then(setArticles).catch(tell('Artikel'))}
+              onRefresh={refreshArticles}
               onBack={cancelCreate} />
           )}
           {creating === 'person' && (
@@ -789,7 +742,7 @@ export default function ErpPage() {
           {!creating && activeRow?.type === 'article' && (
             <ArticleDetail key={activeRow.key} record={activeRow.data}
               onSaved={handleArticleSaved}
-              onRefresh={() => api.getArticles().then(setArticles).catch(tell('Artikel'))}
+              onRefresh={refreshArticles}
               // **Ein reiner Shortcut, kein zweiter Anlagepfad** (#690): derselbe Entwurf
               // wie über «+», nur mit vorbelegtem Artikel. Angelegt wird nichts – einen
               // Auftrag gibt es erst mit der Freigabe (#386).

@@ -44,6 +44,7 @@ import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
 } from '@simplewebauthn/browser';
+import { DATA_CHANGED } from '@/lib/feed';
 
 /**
  * Ein Fehler der API – mit **Status** und dem rohen `detail`. `message` bleibt der lesbare
@@ -76,9 +77,10 @@ const monthQuery = (month?: string) => (month ? `month=${month}` : '');
 /**
  * **«Ich habe Daten geändert» – an EINER Stelle gesagt** (Testnotizen #685/#688).
  *
- * Der ERP-Feed hört auf `inexxio:data-changed` und lädt dann nach. Gefeuert wird nach
- * **jeder erfolgreichen Anfrage, die kein GET ist** – so kann ein Aufrufer es nicht
- * vergessen, und ein zweiter Melde-Weg kann nicht entstehen.
+ * Der ERP-Feed hört auf `DATA_CHANGED` (`lib/feed.ts`) und invalidiert die Listen, die der
+ * **Pfad** betrifft (`feedsTouchedBy`). Gefeuert wird nach **jeder erfolgreichen Anfrage,
+ * die kein GET ist** – so kann ein Aufrufer es nicht vergessen, und ein zweiter Melde-Weg
+ * kann nicht entstehen.
  *
  * Ausgenommen sind die **Testnotizen**: sie sind keine ERP-Daten, und beim Anheften
  * einer Notiz vier Feed-Abfragen auszulösen wäre Arbeit ohne Ertrag.
@@ -86,7 +88,7 @@ const monthQuery = (month?: string) => (month ? `month=${month}` : '');
 function notifyDataChanged(path: string) {
   if (typeof window === 'undefined') return;
   if (path.startsWith('/api/v1/feedback')) return;
-  window.dispatchEvent(new CustomEvent('inexxio:data-changed'));
+  window.dispatchEvent(new CustomEvent(DATA_CHANGED, { detail: { path } }));
 }
 
 class ApiClient {

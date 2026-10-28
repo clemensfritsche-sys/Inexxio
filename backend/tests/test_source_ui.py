@@ -296,17 +296,31 @@ def test_a_button_without_effect_is_caught_by_the_linter():
     Der Wächter hält fest, dass die Regel an ist. Gefunden hat sie danach nicht eine
     Leiche, sondern **46** – darunter zwei API-Abfragen für einen Wert, den niemand liest.
     """
-    cfg = json.loads(_read(FRONTEND.parent / ".eslintrc.json"))
+    # ESLint 9 liest nur noch die Flat Config; eine `.eslintrc.json` daneben wäre eine
+    # Regel, die niemand mehr ausführt – sie sähe scharf aus und prüfte nichts.
+    root = FRONTEND.parent
+    assert not (root / ".eslintrc.json").exists(), (
+        "Neben der Flat Config liegt eine `.eslintrc.json` – ESLint 9 liest sie nicht."
+    )
+    cfg = _code(_read(root / "eslint.config.mjs"))
     # Die TypeScript-Fassung der Regel (sie kennt auch Typen); die Basisregel ist dafür aus.
-    rule = cfg.get("rules", {}).get("@typescript-eslint/no-unused-vars")
+    rule = re.search(
+        r"'@typescript-eslint/no-unused-vars':\s*\[\s*'(\w+)'\s*,\s*\{([^}]*)\}", cfg)
     assert rule, "Die Regel gegen ungenutzte Variablen ist nicht eingeschaltet."
-    assert "@typescript-eslint" in cfg.get("plugins", []), (
+    # Das Plugin `@typescript-eslint` lädt `next/core-web-vitals` (für .ts/.tsx) – ohne
+    # diese Grundlage nennte die Regel ein Plugin, das niemand lädt.
+    assert "from 'eslint-config-next/core-web-vitals'" in cfg and "...nextVitals" in cfg, (
         "Die Regel nennt ein Plugin, das die Konfiguration nicht lädt."
     )
-    assert rule[0] == "error", "Die Regel warnt nur – dann fällt nichts auf."
-    assert "destructuredArrayIgnorePattern" in rule[1], (
+    assert rule.group(1) == "error", "Die Regel warnt nur – dann fällt nichts auf."
+    assert "destructuredArrayIgnorePattern" in rule.group(2), (
         "Ohne diese Option bleibt die tote `useState`-Destrukturierung unbemerkt – "
         "und genau die war der tote Scan-Knopf."
+    )
+    # Und `npm run lint` führt ESLint selbst aus (`next lint` gibt es ab Next 16 nicht).
+    scripts = json.loads(_read(root / "package.json"))["scripts"]
+    assert scripts.get("lint", "").startswith("eslint"), (
+        f"«npm run lint» führt ESLint nicht aus: {scripts.get('lint')!r}"
     )
     # Dass die CI sie ausführt, prüft ``test_ci.py``.
 
