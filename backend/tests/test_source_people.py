@@ -249,7 +249,7 @@ def test_a_private_customer_is_named_by_his_own_name():
     statt zu lesen, was der Server schickt.
     """
     people = _code(_read(BACKEND / "app" / "services" / "people.py"))
-    voucher = _code(_read(BACKEND / "app" / "services" / "voucher.py"))
+    voucher = _code(_read(BACKEND / "app" / "services" / "voucher_head.py"))
     # **Die Rolle, nicht die Beleg-Rolle.** ``voucher`` kennt «supplier»/«customer» als die
     # MWSTG-Rollen des Papiers (Leistungserbringer ↔ -empfänger) – gemeint ist hier die
     # Rolle des *Benutzers*, und die steht als ``.role`` am Datensatz.

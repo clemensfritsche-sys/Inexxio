@@ -4,7 +4,7 @@ Offene Nachrichten (``communication.open_counts``), Aufgaben der Zeiterfassung
 (``timekeeping.tasks``), überfällige Rechnungen (``payment_list.overdue_counts``), fehlende
 Pflichtangaben (``people.missing_fields``), an einer
 eigenen Gesellschaft fehlende Feiertage (``holidays.holiday_tasks``) und Rechtstexte
-(``legal.FIELD_OF``), am Auftrag anstehende Papiere (``voucher.papers_due``) und erwartete
+(``legal.FIELD_OF``), am Auftrag anstehende Papiere (``voucher_money.papers_due``) und erwartete
 Dokumente (``requirements``). Jede Quelle rechnet
 selbst; hier wird nur gezählt. Rot, sobald etwas dringend ist (überfällige Nachricht,
 Aufgabe ab ``URGENT_DAYS`` Tagen).
@@ -46,14 +46,14 @@ def _time_items(db: Session, actor: UserProfile) -> dict[int, list[TodoItem]]:
 def _documents(db: Session) -> list[tuple[int, str]]:
     """Am Auftrag: ein Papier, das zur Freigabe ansteht, und ein Dokument, auf das ein Modul
     wartet (der Nachweis einer Absenz zählt schon bei der Zeiterfassung). Gelesen werden nur
-    Belege, denen ein Papier fehlt (``voucher.paper_candidates``); ob es ansteht, sagt
+    Belege, denen ein Papier fehlt (``voucher_money.paper_candidates``); ob es ansteht, sagt
     ``papers_due``."""
     from ..domain import voucher as vo
-    from . import requirements, voucher
+    from . import requirements, voucher, voucher_money
     out = [(r.object_id, r.label) for r in requirements.of_vouchers(db)]
     with voucher.reading(db):
-        for row, oid in voucher.paper_candidates(db):
-            for kind in voucher.papers_due(db, row):
+        for row, oid in voucher_money.paper_candidates(db):
+            for kind in voucher_money.papers_due(db, row):
                 out.append((oid, f"{vo.document_word(kind)} freigeben"))
     return out
 

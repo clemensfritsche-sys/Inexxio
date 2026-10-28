@@ -2,12 +2,12 @@
 
 Drei Wege: eine Zahlung **vorbereiten**, eine Kartenzahlung **erstatten** (beides löst beim
 Dienst etwas aus und bucht nichts) und eine Rückmeldung **entgegennehmen** – nur der
-Webhook schreibt Geld-Zeilen (``voucher.record_payment``).
+Webhook schreibt Geld-Zeilen (``voucher_money.record_payment``).
 
 ## Das ERP nennt Betrag und Währung. Der Dienst kassiert.
 
 Der Geldvorgang gibt Betrag und Währung vor, und der Webhook schreibt **eine Zeile Geld**
-(``voucher.record_payment``) – er erzeugt keinen Auftrag und keine Stufe.
+(``voucher_money.record_payment``) – er erzeugt keinen Auftrag und keine Stufe.
 
 ## ►►► Bezahlt wird BEI UNS, nicht dort ◄◄◄
 
@@ -52,7 +52,7 @@ Frage. Dieselbe Regel wie überall im Haus: die Genauigkeit ist die der Quelle.
 ## Ohne Schlüssel gibt es das alles nicht
 
 ``config.payment_service_ready()`` ist ``False``, der Knopf erscheint gar nicht erst
-(``voucher.can`` führt ``pay_online`` dann nicht), und der Webhook antwortet mit 404. Ein
+(``voucher_actions.can`` führt ``pay_online`` dann nicht), und der Webhook antwortet mit 404. Ein
 503-Stub wäre die Behauptung, hier sei etwas abgeschaltet – es ist schlicht nicht
 eingerichtet.
 """
@@ -70,6 +70,7 @@ from ..domain import currency as cur
 from ..domain import voucher as dm
 from ..models import Order, UserProfile, Voucher
 from . import voucher as voucher_svc
+from . import voucher_actions, voucher_head, voucher_money
 
 #: **Der Faden zurück**: unter diesem Schlüssel steht der Beleg in den Metadaten der
 #: Zahlungsabsicht – darüber findet der Webhook ihn wieder, ohne ``stripe_*``-Spalte.
@@ -195,7 +196,7 @@ def prepare(db: Session, *, row: Voucher, order: Order,
     Das Tor ist dasselbe wie für jede Handlung am Beleg (``assert_allowed``, gesperrt).
     """
     stripe = _api()
-    voucher_svc.assert_allowed(db, row, "pay_online", viewer)
+    voucher_actions.assert_allowed(db, row, "pay_online", viewer)
     owed = voucher_svc.balance_of(db, row).open
     if owed <= 0:
         raise HTTPException(
@@ -236,7 +237,7 @@ def prepare(db: Session, *, row: Voucher, order: Order,
         "currency": code,
         # **Wofür bezahlt wird** – die Karte nennt den Beleg, nicht nur eine Zahl.
         "invoice": number,
-        "billing": voucher_svc.billing_of(db, row),
+        "billing": voucher_head.billing_of(db, row),
     }
 
 
@@ -258,12 +259,12 @@ def refund(db: Session, *, row: Voucher, entry_id: Optional[int],
     # **Welche Zahlung** zuerst (der Satz nennt die Lage), auf dem gesperrten Beleg – dann
     # dasselbe Tor wie für jede Handlung.
     voucher_svc.hold(db, row)
-    entry = voucher_svc.card_payment(db, row, entry_id)
-    voucher_svc.assert_allowed(db, row, "refund_online", viewer)
+    entry = voucher_money.card_payment(db, row, entry_id)
+    voucher_actions.assert_allowed(db, row, "refund_online", viewer)
     code = cur.assert_code(row.currency)
     # **Der Rest, nicht der Betrag der Zahlung** – eine teilweise erstattete Karte darf
     # nur noch um den Rest zurückgehen.
-    rest = voucher_svc.refundable_amount(db, entry)
+    rest = voucher_money.refundable_amount(db, entry)
     done = entry.amount - rest
     # **Höchstens, was geschuldet ist** – an einer Gutschrift ihr offener Betrag, an einer
     # überzahlten Rechnung das Zuviel. Mehr zurückzugeben wäre eine neue Schuld.
@@ -303,7 +304,7 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
     Signaturgeprüft: ohne gültige Signatur ist es keine Meldung des Dienstes, sondern ein
     Fremder, der Zahlungen erfinden möchte.
 
-    **Idempotent über die Referenz** (``voucher.record_payment``): der Dienst stellt seine
+    **Idempotent über die Referenz** (``voucher_money.record_payment``): der Dienst stellt seine
     Meldungen mehrfach zu – das ist zugesichert, nicht die Ausnahme. Ein zweiter Durchlauf
     bucht darum nichts, er findet die Zeile.
     """
@@ -344,7 +345,7 @@ def _note_payment(db: Session, api: Any, data: dict[str, Any]) -> str:
     amount = _amount_of(data.get("amount_received"), row.currency)
     if amount <= 0:
         return "ignored"
-    voucher_svc.record_payment(
+    voucher_money.record_payment(
         db, row=row, amount=amount,
         reference=str(data.get("id") or "") or None,
         # **Kein Vermerk**: dass sie über den Dienst kam, sagt die Zahlungsart.
@@ -369,7 +370,7 @@ def _note_refund(db: Session, api: Any, data: dict[str, Any]) -> str:
     """
     intent = str(data.get("payment_intent") or "")
     # **Gesucht wird über die Referenz** – die Zahlungsabsicht steht an genau einer Zeile.
-    row = voucher_svc.of_reference(db, intent) if intent else None
+    row = voucher_money.of_reference(db, intent) if intent else None
     if row is None:
         return "unknown"
     booked = 0
@@ -379,7 +380,7 @@ def _note_refund(db: Session, api: Any, data: dict[str, Any]) -> str:
             target, value = credit, amount
         else:
             target, value = row, -amount
-        voucher_svc.record_payment(db, row=target, amount=value, reference=ref,
+        voucher_money.record_payment(db, row=target, amount=value, reference=ref,
                                    note="Erstattung", method=dm.CARD)
         booked += 1
     if not booked:
@@ -409,7 +410,7 @@ def _refunds(api: Any, intent: str,
         amount = _amount_of(r.get("amount"), code)
         if r.get("status") not in BOOKED_REFUNDS or amount <= 0 or not r.get("id"):
             continue
-        out.append((voucher_svc.refund_reference(intent, str(r["id"])), amount,
+        out.append((voucher_money.refund_reference(intent, str(r["id"])), amount,
                     dict(r.get("metadata") or {})))
     return out
 

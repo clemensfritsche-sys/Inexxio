@@ -989,17 +989,17 @@ export interface paths {
         put?: never;
         /**
          * Update Voucher
-         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher.VERBS``).
+         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher_actions.VERBS``).
          *
          *     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
          *     wie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle** erlaubt ist, sagt
-         *     ``services/voucher.can``, und dieselbe Tabelle ist Auskunft und Tor.
+         *     ``voucher_actions.can``, und dieselbe Tabelle ist Auskunft und Tor.
          *
          *     **Nur gesendete Felder wirken** (``VoucherUpdate.changes``): wer den Betrag ändert,
          *     soll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
          *
          *     **Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:
-         *     ``_visible`` zeigt ihr nur ihr Modul, ``voucher.embed_data`` nur ihre eigene
+         *     ``_visible`` zeigt ihr nur ihr Modul, ``voucher_view.embed_data`` nur ihre eigene
          *     Angebotszeile und keine Zahl über Forderung und Geld.
          */
         post: operations["update_voucher_api_v1_erp_orders__object_id__steps__step_id__voucher_post"];
@@ -1120,7 +1120,7 @@ export interface paths {
         /**
          * Voucher Correctable
          * @description ►►► **Welche Rechnung mindert dieser Beleg?** – sie darf in einem anderen Auftrag
-         *     stehen (``voucher.correctable``). ◄◄◄
+         *     stehen (``voucher_view.correctable``). ◄◄◄
          *
          *     Gesucht, nicht mitgeliefert: ``search`` ist ein Teil der Rechnungsnummer. **Personal
          *     only** – es ist eine Liste fremder Belege desselben Partners.
@@ -6925,11 +6925,11 @@ export interface components {
         };
         /**
          * VoucherUpdate
-         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).
+         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher_actions.VERBS``).
          *
          *     ``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**
          *     ``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden
-         *                  nennt; **nicht** dasselbe wie ``ask`` (#1000)
+         *                  nennt; **nicht** dasselbe wie ``ask``
          *     ``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)
          *     ``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``
          *     ``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei

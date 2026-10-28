@@ -9,12 +9,13 @@ Teilbetrag, Gutschrift, die Seite der Partei – und die Regel, dass es keine Sa
 """
 
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
 
 from tests.runner import session
+from app.core import clock
 from app.services import voucher_docs
 
 
@@ -150,16 +151,16 @@ def _scene(db, *, direction="in", party=None, quantity=3, service=False, config=
 
 
 def _do(db, order, step, action, actor=None, **payload):
-    from app.services import voucher as svc
-    row = svc.apply(db, order=order, step=step, action=action, payload=payload, actor=actor)
+    from app.services import voucher_actions
+    row = voucher_actions.apply(db, order=order, step=step, action=action, payload=payload, actor=actor)
     db.flush()
     return row
 
 
 def _ready(db, order, step, row, *, price="320.00", incoterm="FCA", payment_days=30,
            lead_days=5):
-    from app.services import voucher as svc
-    lines = svc.sync_lines(db, row, order, step)
+    from app.services import voucher_head
+    lines = voucher_head.sync_lines(db, row, order, step)
     _do(db, order, step, "price", lines=[{"id": ln.id, "price": price} for ln in lines])
     if incoterm:
         _do(db, order, step, "incoterm", incoterm=incoterm)
@@ -201,23 +202,23 @@ def test_sale_from_offer_to_done(db):
     """Anbieten → Annehmen → Rechnung → Zahlung: Dokumente, Stücke, Eigentum, erledigt."""
     from app.models import InstanceUnit, OrderUnit, ProcessEvent
     from app.domain import voucher as vo
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions, voucher_head, voucher_money, voucher_view
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
-    assert svc.situation(db, row, order=order, step=step)["label"] == "Entwurf"
+    assert voucher_view.situation(db, row, order=order, step=step)["label"] == "Entwurf"
     _do(db, order, step, "ask")
     assert row.unit_ids and len(row.unit_ids) == 3, "Mit dem Anbieten frieren die Stücke ein."
     offers = svc.documents_of(db, row, vo.OFFER_DOC)
     paper = voucher_docs.paper_of(db, offers[0])
     assert len(offers) == 1 and "Offerte" in paper and "AGB" in paper
     assert "vom 01.01.2026" in paper, "Das Dokument nennt das Datum der AGB."
-    assert svc.situation(db, row, order=order, step=step)["key"] == "sent"
+    assert voucher_view.situation(db, row, order=order, step=step)["key"] == "sent"
     _do(db, order, step, "agree", party=who.object_id)
     assert row.stage == vo.AGREED and row.head, "Mit der Zusage friert der Kopf ein."
     assert row.incoterm_place == _house(db).city, "FCA: der Ort ist unsere Versandadresse."
     assert not svc.documents_of(db, row, vo.CONFIRM_DOC), "Kein Papier ohne Freigabe."
-    assert svc.situation(db, row, order=order, step=step)["primary"] == "release"
-    assert svc.papers_due(db, row) == [vo.CONFIRM_DOC] and "release" in svc.can(db, row, None)
+    assert voucher_view.situation(db, row, order=order, step=step)["primary"] == "release"
+    assert voucher_money.papers_due(db, row) == [vo.CONFIRM_DOC] and "release" in voucher_actions.can(db, row, None)
     shown = voucher_docs.preview(db, order=order, step=step, action="release",
                                  payload={"kind": "confirmation"}, actor=None)
     assert [p["word"] for p in shown] == ["Auftragsbestätigung"] and "AGB" in shown[0]["html"]
@@ -226,7 +227,7 @@ def test_sale_from_offer_to_done(db):
     row = svc.of_step(db, step.id)
     _do(db, order, step, "release", kind="confirmation")
     assert svc.documents_of(db, row, vo.CONFIRM_DOC), "Mit der Freigabe ging sie hinaus."
-    assert "release" not in svc.can(db, row, None), "Ein Papier geht einmal hinaus."
+    assert "release" not in voucher_actions.can(db, row, None), "Ein Papier geht einmal hinaus."
     passed = db.query(ProcessEvent).filter(ProcessEvent.step_id == step.id,
                                            ProcessEvent.kind == "step").count()
     assert passed == 3, "Mit der Zusage ziehen die Stücke von selbst weiter."
@@ -240,12 +241,12 @@ def test_sale_from_offer_to_done(db):
     inv = svc.documents_of(db, row, vo.INVOICE_DOC)
     assert inv and "Zahlteil" in voucher_docs.paper_of(db, inv[0]), "Die Rechnung trägt den Schweizer Zahlteil."
     _do(db, order, step, "pay", amount="1037.76", method="transfer")
-    assert svc.is_done(db, row), "Saldo null ist erledigt – ohne Knopf."
-    assert svc.situation(db, row, order=order, step=step)["key"] == "paper"
+    assert voucher_head.is_done(db, row), "Saldo null ist erledigt – ohne Knopf."
+    assert voucher_view.situation(db, row, order=order, step=step)["key"] == "paper"
     assert not svc.documents_of(db, row, vo.RECEIPT_DOC), "Die Quittung wartet auf die Freigabe."
     _do(db, order, step, "release", kind="receipt")
     assert svc.documents_of(db, row, vo.RECEIPT_DOC), "Die Quittung ging hinaus."
-    assert svc.situation(db, row, order=order, step=step)["key"] == "done"
+    assert voucher_view.situation(db, row, order=order, step=step)["key"] == "done"
     assert not db.query(OrderUnit).filter(OrderUnit.order_id == order.id,
                                           OrderUnit.current_step_id == step.id,
                                           OrderUnit.released_at.is_(None)).count()
@@ -277,7 +278,7 @@ def test_frozen_head_takes_todays_labels(db):
     die heutigen Wörter, auch wenn der Kopf andere gespeichert hat."""
     from sqlalchemy.orm.attributes import flag_modified
     from app.domain import voucher as vo
-    from app.services import voucher as svc
+    from app.services import voucher_head
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
@@ -286,7 +287,7 @@ def test_frozen_head_takes_todays_labels(db):
     head["ours"] = {**head["ours"], "address_label": "Alt", "shipping_label": "Alt"}
     row.head = head
     flag_modified(row, "head")
-    seen = svc.document_head(db, row, won=True)
+    seen = voucher_head.document_head(db, row, won=True)
     assert (seen["supplier"]["address_label"], seen["supplier"]["shipping_label"]) == (
         vo.BILLING_LABEL, vo.SHIPPING_FROM_LABEL)
     assert seen["customer"]["shipping_label"] == vo.SHIPPING_LABEL
@@ -296,39 +297,39 @@ def test_storno_after_the_invoice_credits_it_fully(db):
     """Nach der Rechnung entsteht die Gutschrift über die ganze Rechnung von selbst; was
     schon bezahlt ist, geht zurück."""
     from app.domain import voucher as vo
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions, voucher_view
     order, step, row, who = _billed(db)
     _do(db, order, step, "pay", amount="500.00", method="cash")
     _do(db, order, step, "revoke", note="Kulanz")
     assert row.stage == vo.CANCELLED and row.credit_number == f"{order.object_id}-2"
     assert svc.balance_of(db, row).open == Decimal("-500.00")
     assert svc.documents_of(db, row, vo.CREDIT_DOC), "Die Partei bekommt die Gutschrift."
-    assert "refund" in svc.can(db, row, None)
-    assert svc.situation(db, row, order=order, step=step)["primary"] == "refund"
+    assert "refund" in voucher_actions.can(db, row, None)
+    assert voucher_view.situation(db, row, order=order, step=step)["primary"] == "refund"
     _do(db, order, step, "refund", method="cash")
     assert svc.balance_of(db, row).open == 0
-    assert svc.situation(db, row, order=order, step=step)["primary"] is None
+    assert voucher_view.situation(db, row, order=order, step=step)["primary"] is None
 
 
 def test_storno_before_the_offer_went_out_is_not_offered(db):
-    from app.services import voucher as svc
+    from app.services import voucher_actions
     order, step, row, who = _scene(db, first=True)
-    assert "revoke" not in svc.can(db, row, None), "Vor dem ersten Hinausgehen: nichts zu stornieren."
+    assert "revoke" not in voucher_actions.can(db, row, None), "Vor dem ersten Hinausgehen: nichts zu stornieren."
 
 
 def test_when_units_leave_only_storno_remains(db):
     """Variante C: passt der Beleg nicht mehr zu den Stücken, bleibt nur «Stornieren»."""
     from datetime import datetime, timezone
     from app.models import OrderUnit
-    from app.services import voucher as svc
+    from app.services import voucher_actions, voucher_view
     order, step, row, who = _scene(db)       # Datenerfassung davor: Stücke noch nicht da
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     gone = db.query(OrderUnit).filter(OrderUnit.order_id == order.id).first()
     gone.released_at = datetime.now(timezone.utc)
     db.flush()
-    assert svc.can(db, row, None) == ["revoke"]
-    state = svc.situation(db, row, order=order, step=step)
+    assert voucher_actions.can(db, row, None) == ["revoke"]
+    state = voucher_view.situation(db, row, order=order, step=step)
     assert state["key"] == "locked" and "1 der 3" in state["text"]
 
 
@@ -338,34 +339,34 @@ def test_when_units_leave_only_storno_remains(db):
 
 def test_write_off_settles_the_rest_not_doubles_it(db):
     """Der alte Fehler: aus 0.42 offen wurden 0.84. Jetzt: Ausbuchen mit Grund → null."""
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_head, voucher_view
     order, step, row, who = _billed(db)
     _do(db, order, step, "pay", amount="1037.34", method="transfer")
     assert svc.balance_of(db, row).open == Decimal("0.42")
-    assert svc.situation(db, row, order=order, step=step)["key"] == "short"
+    assert voucher_view.situation(db, row, order=order, step=step)["key"] == "short"
     with pytest.raises(Exception):
         _do(db, order, step, "writeoff")                      # ohne Grund
     _do(db, order, step, "writeoff", reason="rounding")
-    assert svc.balance_of(db, row).open == 0 and svc.is_done(db, row)
+    assert svc.balance_of(db, row).open == 0 and voucher_head.is_done(db, row)
     _do(db, order, step, "release", kind="receipt")
-    assert "ausgebucht (Rundung)" in svc.situation(db, row, order=order, step=step)["text"]
+    assert "ausgebucht (Rundung)" in voucher_view.situation(db, row, order=order, step=step)["text"]
 
 
 def test_overpaid_refund_or_tip(db):
     from app.domain import voucher as vo
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions, voucher_head
     order, step, row, who = _billed(db)
     _do(db, order, step, "pay", amount="1091.84", method="cash")
     assert svc.balance_of(db, row).open == Decimal("-54.08")
-    assert {"refund", "tip"} <= set(svc.can(db, row, None))
+    assert {"refund", "tip"} <= set(voucher_actions.can(db, row, None))
     _do(db, order, step, "tip")
-    assert svc.is_done(db, row)
+    assert voucher_head.is_done(db, row)
     tip = svc.entries_of(db, row)[-1]
     assert tip.kind == vo.TIP and tip.amount == Decimal("54.08")
 
 
 def test_wrongly_recorded_payment_is_reversed_not_deleted(db):
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions
     order, step, row, who = _billed(db)
     _do(db, order, step, "pay", amount="100.00", method="cash")
     first = svc.entries_of(db, row)[0]
@@ -373,7 +374,7 @@ def test_wrongly_recorded_payment_is_reversed_not_deleted(db):
     rows = svc.entries_of(db, row)
     assert len(rows) == 2 and rows[1].reverses_id == first.id
     assert svc.balance_of(db, row).paid == 0
-    assert "reverse" not in svc.can(db, row, None), "Eine Gegenbuchung bucht man nicht gegen."
+    assert "reverse" not in voucher_actions.can(db, row, None), "Eine Gegenbuchung bucht man nicht gegen."
 
 
 def test_the_same_reference_is_booked_only_once(db):
@@ -390,17 +391,17 @@ def test_the_same_reference_is_booked_only_once(db):
 
 def test_reminders_three_steps_ten_days_apart(db):
     from app.domain import voucher as vo
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions, voucher_view
     order, step, row, who = _billed(db)
-    assert "remind" not in svc.can(db, row, None), "Vor der Fälligkeit wird nicht gemahnt."
-    row.due_on = date.today() - timedelta(days=15)
+    assert "remind" not in voucher_actions.can(db, row, None), "Vor der Fälligkeit wird nicht gemahnt."
+    row.due_on = clock.today() - timedelta(days=15)
     db.flush()
-    assert svc.situation(db, row, order=order, step=step)["primary"] == "remind"
+    assert voucher_view.situation(db, row, order=order, step=step)["primary"] == "remind"
     _do(db, order, step, "remind")
     assert svc.documents_of(db, row, vo.REMINDER_DOC)[0].level == 1
-    assert "remind" not in svc.can(db, row, None), "Die nächste Stufe erst nach zehn Tagen."
-    state = svc.situation(db, row, order=order, step=step)
-    assert state["date"] == date.today() + timedelta(days=10)
+    assert "remind" not in voucher_actions.can(db, row, None), "Die nächste Stufe erst nach zehn Tagen."
+    state = voucher_view.situation(db, row, order=order, step=step)
+    assert state["date"] == clock.today() + timedelta(days=10)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -408,38 +409,38 @@ def test_reminders_three_steps_ten_days_apart(db):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_expired_offer_blocks_accepting_and_offers_again(db):
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions, voucher_view
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     for q in svc.quotes_of(db, row):
-        q.sent_on = date.today() - timedelta(days=31)
+        q.sent_on = clock.today() - timedelta(days=31)
     db.flush()
-    assert svc.expired(db, row) and "agree" not in svc.can(db, row, None)
-    assert svc.situation(db, row, order=order, step=step)["primary"] == "ask"
+    assert svc.expired(db, row) and "agree" not in voucher_actions.can(db, row, None)
+    assert voucher_view.situation(db, row, order=order, step=step)["primary"] == "ask"
     _do(db, order, step, "ask")
-    assert not svc.expired(db, row) and "agree" in svc.can(db, row, None)
+    assert not svc.expired(db, row) and "agree" in voucher_actions.can(db, row, None)
 
 
 def test_a_changed_offer_must_go_out_again(db):
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     lines = svc.lines_of(db, row)
     _do(db, order, step, "price", lines=[{"id": lines[0].id, "price": "300.00"}])
-    assert svc.changed_since_offer(db, row) and "agree" not in svc.can(db, row, None)
+    assert svc.changed_since_offer(db, row) and "agree" not in voucher_actions.can(db, row, None)
     _do(db, order, step, "ask")
-    assert "agree" in svc.can(db, row, None)
+    assert "agree" in voucher_actions.can(db, row, None)
 
 
 def test_all_declined_offers_choosing_another_partner(db):
-    from app.services import voucher as svc
+    from app.services import voucher_view
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     _do(db, order, step, "decline", party=who.object_id)
-    state = svc.situation(db, row, order=order, step=step)
+    state = voucher_view.situation(db, row, order=order, step=step)
     assert state["key"] == "declined" and state["primary"] == "party"
 
 
@@ -448,46 +449,46 @@ def test_all_declined_offers_choosing_another_partner(db):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_export_fixes_the_rate_and_waits_for_the_proof(db):
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions, voucher_head, voucher_view
     order, step, row, who = _scene(db, first=True, party=_person(db, country="DE"))
     _ready(db, order, step, row, incoterm="DAP")
     assert all(ln.vat == "export" for ln in svc.lines_of(db, row)), "Ausland: 0 % Export, fest."
-    assert "currency" in svc.can(db, row, None), "Fremdwährung nur ins Ausland."
-    assert svc.incoterm_place_of(db, row) == "München", "DAP: der Ort ist die Lieferadresse."
+    assert "currency" in voucher_actions.can(db, row, None), "Fremdwährung nur ins Ausland."
+    assert voucher_head.incoterm_place_of(db, row) == "München", "DAP: der Ort ist die Lieferadresse."
     _do(db, order, step, "currency", currency="EUR")
     _do(db, order, step, "ask")
     _do(db, order, step, "agree", party=who.object_id)
     _do(db, order, step, "bill")
     _do(db, order, step, "pay", amount=str(row.amount), method="transfer")
-    assert not svc.is_done(db, row), "Erledigt erst mit dem Ausfuhrnachweis."
-    assert svc.situation(db, row, order=order, step=step)["primary"] == "export"
+    assert not voucher_head.is_done(db, row), "Erledigt erst mit dem Ausfuhrnachweis."
+    assert voucher_view.situation(db, row, order=order, step=step)["primary"] == "export"
     _do(db, order, step, "export", reference="26CH12345", original=_file(db).object_id)
-    assert svc.is_done(db, row)
+    assert voucher_head.is_done(db, row)
 
 
 def test_domestic_has_no_customs_and_no_foreign_currency(db):
-    from app.services import voucher as svc
+    from app.services import voucher_actions
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
-    assert "currency" not in svc.can(db, row, None)
-    assert svc.ask_problem(db, row, step) is None
+    assert "currency" not in voucher_actions.can(db, row, None)
+    assert voucher_actions.ask_problem(db, row, step) is None
 
 
 def test_service_abroad_is_reverse_charge_without_incoterm(db):
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions, voucher_head
     order, step, row, who = _scene(db, first=True, party=_person(db, country="DE"),
                                    service=True)
     _ready(db, order, step, row, incoterm=None)
     assert all(ln.vat == "reverse" for ln in svc.lines_of(db, row))
-    assert not svc.has_goods(db, row) and svc.ask_problem(db, row, step) is None
+    assert not voucher_head.has_goods(db, row) and voucher_actions.ask_problem(db, row, step) is None
 
 
 def test_our_own_company_is_never_the_counterparty(db):
     from fastapi import HTTPException
-    from app.services import voucher as svc
+    from app.services import voucher_head
     worker = _person(db, own=True)
     order, step, row, who = _scene(db, first=True, party=worker)
-    assert not svc.business_possible(worker)
+    assert not voucher_head.business_possible(worker)
     with pytest.raises(HTTPException):
         _do(db, order, step, "address", bill_to_company=True)
 
@@ -498,7 +499,7 @@ def test_our_own_company_is_never_the_counterparty(db):
 
 def test_supplier_invoice_needs_photo_and_a_decision_on_deviation(db):
     from fastapi import HTTPException
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions, voucher_head
     order, step, row, who = _scene(db, direction="out", first=True)
     _do(db, order, step, "incoterm", incoterm="EXW")
     _do(db, order, step, "ask")
@@ -510,10 +511,10 @@ def test_supplier_invoice_needs_photo_and_a_decision_on_deviation(db):
     _do(db, order, step, "bill", amount="450.00", reference="R-77", original=_file(db).object_id,
         party_uid="CHE-111.222.333 MWST", vat="normal")
     assert svc.deviation(db, row) == Decimal("23.00")
-    assert "pay" not in svc.can(db, row, None), "Bezahlt wird erst nach dem Entscheid."
+    assert "pay" not in voucher_actions.can(db, row, None), "Bezahlt wird erst nach dem Entscheid."
     _do(db, order, step, "accept", note="Fracht nachträglich")
     _do(db, order, step, "pay", amount="450.00", method="card")
-    assert svc.is_done(db, row)
+    assert voucher_head.is_done(db, row)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -597,10 +598,10 @@ def test_ownership_must_be_chosen_and_has_two_options(db):
     """Ohne Wahl kein Anbieten und keine Zusage; «bleibt» gibt es nicht mehr."""
     from fastapi import HTTPException
     from app.domain import voucher as vo
-    from app.services import voucher as svc
+    from app.services import voucher_actions
     order, step, row, who = _scene(db, first=True, config={"ownership": None})
     _ready(db, order, step, row)
-    assert "Eigentum" in (svc.ask_problem(db, row, step) or "")
+    assert "Eigentum" in (voucher_actions.ask_problem(db, row, step) or "")
     with pytest.raises(HTTPException):
         _do(db, order, step, "ask")
     with pytest.raises(HTTPException):
@@ -707,7 +708,7 @@ def test_manual_confirm_of_a_payment_module_is_refused(db):
 
 def test_public_page_accepts_only_the_current_offer(db):
     from app.domain import voucher as vo
-    from app.services import voucher as svc, voucher_docs as docs
+    from app.services import voucher_docs as docs, voucher as svc
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
@@ -737,7 +738,7 @@ def test_the_other_party_sees_the_offer_closed_like_a_storno(db):
     """#1227: Geht der Zuschlag an eine andere Partei, ist der Vorgang für diese zu Ende –
     dieselbe Anzeige wie ein Storno, kein Fortschritt der anderen, keine Handlung."""
     from app.domain import voucher as vo
-    from app.services import voucher as svc, voucher_docs as docs
+    from app.services import voucher_docs as docs, voucher as svc
     a, b = _person(db, "Alpha"), _person(db, "Beta")
     order, step, row, _ = _scene(db, first=True, party=a, config={
         "parties": [{"party": a.object_id}, {"party": b.object_id}]})
@@ -756,12 +757,12 @@ def test_the_other_party_sees_the_offer_closed_like_a_storno(db):
 
 def test_public_page_says_when_the_offer_expired(db):
     from app.domain import voucher as vo
-    from app.services import voucher as svc, voucher_docs as docs
+    from app.services import voucher_docs as docs, voucher as svc
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     for q in svc.quotes_of(db, row):
-        q.sent_on = date.today() - timedelta(days=40)
+        q.sent_on = clock.today() - timedelta(days=40)
     db.flush()
     view = docs.public_view(db, svc.documents_of(db, row, vo.OFFER_DOC)[-1])
     assert view["note"]["kind"] == "expired" and "agree" not in view["actions"]
@@ -775,11 +776,11 @@ def test_every_state_has_a_next_step_or_is_an_end(db):
     """Die Leiste ist nie leer: jeder Zustand hat eine nächste Handlung (oder «Stornieren»)
     – leer nur bei Erledigt und Storniert ohne offenen Betrag."""
     from app.schemas.voucher import VoucherState
-    from app.services import voucher as svc
+    from app.services import voucher_actions, voucher_view
 
     def check(order, step, row):
-        state = svc.situation(db, row, order=order, step=step)
-        allowed = svc.can(db, row, None)
+        state = voucher_view.situation(db, row, order=order, step=step)
+        allowed = voucher_actions.can(db, row, None)
         # Die Leiste geht so über die API, wie sie gerechnet ist – auch mit Datum.
         assert VoucherState.model_validate(state).date == state.get("date")
         if state["key"] in ("done", "cancelled") and state["primary"] is None:
@@ -811,10 +812,10 @@ def test_the_offer_button_names_everything_that_is_missing(db):
     """Der Hover nennt ALLES, was fehlt – nicht nur den ersten Punkt.
 
     Bug-Form: der Satz endet beim ersten Fund (Preis), Fristen und Eigentum fehlen."""
-    from app.services import voucher as svc
+    from app.services import voucher_actions, voucher_head
     order, step, row, _who = _scene(db, first=True, config={"ownership": None})
-    svc.sync_lines(db, row, order, step)
-    problem = svc.ask_problem(db, row, step) or ""
+    voucher_head.sync_lines(db, row, order, step)
+    problem = voucher_actions.ask_problem(db, row, step) or ""
     for word in ("Preis", "Lieferbedingung", "Lieferfrist", "Eigentum"):
         assert word in problem, f"«{word}» fehlt im Grund: {problem!r}"
     assert problem.count("\n") >= 3, "Die Gründe stehen nicht untereinander."
@@ -843,12 +844,12 @@ def test_a_quote_names_the_party_as_the_head_does(db):
     """Vor und nach dem Anbieten derselbe Name: Firma zuerst, die Person als «z. H.».
 
     Bug-Form: vor dem Anbieten «Muster AG», danach «Anna Keller»."""
-    from app.services import voucher as svc
+    from app.services import voucher_view
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     staff = _staff(db)
-    seen = svc.embed_data(db, order=order, step=step, viewer=staff)
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
     quote = seen["quotes"][0]
     assert quote["party_name"].startswith("Muster AG"), quote
     assert quote["party_attn"] == "z. H. Anna Keller", quote
@@ -859,7 +860,7 @@ def test_the_export_proof_takes_a_pdf(db):
 
     Bug-Formen: (a) ein PDF wird als «kein Bild» abgewiesen; (b) es wird umkodiert;
     (c) der Nachweis steht nicht im Pflichtfeld des Moduls."""
-    from app.services import documents, voucher as svc
+    from app.services import documents, voucher_head
     order, step, row, who = _scene(db, first=True, party=_person(db, country="DE"))
     _ready(db, order, step, row, incoterm="DAP")
     _do(db, order, step, "ask")
@@ -870,7 +871,7 @@ def test_the_export_proof_takes_a_pdf(db):
     assert doc.mime == "application/pdf", "(a)"
     assert documents.raw_of(db, doc).startswith(b"%PDF-1.7\n%test\n"), "(b)"
     _do(db, order, step, "export", reference="26CH12345", original=doc.object_id)
-    assert svc.is_done(db, row)
+    assert voucher_head.is_done(db, row)
     found = documents.field_document(db, order.object_id, "voucher.export", f"step:{step.id}")
     assert found is not None and found.object_id == doc.object_id, "(c)"
 
@@ -901,7 +902,7 @@ def test_invoice_and_credit_never_share_a_number(db):
 
     Bug-Form: die Gutschrift zählt nicht mit – B bekommt die Nummer der Gutschrift."""
     from app.domain import voucher as vo
-    from app.services import voucher as svc, voucher_docs as docs
+    from app.services import voucher_docs as docs, voucher as svc
     order, (sa, sb), (a, b), who = _two_sales(db)
     for step, row in ((sa, a), (sb, b)):
         _ready(db, order, step, row)
@@ -930,7 +931,7 @@ def test_a_second_bill_waits_for_the_first_and_is_refused():
     from app.core.database import SessionLocal
     from app.domain import voucher as vo
     from app.models import Order, ProcessStep, Voucher
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_actions
     s = session()
     _house(s)
     order, step, row, _who = _sold(s)
@@ -942,7 +943,7 @@ def test_a_second_bill_waits_for_the_first_and_is_refused():
     seen: list[object] = []
 
     def bill(db):
-        return svc.apply(db, order=db.get(Order, oid), step=db.get(ProcessStep, sid),
+        return voucher_actions.apply(db, order=db.get(Order, oid), step=db.get(ProcessStep, sid),
                          action="bill", payload={})
 
     def other():
@@ -977,10 +978,10 @@ def test_a_racing_reference_is_a_sentence_not_a_crash(db, monkeypatch):
     Satz – kein ``IntegrityError`` (an der Tür ein 500). Das Rennen wird nachgestellt,
     indem die Vorab-Prüfung nichts sieht."""
     from fastapi import HTTPException
-    from app.services import voucher as svc
+    from app.services import voucher as svc, voucher_money
     order, step, row, who = _billed(db)
     _do(db, order, step, "pay", amount="100.00", method="transfer", reference="ZW-1")
-    monkeypatch.setattr(svc, "reference_problem", lambda *a, **k: None)
+    monkeypatch.setattr(voucher_money, "reference_problem", lambda *a, **k: None)
     with pytest.raises(HTTPException) as exc:
         _do(db, order, step, "pay", amount="100.00", method="transfer", reference="ZW-1")
     assert exc.value.status_code == 409 and "ZW-1" in exc.value.detail
@@ -1024,7 +1025,7 @@ def test_the_qr_bill_names_the_issuer_and_only_complete_addresses(db):
     """Der Zahlteil: der Zahlende nur mit Name, PLZ, Ort und Land; fehlt dem Aussteller
     die Anschrift, nennt der Satz ihn; eine Ausgabe hat keine Überweisung an uns."""
     from fastapi import HTTPException
-    from app.services import qrbill, voucher as svc
+    from app.services import qrbill, voucher_money
     creditor = {"name": "Inexxio AG", "street": "Weg 1", "zip": "9430", "city": "St. M.",
                 "country": "CH"}
     half = {"name": "Anna", "street": "Feld 8", "zip": "", "city": "Altstätten",
@@ -1044,7 +1045,7 @@ def test_the_qr_bill_names_the_issuer_and_only_complete_addresses(db):
     _do(db, order, step, "bill", amount="50.00", reference="R-9",
         original=_file(db).object_id, party_uid="CHE-111.222.333 MWST", vat="normal")
     with pytest.raises(HTTPException) as exc:
-        svc.transfer_info(db, row)
+        voucher_money.transfer_info(db, row)
     assert exc.value.status_code == 404, "Eine Lieferantenrechnung zeigt unser Konto."
 
 
@@ -1053,7 +1054,7 @@ def test_the_party_cannot_accept_what_we_could_not_confirm(db):
     kein «Annehmen», und die Tür weist sie mit dem Feldnamen ab (400)."""
     from fastapi import HTTPException
     from app.domain import voucher as vo
-    from app.services import voucher as svc, voucher_docs as docs
+    from app.services import voucher_docs as docs, voucher as svc
     house = _house(db)
     house.vat_number, house.uid_number = None, None
     db.flush()
@@ -1110,12 +1111,12 @@ def test_the_card_reads_each_row_once(db):
     """Die Antwort an die Karte liest Angebotsspiegel, Geld-Zeilen, Positionen und Kopf
     einmal (``reading``) – gemessen an einem gestellten Beleg: 68 Abfragen vorher, 21
     danach. Die Grenze hält den Stand fest, mit etwas Luft."""
-    from app.services import voucher as svc
+    from app.services import voucher_view
     order, step, row, who = _billed(db)
     staff = _staff(db)
     db.flush()
     db.expire_all()
-    n = _queries(db, lambda: svc.embed_data(db, order=order, step=step, viewer=staff))
+    n = _queries(db, lambda: voucher_view.embed_data(db, order=order, step=step, viewer=staff))
     assert n <= 30, f"Die Karte braucht {n} Abfragen."
 
 

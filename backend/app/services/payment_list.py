@@ -20,6 +20,7 @@ from ..domain import voucher as vo
 from ..models import Order, UserProfile, Voucher, VoucherQuote
 from . import sites
 from . import voucher as vs
+from . import voucher_head as vh
 
 #: Der Stand einer Zeile – Wort und Ton (``overdue`` rot · ``open`` schwarz · ``paid`` grün ·
 #: ``void`` grau).
@@ -42,7 +43,7 @@ def kind_of(row: Voucher) -> str:
 def state_of(db: Session, row: Voucher) -> str:
     if row.stage == vo.CANCELLED:
         return "void"
-    if vs.is_done(db, row):
+    if vh.is_done(db, row):
         return "paid"
     return "overdue" if vs.overdue(db, row) else "open"
 

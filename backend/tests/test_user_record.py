@@ -63,7 +63,8 @@ def test_the_role_is_the_access_and_nothing_else():
     # (c) – als **Rolle** gibt es die beiden Wörter nicht mehr. ``voucher`` kennt sie als
     # die MWSTG-Rollen des Papiers (Leistungserbringer ↔ -empfänger); gemeint ist hier
     # die Rolle des *Benutzers*, und die wird gegen eine Zeichenkette verglichen.
-    for name in ("services/people.py", "services/voucher.py", "core/auth.py",
+    for name in ("services/people.py", "services/voucher.py", "services/voucher_head.py",
+                 "services/voucher_actions.py", "services/voucher_view.py", "core/auth.py",
                  "routers/erp.py", "routers/auth.py"):
         src = (BACKEND / "app" / name).read_text("utf-8")
         for bad in ("'supplier'", '"supplier"', "'customer'", '"customer"'):

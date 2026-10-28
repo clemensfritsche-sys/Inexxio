@@ -38,6 +38,7 @@ from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
 from ..services import voucher as voucher_svc
+from ..services import voucher_actions, voucher_money, voucher_view
 from ..services import voucher_docs
 from ..services import flow as flow_svc
 from ..services import lookup
@@ -117,7 +118,7 @@ def _steps(db: Session, order: Order, *,
         # Modultyp. Eine **Gegenpartei** sieht ihn, aber nur ihre eigene Angebotszeile
         # und keine Zahl über Forderung und Geld: gefiltert wird beim Aufbau der
         # Antwort, nicht in der Oberfläche.
-        paper = voucher_svc.embed_data(db, order=order, step=s, viewer=viewer)
+        paper = voucher_view.embed_data(db, order=order, step=s, viewer=viewer)
         row.voucher = VoucherEmbed(**paper) if paper else None
         # **Und warum es jetzt nicht abzuschliessen ist** (#945) – dieselbe Regel, die
         # ``confirm_step`` durchsetzt, nur als Auskunft. ``None`` bei jedem Modul ohne
@@ -899,22 +900,22 @@ def update_voucher(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    """**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher.VERBS``).
+    """**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher_actions.VERBS``).
 
     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
     wie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle** erlaubt ist, sagt
-    ``services/voucher.can``, und dieselbe Tabelle ist Auskunft und Tor.
+    ``voucher_actions.can``, und dieselbe Tabelle ist Auskunft und Tor.
 
     **Nur gesendete Felder wirken** (``VoucherUpdate.changes``): wer den Betrag ändert,
     soll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
 
     **Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:
-    ``_visible`` zeigt ihr nur ihr Modul, ``voucher.embed_data`` nur ihre eigene
+    ``_visible`` zeigt ihr nur ihr Modul, ``voucher_view.embed_data`` nur ihre eigene
     Angebotszeile und keine Zahl über Forderung und Geld.
     """
     order = orders_svc.get(db, object_id)
     step, _row = _voucher_step(db, order, step_id, user)
-    row = voucher_svc.apply(db, order=order, step=step, action=data.action,
+    row = voucher_actions.apply(db, order=order, step=step, action=data.action,
                             payload=data.changes(), actor=user)
     log_audit(db, "vouchers", data.action,
               f"Beleg zu Modul {step.id} → {row.stage}",
@@ -1008,7 +1009,7 @@ def voucher_transfer_details(
     """
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
-    return TransferInfo(**voucher_svc.transfer_info(db, row))
+    return TransferInfo(**voucher_money.transfer_info(db, row))
 
 
 @router.get("/{object_id}/steps/{step_id}/voucher/correctable",
@@ -1021,7 +1022,7 @@ def voucher_correctable(
     user: UserProfile = Depends(require_employee),
 ):
     """►►► **Welche Rechnung mindert dieser Beleg?** – sie darf in einem anderen Auftrag
-    stehen (``voucher.correctable``). ◄◄◄
+    stehen (``voucher_view.correctable``). ◄◄◄
 
     Gesucht, nicht mitgeliefert: ``search`` ist ein Teil der Rechnungsnummer. **Personal
     only** – es ist eine Liste fremder Belege desselben Partners.
@@ -1029,4 +1030,4 @@ def voucher_correctable(
     order = orders_svc.get(db, object_id)
     step, row = _voucher_step(db, order, step_id, user)
     return [VoucherCorrectable(**r)
-            for r in voucher_svc.correctable(db, row, step, search=search)]
+            for r in voucher_view.correctable(db, row, step, search=search)]

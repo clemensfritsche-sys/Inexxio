@@ -571,7 +571,7 @@ class VoucherEmbed(BaseModel):
 
 
 class VoucherUpdate(BaseModel):
-    """**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).
+    """**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher_actions.VERBS``).
 
     ``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**
     ``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden

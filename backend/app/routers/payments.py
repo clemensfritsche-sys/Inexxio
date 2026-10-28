@@ -1,7 +1,7 @@
 """**Die eine Tür, durch die der Zahlungsdienst hereinruft.**
 
 Ein Endpunkt, keine Anmeldung, eine Signaturprüfung. Er schreibt **eine Zeile Geld**
-(``voucher.record_payment``); was daraus folgt (Quittung, die Stücke einer Vorauszahlung
+(``voucher_money.record_payment``); was daraus folgt (Quittung, die Stücke einer Vorauszahlung
 ziehen weiter), geschieht dort an derselben Stelle wie bei einer erfassten Zahlung.
 
 Er steht **nicht** im Auftrags-Router, obwohl der Beleg dort lebt: dieser Router ist

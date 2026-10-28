@@ -82,6 +82,7 @@ def _money(value: Optional[Decimal]) -> str:
 def of_vouchers(db: Session) -> list[Requirement]:
     """Was die Zahlungsmodule erwarten – Lieferantenrechnung, Ausfuhrnachweis."""
     from . import voucher as vs
+    from . import voucher_head as vh
     out: list[Requirement] = []
     # **Nur, wo etwas fehlen kann**: eine bestellte Ausgabe (Lieferantenrechnung) oder eine
     # gestellte Einnahme ohne Ausfuhrnachweis – ob es wirklich fehlt, sagt die Schleife.
@@ -112,7 +113,7 @@ def of_vouchers(db: Session) -> list[Requirement]:
                                      amount=_money(amount)),
                 fields=fields, object_id=order.object_id, part=part, field="voucher.original",
                 party_object_id=party, expected={"amount": str(amount) if amount else None}))
-        if (row.stage == vo.BILLED and not row.export_number and vs.is_export(db, row)
+        if (row.stage == vo.BILLED and not row.export_number and vh.is_export(db, row)
                 and documents.field_document(db, order.object_id, "voucher.export", part) is None):
             art, text, fields = SENTENCES["voucher.export"]
             out.append(Requirement(

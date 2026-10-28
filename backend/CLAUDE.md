@@ -111,7 +111,7 @@ scripts/
 |---|---|
 | Prozess-Engine (Freigabe, Bestätigen, Halt, Auswahl) | `process.py`, `orders.py`, `materialize.py` |
 | Prozessbild, Protokoll, Journey, Genealogie | `flow.py`, `record.py`, `journey.py`, `genealogy.py` |
-| Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, `voucher.py` (+ `voucher_docs.py`, `document.py`, `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
+| Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, Beleg: `voucher.py` (Kern: lesen, Ableitungen, Anlage, Rahmen) → `voucher_head.py` (Belegkopf, Anschrift, Positionen) → `voucher_money.py` (Geld-Zeilen, Erstattung, QR, anstehende Papiere) → `voucher_actions.py` (`VERBS`, `can`, `apply`) → `voucher_view.py` (`embed_data`) (+ `voucher_docs.py`, `document.py`, `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
