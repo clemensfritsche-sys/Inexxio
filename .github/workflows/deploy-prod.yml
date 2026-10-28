@@ -118,28 +118,8 @@ jobs:
           echo "extra=$extra" >> "$GITHUB_OUTPUT"
 
       # ►►► **Die Datei-Ablage** – je Umgebung ein eigener Bucket `<Projekt>-files` (privat,
-      # Region wie der Dienst). ◄◄◄ Fehlt er, legt der Deploy ihn an und gibt dem Dienstkonto
-      # des Backends Zugriff. Geht das nicht (Rechte), läuft der Dienst ohne Bucket weiter: die
-      # Dateien liegen dann in der Datenbank (`services/attachments`), nichts bricht ab.
-      - name: Datei-Ablage (Cloud Storage)
-        id: files
-        run: |
-          B="${{ env.GCP_PROJECT }}-files"
-          if ! gcloud storage buckets describe "gs://$B" --project "${{ env.GCP_PROJECT }}" >/dev/null 2>&1; then
-            gcloud storage buckets create "gs://$B" --project "${{ env.GCP_PROJECT }}" \
-              --location "${{ env.GCP_REGION }}" --uniform-bucket-level-access \
-              --public-access-prevention || echo "::warning::Bucket $B nicht angelegt – Dateien bleiben in der DB"
-          fi
-          if gcloud storage buckets describe "gs://$B" --project "${{ env.GCP_PROJECT }}" >/dev/null 2>&1; then
-            gcloud storage buckets add-iam-policy-binding "gs://$B" \
-              --member "serviceAccount:cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
-              --role roles/storage.objectAdmin >/dev/null \
-              || echo "::warning::Zugriff auf $B nicht gesetzt – bitte von Hand (docs/dokumente.md)"
-            echo "env=,FILES_BUCKET=$B" >> "$GITHUB_OUTPUT"
-          else
-            echo "env=" >> "$GITHUB_OUTPUT"
-          fi
-
+      # europe-west6), einmal von Hand angelegt (`docs/dokumente.md`). ◄◄◄ Fehlt er oder ist er
+      # nicht schreibbar, bleiben die Dateien in der Datenbank (`services/attachments`).
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
@@ -150,7 +130,7 @@ jobs:
             --no-allow-unauthenticated \
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:${{ env.CLOUD_SQL_INSTANCE }}" \
-            --set-env-vars "APP_ENV=production,GCP_PROJECT=${{ env.GCP_PROJECT }},FIREBASE_PROJECT_ID=inexxio-prod,FRONTEND_BASE_URL=https://inexxio-prod.web.app${{ steps.files.outputs.env }}" \
+            --set-env-vars "APP_ENV=production,GCP_PROJECT=${{ env.GCP_PROJECT }},FIREBASE_PROJECT_ID=inexxio-prod,FRONTEND_BASE_URL=https://inexxio-prod.web.app,FILES_BUCKET=${{ env.GCP_PROJECT }}-files" \
             --set-secrets "DATABASE_URL=DATABASE_URL:latest,FIREBASE_SERVICE_ACCOUNT_KEY=FIREBASE_SERVICE_ACCOUNT_KEY:latest${{ steps.optsec.outputs.extra }}" \
             --min-instances 1 \
             --max-instances 10 \

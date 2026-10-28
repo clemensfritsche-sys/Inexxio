@@ -29,7 +29,7 @@ Backend:   FastAPI (Python 3.12), SQLAlchemy 2.0, Pydantic v2, Alembic
 DB:        PostgreSQL (Cloud SQL), universeller 9-stelliger Nummernkreis
 Auth:      Firebase Authentication (Magic Link · Google SSO · Passkeys/WebAuthn)
 Dateien:   Cloud Storage, je Umgebung ein Bucket (inexxio-dev-files · inexxio-prod-files,
-           privat, vom Deploy angelegt); ohne Bucket in der DB. Eine Stelle:
+           privat, FILES_BUCKET vom Deploy); ohne Bucket in der DB. Eine Stelle:
            services/attachments, ausgeliefert über einen unerratbaren Token
 Karten:    Google Places (Adress-Suche in jedem Adressfeld)
 Infra:     Google Cloud Run (europe-west6) + Firebase Hosting
