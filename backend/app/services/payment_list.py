@@ -14,11 +14,13 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from ..core import clock
 from ..domain import currency as cur
 from ..domain import voucher as vo
 from ..models import Order, UserProfile, Voucher, VoucherQuote
 from . import sites
 from . import voucher as vs
+from . import voucher_head as vh
 
 #: Der Stand einer Zeile – Wort und Ton (``overdue`` rot · ``open`` schwarz · ``paid`` grün ·
 #: ``void`` grau).
@@ -41,7 +43,7 @@ def kind_of(row: Voucher) -> str:
 def state_of(db: Session, row: Voucher) -> str:
     if row.stage == vo.CANCELLED:
         return "void"
-    if vs.is_done(db, row):
+    if vh.is_done(db, row):
         return "paid"
     return "overdue" if vs.overdue(db, row) else "open"
 
@@ -56,15 +58,18 @@ def _amount(db: Session, row: Voucher, party: Optional[int]) -> Optional[str]:
     return cur.money(value, row.currency) if value is not None else None
 
 
-def row_of(db: Session, row: Voucher, order: Optional[Order],
-           party: Optional[int]) -> dict[str, Any]:
-    """Eine Zeile der Liste – Nummer · Art · Auftrag · Partei · Betrag ± · Stand."""
+def _who(db: Session, row: Voucher, party: Optional[int]) -> Optional[int]:
+    """Um wen es in der Zeile geht – die Partei der Liste, sonst die des Belegs."""
+    return party or vs.party_of(db, row) or vs.addressee_of(db, row)
+
+
+def row_of(db: Session, row: Voucher, order: Optional[Order], party: Optional[int],
+           names: dict[int, str]) -> dict[str, Any]:
+    """Eine Zeile der Liste – Nummer · Art · Auftrag · Partei · Betrag ± · Stand. Die Namen
+    kommen gesammelt (``names``, eine Abfrage für die ganze Liste)."""
     inbound = vo.inbound(collects=vo.of(row.direction).collects, minus=vs.minus(row))
-    who = party or vs.party_of(db, row) or vs.addressee_of(db, row)
-    name = None
-    if who is not None:
-        u = db.query(UserProfile).filter(UserProfile.object_id == who).first()
-        name = u.display_name if u is not None else None
+    who = _who(db, row, party)
+    name = names.get(who) if who is not None else None
     state = state_of(db, row)
     return {
         "voucher_id": row.id,
@@ -84,7 +89,11 @@ def row_of(db: Session, row: Voucher, order: Optional[Order],
 def _sorted(db: Session, rows: list[Voucher], party: Optional[int]) -> list[dict[str, Any]]:
     orders = {o.id: o for o in db.query(Order).filter(
         Order.id.in_([r.order_id for r in rows] or [0])).all()}
-    out = [row_of(db, r, orders.get(r.order_id), party) for r in rows]
+    with vs.reading(db):
+        wanted = {w for w in (_who(db, r, party) for r in rows) if w is not None}
+        names = {u.object_id: u.display_name for u in db.query(UserProfile).filter(
+            UserProfile.object_id.in_(wanted or {0})).all()}
+        out = [row_of(db, r, orders.get(r.order_id), party, names) for r in rows]
     # **Neueste Nummer zuoberst** – Auftragsnummer, dann die laufende Nummer dahinter.
     def key(x: dict[str, Any]) -> tuple[int, int]:
         head, _, tail = str(x["number"]).partition("-")
@@ -111,19 +120,22 @@ def of_company(db: Session, object_id: int) -> list[dict[str, Any]]:
                      | Voucher.issuer_company_id.is_(None))
     else:
         q = q.filter(Voucher.issuer_company_id == object_id)
-    rows = [r for r in q.all() if vs.quotes_of(db, r) or r.stage != vo.OFFER]
-    return _sorted(db, rows, None)
+    with vs.reading(db):
+        rows = [r for r in q.all() if vs.quotes_of(db, r) or r.stage != vo.OFFER]
+        return _sorted(db, rows, None)
 
 
 def overdue_counts(db: Session) -> dict[int, int]:
-    """**Überfällige Rechnungen je Person** – für die Zahl am Symbol."""
+    """**Überfällige Rechnungen je Person** – für die Zahl am Symbol. In SQL vorgefiltert
+    (gestellt, fällig vor heute); ob noch etwas offen ist, sagt ``voucher.overdue``."""
     out: dict[int, int] = {}
     rows = (db.query(Voucher).filter(Voucher.is_active.is_(True),
                                      Voucher.stage == vo.BILLED,
-                                     Voucher.due_on.isnot(None)).all())
-    for row in rows:
-        if vs.overdue(db, row):
-            who = vs.party_of(db, row)
-            if who is not None:
-                out[who] = out.get(who, 0) + 1
+                                     Voucher.due_on < clock.today()).all())
+    with vs.reading(db):
+        for row in rows:
+            if vs.overdue(db, row):
+                who = vs.party_of(db, row)
+                if who is not None:
+                    out[who] = out.get(who, 0) + 1
     return out

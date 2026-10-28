@@ -104,7 +104,7 @@ class Voucher(Base, TimestampMixin):
     #: entscheidet genau er, wo das Risiko übergeht.
     incoterm_place: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
-    #: ►►► **Wen dieser Beleg betrifft — wo die Definition niemanden nennt** (#1000). ◄◄◄
+    #: ►►► **Wen dieser Beleg betrifft — wo die Definition niemanden nennt**. ◄◄◄
     #:
     #: ``config.parties`` am Modul ist eine **Vorlage**: sie sagt, wer in Frage kommt, und
     #: gilt für jeden künftigen Auftrag. Lässt sie **jeden** zu (leer), braucht die Wahl
@@ -121,7 +121,7 @@ class Voucher(Base, TimestampMixin):
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
 
     #: ►►► **Die beiden Fristen als ENTWURF** – was auf dem Beleg steht, bevor er
-    #: hinausgeht (Testnotiz #985). ◄◄◄
+    #: hinausgeht. ◄◄◄
     #:
     #: Jeder änderbare Wert des Belegs wird sofort geschrieben (Verb ``terms``), keiner
     #: lebt nur im Browser.
@@ -159,13 +159,10 @@ class Voucher(Base, TimestampMixin):
     #: vergebene Nummer wird nicht erneut vergeben.
     number: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
-    # **Gestellt ist draussen** (#1047): ``billed_on`` sagt es, ein «versendet» gibt es
-    # nicht (die Spalte ``issued_on`` ist gedroppt, Migration 152).
+    # **Gestellt ist draussen**: ``billed_on`` sagt es, ein «versendet» gibt es nicht.
 
-    #: **Der Rechnungsbetrag, brutto** – eingefroren mit dem Stellen. Bei einem
-    #: **Korrekturbeleg** negativ: die Positionen tragen positive Preise (niemand tippt ein
-    #: Minus), und das Vorzeichen setzt ``bill`` aus ``corrects_id``. Danach rechnet jede
-    #: Zahl vorzeichenrichtig, ohne eine einzige Fallunterscheidung beim Lesen.
+    #: **Der Rechnungsbetrag, brutto** – eingefroren mit dem Stellen. Eine Menge, nie
+    #: negativ: dass ein Beleg mindert, sagt ``corrects_id``.
     amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4), nullable=True)
 
     #: **Die Steuer-Aufteilung – EINGEFROREN**, nicht nachgerechnet.
@@ -182,22 +179,14 @@ class Voucher(Base, TimestampMixin):
     #: aus dem Prozess und mit dem Stellen eingefroren.
     service_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
-    #: ►►► **Welchen Beleg dieser hier MINDERT.** ◄◄◄
-    #:
-    #: Das ist die ganze Korrektur-Mechanik: kein Belegtyp, keine Gegenbuchung an einer
-    #: Zeile, keine Summenregel. Ein Beleg mit gesetztem Verweis ist eine **Gutschrift** –
-    #: sein Betrag ist negativ, seine Steuer gespiegelt, und auf dem Papier steht
-    #: «Korrektur zu <Nummer>» (MWSTG Art. 26: die Leistung und das Entgelt müssen
-    #: eindeutig bestimmbar sein).
-    #:
-    #: **Er darf über Auftragsgrenzen zeigen** – und das ist der Sinn: die Gutschrift
-    #: gehört in den Auftrag, in dem die Ware zurückkommt, nicht in den, der sie geliefert
-    #: hat. Dort entstehen ihre Positionen von selbst aus den zurückkommenden Stücken.
+    #: ►►► **Welche Rechnung dieser Beleg MINDERT** – gesetzt heisst «Gutschrift». ◄◄◄
+    #: Auf dem Papier steht «Korrektur zu <Nummer>» (MWSTG Art. 26). Der Verweis darf über
+    #: Auftragsgrenzen zeigen: die Gutschrift gehört dorthin, wo die Ware zurückkommt.
     corrects_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("vouchers.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # ─── An wen und wohin – gewählt bis zur Zusage, danach eingefroren ─────────────
-    #: ►►► **Rechnung an die Firma oder an die Person?** (Migration 143) ◄◄◄ ``NULL`` =
+    #: ►►► **Rechnung an die Firma oder an die Person?** ◄◄◄ ``NULL`` =
     #: die Vorgabe: an die Firma, wenn die Person einer zugeordnet ist. Es bestellt immer
     #: eine Person; die Firma ist höchstens der Rechnungsempfänger «im Namen von».
     bill_to_company: Mapped[Optional[bool]] = mapped_column(nullable=True)
@@ -213,7 +202,7 @@ class Voucher(Base, TimestampMixin):
     #: ``NULL`` vor der Zusage: dort ist der Kopf eine Ableitung und darf sich bewegen.
     head: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
 
-    # ─── Umbau Oktober 2026 (Migration 155) ─────────────────────────────────────────
+    # ─── Gültigkeit, Eigentum, Stücke, Dokumente ─────────────────────────
     #: **Wie lange die Offerte gilt, in Tagen** – gezählt ab «Anbieten». ``NULL`` = die
     #: Vorgabe (``domain/voucher.VALID_DAYS``). Danach ist sie abgelaufen, «Annehmen» ist
     #: gesperrt, und «Erneut anbieten» beginnt die Frist neu.
@@ -383,17 +372,11 @@ class VoucherLine(Base, TimestampMixin):
 
 
 class VoucherEntry(Base, TimestampMixin):
-    """**Eine Zahlung** – eine Zeile Geld am Beleg. Negativ ist die Erstattung.
+    """**Eine Geld-Zeile am Beleg** – Zahlung (negativ = Erstattung), Ausbuchung oder
+    Trinkgeld (``kind``). Die Forderung ist keine davon: sie ist der Beleg selbst.
 
-    **Eine Art, kein ``kind``**: die Forderung ist der Beleg selbst (``Voucher.billed_on``
-    & Co.).
-
-    **Gelöscht wird nichts** – auch eine Erstattung ist eine neue Zeile mit negativem
-    Betrag, nie eine Änderung an der alten: eine Zahlung ist die Aufzeichnung dessen, was
-    auf dem Konto passiert ist, und ein Ereignis der Aussenwelt macht man nicht ungeschehen.
-
-    *Die früheren Spalten ``kind`` · ``due_on`` · ``vat`` · ``service_date`` ·
-    ``reverses_id`` · ``charge_id`` · ``reason`` sind gedroppt (Migration 152).*
+    **Gelöscht wird nichts** – eine Erstattung ist eine neue Zeile, «falsch erfasst» eine
+    Gegenbuchung (``reverses_id``).
     """
 
     __tablename__ = "voucher_entries"

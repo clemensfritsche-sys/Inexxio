@@ -167,8 +167,8 @@ def of_operator(db) -> dict[str, str]:
 
 
 def _uid(company: Any) -> str:
-    from . import voucher as voucher_svc
-    return voucher_svc._uid(company) or ""
+    from . import voucher_head
+    return voucher_head.uid_of(company) or ""
 
 
 

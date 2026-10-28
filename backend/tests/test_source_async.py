@@ -22,9 +22,8 @@ from app.main import app
 
 APP = Path(__file__).resolve().parents[1] / "app"
 
-#: Bekannt und gemeldet (nicht in diesem Bereich zu ändern): der Webhook des
-#: Zahlungsdienstes liest den rohen Rumpf und bucht dann synchron.
-KNOWN = {("routers/payments.py", "webhook")}
+#: Ausnahmen – keine (der Webhook liest den Rumpf und bucht im Threadpool).
+KNOWN: set[tuple[str, str]] = set()
 
 
 def _awaits(fn: ast.AST) -> bool:

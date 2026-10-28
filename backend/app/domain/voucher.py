@@ -81,16 +81,14 @@ STAGES: tuple[str, ...] = (OFFER, AGREED, BILLED)
 ASKED, QUOTED, DECLINED, CHOSEN = "angefragt", "offeriert", "abgelehnt", "gewaehlt"
 
 # ---------------------------------------------------------------------------
-# ►►► DIE GELD-ZEILEN — eine Art: die ZAHLUNG ◄◄◄
+# ►►► DIE GELD-ZEILEN — die Forderung ist keine davon ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# Die **Forderung** ist keine Zeile, sondern der **Beleg selbst** – mit Nummer, Datum,
-# Fälligkeit, Betrag und eingefrorener Steuer. Damit kann es sie nicht zweimal geben, und
-# «eine Rechnung je Modul» ist keine Regel, die jemand durchsetzt, sondern die Struktur.
-#
-# Eine Geld-Zeile ist eine **Zahlung** am Beleg, negativ = Erstattung. Eine Gegenbuchung
-# gibt es nicht: die Korrektur ist ein **eigener Beleg** in einem eigenen Modul
-# (``corrects_id``), dort, wo der Vorfall passiert.
+# Die **Forderung** ist der **Beleg selbst** (Nummer, Datum, Fälligkeit, Betrag, Steuer) –
+# eine Rechnung je Modul ist damit die Struktur. Eine Geld-Zeile ist eine Zahlung (negativ =
+# Erstattung), eine Ausbuchung oder ein Trinkgeld (``ENTRY_KINDS``); «falsch erfasst» ist ihre
+# Gegenbuchung (``reverses_id``), eine Minderung der Forderung ein eigener Beleg
+# (``corrects_id``).
 
 # ---------------------------------------------------------------------------
 # ►►► WER DEN PREIS NENNT ◄◄◄
@@ -130,85 +128,41 @@ CUSTOMER = "An"
 SUPPLIER_HINT = "Leistungserbringer: wer die Leistung erbringt und den Beleg stellt."
 CUSTOMER_HINT = "Leistungsempfänger: wer die Leistung bezieht und bezahlt."
 
-#: ►►► **Rechnungs- und Lieferadresse sind ZWEI Angaben – auf JEDER Seite, IMMER**
-#: (Testnotizen #952/#975). ◄◄◄
-#:
-#: *«Mir gefällt das ziemlich gut mit Rechnungsadresse, Lieferadresse usw. Ich möchte, dass
-#: du das auch auf dem Leistungserbringer machst – also standardmässig immer bei
-#: Informationen ausweisen, global etablieren, auch wenn sie zweimal das Gleiche anzeigt.
-#: Eine Logik für alles, Komplexität und If/Else verringern.»*
-#:
-#: Ein Beleg beantwortet immer dieselben zwei Fragen: *wohin die Rechnung, wohin die
-#: Ware.* Steht nur eine Anschrift da, ist die Antwort «an dieselbe» – und die
-#: auszusprechen ist keine Doppelung, sondern die Auskunft.
-#:
-#: Erfunden wird nichts: die zweite Zeile entsteht aus Angaben, die am Benutzer
-#: stehen (Rechnungsadresse ≠ Hauptadresse). Wo **gar keine** Anschrift dasteht, gibt es
-#: auch keine Beschriftung – dort sagt die Seite, dass sie fehlt.
-#:
-#: *Die physische Lieferung selbst bleibt Sache des Bewegen-Moduls – hier steht die
-#: **Anschrift auf dem Beleg**, nicht der Transport.*
-#:
-#: ►►► **Und die zweite Beschriftung hängt an der ROLLE** (Testnotiz #979). ◄◄◄
-#:
-#: «Lieferadresse» heisst *wohin geliefert wird*. Beim **Leistungserbringer** ist es die
-#: Adresse, von der die Ware **abgeht**: im Handel, in der Logistik und im Zoll heisst sie
-#: **Versandadresse** (der Versender ist die Gegenrolle des Empfängers).
-#:
-#: **Nur diese eine Beschriftung ist rollenabhängig**, und das ist Absicht: die
-#: «Rechnungsadresse» beantwortet auf beiden Seiten dieselbe Frage – *welche Anschrift
-#: gilt in Rechnungssachen* (wohin sie geht ↔ von wo sie kommt) –, und sie steht so auch
-#: auf jedem gedruckten Beleg. Ein zweites Wort dafür wäre eine Unterscheidung ohne
-#: Unterschied.
+#: ►►► **Rechnungs- und Lieferadresse sind ZWEI Angaben – auf JEDER Seite, IMMER.** ◄◄◄
+#: Steht nur eine Anschrift da, steht sie unter beiden (die Auskunft «an dieselbe»); steht
+#: keine da, gibt es keine Beschriftung. Nur die zweite Beschriftung hängt an der Rolle:
+#: beim Leistungserbringer geht die Ware ab (**Versand**), beim Empfänger kommt sie an
+#: (**Lieferung**).
 BILLING_LABEL = "Rechnung"
 SHIPPING_LABEL = "Lieferung"
 SHIPPING_FROM_LABEL = "Versand"
 
 #: Welche unserer Gesellschaften den Beleg stellt – vorgewählt, hier steht die Korrektur.
 ISSUER_LABEL = "Unsere Gesellschaft"
-#: Die Nummer steht **neben** dem Namen und braucht keine eigene Beschriftung: «Name
-#: Nummer» ist die Form, in der dieses Haus einen Datensatz nennt (#933/#940).
 
 #: Was man an der Schwelle tut: die **Offerte** annehmen – der Auftrag ist das Ergebnis
-#: (#966). **Ein** Wort, weil es in beiden Richtungen dasselbe tut.
+#:. **Ein** Wort, weil es in beiden Richtungen dasselbe tut.
 AGREE_VERB = "Offerte annehmen"
-#: ►►► **Ein Wort für den Storno – in jeder Stufe** (Umbau Oktober 2026). ◄◄◄ Was er
-#: bewirkt, folgt aus der Stufe: vor der Zusage zieht er das Angebot zurück, danach den
-#: Auftrag, nach der Rechnung entsteht die Gutschrift von selbst.
+#: **Ein Wort für den Storno – in jeder Stufe.** Was er bewirkt, folgt aus der Stufe: vor
+#: der Zusage zieht er das Angebot zurück, danach den Auftrag, nach der Rechnung entsteht
+#: die Gutschrift von selbst.
 UNDO = "Stornieren"
-
-
-def undo_word(stage: str) -> str:
-    """Wie die Gegenhandlung heisst – in jeder Stufe dasselbe Wort."""
-    return UNDO
 
 # ---------------------------------------------------------------------------
 # ►►► JEDE ZAHL IST EINE MENGE — das Vorzeichen sagt der BELEG, einmal ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# *«Im Begleichen-Teil möchte ich keine Minus-Beträge eingeben, das ist verwirrend – denn
-# am Anfang sage ich ja, ob es eine Ein- oder Ausgabe ist.»* (Testnotiz #1055)
-#
-# **Der Betrag ist eine MENGE.** Wohin das Geld fliesst, sagt der Beleg – mit seiner
-# **Richtung** und mit der Frage, ob er **mindert**. Darum stimmen alle Leser, die «ist der
-# Betrag grösser als null?» fragen (``pay_online``, ``next_payment``, ``settled``,
-# ``invoice_state``), auch an einer Gutschrift – ohne Sonderfall (#1054–#1056).
-#
-# **Das Minus verschwindet nicht, es bekommt einen Ort**: die **Buchhaltung** sieht eine
-# Gutschrift negativ, und sie leitet das aus ``corrects_id`` ab – an **einer** Stelle, wenn
-# es sie gibt. Eine Spalte mit Vorzeichen daneben wäre die zweite Wahrheit, und ein
-# ``signed()`` ohne Leser die zweite Wahrheit ohne Nutzen.
-#
-# **Was ein Mensch tippt, ist nie negativ.** Die eine Ausnahme ist die Korrektur einer
-# erfassten Zahlung – und dort **setzt das System** den Betrag (die Oberfläche belegt ihn
-# mit dem Gegenwert vor); niemand schreibt ein Minus.
+# **Der Betrag ist eine MENGE.** Wohin das Geld fliesst, sagen die **Richtung** und ob
+# der Beleg **mindert** (``corrects_id``); darum stimmen alle Leser, die «grösser als null?»
+# fragen, auch an einer Gutschrift. Was ein Mensch tippt, ist nie negativ – die eine
+# Ausnahme, die Gegenbuchung einer Geld-Zeile, setzt das System.
 
 #: Wie der Beleg heisst, der **fordert** – und wie der, der **mindert**.
 INVOICE_NOUN = "Rechnung"
 CREDIT_NOUN = "Gutschrift"
 #: Was man mit ihm tut: **wir** stellen ihn aus ↔ wir schreiben einen **fremden** ab.
 #: Zusammengesetzt aus **zwei Bits**; die Fuge ist ein Leerzeichen vor einem Infinitiv –
-#: in allen vier Fällen richtiges Deutsch, anders als eine gerechnete Beugung (#787).
+#: in allen vier Fällen richtiges Deutsch, anders als eine gerechnete Beugung.
 ISSUE_VERB = "stellen"
 RECORD_VERB = "erfassen"
 
@@ -218,15 +172,9 @@ RECORD_VERB = "erfassen"
 PAYMENT_NOUN = "Zahlung"
 REFUND_NOUN = "Erstattung"
 
-#: ►►► **Die drei Momente, die der Beleg erzählt** (Testnotiz #1052). ◄◄◄
-#:
-#: *«Zeit und dann Status – beispielsweise ‹gerade eben zugesagt›.»* Die **Form** dieser
-#: Aussage steht im Frontend (`lib/when.happened`), die **Wörter** stehen hier – an einem
-#: Ort für jedes Wort.
-#:
-#: Es sind **Partizipien in einem Satz** («Vor 3 Tagen storniert»), darum klein – und
-#: darum nicht dieselbe Angabe wie `label_of(CANCELLED)` («Storniert»): das ist die
-#: **Beschriftung einer Stufe**, und sie steht für sich.
+#: **Die drei Momente, die der Beleg erzählt** – Partizipien in einem Satz («vor 3 Tagen
+#: storniert», die Form steht in ``lib/when.happened``), darum klein und nicht dasselbe wie
+#: die Beschriftung einer Stufe (``label_of``).
 SENT_WORD = "offeriert"
 TAKEN_WORD = "angenommen"
 CANCELLED_WORD = "storniert"
@@ -237,7 +185,7 @@ def charge_word(*, collects: bool, minus: bool) -> str:
 
     *«Rechnung stellen»* · *«Gutschrift stellen»* · *«Rechnung erfassen»* · *«Gutschrift
     erfassen»*. Das ist zugleich die Stelle, an der eine Gutschrift **sichtbar** wird: der
-    Belegkopf nennt bewusst keine Belegart (#974/#977), also sagt es das Wort auf dem
+    Belegkopf nennt bewusst keine Belegart, also sagt es das Wort auf dem
     Knopf – dort, wo man handelt.
     """
     return (f"{CREDIT_NOUN if minus else INVOICE_NOUN} "
@@ -267,11 +215,13 @@ def inbound(*, collects: bool, minus: bool) -> bool:
     ohne eine Fallunterscheidung.
     """
     return collects != minus
-#: Und die dritte Handlung am Geld: sie **auslösen**. «Erfassen» heisst *aufschreiben, was
+
+
+#: Die dritte Handlung am Geld: sie **auslösen**. «Erfassen» heisst *aufschreiben, was
 #: geschehen ist*; hier geschieht es, und gebucht wird erst, wenn der Dienst es meldet.
 PAY_ONLINE_WORD = "Jetzt bezahlen"
-#: Den Zustand des Saldos trägt die **Farbe** des Betrags (#997); wo ein Wort gebraucht
-#: wird (Hover, Guthaben), kommt es aus ``CHARGE_STATES``.
+#: Dasselbe rückwärts – zurück auf die Karte, über den Dienst, der sie belastet hat.
+REFUND_ONLINE_WORD = "Online erstatten"
 
 #: ►►► **Die Abschnitte der Karte** – in dieser Reihenfolge. «Fordern» und «Begleichen» sind
 #: EIN Abschnitt «Rechnung» (Rechnung, Zahlungen, Saldo): es ist eine Frage – was ist mit
@@ -308,11 +258,11 @@ PARTY_REFERENCE = "Rechnungsnummer"
 
 #: ►►► **Die Überschriften des Belegs.** ◄◄◄ Eine fehlt mit Absicht: über den Konditionen
 #: stand «Konditionen», und die Zeilen darunter (Zahlungsfrist, Lieferfrist,
-#: Lieferbedingung) sagen selbst, was sie sind (Testnotiz #926).
+#: Lieferbedingung) sagen selbst, was sie sind.
 #:
-#: «Angebote» (#946) trägt unsere hinaus bzw. ihre herein; der Abschnitt **ist** ein
+#: «Angebote» trägt unsere hinaus bzw. ihre herein; der Abschnitt **ist** ein
 #: Schritt – sein Punkt vor der Überschrift sagt, wo der Beleg steht. *Wann offeriert
-#: wurde* steht an ihm, *wann zugesagt wurde* an der Zeile mit dem Zuschlag (#970).
+#: wurde* steht an ihm, *wann zugesagt wurde* an der Zeile mit dem Zuschlag.
 GOODS_TITLE = "Positionen"
 QUOTES_TITLE = "Angebote"
 
@@ -341,7 +291,7 @@ FREE_MIN = 1
 PAYMENT_TERM_LABEL = "Zahlungsfrist"
 LEAD_TERM_LABEL = "Lieferfrist"
 
-#: ►►► **Die beiden Zoll-Angaben – so, wie sie am Artikel heissen** (Testnotiz #964). ◄◄◄
+#: ►►► **Die beiden Zoll-Angaben – so, wie sie am Artikel heissen**. ◄◄◄
 #:
 #: Sie stehen hier, weil ``ask_problem`` sie **nennen** muss, wenn sie fehlen: «Ohne
 #: Zolltarifnummer …» ist eine Auskunft, «Ohne hs_code …» eine Fehlermeldung an den
@@ -416,23 +366,10 @@ def assert_method(value: Any, *, card: bool = False) -> Optional[str]:
 # ►►► STORNO ODER KORREKTUR — zwei Sachverhalte, zwei Wege ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# * **Storno** – *diese Rechnung war falsch, sie gilt nicht.* Derselbe Vorgang, kein
-#   neues Geschäft. Das ist ``unbill``: solange der Beleg nicht hinausgegangen ist und
-#   nichts darauf geflossen, wird er zurückgenommen – spurlos nach aussen.
-# * **Korrektur** – *die Rechnung war richtig, die Leistung wurde gemindert.* Ein
-#   **neuer** Geschäftsvorfall mit eigenem Datum, eigener Ware und eigener Steuerperiode:
-#   ein **eigener Beleg in einem eigenen Modul**, mit ``corrects_id`` auf den, den er
-#   mindert – und er steht dort, wo der Vorfall passiert (Retoure → Retourenauftrag).
-#
-# Zwischen den beiden entscheidet kein Mensch: der **Zeitpunkt** tut es.
-REFUND_ONLINE_WORD = "Online erstatten"
-
-#: ►►► **Zwei Handlungen an der Rechnung — stellen, und sie zurücknehmen.** ◄◄◄
-#:
-#: Dieselbe Anatomie wie ``ask``/``unask``: **jede Zusage nach aussen hat ihre
-#: Gegenhandlung an derselben Stelle.** Und **gestellt ist draussen** (#1047): die
-#: Fälligkeit kommt aus dem Rechnungsdatum, ein «versendet» gibt es nicht.
-UNBILL_WORD = "Rechnung zurücknehmen"
+# **Storno** (``UNDO``): dieser Vorgang gilt nicht – nach der Rechnung entsteht die
+# Gutschrift über die ganze Rechnung von selbst. **Korrektur**: die Leistung wurde gemindert –
+# ein eigener Beleg in einem eigenen Modul, mit ``corrects_id`` auf die Rechnung, die er
+# mindert, dort, wo der Vorfall passiert (Retoure → Retourenauftrag).
 
 #: **Der Verweis auf den Beleg, den dieser hier mindert.** Er steht auf dem Papier
 #: (MWSTG Art. 26: die Leistung und das Entgelt müssen eindeutig bestimmbar sein) und ist
@@ -536,28 +473,21 @@ def remind_word(level: int) -> str:
     """Wie die Mahnung der Stufe ``level`` (1–3) heisst."""
     return REMIND_LEVELS[max(1, min(level, len(REMIND_LEVELS))) - 1]
 
+
+def document_word(kind: str, level: Optional[int] = None) -> str:
+    """**Das Wort eines Papiers** – «Rechnung», bei einer Mahnung die ihrer Stufe."""
+    if kind == REMINDER_DOC:
+        return remind_word(level or 1)
+    return DOCUMENTS.get(kind, "Beleg")
+
 # ---------------------------------------------------------------------------
-# ►►► DER ZUSTAND EINER FORDERUNG — abgeleitet, nie gespeichert (Testnotiz #991)
+# ►►► DER ZUSTAND EINER FORDERUNG — abgeleitet, nie gespeichert
 # ---------------------------------------------------------------------------
 #
-# *«Bitte definiere die Zahlungsstatus-Semantik inkl. Überzahlung.»*
-#
-# **Es ist eine Ableitung aus zwei Zahlen** – dem Betrag der Rechnung und dem, was von ihr
-# offen ist. Ein gespeichertes Zustandsfeld daneben wäre die zweite Wahrheit, und die eine
-# vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt.
-#
-# **Und die Töne sind die drei des Hauses** (``status-flow.TONE``): *done* = erledigt ·
-# *pending* = offen · *danger* = Problem. Eine vierte Farbe für Geld wäre eine zweite
-# Farbsprache – und ein Zustand, den niemand sonst im ERP lesen kann.
-#
-# ►►► **Die Überzahlung ist ein GUTHABEN, und dafür braucht es nichts Neues.** ◄◄◄
-#
-# Wer zu viel bezahlt hat, hat einen **negativen offenen Betrag** – die Zahl steht bereits
-# da, mit Vorzeichen und in derselben Spalte. Eine eigene Guthaben-Tabelle wäre ein zweites
-# Modell für eine Zahl, die schon dasteht, und sie müsste bei jeder Buchung nachgezogen
-# werden. Zurückgezahlt wird über den Weg, auf dem gezahlt wurde: eine gewöhnliche
-# **negative Zahlung** (bar, Überweisung) bzw. ``refund_online`` (Karte). Verrechnet wird
-# ein Guthaben **nicht automatisch**: welche Rechnung es mindern soll, weiss nur ein Mensch.
+# Eine Ableitung aus zwei Zahlen – Rechnungsbetrag und Offenes –, in den drei Tönen des
+# Hauses (done · pending · danger). **Eine Überzahlung ist ein negativer offener Betrag**,
+# kein eigenes Modell: zurück geht sie auf dem Weg, auf dem gezahlt wurde; verrechnet wird
+# sie nie von selbst.
 
 #: **Rundungstoleranz** – darunter gilt eine Forderung als beglichen.
 #:
@@ -658,7 +588,7 @@ class Direction:
             return "Erledigt"
         return self.stage_labels.get(stage, stage)
 
-    # **Eine Belegart nennt der Kopf nicht** (#974/#977); ``label_of`` gibt es, weil eine
+    # **Eine Belegart nennt der Kopf nicht**; ``label_of`` gibt es, weil eine
     # **Fehlermeldung** über die Stufe die Stufe nennen darf.
 
 
@@ -747,23 +677,13 @@ def amount(value: Any, code: str, *, allow_negative: bool = False) -> Optional[D
     # ein fester Schnitt bei ``0.01`` verlöre bei einer dreistelligen Währung (KWD) still
     # eine Stelle – in der Richtung, in der ein Betrag kleiner wird, ohne dass es jemand
     # sieht.
-    found = _round(found, code)
+    found = cur.round_to(found, code)
     if not allow_negative and found < 0:
         raise ValueError("Ein zugesagter Betrag ist nicht negativ – "
                          "die Richtung sagt, wohin das Geld fliesst.")
     if abs(found) > MAX_AMOUNT:
         raise ValueError(f"Der Betrag ist zu gross (max. {MAX_AMOUNT}).")
     return found
-
-
-def _round(value: Decimal, code: str) -> Decimal:
-    """**Auf die kleinste Einheit DIESER Währung**, kaufmännisch (``domain/currency``).
-
-    Fest auf ``0.01`` gerundet wäre bei **JPY** (null Stellen) und **KWD** (drei) still
-    falsch; und ``quantize`` ohne Angabe rundet **statistisch** – eine Anzeige, die anders
-    rundet als die Buchung, ist ein Rappen Differenz, den niemand erklären kann.
-    """
-    return cur.round_to(value, code)
 
 
 # ---------------------------------------------------------------------------
@@ -933,8 +853,8 @@ def line_net(line: dict[str, Any], code: str) -> Decimal:
         return part
     price = amount(line.get("price"), code, allow_negative=True)
     if price is None:
-        return _round(Decimal(0), code)
-    return _round(price * Decimal(int(line.get("quantity") or 0)), code)
+        return cur.round_to(Decimal(0), code)
+    return cur.round_to(price * Decimal(int(line.get("quantity") or 0)), code)
 
 
 def vat_split(lines: list[dict[str, Any]], code: str) -> list[dict[str, str]]:
@@ -948,7 +868,7 @@ def vat_split(lines: list[dict[str, Any]], code: str) -> list[dict[str, str]]:
     *Reverse Charge* zu einer Zeile zusammen (beide 0 %), und der Beleg nennte nur einen
     der beiden Rechtsgründe.
     """
-    zero = _round(Decimal(0), code)
+    zero = cur.round_to(Decimal(0), code)
     buckets: dict[str, Decimal] = {}
     for line in lines or []:
         entry = vat_entry(line.get("vat"))
@@ -964,7 +884,7 @@ def vat_split(lines: list[dict[str, Any]], code: str) -> list[dict[str, str]]:
 
 def _row(key: str, net: Decimal, code: str) -> dict[str, str]:
     """Eine Zeile der Aufteilung – aus Schlüssel und Netto, samt ihrer Auskunft."""
-    tax = _round(net * vat_of(key) / Decimal(100), code)
+    tax = cur.round_to(net * vat_of(key) / Decimal(100), code)
     return _describe(key, {"net": cur.money(net, code), "tax": cur.money(tax, code)})
 
 
@@ -985,32 +905,7 @@ def _describe(key: str, row: dict[str, str]) -> dict[str, str]:
 def gross_of(lines: list[dict[str, Any]], code: str) -> Decimal:
     """Die **Brutto**-Summe der Positionen – Netto plus Steuer, je Satz gerundet."""
     return sum((Decimal(row["net"]) + Decimal(row["tax"])
-                for row in vat_split(lines, code)), _round(Decimal(0), code))
-
-
-def split_for(gross: Decimal, lines: list[dict[str, Any]],
-              code: str) -> list[dict[str, str]]:
-    """►►► **Die Aufteilung EINER Rechnung** – auch wenn sie nur ein Teil ist. ◄◄◄
-
-    Eine **Anzahlung** ist zum Satz der zugrunde liegenden Leistung zu versteuern; bei
-    gemischten Sätzen also **anteilig** über alle. **Der letzte Anteil bekommt den Rest** –
-    sonst fehlt oder überschiesst ein Rappen, und die Summe der Zeilen wäre nicht der
-    Betrag der Rechnung: ein Beleg, der sich selbst widerspricht.
-    """
-    zero = _round(Decimal(0), code)
-    rows = vat_split(lines, code)
-    total = sum((Decimal(r["net"]) + Decimal(r["tax"]) for r in rows), zero)
-    if not rows or total == 0:
-        return []
-    out: list[dict[str, str]] = []
-    used = zero
-    for i, row in enumerate(rows):
-        share = Decimal(row["net"]) + Decimal(row["tax"])
-        part = (gross - used if i == len(rows) - 1
-                else _round(gross * share / total, code))
-        used += part
-        out.append(_at(part, row["vat"], code))
-    return out
+                for row in vat_split(lines, code)), cur.round_to(Decimal(0), code))
 
 
 def split_at(gross: Decimal, rate: Any, code: str) -> list[dict[str, str]]:
@@ -1021,39 +916,18 @@ def split_at(gross: Decimal, rate: Any, code: str) -> list[dict[str, str]]:
 
 def _at(gross: Decimal, key: str, code: str) -> dict[str, str]:
     """Brutto **rückwärts** in Netto und Steuer: ``netto = brutto / (1 + satz)``."""
-    net = _round(gross / (Decimal(1) + vat_of(key) / Decimal(100)), code)
+    net = cur.round_to(gross / (Decimal(1) + vat_of(key) / Decimal(100)), code)
     return _describe(key, {"net": cur.money(net, code),
                            "tax": cur.money(gross - net, code)})
 
 
 def totals(rows: list[dict[str, str]], code: str) -> dict[str, str]:
     """Netto · Steuer · Brutto einer Aufteilung – die drei Zahlen unter dem Strich."""
-    zero = _round(Decimal(0), code)
+    zero = cur.round_to(Decimal(0), code)
     net = sum((Decimal(r["net"]) for r in rows), zero)
     tax = sum((Decimal(r["tax"]) for r in rows), zero)
     return {"net": cur.money(net, code), "tax": cur.money(tax, code),
             "gross": cur.money(net + tax, code)}
-
-
-def share_of(gross: Decimal, rows: list[dict[str, Any]], code: str) -> list[dict[str, str]]:
-    """►►► **Ein Teil einer gestellten Rechnung, aufgeteilt wie sie** – für eine Ausbuchung
-    oder ein Trinkgeld. ◄◄◄ Die Entgeltsminderung korrigiert die Steuer **anteilig** über
-    die Sätze der Rechnung (MWSTG Art. 41); der letzte Anteil bekommt den Rest, damit die
-    Summe der Zeilen der Betrag ist."""
-    weights = [(r.get("vat") or r.get("rate"), Decimal(str(r.get("net") or 0))
-                + Decimal(str(r.get("tax") or 0))) for r in rows or []]
-    total = sum((w for _, w in weights), Decimal(0))
-    if not weights or total == 0:
-        return []
-    out: list[dict[str, str]] = []
-    used = _round(Decimal(0), code)
-    for i, (key, weight) in enumerate(weights):
-        part = (gross - used if i == len(weights) - 1
-                else _round(gross * weight / total, code))
-        used += part
-        entry = vat_entry(key)
-        out.append(_at(part, entry.key if entry is not None else f"{vat_of(key):.2f}", code))
-    return out
 
 
 @dataclass(frozen=True)

@@ -107,7 +107,8 @@ def payment(token: str, db: Session = Depends(get_db)) -> Any:
         raise HTTPException(status_code=409, detail="Hier ist nichts mit Karte zu bezahlen.")
     row = db.query(Voucher).filter(Voucher.id == rec.voucher_id).first()
     order = db.query(Order).filter(Order.id == row.order_id).first()
-    return PaymentSetup(**stripe_pay.prepare(db, row=row, order=order))
+    return PaymentSetup(**stripe_pay.prepare(db, row=row, order=order,
+                                             viewer=voucher_docs.party_user(db, rec)))
 
 
 @router.get("/legal/{kind}", response_model=LegalOut)

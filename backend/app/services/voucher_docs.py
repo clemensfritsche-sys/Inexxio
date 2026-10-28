@@ -13,6 +13,7 @@ Ohne verbundenes Postfach wird die Mail **nur erfasst** – wie jede andere Mail
 (``docs/gmail-setup.md``); das Dokument und sein Link gibt es trotzdem.
 """
 
+import logging
 import secrets
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -21,13 +22,20 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from ..core import clock
 from ..domain import communication as dc
 from ..domain import currency as cur
 from ..domain import incoterms as inc
 from ..domain import voucher as vo
 from ..models import Message, Order, UserProfile, Voucher, VoucherDocument
-from . import address, document, legal, mail_layout, qrbill, sites
+from . import address, document, legal, mail_layout, sites
 from . import voucher as vs
+from . import voucher_actions as va
+from . import voucher_head as vh
+from . import voucher_money as vm
+from .people import STAFF_ROLES
+
+log = logging.getLogger(__name__)
 
 #: Eine Anschrift im Inland trägt kein Land – wie auf jedem Schweizer Brief.
 HOME_LINES = ("CH", "Schweiz")
@@ -109,17 +117,16 @@ def build(db: Session, *, row: Voucher, kind: str, party: int,
           actor: Optional[UserProfile] = None, level: Optional[int] = None) -> document.Doc:
     """►►► **Was auf dem Papier steht** – aus dem Beleg, an einer Stelle. ◄◄◄"""
     order = db.query(Order).filter(Order.id == row.order_id).first()
-    head = vs.document_head(db, row, won=True, party_id=party)
+    head = vh.document_head(db, row, won=True, party_id=party)
     ours, theirs = (head["supplier"], head["customer"])
-    company = vs.issuer_company(db, row)
+    company = vh.issuer_company(db, row)
     seat = address.of_company(company) if company is not None else {}
     sender = " · ".join(x for x in (sites.legal_name(company) or "", seat.get("street1") or "",
                                     " ".join(y for y in (seat.get("zip"), seat.get("city"))
                                              if y), ours.get("uid") or "") if x and x != "—")
     to = [theirs.get("name") or "", theirs.get("attn") or "",
           *[x for x in (theirs.get("address") or []) if x not in HOME_LINES]]
-    word = (vo.remind_word(level or 1) if kind == vo.REMINDER_DOC
-            else vo.DOCUMENTS.get(kind, "Beleg"))
+    word = vo.document_word(kind, level)
     doc = document.Doc(
         word=word, number=_number(row, kind, order), to=to,
         facts=_facts(db, row, kind, party, actor, theirs),
@@ -150,7 +157,7 @@ def _number(row: Voucher, kind: str, order: Optional[Order]) -> str:
 def _facts(db: Session, row: Voucher, kind: str, party: int,
            actor: Optional[UserProfile], theirs: dict[str, Any]) -> list[tuple[str, str]]:
     order = db.query(Order).filter(Order.id == row.order_id).first()
-    facts = [("Nummer", escape(_number(row, kind, order))), ("Datum", _day(date.today()))]
+    facts = [("Nummer", escape(_number(row, kind, order))), ("Datum", _day(clock.today()))]
     if kind == vo.OFFER_DOC and vs.valid_until(db, row):
         facts.append(("Gültig bis", _day(vs.valid_until(db, row))))
     if row.agreed_on and kind != vo.OFFER_DOC:
@@ -164,7 +171,7 @@ def _facts(db: Session, row: Voucher, kind: str, party: int,
     if kind == vo.CREDIT_DOC and (target is not None or row.billed_on):
         ref = target if target is not None else row
         facts.append(("Zu Rechnung", f"{escape(ref.number or '')} vom {_day(ref.billed_on)}"))
-    who = actor.display_name if actor is not None and actor.role in vs.STAFF_ROLES else None
+    who = actor.display_name if actor is not None and actor.role in STAFF_ROLES else None
     if who:
         facts.append(("Ihr Kontakt", escape(who)))
     if theirs.get("uid"):
@@ -180,7 +187,7 @@ def _lines(db: Session, row: Voucher, kind: str, doc: document.Doc) -> None:
     """Positionen, Summe und Steuer – eine Position mit null steht nicht darauf."""
     code = row.currency
     serials = vs.serials_of(db, row)
-    for ln in vs.embed_lines(db, row):
+    for ln in vh.embed_lines(db, row):
         if ln["price"] is None:
             continue
         full = vo.line_net({"quantity": ln["quantity"], "price": ln["price"]}, code)
@@ -216,8 +223,8 @@ def _lines(db: Session, row: Voucher, kind: str, doc: document.Doc) -> None:
 def _terms(db: Session, row: Voucher, theirs: dict[str, Any]) -> list[tuple[str, str]]:
     out = [("Zahlungsfrist", _days_word(vs.due_days_of(db, row), lead=False)),
            ("Lieferfrist", _days_word(vs.lead_days_of(db, row), lead=True))]
-    if row.incoterm and vs.has_goods(db, row):
-        place = vs.incoterm_place_of(db, row)
+    if row.incoterm and vh.has_goods(db, row):
+        place = vh.incoterm_place_of(db, row)
         out.append(("Lieferbedingung",
                     f"{inc.sentence(row.incoterm, place)} (Incoterms 2020)"))
         ship = [x for x in (theirs.get("shipping") or []) if x not in HOME_LINES]
@@ -229,14 +236,14 @@ def _terms(db: Session, row: Voucher, theirs: dict[str, Any]) -> list[tuple[str,
 def _after(db: Session, row: Voucher, kind: str, party: int) -> str:
     """Was nach den Konditionen steht – je Art ein Satz oder die Zahlungen."""
     if kind == vo.CONFIRM_DOC and row.agreed_on:
-        who = vs._named(db, [party])[0]["name"] if party else ""
+        who = vs.named(db, [party])[0]["name"] if party else ""
         return (f'<p class="after">Angenommen am {_day(row.agreed_on)}'
                 + (f" durch {escape(who)}" if who else "") + ".</p>")
     if kind == vo.STORNO_DOC:
-        return f'<p class="after"><b>Storniert am {_day(row.cancelled_on or date.today())}.</b></p>'
+        return f'<p class="after"><b>Storniert am {_day(row.cancelled_on or clock.today())}.</b></p>'
     if kind == vo.CREDIT_DOC and row.stage == vo.CANCELLED:
         return (f'<p class="after"><b>Gutschrift über die ganze Rechnung {escape(row.number or "")}'
-                f'</b> – storniert am {_day(row.cancelled_on or date.today())}.</p>')
+                f'</b> – storniert am {_day(row.cancelled_on or clock.today())}.</p>')
     if kind == vo.RECEIPT_DOC:
         code = row.currency
         rows = "".join(
@@ -262,9 +269,7 @@ def _entry_text(e) -> str:
 def _reminder(db: Session, row: Voucher, doc: document.Doc, level: int) -> None:
     code = row.currency
     money = vs.balance_of(db, row)
-    text = REMINDER_LEADS[min(level, 3) - 1].format(
-        number=row.number or "", due=_day(row.due_on), billed=_day(row.billed_on))
-    doc.letter = f"<p>{escape(text)}</p>"
+    doc.letter = f"<p>{escape(_reminder_text(row, level, row.number or ''))}</p>"
     doc.sums = [("Rechnung", _money(money.charged, code)),
                 ("Bereits bezahlt", _money(money.paid + money.written_off, code))]
     doc.total_label = "Offen"
@@ -272,33 +277,23 @@ def _reminder(db: Session, row: Voucher, doc: document.Doc, level: int) -> None:
 
 
 def _payslip(db: Session, row: Voucher, theirs: dict[str, Any]) -> Optional[document.Payslip]:
-    """►►► **Der Schweizer Zahlteil** – nur, wo er gelten kann (``qrbill.problem``). ◄◄◄"""
-    company = vs.issuer_company(db, row)
-    iban = getattr(company, "iban", None)
-    amount = vs.balance_of(db, row).open
-    if not vs.inbound(row) or amount <= 0 or qrbill.problem(
-            iban=iban, currency=row.currency, amount=amount):
+    """►►► **Der Schweizer Zahlteil** – aus denselben QR-Daten wie die Auskunft
+    (``voucher.transfer_of``), nur wo er gelten kann. ◄◄◄"""
+    if not vs.inbound(row):
         return None
-    creditor = dict((row.head or {}).get("creditor") or vs._creditor(db, row))
-    who = vs.billing_of(db, row)
-    seat = who.get("address") or {}
-    debtor = {"name": who.get("name") or "", "street": seat.get("line1"), "street_nr": "",
-              "zip": seat.get("postal_code"), "city": seat.get("city"),
-              "country": seat.get("country")}
-    number = row.number or str(row.id)
-    ref = qrbill.reference(number)
+    t = vm.transfer_of(db, row)
+    if t.problem:
+        return None
+    iban = t.iban or ""
     return document.Payslip(
-        iban=" ".join(iban[i:i + 4] for i in range(0, len(iban), 4)) if iban else "",
-        creditor=[creditor.get("name") or "", creditor.get("street") or "",
-                  " ".join(x for x in (creditor.get("zip"), creditor.get("city")) if x)],
+        iban=" ".join(iban[i:i + 4] for i in range(0, len(iban), 4)),
+        creditor=[t.creditor.get("name") or "", t.creditor.get("street") or "",
+                  " ".join(x for x in (t.creditor.get("zip"), t.creditor.get("city")) if x)],
         debtor=[x for x in (theirs.get("name"), *(theirs.get("address") or []))
                 if x and x not in HOME_LINES],
-        reference=" ".join(ref[i:i + 4] for i in range(0, len(ref), 4)),
-        currency=row.currency, amount=_money(amount, row.currency).replace("'", " "),
-        info=f"Rechnung {number}",
-        qr_svg=qrbill.svg(qrbill.payload(iban=iban or "", creditor=creditor, amount=amount,
-                                         currency=row.currency, debtor=debtor,
-                                         number=number)))
+        reference=" ".join(t.reference[i:i + 4] for i in range(0, len(t.reference), 4)),
+        currency=row.currency, amount=_money(t.amount, row.currency).replace("'", " "),
+        info=f"Rechnung {t.number}", qr_svg=t.qr)
 
 
 # ---------------------------------------------------------------------------
@@ -330,10 +325,10 @@ def issue(db: Session, *, row: Voucher, kind: str, actor: Optional[UserProfile] 
     return rec
 
 
-def word_of(kind: str, level: Optional[int] = None) -> str:
-    """Das Wort eines Papiers – «Rechnung», «1. Mahnung» …"""
-    return (vo.remind_word(level or 1) if kind == vo.REMINDER_DOC
-            else vo.DOCUMENTS.get(kind, "Beleg"))
+def _reminder_text(row: Voucher, level: Optional[int], number: str) -> str:
+    """**Der Satz einer Mahnung** – derselbe auf dem Papier und in der Mail."""
+    return REMINDER_LEADS[min(level or 1, len(REMINDER_LEADS)) - 1].format(
+        number=number, due=_day(row.due_on), billed=_day(row.billed_on))
 
 
 def _file(db: Session, *, row: Voucher, kind: str, level: Optional[int], doc: document.Doc,
@@ -343,7 +338,7 @@ def _file(db: Session, *, row: Voucher, kind: str, level: Optional[int], doc: do
     from . import documents
     order = db.query(Order).filter(Order.id == row.order_id).first()
     person = db.query(UserProfile).filter(UserProfile.object_id == party).first()
-    word = word_of(kind, level)
+    word = vo.document_word(kind, level)
     name = " · ".join(x for x in (doc.number, person.display_name if person else None) if x)
     refs = [documents.RefIn(object_id=order.object_id, part=f"step:{row.step_id}",
                             field="voucher.doc"),
@@ -351,7 +346,7 @@ def _file(db: Session, *, row: Voucher, kind: str, level: Optional[int], doc: do
     paper, existed = documents.file(
         db, raw=document.render(doc).encode("utf-8"), filename=f"{word} {doc.number}.html",
         mime="text/html", art=word, name=name or word, source="voucher", refs=refs,
-        actor=actor if actor is not None and actor.role in vs.STAFF_ROLES else None,
+        actor=actor if actor is not None and actor.role in STAFF_ROLES else None,
         facts={"kind": kind, "number": doc.number})
     if existed:
         documents.add_refs(db, paper, refs, None)
@@ -373,7 +368,7 @@ def _mail(db: Session, *, row: Voucher, rec: VoucherDocument, doc: document.Doc,
     Ohne verbundenes Postfach wird sie nur erfasst (wie jede Mail des Hauses)."""
     from . import mailbox
     from .communication import write
-    company = vs.issuer_company(db, row)
+    company = vh.issuer_company(db, row)
     if company is None or not getattr(company, "object_id", None):
         return None
     person = db.query(UserProfile).filter(UserProfile.object_id == party).first()
@@ -384,8 +379,7 @@ def _mail(db: Session, *, row: Voucher, rec: VoucherDocument, doc: document.Doc,
     live = box is not None and not box.problem
     if kind == vo.REMINDER_DOC:
         title = f"{vo.remind_word(level or 1)} zur Rechnung {doc.number}"
-        lead = REMINDER_LEADS[min(level or 1, 3) - 1].format(
-            number=doc.number, due=_day(row.due_on), billed=_day(row.billed_on))
+        lead = _reminder_text(row, level, doc.number)
         label = "Ihre Rechnung"
     else:
         label, lead = LEADS[kind]
@@ -401,7 +395,7 @@ def _mail(db: Session, *, row: Voucher, rec: VoucherDocument, doc: document.Doc,
         total_label=f"{doc.total_label} {doc.currency}", total=doc.total,
         label=label, url=vs.public_link(rec.token),
         tax=(doc.sums[1] if len(doc.sums) == 2 and kind != vo.REMINDER_DOC else None))
-    staff = actor is not None and actor.role in vs.STAFF_ROLES and actor.object_id
+    staff = actor is not None and actor.role in STAFF_ROLES and actor.object_id
     signer = mail_layout.Signer(name=actor.display_name) if staff else None
     mail = mail_layout.compose(title, body, firm, signer,
                                extra=mail_layout.Extra(paper=paper))
@@ -418,7 +412,7 @@ def preview(db: Session, *, order: Order, step: Any, action: str, payload: dict[
             actor: Optional[UserProfile]) -> list[dict[str, Any]]:
     """►►► **Vorschau: was diese Handlung hinausgäbe – ohne dass etwas geschieht.** ◄◄◄
 
-    Dieselbe Handlung (``voucher.apply``) läuft in einem Savepoint, die entstandenen Papiere
+    Dieselbe Handlung (``voucher_actions.apply``) läuft in einem Savepoint, die entstandenen Papiere
     werden gelesen, dann wird alles zurückgerollt – es gibt keine zweite Druckstelle, die vom
     echten Papier abweichen könnte. Mails gehen ohnehin erst nach dem Festschreiben."""
     row = vs.of_step(db, step.id)
@@ -427,9 +421,10 @@ def preview(db: Session, *, order: Order, step: Any, action: str, payload: dict[
     sp = db.begin_nested()
     try:
         with attachments.in_database():       # zurückgerollt: nichts in den Bucket
-            vs.apply(db, order=order, step=step, action=action, payload=payload, actor=actor)
+            va.apply(db, order=order, step=step, action=action, payload=payload, actor=actor)
             db.flush()
-            return [{"word": word_of(d.kind, d.level), "number": d.number, "html": paper_of(db, d)}
+            return [{"word": vo.document_word(d.kind, d.level), "number": d.number,
+                     "html": paper_of(db, d)}
                     for d in vs.documents_of(db, vs.of_step(db, step.id)) if d.id not in before]
     finally:
         sp.rollback()
@@ -445,7 +440,7 @@ def send_pending(db: Session) -> None:
     try:
         mailbox.send_due(db)
     except Exception as exc:     # der Versand darf die Antwort nie zerlegen
-        print(f"WARNING: voucher mail send failed: {exc!r}", flush=True)
+        log.warning("Versand der Beleg-Mails gescheitert: %r", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -491,13 +486,14 @@ def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
     if latest.id != rec.id:
         if rec.kind == vo.OFFER_DOC and latest.kind == vo.OFFER_DOC:
             note = {"kind": "outdated", "title": "Diese Fassung ist nicht mehr gültig.",
-                    "text": (f"Wir haben die Offerte am {_day(latest.created_at.date())} "
+                    "text": (f"Wir haben die Offerte am "
+                             f"{_day(latest.created_at.astimezone(clock.ZONE).date())} "
                              f"überarbeitet. Angenommen werden kann nur die aktuelle Fassung."),
                     "link": vs.public_link(latest.token)}
         else:
             shown = latest
     viewer = party_user(db, rec)
-    allowed = vs.can(db, row, viewer) if viewer is not None else []
+    allowed = va.can(db, row, viewer) if viewer is not None else []
     actions: list[str] = []
     current = note is None and shown.id == latest.id
     if current and shown.kind == vo.OFFER_DOC:
@@ -505,7 +501,7 @@ def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
     if current and "pay_online" in allowed:
         actions.append("pay_online")
     if row.stage == vo.OFFER and vs.expired(db, row) and shown.kind == vo.OFFER_DOC:
-        company = vs.issuer_company(db, row)
+        company = vh.issuer_company(db, row)
         phone = getattr(company, "phone", None)
         note = note or {"kind": "expired", "title": "Diese Offerte ist abgelaufen.",
                         "text": (f"Sie war {vs.valid_days_of(row)} Tage gültig. Gerne erneuern "
@@ -517,9 +513,8 @@ def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
     if gone:
         note = {"kind": "cancelled", "title": gone[0], "text": gone[1], "link": None}
         actions = []
-    word = (vo.remind_word(shown.level or 1) if shown.kind == vo.REMINDER_DOC
-            else ("Bezahlt" if vs.is_done(db, row) and shown.kind in (
-                vo.INVOICE_DOC, vo.RECEIPT_DOC) else vo.DOCUMENTS.get(shown.kind, "Beleg")))
+    paid = vh.is_done(db, row) and shown.kind in (vo.INVOICE_DOC, vo.RECEIPT_DOC)
+    word = "Bezahlt" if paid else vo.document_word(shown.kind, shown.level)
     money = vs.balance_of(db, row)
     return {
         "token": shown.token, "kind": shown.kind, "word": word, "number": shown.number,
@@ -532,7 +527,7 @@ def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
 
 
 def _gone_for(db: Session, row: Voucher, party: Optional[int]) -> Optional[tuple[str, str]]:
-    """►►► **Ist der Vorgang für diese Partei vorbei?** – EINE Regel für zwei Fälle (#1227). ◄◄◄
+    """►►► **Ist der Vorgang für diese Partei vorbei?** – EINE Regel für zwei Fälle. ◄◄◄
 
     Storniert ist er für alle. Hat eine **andere** Partei den Zuschlag, ist er für diese
     ebenso zu Ende: sie sieht ihr Papier, aber nicht, wie es mit der anderen weitergeht –
@@ -550,7 +545,7 @@ def _gone_for(db: Session, row: Voucher, party: Optional[int]) -> Optional[tuple
 def _stations(db: Session, row: Voucher, *, closed: bool = False) -> list[dict[str, Any]]:
     """Der Weg – erledigte Stationen, die aktuelle, die kommenden. Ist der Vorgang für den
     Betrachter vorbei (``_gone_for``), steht er still wie bei einem Storno."""
-    if vs.is_done(db, row):
+    if vh.is_done(db, row):
         at = 4
     elif row.stage == vo.BILLED:
         at = 2
@@ -567,7 +562,7 @@ def _stations(db: Session, row: Voucher, *, closed: bool = False) -> list[dict[s
 
 def public_act(db: Session, rec: VoucherDocument, action: str) -> None:
     """**Annehmen oder ablehnen – als die Partei**, über dieselbe Tür wie im ERP
-    (``voucher.apply``). Nur am aktuellen Dokument; ``can`` entscheidet."""
+    (``voucher_actions.apply``). Nur am aktuellen Dokument; ``can`` entscheidet."""
     from fastapi import HTTPException
     from ..models import ProcessStep
     view = public_view(db, rec)
@@ -577,5 +572,5 @@ def public_act(db: Session, rec: VoucherDocument, action: str) -> None:
     row = db.query(Voucher).filter(Voucher.id == rec.voucher_id).first()
     order = db.query(Order).filter(Order.id == row.order_id).first()
     step = db.query(ProcessStep).filter(ProcessStep.id == row.step_id).first()
-    vs.apply(db, order=order, step=step, action=action,
+    va.apply(db, order=order, step=step, action=action,
              payload={"party": rec.party_id}, actor=party_user(db, rec))

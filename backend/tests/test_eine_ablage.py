@@ -11,7 +11,7 @@ import pytest
 
 from app.domain import voucher as vo
 from app.models import Attachment, Document, DocumentRef
-from app.services import documents, legal, todo, voucher as svc, voucher_docs
+from app.services import documents, legal, todo, voucher as svc, voucher_docs, voucher_money
 from tests.runner import session
 from tests.test_zahlung_ablauf import _do, _house, _ready, _scene, _staff
 
@@ -47,7 +47,7 @@ def test_every_paper_is_a_document_in_the_module_field(db):
 
 def test_nothing_goes_out_without_release(db):
     """Bug-Form: eine Zusage oder ein Zahlungseingang gibt ein Papier von selbst hinaus."""
-    assert svc.AUTO_RELEASE == (), "Heute geht kein Papier ohne Freigabe hinaus."
+    assert voucher_money.AUTO_RELEASE == (), "Heute geht kein Papier ohne Freigabe hinaus."
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
     _do(db, order, step, "ask")

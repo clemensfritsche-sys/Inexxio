@@ -82,9 +82,15 @@ def _money(value: Optional[Decimal]) -> str:
 def of_vouchers(db: Session) -> list[Requirement]:
     """Was die Zahlungsmodule erwarten (Lieferantenrechnung, Ausfuhrnachweis) – auch für «zu tun»."""
     from . import voucher as vs
+    from . import voucher_head as vh
     out: list[Requirement] = []
-    rows = (db.query(Voucher).filter(Voucher.is_active.is_(True),
-                                     Voucher.stage.in_((vo.AGREED, vo.BILLED))).all())
+    # **Nur, wo etwas fehlen kann**: eine bestellte Ausgabe (Lieferantenrechnung) oder eine
+    # gestellte Einnahme ohne Ausfuhrnachweis – ob es wirklich fehlt, sagt die Schleife.
+    rows = (db.query(Voucher).filter(
+        Voucher.is_active.is_(True),
+        ((Voucher.direction == vo.OUT) & (Voucher.stage == vo.AGREED))
+        | ((Voucher.direction == vo.IN) & (Voucher.stage == vo.BILLED)
+           & Voucher.export_number.is_(None))).all())
     orders = {o.id: o for o in db.query(Order).filter(
         Order.id.in_({r.order_id for r in rows})).all()} if rows else {}
     for row in rows:
@@ -107,7 +113,7 @@ def of_vouchers(db: Session) -> list[Requirement]:
                                      amount=_money(amount)),
                 fields=fields, object_id=order.object_id, part=part, field="voucher.original",
                 party_object_id=party, expected={"amount": str(amount) if amount else None}))
-        if (row.stage == vo.BILLED and not row.export_number and vs.is_export(db, row)
+        if (row.stage == vo.BILLED and not row.export_number and vh.is_export(db, row)
                 and documents.field_document(db, order.object_id, "voucher.export", part) is None):
             art, text, fields = SENTENCES["voucher.export"]
             out.append(Requirement(

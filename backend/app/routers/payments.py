@@ -1,7 +1,7 @@
 """**Die eine Tür, durch die der Zahlungsdienst hereinruft.**
 
 Ein Endpunkt, keine Anmeldung, eine Signaturprüfung. Er schreibt **eine Zeile Geld**
-(``voucher.record_payment``); was daraus folgt (Quittung, die Stücke einer Vorauszahlung
+(``voucher_money.record_payment``); was daraus folgt (Quittung, die Stücke einer Vorauszahlung
 ziehen weiter), geschieht dort an derselben Stelle wie bei einer erfassten Zahlung.
 
 Er steht **nicht** im Auftrags-Router, obwohl der Beleg dort lebt: dieser Router ist
@@ -11,6 +11,7 @@ Signatur» soll man an der Datei sehen.
 
 from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from ..core.database import get_db
 from ..services import stripe_pay, voucher_docs
@@ -36,8 +37,13 @@ async def webhook(
     sondern ein fremder Absender.
     """
     raw = await request.body()
-    status = stripe_pay.handle_webhook(db, raw=raw, signature=stripe_signature or None)
+    return {"status": await run_in_threadpool(_book, db, raw, stripe_signature or None)}
+
+
+def _book(db: Session, raw: bytes, signature: str | None) -> str:
+    """Buchen und Folgen – synchron, im Threadpool (nie in der Event-Loop)."""
+    status = stripe_pay.handle_webhook(db, raw=raw, signature=signature)
     # **Was die Zahlung ausgelöst hat (die Quittung), geht gleich hinaus** – festgeschrieben
     # hat ``handle_webhook`` schon.
     voucher_docs.send_pending(db)
-    return {"status": status}
+    return status

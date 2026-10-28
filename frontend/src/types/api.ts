@@ -987,17 +987,17 @@ export interface paths {
         put?: never;
         /**
          * Update Voucher
-         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher.VERBS``).
+         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher_actions.VERBS``).
          *
          *     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
          *     wie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle** erlaubt ist, sagt
-         *     ``services/voucher.can``, und dieselbe Tabelle ist Auskunft und Tor.
+         *     ``voucher_actions.can``, und dieselbe Tabelle ist Auskunft und Tor.
          *
          *     **Nur gesendete Felder wirken** (``VoucherUpdate.changes``): wer den Betrag ändert,
          *     soll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
          *
          *     **Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:
-         *     ``_visible`` zeigt ihr nur ihr Modul, ``voucher.embed_data`` nur ihre eigene
+         *     ``_visible`` zeigt ihr nur ihr Modul, ``voucher_view.embed_data`` nur ihre eigene
          *     Angebotszeile und keine Zahl über Forderung und Geld.
          */
         post: operations["update_voucher_api_v1_erp_orders__object_id__steps__step_id__voucher_post"];
@@ -1095,9 +1095,9 @@ export interface paths {
          * Voucher Transfer Details
          * @description **Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.
          *
-         *     Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
-         *     den Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar
-         *     Kilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.
+         *     Eine **Auskunft**, keine Buchung: sie darf jeder sehen, der den Beleg sieht – der
+         *     Zahlende zuerst. Nur an einer Rechnung, deren Geld zu uns kommt (``transfer_info``).
+         *     **Erst auf Klick**: der Code ist ein paar Kilobyte SVG.
          */
         get: operations["voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get"];
         put?: never;
@@ -1117,20 +1117,11 @@ export interface paths {
         };
         /**
          * Voucher Correctable
-         * @description ►►► **Welche Rechnung mindert dieser Beleg?** – und sie darf woanders stehen. ◄◄◄
+         * @description ►►► **Welche Rechnung mindert dieser Beleg?** – sie darf in einem anderen Auftrag
+         *     stehen (``voucher_view.correctable``). ◄◄◄
          *
-         *     Das ist der Kern des Umbaus: eine Gutschrift gehört in den Auftrag, in dem die Ware
-         *     **zurückkommt**, nicht in den, der sie geliefert hat. Gesucht wird darum über alle
-         *     Aufträge – gefiltert auf denselben Partner und dieselbe Richtung, denn man mindert
-         *     keine fremde Forderung und das Geld fliesst nicht andersherum.
-         *
-         *     **Personal-only**: es ist eine Liste fremder Belege desselben Partners.
-         *
-         *     ►►► **Und sie wird GESUCHT, nicht mitgeliefert** (Testnotiz #1050). ◄◄◄ *«Hier haben
-         *     wir ja eine global gültige Logik – etablieren mit Suchfeld.»* Dieselbe Bauart wie jede
-         *     andere Referenz im Haus: tippen fragt den Server (``search`` – Rechnungsnummer oder
-         *     Auftragsnummer), und die Liste trägt nur, was passt. Eine fertige Liste war bei einer
-         *     Handvoll Belegen richtig und ist es beim hundertsten nicht mehr.
+         *     Gesucht, nicht mitgeliefert: ``search`` ist ein Teil der Rechnungsnummer. **Personal
+         *     only** – es ist eine Liste fremder Belege desselben Partners.
          */
         get: operations["voucher_correctable_api_v1_erp_orders__object_id__steps__step_id__voucher_correctable_get"];
         put?: never;
@@ -6927,11 +6918,11 @@ export interface components {
         };
         /**
          * VoucherUpdate
-         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher.VERBS``).
+         * @description **Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``services/voucher_actions.VERBS``).
          *
          *     ``price``    die Positionen bepreisen (``lines``) – **gespeichert, nicht abgeschickt**
          *     ``party``    die Gegenpartei **wählen** (``party``) – wo die Definition niemanden
-         *                  nennt; **nicht** dasselbe wie ``ask`` (#1000)
+         *                  nennt; **nicht** dasselbe wie ``ask``
          *     ``ask``      anfragen bzw. anbieten (``parties`` – leer heisst: alle zugelassenen)
          *     ``unask``    eine Anfrage **zurückziehen** (``party``) – die Gegenhandlung zu ``ask``
          *     ``quote``    einen Preis an EINER Angebotszeile – auch von der Gegenpartei
@@ -6992,8 +6983,6 @@ export interface components {
             method?: string | null;
             /** Incoterm */
             incoterm?: string | null;
-            /** Incoterm Place */
-            incoterm_place?: string | null;
             /** Issuer */
             issuer?: number | null;
             /** Bill To Company */

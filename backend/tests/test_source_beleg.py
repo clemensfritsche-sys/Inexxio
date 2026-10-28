@@ -746,7 +746,7 @@ def test_what_the_erp_already_knows_is_not_asked_again():
     # jemand den Fehler beschreibt, den er verhindern soll. (Gemessen: erste Fassung
     # scheiterte an ihrem eigenen «Kein ``receipt_email``».)
     svc = _read(BACKEND / "app" / "services" / "stripe_pay.py")
-    assert '"billing": voucher_svc.billing_of(' in svc, (
+    assert '"billing": voucher_head.billing_of(' in svc, (
         "Der Dienst liefert die bekannten Angaben nicht mit (c)."
     )
     # ►►► **Und es gibt genau EINE Auskunft darüber** (Testnotiz #865). ◄◄◄
@@ -756,12 +756,13 @@ def test_what_the_erp_already_knows_is_not_asked_again():
     # überweist, und unter welcher Anschrift? Zwei Fassungen davon liefen beim ersten
     # neuen Adressfeld auseinander; sie gehört darum an den Vorgang, den beide in der
     # Hand haben. (d) wäre eine zweite Fassung daneben.
-    deal_src = _read(BACKEND / "app" / "services" / "voucher.py")
+    deal_src = _read(BACKEND / "app" / "services" / "voucher_head.py")
+    money_src = _read(BACKEND / "app" / "services" / "voucher_money.py")
     assert "def billing_of(" in deal_src and "def _billing(" not in _code(svc), (
         "Die Angaben über den Zahlenden werden zweimal hergeleitet (d) – beim nächsten "
         "neuen Adressfeld sagen Bezahlkarte und Einzahlungsschein Verschiedenes."
     )
-    assert "billing_of(db, row)" in _body(deal_src, "transfer_info"), (
+    assert "billing_of(db, row)" in _body(money_src, "transfer_of"), (
         "Der Einzahlungsschein leitet den Zahlenden selbst her (d)."
     )
     svc = _code(svc)
@@ -794,7 +795,7 @@ def test_the_pay_button_reads_its_word_from_the_server():
     assert f"'{dm.PAY_ONLINE_WORD}'" not in _code(work), (
         f"«{dm.PAY_ONLINE_WORD}» steht als Literal in der Oberfläche (a)."
     )
-    svc = _read(BACKEND / "app" / "services" / "voucher.py")
+    svc = _read(BACKEND / "app" / "services" / "voucher_view.py")
     assert '"pay_online_word": vo.PAY_ONLINE_WORD' in svc, (
         "Der Server schickt das Wort nicht mit (b) – dann steht der Knopf ohne Beschriftung da."
     )
@@ -2231,11 +2232,11 @@ def test_each_side_of_the_head_names_both_addresses():
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    src = (BACKEND / "app" / "services" / "voucher.py").read_text()
+    src = (BACKEND / "app" / "services" / "voucher_head.py").read_text()
     body = src[src.index("def _addresses("):]
     body = body[:body.index("\ndef ", 1)]
     assert "BILLING_LABEL" in body and "SHIPPING_LABEL" in body, "Die Beschriftungen kommen nicht aus der einen Auflösung (a)."
-    head = src[src.index("def _ours("):src.index("def _creditor(")]
+    head = src[src.index("def _ours("):src.index("def creditor_of(")]
     assert "_addresses(" in head, "Unsere Seite nennt ihre Anschriften nicht (b)."
     assert src.count("_addresses(") >= 3, "Nicht beide Seiten lesen dieselbe Auflösung (a/b)."
     card = _code(_beleg())
@@ -2333,7 +2334,7 @@ def test_the_card_takes_the_charge_word_from_the_server():
 
     Bug-Formen: (b) der Beleg schickt das Wort nicht mit; (c) die Karte schreibt es selbst.
     """
-    src = (BACKEND / "app" / "services" / "voucher.py").read_text()
+    src = (BACKEND / "app" / "services" / "voucher_view.py").read_text()
     assert '"charge_word": vo.charge_word(' in src, (
         "Der Beleg schickt nicht das Wort seiner Lage (b)."
     )
@@ -2367,7 +2368,7 @@ def test_the_sender_side_names_the_address_the_goods_leave_from():
     assert vo.SHIPPING_FROM_LABEL != vo.SHIPPING_LABEL, (
         "Beide Seiten sagen dasselbe (a)."
     )
-    src = (BACKEND / "app" / "services" / "voucher.py").read_text()
+    src = (BACKEND / "app" / "services" / "voucher_head.py").read_text()
     body = src[src.index("def _addresses("):]
     body = body[:body.index("\ndef ", 1)]
     assert "sends" in body and "SHIPPING_FROM_LABEL" in body, (
@@ -2380,7 +2381,7 @@ def test_the_sender_side_names_the_address_the_goods_leave_from():
     assert "not vo.of(row.direction).collects" in theirs, (
         "Die Gegenseite rät ihre Rolle (b)."
     )
-    head = src[src.index("def _ours("):src.index("def _creditor(")]
+    head = src[src.index("def _ours("):src.index("def creditor_of(")]
     assert "sends=flow.collects" in head, "Unsere Seite rät ihre Rolle (b)."
     assert "Versandadresse" not in _code(_beleg()), (
         "Das Wort steht als Literal in der Karte (c)."
