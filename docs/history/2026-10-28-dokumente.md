@@ -199,3 +199,6 @@ Rollback-Punkte: vor der Runde `80486d0` · nach der Sicherheit `564350e` · nac
 - **Konsolen-Schritte** (Budget, Erreichbarkeit, Prod-Sicherung, Bilder aufräumen,
   Passwort) stehen in `infra/README.md` «Betrieb absichern». Die Anmeldung der dev-Deploys
   per Workload Identity statt JSON-Schlüssel bleibt vorgemerkt.
+- **dev-Deploy ohne Schlüssel** (`8e3d217`): Workload Identity wie prod (Pool `github`, nur
+  für `clemensfritsche-sys/Inexxio`, Konto `github-actions@inexxio-dev`); der erste Lauf war
+  in beiden Anmelde-Schritten grün. Der JSON-Schlüssel `GCP_SA_KEY_DEV` wird nicht mehr gelesen.
