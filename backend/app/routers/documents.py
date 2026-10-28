@@ -68,6 +68,8 @@ def detail(db: Session, doc: Document) -> DocumentDetail:
                                  signed_at=s.signed_at, declined_at=s.declined_at,
                                  reason=s.reason) for s in sigs],
         html=raw.decode("utf-8", "replace") if raw and doc.mime == "text/html" else None,
+        read_later=(doc.file_id is not None and not doc.text and ai.ready()
+                    and (doc.mime in ai.IMAGE_TYPES or doc.mime == "application/pdf")),
     )
 
 

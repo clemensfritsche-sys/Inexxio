@@ -58,6 +58,8 @@ class DocumentDetail(DocumentSummary):
     #: Ist die Datei ein Papier aus unserer Vorlage (Beleg, Verfasstes)? Dann zeigt die
     #: Seite es als HTML in einem abgeschirmten Rahmen.
     html: Optional[str] = None
+    #: Ohne KI freigegeben und die Datei ist lesbar: die Seite holt das Lesen nach.
+    read_later: bool = False
 
 
 class FiledOut(BaseModel):

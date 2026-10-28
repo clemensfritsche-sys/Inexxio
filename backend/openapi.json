@@ -3541,6 +3541,671 @@
         }
       }
     },
+    "/api/v1/attachments/{token}/preview": {
+      "get": {
+        "tags": [
+          "attachments"
+        ],
+        "summary": "Serve Preview",
+        "description": "**Das Vorschaubild** – abgeleitet aus der Datei, bei jedem Abruf neu (der Browser hält\nes fest, die Datei ändert sich nie). Gibt es keins, 404 – die Kachel zeigt die Sorte.",
+        "operationId": "serve_preview_api_v1_attachments__token__preview_get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "List Documents",
+        "description": "Der Feed «Dokument» – seitenweise, durchsucht auf dem Server (wie die Instanzen).",
+        "operationId": "list_documents_api_v1_erp_documents_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentSummary"
+                  },
+                  "title": "Response List Documents Api V1 Erp Documents Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "File Document",
+        "description": "►►► **Freigeben.** ◄◄◄ ``refs`` ist eine JSON-Liste ``[{\"object_id\": …}]`` (ganze\nDatensätze); ``target`` ein Pflichtfeld, das in derselben Transaktion gesetzt wird.\n``text``/``keywords``/``facts`` kommen aus dem Vorschlag – gelesen wird nicht zweimal.",
+        "operationId": "file_document_api_v1_erp_documents_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_file_document_api_v1_erp_documents_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiledOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents/targets": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Search Targets",
+        "description": "Ein Datensatz für eine Referenz – Nummer ODER Name.",
+        "operationId": "search_targets_api_v1_erp_documents_targets_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordOut"
+                  },
+                  "title": "Response Search Targets Api V1 Erp Documents Targets Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents/of/{object_id}": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Documents Of",
+        "description": "Die Kacheln unten an einem Datensatz (Regel 4).",
+        "operationId": "documents_of_api_v1_erp_documents_of__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentSummary"
+                  },
+                  "title": "Response Documents Of Api V1 Erp Documents Of  Object Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents/read": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Read Draft",
+        "description": "►►► **Einen Entwurf lesen – ohne ihn zu speichern.** ◄◄◄ Die KI schlägt Art, Name und\nReferenz vor; ohne KI kommt ein leerer Vorschlag (Absender als Referenz, wenn bekannt).",
+        "operationId": "read_draft_api_v1_erp_documents_read_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_read_draft_api_v1_erp_documents_read_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/documents/requirements": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Open Requirements",
+        "description": "Worauf Module warten (``services/requirements``) – je Anforderung ein Satz.",
+        "operationId": "open_requirements_api_v1_erp_documents_requirements_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RequirementOut"
+                  },
+                  "type": "array",
+                  "title": "Response Open Requirements Api V1 Erp Documents Requirements Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/documents/{object_id}/field": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Set Field",
+        "description": "Ein schon freigegebenes Dokument in ein Pflichtfeld – ändern, nie leeren.",
+        "operationId": "set_field_api_v1_erp_documents__object_id__field_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TargetIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents/{object_id}/read": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Read Later",
+        "description": "**Das Lesen nachholen** – für ein Dokument, das ohne KI freigegeben wurde. Schreibt nur\nText, Stichworte und Angaben; Art, Name und Referenz bleiben, wie der Mensch sie setzte.",
+        "operationId": "read_later_api_v1_erp_documents__object_id__read_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents/{object_id}/refs": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Add Ref",
+        "operationId": "add_ref_api_v1_erp_documents__object_id__refs_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents/{object_id}/refs/{ref_id}": {
+      "delete": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Remove Ref",
+        "operationId": "remove_ref_api_v1_erp_documents__object_id__refs__ref_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "ref_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Ref Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents/{object_id}/delete": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Delete Document",
+        "operationId": "delete_document_api_v1_erp_documents__object_id__delete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents/{object_id}": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Document",
+        "operationId": "get_document_api_v1_erp_documents__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/payments/webhook": {
       "post": {
         "tags": [
@@ -6622,6 +7287,96 @@
         "title": "BelegView",
         "description": "**Was die Seite zeigt** – das eingefrorene Papier, der Weg, die Handlungen."
       },
+      "Body_file_document_api_v1_erp_documents_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "art": {
+            "type": "string",
+            "title": "Art"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "file"
+          },
+          "refs": {
+            "type": "string",
+            "title": "Refs",
+            "default": "[]"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target",
+            "default": ""
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "keywords": {
+            "type": "string",
+            "title": "Keywords",
+            "default": ""
+          },
+          "facts": {
+            "type": "string",
+            "title": "Facts",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "files",
+          "art",
+          "name"
+        ],
+        "title": "Body_file_document_api_v1_erp_documents_post"
+      },
+      "Body_read_draft_api_v1_erp_documents_read_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "Body_read_draft_api_v1_erp_documents_read_post"
+      },
       "Body_upload_attachment_api_v1_erp_attachments_post": {
         "properties": {
           "file": {
@@ -7701,6 +8456,347 @@
         "title": "DefinitionLine",
         "description": "Eine Definitionszeile: Artikel · Menge · Herkunft.\n\n``quantity`` referenziert **immer exakt Einzelinstanzen** – nie Instanzen und nie\neine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``units``\ndabeistehen; bei ``origin='neu'`` bleiben sie leer, weil die Stücke erst bei der\nFreigabe entstehen."
       },
+      "DeleteIn": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "DeleteIn"
+      },
+      "DocumentDetail": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "art": {
+            "type": "string",
+            "title": "Art"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "mime": {
+            "type": "string",
+            "title": "Mime"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "preview_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Url"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet"
+          },
+          "file_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Url"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "byte_size": {
+            "type": "integer",
+            "title": "Byte Size",
+            "default": 0
+          },
+          "pages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages"
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentRefOut"
+            },
+            "type": "array",
+            "title": "Refs",
+            "default": []
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "deleted_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted By"
+          },
+          "delete_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delete Reason"
+          },
+          "delete_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delete Problem"
+          },
+          "signatures": {
+            "items": {
+              "$ref": "#/components/schemas/SignatureOut"
+            },
+            "type": "array",
+            "title": "Signatures",
+            "default": []
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          },
+          "read_later": {
+            "type": "boolean",
+            "title": "Read Later",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "art",
+          "name",
+          "status",
+          "source",
+          "mime",
+          "created_at"
+        ],
+        "title": "DocumentDetail"
+      },
+      "DocumentRefOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "field_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "object_id",
+          "label"
+        ],
+        "title": "DocumentRefOut"
+      },
+      "DocumentSummary": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "art": {
+            "type": "string",
+            "title": "Art"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "mime": {
+            "type": "string",
+            "title": "Mime"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "preview_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Url"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "art",
+          "name",
+          "status",
+          "source",
+          "mime",
+          "created_at"
+        ],
+        "title": "DocumentSummary",
+        "description": "Eine Zeile im Feed bzw. eine Kachel unten im Datensatz."
+      },
       "EmailCheck": {
         "properties": {
           "email": {
@@ -8329,6 +9425,24 @@
         "type": "object",
         "title": "FeedbackUpdate",
         "description": "Rückkopplung: erledigt/verworfen setzen (oder wieder öffnen) + Begründung."
+      },
+      "FiledOut": {
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/DocumentDetail"
+          },
+          "existed": {
+            "type": "boolean",
+            "title": "Existed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "document"
+        ],
+        "title": "FiledOut",
+        "description": "Die Antwort auf «Freigeben»: das Dokument – und ob es dieselbe Datei schon gab."
       },
       "FlowEdge": {
         "properties": {
@@ -10683,6 +11797,117 @@
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus\n``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert."
       },
+      "ProposalOut": {
+        "properties": {
+          "art": {
+            "type": "string",
+            "title": "Art",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "keywords": {
+            "type": "string",
+            "title": "Keywords",
+            "default": ""
+          },
+          "facts": {
+            "type": "object",
+            "title": "Facts",
+            "default": {}
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedRef"
+            },
+            "type": "array",
+            "title": "Refs",
+            "default": []
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "default": ""
+          },
+          "read": {
+            "type": "boolean",
+            "title": "Read",
+            "default": false
+          },
+          "ai": {
+            "type": "boolean",
+            "title": "Ai",
+            "default": false
+          },
+          "values": {
+            "type": "object",
+            "title": "Values",
+            "default": {}
+          },
+          "requirement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requirement"
+          }
+        },
+        "type": "object",
+        "title": "ProposalOut",
+        "description": "Der Vorschlag für einen Entwurf – nichts davon ist gespeichert."
+      },
+      "ProposedRef": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "label"
+        ],
+        "title": "ProposedRef"
+      },
       "PublicContact": {
         "properties": {
           "country": {
@@ -10862,6 +12087,30 @@
         "title": "RecordEntry",
         "description": "Ein Vorgang an einem Modul, an **einer** Einzelinstanz.\n\nEin Stück kann dasselbe Modul mehrfach passieren (nach einem «nicht bestanden» wird\nerneut erfasst) – dann stehen hier mehrere Einträge. Zusammengefasst würde die\nWiederholung die Vergangenheit überschreiben."
       },
+      "RecordOut": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "type",
+          "label"
+        ],
+        "title": "RecordOut",
+        "description": "Ein Datensatz zum Referenzieren – «Typ · Name» mit Nummer."
+      },
       "RecordValue": {
         "properties": {
           "key": {
@@ -10899,6 +12148,19 @@
         ],
         "title": "RecordValue",
         "description": "Ein erfasster Wert — **mit seiner Frage**, nicht nur mit seinem Schlüssel."
+      },
+      "RefIn": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "RefIn"
       },
       "RelatedOrder": {
         "properties": {
@@ -10960,6 +12222,58 @@
         "title": "RelatedOrder",
         "description": "Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.\n\nEr bringt seinen **vollständigen Ablauf** mit (``steps`` + ``flow`` +\n``active_step_id``), damit die Spalte daneben dieselbe Komponente rendern kann wie\ndie Mitte. Eine Zusammenfassung oder ein Symbol wäre eine zweite Darstellungsform\nfür dieselbe Sache – und die läuft irgendwann von der ersten weg.\n\n``unit_count`` ist die Zahl der Stücke, die **zwischen den beiden** unterwegs sind;\n``returns`` sagt, ob sie zurückkommen. Beides ist die Beschriftung der Verbindung."
       },
+      "RequirementOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "field": {
+            "type": "string",
+            "title": "Field"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "sentence",
+          "fields",
+          "object_id",
+          "field"
+        ],
+        "title": "RequirementOut"
+      },
       "RetiredInput": {
         "properties": {
           "article": {
@@ -10989,6 +12303,64 @@
         ],
         "title": "RetiredInput",
         "description": "Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels."
+      },
+      "SignatureOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "person_object_id": {
+            "type": "integer",
+            "title": "Person Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "signed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed At"
+          },
+          "declined_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declined At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "person_object_id",
+          "name"
+        ],
+        "title": "SignatureOut"
       },
       "StampOut": {
         "properties": {
@@ -11313,6 +12685,41 @@
           "new"
         ],
         "title": "SyncOut"
+      },
+      "TargetIn": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "extra": {
+            "type": "object",
+            "title": "Extra",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "field"
+        ],
+        "title": "TargetIn",
+        "description": "Ein Pflichtfeld, das die Freigabe gleich mitsetzt (``services/fields``)."
       },
       "TaskOut": {
         "properties": {
