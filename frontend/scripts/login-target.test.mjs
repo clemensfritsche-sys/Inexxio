@@ -63,6 +63,18 @@ test('Nie «/», nie zurück zur Anmeldung, nie eine fremde Adresse', () => {
   }
 });
 
+test('Was der Browser zu einer fremden Herkunft auflöst, ist fremd', () => {
+  for (const bad of ['/\t/evil.com', '/\n/evil.com', '/\r/evil.com', '/\t\\evil.com',
+    '//evil.com', '/\\evil.com', '/\\/evil.com', '/./login', '/erp/../login?x', '/?x=1']) {
+    assert.equal(isSafeTarget(bad), false, JSON.stringify(bad));
+  }
+  // Prozentkodiert bleibt es ein Pfad im eigenen Haus – der Browser löst es nicht zur Herkunft auf.
+  for (const own of ['/%09/evil.com', '/%2F%2Fevil.com']) {
+    assert.equal(isSafeTarget(own), true, own);
+    assert.equal(new URL(own, 'https://inexxio.ch').host, 'inexxio.ch', own);
+  }
+});
+
 test('Ohne Ziel: der Startplatz der Rolle (der gemeldete Fehler: vorher «/»)', () => {
   browser();
   assert.equal(loginTarget('employee'), '/erp');

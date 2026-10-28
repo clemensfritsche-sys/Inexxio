@@ -20,13 +20,19 @@ export function startPage(role: string | null | undefined): string {
   return isStaff(role) ? '/erp' : '/konto';
 }
 
+/** Gegen diese Herkunft wird ein Ziel aufgelöst – jede andere Herkunft danach ist fremd. */
+const HOME = 'https://inexxio.invalid';
+
 /**
- * Nur ein Pfad im eigenen Haus – nie eine fremde Adresse (`//…`), nie zurück zur Anmeldung
- * und nie die Startseite der Website (siehe oben).
+ * Nur ein Pfad im eigenen Haus: so aufgelöst, wie der Browser ihn auflöst (`new URL`, der
+ * Tabulatoren und Zeilenumbrüche entfernt und `\` als `/` liest), bleibt er auf derselben
+ * Herkunft – nie eine fremde Adresse, nie zurück zur Anmeldung, nie die Startseite der Website.
  */
 export function isSafeTarget(path: string | null | undefined): path is string {
-  return !!path && path.startsWith('/') && !path.startsWith('//') && !path.startsWith('/\\')
-    && path !== '/' && !/^\/login(?:[/?#]|$)/.test(path);
+  if (!path || !path.startsWith('/')) return false;
+  let url: URL;
+  try { url = new URL(path, HOME); } catch { return false; }
+  return url.origin === HOME && url.pathname !== '/' && !/^\/login(?:\/|$)/.test(url.pathname);
 }
 
 /** Das gemerkte `?from=` für den Magic Link aufbewahren (er öffnet oft einen neuen Tab). */

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { LoginDialog } from '@/components/auth/login-dialog';
 import { auth, onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
-import { goTo, loginTarget } from '@/lib/login-target';
+import { goTo, isSafeTarget, loginTarget } from '@/lib/login-target';
 import { cachedRole } from '@/lib/account-cache';
 
 /**
@@ -44,5 +44,5 @@ export default function LoginPage() {
 /** Daneben klicken führt dorthin zurück, wo man war (`?from=`, vom Kopf gesetzt) – sonst zur Website. */
 function cameFrom(): string {
   const from = new URLSearchParams(window.location.search).get('from');
-  return from && from.startsWith('/') && !from.startsWith('//') && !from.startsWith('/login') ? from : '/';
+  return isSafeTarget(from) ? from : '/';
 }
