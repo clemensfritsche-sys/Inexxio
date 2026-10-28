@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from sqlalchemy import BigInteger, Integer, String
+from sqlalchemy import BigInteger, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,7 +45,7 @@ class ProcessStep(Base, TimestampMixin):
     __tablename__ = "process_steps"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="RESTRICT"), index=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     module_type: Mapped[str] = mapped_column(String(30), nullable=False)
     status_before: Mapped[str] = mapped_column(String(30), nullable=False)
@@ -57,5 +57,5 @@ class ProcessStep(Base, TimestampMixin):
     # ``process_version``-Stand von damals. Beide ``None`` = im Auftrag von Hand modelliert.
     # Ein **Verweis** auf die Vorlage statt einer Kopie hiesse, dass eine spätere
     # Artikeländerung laufende Aufträge rückwirkend umschreibt – genau das darf nicht sein.
-    source_article_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    source_article_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("articles.id", ondelete="RESTRICT"), nullable=True)
     source_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

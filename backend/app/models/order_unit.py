@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, Index, text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -11,9 +11,11 @@ from .base import TimestampMixin
 class OrderUnit(Base, TimestampMixin):
     """Welche Einzelinstanz gehört zu welchem Auftrag – **und die Exklusivität**.
 
-    Das ist die Definition aus PROCESS_CORE.md §2.1, materialisiert: bei der Freigabe
-    entsteht je Stück eine Zeile, und danach kommt keine dazu und keine geht weg. Kein
-    Nachschieben, kein Ersetzen zur Laufzeit.
+    Das ist die Definition aus PROCESS_CORE.md §2.1, materialisiert: eine Zeile je Stück
+    und Eintritt – bei der Freigabe für die Zeilen der Definition, beim Verbrauch für die
+    Komponenten, die am Modul eintreten (``process._enter_at_step``). Kehrt ein
+    ausgeschertes Stück zurück, wird **seine** Zeile wieder geöffnet, keine neue angelegt.
+    Gelöscht wird keine; jeder Verweis ist ein Fremdschlüssel.
 
     **Die Exklusivitätsregel steht als partieller Unique-Index in der Datenbank**
     (§3): ``released_at IS NULL`` heisst «aktiv», und ein Stück kann höchstens eine
@@ -77,14 +79,14 @@ class OrderUnit(Base, TimestampMixin):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    instance_unit_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    current_step_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="RESTRICT"), index=True, nullable=False)
+    instance_unit_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("instance_units.id", ondelete="RESTRICT"), index=True, nullable=False)
+    current_step_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("process_steps.id", ondelete="RESTRICT"), nullable=True)
     released_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True,
     )
     #: Die Verbindung: in welchen Auftrag kehrt dieses Stück zurück, wenn es hier durch
     #: ist. ``NULL`` = nirgendwohin (siehe Klassen-Docstring).
     return_to_order_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, index=True, nullable=True,
+        BigInteger, ForeignKey("orders.id", ondelete="RESTRICT"), index=True, nullable=True,
     )

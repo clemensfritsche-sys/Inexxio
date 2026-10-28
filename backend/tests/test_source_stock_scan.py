@@ -406,11 +406,12 @@ def test_a_running_piece_names_the_order_it_runs_in():
 
     Man sieht, dass es läuft, aber nicht wo – und genau das ist die Frage, die man am
     Bestand stellt. Die Zuordnung kommt aus **derselben** Stelle, die die Exklusivität
-    liest (``process.held_by``); eine zweite Abfrage «welcher Auftrag hat dieses Stück»
-    wäre eine zweite Antwort auf eine Frage, die nur eine haben darf.
+    liest (``process.held_by``, beide über ``_open_of``); eine zweite Bedingung «welcher
+    Auftrag hat dieses Stück» wäre eine zweite Antwort auf eine Frage, die nur eine haben darf.
     """
     proc = _read(BACKEND / "app" / "services" / "process.py")
-    assert "def holders(" in proc and "held_by(db, unit_ids)" in _body(proc, "holders"), (
+    assert "def holders(" in proc and all(
+        "_open_of(" in _body(proc, fn) for fn in ("holders", "held_by")), (
         "Die Auftrags-Zuordnung wird neben der Exklusivität noch einmal abgeleitet."
     )
     schema = _read(BACKEND / "app" / "schemas" / "instance.py")

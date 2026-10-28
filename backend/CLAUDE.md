@@ -47,9 +47,10 @@ alembic revision --autogenerate -m "description"     # neue Migration
 - **Basis `161`**: `alembic/versions/161_baseline.py` führt `161_baseline.sql` aus (das Schema
   bis 161, eingefroren aus `pg_dump --schema-only`, nie von Hand ändern). Eine DB, die schon
   auf 161 steht, bekommt nichts; die nächste Migration ist `162`.
-- **Der Start** (`main.lifespan`, unter einem Advisory-Lock): die zwei Trigger aus der
-  Fachschicht neu schreiben – `statuses.terminal_guard_sql` (Endzustand) und
-  `timekeeping.append_only_sql` (`time_entries`/`time_contracts` append-only); scheitert das,
+- **Der Start** (`main.lifespan`, unter einem Advisory-Lock): die drei Trigger aus der
+  Fachschicht neu schreiben – `statuses.terminal_guard_sql` (Endzustand),
+  `timekeeping.append_only_sql` (`time_entries`/`time_contracts` append-only) und
+  `process_log.append_only_sql` (`process_events` append-only); scheitert das,
   startet er nicht. Danach, je in eigener Sitzung und nur mit Warnung bei Fehlschlag: der
   Betreiber als nummerierter Datensatz (`sites.operator`) und die Rechtstexte als Dokumente
   (`services/adopt`, nur solange es noch keine gibt). Admin wird nur `initial_admin_email`,
@@ -83,6 +84,7 @@ app/
 │   ├── capture_types/← Erfassungspunkt-Typen (text · yes_no · photo · signature · measure)
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)
+│   ├── process_log.py← der Ereignis-Log append-only (Trigger)
 │   ├── voucher.py    ← der Beleg: Direction, Stufen, Steuer (VAT_RATES, vat_split,
 │   │                   vat_choices nach Anschrift), Saldo (balance), Mahnstufen, Wörter
 │   ├── currency.py   ← Währungen (ISO 4217) mit ihren Nachkommastellen
@@ -103,7 +105,7 @@ scripts/
 ├── dump_statuses.py  ← domain/statuses.py → frontend/src/lib/status-catalog.ts
 ├── deadcode.py       ← «was liest eigentlich niemand mehr?» (beide Seiten)
 ├── build_geoip.py    ← DB-IP Lite → IP→Land (im Docker-Build)
-├── invariant_report.py · scenario_report.py
+├── invariant_report.py · scenario_report.py  ← lesen tests/invariants.py · tests/matrix.py
 ```
 
 ### Wo was steht (`services/`)
@@ -117,7 +119,7 @@ scripts/
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen), `adopt.py` (Rechtstexte beim Start) |
-| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `admin.py` (das eine Log), `invariants.py` |
+| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `admin.py` (das eine Log) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
 Nach jeder Änderung an einem Request/Response-Schema oder am Statuskatalog:

@@ -262,25 +262,18 @@ def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
 
 
 def _assert_single_new(lines: list[_Line]) -> None:
-    """**Höchstens EINE «Neu»-Zeile** (Testnotiz #693, präzisiert für die Montage).
+    """**Höchstens EINE «Neu»-Zeile** – daneben beliebig viele «Lager»-Zeilen.
 
     Ein Erzeugungsauftrag fährt die **Vorlage des Artikels**, als Kopie mit
     Versionsstempel (§2.1). Der Stempel sagt «diese Stücke sind genau so entstanden, wie
     Artikel X es beschreibt» – und die Frage, *welche* Vorlage gilt, muss eindeutig
     beantwortbar sein. Bei zwei Erzeugungen ist sie es nicht: zwei Erzeugungen sind zwei
-    Aufträge.
-
-    **Die Regel hiess einmal «Neu steht für sich allein»** – und war damit einen Tick zu
-    breit. Sie verbot nicht nur die zweite Vorlage, sondern **jede** weitere Zeile, also
-    ausgerechnet die Auftragsform, die eine **Montage** ist:
+    Aufträge. Weitere Zeilen aus dem Lager sind erlaubt – das ist die **Montage**:
 
     ===================  =======  =====================================
     Maschine             Neu      das Produkt, fährt seine Vorlage
     Rahmen · Motor · …   Lager    die Komponenten, werden verbaut
     ===================  =======  =====================================
-
-    Der ursprüngliche Grund bleibt dabei vollständig gewahrt: es gibt weiterhin genau
-    **eine** Vorlage, und der Stempel gilt für die Stücke, die sie erzeugt hat.
     """
     new_lines = [ln for ln in lines if ln.origin == NEU]
     if len(new_lines) > 1:
@@ -351,8 +344,9 @@ def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) 
       der Artikel es sagt, sonst wäre der Stempel eine Behauptung.
     - Sonst (reiner ``Lager``-Auftrag) ist es der im Entwurf modellierte Prozess.
 
-    Eine ``Neu``-Zeile steht für sich allein (``_assert_single_new``, #693) – die Frage
-    «welche von zwei Vorlagen gilt» kann es darum gar nicht geben.
+    Es gibt höchstens eine ``Neu``-Zeile (``_assert_single_new``) – die Frage «welche von
+    zwei Vorlagen gilt» kann es darum gar nicht geben. Daneben stehende ``Lager``-Zeilen
+    laufen durch dieselbe Vorlage.
     """
     new_lines = [ln for ln in lines if ln.origin == NEU]
     if not new_lines:
@@ -455,6 +449,11 @@ def _resolve_units(db: Session, numbers: list[str], *, seen: set[str]) -> list[t
     return out
 
 
+def _open_of(unit_ids: list[int]) -> tuple:
+    """**Die offene Zugehörigkeit dieser Stücke** – die Bedingung, an EINER Stelle."""
+    return (OrderUnit.instance_unit_id.in_(unit_ids), OrderUnit.released_at.is_(None))
+
+
 def held_by(db: Session, unit_ids: list[int]) -> dict[int, OrderUnit]:
     """Je Stück die **offene Zugehörigkeit**, falls es gerade in einem Auftrag läuft.
 
@@ -468,9 +467,7 @@ def held_by(db: Session, unit_ids: list[int]) -> dict[int, OrderUnit]:
     rows: dict[int, OrderUnit] = {}
     for part in _chunks(list(unit_ids)):
         for m in (
-            db.query(OrderUnit)
-            .filter(OrderUnit.instance_unit_id.in_(part), OrderUnit.released_at.is_(None))
-            .all()
+            db.query(OrderUnit).filter(*_open_of(part)).all()
         ):
             rows[m.instance_unit_id] = m
     return rows
@@ -488,7 +485,7 @@ def holders(db: Session, unit_ids: list[int]) -> dict[int, int]:
         for uid, oid in (
             db.query(OrderUnit.instance_unit_id, Order.object_id)
             .join(Order, Order.id == OrderUnit.order_id)
-            .filter(OrderUnit.instance_unit_id.in_(part), OrderUnit.released_at.is_(None))
+            .filter(*_open_of(part))
             .all()
         ):
             out[int(uid)] = int(oid)
@@ -880,8 +877,8 @@ def _hand_over(db: Session, *, order: Order, lines: list[_Line],
 
     # **Die Quell-Aufträge sehen ihre Stelle neu.** Nimmt eine Abweichung das letzte
     # gezogene Stück eines Moduls mit, ist dessen Stichprobe damit erledigt – und was dort
-    # noch steht, ist der ungezogene Rest. Er wartete sonst auf einen Scan, den es nach
-    # #714 nicht mehr gibt: der Auftrag stünde still, ohne dass jemand etwas tun könnte.
+    # noch steht, ist der ungezogene Rest. Er wartete sonst auf einen Scan, den niemand
+    # verlangt: der Auftrag stünde still, ohne dass jemand etwas tun könnte.
     for src_id, at in {(m.order_id, m.current_step_id) for m, _ in taken}:
         if at is None:
             continue
@@ -1255,19 +1252,14 @@ def _run_through(db: Session, *, order: Order, step: Optional[ProcessStep],
                  actor_id: Optional[int]) -> None:
     """►►► **Wer hier nicht gezogen wurde, wird hier auch nicht gescannt.** ◄◄◄
 
-    Die Zahl der Scans folgt der Stichprobe, nicht umgekehrt (Testnotiz #714):
+    Die Zahl der Scans folgt der Stichprobe, nicht umgekehrt:
 
     ==========================  ==================================================
     **Zahl der Erfassungen**    Einzelinstanzen in der Stichprobe
     **Zahl der Scans**          **Instanzen**, zu denen diese gehören
     ==========================  ==================================================
 
-    Vorher stand die Reihenfolge auf dem Kopf: **jede** wartende Instanz wurde zum Scan
-    angeboten, und erst danach entschied die Ziehung, ob es dort etwas zu erfassen gab.
-    Bei zwei Instanzen und 50 % hiess das zwei Scans für eine Erfassung – der zweite
-    bestätigte nichts, er war nur der Weg, das Stück weiterzubewegen.
-
-    **Bewegt wird es jetzt hier**, und zwar erst, wenn die Stichprobe dieses Moduls durch
+    **Bewegt wird es hier**, und zwar erst, wenn die Stichprobe dieses Moduls durch
     und bestanden ist (``_sample_cleared``). Nicht schon bei der Ankunft: fällt die
     Stichprobe durch, ist der ungeprüfte Rest verdächtig und darf den Betrieb nicht
     längst verlassen haben.
@@ -1706,8 +1698,8 @@ def units_page(db: Session, order: Order, *, membership_ids: list[int],
 
     **Welche** Stücke, entscheidet nicht diese Abfrage, sondern die Zuordnung im
     Prozessbild (``flow.units_on``): sie kommen als Zeilen-ids herein. Eine eigene
-    Bedingung hier wäre eine zweite Antwort auf «wo steht dieses Stück» – und genau
-    daraus entstand der Widerspruch zwischen Pille und Liste (Befund 2.1).
+    Bedingung hier wäre eine zweite Antwort auf «wo steht dieses Stück», und Pille und
+    Liste widersprächen sich.
     """
     if not membership_ids:
         return [], 0
@@ -1942,12 +1934,9 @@ def deviation_flags(db: Session, order_ids: list[int]) -> dict[int, bool]:
     beginnt ein Stück, das regulär verfügbar war. Alles andere ist ein Zugriff auf
     Material, das gerade nicht zur Verfügung stand – und genau das ist dokumentationspflichtig.
 
-    Die Regel **nennt darum keinen Status mehr**. Sie hiess einmal ``status_before ==
-    im_prozess``, also «einem laufenden Auftrag entzogen» – technisch stimmig, fachlich zu
-    eng: ein **gesperrtes** Stück wieder in Betrieb zu nehmen gehört zu keinem laufenden
-    Auftrag und fiel deshalb heraus, obwohl es in der Qualitätssicherung der Musterfall
-    einer Sonderfreigabe ist. Der Zweck des Labels ist die **Nachweisbarkeit**, nicht die
-    Herkunft; ein Nachweis, der den auffälligsten Fall auslässt, ist keiner.
+    Die Regel **nennt darum keinen Status**: auch ein **gesperrtes** Stück wieder in Betrieb
+    zu nehmen ist eine Abweichung – in der Qualitätssicherung der Musterfall einer
+    Sonderfreigabe. Der Zweck des Labels ist die **Nachweisbarkeit**, nicht die Herkunft.
 
     Als Vergleich gegen den einen Regelstart ist sie zugleich die **einfachere** Regel und
     die haltbarere: ein künftiger Zustand ist automatisch eine Abweichung, ohne dass ihn

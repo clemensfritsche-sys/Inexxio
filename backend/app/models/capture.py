@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import BigInteger, String
+from sqlalchemy import BigInteger, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,14 +39,14 @@ class Capture(Base, TimestampMixin):
     __tablename__ = "captures"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    instance_unit_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    step_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    instance_unit_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("instance_units.id", ondelete="RESTRICT"), index=True, nullable=False)
+    order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="RESTRICT"), index=True, nullable=False)
+    step_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("process_steps.id", ondelete="RESTRICT"), index=True, nullable=False)
 
     values: Mapped[dict] = mapped_column(JSONB, nullable=False)
     result: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # passed | failed | NULL
 
-    captured_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    captured_by: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("user_profiles.id", ondelete="RESTRICT"), nullable=True)
     note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
 

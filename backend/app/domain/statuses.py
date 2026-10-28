@@ -434,10 +434,6 @@ def terminal_guard_sql(statuses: tuple[str, ...] = TERMINAL_UNIT_STATUSES) -> st
     return f"""
 DO $guard$
 BEGIN
-  IF to_regclass('public.instance_units') IS NULL THEN
-    RETURN;
-  END IF;
-
   CREATE OR REPLACE FUNCTION {TERMINAL_GUARD_FN}() RETURNS trigger AS $fn$
   BEGIN
     IF NEW.status IS DISTINCT FROM OLD.status

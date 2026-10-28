@@ -3,14 +3,15 @@
 **Erfasst wird immer am Stück.** Die Zeile hängt an der Einzelinstanz, nicht an der
 Instanz und nicht am Artikel; eine Auswertung «wie steht die Charge da?» ist eine
 Summierung darüber, keine eigene Zeile. Das ist die Einzelinstanz-Regel, hier als
-Fremdschlüssel.
+Fremdschlüssel auf ``instance_units``.
 
 **Was erfasst wird, sagt das Modul** (``process_steps.config``), nicht der Artikel – eine
 Maske am Artikel hinge an keinem Prozess.
 
 **Erfassen ist ein Vorgang, kein Formular.** Es gibt darum keinen Endpunkt, der eine
-Erfassung ohne Modul schreibt: geschrieben wird ausschliesslich hier, im selben Zug wie
-der Statuswechsel (``process._pass``).
+Erfassung ohne Modul schreibt: geschrieben wird ausschliesslich hier, gerufen vom
+Bestätigen (``process.confirm_step``) – **vor** dem Statuswechsel, damit eine fehlende
+Angabe nichts bewegt.
 
 **Gelesen wird sie am Prozess, nicht am Stück** (Testnotiz #677): erfasst wird an einem
 Modul, und dort steht auch, was erfasst wurde.
@@ -23,9 +24,6 @@ from sqlalchemy.orm import Session
 
 from ..domain import capture_types, modules
 from ..models import Capture, InstanceUnit, Order, ProcessStep
-
-#: Erfassungspunkte, die eine **Datei** tragen. Sie werden wie jeder andere Wert erfasst;
-#: der Unterschied ist nur die Eingabe (Kamera/Zeichenfläche statt Tastatur).
 
 
 def points_of(step: ProcessStep) -> list[dict[str, Any]]:

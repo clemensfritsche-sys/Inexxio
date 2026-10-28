@@ -133,31 +133,13 @@ def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
 
 
 def _keep(db: Session) -> None:
-    """►►► **Was eine ANSICHT schreibt, muss auch bleiben** (Testnotiz #937). ◄◄◄
+    """**Was eine Ansicht schreibt, bleibt** – committet an der Tür, nicht im Dienst.
 
     Der Beleg zieht seine Positionen beim Anzeigen aus dem Prozess nach
     (``voucher.sync_lines``) – der einzige Schreibvorgang auf einem Lesepfad, und er ist
-    Absicht: die Positionen **sind** der Prozess, solange nichts zugesagt ist, und sie
-    brauchen eine Id, damit man sie bepreisen kann.
-
-    **Nur behielt sie niemand.** ``get_db`` committet nicht, ein blosses ``flush`` fällt
-    beim Schliessen der Sitzung zurück – der Browser bekam Zeilen-Ids, die es in der
-    Datenbank gar nicht gibt, und der nächste ``price``-Befehl fand seine Zeile nicht: der
-    getippte Preis wurde **stillschweigend** verworfen. Dass es «mit Enter dann ging», war
-    kein Hinweis auf die Oberfläche, sondern schlicht der **zweite** Versuch: der erste
-    ``POST`` legt die Zeilen an und committet sie, danach sind die Ids stabil.
-
-    **Hier und nicht im Dienst**: eine Transaktionsgrenze gehört an die Tür, nicht in die
-    Fachlogik (die Suite fährt dieselben Dienste in EINER Sitzung, die sie am Ende
-    verwirft). Und hier statt in jeder Leseroute: ``_steps`` ist die eine Stelle, an der
-    eine Antwort ihre Module baut – eine neue Route erbt es, ohne daran zu denken.
-
-    **Und der Commit verwirft nicht, was die Antwort noch liest** (Cleanup B-38). Mit dem
-    Standard ``expire_on_commit`` war danach jedes schon geladene Objekt abgelaufen – in
-    ``_to_response`` die bis zu ``EVENT_LIMIT`` Log-Einträge, die nach den Modulen
-    gebaut werden: **eine Abfrage je Eintrag** (gemessen: 312 statt 112 Abfragen bei
-    50 Stück, 200 davon ``SELECT process_events … WHERE id = …``). Geschrieben hat hier
-    nur die Anfrage selbst, also stimmt der geladene Stand nach dem Commit.
+    Absicht: die Positionen brauchen eine Id, damit man sie bepreisen kann. Hier, in der
+    einen Stelle, an der eine Antwort ihre Module baut, wird er festgeschrieben – ohne
+    ``expire_on_commit``, damit die Antwort danach nicht jedes geladene Objekt neu holt.
     """
     keep, db.expire_on_commit = db.expire_on_commit, False
     try:
@@ -555,6 +537,10 @@ def _fifo(db: Session, base, want: int) -> list[str]:
     **Gebunden ist nicht frei**: ein Stück, das in einem laufenden Auftrag läuft, lässt
     sich zwar nehmen – daraus wird eine Abweichung, die einem anderen Auftrag sein
     Material entzieht. Das darf nie die Voreinstellung sein, also steht es hier nicht.
+
+    **Gesperrt wird bewusst vorgeschlagen**: es liegt im Regal, und das Greifen IST das
+    Aufheben der Sperre – der Auftrag, der so entsteht, ist damit eine Abweichung
+    (``process.deviation_flags``: sein Start weicht vom Regelstart ab).
 
     **Sie ignoriert Suche und Zustandsfilter** – bewusst: ``base`` trägt nur den Artikel.
     Der Vorschlag ist eine Aussage über den Bestand, keine über den gerade gewählten
