@@ -26,7 +26,6 @@ class CompanySettingsUpdate(BaseModel):
     iban: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    google_maps_api_key: Optional[str] = None
     #: «Eigenes Unternehmen» – setzt nur ein Admin (``sites.apply_update``).
     is_own: Optional[bool] = None
 
@@ -166,7 +165,6 @@ class CompanySettingsResponse(BaseModel):
     # Installation läuft (``FRONTEND_BASE_URL``). Sie steht im Impressum und auf dem
     # Beleg-Briefkopf – und wäre als Eingabefeld eine zweite Wahrheit neben dem Deployment.
     website: str = ""
-    google_maps_api_key: Optional[str]
     #: Wer zu dieser Firma gehört – abgeleitet aus der Zuordnung an der Person.
     people: list[CompanyPerson] = []
 

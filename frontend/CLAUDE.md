@@ -81,7 +81,7 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `stock-view.tsx`, `stock-bar.tsx`, `unit-number(s).tsx` | Bestand (Artikel- und Instanz-Umfang) · Leiste · Stücknummern |
 | `place-trail.tsx`, `obj-id.tsx` | Ortskette eines Stücks · Objektnummer als Kennung (`.erp-objid`) |
 | `time/` | **Zeiterfassung**: `time-card` (die Karte im Personendatensatz), `time-swipe` (Kommen ↔ Gehen), `time-calendar` (Monat, abgeschlossene Tage blass), `time-day` (Tag + «Erfassen», Vorschau vom Server), `time-contracts` (Verträge, Buchungen), `company-time` (Feiertage, Absenzarten, Regeln an der Gesellschaft), `time-ui` (Formate in Minuten, Symbole – Spiegel getestet) |
-| `territory-map.tsx`, `world-map.tsx`, `system-config-section.tsx` | Gebietskarte · Plattform-Konfiguration am Betreiber |
+| `territory-map.tsx`, `world-map.tsx` | Gebietskarte |
 | `detail-tabs.tsx`, `error-boundary.tsx`, `use-google-maps.ts`, `use-maps-key.ts` | Hilfen |
 
 ## Design System (VERBINDLICH)

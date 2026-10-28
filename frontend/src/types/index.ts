@@ -247,9 +247,6 @@ export interface CompanySettings {
   website: string;
   /** Ausgeschrieben, nicht maskiert (#870) – sie steht auf jeder Rechnung, die wir stellen. */
   iban: string | null;
-  // Plattform-Konfiguration: gilt der EINEN Website, steht darum nur am Betreiber – und
-  // nur, was auch einen Leser hat (die Adress-Suche).
-  google_maps_api_key: string | null;
 }
 
 // ─── Testnotizen (in-app Feedback, nur Testumgebung) ─────────────────────────

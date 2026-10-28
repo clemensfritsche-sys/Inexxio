@@ -24,7 +24,8 @@ Je Umgebung, alles in **europe-west6 (Zürich)**:
 - **Secrets**: Secret Manager, als Umgebungsvariablen eingebunden. Pflicht: `DATABASE_URL`;
   dev ausserdem `FIREBASE_PROJECT_ID`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
   Optional – eingebunden nur, wenn es sie gibt: `GOOGLE_CLIENT_ID`/`_SECRET` (Gmail),
-  `ANTHROPIC_API_KEY` (KI), auf prod auch die drei Stripe-Werte.
+  `ANTHROPIC_API_KEY` (KI), `GOOGLE_MAPS_API_KEY` (Adress-Suche), auf prod auch die drei
+  Stripe-Werte (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY`).
 - **Bilder des Backends**: Artifact Registry `europe-west6-docker.pkg.dev/<projekt>/<repo>`.
 
 ## Was jeder Deploy prüft

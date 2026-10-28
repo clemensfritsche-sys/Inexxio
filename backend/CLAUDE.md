@@ -139,7 +139,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **130 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **128 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -154,8 +154,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `/api/v1/auth/passkeys/login/options` · `/login/verify` | – | Anmelden mit Passkey → Firebase Custom Token |
 | POST | `/api/v1/contact` | – | Anfrage der Website → Nachricht im ERP (`services/inquiry`); Honigtopf, Mindestzeit, 5/h je IP; 503 mit Ausweg, wenn nicht speicherbar |
 | GET | `/api/v1/public/contact` | – | Telefon, E-Mail, Anschrift der Gesellschaft zum Land des Besuchers |
-| GET · PATCH | `/api/v1/admin/settings` | admin | Plattform-Konfiguration des Betreibers (Maps-Schlüssel) |
-| GET | `/api/v1/admin/settings/public` | – | Nur der Google-Maps-Schlüssel |
+| GET | `/api/v1/admin/settings/public` | – | Nur der Google-Maps-Schlüssel – aus der Deploy-Konfiguration (`GOOGLE_MAPS_API_KEY`), nicht aus der Datenbank |
 | GET · POST | `/api/v1/admin/companies` | staff | Firmen lesen / anlegen (eigene nur Admin) |
 | GET · PATCH · DELETE | `/api/v1/admin/companies/{object_id}` | staff | Firma lesen / ändern / schliessen (eigene nur Admin; Betreiber und letzte eigene nicht schliessbar) |
 | POST | `/api/v1/admin/companies/{object_id}/reopen` | staff | Geschlossene Firma wieder öffnen |
@@ -283,7 +282,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 `/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,
 `FIREBASE_PROJECT_ID`. Optional: `INITIAL_ADMIN_EMAIL`, `GOOGLE_CLIENT_ID`/`_SECRET`
 (Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP`
-(KI, `docs/dokumente.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB). Secrets nie im Repo.
+(KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB). Secrets nie im Repo.
 
 ## Tote Stellen finden
 ```bash

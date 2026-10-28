@@ -562,84 +562,13 @@
         }
       }
     },
-    "/api/v1/admin/settings": {
-      "get": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Get Settings",
-        "description": "Der **Betreiber** – Trägerin der Plattform-Konfiguration der einen Website. Der\nReiter «System» am Unternehmens-Datensatz liest und schreibt genau diese Zeile.",
-        "operationId": "get_settings_api_v1_admin_settings_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CompanySettingsResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      },
-      "patch": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Update Settings",
-        "operationId": "update_settings_api_v1_admin_settings_patch",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompanySettingsUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CompanySettingsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/v1/admin/settings/public": {
       "get": {
         "tags": [
           "admin"
         ],
         "summary": "Get Public Settings",
-        "description": "Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.\n\nEr steht ohnehin im Browser (auf die Domain eingeschränkt). Impressum und\nKontaktdaten liefert die Website bzw. ``/public/contact``.",
+        "description": "Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.\n\nEr kommt aus der Deploy-Konfiguration der Umgebung (``GOOGLE_MAPS_API_KEY``), nicht aus\nder Datenbank: so überlebt er einen Neuaufbau, und dev und prod haben je ihren eigenen.\nEr steht ohnehin im Browser (in Google Cloud auf die Adressen eingeschränkt). Impressum\nund Kontaktdaten liefert die Website bzw. ``/public/contact``.",
         "operationId": "get_public_settings_api_v1_admin_settings_public_get",
         "responses": {
           "200": {
@@ -8220,17 +8149,6 @@
             "title": "Website",
             "default": ""
           },
-          "google_maps_api_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Google Maps Api Key"
-          },
           "people": {
             "items": {
               "$ref": "#/components/schemas/CompanyPerson"
@@ -8253,8 +8171,7 @@
           "uid_number",
           "vat_number",
           "email",
-          "phone",
-          "google_maps_api_key"
+          "phone"
         ],
         "title": "CompanySettingsResponse"
       },
@@ -8402,17 +8319,6 @@
               }
             ],
             "title": "Phone"
-          },
-          "google_maps_api_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Google Maps Api Key"
           },
           "is_own": {
             "anyOf": [

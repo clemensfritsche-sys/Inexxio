@@ -358,18 +358,12 @@ class ApiClient {
     return this.get(`/api/v1/public/legal/${kind}`);
   }
 
-  // ─── Admin: Settings ───────────────────────────────────────────────────────
+  // ─── Öffentliche Einstellungen ─────────────────────────────────────────────
 
-  getSettings(): Promise<CompanySettings> {
-    return this.get<Record<string, unknown>>('/api/v1/admin/settings').then(mapSettingsFromBackend);
-  }
-
-  getPublicSettings(): Promise<Partial<CompanySettings>> {
-    return this.get<Record<string, unknown>>('/api/v1/admin/settings/public').then(mapSettingsFromBackend);
-  }
-
-  updateSettings(data: Partial<CompanySettings>): Promise<CompanySettings> {
-    return this.patch<Record<string, unknown>>('/api/v1/admin/settings', mapSettingsToBackend(data)).then(mapSettingsFromBackend);
+  /** Der Google-Maps-Schlüssel der Adress-Suche – aus der Deploy-Konfiguration, `null` ohne. */
+  getMapsKey(): Promise<string | null> {
+    return this.get<{ google_maps_api_key: string | null }>('/api/v1/admin/settings/public')
+      .then((s) => s.google_maps_api_key || null);
   }
 
   // ─── Admin: Unternehmen (Gesellschaften) ───────────────────────────────────
@@ -1050,7 +1044,6 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     website: (s.website as string) ?? '',
     // Ausgeschrieben, nicht maskiert (#870): die IBAN steht auf jeder Rechnung.
     iban: (s.iban as string | null) ?? null,
-    google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
   };
 }
 

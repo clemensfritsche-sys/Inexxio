@@ -137,6 +137,8 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 PENDING_DROP: set[str] = {
     # Migration 153: das Häkchen ist ein Nachweis geworden (``newsletter_consents``).
     "user_profiles.newsletter_opt_in",
+    # Der Maps-Schlüssel kommt aus der Deploy-Konfiguration; die Spalte fällt im Folge-Deploy.
+    "company_settings.google_maps_api_key",
 }
 
 

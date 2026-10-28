@@ -105,11 +105,11 @@ jobs:
       # `docs/stripe-setup.md`). ◄◄◄ Eingebunden wird nur, was es im Secret Manager gibt – sonst
       # bräche `--set-secrets` ab. Ohne die drei Stripe-Werte gibt es den Bezahlen-Knopf nicht
       # (`STRIPE_PUBLISHABLE_KEY` ist kein Geheimnis, liegt aber der Einfachheit halber daneben).
-      - name: Optionale Secrets (Gmail, KI, Zahlung)
+      - name: Optionale Secrets (Gmail, KI, Maps, Zahlung)
         id: optsec
         run: |
           extra=""
-          for s in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY \
+          for s in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY GOOGLE_MAPS_API_KEY \
                    STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PUBLISHABLE_KEY; do
             if gcloud secrets versions access latest --secret "$s" --project "${{ env.GCP_PROJECT }}" >/dev/null 2>&1; then
               echo "Secret $s gefunden – wird eingebunden"

@@ -23,9 +23,8 @@ class CompanySettings(Base):
         Die US-Gesellschaft hat ihre EIGENE EIN/Steuer/Bank – deshalb ist Rechtsidentität
         hier bewusst dabei. Der Satz ist bewusst **klein**: jedes Feld hier ist ein Feld,
         das jemand für JEDE Gesellschaft pflegen muss.
-      * **die eine Website** (``sites.PLATFORM_FIELDS``): der Google-Maps-Schlüssel. Ihn
-        gibt es genau EINMAL; er liegt als Spalte auf dem **Betreiber** und wird nur über
-        die Systemkonfiguration gepflegt.
+      * **die eine Website**: nichts mehr hier – der Google-Maps-Schlüssel kommt aus der
+        Deploy-Konfiguration (``config.google_maps_api_key``).
 
     **Der «Betreiber» ist gewählt, nicht gemarkert** (``is_operator``, partieller
     Unique-Index: genau eine trägt den Titel). Gelesen wird tolerant – ohne Markierung
@@ -118,10 +117,6 @@ class CompanySettings(Base):
     iban: Mapped[Optional[str]] = mapped_column("iban_encrypted", Text)
     email: Mapped[str] = mapped_column(String(255), default="")
     phone: Mapped[Optional[str]] = mapped_column(String(50))
-    # ── Plattform-Konfiguration (die EINE Website, nicht je Gesellschaft) ─────────
-    # Sie steht als Spalten auf dem Betreiber-Datensatz und wird ausschliesslich über
-    # die Systemkonfiguration gepflegt (``services/sites.PLATFORM_FIELDS``).
-    google_maps_api_key: Mapped[Optional[str]] = mapped_column(String(255))
     #: ►►► **Zeiterfassung einer eigenen Gesellschaft** (Migration 154): der Kanton (er
     #: bestimmt den Vorschlag der Feiertage) und je Absenzart, ab welchem Arbeitstag ein
     #: Nachweis nötig ist – ``{"canton": "TG", "proof": {"krank": 3}}``. Was fehlt, ist die

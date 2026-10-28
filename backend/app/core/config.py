@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     #: (``inexxio-dev-files`` · ``inexxio-prod-files``), gesetzt vom Deploy. Leer: die Dateien
     #: liegen in der Datenbank (lokal, Tests).
     files_bucket: str = ""
+    #: **Der Google-Maps-Schlüssel** der Adress-Suche – je Umgebung einer, aus dem Secret Manager
+    #: (``GOOGLE_MAPS_API_KEY``), eingebunden vom Deploy. Er steht ohnehin im Browser; geschützt
+    #: ist er über die erlaubten Adressen in Google Cloud. Leer: Adressen werden von Hand erfasst.
+    google_maps_api_key: str = ""
 
     # ── Postfach (``services/mailbox``, CRM Schritt 3) ───────────────────────────
     #: Der **OAuth-Client** des Google-Cloud-Projekts (Typ «Webanwendung»). **Leer heisst:
