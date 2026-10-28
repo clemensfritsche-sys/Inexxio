@@ -157,7 +157,7 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     roles = {"to": data.to, "cc": data.cc, "bcc": data.bcc, "about": data.about}
     _assert_people(db, {i for ids in roles.values() for i in ids})
     body = (data.body or "").strip()
-    subject = (data.subject or "").strip() or None
+    subject = dc.subject_line(data.subject)
     if not subject and (body or not data.about):
         raise HTTPException(400, detail="Eine Nachricht braucht einen Betreff – er ist das "
                                         "Anliegen, zu dem sie gehört.")

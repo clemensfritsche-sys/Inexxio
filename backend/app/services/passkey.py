@@ -249,11 +249,9 @@ def complete_authentication(db: Session, request: Request, credential: dict) -> 
     if not user:
         raise HTTPException(403, detail="Konto nicht aktiv.")
 
-    now = datetime.now(timezone.utc)
     row.sign_count = verified.new_sign_count
-    row.last_used_at = now
-    user.last_login_at = now
-    db.commit()
+    row.last_used_at = datetime.now(timezone.utc)
+    db.commit()     # die letzte Anmeldung schreibt ``core/auth`` aus dem Token (``auth_time``)
 
     return mint_firebase_token(user)
 

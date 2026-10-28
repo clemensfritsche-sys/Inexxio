@@ -12,19 +12,20 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import text
 
+from app.core.clock import ZONE
 from app.domain import timekeeping as tk
 from app.models import CompanySettings, Holiday, TimeEntry, UserProfile
 from app.schemas.timekeeping import ContractIn, EntryIn
 from app.services import people, time_view, timekeeping as t, todo
 
-NOW = datetime(2026, 10, 23, 12, 33, tzinfo=tk.ZONE)
+NOW = datetime(2026, 10, 23, 12, 33, tzinfo=ZONE)
 TODAY = NOW.date()
 
 
 @pytest.fixture()
 def clock(monkeypatch):
     state = {"now": NOW}
-    monkeypatch.setattr(t, "now_utc", lambda: state["now"].astimezone(tk.ZONE))
+    monkeypatch.setattr(t, "now_utc", lambda: state["now"].astimezone(ZONE))
     return state
 
 
@@ -170,7 +171,7 @@ def test_vacation_accrues_daily_across_the_year_end(world, clock):
     """Ferien wachsen jeden Kalendertag – kein Reset zum Jahreswechsel."""
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 12, 1), weeks=Decimal(5))
-    clock["now"] = datetime(2027, 1, 31, 12, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2027, 1, 31, 12, 0, tzinfo=ZONE)
     led = t.ledger(t.load(db, lena), date(2027, 1, 31), t.now_utc())
     assert round(led.vacation) == round(62 * 5 * 42 * 60 / 365)
 
@@ -234,7 +235,7 @@ def test_dst_change_counts_the_real_hours(world, clock):
     """Zeitumstellung 25.10.2026: 00:00–06:00 sind 7 echte Stunden."""
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 1), days=range(7))
-    clock["now"] = datetime(2026, 10, 25, 12, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 25, 12, 0, tzinfo=ZONE)
     _day(db, lena, lena, date(2026, 10, 25), [("00:00", "06:00")])
     d = t.ledger(t.load(db, lena), date(2026, 10, 31), t.now_utc()).days[date(2026, 10, 25)]
     assert d.ist == 7 * 60
@@ -443,11 +444,11 @@ def test_editing_a_running_in_back_never_allows_a_second_in(world, clock):
     Knopf zeigt «Gehen», ein zweites Kommen desselben Tages weist der Server ab."""
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 1))
-    clock["now"] = datetime(2026, 10, 23, 21, 45, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 23, 21, 45, tzinfo=ZONE)
     t.swipe(db, lena, lena, "in", "key-bug-0001")
     first = next(r for r in t.load(db, lena).live if r.kind == "in")
     t.record(db, lena, lena, EntryIn(kind="in", replaces_id=first.id, time="06:00"))
-    clock["now"] = datetime(2026, 10, 23, 21, 50, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 23, 21, 50, tzinfo=ZONE)
     b = t.load(db, lena)
     assert t.running(b, t.now_utc()) is not None          # anwesend seit 06:00
     assert _view(db, lena, lena).present_since == "06:00"
@@ -508,16 +509,16 @@ def test_a_forgotten_out_in_the_afternoon_is_no_night_shift(world, clock):
     """Kommen um 18:00 vergessen → am Morgen ist der Tag offen, kein 13-h-Block."""
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 1))
-    clock["now"] = datetime(2026, 10, 22, 18, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 22, 18, 0, tzinfo=ZONE)
     t.swipe(db, lena, lena, "in", "key-late-001")
-    clock["now"] = datetime(2026, 10, 23, 7, 30, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 23, 7, 30, tzinfo=ZONE)
     assert t.running(t.load(db, lena), t.now_utc()) is None
-    clock["now"] = datetime(2026, 10, 22, 22, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 22, 22, 0, tzinfo=ZONE)
     # Eine echte Nachtschicht (Kommen ab 20 Uhr) läuft dagegen über Mitternacht.
     jonas = _person(db, co)
     _contract(db, admin, jonas, date(2026, 10, 1))
     t.swipe(db, jonas, jonas, "in", "key-night-01")
-    clock["now"] = datetime(2026, 10, 23, 5, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 23, 5, 0, tzinfo=ZONE)
     v = _view(db, jonas, jonas)
     assert v.present_since == "gestern 22:00" and v.today_ist == 7 * 60
 
@@ -525,9 +526,9 @@ def test_a_forgotten_out_in_the_afternoon_is_no_night_shift(world, clock):
 def test_a_running_night_shift_is_not_in_the_account_yet(world, clock):
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 22))
-    clock["now"] = datetime(2026, 10, 22, 22, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 22, 22, 0, tzinfo=ZONE)
     t.swipe(db, lena, lena, "in", "key-night-02")
-    clock["now"] = datetime(2026, 10, 23, 5, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 23, 5, 0, tzinfo=ZONE)
     assert _view(db, lena, lena).account == 0                # erst mit «Gehen»
 
 
@@ -568,12 +569,12 @@ def test_a_night_shift_can_end_on_a_full_absence_day(world, clock):
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 1))
     t.record(db, lena, lena, EntryIn(kind="absence", art="ferien", day=date(2026, 10, 23)))
-    clock["now"] = datetime(2026, 10, 22, 22, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 22, 22, 0, tzinfo=ZONE)
     t.swipe(db, lena, lena, "in", "key-night-03")
-    clock["now"] = datetime(2026, 10, 23, 1, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 23, 1, 0, tzinfo=ZONE)
     t.swipe(db, lena, lena, "out", "key-night-04")
     assert [r.kind for r in t.load(db, lena).live if r.kind in tk.STAMPS] == ["in", "out"]
-    clock["now"] = datetime(2026, 10, 23, 9, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 23, 9, 0, tzinfo=ZONE)
     assert not _view(db, lena, lena).can_stamp              # ganzer Ferientag: kein Knopf
 
 
@@ -591,7 +592,7 @@ def test_the_repeated_hour_and_the_missing_hour(world, clock):
     nimmt die zweite Fassung. Frühling: 02:30 gibt es nicht – ein Satz statt 03:30."""
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 1, 1), days=range(7))
-    clock["now"] = datetime(2026, 10, 25, 12, 0, tzinfo=tk.ZONE)
+    clock["now"] = datetime(2026, 10, 25, 12, 0, tzinfo=ZONE)
     _stamp(db, admin, lena, date(2026, 10, 25), "02:45")
     _stamp(db, admin, lena, date(2026, 10, 25), "02:30", "out")
     d = t.ledger(t.load(db, lena), date(2026, 10, 31), t.now_utc()).days[date(2026, 10, 25)]

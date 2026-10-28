@@ -7,7 +7,8 @@ Feed. Drei Regeln, und jede steht schon woanders:
 * **Welche Gesellschaft?** Dieselbe, die die Website dem Besucher zeigt
   (``sites.company_for_country`` – Land ≻ Region ≻ Betreiber). Ihr Postfach ist der Kanal.
 * **Wer fragt?** Die Person zu dieser E-Mail – angelegt, wenn es sie nicht gibt
-  (``mailbox.person_for``, dieselbe Stelle wie bei einer eingehenden Mail).
+  (``people.ensure``, dieselbe Stelle wie bei einer eingehenden Mail; ein Telefon aus dem
+  Formular nur bei einer neuen Person).
 * **Die Bestätigung beantwortet nichts.** Sie geht über das Postfach der Gesellschaft
   hinaus und steht im Verlauf – aber unter **eigenem Betreff** (``confirmSubject`` ≠
   ``SUBJECT``): sie ist ein anderes Anliegen, die Anfrage bleibt offen, bis ein Mensch
@@ -23,13 +24,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
+from ..core import clock
 from ..domain import communication as dc
 from ..models import Message
-from . import attachments, mail_layout, mailbox, sites
+from . import attachments, mail_layout, mailbox, people, sites
 from .communication import write
 
 #: Das Vokabular der Website (``website/src/config``, generiert von
@@ -45,8 +46,6 @@ SUBJECT: str = VOCAB["subject"]["word"]
 SUMMARY_MAX: int = VOCAB["subject"]["max"]
 #: Die Beschriftungen der Felder – dieselben wie im Formular und im mailto-Ausweg.
 LABELS: dict[str, str] = dict(VOCAB["labels"])
-#: Die Uhrzeit in der Bestätigung – so, wie man sie hier liest.
-_ZONE = ZoneInfo("Europe/Zurich")
 
 
 @dataclass
@@ -103,7 +102,7 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
     Ein Foto, das sich nicht lesen lässt, wirft (``attachments.store_image``: 400/413);
     dann ist nichts gespeichert, und der Aufrufer sagt es am Feld."""
     firm = company_for(db, country)
-    person = mailbox.person_for(db, inq.name, inq.email, inq.phone)
+    person = people.ensure(db, inq.email, inq.name, inq.phone).object_id
     files = []
     for p in inq.photos:
         att = attachments.store_image(db, p.data, p.filename, None)
@@ -137,7 +136,7 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     subject = words["confirmSubject"]
     more = extra(inq, inquiry.at, words)
     more.action = offer(db, inquiry.sender_object_id, inq.newsletter)
-    mail = mail_layout.compose(subject, lead(inq.name, words), firm, None,
+    mail = mail_layout.compose(subject, lead(words), firm, None,
                                kicker=words["kicker"], extra=more)
     msg = Message(sender_object_id=box.owner_object_id, channel=inquiry.channel,
                   subject=subject, body=mail.body, html=mail.html,
@@ -149,21 +148,22 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     return True
 
 
-def lead(name: str, words: dict[str, str]) -> str:
-    return f"{dc.greeting(name)}\n\n{words['confirmIntro']}\n\n{words['confirmMore']}"
+def lead(words: dict[str, str]) -> str:
+    """Der Anfang der Bestätigung – **ohne den Namen aus dem Formular**: wer eine fremde
+    Adresse eintippt, soll durch uns keinen Text an sie schicken können."""
+    return f"{dc.greeting('').strip()}\n\n{words['confirmIntro']}\n\n{words['confirmMore']}"
 
 
 def extra(inq: Inquiry, at: datetime, words: dict[str, str]) -> mail_layout.Extra:
-    """Was die Bestätigung **allgemeingültig** trägt – was in der Anfrage steht, kennt hier
-    niemand: eine Kopie der Angaben, was als Nächstes geschieht, und der Weg, wenn es eilt."""
+    """Was die Bestätigung **allgemeingültig** trägt – nie, was in der Anfrage steht (kein
+    Text, keine Firma, kein Telefon: die Bestätigung ist kein Relais für fremden Inhalt):
+    wie viele Fotos angekommen sind, was als Nächstes geschieht, und der Weg, wenn es eilt."""
     n = len(inq.photos)
-    rows = [(words["factCompany"], inq.company), (words["factPhone"], inq.phone),
-            (words["factPhotos"], (words["photoOne"] if n == 1 else
-                                   words["photoMany"].replace("{n}", str(n))) if n else "")]
-    when = at.astimezone(_ZONE).strftime("%-d.%-m.%Y, %H:%M")
+    photos = (words["photoOne"] if n == 1 else words["photoMany"].replace("{n}", str(n)))
+    when = at.astimezone(clock.ZONE).strftime("%-d.%-m.%Y, %H:%M")
     return mail_layout.Extra(
-        facts=mail_layout.Facts(title=words["copyTitle"], rows=[r for r in rows if r[1]],
-                                message=inq.message),
+        facts=mail_layout.Facts(title=words["copyTitle"], rows=[(words["factPhotos"], photos)])
+        if n else None,
         steps=mail_layout.Steps(title=words["nextTitle"], items=[
             (f"{words['received']} · {when}", True), (words["confirmNext"], False)]),
         call=words["urgent"])

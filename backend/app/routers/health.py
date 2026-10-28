@@ -40,7 +40,7 @@ def schema_state(db: Session) -> dict:
 
 
 @router.get("/health")
-async def health_check(db: Session = Depends(get_db)):
+def health_check(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected", "version": get_settings().app_version,

@@ -23,7 +23,7 @@ def _require_enabled() -> None:
 
 
 @router.get("", response_model=list[FeedbackNoteResponse])
-async def list_feedback(
+def list_feedback(
     route: str | None = Query(None, description="Nur Notizen dieser Seite (Pfad)"),
     note_status: str | None = Query(None, alias="status"),
     db: Session = Depends(get_db),
@@ -35,7 +35,7 @@ async def list_feedback(
 
 
 @router.post("", response_model=FeedbackNoteResponse, status_code=201)
-async def create_feedback(
+def create_feedback(
     data: FeedbackCreate,
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
@@ -48,7 +48,7 @@ async def create_feedback(
 
 
 @router.delete("", status_code=200)
-async def clear_feedback(
+def clear_feedback(
     scope: str = Query("done", description="'done' = Erledigte/Verworfene, 'all' = alles"),
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
@@ -64,7 +64,7 @@ async def clear_feedback(
 
 
 @router.delete("/{note_id}", status_code=204)
-async def delete_feedback(
+def delete_feedback(
     note_id: int,
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
@@ -79,7 +79,7 @@ async def delete_feedback(
 
 
 @router.patch("/{note_id}", response_model=FeedbackNoteResponse)
-async def update_feedback(
+def update_feedback(
     note_id: int,
     data: FeedbackUpdate,
     db: Session = Depends(get_db),

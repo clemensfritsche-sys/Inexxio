@@ -55,7 +55,7 @@ def _company_response(db: Session, company) -> CompanySettingsResponse:
 
 
 @router.get("/settings/public")
-async def get_public_settings():
+def get_public_settings():
     """Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.
 
     Er kommt aus der Deploy-Konfiguration der Umgebung (``GOOGLE_MAPS_API_KEY``), nicht aus
@@ -71,11 +71,11 @@ async def get_public_settings():
 # EIN gleichrangiger Datensatztyp (``organization``). Jede Gesellschaft ist vollständig:
 # eigene Rechtsidentität, Bank, MWST. Anlegen/Ändern sind **admin-only** (fix vorgegeben);
 # an der Sichtbarkeit im ERP ändert das nichts. Die Rechtsidentität wird auf JEDEM
-# Datensatz gepflegt (die US-Gesellschaft hat ihre eigene). Plattform-/
-# Systemkonfiguration bleibt getrennt (``PATCH /admin/settings``).
+# Datensatz gepflegt (die US-Gesellschaft hat ihre eigene). Eine Plattform-Konfiguration
+# in der Datenbank gibt es nicht (der Maps-Schlüssel kommt aus dem Deploy).
 
 @router.get("/companies", response_model=list[CompanySettingsResponse])
-async def list_companies(
+def list_companies(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
@@ -85,7 +85,7 @@ async def list_companies(
 
 
 @router.get("/companies/{object_id}", response_model=CompanySettingsResponse)
-async def get_company(
+def get_company(
     object_id: int,
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
@@ -95,7 +95,7 @@ async def get_company(
 
 
 @router.post("/companies", response_model=CompanySettingsResponse, status_code=201)
-async def create_company(
+def create_company(
     data: CompanyCreate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
@@ -116,18 +116,14 @@ async def create_company(
 
 
 @router.patch("/companies/{object_id}", response_model=CompanySettingsResponse)
-async def update_company(
+def update_company(
     object_id: int,
     data: CompanySettingsUpdate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
     """Felder einer Firma ändern – **derselbe Pfad für jede** (auch den
-    Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.
-
-    Die **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``
-    ignoriert diese Felder; sie laufen über ``PATCH /admin/settings``, damit dieselbe Angabe
-    nicht an zwei Stellen editierbar ist."""
+    Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST (``sites.apply_update``)."""
     company = sites.require(db, object_id)
     sites.apply_update(db, company, data.model_dump(exclude_unset=True), current_user.id,
                        admin=current_user.role == "admin")
@@ -135,7 +131,7 @@ async def update_company(
 
 
 @router.post("/companies/{object_id}/operator", response_model=CompanySettingsResponse)
-async def set_company_operator(
+def set_company_operator(
     object_id: int,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_admin),
@@ -150,7 +146,7 @@ async def set_company_operator(
 
 
 @router.delete("/companies/{object_id}", response_model=CompanySettingsResponse)
-async def deactivate_company(
+def deactivate_company(
     object_id: int,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
@@ -165,7 +161,7 @@ async def deactivate_company(
 
 
 @router.post("/companies/{object_id}/reopen", response_model=CompanySettingsResponse)
-async def reopen_company(
+def reopen_company(
     object_id: int,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
@@ -210,7 +206,7 @@ def _territory_map_response(db: Session) -> TerritoryMapResponse:
 
 
 @router.get("/territories", response_model=TerritoryMapResponse)
-async def get_territories(
+def get_territories(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_admin),
 ):
@@ -221,7 +217,7 @@ async def get_territories(
 
 
 @router.put("/territories/{area}", response_model=TerritoryMapResponse)
-async def assign_territory(
+def assign_territory(
     area: str,
     data: TerritoryAssign,
     db: Session = Depends(get_db),

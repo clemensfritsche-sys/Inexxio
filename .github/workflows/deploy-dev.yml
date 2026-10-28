@@ -84,7 +84,7 @@ jobs:
         id: optsec
         run: |
           extra=""
-          for s in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY GOOGLE_MAPS_API_KEY; do
+          for s in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY GOOGLE_MAPS_API_KEY LINK_SECRET; do
             # `versions access` statt `describe`: die Rolle «Zugriffsperson für Secret
             # Manager-Secret» des Deploy-Kontos erlaubt genau das, `describe` nicht.
             if gcloud secrets versions access latest --secret "$s" --project "${{ env.GCP_PROJECT }}" >/dev/null 2>&1; then

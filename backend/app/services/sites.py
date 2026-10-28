@@ -449,9 +449,8 @@ _KEEP_IF_NONE = ("currency",)
 
 def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
                          actor_id: int | None) -> None:
-    """Entitäts-Felder (inkl. Bank-Chiffren) auf die Gesellschaft schreiben + auditieren.
-    Plattform-Felder werden bewusst ignoriert – die gehören der einen Website, nicht der
-    Gesellschaft, und laufen über die Systemkonfiguration."""
+    """Entitäts-Felder (inkl. IBAN) auf die Gesellschaft schreiben + auditieren; was nicht in
+    ``ENTITY_FIELDS`` steht, schreibt diese Stelle nicht."""
     from ..domain import uid
     for key, value in data.items():
         if key == "uid_number":
@@ -725,7 +724,6 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
                  *, admin: bool) -> CompanySettings:
     """Felder einer Firma ändern – **derselbe Pfad für jede**.
 
-    * **Plattform-Felder werden ignoriert** – sie laufen über ``PATCH /admin/settings``.
     * **Eine eigene Gesellschaft ändert nur ein Admin** (Bank, Rechtsidentität eines
       Belegstellers); eine fremde Firma pflegt jeder Mitarbeiter – und an ihr gibt es
       nur ihre Identität (``EXTERNAL_FIELDS``).

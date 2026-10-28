@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/v1/erp/places", tags=["places"])
 
 
 @router.get("", response_model=list[PlaceRef])
-async def search_places(
+def search_places(
     search: str = Query("", description="Objektnummer-Teil oder Name"),
     limit: int = Query(places_svc.SEARCH_LIMIT, ge=1, le=50),
     db: Session = Depends(get_db),
@@ -45,7 +45,7 @@ async def search_places(
 
 
 @router.get("/{object_id}", response_model=PlaceRef)
-async def resolve_place(
+def resolve_place(
     object_id: int,
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),

@@ -31,14 +31,11 @@ from __future__ import annotations
 
 import json
 import re
-import time
 import uuid
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
-from threading import Lock
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -48,7 +45,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from ..core.database import get_db
-from ..services import geoip, inquiry as svc
+from ..services import inquiry as svc, people, visitor
 
 router = APIRouter(prefix="/api/v1/contact", tags=["contact"])
 
@@ -58,64 +55,15 @@ MSG: dict[str, str] = VOCAB["messages"]
 LIMITS: dict[str, int] = VOCAB["limits"]
 PHOTOS: dict = VOCAB["photos"]
 
-#: Dieselben Ausdrücke wie im Browser (``website/src/config/inquiry.mjs`` → ``patterns``).
-EMAIL_RE = re.compile(VOCAB["patterns"]["email"])
+#: Derselbe Ausdruck wie im Browser (``website/src/config/inquiry.mjs`` → ``patterns``); die
+#: E-Mail-Regel ist ``people.is_email`` (derselbe Ausdruck, ``tests/test_frontend_mirrors``).
 PHONE_RE = re.compile(VOCAB["patterns"]["phone"])
 SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 #: Obergrenze der ganzen Anfrage: Fotos plus grosszügig Platz für die Textfelder.
 MAX_BODY = int(PHOTOS["maxTotalBytes"]) + 1024 * 1024
-WINDOW_SECONDS = 3600
-#: Gesendete Anfragen je Absender und Stunde.
+#: Gesendete Anfragen je Absender und Stunde (``services/visitor``).
 RATE_LIMIT = 5
-#: Gesendete Anfragen **insgesamt** je Stunde und Instanz – die Grenze, die sich nicht
-#: umgehen lässt (ein Absender lässt sich hinter Firebase Hosting nicht sicher bestimmen).
-GLOBAL_LIMIT = 60
-#: So viele Einträge hängen die Proxys vor uns an ``X-Forwarded-For`` an (Firebase Hosting
-#: zwei, dazu Cloud Run) – nur sie sind nicht vom Absender gesetzt.
-TRUSTED_HOPS = 3
-
-
-# ------------------------------------------------------------------ Begrenzung je IP
-
-_hits: dict[str, deque[float]] = {}
-_hits_lock = Lock()
-
-
-def reset_rate_limit() -> None:
-    """Für Tests: Zähler leeren."""
-    with _hits_lock:
-        _hits.clear()
-
-
-def _allow(ip: str, limit: int) -> bool:
-    """Höchstens ``limit`` Sendungen je IP und Stunde – nur im Arbeitsspeicher dieser Instanz."""
-    now = time.monotonic()
-    with _hits_lock:
-        q = _hits.setdefault(ip, deque())
-        while q and now - q[0] > WINDOW_SECONDS:
-            q.popleft()
-        if len(q) >= limit:
-            return False
-        q.append(now)
-        if len(_hits) > 10_000:  # Speicher begrenzen: alte Einträge verwerfen
-            for key in [k for k, v in _hits.items() if not v][:5_000]:
-                _hits.pop(key, None)
-        return True
-
-
-def sender_key(request: Request) -> str:
-    """**Wer sendet – so weit man es weiss.** Nur die letzten ``TRUSTED_HOPS`` Einträge von
-    ``X-Forwarded-For``: die vorderen setzt der Absender selbst, mit ihnen liesse sich die
-    Grenze je Absender beliebig umgehen. Ohne Proxy (lokal) die Gegenstelle."""
-    chain = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
-    peer = request.client.host if request.client else "unbekannt"
-    return ",".join(chain[-TRUSTED_HOPS:]) if chain else peer
-
-
-def allow_send(kind: str, request: Request, limit: int) -> bool:
-    """Je Absender ``limit`` je Stunde **und** insgesamt ``GLOBAL_LIMIT`` – beides muss passen."""
-    return _allow(f"{kind}:{sender_key(request)}", limit) and _allow(f"{kind}:all", GLOBAL_LIMIT)
 
 
 # ------------------------------------------------------------------ Einlesen und Prüfen
@@ -136,7 +84,7 @@ class Inquiry:
     received_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-def _clean(raw: object, multiline: bool = False) -> str:
+def clean(raw: object, multiline: bool = False) -> str:
     """Text bereinigen: Steuerzeichen weg, Zeilenenden vereinheitlicht, einzeilige Felder
     ohne Umbruch (sie landen im Betreff einer E-Mail)."""
     text = raw if isinstance(raw, str) else ""
@@ -161,7 +109,7 @@ def _check_fields(values: dict[str, str], errors: dict[str, str]) -> None:
         errors.setdefault("email", MSG["emailMissing"])
     if phone and not PHONE_RE.match(phone):
         errors.setdefault("phone", MSG["phone"])
-    if email and not EMAIL_RE.match(email):
+    if email and not people.is_email(email):
         errors.setdefault("email", MSG["email"])
 
 
@@ -198,12 +146,12 @@ FIELDS = ("message", "name", "company", "phone", "email")
 
 
 async def _parse(form_data, errors: dict[str, str]) -> Inquiry:
-    source = _clean(form_data.get("source")).lower()
-    values = {name: _clean(form_data.get(name), multiline=(name == "message")) for name in FIELDS}
+    source = clean(form_data.get("source")).lower()
+    values = {name: clean(form_data.get(name), multiline=(name == "message")) for name in FIELDS}
     _check_fields(values, errors)
     photos = await _read_photos(form_data.getlist("photos"), errors)
     return Inquiry(source=source if SOURCE_RE.match(source) else "/kontakt",
-                   values=values, photos=photos, newsletter=bool(_clean(form_data.get("newsletter"))))
+                   values=values, photos=photos, newsletter=bool(clean(form_data.get("newsletter"))))
 
 
 # ------------------------------------------------------------------ Darstellung
@@ -255,7 +203,7 @@ _PAGE_CSS = (
 )
 
 
-def _page(title: str, body: str, status: int) -> HTMLResponse:
+def page(title: str, body: str, status: int) -> HTMLResponse:
     phone = VOCAB["phone"]
     html = (
         '<!doctype html><html lang="de-CH"><head><meta charset="utf-8">'
@@ -281,7 +229,7 @@ def _invalid(errors: dict[str, str], inq: Inquiry | None, wants_json: bool) -> R
         "<p>Mit der Zurück-Taste Ihres Browsers kommen Sie zum Formular – Ihre Eingaben sind noch da.</p>"
         f'<p><a class="btn" href="{back}">Zurück zum Formular</a></p>'
     )
-    return _page("Es fehlen noch Angaben", body, 422)
+    return page("Es fehlen noch Angaben", body, 422)
 
 
 def _failed(inq: Inquiry | None, status: int, message: str, wants_json: bool) -> Response:
@@ -294,7 +242,7 @@ def _failed(inq: Inquiry | None, status: int, message: str, wants_json: bool) ->
         f'<p><a class="btn btn--red" href="tel:{VOCAB["phone"]["e164"]}">Anrufen</a>'
         f'<a class="btn" href="{escape(mailto)}">Per E-Mail senden</a></p>'
     )
-    return _page("Das Senden hat nicht geklappt", body, status)
+    return page("Das Senden hat nicht geklappt", body, status)
 
 
 def _done(inq: Inquiry, wants_json: bool) -> Response:
@@ -319,11 +267,11 @@ async def submit_inquiry(request: Request, db: Session = Depends(get_db)) -> Res
         return _failed(None, 400, "Die Anfrage konnte nicht gelesen werden.", wants_json)
 
     # Spam erzeugt nichts: alles hier steht VOR dem ersten Zugriff auf die Datenbank.
-    ip = sender_key(request)
-    if _clean(form_data.get("hp")):  # Honigtopf: Menschen sehen das Feld nicht
+    ip = visitor.sender_key(request)
+    if clean(form_data.get("hp")):  # Honigtopf: Menschen sehen das Feld nicht
         print(f"INFO: INQUIRY spam (honeypot) ip={ip}", flush=True)
         return JSONResponse({"ok": True}) if wants_json else RedirectResponse(VOCAB["pages"]["thanks"], 303)
-    elapsed = _clean(form_data.get("t"))
+    elapsed = clean(form_data.get("t"))
     if elapsed.isdigit() and int(elapsed) < int(VOCAB["minSeconds"]) * 1000:
         print(f"INFO: INQUIRY too fast ({elapsed} ms) ip={ip}", flush=True)
         return _failed(None, 400, MSG["tooFast"], wants_json)
@@ -332,12 +280,11 @@ async def submit_inquiry(request: Request, db: Session = Depends(get_db)) -> Res
     inq = await _parse(form_data, errors)
     if errors:
         return _invalid(errors, inq, wants_json)
-    if not allow_send("contact", request, RATE_LIMIT):
+    if not visitor.allow_send("contact", request, RATE_LIMIT):
         print(f"INFO: INQUIRY rate limited ip={ip}", flush=True)
         msg = f"Zu viele Anfragen in kurzer Zeit. Bitte rufen Sie uns an: {VOCAB['phone']['display']}."
         return _failed(inq, 429, msg, wants_json)
-    country = geoip.country_of(geoip.client_ip(request.headers, request.client.host if request.client else None))
-    return await run_in_threadpool(_store, db, inq, country, wants_json)
+    return await run_in_threadpool(_store, db, inq, visitor.country(request), wants_json)
 
 
 def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> Response:

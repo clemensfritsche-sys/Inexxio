@@ -29,6 +29,7 @@ from app.routers import contact
 from app.services import communication as comm
 from app.services import inquiry as svc
 from app.services import mailbox as mb
+from app.services import people, visitor
 
 JSON = {"Accept": "application/json"}
 MSG = contact.MSG
@@ -56,7 +57,7 @@ def world(db, monkeypatch):
     app = FastAPI()
     app.include_router(contact.router)
     app.dependency_overrides[get_db] = lambda: db
-    contact.reset_rate_limit()
+    visitor.reset()
     yield SimpleNamespace(db=db, client=TestClient(app), sent=sent, box=box, staff=staff)
 
 
@@ -123,7 +124,7 @@ def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
     # Zwei Betreffs, zwei Anliegen: die Bestätigung erledigt die Anfrage nicht.
     from app.domain import communication as dcm
     assert dcm.topic(conf.subject) != dcm.topic(inq.subject)
-    assert "Hubwerk bleibt stehen." in conf.body
+    assert "Hubwerk bleibt stehen." not in conf.body, "kein Relais für fremden Text"
     # In der Vorlage des Hauses: Überschrift = Betreff, OHNE Namen unterschrieben (geschrieben
     # hat sie niemand), und der allgemeine Weg, wenn es eilt.
     assert f">{conf.subject}</h1>" in conf.html
@@ -267,7 +268,7 @@ def test_a_forged_front_of_the_chain_does_not_reset_the_limit(world):
 
 
 def test_the_global_limit_holds_whatever_the_sender_says(world, monkeypatch):
-    monkeypatch.setattr(contact, "GLOBAL_LIMIT", 3)
+    monkeypatch.setattr(visitor, "GLOBAL_LIMIT", 3)
     for i in range(3):
         h = {**JSON, "X-Forwarded-For": f"198.51.100.{i}"}
         assert world.client.post("/api/v1/contact", data=form(), headers=h).status_code == 200
@@ -338,7 +339,7 @@ def test_the_mailto_way_out_carries_the_subject_of_the_erp_message(world, monkey
 def test_the_words_and_patterns_of_an_inquiry_stand_once():
     """Muster, Beschriftungen und der Name kommen aus dem Vokabular der Website – weder der
     Endpunkt noch das Formular noch die Nachricht im ERP schreiben sie ein zweites Mal."""
-    assert contact.EMAIL_RE.pattern == contact.VOCAB["patterns"]["email"]
+    assert people.EMAIL.pattern == contact.VOCAB["patterns"]["email"]
     assert contact.PHONE_RE.pattern == contact.VOCAB["patterns"]["phone"]
     form_ts = (WEBSITE / "src" / "scripts" / "form.ts").read_text("utf-8")
     assert not re.search(r"=\s*/\^", form_ts), "form.ts trägt wieder ein eigenes Muster"
@@ -366,3 +367,37 @@ def test_browser_and_server_cut_the_subject_alike():
     run = subprocess.run(["node", "--input-type=module", "-e", script, json.dumps(cases)],
                          capture_output=True, text=True, check=True)
     assert json.loads(run.stdout) == [svc.subject_of(c) for c in cases]
+
+
+def test_the_confirmation_carries_nothing_a_stranger_typed(world):
+    """►►► **Die Eingangsbestätigung ist kein Spam-Relais.** ◄◄◄ Wer eine fremde Adresse
+    eintippt, schickt über uns keinen Text, keinen Namen, keine Firma und keinen Link an sie.
+    Bug-Form: die Bestätigung kopierte die Angaben (und machte Adressen darin zu Links)."""
+    data = form(message="Gewinn abholen: https://spam.example/x", name="Gratis Geld",
+                company="Klick Hier AG")
+    assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
+    (inq,) = inquiries(world.db, data["email"])
+    conf = world.db.query(Message).join(MessageParty, MessageParty.message_id == Message.id).filter(
+        MessageParty.person_object_id == inq.sender_object_id, Message.id != inq.id).one()
+    for foreign in ("spam.example", "Gratis", "Klick Hier", data["phone"]):
+        assert foreign not in conf.body and foreign not in conf.html, foreign
+    assert "spam.example" in inq.body, "die Anfrage selbst bleibt vollständig"
+
+
+def test_the_form_never_writes_into_an_existing_person(world):
+    """Ein Telefon aus dem öffentlichen Formular übernimmt nur eine **neue** Person. Bug-Form:
+    eine bestehende Person ohne Telefon bekam die Nummer, die ein Fremder eintippte."""
+    known = UserProfile(firebase_uid=f"uid-k{random.randint(1, 10**9)}", role="user",
+                        email=f"known{random.randint(1, 10**9)}@muster.ch",
+                        object_id=random.randint(900_000_000, 999_999_999))
+    world.db.add(known)
+    world.db.flush()
+    data = form(email=known.email, phone="052 111 22 33")
+    assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
+    world.db.refresh(known)
+    assert known.phone is None
+    fresh = form(phone="052 111 22 33")
+    assert world.client.post("/api/v1/contact", data=fresh, headers=JSON).status_code == 200
+    (inq,) = inquiries(world.db, fresh["email"])
+    new = world.db.query(UserProfile).filter(UserProfile.object_id == inq.sender_object_id).one()
+    assert new.phone == "052 111 22 33"

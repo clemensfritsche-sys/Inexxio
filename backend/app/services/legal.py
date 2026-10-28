@@ -26,6 +26,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Optional
 
+from ..core import clock
 from . import address, sites
 
 DIR = Path(__file__).resolve().parent.parent / "assets" / "legal"
@@ -92,7 +93,7 @@ def versions(kind: str) -> list[date]:
 def current(kind: str = AGB, on: Optional[date] = None,
             values: Optional[dict[str, str]] = None) -> Optional[Text]:
     """**Die Fassung, die an diesem Tag gilt** – die jüngste, die schon begonnen hat."""
-    day = on or date.today()
+    day = on or clock.today()
     valid = [d for d in versions(kind) if d <= day]
     if not valid:
         return None
@@ -225,14 +226,14 @@ def from_template(db, company: Any, kind: str, actor: Any):
     found = template(kind)
     if found is None:
         raise HTTPException(status_code=404, detail=f"Die Vorlage «{kind}» ist nicht hinterlegt.")
-    doc = _file_template(db, company, kind, found, date.today(), actor)
+    doc = _file_template(db, company, kind, found, clock.today(), actor)
     return fields.apply(db, actor=actor, doc=doc, object_id=company.object_id, part=None,
                         field=FIELD_OF[kind])
 
 
 def template(kind: str, on: Optional[date] = None) -> Optional[tuple[date, str]]:
     """Die Vorlage, wie sie an einem Tag gilt – Datum und roher Text (mit ``{{…}}``)."""
-    day = on or date.today()
+    day = on or clock.today()
     valid = [d for d in versions(kind) if d <= day]
     if not valid:
         return None
@@ -271,3 +272,32 @@ def for_visitor(db, kind: str, country: Optional[str]) -> tuple[Optional[Text], 
     if doc.mime == MARKDOWN:
         return text_of(db, owner, kind), None, values_of(owner)
     return None, documents.file_url(db, doc), values
+
+
+def adopt_templates(db) -> int:
+    """►►► **Die Vorlagen einmal als Dokumente** – beim Start (``main.lifespan``). ◄◄◄ Gibt es
+    noch nirgends ein Rechtstext-Feld (eine frische Datenbank), wird die Vorlage das Dokument
+    jeder eigenen Gesellschaft; danach nie wieder (eine neue Gesellschaft wählt selbst,
+    «Aus Vorlage»). Gibt zurück, wie viele Felder gesetzt wurden."""
+    from ..models import CompanySettings, DocumentRef
+    from . import documents
+    if (db.query(DocumentRef.id).filter(DocumentRef.field.in_(tuple(FIELD_OF.values())))
+            .first() is not None):
+        return 0
+    own = (db.query(CompanySettings).filter(CompanySettings.is_own.is_(True),
+                                            CompanySettings.is_active.is_(True)).all())
+    count = 0
+    for kind, field_key in FIELD_OF.items():
+        found = template(kind)
+        if found is None:
+            continue
+        for company in own:
+            if not company.object_id:
+                continue
+            doc = _file_template(db, company, kind, found, found[0], None)
+            documents.set_field(db, document_object_id=doc.object_id,
+                                object_id=company.object_id, part=None, field=field_key,
+                                actor=None)
+            count += 1
+    db.flush()
+    return count

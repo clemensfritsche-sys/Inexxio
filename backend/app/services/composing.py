@@ -11,12 +11,12 @@ Ohne KI gibt es kein Verfassen (die Kachel steht gesperrt da); sonst geht alles 
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from ..core import clock
 from ..models import UserProfile
 from . import ai, document, legal, people, sites
 
@@ -92,7 +92,7 @@ def render(db: Session, paper: Paper, signers: list[tuple[int, str]]) -> str:
     values = legal.values_of(sites.find_operator(db))
     w = document.Writing(
         word=paper.art.strip() or "Dokument", title=paper.title.strip() or paper.name,
-        day=date.today().strftime("%d.%m.%Y"), intro=[p for p in paper.intro if p.strip()],
+        day=clock.today().strftime("%d.%m.%Y"), intro=[p for p in paper.intro if p.strip()],
         sections=[legal.Section(title=s.title, blocks=[("p", p) for p in s.paragraphs if p.strip()]
                                 + [("li", b) for b in s.bullets if b.strip()])
                   for s in paper.sections])

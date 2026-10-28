@@ -123,6 +123,16 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
+## Offen: Drops im Folge-Deploy (Zwei-Deploy-Regel)
+
+Mapping entfernt (Runde 28.10.2026), Spalten stehen in `PENDING_DROP`; die Migration droppt sie
+im nächsten Deploy:
+
+```sql
+ALTER TABLE user_profiles DROP COLUMN department, DROP COLUMN job_title,
+  DROP COLUMN language, DROP COLUMN notification_email, DROP COLUMN notification_inapp;
+```
+
 ## Erledigt: die letzten Drops (Migration `161`)
 
 `company_settings.google_maps_api_key` (der Schlüssel kommt aus dem Deploy) und

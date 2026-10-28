@@ -147,7 +147,3 @@ def open_for(db: Session, viewer: UserProfile) -> list[Requirement]:
     if not access.is_staff(viewer):
         return []
     return _vouchers(db) + _proofs(db, viewer)
-
-
-def by_key(db: Session, viewer: UserProfile, key: str) -> Optional[Requirement]:
-    return next((r for r in open_for(db, viewer) if r.key == key), None)

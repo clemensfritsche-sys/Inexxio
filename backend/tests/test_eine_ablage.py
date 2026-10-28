@@ -11,7 +11,7 @@ import pytest
 
 from app.domain import voucher as vo
 from app.models import DocumentRef
-from app.services import adopt, documents, legal, todo, voucher as svc, voucher_docs
+from app.services import documents, legal, todo, voucher as svc, voucher_docs
 from tests.runner import session
 from tests.test_zahlung_ablauf import _do, _house, _ready, _scene, _staff
 
@@ -68,13 +68,13 @@ def test_adoption_seeds_the_legal_texts_once(db):
     db.query(DocumentRef).filter(DocumentRef.field.in_(tuple(legal.FIELD_OF.values()))).delete(
         synchronize_session=False)
     db.flush()
-    first = adopt.run(db)
-    assert first["legal"] >= 2 and legal.document_of(db, house, legal.AGB) is not None, "(a)"
+    first = legal.adopt_templates(db)
+    assert first >= 2 and legal.document_of(db, house, legal.AGB) is not None, "(a)"
     late = CompanySettings(is_own=True, company_name="Später", legal_form="AG",
                            object_id=objects.next_object_id(db, "organization"))
     db.add(late)
     db.flush()
-    assert adopt.run(db) == {"legal": 0}, "(b)"
+    assert legal.adopt_templates(db) == 0, "(b)"
     assert legal.document_of(db, late, legal.AGB) is None, "(b) – sie wählt selbst"
 
 

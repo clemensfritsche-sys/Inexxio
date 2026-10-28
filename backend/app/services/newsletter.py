@@ -19,11 +19,7 @@ Die Wörter kommen von der Website (``website/src/config/newsletter.mjs`` →
 ``assets/website_contact.json``), damit Häkchen, Mail und Nachweis denselben Satz tragen.
 """
 
-import base64
-import hashlib
-import hmac
-import json
-import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable, Optional
 from urllib.parse import quote
@@ -32,12 +28,14 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..core import signed
 from ..core.config import get_settings
 from ..domain import communication as dc
 from ..domain import newsletter as dn
 from ..models import Message, NewsletterConsent, UserProfile
 from . import mail_layout
 from .inquiry import VOCAB as _SITE
+from .people import is_email, normalize_email
 
 WORDS: dict[str, str] = _SITE["newsletter"]
 #: Der Satz, dem zugestimmt wird – gespeichert mit jeder Anmeldung.
@@ -99,42 +97,56 @@ def set_state(db: Session, oid: int, on: bool, source: str,
 # Links
 # ---------------------------------------------------------------------------
 
-def _key() -> bytes:
-    return hashlib.sha256(f"newsletter:{get_settings().database_url}".encode()).digest()
+@dataclass
+class Link:
+    """Was ein Newsletter-Link sagt: die Person – oder, bei einer Anmeldung von der Website,
+    nur die Adresse (die Person entsteht erst mit dem Klick) – und die Quelle."""
+    person: Optional[int]
+    email: str
+    source: str
 
 
-def sign(oid: int, purpose: str, source: str = "", days: Optional[int] = None) -> str:
-    data = {"p": oid, "u": purpose, "s": source}
-    if days:
-        data["e"] = int(time.time()) + days * 86400
-    raw = base64.urlsafe_b64encode(json.dumps(data, separators=(",", ":")).encode()
-                                   ).decode().rstrip("=")
-    sig = hmac.new(_key(), raw.encode(), hashlib.sha256).hexdigest()[:32]
-    return f"{raw}.{sig}"
+def sign(purpose: str, *, person: Optional[int] = None, email: str = "", source: str = "",
+         days: Optional[int] = None) -> str:
+    payload: dict = {"p": person} if person else {"m": email}
+    payload["s"] = source
+    return signed.sign(payload, purpose, days * 86400 if days else None)
 
 
-def read(token: str, purpose: str) -> tuple[int, str]:
-    """(Person, Quelle) aus einem Link – oder ``ValueError`` mit dem Satz für die Seite."""
-    raw, _, sig = (token or "").partition(".")
-    good = hmac.new(_key(), raw.encode(), hashlib.sha256).hexdigest()[:32]
-    if not raw or not hmac.compare_digest(sig, good):
+def read(token: str, purpose: str) -> Link:
+    """Was ein Link sagt – oder ``ValueError`` mit dem Satz für die Seite."""
+    try:
+        data = signed.read(token, purpose)
+        person = int(data["p"]) if data.get("p") else None
+        email = normalize_email(str(data.get("m") or ""))
+    except (signed.Invalid, TypeError, ValueError):
         raise ValueError(WORDS["invalid"])
-    data = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
-    if data.get("u") != purpose or ("e" in data and data["e"] < time.time()):
+    if person is None and not is_email(email):
         raise ValueError(WORDS["invalid"])
-    return int(data["p"]), str(data.get("s") or "")
+    return Link(person=person, email=email, source=str(data.get("s") or ""))
 
 
 def _url(path: str, token: str) -> str:
     return f"{get_settings().frontend_base_url.rstrip('/')}{API}/{path}?t={quote(token)}"
 
 
-def confirm_url(oid: int, source: str) -> str:
-    return _url("confirm", sign(oid, "confirm", source, dn.CONFIRM_DAYS))
+def confirm_url(source: str, *, person: Optional[int] = None, email: str = "") -> str:
+    return _url("confirm", sign("confirm", person=person, email=email, source=source,
+                                days=dn.CONFIRM_DAYS))
 
 
 def unsubscribe_url(oid: int) -> str:
-    return _url("unsubscribe", sign(oid, "unsubscribe"))
+    return _url("unsubscribe", sign("unsubscribe", person=oid))
+
+
+def confirm(db: Session, link: Link) -> int:
+    """**Der Klick in der Bitte um Bestätigung** – angemeldet, mit Quelle und Wortlaut. Ohne
+    Person (Anmeldung von der Website) entsteht sie erst jetzt (``people.ensure``). Gibt die
+    Objektnummer zurück; committet nicht."""
+    from . import people
+    oid = link.person or people.ensure(db, link.email).object_id
+    set_state(db, oid, True, link.source if link.source in dn.SOURCES else "website")
+    return oid
 
 
 def footer(oid: int) -> mail_layout.Unsubscribe:
@@ -157,7 +169,7 @@ def offer(db: Session, oid: int, asked: bool) -> Optional[mail_layout.Action]:
     return mail_layout.Action(
         title=WORDS["inviteTitle"], text=WORDS["inviteAsked" if asked else "inviteOffer"],
         label=WORDS["confirmButton" if asked else "inviteButton"],
-        url=confirm_url(oid, "inquiry"))
+        url=confirm_url("inquiry", person=oid))
 
 
 def sending_channel(db: Session, country: Optional[str] = None) -> Optional[str]:
@@ -172,35 +184,62 @@ def sending_channel(db: Session, country: Optional[str] = None) -> Optional[str]
     return key if box is not None and not box.problem else None
 
 
-def invite(db: Session, oid: int, source: str, channel: Optional[str] = None) -> Message:
-    """**Die Bitte um Bestätigung** – eine Mail an die Person, als Nachricht in ihrem
-    Verlauf, unterschrieben vom Unternehmen. Committet und sendet.
-
-    409, wenn sie schon angemeldet ist; 503 ohne verbundenes Postfach (eine Bitte, die nie
+def _box(db: Session, channel: Optional[str]):
+    """Das Postfach, über das die Bitte hinausgeht – 503 ohne (eine Bitte, die nie
     hinausgeht, stünde als Lüge im Verlauf)."""
     from . import mailbox
-    if oid in subscribed(db, [oid]):
-        raise HTTPException(409, detail="Diese Person ist schon angemeldet.")
     channel = channel or sending_channel(db)
     box = mailbox.active(db, channel) if channel else None
     if box is None or box.problem:
         raise HTTPException(503, detail="Kein Postfach verbunden – die Bitte um Bestätigung "
                                         "kann nicht hinausgehen.")
+    return channel, box
+
+
+def _request(db: Session, channel: str, box, name: str, url: str) -> mail_layout.Mail:
+    """Die Mail mit dem einen Knopf – gebaut in der einen Vorlage (``mail_layout.compose``)."""
+    from . import mailbox
+    firm = mail_layout.firm_of(mailbox.company(db, channel), box.address, box.picture or "")
+    lead = f"{dc.greeting(name).strip()}\n\n{WORDS['confirmLead']}"
+    action = mail_layout.Action(title="", text="", label=WORDS["confirmButton"], url=url,
+                                note=WORDS["confirmIgnore"])
+    return mail_layout.compose(WORDS["confirmSubject"], lead, firm, None,
+                               kicker=WORDS["kicker"], extra=mail_layout.Extra(action=action))
+
+
+def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
+           by_name: bool = True) -> Message:
+    """**Die Bitte um Bestätigung** – eine Mail an die Person, als Nachricht in ihrem
+    Verlauf, unterschrieben vom Unternehmen. Committet und sendet. 409, wenn sie schon
+    angemeldet ist; 503 ohne verbundenes Postfach. Von der Website (``by_name=False``) ohne
+    Namen in der Anrede: der Name stammt womöglich aus einem öffentlichen Formular."""
+    from . import mailbox
+    from .communication import write
+    if oid in subscribed(db, [oid]):
+        raise HTTPException(409, detail="Diese Person ist schon angemeldet.")
+    channel, box = _box(db, channel)
     person = db.query(UserProfile).filter(UserProfile.object_id == oid).first()
     if person is None:
         raise HTTPException(404, detail=f"Person «{oid}» gibt es nicht.")
-    firm = mail_layout.firm_of(mailbox.company(db, channel), box.address, box.picture or "")
-    subject = WORDS["confirmSubject"]
-    lead = f"Guten Tag {person.display_name}\n\n{WORDS['confirmLead']}"
-    action = mail_layout.Action(title="", text="", label=WORDS["confirmButton"],
-                                url=confirm_url(oid, source), note=WORDS["confirmIgnore"])
-    mail = mail_layout.compose(subject, lead, firm, None, kicker=WORDS["kicker"],
-                               extra=mail_layout.Extra(action=action))
-    msg = Message(sender_object_id=box.owner_object_id, channel=channel, subject=subject,
-                  body=mail.body, html=mail.html, at=_now(), created_by=None, outgoing=True)
-    from .communication import write
+    mail = _request(db, channel, box, person.display_name if by_name else "",
+                    confirm_url(source, person=oid))
+    msg = Message(sender_object_id=box.owner_object_id, channel=channel,
+                  subject=WORDS["confirmSubject"], body=mail.body, html=mail.html, at=_now(),
+                  created_by=None, outgoing=True)
     write(db, msg, {"to": [oid], "cc": [], "bcc": [], "about": []})
     db.commit()
     mailbox.send(db, msg)       # scheitert es, bleibt ``outgoing`` – der Abgleich holt nach
     db.commit()
     return msg
+
+
+def invite_address(db: Session, email: str, source: str, channel: Optional[str] = None) -> None:
+    """**Die Bitte an eine Adresse, zu der es noch keine Person gibt** (Anmeldung von der
+    Website). Angelegt wird nichts: die Adresse steht im signierten Link, die Person entsteht
+    erst mit dem Klick (``confirm``). Ohne Person gibt es keinen Verlauf – die Mail geht
+    direkt hinaus; 503, wenn das nicht geht."""
+    from . import mailbox
+    channel, box = _box(db, channel)
+    mail = _request(db, channel, box, "", confirm_url(source, email=email))
+    if not mailbox.send_direct(db, channel, email, WORDS["confirmSubject"], mail):
+        raise HTTPException(503, detail="Die Bitte um Bestätigung ging nicht hinaus.")

@@ -124,16 +124,17 @@ def _json(raw: str, what: str):
         raise HTTPException(status_code=400, detail=f"{what} sind unlesbar.")
 
 
-async def _upload(files: list[UploadFile]) -> tuple[bytes, str, Optional[str]]:
-    """Eine Datei – oder mehrere gescannte Seiten, die EIN PDF werden."""
-    raws = [await f.read() for f in files]
+def _upload(files: list[UploadFile]) -> tuple[bytes, str, Optional[str]]:
+    """Eine Datei – oder mehrere gescannte Seiten, die EIN PDF werden (die Handler sind
+    ``def``: gelesen wird synchron aus der gepufferten Datei, im Threadpool)."""
+    raws = [f.file.read() for f in files]
     if len(raws) > 1:
         return docs.pages_to_pdf(raws), "application/pdf", "scan.pdf"
     return raws[0], files[0].content_type or "", files[0].filename
 
 
 @router.post("", response_model=FiledOut, status_code=201)
-async def file_document(
+def file_document(
     files: list[UploadFile] = File(...),
     art: str = Form(...), name: str = Form(...), source: str = Form("file"),
     refs: str = Form("[]"), target: str = Form(""), signers: str = Form("[]"),
@@ -149,7 +150,7 @@ async def file_document(
         signing_ids = [int(x) for x in (_json(signers, "Die Unterzeichner") or [])]
     except (KeyError, TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Die Referenzen sind unlesbar.")
-    raw, mime, filename = await _upload(files)
+    raw, mime, filename = _upload(files)
     doc, existed = docs.file(db, raw=raw, filename=filename, mime=mime, art=art, name=name,
                              source=source, refs=wanted, actor=user, text=text or None,
                              keywords=keywords or None, facts=_json(facts, "Die Angaben"))
@@ -168,14 +169,14 @@ async def file_document(
 
 
 @router.post("/read", response_model=ProposalOut)
-async def read_draft(
+def read_draft(
     files: list[UploadFile] = File(...),
     sender: Optional[int] = Form(None), hint: str = Form(""),
     db: Session = Depends(get_db), user: UserProfile = Depends(require_employee),
 ):
     """►►► **Einen Entwurf lesen – ohne ihn zu speichern.** ◄◄◄ Die KI schlägt Art, Name und
     Referenz vor; ohne KI kommt ein leerer Vorschlag (Absender als Referenz, wenn bekannt)."""
-    raw, mime, _ = await _upload(files)
+    raw, mime, _ = _upload(files)
     p = reading.propose(db, raw=raw, mime=docs._sniff(raw, mime), actor=user,
                         sender_object_id=sender, hint=hint or None)
     db.commit()     # das Log des KI-Aufrufs

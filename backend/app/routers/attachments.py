@@ -24,26 +24,26 @@ class UploadResult(BaseModel):
 
 
 @router.post("/api/v1/erp/attachments", response_model=UploadResult, status_code=201)
-async def upload_attachment(
+def upload_attachment(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: UserProfile = Depends(require_employee),
 ):
-    raw = await file.read()
+    raw = file.file.read()
     att = attachments_svc.store_image(db, raw, file.filename, user.id)
     db.commit()
     return UploadResult(id=att.id, url=attachments_svc.public_url(att), width=att.width, height=att.height)
 
 
 @router.get("/api/v1/attachments/{token}")
-async def serve_attachment(token: str, db: Session = Depends(get_db)):
+def serve_attachment(token: str, db: Session = Depends(get_db)):
     att = attachments_svc.get_by_token(db, token)
     return Response(content=attachments_svc.bytes_of(att), media_type=att.mime,
                     headers=attachments_svc.serve_headers(att))
 
 
 @router.get("/api/v1/attachments/{token}/preview")
-async def serve_preview(token: str, db: Session = Depends(get_db)):
+def serve_preview(token: str, db: Session = Depends(get_db)):
     """**Das Vorschaubild** – abgeleitet aus der Datei, bei jedem Abruf neu (der Browser hält
     es fest, die Datei ändert sich nie). Gibt es keins, 404 – die Kachel zeigt die Sorte."""
     from ..services import documents as docs

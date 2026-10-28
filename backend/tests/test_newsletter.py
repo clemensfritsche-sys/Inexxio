@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.core.database import get_db
 from app.models import Message, MessageParty, UserProfile
-from app.routers import contact
+from app.services import visitor
 from app.routers import newsletter as router
 from app.schemas.communication import MessageIn
 from app.services import communication as comm
@@ -50,7 +50,7 @@ def world(db, monkeypatch):
     for r in (router.router, router.me_router, router.erp_router):
         app.include_router(r)
     app.dependency_overrides[get_db] = lambda: db
-    contact.reset_rate_limit()
+    visitor.reset()
     yield SimpleNamespace(db=db, staff=staff, box=box, client=TestClient(app))
 
 
@@ -77,8 +77,8 @@ def test_two_states_and_every_change_is_a_row(world):
 
 
 def test_a_link_cannot_be_forged_reused_for_another_purpose_or_kept_forever(monkeypatch):
-    t = nl.sign(123, "confirm", "website", days=1)
-    assert nl.read(t, "confirm") == (123, "website")
+    t = nl.sign("confirm", person=123, source="website", days=1)
+    assert nl.read(t, "confirm") == nl.Link(person=123, email="", source="website")
     with pytest.raises(ValueError):
         nl.read(t, "unsubscribe")                       # ein Zweck je Link
     raw, _, sig = t.partition(".")
@@ -87,7 +87,7 @@ def test_a_link_cannot_be_forged_reused_for_another_purpose_or_kept_forever(monk
     monkeypatch.setattr(time, "time", lambda: 10**12)
     with pytest.raises(ValueError):
         nl.read(t, "confirm")                           # abgelaufen
-    assert nl.read(nl.sign(5, "unsubscribe"), "unsubscribe") == (5, "")   # ohne Ablauf
+    assert nl.read(nl.sign("unsubscribe", person=5), "unsubscribe").person == 5   # ohne Ablauf
 
 
 def test_the_erp_cannot_subscribe_anyone_it_can_only_ask(world, monkeypatch):
@@ -103,7 +103,10 @@ def test_the_erp_cannot_subscribe_anyone_it_can_only_ask(world, monkeypatch):
     assert nl.WORDS["confirmButton"] in m.body and "/api/v1/newsletter/confirm?t=" in m.body
     assert nl.subscribed(db, [p.object_id]) == set()         # noch nicht angemeldet
     token = m.body.split("confirm?t=")[1].split()[0]
-    res = world.client.get(f"/api/v1/newsletter/confirm?t={token}", follow_redirects=False)
+    page = world.client.get(f"/api/v1/newsletter/confirm?t={token}")
+    assert page.status_code == 200 and 'method="post"' in page.text      # ein Knopf
+    assert nl.subscribed(db, [p.object_id]) == set(), "ein Link-Scanner meldet niemanden an"
+    res = world.client.post(f"/api/v1/newsletter/confirm?t={token}", follow_redirects=False)
     assert res.status_code == 303 and res.headers["location"] == "/newsletter/bestaetigt"
     (row,) = nl.history(db, p.object_id)
     assert row.subscribed and row.source == "invitation" and row.wording == nl.WORDING
@@ -117,7 +120,7 @@ def test_the_unsubscribe_link_shows_a_button_and_one_click_works_directly(world)
     meldet ab, ebenso «Abbestellen» im Mailprogramm (RFC 8058)."""
     db, p = world.db, _person(world.db)
     nl.set_state(db, p.object_id, True, "account")
-    t = nl.sign(p.object_id, "unsubscribe")
+    t = nl.sign("unsubscribe", person=p.object_id)
     page = world.client.get(f"/api/v1/newsletter/unsubscribe?t={t}")
     assert page.status_code == 200 and 'method="post"' in page.text
     assert nl.subscribed(db, [p.object_id]) == {p.object_id}
@@ -212,7 +215,7 @@ def test_the_inquiry_confirmation_asks_or_invites_but_never_twice(world):
     p = _person(db)
     asked, offered = nl.offer(db, p.object_id, True), nl.offer(db, p.object_id, False)
     assert asked.text == nl.WORDS["inviteAsked"] and offered.text == nl.WORDS["inviteOffer"]
-    assert nl.read(asked.url.split("t=")[1].replace("%3D", "="), "confirm")[1] == "inquiry"
+    assert nl.read(asked.url.split("t=")[1].replace("%3D", "="), "confirm").source == "inquiry"
     nl.set_state(db, p.object_id, True, "account")
     assert nl.offer(db, p.object_id, True) is None
     nl.set_state(db, p.object_id, False, "link")

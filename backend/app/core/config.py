@@ -109,6 +109,11 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
 
+    #: **Der Schlüssel signierter Links** (``core/signed``: Newsletter, Postfach-Verbinden), aus
+    #: dem Secret Manager (``LINK_SECRET``). Leer: der frühere Schlüssel aus der
+    #: Datenbankverbindung, mit Warnung im Log.
+    link_secret: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

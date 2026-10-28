@@ -11,8 +11,8 @@ import random
 import pytest
 from fastapi import HTTPException
 
-from app.core.config import get_settings
 from app.models import Mailbox, Message, UserProfile
+from app.services import people
 from app.schemas.communication import MessageIn
 from app.services import communication as comm
 from app.services import mailbox as mb
@@ -128,12 +128,15 @@ def test_the_quoted_history_is_cut():
     assert mb._strip_quote(text) == "Gerne, Donnerstag passt."
 
 
-def test_the_state_cannot_be_forged(monkeypatch):
-    monkeypatch.setattr(get_settings(), "google_client_secret", "geheim")
-    state = mb._sign({"c": CH, "u": 1, "exp": 9e12})
-    assert mb._unsign(state)["c"] == CH
-    with pytest.raises(ValueError):
-        mb._unsign(state[:-1] + ("0" if state[-1] != "0" else "1"))
+def test_a_forged_state_connects_nothing(db):
+    """Der ``state`` der Rückkehr von Google ist signiert (``core/signed``) – gefälscht oder
+    für einen anderen Zweck ausgestellt, verbindet er nichts."""
+    from app.core import signed
+    state = signed.sign({"c": CH, "a": 1}, mb.STATE_PURPOSE, 600)
+    forged = state[:-1] + ("0" if state[-1] != "0" else "1")
+    assert "ungültig" in mb.callback(db, "code", forged)
+    other = signed.sign({"c": CH, "a": 1}, "unsubscribe")
+    assert "ungültig" in mb.callback(db, "code", other)
 
 
 def test_an_outward_mail_goes_out_through_its_mailbox(world, monkeypatch):
@@ -200,9 +203,9 @@ def test_a_reply_goes_out_in_the_thread_of_its_subject(world):
 
 def test_last_comma_first_is_turned_around():
     """«Fritsche, Clemens» ist «Nachname, Vorname» – gedreht, ohne Komma."""
-    assert mb.split_name('"Fritsche, Clemens"') == ("Clemens", "Fritsche")
-    assert mb.split_name("Lea  Maria Muster") == ("Lea", "Maria Muster")
-    assert mb.split_name("  ") is None
+    assert people.split_name('"Fritsche, Clemens"') == ("Clemens", "Fritsche")
+    assert people.split_name("Lea  Maria Muster") == ("Lea", "Maria Muster")
+    assert people.split_name("  ") is None
 
 
 def test_the_signature_folds_and_greeting_and_name_stay():
@@ -281,13 +284,15 @@ def test_two_syncs_never_send_the_same_mail_twice(monkeypatch):
     old = datetime(2000, 1, 1, tzinfo=timezone.utc)
     mails = [Message(sender_object_id=staff.object_id, channel=CH, subject=f"Test {i}",
                      body="x", at=old, outgoing=True) for i in range(2)]
-    a.add_all(mails)
+    box = Mailbox(channel=CH, address=f"two{staff.object_id}@x.ch",
+                  owner_object_id=staff.object_id, token="x")
+    a.add_all([*mails, box])
     a.commit()
     ids = [m.id for m in mails]
     sent: list[int] = []
     broken = [ids[0]]                    # scheitert genau beim ersten Versuch
 
-    def fake(_db, m):
+    def fake(_db, m, _tokens=None):
         if m.id in broken:
             broken.remove(m.id)
             raise RuntimeError("kaputt")
@@ -311,6 +316,7 @@ def test_two_syncs_never_send_the_same_mail_twice(monkeypatch):
         a.rollback()
         a.query(MessageParty).filter(MessageParty.message_id.in_(ids)).delete()
         a.query(Message).filter(Message.id.in_(ids)).delete()
+        a.query(Mailbox).filter(Mailbox.id == box.id).delete()
         a.query(UserProfile).filter(UserProfile.id == staff.id).delete()
         a.commit()
         a.close()
@@ -342,3 +348,101 @@ def test_marking_read_asks_once_not_once_per_mail(world, monkeypatch):
     monkeypatch.setattr(mb, "_access", lambda _box: None)
     mb._mark_read(db, box)
     assert calls["n"] == 1, f"answered wurde {calls['n']}-mal gefragt, für vier Mails."
+
+
+# ------------------------------------------------------------------ Abgleich robust
+
+class _Resp:
+    def __init__(self, data, status=200):
+        self.status_code, self._data, self.text = status, data, ""
+
+    def json(self):
+        return self._data
+
+
+def test_a_broken_mail_does_not_hold_up_the_sync(world, monkeypatch):
+    """Eine Mail, die sich nicht verarbeiten lässt, steht im Log und wird übersprungen; die
+    übrigen kommen an, und der Stand rückt vor. Bug-Form: eine Ausnahme in einer Mail rollte
+    das ganze Postfach zurück – jeder Lauf scheiterte an derselben Mail, für immer."""
+    db, _staff, box = world
+    raws = [_gmail(f"k{i}@kunde.ch", to=COMPANY, subject=f"Frage {i}") for i in range(3)]
+    by_id = {r["id"]: r for r in raws}
+    monkeypatch.setattr(mb, "_token", lambda _mb, _t=None: "tok")
+    monkeypatch.setattr(mb, "_new_ids", lambda _t, _s: (list(by_id), "h-neu"))
+    monkeypatch.setattr(mb, "_get", lambda _t, path, **_k: _Resp(by_id[path.split("/")[1]]))
+    real = mb.ingest
+
+    def flaky(db_, mb_, raw, ours=None):
+        if raw["id"] == raws[1]["id"]:
+            raise ValueError("kaputte Mail")
+        return real(db_, mb_, raw, ours)
+    monkeypatch.setattr(mb, "ingest", flaky)
+    assert mb._sync_one(db, box, mb._ours(db)) == 2
+    assert box.history_id == "h-neu"
+    got = {g for (g,) in db.query(Message.gmail_id).filter(Message.gmail_id.in_(list(by_id)))}
+    assert got == {raws[0]["id"], raws[2]["id"]}
+
+
+def test_a_failed_fetch_keeps_the_position(world, monkeypatch):
+    """Scheitert das Holen (Gmail antwortet nicht), bleibt der Stand stehen – der nächste Lauf
+    holt die Mail nach, statt sie zu verlieren."""
+    db, _staff, box = world
+    box.history_id = "h-alt"
+    monkeypatch.setattr(mb, "_token", lambda _mb, _t=None: "tok")
+    monkeypatch.setattr(mb, "_new_ids", lambda _t, _s: (["g-x"], "h-neu"))
+    monkeypatch.setattr(mb, "_get", lambda *_a, **_k: _Resp({}, 503))
+    assert mb._sync_one(db, box, {}) == 0 and box.history_id == "h-alt"
+
+
+def test_a_disconnected_mailbox_does_not_hold_up_sending(world, monkeypatch):
+    """Mails an einem gestörten (oder getrennten) Postfach warten – ohne die übrigen
+    aufzuhalten. Bug-Form: die ältesten 20 «fälligen» Mails eines toten Postfachs belegten
+    jeden Lauf, und keine andere Mail ging je hinaus."""
+    from datetime import datetime, timezone
+    db, staff, box = world
+    db.commit = db.flush
+    box.problem = mb.EXPIRED
+    other = Mailbox(channel="c999999989", address="ok@example.com",
+                    owner_object_id=staff.object_id, token="x")
+    db.add(other)
+    old = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    stuck = [Message(sender_object_id=staff.object_id, channel=CH, subject=f"S{i}", body="x",
+                     at=old, outgoing=True) for i in range(25)]
+    fine = Message(sender_object_id=staff.object_id, channel=other.channel, subject="ok",
+                   body="x", at=datetime(2001, 1, 1, tzinfo=timezone.utc), outgoing=True)
+    db.add_all([*stuck, fine])
+    db.flush()
+    tried: list[int] = []
+    monkeypatch.setattr(mb, "send", lambda _db, m, _t=None: tried.append(m.id) or True)
+    mb.send_due(db)
+    assert fine.id in tried and not set(tried) & {m.id for m in stuck}
+
+
+def test_a_mail_gmail_keeps_rejecting_gives_up_visibly(world, monkeypatch):
+    """Weist Gmail eine Mail immer wieder ab, gibt der Versand nach ``MAX_ATTEMPTS`` auf, und
+    der Grund steht als interne Nachricht unter ihrem Betreff im Verlauf. Bug-Form: sie blieb
+    für immer «wartet auf Versand» und wurde alle 30 Sekunden erneut versucht."""
+    db, staff, box = world
+    lea = _person(db)
+    msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Offerte 7",
+                                    body="Offerte"), staff)
+    msg.outgoing = True
+    monkeypatch.setattr(mb, "_token", lambda _mb, _t=None: "tok")
+    monkeypatch.setattr(mb, "_post", lambda *_a: (None, "Gmail hat sie abgewiesen (400)."))
+    for i in range(mb.MAX_ATTEMPTS):
+        assert msg.outgoing, f"gibt zu früh auf ({i})"
+        assert not mb.send(db, msg)
+    assert not msg.outgoing
+    note = db.query(Message).filter(Message.channel == "intern",
+                                    Message.subject == "Offerte 7").one()
+    assert "abgewiesen" in note.body
+    assert lea.object_id in {p.object_id for p in comm.load(db, [note.id])[0].about}
+
+
+def test_a_subject_is_one_line(world):
+    """Ein Umbruch im Betreff bräche den Mail-Kopf – angelegt wird er einzeilig."""
+    db, staff, _box = world
+    lea = _person(db)
+    m = comm.create(db, MessageIn(channel="intern", to=[staff.object_id], about=[lea.object_id],
+                                  subject="Frage\r\nBcc: x@y.ch", body="x"), staff)
+    assert m.subject == "Frage Bcc: x@y.ch"

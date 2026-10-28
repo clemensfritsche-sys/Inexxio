@@ -29,10 +29,7 @@ dort, wo sie ohnehin liegen – in Gmail.
 
 import base64
 import hashlib
-import hmac
-import json
 import re
-import time
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from email.utils import formataddr, getaddresses, parseaddr
@@ -47,10 +44,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..core import signed
 from ..core.config import get_settings
 from ..domain import communication as dc
 from ..models import Mailbox, Message, MessageParty, UserProfile
-from .people import by_email, normalize_email
+from .people import ensure, normalize_email
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -68,6 +66,8 @@ MARK_WITHIN = timedelta(days=30)
 CALLBACK = "/api/v1/mail/callback"
 SYNC_EVERY = timedelta(seconds=30)
 STATE_TTL = 600
+#: Der Zweck des signierten ``state`` (``core/signed``).
+STATE_PURPOSE = "mailbox"
 MAX_BODY = 20_000
 #: Nie abgleichen: Entwürfe, Spam, Papierkorb.
 NEVER = {"DRAFT", "SPAM", "TRASH"}
@@ -155,31 +155,12 @@ def _redirect_uri() -> str:
     return get_settings().frontend_base_url.rstrip("/") + CALLBACK
 
 
-def _sign(payload: dict[str, Any]) -> str:
-    raw = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
-    key = get_settings().google_client_secret.encode()
-    sig = hmac.new(key, raw.encode(), hashlib.sha256).hexdigest()
-    return f"{raw}.{sig}"
-
-
-def _unsign(state: str) -> dict[str, Any]:
-    raw, _, sig = (state or "").partition(".")
-    key = get_settings().google_client_secret.encode()
-    good = hmac.new(key, raw.encode(), hashlib.sha256).hexdigest()
-    if not raw or not hmac.compare_digest(sig, good):
-        raise ValueError("Die Anfrage ist ungültig – bitte erneut verbinden.")
-    data = json.loads(base64.urlsafe_b64decode(raw.encode()))
-    if data.get("exp", 0) < time.time():
-        raise ValueError("Die Anfrage ist abgelaufen – bitte erneut verbinden.")
-    return data
-
-
 def connect_url(db: Session, channel: str, actor: UserProfile) -> str:
     if not ready():
         raise HTTPException(404, detail="Es ist keine Postfach-Anbindung eingerichtet.")
     _assert_may(db, actor, channel)
     hint = company_address(db, channel)
-    state = _sign({"c": channel, "u": actor.object_id, "exp": time.time() + STATE_TTL})
+    state = signed.sign({"c": channel, "a": actor.object_id}, STATE_PURPOSE, STATE_TTL)
     return AUTH_URL + "?" + urlencode({
         "client_id": get_settings().google_client_id, "redirect_uri": _redirect_uri(),
         "response_type": "code", "scope": SCOPES, "access_type": "offline",
@@ -207,11 +188,12 @@ def _open(sealed: str) -> Optional[str]:
 def callback(db: Session, code: str, state: str) -> str:
     """Google kommt zurück. Gibt den Satz zurück, den die Oberfläche zeigt (leer = gut)."""
     try:
-        data = _unsign(state)
-    except (ValueError, json.JSONDecodeError) as exc:
-        return str(exc)
-    channel = data["c"]
-    actor = db.query(UserProfile).filter(UserProfile.object_id == data["u"]).first()
+        data = signed.read(state, STATE_PURPOSE)
+        channel, actor_oid = str(data["c"]), int(data["a"])
+    except (signed.Invalid, KeyError, TypeError, ValueError) as exc:
+        return f"{exc} Bitte erneut verbinden." if isinstance(exc, signed.Invalid) else \
+            "Die Anfrage ist ungültig – bitte erneut verbinden."
+    actor = db.query(UserProfile).filter(UserProfile.object_id == actor_oid).first()
     if actor is None or not may_connect(actor, channel):
         return "Dieses Postfach darfst du nicht verbinden."
     with httpx.Client(timeout=20) as http:
@@ -322,11 +304,20 @@ def _get(token: str, path: str, **params: Any) -> httpx.Response:
 # Abgleichen
 # ---------------------------------------------------------------------------
 
+def _token(mb: Mailbox, tokens: Optional[dict[int, Optional[str]]] = None) -> Optional[str]:
+    """Das Zugangs-Token eines Postfachs – innerhalb eines Laufs (``tokens``) einmal geholt."""
+    if tokens is None:
+        return _access(mb)
+    if mb.id not in tokens:
+        tokens[mb.id] = _access(mb)
+    return tokens[mb.id]
+
+
 def sync_all(db: Session, *, force: bool = False) -> tuple[int, int]:
     """Alle verbundenen Postfächer abgleichen und Fälliges senden. Gibt die Zahl neuer
     und die Zahl versendeter Nachrichten zurück. Ein Postfach, das gerade ein anderer
     abgleicht, wird übersprungen (``SKIP LOCKED``) – zwei Instanzen holen dieselbe Mail nie
-    gleichzeitig."""
+    gleichzeitig. «Wir» (``_ours``) und die Zugangs-Tokens gelten für den ganzen Lauf."""
     if not ready():
         return 0, 0
     due = _now() - SYNC_EVERY
@@ -334,21 +325,28 @@ def sync_all(db: Session, *, force: bool = False) -> tuple[int, int]:
              .filter(Mailbox.is_active.is_(True), Mailbox.problem.is_(None))
              .with_for_update(skip_locked=True).all())
     new = 0
+    ours = _ours(db)
+    tokens: dict[int, Optional[str]] = {}
     for mb in boxes:
         if force or mb.synced_at is None or mb.synced_at < due:
             try:        # ein gestörtes Postfach hält die übrigen und den Versand nicht auf
                 with db.begin_nested():
-                    new += _sync_one(db, mb)
-                    _mark_read(db, mb)
+                    new += _sync_one(db, mb, ours, tokens)
+                    _mark_read(db, mb, tokens)
             except Exception as exc:
                 print(f"WARNING: MAILBOX sync {mb.channel} failed: {exc!r}", flush=True)
-    sent = send_due(db)
+    sent = send_due(db, tokens)
     db.commit()
     return new, sent
 
 
-def _sync_one(db: Session, mb: Mailbox) -> int:
-    token = _access(mb)
+def _sync_one(db: Session, mb: Mailbox, ours: dict[str, Optional[int]],
+              tokens: Optional[dict[int, Optional[str]]] = None) -> int:
+    """Die neuen Mails eines Postfachs. **Eine Mail, die sich nicht verarbeiten lässt, hält
+    den Abgleich nicht auf**: sie steht im Log, wird übersprungen, und der Stand rückt vor.
+    Scheitert dagegen das **Holen** (Netz, Gmail), bleibt der Stand stehen – der nächste Lauf
+    holt nach, was fehlt (schon Übernommenes erkennt er an der Gmail-Nummer)."""
+    token = _token(mb, tokens)
     if not token:
         return 0
     ids, latest = _new_ids(token, mb.history_id)
@@ -358,15 +356,32 @@ def _sync_one(db: Session, mb: Mailbox) -> int:
                                        Message.gmail_id == gid).first():
             continue
         r = _get(token, f"messages/{gid}", format="full")
-        if r.status_code == 200 and ingest(db, mb, r.json()):
-            count += 1
+        if r.status_code == 404:
+            continue        # inzwischen gelöscht
+        if r.status_code != 200:
+            print(f"WARNING: MAILBOX fetch {mb.channel}/{gid}: {r.status_code}", flush=True)
+            latest = None
+            break
+        count += _ingest_one(db, mb, r.json(), ours)
     if latest:
         mb.history_id = latest
     mb.synced_at = _now()
     return count
 
 
-def _mark_read(db: Session, mb: Mailbox) -> None:
+def _ingest_one(db: Session, mb: Mailbox, raw: dict[str, Any],
+                ours: dict[str, Optional[int]]) -> int:
+    """Eine Mail in eigenem Savepoint – 1 = übernommen, 0 = übersprungen oder kaputt."""
+    try:
+        with db.begin_nested():
+            return int(ingest(db, mb, raw, ours))
+    except Exception as exc:        # eine kaputte Mail hält die übrigen nicht auf
+        print(f"WARNING: MAILBOX skipped {mb.channel}/{raw.get('id')}: {exc!r}", flush=True)
+        return 0
+
+
+def _mark_read(db: Session, mb: Mailbox,
+               tokens: Optional[dict[int, Optional[str]]] = None) -> None:
     """►►► **Erledigt im ERP = gelesen in Gmail** – in diese eine Richtung. ◄◄◄
 
     Was hier beantwortet ist (dieselbe Ableitung wie im Verlauf, ``communication.answered``),
@@ -386,12 +401,9 @@ def _mark_read(db: Session, mb: Mailbox) -> None:
     for p in db.query(MessageParty).filter(
             MessageParty.message_id.in_([m.id for m in msgs])).all():
         roles[p.message_id][p.role].append(p.person_object_id)
-    # **Einmal gefragt, nicht je Nachricht** (Cleanup B-50): als Bedingung im
-    # Ausdruck lief ``answered`` für jede Mail erneut über alle – quadratisch, und das
-    # alle 30 Sekunden je Postfach.
-    replied = answered(db, msgs, roles)
+    replied = answered(db, msgs, roles)     # einmal gefragt, nicht je Nachricht
     done = [m for m in msgs if m.id in replied]
-    token = _access(mb) if done else None
+    token = _token(mb, tokens) if done else None
     if not token:
         return
     try:
@@ -436,13 +448,15 @@ def _new_ids(token: str, start: Optional[str]) -> tuple[list[str], Optional[str]
             return list(dict.fromkeys(ids)), latest
 
 
-def ingest(db: Session, mb: Mailbox, raw: dict[str, Any]) -> bool:
-    """**Eine Gmail-Nachricht wird eine Nachricht.** ``False`` = übersprungen."""
+def ingest(db: Session, mb: Mailbox, raw: dict[str, Any],
+           ours: Optional[dict[str, Optional[int]]] = None) -> bool:
+    """**Eine Gmail-Nachricht wird eine Nachricht.** ``False`` = übersprungen. Ein
+    unbekannter Absender oder Empfänger wird Person (``people.ensure``)."""
     from .communication import write
     labels = set(raw.get("labelIds") or [])
     payload = raw.get("payload") or {}
     head = {h["name"].lower(): h["value"] for h in payload.get("headers", [])}
-    ours = _ours(db)
+    ours = _ours(db) if ours is None else ours
     name, sender_addr = parseaddr(head.get("from", ""))
     sender_addr = normalize_email(sender_addr)
     inbound = sender_addr not in ours
@@ -451,17 +465,17 @@ def ingest(db: Session, mb: Mailbox, raw: dict[str, Any]) -> bool:
     rfc = (head.get("message-id") or "").strip()[:255] or None
     if rfc and db.query(Message.id).filter(Message.rfc_id == rfc).first():
         return False
-    sender = (person_for(db, name, sender_addr) if inbound
+    sender = (ensure(db, sender_addr, name).object_id if inbound
               else ours.get(sender_addr) or mb.owner_object_id)
     roles: dict[str, list[int]] = {"to": [], "cc": [], "bcc": [], "about": []}
     for role in ("to", "cc"):
         for n, addr in getaddresses([head.get(role, "")]):
             addr = normalize_email(addr)
             if addr and "@" in addr and addr not in ours:
-                roles[role].append(person_for(db, n, addr))
+                roles[role].append(ensure(db, addr, n).object_id)
     msg = Message(
         sender_object_id=sender, channel=mb.channel,
-        subject=(head.get("subject") or "").strip()[:255] or None,
+        subject=dc.subject_line(head.get("subject")),
         body=_strip_quote(_text(payload))[:MAX_BODY],
         at=datetime.fromtimestamp(int(raw.get("internalDate", 0)) / 1000, timezone.utc),
         created_by=None, gmail_id=raw.get("id"), thread_id=raw.get("threadId"),
@@ -481,42 +495,6 @@ def _bulk(labels: set[str], head: dict[str, str], addr: str) -> bool:
     return bool(labels & BULK_LABELS or "list-unsubscribe" in head
                 or head.get("precedence", "").lower() in {"bulk", "list", "junk"}
                 or auto != "no" or _ROBOT.search(addr.split("@")[0]))
-
-
-def person_for(db: Session, name: str, addr: str, phone: str = "") -> int:
-    """Die Person zu dieser Adresse – **angelegt, wenn es sie nicht gibt**.
-
-    Ohne Anmeldekonto: der Platzhalter ``mail:<adresse>`` ist eindeutig, und meldet sie
-    sich später mit dieser (bestätigten) Adresse an, übernimmt sie genau diesen Datensatz
-    (``core/auth._resolve_user``)."""
-    from .admin import log_audit
-    from .objects import next_object_id
-    found = by_email(db, addr)
-    if found is not None and found.object_id:
-        if phone and not found.phone:
-            found.phone = phone[:50]
-        return found.object_id
-    first, last = split_name(name) or (addr.split("@")[0], "")
-    user = UserProfile(firebase_uid=f"mail:{addr}"[:128], email=addr, role="user",
-                       first_name=first[:100], last_name=last[:100],
-                       phone=phone[:50] or None, object_id=next_object_id(db, "user"))
-    db.add(user)
-    db.flush()
-    log_audit(db, "user_profiles", None, f"Kontakt «{user.display_name}» angelegt",
-              None, object_id=user.object_id)
-    return user.object_id
-
-
-def split_name(name: str) -> Optional[tuple[str, str]]:
-    """Vor- und Nachname aus dem Namen im Mail-Kopf. «Fritsche, Clemens» ist die
-    Schreibweise «Nachname, Vorname» – das Komma sagt es, also wird gedreht und das Komma
-    fällt weg. Sonst: das erste Wort ist der Vorname. ``None`` = kein Name."""
-    raw = re.sub(r"\s+", " ", (name or "").replace('"', "")).strip()
-    if "," in raw:
-        last, _, first = raw.partition(",")
-        raw = f"{first.strip()} {last.strip()}".strip()
-    parts = raw.split(" ") if raw else []
-    return (parts[0][:100], " ".join(parts[1:])[:100]) if parts else None
 
 
 class _Html(HTMLParser):
@@ -642,17 +620,26 @@ def assert_may_send(db: Session, channel: str, sender: UserProfile) -> None:
                                         f"verbunden – erst verbinden, dann senden.")
 
 
-def send_due(db: Session) -> int:
-    """Was hinaus muss und dessen Zeitpunkt da ist (auch ein früher gescheiterter Versand).
+#: So oft wird eine Mail versucht, die Gmail abweist; danach bleibt sie liegen, und der Grund
+#: steht als interne Nachricht im Verlauf (``_give_up``).
+MAX_ATTEMPTS = 3
+
+
+def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None) -> int:
+    """Was hinaus muss und dessen Zeitpunkt da ist (auch ein früher gescheiterter Versand) –
+    **nur über ein verbundenes Postfach ohne Störung**: eine Mail an einem getrennten oder
+    abgelaufenen Postfach wartet, ohne die übrigen aufzuhalten.
 
     **Jede Mail geht genau einmal hinaus.** Sie wird einzeln gesperrt (``SKIP LOCKED`` –
     ein zweiter Abgleich aus einem anderen Tab überspringt sie), gesendet und **sofort**
-    festgeschrieben. Ein Fehler bei einer späteren Mail kann eine bereits versendete damit
-    nicht mehr zurückrollen und erneut hinausschicken. Gibt zurück, wie viele hinausgingen."""
+    festgeschrieben. Gibt zurück, wie viele hinausgingen."""
     db.commit()     # was der Abgleich bis hier geschrieben hat, steht – unabhängig vom Versand
+    ready_boxes = select(Mailbox.channel).where(Mailbox.is_active.is_(True),
+                                                Mailbox.problem.is_(None))
     ids = [i for (i,) in db.query(Message.id).filter(
         Message.outgoing.is_(True), Message.is_active.is_(True),
-        Message.at <= _now()).order_by(Message.at, Message.id).limit(20)]
+        Message.at <= _now(), Message.channel.in_(ready_boxes))
+        .order_by(Message.at, Message.id).limit(20)]
     sent = 0
     for mid in ids:
         msg = (db.query(Message).filter(Message.id == mid, Message.outgoing.is_(True))
@@ -660,15 +647,61 @@ def send_due(db: Session) -> int:
         if msg is None:
             continue    # versendet oder gerade in Arbeit bei einem anderen Abgleich
         try:
-            sent += bool(send(db, msg))
+            sent += bool(send(db, msg, tokens))
             db.commit()
         except Exception as exc:    # eine kaputte Mail hält die übrigen nicht auf
             db.rollback()
             print(f"WARNING: MAILBOX send {mid} failed: {exc!r}", flush=True)
+            _failed_after_error(db, mid, exc)
     return sent
 
 
-def send(db: Session, msg: Message) -> bool:
+def _failed_after_error(db: Session, mid: int, exc: Exception) -> None:
+    broken = db.query(Message).filter(Message.id == mid, Message.outgoing.is_(True)).first()
+    if broken is None:
+        return
+    try:
+        _failed(db, broken, f"Die Mail liess sich nicht bauen ({type(exc).__name__}).")
+        db.commit()
+    except Exception as again:      # noqa: BLE001 – steht im Log, der Lauf geht weiter
+        db.rollback()
+        print(f"WARNING: MAILBOX send {mid} not recorded: {again!r}", flush=True)
+
+
+def _failed(db: Session, msg: Message, reason: str) -> None:
+    """Ein Fehlversuch – gezählt im Log (``audit_log``, eine Zeile je Versuch). Nach
+    ``MAX_ATTEMPTS`` gibt der Versand auf (``_give_up``)."""
+    from .admin import log_audit
+    from ..models import AuditLog
+    log_audit(db, "messages", "send_failed", reason[:500], None, old_value=str(msg.id))
+    tries = db.query(AuditLog.id).filter(AuditLog.table_name == "messages",
+                                         AuditLog.field_name == "send_failed",
+                                         AuditLog.old_value == str(msg.id)).count()
+    if tries >= MAX_ATTEMPTS:
+        _give_up(db, msg, reason)
+
+
+def _give_up(db: Session, msg: Message, reason: str) -> None:
+    """**Nichts scheitert still**: die Mail wartet nicht mehr (``outgoing`` aus), und im
+    Verlauf steht unter ihrem Betreff eine interne Nachricht mit dem Grund – an den, der sie
+    geschrieben hat (sonst an den Inhaber des Postfachs), betreffend ihre Empfänger."""
+    from .communication import write
+    msg.outgoing = False
+    mb = active(db, msg.channel)
+    writer = db.query(UserProfile.object_id).filter(
+        UserProfile.id == msg.created_by).scalar() if msg.created_by else None
+    to = writer or (mb.owner_object_id if mb is not None else msg.sender_object_id)
+    about = [p.person_object_id for p in db.query(MessageParty).filter(
+        MessageParty.message_id == msg.id, MessageParty.role.in_(("to", "cc", "bcc"))).all()]
+    note = Message(sender_object_id=to, channel="intern", subject=msg.subject,
+                   body=(f"Diese Mail ging nach {MAX_ATTEMPTS} Versuchen nicht hinaus: {reason} "
+                         f"Bitte prüfen und neu senden."), at=_now(), created_by=None)
+    write(db, note, {"to": [to], "cc": [], "bcc": [], "about": about})
+    print(f"WARNING: MAILBOX gave up on {msg.id}: {reason}", flush=True)
+
+
+def send(db: Session, msg: Message,
+         tokens: Optional[dict[int, Optional[str]]] = None) -> bool:
     """Eine Mail über das Postfach ihres Kanals hinausschicken – im Faden, auf den sie
     antwortet. Scheitert es, bleibt ``outgoing`` stehen, und der nächste Abgleich versucht
     es wieder; nichts geht still verloren.
@@ -681,7 +714,7 @@ def send(db: Session, msg: Message) -> bool:
         db.flush()
         return False
     mb = active(db, msg.channel)
-    token = _access(mb) if mb is not None and not mb.problem else None
+    token = _token(mb, tokens) if mb is not None and not mb.problem else None
     if not token:
         return False
     parent = _parent(db, msg)
@@ -689,23 +722,13 @@ def send(db: Session, msg: Message) -> bool:
     body: dict[str, Any] = {"raw": base64.urlsafe_b64encode(mime.as_bytes()).decode()}
     if parent is not None and parent.channel == msg.channel and parent.thread_id:
         body["threadId"] = parent.thread_id
-    try:
-        r = httpx.post(f"{API}/messages/send", json=body, timeout=30,
-                       headers={"Authorization": f"Bearer {token}"})
-    except httpx.HTTPError as exc:
-        print(f"WARNING: MAILBOX send {msg.id} failed: {exc!r}", flush=True)
-        return False
-    if r.status_code != 200:
-        print(f"WARNING: MAILBOX send {msg.id} failed: {r.status_code} {r.text[:200]}",
-              flush=True)
+    sent, reason = _post(token, body, str(msg.id))
+    if sent is None:
+        _failed(db, msg, reason)
         return False
     # Ab hier IST die Mail draussen: nichts darf mehr werfen, sonst bliebe ``outgoing``
     # stehen und der nächste Abgleich schickte sie ein zweites Mal.
     msg.outgoing = False
-    try:
-        sent = r.json()
-    except ValueError:
-        sent = {}
     msg.gmail_id, msg.thread_id = sent.get("id"), sent.get("threadId")
     msg.rfc_id = _rfc_id(token, msg.gmail_id)
     msg.subject = msg.subject or mime["Subject"] or None
@@ -713,6 +736,45 @@ def send(db: Session, msg: Message) -> bool:
     msg.html = msg.html or (html_part.get_content() if html_part is not None else None)
     db.flush()
     return True
+
+
+def _post(token: str, body: dict[str, Any], what: str
+          ) -> tuple[Optional[dict[str, Any]], str]:
+    """Eine Mail an Gmail übergeben – ``(Antwort, "")`` mit ``id``/``threadId``, oder
+    ``(None, Grund)``: nicht hinausgegangen (steht im Log)."""
+    try:
+        r = httpx.post(f"{API}/messages/send", json=body, timeout=30,
+                       headers={"Authorization": f"Bearer {token}"})
+    except httpx.HTTPError as exc:
+        print(f"WARNING: MAILBOX send {what} failed: {exc!r}", flush=True)
+        return None, "Gmail war nicht erreichbar."
+    if r.status_code != 200:
+        print(f"WARNING: MAILBOX send {what} failed: {r.status_code} {r.text[:200]}",
+              flush=True)
+        return None, f"Gmail hat sie abgewiesen ({r.status_code})."
+    try:
+        return r.json(), ""
+    except ValueError:
+        return {}, ""
+
+
+def send_direct(db: Session, channel: str, to: str, subject: str, mail: Any) -> bool:
+    """Eine fertige Mail (``mail_layout.Mail``) an eine **Adresse ohne Person** – nur für die
+    Bitte um Bestätigung einer Newsletter-Anmeldung (``newsletter.invite_address``). Ohne
+    Person gibt es keinen Verlauf; ``False`` = nicht hinausgegangen."""
+    mb = active(db, channel)
+    token = _access(mb) if mb is not None and not mb.problem else None
+    if not token:
+        return False
+    from . import mail_layout as layout
+    mime = EmailMessage()
+    mime["From"] = formataddr((layout.sender_name(None), mb.address))
+    mime["To"] = to
+    mime["Subject"] = subject
+    mime.set_content(mail.text)
+    mime.add_alternative(mail.html, subtype="html")
+    raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
+    return _post(token, {"raw": raw}, f"an «{to}»")[0] is not None
 
 
 def _consents(db: Session, msg: Message) -> bool:

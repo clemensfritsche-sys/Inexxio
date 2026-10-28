@@ -12,11 +12,6 @@ Zahl ist eine Menge Minuten. Ein «Tag» ist nur eine Anzeige: das Tagessoll aus
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
-from zoneinfo import ZoneInfo
-
-#: Die Zeit des Betriebs. Gespeichert wird ein Zeitpunkt (UTC); welcher **Tag** und welche
-#: **Uhrzeit** das ist, sagt diese Zone – auch über die Zeitumstellung hinweg richtig.
-ZONE = ZoneInfo("Europe/Zurich")
 
 #: Was ein Eintrag ist. Eine Tabelle für alles, was einen Tag füllt oder ein Konto bewegt:
 #: ``in``/``out`` (Stempel) · ``absence`` · ``booking`` (nur Admin) · ``void`` (nimmt einen

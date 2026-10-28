@@ -135,6 +135,12 @@ def topic(subject: Optional[str]) -> str:
     return re.sub(r"\s+", " ", _PREFIX.sub("", subject or "")).strip().casefold()
 
 
+def subject_line(raw: Optional[str]) -> Optional[str]:
+    """**Ein Betreff ist eine Zeile** – Umbrüche und Leerraum werden ein Leerzeichen, gekappt
+    auf die Spalte (255). In einem Mail-Kopf brächte ein Umbruch den Versand zu Fall."""
+    return " ".join((raw or "").split())[:255] or None
+
+
 def title(subject: Optional[str]) -> str:
     """Wie das Anliegen dasteht – der Betreff ohne Vorsilben, Schreibweise wie gesendet."""
     return re.sub(r"\s+", " ", _PREFIX.sub("", subject or "")).strip()
