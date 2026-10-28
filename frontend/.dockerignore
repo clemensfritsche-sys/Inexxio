@@ -2,11 +2,11 @@
 .git
 .gitignore
 
-# Next.js build output (rebuilt during Docker build)
+# Next.js build output (der Container baut nicht, er startet `next dev`)
 .next
 out
 
-# Dependencies (reinstalled during Docker build)
+# Dependencies (npm ci im Bild)
 node_modules
 
 # Environment files (injected at runtime via Secret Manager / Cloud Run env vars)
