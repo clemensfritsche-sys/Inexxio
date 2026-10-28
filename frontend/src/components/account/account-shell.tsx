@@ -74,7 +74,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   if (isLoading || !profile) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
-        {isLoading && <Loader2 style={{ width: 28, height: 28, color: 'var(--inexxio-red)', animation: 'ix-spin 0.7s linear infinite' }} />}
+        {isLoading && <Loader2 className="animate-spin" style={{ width: 28, height: 28, color: 'var(--inexxio-red)' }} />}
       </div>
     );
   }

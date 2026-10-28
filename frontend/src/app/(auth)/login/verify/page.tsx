@@ -74,7 +74,7 @@ export default function VerifyPage() {
 
           {status === 'loading' && (
             <>
-              <Loader2 style={{ width: 36, height: 36, color: 'var(--inexxio-red)', margin: '0 auto 16px', animation: 'ix-spin 0.7s linear infinite' }} />
+              <Loader2 className="animate-spin" style={{ width: 36, height: 36, color: 'var(--inexxio-red)', margin: '0 auto 16px' }} />
               <h1 style={vTitle}>Anmeldung wird verarbeitet…</h1>
               <p style={vMuted}>Bitte einen Moment warten.</p>
             </>

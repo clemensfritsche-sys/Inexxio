@@ -5,7 +5,7 @@ export function SaveStatusIndicator({ status, errorMsg }: { status: SaveStatus; 
   if (status === 'idle' || status === 'dirty') return null;
   if (status === 'saving') return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-4)' }}>
-      <Loader2 style={{ width: 12, height: 12, animation: 'spin 0.7s linear infinite' }} />
+      <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} />
       Speichert…
     </span>
   );
