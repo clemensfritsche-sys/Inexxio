@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import type { UserProfile } from '@/types';
+import type { UserProfile, UserProfileUpdate } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { isStaff } from '@/lib/record-status';
 import { useProfileCompletion } from '@/lib/use-profile-completion';
@@ -22,7 +22,7 @@ import { SecuritySection } from './sections/security-section';
 interface Props {
   profile: UserProfile | null;
   isLoading: boolean;
-  onSave: (data: Partial<UserProfile>) => Promise<void>;
+  onSave: (data: UserProfileUpdate) => Promise<void>;
 }
 
 const NAV = [

@@ -69,20 +69,20 @@ export function useAutosaveValue<T>(
   );
   useEffect(() => () => { if (idle.current) clearTimeout(idle.current); }, []);
 
-  // Der geladene Stand – er ist nicht getippt und geht nicht hinaus.
+  // Der geladene Stand – er ist nicht getippt und geht nicht hinaus. Gesetzt nur beim
+  // Wechsel des Datensatzes, nicht bei jedem neuen Wert.
+  const latest = useRef({ value, save });
+  latest.current = { value, save };
   const loaded = useRef(value);
   useEffect(() => {
     void saver.flush();
-    loaded.current = value;
-    // Nur der Wechsel des Datensatzes setzt den geladenen Stand, nicht jeder neue Wert.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loaded.current = latest.current.value;
   }, [resetKey, saver]);
 
+  // `save` reist mit dem Wert (Saver) – er gehört zu dem Stand, den er speichert.
   useEffect(() => {
     if (Object.is(value, loaded.current)) return;
-    saver.change(value, save);
-    // `save` reist mit dem Wert (Saver) – er gehört zu dem Stand, den er speichert.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    saver.change(value, latest.current.save);
   }, [value, saver]);
 
   const saveNow = useCallback(() => saver.flush(), [saver]);

@@ -27,6 +27,8 @@ import type {
   AddressInput,
   PersonCreate,
   UserProfile,
+  UserProfileUpdate,
+  ErpAdminUpdate,
   TerritoryMap,
   Passkey,
   FeedbackNote,
@@ -62,6 +64,16 @@ export class ApiError extends Error {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+/**
+ * **«Gibt es das?» – 404 ist die Antwort Nein, alles andere ein Fehler.** Für `.catch` an
+ * einer Frage nach einer Nummer (`exists` eines Scan-Schritts): ein Ausfall des Servers ist
+ * nicht «nicht im ERP», er wird weitergereicht und nennt sich selbst.
+ */
+export function absentOn404(e: unknown): false {
+  if (e instanceof ApiError && e.status === 404) return false;
+  throw e;
+}
+
 /** Wie lange ein abgerufenes eigenes Profil für weitere Fragen gilt (`ApiClient.getMe`). */
 const ME_TTL = 10_000;
 
@@ -73,6 +85,15 @@ export function assetUrl(path: string): string {
 
 /** Der gezeigte Monat der Zeiterfassung als Query («month=2026-10»), leer = der aktuelle. */
 const monthQuery = (month?: string) => (month ? `month=${month}` : '');
+
+/** Was eine lesende Anfrage mitnimmt: das Signal, mit dem React Query eine überholte
+ *  Anfrage abbricht (bis `fetch` durchgereicht). */
+export interface Req { signal?: AbortSignal }
+
+/** Abgebrochen ist abgebrochen – das wird nicht wiederholt und nicht gemeldet. */
+function aborted(options: RequestInit): boolean {
+  return !!options.signal?.aborted;
+}
 
 /**
  * **«Ich habe Daten geändert» – an EINER Stelle gesagt** (Testnotizen #685/#688).
@@ -165,7 +186,8 @@ class ApiClient {
       let response: Response;
       try {
         response = await fetch(`${API_BASE}${path}`, { ...options, headers });
-      } catch {
+      } catch (e) {
+        if (aborted(options)) throw e;
         // Keine Antwort erhalten → Anfrage kam nicht an, sicher wiederholbar.
         lastError = new Error('Keine Verbindung zum Server');
         if (attempt < MAX_ATTEMPTS) { await this.backoff(attempt); continue; }
@@ -193,7 +215,7 @@ class ApiClient {
 
       const retriable = response.status === 502 || response.status === 503
         || (idempotent && response.status >= 500);
-      if (retriable && attempt < MAX_ATTEMPTS) {
+      if (retriable && attempt < MAX_ATTEMPTS && !aborted(options)) {
         lastError = new Error(`Server nicht erreichbar (HTTP ${response.status})`);
         await this.backoff(attempt);
         continue;
@@ -240,12 +262,12 @@ class ApiClient {
       : `HTTP ${response.status}`;
   }
 
-  get<T>(path: string) {
-    return this.request<T>(path);
+  get<T>(path: string, req: Req = {}) {
+    return this.request<T>(path, { signal: req.signal });
   }
 
-  post<T>(path: string, body: unknown) {
-    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) });
+  post<T>(path: string, body: unknown, req: Req = {}) {
+    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body), signal: req.signal });
   }
 
   patch<T>(path: string, body: unknown) {
@@ -270,7 +292,7 @@ class ApiClient {
     return entry.promise;
   }
 
-  updateMe(data: Partial<UserProfile>): Promise<UserProfile> {
+  updateMe(data: UserProfileUpdate): Promise<UserProfile> {
     return this.patch('/api/v1/auth/me', data);
   }
 
@@ -392,8 +414,8 @@ class ApiClient {
     return this.get('/api/v1/admin/companies');
   }
 
-  getCompany(objectId: number): Promise<CompanySettings> {
-    return this.get(`/api/v1/admin/companies/${objectId}`);
+  getCompany(objectId: number, req?: Req): Promise<CompanySettings> {
+    return this.get(`/api/v1/admin/companies/${objectId}`, req);
   }
 
   /** Eine Firma anlegen – Name und Rechtsform sind Pflicht; ``is_own`` setzt nur ein Admin. */
@@ -448,7 +470,7 @@ class ApiClient {
     return this.post('/api/v1/erp/records', data);
   }
 
-  updateErpRecord(objectId: number, data: Partial<UserProfile>): Promise<UserProfile> {
+  updateErpRecord(objectId: number, data: ErpAdminUpdate): Promise<UserProfile> {
     return this.patch(`/api/v1/erp/records/${objectId}`, data);
   }
 
@@ -550,11 +572,11 @@ class ApiClient {
   }
 
   /** **Der Verlauf** einer Person bzw. aller Personen einer Firma – chronologisch. */
-  getMessages(scope: { person?: number; company?: number }): Promise<Message[]> {
+  getMessages(scope: { person?: number; company?: number }, req?: Req): Promise<Message[]> {
     const params = new URLSearchParams();
     if (scope.person) params.set('person', String(scope.person));
     if (scope.company) params.set('company', String(scope.company));
-    return this.get(`/api/v1/erp/messages?${params}`);
+    return this.get(`/api/v1/erp/messages?${params}`, req);
   }
 
   createMessage(data: MessageIn): Promise<Message> {
@@ -569,11 +591,11 @@ class ApiClient {
   // ─── Zahlungen (eine Ableitung aus den Zahlungsmodulen) ────────────────────
   /** **Die Zahlungen einer Person** (`person`) **oder einer eigenen Gesellschaft**
    *  (`company`) – neueste Nummer zuoberst. */
-  paymentsOf(scope: { person: number } | { company: number }): Promise<PaymentRow[]> {
+  paymentsOf(scope: { person: number } | { company: number }, req?: Req): Promise<PaymentRow[]> {
     const params = new URLSearchParams();
     if ('person' in scope) params.set('person', String(scope.person));
     else params.set('company', String(scope.company));
-    return this.get(`/api/v1/erp/payments?${params}`);
+    return this.get(`/api/v1/erp/payments?${params}`, req);
   }
 
   // ─── Zeiterfassung ─────────────────────────────────────────────────────────
@@ -592,8 +614,8 @@ class ApiClient {
   }
 
   /** Was ein Eintrag bewirken würde – dieselbe Regel wie beim Speichern, ohne zu schreiben. */
-  timePreview(person: number, data: TimeEntryIn): Promise<EntryPreview> {
-    return this.post(`/api/v1/erp/time/${person}/entries/preview`, data);
+  timePreview(person: number, data: TimeEntryIn, req?: Req): Promise<EntryPreview> {
+    return this.post(`/api/v1/erp/time/${person}/entries/preview`, data, req);
   }
 
   timeContract(person: number, data: TimeContractIn, month?: string): Promise<TimeView> {
@@ -620,14 +642,14 @@ class ApiClient {
     return this.put(`/api/v1/erp/time/companies/${company}/rules?year=${year}`, data);
   }
 
-  messageChannels(): Promise<MessageChannel[]> {
-    return this.get('/api/v1/erp/messages/channels');
+  messageChannels(req?: Req): Promise<MessageChannel[]> {
+    return this.get('/api/v1/erp/messages/channels', req);
   }
 
   /** Das Postfach einer eigenen Gesellschaft – Adresse, Zustand, darf ich verbinden?
    *  Persönliche Postfächer gibt es nicht. */
-  mailboxes(company: number): Promise<Mailbox[]> {
-    return this.get(`/api/v1/erp/messages/mailboxes?company=${company}`);
+  mailboxes(company: number, req?: Req): Promise<Mailbox[]> {
+    return this.get(`/api/v1/erp/messages/mailboxes?company=${company}`, req);
   }
 
   /** Die Adresse bei Google, an der die Zustimmung erteilt wird. */
@@ -656,8 +678,8 @@ class ApiClient {
   }
 
   /** Zustand und Nachweis einer Person (ERP). */
-  personNewsletter(objectId: number): Promise<NewsletterState> {
-    return this.get(`/api/v1/erp/newsletter/${objectId}`);
+  personNewsletter(objectId: number, req?: Req): Promise<NewsletterState> {
+    return this.get(`/api/v1/erp/newsletter/${objectId}`, req);
   }
 
   /** Die Bitte um Bestätigung schicken – anmelden kann das ERP niemanden. */
@@ -681,14 +703,14 @@ class ApiClient {
     return this.get(`/api/v1/erp/articles${q ? `?${q}` : ''}`);
   }
 
-  getArticle(objectId: number): Promise<Article> {
-    return this.get(`/api/v1/erp/articles/${objectId}`);
+  getArticle(objectId: number, req?: Req): Promise<Article> {
+    return this.get(`/api/v1/erp/articles/${objectId}`, req);
   }
 
   /** Wäre dieser Artikel-Entwurf freigebbar? Legt nichts an und zieht keine Nummer –
    *  dieselbe Regel, die auch die Anlage prüft (services/articles.validate_draft). */
-  validateArticle(draft: unknown): Promise<ArticleValidation> {
-    return this.post('/api/v1/erp/articles/validate', draft);
+  validateArticle(draft: unknown, req?: Req): Promise<ArticleValidation> {
+    return this.post('/api/v1/erp/articles/validate', draft, req);
   }
 
   /** Anlegen **ist** Freigeben: Spezifikation UND Erzeugungsprozess in einem Aufruf –
@@ -711,13 +733,13 @@ class ApiClient {
     return this.get(`/api/v1/erp/documents?${p}`);
   }
 
-  getDocument(objectId: number): Promise<DocumentDetail> {
-    return this.get(`/api/v1/erp/documents/${objectId}`);
+  getDocument(objectId: number, req?: Req): Promise<DocumentDetail> {
+    return this.get(`/api/v1/erp/documents/${objectId}`, req);
   }
 
   /** Die Kacheln unten an einem Datensatz. */
-  documentsOf(objectId: number): Promise<DocumentSummary[]> {
-    return this.get(`/api/v1/erp/documents/of/${objectId}`);
+  documentsOf(objectId: number, req?: Req): Promise<DocumentSummary[]> {
+    return this.get(`/api/v1/erp/documents/of/${objectId}`, req);
   }
 
   /** Ein Datensatz für eine Referenz – Nummer ODER Name. */
@@ -790,9 +812,9 @@ class ApiClient {
   }
 
   // Bestand eines Artikels: Aufstellung über ALLE Stücke + eine Seite Instanzen.
-  getArticleStock(objectId: number, limit = 50, offset = 0): Promise<ArticleStock> {
+  getArticleStock(objectId: number, limit = 50, offset = 0, req?: Req): Promise<ArticleStock> {
     const p = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-    return this.get(`/api/v1/erp/articles/${objectId}/stock?${p}`);
+    return this.get(`/api/v1/erp/articles/${objectId}/stock?${p}`, req);
   }
 
   // Ebene 3: die Nummern der Einzelinstanzen – seitenweise, auf Klick.
@@ -800,12 +822,12 @@ class ApiClient {
   // mehrere Zustände umfassen, ein angeklicktes Segment genau einen.
   getInstanceUnits(objectId: number, opts: {
     statuses?: readonly string[]; limit?: number; offset?: number;
-  } = {}): Promise<UnitPage> {
+  } = {}, req?: Req): Promise<UnitPage> {
     const p = new URLSearchParams();
     (opts.statuses ?? []).forEach((s) => p.append('status', s));
     p.set('limit', String(opts.limit ?? 60));
     p.set('offset', String(opts.offset ?? 0));
-    return this.get(`/api/v1/erp/instances/${objectId}/units?${p}`);
+    return this.get(`/api/v1/erp/instances/${objectId}/units?${p}`, req);
   }
 
   /**
@@ -814,8 +836,8 @@ class ApiClient {
    *
    * Erst auf Klick, wie die Nummern selbst: eine Baugruppe kann hunderte Teile haben.
    */
-  getUnitGenealogy(objectId: number, suffix: number): Promise<Genealogy> {
-    return this.get(`/api/v1/erp/instances/${objectId}/units/${suffix}/genealogy`);
+  getUnitGenealogy(objectId: number, suffix: number, req?: Req): Promise<Genealogy> {
+    return this.get(`/api/v1/erp/instances/${objectId}/units/${suffix}/genealogy`, req);
   }
 
   // ─── Auftrag ───────────────────────────────────────────────────────────────
@@ -830,14 +852,14 @@ class ApiClient {
     return this.get(`/api/v1/erp/orders${qs ? `?${qs}` : ''}`);
   }
 
-  getOrder(objectId: number): Promise<Order> {
-    return this.get(`/api/v1/erp/orders/${objectId}`);
+  getOrder(objectId: number, req?: Req): Promise<Order> {
+    return this.get(`/api/v1/erp/orders/${objectId}`, req);
   }
 
   /** Wäre dieser Entwurf speicherbar? Legt nichts an und zieht keine Nummer – die
    *  Oberfläche fragt damit dieselbe Regel ab, die auch das Speichern anlegt. */
-  validateOrder(draft: OrderDraft): Promise<OrderValidation> {
-    return this.post('/api/v1/erp/orders/validate', draft);
+  validateOrder(draft: OrderDraft, req?: Req): Promise<OrderValidation> {
+    return this.post('/api/v1/erp/orders/validate', draft, req);
   }
 
   /** Anlegen **ist** Freigeben: ein Aufruf, eine Transaktion – der Auftrag entsteht,
@@ -855,7 +877,7 @@ class ApiClient {
   getUnitOptions(opts: {
     articleObjectId?: number; search?: string; status?: string[];
     preselect?: number; limit?: number; offset?: number;
-  } = {}): Promise<UnitChoices> {
+  } = {}, req?: Req): Promise<UnitChoices> {
     const p = new URLSearchParams();
     if (opts.articleObjectId) p.set('article', String(opts.articleObjectId));
     if (opts.search?.trim()) p.set('search', opts.search.trim());
@@ -864,7 +886,7 @@ class ApiClient {
     if (opts.limit) p.set('limit', String(opts.limit));
     if (opts.offset) p.set('offset', String(opts.offset));
     const q = p.toString();
-    return this.get(`/api/v1/erp/orders/unit-options${q ? `?${q}` : ''}`);
+    return this.get(`/api/v1/erp/orders/unit-options${q ? `?${q}` : ''}`, req);
   }
 
   /** Welche Artikel kann eine Definitionszeile aufnehmen? **Gesucht, nicht geladen**
@@ -891,8 +913,8 @@ class ApiClient {
   // ─── Erzeugungsprozess des Artikels (Vorlage) ──────────────────────────────
   // Sie kann nichts ausführen: es gibt hier keinen Aufruf, der ein Stück bewegt.
 
-  getArticleProcess(objectId: number): Promise<ArticleProcess> {
-    return this.get(`/api/v1/erp/articles/${objectId}/process`);
+  getArticleProcess(objectId: number, req?: Req): Promise<ArticleProcess> {
+    return this.get(`/api/v1/erp/articles/${objectId}/process`, req);
   }
 
   // Es gibt KEINEN Schreib-Endpunkt auf die Vorlage: sie entsteht mit dem Artikel
@@ -995,8 +1017,8 @@ class ApiClient {
     return this.get(`/api/v1/erp/places?search=${encodeURIComponent(query)}`);
   }
 
-  getInstance(objectId: number): Promise<Instance> {
-    return this.get(`/api/v1/erp/instances/${objectId}`);
+  getInstance(objectId: number, req?: Req): Promise<Instance> {
+    return this.get(`/api/v1/erp/instances/${objectId}`, req);
   }
 
   // ─── Testnotizen (in-app Feedback, nur Testumgebung) ────────────────────────

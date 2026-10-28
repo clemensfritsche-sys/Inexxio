@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Clock, Download, Send, Trash2, X } from 'lucide-react';
 import { api, assetUrl } from '@/lib/api';
+import { qk } from '@/lib/queries';
 import { statusCfg } from '@/lib/process-status';
 import { when } from '@/lib/when';
 import {
@@ -76,27 +78,32 @@ export function MicroLabel({ children }: { children: React.ReactNode }) {
  * nennt der Hover den Grund (Regel 8, `can` als Satz vom Server).
  */
 export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack: () => void }) {
-  const [doc, setDoc] = useState<Doc | null>(null);
-  const [error, setError] = useState('');
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: qk.document(objectId),
+    queryFn: ({ signal }) => api.getDocument(objectId, { signal }),
+    meta: { what: 'Dokument' },
+  });
+  const doc = query.data ?? null;
+  // Die Antwort einer Handlung IST das Dokument – sie geht direkt in den Cache.
+  const setDoc = useCallback((d: Doc) => { qc.setQueryData(qk.document(objectId), d); }, [qc, objectId]);
+  const [failed, setError] = useState('');
+  const error = failed || (!doc && query.error ? query.error.message : '');
   const [deleting, setDeleting] = useState(false);
   const [sending, setSending] = useState(false);
   const readOnce = useRef(false);
-
-  const load = useCallback(() => {
-    api.getDocument(objectId).then(setDoc).catch((e: Error) => setError(e.message));
-  }, [objectId]);
-  useEffect(() => { load(); }, [load]);
 
   // **Das Lesen nachholen** – einmal, still: ohne KI freigegeben, jetzt gibt es sie.
   useEffect(() => {
     if (!doc?.read_later || readOnce.current) return;
     readOnce.current = true;
     api.readDocumentLater(objectId).then(setDoc).catch(tell('Dokument', 'Nicht gelesen'));
-  }, [doc?.read_later, objectId]);
+  }, [doc?.read_later, objectId, setDoc]);
 
-  async function act(run: () => Promise<Doc>) {
+  /** Eine Handlung – `true`, wenn sie ging; sonst steht der Grund da und ein Dialog bleibt offen. */
+  async function act(run: () => Promise<Doc>): Promise<boolean> {
     setError('');
-    try { setDoc(await run()); } catch (e) { setError((e as Error).message); }
+    try { setDoc(await run()); return true; } catch (e) { setError((e as Error).message); return false; }
   }
 
   if (!doc) {
@@ -135,7 +142,7 @@ export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack:
             <>
               <div style={{ border: '1.5px dashed var(--border-2)', borderRadius: 12, padding: 30, textAlign: 'center' }}>
                 <Trash2 size={22} style={{ color: 'var(--fg-3)' }} />
-                <div style={{ font: '800 16px var(--font-display)', color: 'var(--fg-1)', marginTop: 6 }}>Inhalt gelöscht</div>
+                <div style={{ font: '600 16px var(--font-display)', color: 'var(--fg-1)', marginTop: 6 }}>Inhalt gelöscht</div>
                 <div style={{ fontSize: 13, color: 'var(--fg-3)', marginTop: 4 }}>
                   {when(doc.deleted_at)}{doc.deleted_by ? ` von ${doc.deleted_by}` : ''} · Grund: «{doc.delete_reason}»
                 </div>
@@ -164,12 +171,14 @@ export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack:
         </DetailBody>
       </div>
       {sending && (
-        <SendDialog doc={doc} onClose={() => setSending(false)}
-          onSend={(to, sign, note) => act(() => api.sendDocument(doc.object_id, to, sign, note)).then(() => setSending(false))} />
+        <SendDialog doc={doc} error={failed} onClose={() => { setSending(false); setError(''); }}
+          onSend={(to, sign, note) => act(() => api.sendDocument(doc.object_id, to, sign, note))
+            .then((ok) => { if (ok) setSending(false); })} />
       )}
       {deleting && (
-        <DeleteDialog onClose={() => setDeleting(false)}
-          onConfirm={(reason) => act(() => api.deleteDocument(doc.object_id, reason)).then(() => setDeleting(false))} />
+        <DeleteDialog error={failed} onClose={() => { setDeleting(false); setError(''); }}
+          onConfirm={(reason) => act(() => api.deleteDocument(doc.object_id, reason))
+            .then((ok) => { if (ok) setDeleting(false); })} />
       )}
     </div>
   );
@@ -199,8 +208,8 @@ function Signatures({ doc }: { doc: Doc }) {
  * **Senden** – an wen (Personen mit E-Mail), ob sie unterschreiben sollen, ein Satz dazu. Je
  * Empfänger ein Link ohne Ablauf; die Mail steht im Verlauf der Person.
  */
-function SendDialog({ doc, onClose, onSend }: {
-  doc: Doc; onClose: () => void; onSend: (to: number[], sign: boolean, note: string) => void;
+function SendDialog({ doc, error, onClose, onSend }: {
+  doc: Doc; error: string; onClose: () => void; onSend: (to: number[], sign: boolean, note: string) => void;
 }) {
   const open = (doc.signatures ?? []).filter((x) => !x.signed_at && !x.declined_at);
   const [to, setTo] = useState<{ object_id: number; name: string }[]>(
@@ -232,6 +241,7 @@ function SendDialog({ doc, onClose, onSend }: {
         <textarea className={inputCls} rows={3} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)}
           placeholder="z. B. Bitte bis Freitag unterschreiben." />
       </label>
+      {error && <ErrorText msg={error} />}
       <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!to.length}
         style={{ height: 42, justifyContent: 'center' }} onClick={() => onSend(to.map((x) => x.object_id), sign, note.trim())}>
         <Send size={15} /> Senden{to.length > 1 ? ` (${to.length})` : ''}
@@ -240,7 +250,9 @@ function SendDialog({ doc, onClose, onSend }: {
   );
 }
 
-function DeleteDialog({ onClose, onConfirm }: { onClose: () => void; onConfirm: (reason: string) => void }) {
+function DeleteDialog({ error, onClose, onConfirm }: {
+  error: string; onClose: () => void; onConfirm: (reason: string) => void;
+}) {
   const [reason, setReason] = useState('');
   return (
     <Dialog icon={Trash2} title="Löschen" tone="var(--danger)" width={480} onClose={onClose}>
@@ -252,6 +264,7 @@ function DeleteDialog({ onClose, onConfirm }: { onClose: () => void; onConfirm: 
         <input className={inputCls} value={reason} autoFocus maxLength={300}
           onChange={(e) => setReason(e.target.value)} placeholder="Warum wird es gelöscht?" />
       </label>
+      {error && <ErrorText msg={error} />}
       <button type="button" className="erp-actbtn erp-actbtn-danger" disabled={!reason.trim()}
         style={{ height: 42, justifyContent: 'center' }} onClick={() => onConfirm(reason.trim())}>
         Löschen

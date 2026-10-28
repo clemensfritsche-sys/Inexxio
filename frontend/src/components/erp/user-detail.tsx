@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   User, MapPin, Building2, Bell, Cog,
 } from 'lucide-react';
-import { Communication, MESSAGES_CHANGED } from '@/components/erp/communication';
+import { Communication } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
 import { day, when } from '@/lib/when';
 import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
@@ -26,8 +27,8 @@ import { CompanyField } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/lib/use-maps-key';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
-import type { NewsletterState, Todo, UserProfile, UserRole } from '@/types';
-import { tell } from '@/lib/notice';
+import type { ErpAdminUpdate, NewsletterState, Todo, UserProfile, UserRole } from '@/types';
+import { qk } from '@/lib/queries';
 
 // **Keine Reiter**: Kommunikation und Stammdaten stehen auf EINER Seite. «Bestellungen» und
 // «Dokumente» kommen mit ihren Bereichen zurück (docs/attic.md).
@@ -71,14 +72,14 @@ const nn = (s: string): string | null => (s.trim() === '' ? null : s);
  * ebenfalls nicht in diesem Formular: die Firma wird zugeordnet (`CompanyField`), die
  * Anschriften leben im Adressbuch (`AddressBook`), jede mit ihrem eigenen Auto-Save.
  */
-function mapUpdate(v: ERPForm): Partial<UserProfile> {
+function mapUpdate(v: ERPForm): ErpAdminUpdate {
   return {
     role: v.role,
     first_name: nn(v.first_name),
     last_name: nn(v.last_name),
     date_of_birth: nn(v.date_of_birth),
     phone: nn(v.phone),
-  } as Partial<UserProfile>;
+  };
 }
 
 /**
@@ -89,13 +90,18 @@ function mapUpdate(v: ERPForm): Partial<UserProfile> {
  * Quelle, der Wortlaut im Hover.
  */
 function NewsletterConsent({ person }: { person: number }) {
-  const [state, setState] = useState<NewsletterState | null>(null);
+  const qc = useQueryClient();
+  const state = useQuery({
+    queryKey: qk.newsletter(person),
+    queryFn: ({ signal }) => api.personNewsletter(person, { signal }),
+    meta: { what: 'Newsletter-Stand' },
+  }).data ?? null;
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { api.personNewsletter(person).then(setState).catch(tell('Newsletter-Stand')); }, [person]);
+  // Die Antwort IST der neue Stand; die Bitte steht danach im Verlauf (`lib/feed.TOUCHES`).
   const act = (call: Promise<NewsletterState>, done: string) => {
     setBusy(true); setNote(null);
-    call.then((s) => { setState(s); setNote(done); window.dispatchEvent(new Event(MESSAGES_CHANGED)); })
+    call.then((s) => { qc.setQueryData(qk.newsletter(person), s); setNote(done); })
       .catch((e) => setNote(e instanceof Error ? e.message : 'Hat nicht geklappt.'))
       .finally(() => setBusy(false));
   };
@@ -140,29 +146,18 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
   const canEdit = isAdmin;
   const ro = !canEdit;
   const mapsKey = useMapsApiKey();
+  // **Einmal befüllt** – ein neuer `record` nach dem Auto-Save überschreibt nichts, was gerade
+  // getippt wird. Ein anderer Datensatz ist ein neues Formular (`key` am Aufrufer).
   const [form, setForm] = useState<ERPForm>(() => buildForm(record));
-  const [resetKey, setResetKey] = useState(0);
-  const prevId = useRef<number | null | undefined>(undefined);
-
-  // Nur bei Datensatz-Wechsel neu aufbauen (nicht bei jedem `record`-Prop) – sonst
-  // klobbert ein Auto-Save → onSaved → neuer Prop die gerade getippte Eingabe.
-  useEffect(() => {
-    if (record.object_id !== prevId.current) {
-      prevId.current = record.object_id;
-      setForm(buildForm(record));
-      setResetKey((k) => k + 1);
-    }
-  }, [record.object_id, record]);
-
+  const objectId = record.object_id;
   const { status, errorMsg, saveNow } = useAutosaveValue(
     form,
     async (v) => {
-      if (!canEdit || !record.object_id) return;
-      const updated = await api.updateErpRecord(record.object_id, mapUpdate(v));
+      if (!canEdit || !objectId) return;
+      const updated = await api.updateErpRecord(objectId, mapUpdate(v));
       onSaved(updated);
       todoChanged();
     },
-    resetKey,
   );
 
   function set<K extends keyof ERPForm>(key: K, value: ERPForm[K]) {
@@ -220,7 +215,7 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
         <CompanyField company={record.company} readOnly={ro} search
           country={record.addresses?.[0]?.country}
           onLink={(id) => api.updateErpRecord(record.object_id as number,
-            { company_object_id: id } as Partial<UserProfile>).then(onSaved)} />
+            { company_object_id: id }).then(onSaved)} />
         {record.company && (
           <AddressBook owner={record.object_id ?? null} account="business"
             addresses={record.addresses ?? []} loginEmail={record.email} readOnly={ro}
@@ -337,7 +332,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, todo }: {
           )}
           {/* Dezent: hier beginnen die Stammdaten – eine Haarlinie mit dem Mikro-Label. */}
           <SectionSep label="Stammdaten" todo={sectionItems(todo, 'person', 'adressen')} />
-          <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} todo={todo} />
+          <ProfileForm key={record.object_id} record={record} isAdmin={isAdmin} onSaved={onSave} todo={todo} />
           <DocumentTiles objectId={record.object_id} />
         </DetailBody>
       </div>

@@ -1219,3 +1219,18 @@ def test_the_old_palette_is_gone_also_as_hex():
         assert not found, f"«{rel}» trägt die Alt-Palette als Hex (a): {found}"
         assert "#E51A14" not in src.upper() and "--ix-red" not in src, f"«{rel}» (b)"
         assert "var(--color-warning" not in src, f"«{rel}» (c)"
+
+
+def test_a_dialog_closes_only_when_its_action_went_through():
+    """Ein Dialog, der eine Handlung auslöst (Senden, Löschen), schliesst nur bei Erfolg –
+    sonst wäre die Eingabe weg und der Grund stünde hinter dem geschlossenen Dialog. Die
+    Handlung sagt es (`act` gibt `true` zurück); ein `.then(() => set…(false))` schliesst
+    auch beim Fehler."""
+    closing = re.compile(r"\bact\(\(\) => [^;{}]*?\)\)\s*\.then\(\(\)\s*=>\s*set\w+\(false\)\)")
+    for rel, src in _frontend_sources(".tsx"):
+        hit = closing.search(src)
+        assert not hit, f"«{rel}» schliesst einen Dialog auch, wenn die Handlung scheitert."
+    detail = _read(FRONTEND / "components" / "erp" / "document-detail.tsx")
+    assert re.search(r"function act\(.*\):\s*Promise<boolean>", detail), (
+        "`act` sagt nicht, ob die Handlung ging."
+    )

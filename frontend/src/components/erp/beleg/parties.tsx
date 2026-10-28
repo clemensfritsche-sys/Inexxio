@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
+import { tell } from '@/lib/notice';
 import { day } from '@/lib/when';
 import { ObjId } from '@/components/erp/obj-id';
 import type { VoucherCorrectable, VoucherSide } from '@/types';
@@ -248,7 +249,7 @@ function Correction({ d, orderObjectId, stepId, onAction }: {
     let stale = false;
     void api.voucherCorrectable(orderObjectId, stepId)
       .then((r) => { if (!stale) setFound(r.length > 0); })
-      .catch(() => { if (!stale) setFound(false); });
+      .catch((e: unknown) => { if (!stale) { setFound(false); tell('Korrigierbare Rechnungen')(e); } });
     return () => { stale = true; };
   }, [on, suggested.length, orderObjectId, stepId]);
 

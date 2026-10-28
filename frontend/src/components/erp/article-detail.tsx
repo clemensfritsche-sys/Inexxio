@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Package, FileText, Trash2, AlertTriangle,
   Ruler, Box, Square, Scale, Droplet, Fingerprint, Layers,
@@ -8,12 +9,12 @@ import {
   ClipboardPlus, ArrowRight, Blocks, Wrench, Tag,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatNumber } from '@/lib/utils';
+import { qk, useDebouncedQuery } from '@/lib/queries';
 import { useSearch } from '@/lib/use-search';
 
 /** Namensvorschläge – eine stabile Funktion, damit die Suche nicht bei jedem Rendern neu läuft. */
 const suggestNames = (q: string) => api.articleNameSuggestions(q, 8);
-import type { ArticleProcess as ArticleProcessType, Article, ArticleBom, ArticleInput, ArticleLink, ArticleUnit, ArticleSerialization, ArticleNameSuggestion } from '@/types';
+import type { Article, ArticleBom, ArticleInput, ArticleLink, ArticleUnit, ArticleSerialization, ArticleNameSuggestion } from '@/types';
 import type { ModuleDraft } from '@/lib/modules';
 import { moduleFromConfig, toModulePayload } from '@/lib/modules';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
@@ -26,7 +27,7 @@ import type { DiagramStep } from '@/components/erp/process-diagram';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN } from '@/lib/process-status';
 
-import { ErrorText, SaveIndicator, IconSwitch, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, MICRO_LABEL } from '@/components/erp/fields';
+import { ErrorText, IconSwitch, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, MICRO_LABEL } from '@/components/erp/fields';
 import { DocumentTiles } from '@/components/erp/documents';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { ObjId } from '@/components/erp/obj-id';
@@ -143,7 +144,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
   // **Der Entwurf lebt hier, nicht in der Datenbank.** Spezifikation und Prozess sind
   // zwei Hälften derselben Anlage: der Artikel entsteht erst, wenn beide stehen.
   const [steps, setSteps] = useState<ModuleDraft[]>([]);
-  const [missing, setMissing] = useState<string[] | null>(null);
   // Welche optionalen Felder werden angezeigt (mit Wert oder bewusst hinzugefügt)
   const [added, setAdded] = useState<AddKey[]>(() => {
     const s = seedFrom(record);
@@ -164,10 +164,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
   // keinen Entwurf in der Datenbank mehr, also auch keinen Zustand, in dem man ihn noch
   // umbauen könnte (keine Versionierung – Änderung = neuer Artikel).
   const locked = !isCreate;
-
-  // Ein aus der Stückliste aufsummiertes Gewicht gibt es nicht; das Gewicht ist eine Eingabe.
-  const computedWeight: number | null = null;
-  const weightIsComputed = false;
 
   // Pflichtfelder: Name, Mengeneinheit, Serialisierung, Grösse und Gewicht (Einheit/
   // Serialisierung tragen einen Default). Format-Fehler nur zeigen, wenn befüllt (nicht
@@ -204,17 +200,15 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
     steps: steps.map(toModulePayload),
   }), [form, steps, replaces]);
 
-  // Freigebbarkeit beim Server erfragen, nicht selbst behaupten.
-  useEffect(() => {
-    if (!isCreate) { setMissing(null); return; }
-    let dead = false;
-    const t = setTimeout(() => {
-      api.validateArticle(payload)
-        .then((v) => { if (!dead) setMissing(v.missing ?? []); })
-        .catch(() => { if (!dead) setMissing(['Prüfung nicht erreichbar']); });
-    }, 250);
-    return () => { dead = true; clearTimeout(t); };
-  }, [isCreate, payload]);
+  // Freigebbarkeit beim Server erfragen, nicht selbst behaupten. Scheitert die Prüfung,
+  // nennt der Knopf den Grund – freigeben lässt er dann nicht.
+  const check = useDebouncedQuery({
+    name: 'article', input: isCreate ? payload : null, ask: api.validateArticle,
+    what: 'Prüfung des Artikels',
+  });
+  const missing: string[] | null = !isCreate ? null
+    : check.data ? (check.data.missing ?? [])
+      : check.error ? [`Prüfung nicht möglich – ${check.error.message}`] : null;
 
   /**
    * **Freigeben = Anlegen.** Ein Aufruf, eine Transaktion: erst hier entsteht der
@@ -252,7 +246,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
           : undefined}
         onBack={onBack}
         status={statusCfg}
-        right={<SaveIndicator saving={saving} flash={false} />}
         actions={isCreate ? (
           // **Freigeben ist die Anlage.** Der Knopf sagt, was noch fehlt – ein stumm
           // graues «Freigeben» liesse den Nutzer suchen.
@@ -278,13 +271,8 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
             )}
           </>
         ) : undefined}
-      >
-      </DetailHeader>
+      />
 
-      {/* Content */}
-      {/* FIX: Enter im Container löst den Autosave-Flush aus – in TEXTAREAs (mehrzeilige
-          Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
-          Zeilenumbruch. Textareas ausnehmen. */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
         <DetailBody>
             {/* **Wie steht dieser Artikel im Netz der anderen?** — Reihe (ersetzt /
@@ -295,10 +283,10 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
             {isCreate ? (
               <ReplacesPicker value={replaces} onChange={setReplaces} />
             ) : (
-              <ContextStrip objectId={record.object_id} version={record.updated_at} />
+              <ContextStrip objectId={record.object_id} />
             )}
             {locked ? (
-              <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} />
+              <SpecRead record={record!} form={form} />
             ) : (
               <div style={SPEC.card}>
                 {/* Karten-Kopf «Spezifikation» + «+»-Knopf (nur Entwurf) für optionale Felder. */}
@@ -317,11 +305,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
                   </div>
                   <div style={GRID2}>
                     <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" error={form.size ? errs.size : null} />
-                    {weightIsComputed ? (
-                      <ReadField icon={Weight} label="Gewicht" value={formatNumber(computedWeight!)} unit="kg" autoHint="Automatisch aus der Stückliste berechnet" mono />
-                    ) : (
-                      <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
-                    )}
+                    <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
                   </div>
                   {/* Bei Bedarf hinzugefügte optionale Felder + abgeleitete Auto-Werte (nur wenn vorhanden). */}
                   {added.length > 0 && (
@@ -603,11 +587,9 @@ function IconPick({ label, value, onChange, options, required }: {
 }
 
 // Read-only-Spezifikation (freigegebener Artikel) – in Sektionen gegliedert.
-function SpecRead({ record, form, weightIsComputed, computedWeight }: {
-  record: Article; form: Form; weightIsComputed: boolean; computedWeight: string | number | null;
-}) {
+function SpecRead({ record, form }: { record: Article; form: Form }) {
   const has = (k: OptKey) => form[k].trim() !== '';
-  const hasPhysical = !!record.size || weightIsComputed || record.weight_kg != null;
+  const hasPhysical = !!record.size || record.weight_kg != null;
   // **Bei wem beschafft wird, steht am Modul**, nicht hier (die zugelassenen Partner des
   // Zahlungsmoduls im Erzeugungsprozess). Der Artikel trägt nur seine Spezifikation.
   return (
@@ -634,9 +616,8 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
       {hasPhysical && (
         <SpecSection icon={Box} title="Physische Eigenschaften">
           {record.size && <ReadField icon={Scaling} label="Abmessungen" value={record.size} unit="mm" mono />}
-          {(weightIsComputed || record.weight_kg != null) && (
-            <ReadField icon={Weight} label="Gewicht" value={weightIsComputed ? formatNumber(computedWeight!) : String(record.weight_kg)}
-              unit={weightIsComputed ? 'kg (berechnet)' : 'kg'} mono />
+          {record.weight_kg != null && (
+            <ReadField icon={Weight} label="Gewicht" value={String(record.weight_kg)} unit="kg" mono />
           )}
         </SpecSection>
       )}
@@ -691,21 +672,16 @@ function Arrow() {
  * **Die Auskunft lädt sich selbst.** Der Feed liefert den Artikel ohne Umfeld (`bom` ist
  * dort `null` = «nicht geladen»), und das ist richtig so: zwei Abfragen je Artikel wären
  * im Feed zweihundert. Also holt der Streifen das Detail, wenn er gebraucht wird – wie
- * `ArticleProcess` und `StockView` daneben.
- *
- * `version` ist der `updated_at`-Stand: nach einem Statuswechsel ändert sich das Umfeld
- * (wer diesen Artikel verbaut, sieht ihn ab jetzt als Lücke), also wird neu gelesen.
+ * `ArticleProcess` und `StockView` daneben. Nach einer Ablösung oder einem Auftrag ändert
+ * sich das Umfeld; neu gelesen wird über `lib/feed.TOUCHES`.
  */
-function ContextStrip({ objectId, version }: { objectId: number | null; version?: string }) {
-  const [full, setFull] = useState<Article | null>(null);
-  useEffect(() => {
-    if (objectId == null) { setFull(null); return; }
-    let dead = false;
-    api.getArticle(objectId)
-      .then((a) => { if (!dead) setFull(a); })
-      .catch(() => { if (!dead) setFull(null); });
-    return () => { dead = true; };
-  }, [objectId, version]);
+function ContextStrip({ objectId }: { objectId: number | null }) {
+  const full = useQuery({
+    queryKey: qk.article(objectId ?? 0),
+    queryFn: ({ signal }) => api.getArticle(objectId!, { signal }),
+    enabled: objectId != null,
+    meta: { what: 'Umfeld des Artikels' },
+  }).data;
 
   if (!full) return null;
   const bom: ArticleBom | null | undefined = full.bom;
@@ -810,8 +786,7 @@ function ReplacesPicker({ value, onChange }: {
           // Artikel würde von der Freigabe abgewiesen (`articles.replaceable_problem`),
           // und eine Auswahl, die danach scheitert, ist keine.
           .then((rows) => rows.filter(
-            (a): a is Article & { object_id: number } => a.object_id != null && !a.replaced_by_id))
-          .catch(() => [])}
+            (a): a is Article & { object_id: number } => a.object_id != null && !a.replaced_by_id))}
         onChange={(_nr, opt) => { onChange(opt); if (!opt) setOpen(false); }}
       />
       {/* **Der Satz nennt beide Hälften** (Notiz #766). Er sagte nur, dass der Vorgänger
@@ -861,18 +836,16 @@ function ArticleProcess({ articleObjectId, draft, setDraft }: {
   draft: ModuleDraft[];
   setDraft: (m: ModuleDraft[]) => void;
 }) {
-  const [proc, setProc] = useState<ArticleProcessType | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
   // Ein gespeicherter Artikel ist freigegeben – seine Vorlage wird nur noch gelesen.
-  useEffect(() => {
-    if (!articleObjectId) { setProc(null); return; }
-    let dead = false;
-    api.getArticleProcess(articleObjectId)
-      .then((p) => { if (!dead) setProc(p); })
-      .catch((e) => { if (!dead) setErr(e instanceof Error ? e.message : String(e)); });
-    return () => { dead = true; };
-  }, [articleObjectId]);
+  const query = useQuery({
+    queryKey: qk.articleProcess(articleObjectId ?? 0),
+    queryFn: ({ signal }) => api.getArticleProcess(articleObjectId!, { signal }),
+    enabled: !!articleObjectId,
+    staleTime: Infinity,
+    meta: { what: 'Erzeugungsprozess' },
+  });
+  const proc = articleObjectId ? query.data ?? null : null;
+  const err = query.error && !query.data ? query.error.message : null;
 
   const frozen = articleObjectId !== null;
   const steps: DiagramStep[] | undefined = frozen

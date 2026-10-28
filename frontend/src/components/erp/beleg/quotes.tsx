@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, CircleSlash, ClipboardList, ExternalLink, Send as SendIcon, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { happened } from '@/lib/when';
@@ -125,7 +125,7 @@ function Candidate({ d, side, busy, inHead, onShow, onAction }: {
 function PickParty({ d, open, onOpen, onAction }: {
   d: Filled; open: boolean; onOpen: (open: boolean) => void; onAction: Send;
 }) {
-  const find = useCallback((q: string) => api.searchPeople(q).catch(() => []), []);
+  const find = useCallback((q: string) => api.searchPeople(q), []);
   return (
     <div style={{ paddingTop: 12 }}>
       <DocRef<VoucherParty> on text={`+ ${d.party_word} wählen`}
@@ -232,10 +232,11 @@ function hostOf(link: string): string {
 function QuoteWork({ q, d, busy, onAction }: {
   q: VoucherQuoteOut; d: Filled; busy: boolean; onAction: Send;
 }) {
-  const [f, setF] = useState(() => quoteDraft(q));
-  const key = JSON.stringify(quoteDraft(q));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setF(quoteDraft(q)); }, [key]);
+  // Was der Server sagt, gewinnt, sobald er sich ändert. `q` behält seine Identität, solange
+  // sich nichts ändert (React Query teilt gleiche Teile der Antwort, `structuralSharing`).
+  const remote = useMemo(() => quoteDraft(q), [q]);
+  const [f, setF] = useState(remote);
+  useEffect(() => { setF(remote); }, [remote]);
   const canQuote = may(d, 'quote') && !d.we_quote;
   const canDecline = may(d, 'decline');
   const priced = q.amount != null;

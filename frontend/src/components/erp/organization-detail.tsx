@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare, HandCoins } from 'lucide-react';
 import { Communication } from '@/components/erp/communication';
 import { api } from '@/lib/api';
+import { qk } from '@/lib/queries';
 import type { CompanySettings, CompanySettingsUpdate, Todo } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { DetailBody, Card, DetailHeader, SectionSep, Segmented } from '@/components/erp/fields';
@@ -168,45 +170,34 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
   onSaved: (s: CompanySettings) => void;
   onBack: () => void;
 }) {
-  // Frisch nachgeladener Datensatz (der Feed liefert schon den vollen Satz, aber beim
-  // Öffnen holen wir ihn erneut – Bank maskiert, abgeleitete Felder aktuell).
-  const [base, setBase] = useState<CompanySettings>(record);
+  // ►►► **Der Datensatz ist eine Query, das Formular nicht.** Der Feed liefert den vollen
+  // Satz (Startwert, kein zweiter Abruf beim Öffnen); nach einer Änderung kommt die Antwort
+  // in den Cache (`setBase`), nach fremden Änderungen lädt `lib/feed.TOUCHES` nach. Das
+  // Formular wird EINMAL befüllt – ein Nachladen überschreibt nie, was getippt wird; ein
+  // anderer Datensatz ist ein neues Bauteil (`key` am Aufrufer). ◄◄◄
+  const qc = useQueryClient();
+  const objectId = record.object_id ?? 0;
+  const base = useQuery({
+    queryKey: qk.company(objectId),
+    queryFn: ({ signal }) => api.getCompany(objectId, { signal }),
+    initialData: record,
+    enabled: record.object_id != null,
+    meta: { what: 'Gesellschaft' },
+  }).data;
+  const setBase = (c: CompanySettings) => qc.setQueryData(qk.company(objectId), c);
   const [form, setForm] = useState<OrgForm>(() => buildForm(record));
-  const [resetKey, setResetKey] = useState(0);
   const [tab, setTab] = useState<OrgTab>('stamm');
   const [opBusy, setOpBusy] = useState(false);
   const [opError, setOpError] = useState<string | null>(null);
   const [closeBusy, setCloseBusy] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const mapsKey = useMapsApiKey();
-  const prevId = useRef<number | null | undefined>(undefined);
 
   const isOperator = !!base.is_operator;
   // ►►► **Eigen oder fremd** (CRM Schritt 1) – derselbe Datensatztyp für jede Firma.
   // Bank, Währung, Gebiete und der Betreiber-Titel gibt es nur bei einer eigenen.
   const own = !!base.is_own;
   const canEdit = isAdmin || !own;
-
-  // Nur bei Datensatz-WECHSEL neu aufbauen – sonst klobbert ein Auto-Save → onSaved →
-  // neuer Prop die gerade getippte Eingabe (dieselbe Regel wie im Benutzer-Datensatz).
-  useEffect(() => {
-    if (record.object_id === prevId.current) return;
-    prevId.current = record.object_id;
-    setBase(record);
-    setForm(buildForm(record));
-    setResetKey((k) => k + 1);
-    setTab('stamm');
-    setCurrencyOpen(false);
-    setOpError(null);
-    if (record.object_id != null) {
-      api.getCompany(record.object_id).then((fresh) => {
-        if (record.object_id !== prevId.current) return;
-        setBase(fresh);
-        setForm(buildForm(fresh));
-        setResetKey((k) => k + 1);
-      }).catch(() => undefined);
-    }
-  }, [record]);
 
   const { status, errorMsg, saveNow } = useAutosaveValue(
     form,
@@ -238,7 +229,6 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
       setBase(updated);
       onSaved(updated);
     },
-    resetKey,
   );
 
   const str = (k: keyof OrgForm) => (val: string) => setForm((p) => ({ ...p, [k]: val }));

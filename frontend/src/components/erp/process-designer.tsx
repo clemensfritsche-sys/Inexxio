@@ -284,7 +284,7 @@ function MoveFields({ module: m, onChange }: {
     let stale = false;
     api.getPlace(Number(target))
       .then((p) => { if (!stale) setPlace(p); })
-      .catch(() => { if (!stale) setPlace(null); });
+      .catch((e: unknown) => { if (!stale) { setPlace(null); tell('Zielort')(e); } });
     return () => { stale = true; };
   }, [target]);
 
@@ -292,8 +292,7 @@ function MoveFields({ module: m, onChange }: {
   // Stelle, an der der Unterschied entsteht, statt einer zweiten Feld-Konvention.
   const findPlaces = useCallback(
     (q: string) => api.searchPlaces(q)
-      .then((rows) => rows.map((p) => ({ ...p, name: p.label })))
-      .catch(() => []),
+      .then((rows) => rows.map((p) => ({ ...p, name: p.label }))),
     [],
   );
 
@@ -394,7 +393,7 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
     return () => { stale = true; };
   }, [m.parties, known, search]);
 
-  const find = useCallback((q: string) => search(q).catch(() => []), [search]);
+  const find = search;
 
   return (
     <div className="flex flex-col gap-3">

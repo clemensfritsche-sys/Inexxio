@@ -178,13 +178,12 @@ def test_a_draft_never_touches_the_database():
     )
 
 
-def test_the_order_tab_row_has_exactly_one_tab():
-    """Genau EIN Reiter «Auftrag» – keine weiteren, auch keine leeren oder deaktivierten."""
+def test_the_order_window_has_no_tab_row():
+    """Der Auftrag hat keine Reiter – eine Leiste mit genau einem Reiter wählt nichts aus.
+    Auch keine leeren oder deaktivierten."""
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    m = re.search(r"const TABS = \[(.*?)\];", detail, re.S)
-    assert m, "TABS fehlt im Auftrags-Fenster."
-    assert m.group(1).count("key:") == 1, (
-        f"Das Auftrags-Fenster hat {m.group(1).count('key:')} Reiter – es soll genau einen haben."
+    assert "DetailTabs" not in detail and "tabs=" not in detail, (
+        "Das Auftrags-Fenster trägt wieder eine Reiter-Leiste."
     )
     tabs = _read(FRONTEND / "components" / "erp" / "detail-tabs.tsx")
     assert "disabled" not in tabs, (
@@ -1299,7 +1298,7 @@ def test_the_feed_learns_about_every_write_from_one_place():
     # betrifft. Die Listen des Feeds sind Queries – ein eigener `useState` je Liste daneben
     # wäre die zweite Datenquelle, die nach einem Schreibvorgang stehen bleibt.
     hook = _read(FRONTEND / "lib" / "use-feed.ts")
-    assert "feedsTouchedBy(path)" in hook and "invalidateQueries" in hook, (
+    assert "touchedBy(path)" in hook and "invalidateQueries" in hook, (
         "Der Feed hört nicht auf die Meldung – oder lädt ohne Blick auf den Pfad."
     )
     assert "detail: { path }" in api, "Die Meldung nennt den Pfad nicht."
@@ -1313,11 +1312,40 @@ def test_the_feed_learns_about_every_write_from_one_place():
             f"Die Liste «{kind}» lebt neben React Query in einem eigenen Zustand."
         )
     # Und kein zweiter Melde-Weg in den Detailfenstern.
-    for name in ("order-detail.tsx", "article-detail.tsx", "instance-detail.tsx"):
+    for name in ("order-detail.tsx", "article-detail.tsx", "instance-detail.tsx", "documents.tsx"):
         src = _read(FRONTEND / "components" / "erp" / name)
-        assert "inexxio:data-changed" not in src, (
-            f"{name} meldet selbst – das ist der zweite Weg."
+        assert "inexxio:data-changed" not in src and "DATA_CHANGED" not in src, (
+            f"{name} hört selbst auf Schreibvorgänge – das ist der zweite Weg."
         )
+
+
+#: Eine lesende Anfrage, deren Antwort in einen eigenen Zustand geht (`.then(setX)` oder
+#: `.then((r) => { … setX(r) })`) – die Form der zweiten Datenquelle neben React Query.
+_READ_INTO_STATE = re.compile(
+    r"\bapi\.(?:get\w+|documentsOf|paymentsOf|personNewsletter|messageChannels|mailboxes"
+    r"|validate\w+|stepRecord|timeView|timePreview)\([^;]*?\)\s*"
+    r"\.then\(\s*(?:set[A-Z]\w*\s*\)|\(?\w*\)?\s*=>[^;]*?\bset[A-Z])")
+
+
+def test_a_detail_view_reads_through_react_query_only():
+    """Die Detailansichten lesen über React Query (`lib/queries.ts`), invalidiert an EINER
+    Stelle (`lib/feed.TOUCHES`). Eine Antwort, die in einen eigenen Zustand geht, ist die
+    zweite Datenquelle: sie veraltet nach einem Schreibvorgang, und eine ältere Antwort kann
+    eine neuere überholen. Ebenso eine Liste eines API-Typs in `useState` – sie lebt neben
+    der Query."""
+    for path in sorted((FRONTEND / "components" / "erp").glob("*-detail.tsx")):
+        src = _read(path)
+        hit = _READ_INTO_STATE.search(src)
+        assert not hit, (
+            f"{path.name}: «{hit.group(0)[:60]}…» legt eine Antwort in einen eigenen Zustand – "
+            "das gehört in eine Query (lib/queries.ts)."
+        )
+        m = re.search(r"import type \{([^}]*)\} from '@/types'", src)
+        api_types = {t.strip().split(" as ")[-1] for t in (m.group(1).split(",") if m else []) if t.strip()}
+        for t in api_types:
+            assert f"useState<{t}[]>" not in src, (
+                f"{path.name}: die Liste «{t}» lebt neben React Query in einem eigenen Zustand."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1633,7 +1661,7 @@ def test_the_deviation_mark_comes_from_one_component():
     assert "Abweichung" not in _code(page), "Im Feed steht das Label noch als Text."
 
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    assert "deviation={shown?.is_deviation" in detail, "Der Kopf trägt das Zeichen nicht."
+    assert re.search(r"deviation=\{\w+\?\.is_deviation", detail), "Der Kopf trägt das Zeichen nicht."
 
 
 def test_modules_are_collapsed_unless_they_are_up_next():

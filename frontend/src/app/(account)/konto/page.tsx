@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tan
 import { api } from '@/lib/api';
 import { refreshAfterEmailChange } from '@/lib/firebase';
 import { AccountShell } from '@/components/account/account-shell';
-import type { UserProfile } from '@/types';
+import type { UserProfileUpdate } from '@/types';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 60_000 } },
@@ -29,7 +29,7 @@ function KontoInner() {
     void refreshAfterEmailChange().then((token) => { if (token) void qc.invalidateQueries({ queryKey: ['me'] }); });
   }, [qc]);
 
-  async function handleSave(data: Partial<UserProfile>) {
+  async function handleSave(data: UserProfileUpdate) {
     await api.updateMe(data);
     await qc.invalidateQueries({ queryKey: ['me'] });
     if (data.first_name !== undefined || data.last_name !== undefined) {

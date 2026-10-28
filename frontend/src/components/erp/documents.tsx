@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { File, FileSpreadsheet, FileText, Film, Image as ImageIcon, Lock, X } from 'lucide-react';
-import { api, assetUrl } from '@/lib/api';
+import { assetUrl } from '@/lib/api';
+import { useDocumentsOf } from '@/lib/queries';
 import { formatObjectId } from '@/lib/utils';
 import { SectionSep } from '@/components/erp/fields';
 import { useErpNav } from '@/components/erp/obj-id';
@@ -19,16 +19,8 @@ import type { DocumentRefOut, DocumentSummary } from '@/types';
  * Ohne Dokument steht nichts da – auch kein leerer Abschnitt.
  */
 export function DocumentTiles({ objectId }: { objectId: number | null | undefined }) {
-  const [docs, setDocs] = useState<DocumentSummary[]>([]);
-  const load = useCallback(() => {
-    if (!objectId) return;
-    api.documentsOf(objectId).then(setDocs).catch(() => setDocs([]));
-  }, [objectId]);
-  useEffect(() => {
-    load();
-    window.addEventListener('inexxio:data-changed', load);
-    return () => window.removeEventListener('inexxio:data-changed', load);
-  }, [load]);
+  // Nachgeladen nach jeder Änderung an Dokumenten oder Aufträgen (`lib/feed.TOUCHES`).
+  const docs = useDocumentsOf(objectId).data ?? [];
   if (!docs.length) return null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>

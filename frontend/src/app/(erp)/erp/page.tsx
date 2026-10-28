@@ -8,7 +8,7 @@ import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import {userName, articleName, organizationName, orderName } from '@/lib/record-name';
 import { articleStatus, isStaff, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
 import { RecordIcon, StatusBadge } from '@/components/erp/fields';
-import { api } from '@/lib/api';
+import { absentOn404, api } from '@/lib/api';
 import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order, Todo, DocumentSummary } from '@/types';
 import type { StatusCfg } from '@/lib/status-tone';
 import { userInitials, UserDetail } from '@/components/erp/user-detail';
@@ -21,14 +21,14 @@ import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
-import { ERP_NOTICE, MESSAGES_CHANGED } from '@/components/erp/communication';
-import { TODO_CHANGED } from '@/lib/todo';
+import { ERP_NOTICE } from '@/components/erp/communication';
+import { MESSAGES_CHANGED, feedKey } from '@/lib/feed';
+import { qk } from '@/lib/queries';
 import { NewCompany, NewPerson } from '@/components/erp/new-record';
 import { DocumentDetail } from '@/components/erp/document-detail';
 import { DocumentDraft } from '@/components/erp/document-draft';
 import { statusCfg } from '@/lib/process-status';
 import { tell } from '@/lib/notice';
-import { feedKey } from '@/lib/feed';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
 // geteilt – EINE Quelle der Wahrheit für die Typ-Identität: lib/erp-record.ts.
@@ -250,22 +250,6 @@ export default function ErpPage() {
 
   const scan = useScan();
 
-  // Neue oder verschickte Nachrichten, eine erledigte Aufgabe: «zu tun» ändert sich – und ein
-  // unbekannter Absender ist jetzt eine Person.
-  useEffect(() => {
-    const onMessages = () => {
-      void qc.invalidateQueries({ queryKey: feedKey('todo') });
-      void qc.invalidateQueries({ queryKey: feedKey('people') });
-    };
-    const onTodo = () => { void qc.invalidateQueries({ queryKey: feedKey('todo') }); };
-    window.addEventListener(MESSAGES_CHANGED, onMessages);
-    window.addEventListener(TODO_CHANGED, onTodo);
-    return () => {
-      window.removeEventListener(MESSAGES_CHANGED, onMessages);
-      window.removeEventListener(TODO_CHANGED, onTodo);
-    };
-  }, [qc]);
-
   // ►►► Die Postfächer werden abgeglichen, solange das ERP offen ist (der Server drosselt
   // selbst, ohne Anbindung ist es ein No-op). Neues meldet sich wie jede andere Änderung.
   useEffect(() => {
@@ -381,17 +365,16 @@ export default function ErpPage() {
   // Datensatz auf einen Typ, dessen Detail sonst AUS DER LISTE rendert (Artikel), er aber
   // (noch) nicht geladen ist, wird er on-demand nachgeladen – sonst bliebe die Detailseite leer.
   // Auftrag/Instanz haben bereits ihren eigenen Fetch-Pfad (orderDetail/instanceDetail).
-  const [navRecord, setNavRecord] = useState<Row | null>(null);
-  useEffect(() => {
-    if (!sel || selectedRow || sel.type === 'instance' || sel.type === 'document') { setNavRecord(null); return; }
-    let cancelled = false;
-    const load: Promise<Row | null> =
-      sel.type === 'article'
-        ? api.getArticle(sel.objectId).then((d): Row => ({ type: 'article', key: `a${d.id}`, objectId: sel.objectId, data: d }))
-        : Promise.resolve(null);
-    load.then((row) => { if (!cancelled) setNavRecord(row); }).catch(() => { if (!cancelled) setNavRecord(null); });
-    return () => { cancelled = true; };
-  }, [sel, selectedRow]);
+  // Derselbe Schlüssel wie das Umfeld im Artikel – EIN Abruf; ein Fehler meldet sich.
+  const navId = sel && !selectedRow && sel.type === 'article' ? sel.objectId : null;
+  const navArticle = useQuery({
+    queryKey: qk.article(navId ?? 0),
+    queryFn: ({ signal }) => api.getArticle(navId!, { signal }),
+    enabled: navId != null,
+    meta: { what: 'Artikel' },
+  }).data;
+  const navRecord: Row | null = navId != null && navArticle
+    ? { type: 'article', key: `a${navArticle.id}`, objectId: navId, data: navArticle } : null;
   // Für aus-der-Liste rendernde Typen: der geladene Feed-Datensatz ODER der on-demand nachgeladene.
   const activeRow = selectedRow ?? navRecord;
 
@@ -433,7 +416,10 @@ export default function ErpPage() {
     try {
       const r = await api.resolveObject(objectId);
       handleSelect(r.object_type as ErpRecordType, objectId);
-    } catch { /* Objekt nicht gefunden – ignorieren */ }
+    } catch (e) {
+      // Ein Klick auf eine Nummer, die nichts öffnet, sagt warum.
+      tell(formatObjectId(objectId), 'Nicht geöffnet')(e);
+    }
   }
 
   /**
@@ -450,8 +436,9 @@ export default function ErpPage() {
       .slice(0, SUGGEST_LIMIT)
       .map(toCandidate);
     // Instanzen haben die höchste Kardinalität und werden darum serverseitig gesucht –
-    // genau wie im Feed. Fällt die Abfrage aus, bleiben die lokalen Treffer.
-    const found = await api.getInstances(SUGGEST_LIMIT, 0, needle).catch(() => []);
+    // genau wie im Feed. Fällt die Abfrage aus, bleiben die lokalen Treffer – gemeldet.
+    const found = await api.getInstances(SUGGEST_LIMIT, 0, needle)
+      .catch((e: unknown) => { tell('Instanzen')(e); return []; });
     return [
       ...local,
       ...found.map((i): ScanCandidate => ({
@@ -478,7 +465,7 @@ export default function ErpPage() {
     scan({
       steps: [{
         label: 'Datensatz',
-        exists: (id) => api.resolveObject(id).then(() => true).catch(() => false),
+        exists: (id) => api.resolveObject(id).then(() => true, absentOn404),
         suggest: suggestFromFeed,
       }],
       onComplete: ([objectId]) => { void openByObjectId(objectId); },

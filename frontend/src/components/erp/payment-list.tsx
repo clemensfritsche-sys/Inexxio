@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { qk } from '@/lib/queries';
 import { formatAmount } from '@/lib/utils';
 import type { PaymentRow } from '@/types';
 import { Amount } from '@/components/erp/module-ui';
@@ -30,22 +31,16 @@ export const PAYMENTS_TIP = 'Eine Ableitung aus allen Zahlungsmodulen – keine 
   + 'Neueste Nummer zuoberst; ein Klick öffnet den Auftrag. Betrag: + kommt zu uns, '
   + '− geht von uns · rot überfällig · schwarz ausstehend · grün bezahlt · grau storniert.';
 
-/** Die Zahlungen laden – neu bei jedem Datensatzwechsel. `null` = noch nicht geladen. */
+/** Die Zahlungen einer Person oder Gesellschaft. `null` = noch nicht geladen; ein Fehler
+ *  meldet sich (`meta.what`), der alte Stand bleibt. */
 export function usePayments(scope: { person: number } | { company: number } | null): PaymentRow[] | null {
-  const key = scope == null ? '' : 'person' in scope ? `p${scope.person}` : `c${scope.company}`;
-  const [rows, setRows] = useState<PaymentRow[] | null>(null);
-  useEffect(() => {
-    setRows(null);
-    if (!scope) return;
-    let stale = false;
-    api.paymentsOf(scope)
-      .then((r) => { if (!stale) setRows(r); })
-      .catch(() => { if (!stale) setRows([]); });
-    return () => { stale = true; };
-    // Der Schlüssel IST der Umfang – ein neues Objekt mit derselben Nummer lädt nicht neu.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return rows;
+  const query = useQuery({
+    queryKey: qk.payments(scope ?? { person: 0 }),
+    queryFn: ({ signal }) => api.paymentsOf(scope!, { signal }),
+    enabled: scope != null,
+    meta: { what: 'Zahlungen' },
+  });
+  return query.data ?? null;
 }
 
 /** Die Stellen der Währung stehen im Betrag selbst (`domain/currency.money`). */

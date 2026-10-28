@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { api } from '@/lib/api';
+import { tell } from '@/lib/notice';
 import { useAutosaveSignature } from '@/lib/use-autosave';
 import { day } from '@/lib/when';
 import { numericInputProps, numericOnly } from '@/components/erp/fields';
@@ -221,7 +222,12 @@ function Ownership({ d, onAction }: { d: Filled; onAction: Send }) {
 let agbFrom: Promise<string | null> | null = null;
 
 function agbDate(): Promise<string | null> {
-  agbFrom ??= api.publicLegal('agb').then((r) => r.valid_from).catch(() => null);
+  // Gescheitert gilt nicht als Antwort: gemeldet, und die nächste Karte fragt neu.
+  agbFrom ??= api.publicLegal('agb').then((r) => r.valid_from).catch((e: unknown) => {
+    tell('Datum der AGB')(e);
+    agbFrom = null;
+    return null;
+  });
   return agbFrom;
 }
 

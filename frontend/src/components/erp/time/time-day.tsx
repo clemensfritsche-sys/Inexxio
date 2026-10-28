@@ -9,20 +9,20 @@
  * Absenzart – ganzer Tag oder Stunden. **Ob es geht und was es bewirkt, sagt der Server**
  * (`/entries/preview`, dieselbe Regel wie beim Speichern) – die Oberfläche rechnet nichts nach.
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Calendar, Check, ChevronDown, Clock, FileCheck, LogIn, LogOut, Pencil, Plus, Undo2, Upload,
 } from 'lucide-react';
 import { ErrorText, IconSwitch, InfoHint, Row } from '@/components/erp/fields';
 import { LedgerRow, StageAction } from '@/components/erp/module-ui';
 import { api, assetUrl } from '@/lib/api';
+import { useDebouncedQuery } from '@/lib/queries';
 import { day as dayText, dayShort, dayTitle, parseDay } from '@/lib/when';
 import type { EntryPreview, TimeAbsence, TimeDay, TimeEntryIn, TimeStamp, TimeView } from '@/types';
 import {
   Dot, IconBar, IconButton, Note, Pill, QuietButton, ROW_FORM, TimeField, hm, parseClock,
   parseHm, timeIcon, vacationText,
 } from './time-ui';
-import { tell } from '@/lib/notice';
 
 /** Was im Werkzeug «Erfassen» gerade steht. */
 export interface Capture {
@@ -257,21 +257,15 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
   );
 }
 
-/** Die Vorschau zum Werkzeug – nachgeladen, sobald sich eine Eingabe ändert. */
+/** Die Vorschau zum Werkzeug – nachgeladen, sobald eine Eingabe ruht (`useDebouncedQuery`). */
 export function usePreview(person: number, cap: Capture | null): Preview | null {
-  const [p, setP] = useState<Preview | null>(null);
   const entry = cap ? captureEntry(cap) : null;
-  const key = JSON.stringify(entry);
-  useEffect(() => {
-    setP(null);
-    if (!entry) return;
-    if ((entry.kind === 'in' || entry.kind === 'out') && parseClock(entry.time ?? '') == null) return;
-    let live = true;
-    const t = setTimeout(() => {
-      api.timePreview(person, entry).then((r) => { if (live) setP(r); }).catch(tell('Vorschau der Zeiterfassung'));
-    }, 250);
-    return () => { live = false; clearTimeout(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [person, key]);
-  return p;
+  const unclocked = !!entry && (entry.kind === 'in' || entry.kind === 'out')
+    && parseClock(entry.time ?? '') == null;
+  const input = entry && !unclocked ? { person, entry } : null;
+  const preview = useDebouncedQuery({
+    name: 'time', input, what: 'Vorschau der Zeiterfassung',
+    ask: (i, req) => api.timePreview(i.person, i.entry, req),
+  });
+  return input ? preview.data ?? null : null;
 }

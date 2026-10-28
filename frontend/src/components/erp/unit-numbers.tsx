@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
+import { qk } from '@/lib/queries';
 import { VERBAUT } from '@/lib/status-catalog';
 import type { Genealogy, GenealogyPart, InstanceUnit } from '@/types';
 import { statusCfg } from '@/lib/process-status';
@@ -70,6 +72,21 @@ function GenealogyView({ data }: { data: Genealogy }) {
   );
 }
 
+/** Die Verbindungen eines Stücks – geladen erst beim Aufklappen; ein Fehler meldet sich. */
+function UnitGenealogy({ objectId, suffix }: { objectId: number; suffix: number }) {
+  const query = useQuery({
+    queryKey: qk.genealogy(objectId, suffix),
+    queryFn: ({ signal }) => api.getUnitGenealogy(objectId, suffix, { signal }),
+    meta: { what: 'Verbindungen des Stücks' },
+  });
+  if (query.data) return <GenealogyView data={query.data} />;
+  return (
+    <p className="py-1 text-[12.5px]" style={{ color: query.error ? 'var(--danger)' : 'var(--fg-4)' }}>
+      {query.error ? query.error.message : 'wird geladen …'}
+    </p>
+  );
+}
+
 /**
  * **Die Nummern der Einzelinstanzen — die unterste Ebene, seitenweise.**
  *
@@ -98,37 +115,31 @@ export function UnitNumbers({ objectId, statuses, quantity, dense }: {
   quantity?: number;
   dense?: boolean;
 }) {
-  const [rows, setRows] = useState<InstanceUnit[]>([]);
-  const [total, setTotal] = useState<number>(quantity ?? 0);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  // Die Zustands-Menge ist Teil der Frage und damit des Schlüssels: wechselt sie, ist es
+  // eine andere Liste – nicht eine längere.
+  const wanted = statuses ?? [];
+  const query = useInfiniteQuery({
+    queryKey: qk.units(objectId, wanted),
+    queryFn: ({ pageParam, signal }) => api.getInstanceUnits(objectId, {
+      statuses: wanted.length ? [...wanted] : undefined, limit: PAGE, offset: pageParam,
+    }, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((n, p) => n + p.units.length, 0);
+      return loaded < last.total ? loaded : undefined;
+    },
+    meta: { what: 'Nummern' },
+  });
+  const rows: InstanceUnit[] = query.data?.pages.flatMap((p) => p.units) ?? [];
+  const total = query.data?.pages.at(-1)?.total ?? quantity ?? 0;
+  const busy = query.isFetchingNextPage;
+  const err = !query.data && query.error ? query.error.message : null;
   // **Aufgeklappt wird eines nach dem anderen**, und geladen wird erst dann: die
   // Genealogie eines Stücks ist je Stück eine eigene Abfrage über den Log.
   const [open, setOpen] = useState<number | null>(null);
-  const [tree, setTree] = useState<Record<number, Genealogy>>({});
-
-  // Die Zustands-Menge ist Teil der Frage, also gehört sie in die Abhängigkeit – als
-  // Zeichenkette, weil ein frisch gebautes Array bei jedem Rendern ein anderes ist.
-  const key = (statuses ?? []).join(',');
-  const load = useCallback((offset: number) => {
-    setBusy(true);
-    api.getInstanceUnits(objectId, {
-      statuses: key ? key.split(',') : undefined, limit: PAGE, offset,
-    })
-      .then((page) => {
-        setTotal(page.total);
-        setRows((prev) => (offset === 0 ? page.units : [...prev, ...page.units]));
-        setErr(null);
-      })
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
-      .finally(() => setBusy(false));
-  }, [objectId, key]);
-
-  // Wechselt die Frage, ist es eine andere Liste – nicht eine längere.
-  useEffect(() => { setRows([]); load(0); }, [load]);
 
   if (err) return <p className="text-[12.5px]" style={{ color: 'var(--danger)' }}>{err}</p>;
-  if (rows.length === 0 && busy) {
+  if (rows.length === 0 && query.isPending) {
     return <p className="text-[12.5px] text-fg-4">Nummern werden geladen …</p>;
   }
   if (rows.length === 0) {
@@ -155,13 +166,7 @@ export function UnitNumbers({ objectId, statuses, quantity, dense }: {
                   aria-label={`Verbindungen von ${u.number}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    const next = isOpen ? null : u.id;
-                    setOpen(next);
-                    if (next !== null && !tree[u.id]) {
-                      api.getUnitGenealogy(objectId, u.suffix)
-                        .then((g) => setTree((prev) => ({ ...prev, [u.id]: g })))
-                        .catch(() => setOpen(null));
-                    }
+                    setOpen(isOpen ? null : u.id);
                   }}
                   className="-ml-1 text-fg-4 hover:text-fg-1"
                 >
@@ -193,9 +198,7 @@ export function UnitNumbers({ objectId, statuses, quantity, dense }: {
             </div>
             {isOpen && (
               <div className="mt-1 border-l border-border-1 pl-3">
-                {tree[u.id]
-                  ? <GenealogyView data={tree[u.id]} />
-                  : <p className="py-1 text-[12.5px] text-fg-4">wird geladen …</p>}
+                <UnitGenealogy objectId={objectId} suffix={u.suffix} />
               </div>
             )}
           </div>
@@ -205,7 +208,7 @@ export function UnitNumbers({ objectId, statuses, quantity, dense }: {
       {rows.length < total && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); load(rows.length); }}
+          onClick={(e) => { e.stopPropagation(); void query.fetchNextPage(); }}
           disabled={busy}
           className="mt-1 self-start text-[12.5px] text-fg-3 hover:text-fg-1 disabled:opacity-50"
         >

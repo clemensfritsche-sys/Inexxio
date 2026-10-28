@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { AlertTriangle, Boxes, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleStock, Instance, InstanceSummary, StockState } from '@/types';
+import { qk } from '@/lib/queries';
+import type { Instance, InstanceSummary, StockState } from '@/types';
 import { statusCfg } from '@/lib/process-status';
 import { SPEC, SpecHead } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
@@ -50,10 +52,23 @@ type StockScope =
 
 export function StockView({ scope }: { scope: StockScope }) {
   const articleId = scope.kind === 'article' ? scope.objectId : null;
-  const [stock, setStock] = useState<ArticleStock | null>(null);
-  const [rows, setRows] = useState<InstanceSummary[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  // Seitenweise: jede Seite bringt die Aufstellung des ganzen Umfangs mit, die Zeilen
+  // wachsen. Nach einem Auftrag lädt sie über `lib/feed.TOUCHES` nach.
+  const query = useInfiniteQuery({
+    queryKey: qk.stock(articleId ?? 0),
+    queryFn: ({ pageParam, signal }) => api.getArticleStock(articleId!, PAGE, pageParam, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((n, p) => n + p.instances.length, 0);
+      return loaded < last.instance_total ? loaded : undefined;
+    },
+    enabled: articleId != null,
+    meta: { what: 'Bestand' },
+  });
+  const stock = query.data?.pages.at(-1) ?? null;
+  const rows = query.data?.pages.flatMap((p) => p.instances) ?? [];
+  const busy = query.isFetchingNextPage;
+  const err = !stock && query.error ? query.error.message : null;
   /**
    * **Welcher Zustand offen ist – genau einer, und keiner zu Beginn** (#716/#789). Eine
    * Gruppe, die von selbst offensteht, entscheidet für den Betrachter, was ihn
@@ -63,21 +78,6 @@ export function StockView({ scope }: { scope: StockScope }) {
   const [picked, setPicked] = useState<string | null>(null);
   const toggle = (status: string) =>
     setPicked((cur) => (cur === status ? null : status));
-
-  const load = useCallback((offset: number) => {
-    if (articleId == null) return;
-    setBusy(true);
-    api.getArticleStock(articleId, PAGE, offset)
-      .then((s) => {
-        setStock(s);
-        setRows((prev) => (offset === 0 ? s.instances : [...prev, ...s.instances]));
-        setErr(null);
-      })
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
-      .finally(() => setBusy(false));
-  }, [articleId]);
-
-  useEffect(() => { setRows([]); load(0); }, [load]);
 
   const states = scope.kind === 'article' ? stock?.states : scope.record.states;
   const total = scope.kind === 'article' ? stock?.total : scope.record.quantity;
@@ -144,7 +144,7 @@ export function StockView({ scope }: { scope: StockScope }) {
               {stock != null && rows.length < stock.instance_total && (
                 <button
                   type="button"
-                  onClick={() => load(rows.length)}
+                  onClick={() => void query.fetchNextPage()}
                   disabled={busy}
                   className="mt-2 self-start text-[12.5px] text-fg-3 hover:text-fg-1 disabled:opacity-50"
                 >

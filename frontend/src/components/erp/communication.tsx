@@ -60,11 +60,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowDownUp, Check, ChevronDown, ChevronUp, Clock, ExternalLink, Loader2, Lock, Mail, Megaphone, MoreHorizontal,
   Newspaper, Paperclip, Phone, Reply, Send, X } from 'lucide-react';
 import meta from '@/lib/site-meta.json';
 import { MODULE_TONE } from '@/lib/modules';
 import { api } from '@/lib/api';
+import { MESSAGES_CHANGED } from '@/lib/feed';
+import { qk } from '@/lib/queries';
 import { useSearch } from '@/lib/use-search';
 import { formatWhen, whenDay, whenTitle } from '@/lib/when';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
@@ -83,8 +86,6 @@ const DELIVERIES: { key: Delivery; label: string; tip: string }[] = [
   { key: 'newsletter', label: 'Newsletter', tip: 'Werbung, nur an Angemeldete' },
 ];
 
-/** Alle, die das Zeichen im Feed betrifft, hören hierauf und laden die Zahlen neu. */
-export const MESSAGES_CHANGED = 'inexxio:messages';
 /** Ein Satz für die Hinweiszeile der ERP-Seite (``detail`` = der Satz) – für das, was
  *  scheitert, nachdem die Ansicht, die es auslöste, schon geschlossen ist. */
 export const ERP_NOTICE = 'inexxio:notice';
@@ -1133,14 +1134,15 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
 
 /** Das Postfach dieses Datensatzes – mit Zustand und, wo ich darf, Verbinden/Trennen.
  *  Ohne Anbindung (kein OAuth-Client) steht hier nichts: dann wird eine Mail erfasst. */
-function Mailboxes({ boxes, onChange }: { boxes: Mailbox[]; onChange: () => void }) {
+function Mailboxes({ boxes }: { boxes: Mailbox[] }) {
   const [error, setError] = useState<string | null>(null);
   const shown = boxes.filter((b) => b.connected || b.may_connect || b.problem);
   if (!shown.length) return null;
   const connect = (b: Mailbox) => api.connectMailbox(b.channel)
     .then((r) => { window.location.href = r.url; })
     .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht verbinden.'));
-  const drop = (b: Mailbox) => api.disconnectMailbox(b.channel).then(onChange)
+  // Danach lädt das Postfach über `lib/feed.TOUCHES` selbst nach.
+  const drop = (b: Mailbox) => api.disconnectMailbox(b.channel)
     .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht trennen.'));
   const link = { border: 0, background: 'none', padding: 0, font: 'inherit', fontSize: 12,
     color: 'var(--accent)', cursor: 'pointer' } as const;
@@ -1177,28 +1179,28 @@ export function Communication({ person, company, ownCompany, me }: {
   ownCompany?: boolean;
   me?: Person | null;
 }) {
-  const [messages, setMessages] = useState<Message[] | null>(null);
-  const [channels, setChannels] = useState<MessageChannel[]>([]);
-  const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const load = useCallback(() => {
-    api.getMessages(person ? { person: person.object_id } : { company })
-      .then((m) => { setMessages(m); setError(null); })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht geladen werden.'));
-  }, [person, company]);
-  useEffect(() => { load(); }, [load]);
+  // ►►► **Der Verlauf ist eine Query** – geschlüsselt nach der Nummer, nicht nach dem Objekt
+  // `person` (ein neues Objekt je Render lud sonst bei jeder Taste neu). Neues aus dem
+  // Abgleich und Gesendetes laden über `MESSAGES_CHANGED` nach (`lib/use-feed.ts`). ◄◄◄
+  const personId = person?.object_id;
+  const scope = personId ? { person: personId } : { company };
+  const history = useQuery({
+    queryKey: qk.messages(scope),
+    queryFn: ({ signal }) => api.getMessages(scope, { signal }),
+    meta: { what: 'Verlauf' },
+  });
+  const messages: Message[] | null = history.data ?? null;
   // Ein Postfach hat nur eine eigene Gesellschaft – es steht an ihrem Datensatz.
   // Persönliche gibt es nicht: im Kommunikationstool ist jeder Benutzer gleich.
-  const loadChannels = useCallback(() => {
-    if (person) api.messageChannels().then(setChannels).catch(tell('Absender'));
-    if (company && ownCompany) api.mailboxes(company).then(setMailboxes).catch(tell('Postfach'));
-  }, [person, company, ownCompany]);
-  useEffect(() => { loadChannels(); }, [loadChannels]);
-  // Neues aus dem Abgleich erscheint ohne Neuladen der Seite.
-  useEffect(() => {
-    window.addEventListener(MESSAGES_CHANGED, load);
-    return () => window.removeEventListener(MESSAGES_CHANGED, load);
-  }, [load]);
+  const channels: MessageChannel[] = useQuery({
+    queryKey: qk.senders(), queryFn: ({ signal }) => api.messageChannels({ signal }),
+    enabled: !!personId, meta: { what: 'Absender' },
+  }).data ?? [];
+  const mailboxes: Mailbox[] = useQuery({
+    queryKey: qk.mailboxes(company ?? 0), queryFn: ({ signal }) => api.mailboxes(company!, { signal }),
+    enabled: !!company && !!ownCompany, meta: { what: 'Postfach' },
+  }).data ?? [];
+  const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<Target | null>(null);
   const [sending, setSending] = useState<Sending | null>(null);
   const changed = () => window.dispatchEvent(new Event(MESSAGES_CHANGED));
@@ -1223,11 +1225,14 @@ export function Communication({ person, company, ownCompany, me }: {
   // Die Anliegen dieser Person – zur Auswahl im Betreff, das jüngste zuerst.
   const topics = [...new Set((messages ?? []).map((m) => m.topic).filter(Boolean).reverse())];
 
-  if (error) return <p style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</p>;
+  if (!messages && history.error) {
+    return <p style={{ color: 'var(--danger)', fontSize: 13 }}>{history.error.message || 'Konnte nicht geladen werden.'}</p>;
+  }
   if (!messages) return <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Lädt …</p>;
   return (
     <div>
-      <Mailboxes boxes={mailboxes} onChange={loadChannels} />
+      {error && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</p>}
+      <Mailboxes boxes={mailboxes} />
       {/* ►►► Der Verlauf steht bei der JÜNGSTEN Nachricht. ◄◄◄ `column-reverse` verankert das
           Rollen am unteren Ende: ohne Skript beim Öffnen unten, eine neue Nachricht bleibt im
           Blick, und «ältere laden» schiebt nichts weg. Höhe begrenzt, damit die Stammdaten

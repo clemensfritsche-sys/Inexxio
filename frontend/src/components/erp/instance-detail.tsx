@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Fingerprint, Package } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Instance } from '@/types';
+import { qk } from '@/lib/queries';
 import { instanceName } from '@/lib/record-name';
 import { kindLabel } from '@/lib/record-status';
 import { DetailBody, DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/fields';
@@ -31,16 +31,13 @@ import { LabelButton } from '@/components/scan/object-label';
  * hingehört; die Leiste im Bestand zählt auf, statt zu behaupten.
  */
 export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?: () => void }) {
-  const [rec, setRec] = useState<Instance | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let dead = false;
-    api.getInstance(objectId)
-      .then((r) => { if (!dead) { setRec(r); setError(null); } })
-      .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); });
-    return () => { dead = true; };
-  }, [objectId]);
+  const query = useQuery({
+    queryKey: qk.instance(objectId),
+    queryFn: ({ signal }) => api.getInstance(objectId, { signal }),
+    meta: { what: 'Instanz' },
+  });
+  const rec = query.data ?? null;
+  const error = !rec && query.error ? query.error.message : null;
 
   if (error) return <div className="p-6 text-sm" style={{ color: 'var(--danger)' }}>{error}</div>;
   if (!rec) return null;

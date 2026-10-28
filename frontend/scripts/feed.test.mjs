@@ -22,7 +22,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const js = ts.transpileModule(readFileSync(resolve(here, '../src/lib/feed.ts'), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const { feedsTouchedBy, FEED_LISTS, feedKey, DATA_CHANGED } = await import(
+const { feedsTouchedBy, touchedBy, areaKey, FEED_LISTS, DETAILS, feedKey, DATA_CHANGED } = await import(
   `data:text/javascript;base64,${Buffer.from(js).toString('base64')}`
 );
 const touched = (p) => [...feedsTouchedBy(p)].sort();
@@ -67,4 +67,23 @@ test('unbekannt heisst alle Listen – und ein Präfix trifft nur ganze Pfadteil
 test('der Schlüssel einer Liste ist das Präfix, über das sie invalidiert wird', () => {
   assert.deepEqual([...feedKey('instances')], ['feed', 'instances']);
   assert.equal(DATA_CHANGED, 'inexxio:data-changed');
+});
+
+test('die Detailansichten hängen an derselben Tabelle', () => {
+  const areas = (p) => new Set(touchedBy(p));
+  const order = areas(`${API}/erp/orders/${oid}/steps/${step}/voucher`);
+  for (const d of ['order', 'instance', 'article', 'stock', 'units', 'documentsOf', 'payments']) {
+    assert.ok(order.has(d), `Handlung am Auftrag lädt «${d}» nicht nach`);
+  }
+  assert.ok(areas(`${API}/erp/documents/${oid}/refs`).has('documentsOf'), 'Kacheln am Datensatz');
+  assert.ok(areas(`${API}/erp/documents`).has('document'));
+  assert.ok(areas(`${API}/erp/messages`).has('messages'));
+  assert.ok(areas(`${API}/erp/newsletter/${oid}/invite`).has('newsletter'));
+  assert.ok(areas(`${API}/erp/messages/mailboxes/c${oid}/connect`).has('mailboxes'));
+  assert.deepEqual([...areas(`${API}/erp/orders/validate`)], []);
+  // Unbekannt heisst alles – auch jede Detailansicht.
+  const all = areas(`${API}/erp/neu`);
+  for (const d of DETAILS) assert.ok(all.has(d), d);
+  assert.deepEqual([...areaKey('order')], ['order']);
+  assert.deepEqual([...areaKey('orders')], ['feed', 'orders']);
 });

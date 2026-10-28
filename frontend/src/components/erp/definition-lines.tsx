@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, GitBranch, Package, Plus, ScanLine, Sprout, Trash2, X } from 'lucide-react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { qk, useSettled } from '@/lib/queries';
 import type { ArticleOption, UnitChoices, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { FieldAction, IconSwitch, inputCls } from '@/components/erp/fields';
@@ -250,7 +252,7 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
   }, [line.articleObjectId, article, onArticle]);
 
   const findArticles = useCallback(
-    (q: string) => api.getArticleOptions({ search: q, limit: 20 }).catch(() => []),
+    (q: string) => api.getArticleOptions({ search: q, limit: 20 }),
     [],
   );
 
@@ -409,27 +411,30 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
   articleObjectId: number; quantity: number; chosen: UnitPick[]; refreshKey: number;
   onChange: (picks: UnitPick[]) => void;
 }) {
-  const [page, setPage] = useState<UnitChoices | null>(null);
-  const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<string | null>(null);
+  const [query, setQueryText] = useState('');
+  const [group, setGroupKey] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
+  // Filter/Suche fangen wieder vorn an – eine Seite 3 einer anderen Menge ist keine. Im
+  // selben Schritt gesetzt, damit es EINE Frage ist, nicht eine mit altem und eine mit
+  // neuem Versatz.
+  const setQuery = (q: string) => { setQueryText(q); setOffset(0); };
+  const setGroup = (g: string | null) => { setGroupKey(g); setOffset(0); };
   const scan = useScan();
 
   // **Eine Seite, nicht die Liste.** `preselect` bittet den Server um die FIFO-Auswahl –
-  // er kennt die Ordnung und den Filter, die Seite kennt beides nicht.
-  useEffect(() => {
-    let dead = false;
-    api.getUnitOptions({
-      articleObjectId, preselect: quantity, limit: PAGE,
-      offset, search: query || undefined, status: group ? [group] : undefined,
-    })
-      .then((p) => { if (!dead) setPage(p); })
-      .catch(() => { if (!dead) setPage({ units: [], total: 0, states: [], preselect: [] }); });
-    return () => { dead = true; };
-  }, [articleObjectId, refreshKey, quantity, offset, query, group]);
-
-  // Filter/Suche fangen wieder vorn an – eine Seite 3 einer anderen Menge ist keine.
-  useEffect(() => { setOffset(0); }, [query, group]);
+  // er kennt die Ordnung und den Filter, die Seite kennt beides nicht. Die Suche ist
+  // entprellt; bis die neue Seite da ist, steht die alte (kein Springen).
+  const search = useSettled(query.trim());
+  const opts = {
+    articleObjectId, preselect: quantity, limit: PAGE, offset,
+    search: search || undefined, status: group ? [group] : undefined,
+  };
+  const page: UnitChoices | null = useQuery({
+    queryKey: [...qk.unitOptions(opts), refreshKey],
+    queryFn: ({ signal }) => api.getUnitOptions(opts, { signal }),
+    placeholderData: keepPreviousData,
+    meta: { what: 'Stücke im Lager' },
+  }).data ?? null;
 
   // **Der Vorschlag hängt an seiner Grundlage, nicht an einem Ereignis.** Er entsteht nur
   // ins Leere: was der Mensch gewählt hat, wird nie überschrieben (`chosen` ist bewusst
@@ -593,11 +598,9 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
                   suggest: (q: string) => api.getInstances(8, 0, q)
                     .then((rows) => rows
                       .filter((i) => i.object_id != null)
-                      .map((i) => ({ objectId: i.object_id as number, label: i.article_name ?? '' })))
-                    .catch(() => []),
+                      .map((i) => ({ objectId: i.object_id as number, label: i.article_name ?? '' }))),
                   exists: (id: number) => api.getInstances(5, 0, String(id))
-                    .then((rows) => rows.some((i) => i.object_id === id))
-                    .catch(() => false),
+                    .then((rows) => rows.some((i) => i.object_id === id)),
                 }],
                 onComplete: (ids) => { if (ids[0] != null) setQuery(String(ids[0])); },
               })} />
