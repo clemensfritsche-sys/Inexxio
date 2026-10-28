@@ -135,8 +135,7 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop.
 PENDING_DROP: set[str] = {
     # Mapping weg (Runde 28.10.2026), Drop im Folge-Deploy – docs/backlog.md.
-    "user_profiles.department", "user_profiles.job_title", "user_profiles.language",
-    "user_profiles.notification_email", "user_profiles.notification_inapp",
+    "user_profiles.department", "user_profiles.job_title",
 }
 
 
@@ -166,10 +165,10 @@ def test_nothing_is_left_that_no_model_knows(built):
     lag bis hierher nur ein Backlog-Eintrag: 60 Spalten und 17 Tabellen standen still in
     der Datenbank, einige seit Monaten.
 
-    *Bewusst behalten (Entscheid E7)* sind ``articles.safety_stock``, ``min_order_qty`` und
-    ``supplier_article_number`` – sie sind **gemappt**, also fallen sie hier gar nicht an;
-    verliert eine davon ihr Mapping, meldet der Wächter sie, und das ist richtig: dann ist
-    es eine neue Entscheidung.
+    *Bewusst behalten (Entscheid E7)* sind ``articles.safety_stock``, ``min_order_qty``,
+    ``supplier_article_number``, ``user_profiles.language`` und ``notification_*`` – sie
+    sind **gemappt**, also fallen sie hier gar nicht an; verliert eine davon ihr Mapping,
+    meldet der Wächter sie, und das ist richtig: dann ist es eine neue Entscheidung.
 
     Bug-Form (gegengeprüft): ohne die Drops von Migration 152 meldete er 60 Spalten und
     17 Tabellen.

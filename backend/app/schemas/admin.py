@@ -261,6 +261,11 @@ class UserProfileResponse(BaseModel):
     required_fields: list[str] = []
     missing_fields: list["MissingField"] = []
 
+    # Preferences
+    language: str
+    notification_email: bool
+    notification_inapp: bool
+
     # Auth
     last_login_at: Optional[datetime]
 
@@ -281,6 +286,10 @@ class UserProfileUpdate(BaseModel):
     #: die Firmendaten seiner Kollegen.
     company_object_id: Optional[int] = None
     new_company: Optional[NewCompany] = None
+
+    # Preferences
+    notification_email: Optional[bool] = None
+    notification_inapp: Optional[bool] = None
 
 
 # Gültige Rollen – EINE Quelle der Wahrheit (``PATCH /erp/records/{id}``,

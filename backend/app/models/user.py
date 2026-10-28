@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, Date, DateTime, String, Text
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.database import Base
@@ -75,6 +75,11 @@ class UserProfile(Base, TimestampMixin):
         primaryjoin="foreign(UserProfile.company_object_id) == CompanySettings.object_id",
         viewonly=True, lazy="select", uselist=False,
     )
+    # Vorlieben – bewusst behalten (Entscheid E7, 18.10.2026), auch ohne Leser.
+    language: Mapped[str] = mapped_column(String(10), default="de")
+    notification_email: Mapped[bool] = mapped_column(Boolean, default=True)
+    notification_inapp: Mapped[bool] = mapped_column(Boolean, default=True)
+
     # Eintritt, Pensum und Austritt stehen im **Vertrag** der Zeiterfassung
     # (``models/timekeeping``), die Einwilligung zum Newsletter als Nachweis
     # (``models/newsletter``).
