@@ -7,7 +7,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { day } from '@/lib/when';
 import { VOUCHER_STAGE } from '@/lib/modules';
-import { inputCls, Label, Segmented } from '@/components/erp/fields';
+import { inputCls, Label, Segmented } from '@/components/erp/controls';
+import { StatusDot } from '@/components/erp/fields';
 import { ACT_H, ActionButton, Steady } from '@/components/erp/module-ui';
 import { formBody, formProblem, formWord, startForm } from './forms';
 import type { Form } from './forms';
@@ -67,10 +68,7 @@ export function Footer(p: FooterProps) {
     }}>
       <div className="flex flex-wrap items-center justify-between" style={{ gap: '12px 16px' }}>
         <div className="flex items-start" style={{ gap: 9, minWidth: 0, flex: '1 1 200px' }}>
-          <span aria-hidden className="rounded-full" style={{
-            width: 7, height: 7, flex: 'none', marginTop: 6,
-            background: DOT[state.tone] ?? 'var(--fg-4)',
-          }} />
+          <StatusDot color={DOT[state.tone] ?? 'var(--fg-4)'} style={{ marginTop: 7 }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ font: '600 14px var(--font-body)', color: 'var(--fg-1)' }}>{state.label}</div>
             <div style={{ fontSize: 12.5, color: 'var(--fg-3)', marginTop: 2 }}>

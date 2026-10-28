@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { api } from '@/lib/api';
+import { tell } from '@/lib/notice';
 import { useAutosaveSignature } from '@/lib/use-autosave';
 import { day } from '@/lib/when';
-import { numericInputProps, numericOnly } from '@/components/erp/fields';
+import { numericInputProps, numericOnly } from '@/components/erp/controls';
 import {
   DOC_FIELD, DocPick, Editable, FixedValue, Section, Stacked, isFixed, may,
 } from './shared';
@@ -63,7 +64,7 @@ function SavedTerm({ d, label, field, busy, on, days, terms, hint, onAction }: {
   const fixed = isFixed(d, field);
   const save = useCallback(() => {
     // **Die Null ist eine Angabe** («Vorauszahlung» · «Sofort») – geprüft wird auf leer.
-    void onAction({ action: 'terms', [field]: draft === '' ? null : Number(draft) });
+    return onAction({ action: 'terms', [field]: draft === '' ? null : Number(draft) });
   }, [onAction, field, draft]);
   useAutosaveSignature(`${field}:${draft}`, on && !fixed && draft !== remote && !busy, save);
 
@@ -221,7 +222,12 @@ function Ownership({ d, onAction }: { d: Filled; onAction: Send }) {
 let agbFrom: Promise<string | null> | null = null;
 
 function agbDate(): Promise<string | null> {
-  agbFrom ??= api.publicLegal('agb').then((r) => r.valid_from).catch(() => null);
+  // Gescheitert gilt nicht als Antwort: gemeldet, und die nächste Karte fragt neu.
+  agbFrom ??= api.publicLegal('agb').then((r) => r.valid_from).catch((e: unknown) => {
+    tell('Datum der AGB')(e);
+    agbFrom = null;
+    return null;
+  });
   return agbFrom;
 }
 

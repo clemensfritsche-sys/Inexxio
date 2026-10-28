@@ -2,6 +2,7 @@
 """
 
 from tests._source import (
+    _feed,
     BACKEND,
     FRONTEND,
     _body,
@@ -469,7 +470,7 @@ def test_the_draft_keeps_its_work_and_its_place():
     (c) die Auswahl wächst über die verlangte Menge («2 von 1»); (d) eine Handlung am Beleg
     lässt den bearbeiteten Abschnitt wegrutschen.
     """
-    page = _code(_read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx"))
+    page = _code(_feed())
     draft = page[page.index("<ErpNavContext.Provider value={null}>"):]
     draft = draft[: draft.index("</ErpNavContext.Provider>")]
     assert "creating === 'order'" in draft and "creating === 'article'" in draft, "(a)"

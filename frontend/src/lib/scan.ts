@@ -270,8 +270,13 @@ export const objectCodes: ScanReading = {
     }
     // Formal gültig – aber gibt es die Nummer? Nur der freie Lookup fragt das; ein
     // Verifikationsschritt kennt sein Ziel bereits.
-    if (step.exists && !(await step.exists(objectId))) {
-      return `${nr(objectId)} ist nicht im ERP`;
+    if (step.exists) {
+      // Scheitert die Frage selbst, sagt der Rahmen das – nicht «nicht im ERP».
+      const known = await step.exists(objectId).catch((e: unknown) => e);
+      if (known !== true && known !== false) {
+        return `${nr(objectId)} nicht geprüft – ${known instanceof Error && known.message ? known.message : 'keine Antwort vom Server'}`;
+      }
+      if (!known) return `${nr(objectId)} ist nicht im ERP`;
     }
     return null;
   },

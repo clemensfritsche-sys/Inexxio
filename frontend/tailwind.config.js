@@ -1,11 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 
 // ── Inexxio Design System → Tailwind ─────────────────────────────────────────
-// Every value below is a reference to a CSS custom property defined in the single
-// source of truth: src/styles/design-system/colors_and_type.css (vendored from
-// Claude Design). Tailwind utilities (bg-bg-2, text-fg-3, text-accent,
-// border-border-1, rounded-ds-lg, shadow-ds-md, font-display …) therefore always
-// resolve to the canonical token — change a value there, not here.
+// Jeder Wert hier ist ein Verweis auf eine Variable der einen Quelle,
+// src/styles/design-system/colors_and_type.css. Die Utilities (bg-bg-2, text-fg-3,
+// text-accent, border-border-1, rounded-ds-lg, shadow-ds-md, font-display …) lösen damit
+// immer auf das Token auf – ein Wert wird dort geändert, nicht hier. Was keine Klasse
+// liest, steht nicht hier.
 module.exports = {
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
@@ -18,8 +18,8 @@ module.exports = {
         mono: ['var(--font-mono)'],
       },
       colors: {
-        // Brand — the single loud accent. Use sparingly (CTAs, one headline word,
-        // active nav underline). `inexxio` and `red` map to the same brand red.
+        // Rot – der eine laute Akzent: Anfrage, aktiver Zustand, echte Fehler; nie in einer
+        // Überschrift.
         inexxio: {
           DEFAULT: 'var(--inexxio-red)',
           red: 'var(--inexxio-red)',
@@ -27,14 +27,13 @@ module.exports = {
           deep: 'var(--inexxio-red-deep)',
           black: 'var(--inexxio-black)',
         },
-        // Cool slate accent — the quiet third voice for ERP info / active states
-        // / links, where brand red would be too loud or read as an alert.
+        // Slate – die leise Stimme: Info, aktiver Zustand, Links im ERP, wo Rot zu laut wäre.
         accent: {
           DEFAULT: 'var(--accent)',
           soft: 'var(--accent-soft)',
           ink: 'var(--accent-ink)',
         },
-        // Ink / foreground (warm-neutral)
+        // Schrift (kühles Grau, v4)
         fg: {
           1: 'var(--fg-1)',
           2: 'var(--fg-2)',
@@ -43,7 +42,7 @@ module.exports = {
           'on-red': 'var(--fg-on-red)',
           'on-dark': 'var(--fg-on-dark)',
         },
-        // Surfaces / backgrounds (warm Scandinavian neutrals)
+        // Flächen (kühles Grau, v4)
         bg: {
           1: 'var(--bg-1)',
           2: 'var(--bg-2)',
@@ -52,22 +51,11 @@ module.exports = {
           dark: 'var(--bg-dark)',
           'dark-2': 'var(--bg-dark-2)',
         },
-        // Warm neutral scale (oak / stone / sand) pulled from the interior renders
-        sand: {
-          50: 'var(--sand-50)',
-          100: 'var(--sand-100)',
-          200: 'var(--sand-200)',
-          300: 'var(--sand-300)',
-          400: 'var(--sand-400)',
-        },
-        oak: 'var(--oak)',
-        stone: 'var(--stone)',
-        // Semantic — pair each with its soft `-bg` tint for chips/rows
+        // Bedeutung – je mit ihrer getönten Fläche `-bg`
         success: { DEFAULT: 'var(--success)', bg: 'var(--success-bg)' },
         warning: { DEFAULT: 'var(--warning)', bg: 'var(--warning-bg)' },
-        info: { DEFAULT: 'var(--info)', bg: 'var(--info-bg)' },
         danger: { DEFAULT: 'var(--danger)', bg: 'var(--danger-bg)' },
-        // Hairline borders
+        // Haarlinien
         border: {
           1: 'var(--border-1)',
           2: 'var(--border-2)',
@@ -80,31 +68,23 @@ module.exports = {
         DEFAULT: 'var(--border-1)',
       },
       borderRadius: {
-        // DS radii — namespaced `ds-*` so Tailwind's own rounded-{sm,md,lg,…}
-        // (used across the existing app) keep their meaning.
+        // Radien unter `ds-*`, damit Tailwinds eigene rounded-{sm,md,lg,…} ihre Bedeutung
+        // behalten: Bedienelement 8 px (md), Karte 12 px (lg).
         'ds-xs': 'var(--r-xs)',
         'ds-sm': 'var(--r-sm)',
         'ds-md': 'var(--r-md)',
         'ds-lg': 'var(--r-lg)',
-        'ds-xl': 'var(--r-xl)',
-        'ds-pill': 'var(--r-pill)',
       },
       boxShadow: {
-        // DS shadows — soft, warm, low-contrast. `shadow-ds-red` / `shadow-glow-*`
-        // are hover/press accents only, never a resting glow.
+        // Schatten nur für schwebende Ebenen; `shadow-ds-red` nur als Hover-Akzent des roten
+        // Knopfs, nie im Ruhezustand.
         'ds-xs': 'var(--shadow-xs)',
         'ds-sm': 'var(--shadow-sm)',
         'ds-md': 'var(--shadow-md)',
         'ds-lg': 'var(--shadow-lg)',
-        'ds-xl': 'var(--shadow-xl)',
         'ds-red': 'var(--shadow-red)',
-        'glow-sm': 'var(--glow-sm)',
-        'glow-md': 'var(--glow-md)',
-        'glow-lg': 'var(--glow-lg)',
       },
       letterSpacing: {
-        tightest: 'var(--tracking-tight)',
-        snug: 'var(--tracking-snug)',
         overline: 'var(--tracking-overline)',
       },
     },

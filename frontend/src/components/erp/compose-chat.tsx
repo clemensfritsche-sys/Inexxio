@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { api } from '@/lib/api';
-import { inputCls } from '@/components/erp/fields';
+import { inputCls } from '@/components/erp/controls';
 
 /** Was eine Runde dem Entwurf übergibt: das Papier und was dazu gehört. */
 interface ComposedPaper {

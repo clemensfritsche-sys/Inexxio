@@ -5,6 +5,9 @@ import json
 import re
 
 from tests._source import (
+    _feed,
+    ERP_KIT,
+    _kit,
     FRONTEND,
     ROOT,
     _at,
@@ -78,7 +81,7 @@ def test_the_header_is_defined_once_for_every_record_type():
     vorher reichte jede Ansicht sie einzeln herein, drei davon mit hart getippten
     Hex-Werten und einem zweiten Mal ausgeschriebenem Namen.
     """
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     assert "type: ErpRecordType;" in fields, "Der Kopf kennt den Datensatztyp nicht."
     assert "TYPE_META[type]" in fields, "Der Kopf löst die Identität nicht selbst auf."
 
@@ -97,7 +100,7 @@ def test_the_header_is_defined_once_for_every_record_type():
 def test_the_origin_uses_the_shared_switch():
     """**#694 — Neu/Lager ist derselbe Schiebe-Regler wie die Mengeneinheit.**"""
     ui = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
-    assert "IconSwitch, inputCls } from '@/components/erp/fields'" in ui, (
+    assert re.search(r"import \{[^}]*\bIconSwitch\b[^}]*\} from '@/components/erp/controls'", ui), (
         "Der Regler wird nicht aus dem gemeinsamen Vokabular geholt."
     )
     # Geprüft wird die **Verdrahtung**, nicht das Vorkommen des Wortes: der Regler muss
@@ -143,7 +146,7 @@ def test_the_header_never_mixes_font_shorthand_with_a_conditional_override():
     benutzt keine `font`-Kurzschreibweise.** Sonst hängt das Ergebnis davon ab, ob die
     Überschreibung je aktiv war – und das ist ein Zustand, kein Entwurf.
     """
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     header = _body(fields, "DetailHeader", kind="function")
 
     # Welche DH-Stile werden im Kopf konditional zusammengeführt?
@@ -324,9 +327,9 @@ def test_a_button_without_effect_is_caught_by_the_linter():
     )
     # Dass die CI sie ausführt, prüft ``test_ci.py``.
 
-    feed = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    feed = _feed()
     assert "feedCapture" not in feed, "Der tote Zustand hinter dem Scan-Knopf ist zurück."
-    assert "onClick={openScanner}" in feed, "Der Scan-Knopf ist wieder ohne Wirkung."
+    assert "onScan={openScanner}" in feed and "onClick={onScan}" in feed, "Der Scan-Knopf ist wieder ohne Wirkung."
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +349,7 @@ def test_a_record_has_exactly_one_width():
     Ansicht – also steht sie einmal (`DETAIL_MAXW`) und wird über ein Bauteil geerbt
     (`DetailBody`), nicht an fünf Stellen abgeschrieben.
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     assert "export const DETAIL_MAXW" in fields, "Die eine Breite fehlt."
     assert "export function DetailBody" in fields, "Das Bauteil dazu fehlt."
     assert "maxWidth: DETAIL_MAXW" in fields, (
@@ -378,7 +381,7 @@ def test_a_section_head_carries_its_own_hairline():
     unterschiedlichem Abstand. Eine Anatomie, die man an der Aufrufstelle zusammensetzt,
     ist an der nächsten Aufrufstelle anders.
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     head = _body(fields, "SpecHead", kind="function")
     assert "borderBottom" in head, (
         "Der Karten-Kopf trägt seine Haarlinie nicht selbst – dann fehlt sie dort, wo "
@@ -606,7 +609,7 @@ def test_the_suggestion_list_hangs_on_the_body_not_in_the_field():
     Klick-daneben-Schliesser fragt nur das Feld – dann verschwindet die Zeile, bevor der
     Klick auf ihr ankommt; (d) sie wird beim Scrollen nicht nachgeführt.
     """
-    src = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    src = _code(_kit())
     block = " ".join(_component(src, "SearchSelect").split())
     assert "createPortal(" in block and "document.body," in block, (
         "Die Liste hängt nicht an <body> (b) – dann schneidet sie der erste Rahmen mit "
@@ -703,7 +706,7 @@ def test_a_note_names_the_element_not_its_whole_subtree():
     )
     # **Und die Markierungen, aus denen die Herkunft entsteht, müssen es geben.**
     assert "data-fb-module" in _code(
-        _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")), (
+        _read(FRONTEND / "components" / "erp" / "module-card.tsx")), (
         "Die Modul-Karte benennt sich nicht – dann steht in keiner Notiz, aus welchem "
         "Modul sie kommt."
     )
@@ -1112,7 +1115,7 @@ def test_autosave_is_one_module_with_one_delay():
 
 
 def test_card_has_one_home():
-    """**`Card` steht EINMAL** (F-41) – in `fields.tsx`.
+    """**`Card` steht EINMAL** (F-41) – in `detail-frame.tsx`.
 
     Konto und ERP-Benutzer bauten beide nach (wortgleich), und ein Kommentar behauptete
     das Gegenteil.
@@ -1120,10 +1123,10 @@ def test_card_has_one_home():
     Bug-Form: eine Datei definiert sie wieder selbst.
     """
     for rel, src in _frontend_sources(".tsx"):
-        if rel == "components/erp/fields.tsx":
+        if rel == "components/erp/detail-frame.tsx":
             continue
         assert not re.search(r"\bfunction Card\s*\(", src), (
-            f"«{rel}» baut `Card` nach – sie steht in `fields.tsx`."
+            f"«{rel}» baut `Card` nach – sie steht in `detail-frame.tsx`."
         )
 
 
@@ -1137,8 +1140,8 @@ def test_the_micro_label_is_written_once():
 
     Bug-Form: eine Datei schreibt die Versalien wieder selbst.
     """
-    allowed = {"components/erp/fields.tsx", "components/erp/module-ui.tsx",
-               "components/erp/pay-online.tsx"}
+    allowed = {f"components/erp/{n}.tsx" for n in ERP_KIT} | {
+        "components/erp/module-ui.tsx", "components/erp/pay-online.tsx"}
     hits = [rel for rel, src in _frontend_sources(".tsx", ".ts")
             if rel not in allowed and "textTransform: 'uppercase'" in _code(src)]
     assert not hits, f"Diese Dateien schreiben das Mikro-Label selbst: {hits}"
@@ -1176,7 +1179,7 @@ def test_a_search_while_typing_is_one_hook():
     hits = [rel for rel, src in _frontend_sources(".ts", ".tsx")
             if rel not in allowed and debounce.search(_code(src))]
     assert not hits, f"Diese Dateien suchen beim Tippen selbst: {hits}"
-    for rel in ("components/erp/fields.tsx", "components/erp/communication.tsx",
+    for rel in ("components/erp/search-select.tsx", "components/erp/communication/composer.tsx",
                 "components/scan/scan-dialog.tsx", "components/erp/article-detail.tsx"):
         assert "useSearch" in _read(FRONTEND / rel), f"«{rel}» nutzt die gemeinsame Suche nicht."
 
@@ -1219,3 +1222,118 @@ def test_the_old_palette_is_gone_also_as_hex():
         assert not found, f"«{rel}» trägt die Alt-Palette als Hex (a): {found}"
         assert "#E51A14" not in src.upper() and "--ix-red" not in src, f"«{rel}» (b)"
         assert "var(--color-warning" not in src, f"«{rel}» (c)"
+
+
+def test_a_dialog_closes_only_when_its_action_went_through():
+    """Ein Dialog, der eine Handlung auslöst (Senden, Löschen), schliesst nur bei Erfolg –
+    sonst wäre die Eingabe weg und der Grund stünde hinter dem geschlossenen Dialog. Die
+    Handlung sagt es (`act` gibt `true` zurück); ein `.then(() => set…(false))` schliesst
+    auch beim Fehler."""
+    closing = re.compile(r"\bact\(\(\) => [^;{}]*?\)\)\s*\.then\(\(\)\s*=>\s*set\w+\(false\)\)")
+    for rel, src in _frontend_sources(".tsx"):
+        hit = closing.search(src)
+        assert not hit, f"«{rel}» schliesst einen Dialog auch, wenn die Handlung scheitert."
+    detail = _read(FRONTEND / "components" / "erp" / "document-detail.tsx")
+    assert re.search(r"function act\(.*\):\s*Promise<boolean>", detail), (
+        "`act` sagt nicht, ob die Handlung ging."
+    )
+
+
+#: Eine `ix-`-Klasse im Markup (`className="…"`, `` `…` ``, `'…'`).
+_IX_CLASS = re.compile(r"(?<![\w-])(ix-[\w-]+)")
+_CLASS_ATTR = re.compile(r"className=(?:\"([^\"]*)\"|\{`([^`]*)`\}|\{[^}]*?'([^']*)')")
+
+
+def _ix_classes_without_css(markup: str, css: str) -> set[str]:
+    used = set()
+    for m in _CLASS_ATTR.finditer(markup):
+        used |= set(_IX_CLASS.findall(" ".join(x for x in m.groups() if x)))
+    # `ix-shell` legt der Website-Build als eigenes Stylesheet ab (`scripts/site-shell.mjs`).
+    return {c for c in used - {"ix-shell"} if not re.search(rf"\.{re.escape(c)}(?![\w-])", css)}
+
+
+def test_every_ix_class_in_the_markup_exists():
+    """Eine Klasse, die es nicht gibt, erzeugt still nichts – die Rückkehrseite der Anmeldung
+    trug `.ix-login-bg`/`.ix-login-lightbox` und sah darum nicht aus wie der Dialog. Jede
+    `ix-`-Klasse im Markup steht in einem Stylesheet (Frontend oder Website)."""
+    css = "".join(p.read_text(encoding="utf-8") for p in sorted(FRONTEND.rglob("*.css")))
+    css += "".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "website" / "src").rglob("*"))
+                   if p.suffix in (".css", ".astro"))
+    assert _ix_classes_without_css('<div className="ix-login-lightbox" />', css) == {"ix-login-lightbox"}
+    for rel, src in _frontend_sources(".tsx"):
+        missing = _ix_classes_without_css(src, css)
+        assert not missing, f"«{rel}» trägt Klassen ohne Stil: {sorted(missing)}"
+
+
+def test_dialogs_tabs_and_chips_say_what_they_are():
+    """Ein Bildschirmleser hört, was ein Bauteil ist: der Dialog ist ein modaler Dialog mit
+    Titel, nimmt den Fokus und gibt ihn zurück (Escape schliesst); die Reiter sind eine
+    Reiterliste mit gewähltem Reiter; ein Filter-Chip sagt, ob er gedrückt ist; ein Knopf
+    nur mit Symbol hat einen Namen."""
+    fields = _kit()
+    start = fields.index("export function Dialog(")
+    dialog = fields[start: fields.index("\n}\n", start)]
+    for need in ('role="dialog"', 'aria-modal="true"', "aria-labelledby={titleId}", "'Escape'",
+                 ".focus()", "before?.focus"):
+        assert need in dialog, f"Der Dialog: «{need}» fehlt."
+    tabs = _read(FRONTEND / "components" / "erp" / "detail-tabs.tsx")
+    for need in ('role="tablist"', 'role="tab"', "aria-selected="):
+        assert need in tabs, f"Die Reiter: «{need}» fehlt."
+    page = _feed()
+    chip = page[page.index("FILTER_TYPES.filter"):]
+    chip = chip[: chip.index("</button>")]
+    assert "aria-pressed={active}" in chip and "aria-label=" in chip, "Der Filter-Chip sagt nicht, was er ist."
+    territory = _read(FRONTEND / "components" / "erp" / "territory-map.tsx")
+    close = territory[: territory.index("<X size={14}")]
+    assert "aria-label=" in close[close.rindex("<button"):], "Das × der Gebietskarte hat keinen Namen."
+
+
+#: Ein selbst gebauter Punkt: 5–8 px, rund (`borderRadius: 999` oder `rounded-full`).
+_HAND_DOT = re.compile(
+    r"width: [5-8], height: [5-8],[^}]*?(?:borderRadius: 999|background)"
+    r"|rounded-full\" style=\{\{\s*width: [5-8], height: [5-8]")
+#: Punkte, die kein Zustand sind – mit Grund.
+_NOT_A_STATE = {
+    "components/erp/territory-map.tsx": "die Farbe einer Gesellschaft auf der Karte",
+    "components/erp/time/time-calendar.tsx": "eine Markierung in der Ecke eines Kalendertags",
+    "components/erp/fields.tsx": "StatusDot selbst",
+    "components/erp/controls.tsx": "die Empfehlung am Schieber (IconSwitch.mark)",
+}
+
+
+def test_a_state_dot_is_one_component():
+    """«Status als Punkt + Wort» – ein Bauteil (`fields.StatusDot`), nicht acht Eigenbauten
+    mit 6, 7 und 8 px."""
+    for rel, src in _frontend_sources(".tsx"):
+        if rel in _NOT_A_STATE:
+            continue
+        hit = _HAND_DOT.search(src)
+        assert not hit, f"«{rel}» baut einen Zustandspunkt selbst: {hit.group(0)[:60]} – dafür gibt es StatusDot."
+    assert _HAND_DOT.search("<span style={{ width: 7, height: 7, borderRadius: 999, flex: 'none' }} />")
+
+
+def test_every_input_has_the_one_form():
+    """Ein Eingabefeld hat EINE Form (`fields.inputClass`): Radius, Rahmen, Polsterung,
+    Schrift, Fokus. Die Felder der Konto-Bausteine im ERP, der Zeiterfassung und der
+    Spezifikation führen darauf zurück; eine zweite Fassung daneben läuft auseinander."""
+    fields = _kit()
+    assert "rounded-ds-md" in re.search(r"const INPUT_FORM = '([^']+)'", fields).group(1)
+    for rel in ("components/form/field.tsx", "components/erp/time/time-ui.tsx",
+                "components/erp/article-detail.tsx"):
+        src = _read(FRONTEND / rel)
+        assert "inputClass(" in src or "inputCls" in src, f"«{rel}» baut sein Eingabefeld selbst."
+        assert "FIN_CLS" not in src and "style.borderColor" not in src, f"«{rel}»: zweite Feldform."
+        assert not re.search(r"<input[^>]*?style=\{\{\s*padding: '8px 12px'", src, re.S), (
+            f"«{rel}» trägt die Form des Feldes inline."
+        )
+
+
+def test_the_composer_holds_one_draft():
+    """Die Eingabe der Kommunikation ist EIN Zustand (`Draft`) – derselbe, den «Rückgängig»
+    wiederherstellt. Dreizehn einzelne `useState` liefen beim Wiederherstellen und Leeren
+    auseinander (jede Stelle musste alle dreizehn kennen)."""
+    src = _read(FRONTEND / "components" / "erp" / "communication" / "composer.tsx")
+    body = src[src.index("export function Composer("):]
+    assert body.count("useState<Draft>(") == 1, "Die Eingabe ist nicht EIN Zustand."
+    for part in ("useState<Person[]>", "useState<Mode>", "useState<Delivery>", "useState<Message | null>"):
+        assert part not in body, f"Ein Teil der Eingabe lebt in einem eigenen Zustand: {part}"

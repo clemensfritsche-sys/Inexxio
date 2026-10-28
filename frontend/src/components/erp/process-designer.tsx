@@ -20,16 +20,14 @@ import {
 const SAMPLE_ICON: Record<SampleMode, LucideIcon> = {
   all: Layers, half: Columns2, quarter: Grid2x2, free: Percent,
 };
-import {
-  DRAFT_OBJECT_ID, definitionGraph, type DiagramStep,
-} from '@/components/erp/process-diagram';
+import { DRAFT_OBJECT_ID, definitionGraph, type DiagramStep } from '@/lib/process-graph';
 import { ProcessColumns } from '@/components/erp/process-columns';
 import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
-import {
-  IconSwitch, InfoHint, Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
-} from '@/components/erp/fields';
+import { IconSwitch, Label, inputCls, numericInputProps, numericOnly } from '@/components/erp/controls';
+import { InfoHint } from '@/components/erp/hints';
+import { MICRO_LABEL } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { PlaceRef } from '@/types';
@@ -284,7 +282,7 @@ function MoveFields({ module: m, onChange }: {
     let stale = false;
     api.getPlace(Number(target))
       .then((p) => { if (!stale) setPlace(p); })
-      .catch(() => { if (!stale) setPlace(null); });
+      .catch((e: unknown) => { if (!stale) { setPlace(null); tell('Zielort')(e); } });
     return () => { stale = true; };
   }, [target]);
 
@@ -292,8 +290,7 @@ function MoveFields({ module: m, onChange }: {
   // Stelle, an der der Unterschied entsteht, statt einer zweiten Feld-Konvention.
   const findPlaces = useCallback(
     (q: string) => api.searchPlaces(q)
-      .then((rows) => rows.map((p) => ({ ...p, name: p.label })))
-      .catch(() => []),
+      .then((rows) => rows.map((p) => ({ ...p, name: p.label }))),
     [],
   );
 
@@ -394,7 +391,7 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
     return () => { stale = true; };
   }, [m.parties, known, search]);
 
-  const find = useCallback((q: string) => search(q).catch(() => []), [search]);
+  const find = search;
 
   return (
     <div className="flex flex-col gap-3">

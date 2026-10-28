@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Scale } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Card, Label } from '@/components/erp/fields';
+import { useDocumentsOf } from '@/lib/queries';
+import { Card } from '@/components/erp/detail-frame';
+import { Label } from '@/components/erp/controls';
 import { DocumentField } from '@/components/erp/document-field';
-import type { DocumentSummary } from '@/types';
 
 /** Die zwei Rechtstexte einer Gesellschaft – Art, Pflichtfeld, Wort. */
 const TEXTS = [
@@ -22,16 +23,14 @@ const TEXTS = [
  * Mensch entscheidet, angelegt wird nie von selbst. Setzen darf nur der Admin.
  */
 export function LegalTexts({ company, isAdmin }: { company: number; isAdmin: boolean }) {
-  const [docs, setDocs] = useState<DocumentSummary[]>([]);
+  // Nachgeladen nach jeder Änderung an Dokumenten (`lib/feed.TOUCHES`) – auch nach «Aus
+  // Vorlage» und nach dem Setzen eines Feldes.
+  const docs = useDocumentsOf(company).data ?? [];
   const [error, setError] = useState('');
-  const load = useCallback(() => {
-    api.documentsOf(company).then(setDocs).catch(() => setDocs([]));
-  }, [company]);
-  useEffect(() => { load(); }, [load]);
 
   async function fromTemplate(kind: 'agb' | 'datenschutz') {
     setError('');
-    try { await api.legalFromTemplate(company, kind); load(); } catch (e) { setError((e as Error).message); }
+    try { await api.legalFromTemplate(company, kind); } catch (e) { setError((e as Error).message); }
   }
 
   return (
@@ -46,7 +45,7 @@ export function LegalTexts({ company, isAdmin }: { company: number; isAdmin: boo
               <DocumentField value={value} label={t.label} disabled={!isAdmin}
                 target={{ object_id: company, part: null, field: t.field, extra: {}, label: 'Gesellschaft', lock: t.label }}
                 seed={{ art: t.label }}
-                onChange={() => load()} />
+                />
               {!value && isAdmin && (
                 <button type="button" onClick={() => void fromTemplate(t.kind)}
                   style={{ alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, cursor: 'pointer',

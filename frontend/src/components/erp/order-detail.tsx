@@ -1,22 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ClipboardList, Layers, MessageSquareText } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, Layers, MessageSquareText } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
+import { qk, useDebouncedQuery } from '@/lib/queries';
 import type {
-  ArticleProcess, CapturePoint, Order, OrderSummary, PlaceRef,
+  CapturePoint, Order, OrderSummary, PlaceRef,
   RelatedOrder, StepWork,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
-import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/fields';
+import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/detail-frame';
 import { DocumentTiles } from '@/components/erp/documents';
-import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
-import {
-  DRAFT_OBJECT_ID, EMPTY_GRAPH, PROCESS_MAXW, StepCard, definitionGraph,
-  type DiagramStep,
-  type JourneyOrigin,
-} from '@/components/erp/process-diagram';
+import { DRAFT_OBJECT_ID, EMPTY_GRAPH, definitionGraph, type DiagramStep, type JourneyOrigin } from '@/lib/process-graph';
+import { PROCESS_MAXW } from '@/components/erp/flow-column';
+import { StepCard } from '@/components/erp/module-card';
 import { ProcessColumns, toDiagramSteps } from '@/components/erp/process-columns';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
@@ -30,10 +29,6 @@ import { RUNTIME_CHOICE } from '@/lib/scan';
 import { moduleIcon } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
-
-// Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
-// keine weiteren – auch keine leeren oder deaktivierten.
-const TABS = [{ key: 'auftrag' as const, label: 'Auftrag', icon: ClipboardList }];
 
 /**
  * Auftrag – Detailfenster.
@@ -124,20 +119,11 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
       ...blankModule(i + 1, m.moduleType),
       target: m.target ? String(m.target) : '',
     })));
-  const [missing, setMissing] = useState<string[] | null>(null);
-  /**
-   * **Die Vorschau der Quell-Aufträge** (Auftrag §2). Sie kommt aus derselben Ableitung
-   * wie das echte Bild (`flow.build` mit `planned`) und aus derselben Anfrage wie die
-   * Freigebbarkeit – ein zweiter Aufruf dafür wäre ein zweiter Stand desselben Entwurfs.
-   */
-  const [preview, setPreview] = useState<RelatedOrder[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [live, setLive] = useState<Order | null>(null);
   // Zählt hoch, wenn die Freigabe an einer veralteten Auswahl scheitert – der Picker holt
   // die Stückliste dann neu und zeigt, wo die Stücke jetzt liegen.
   const [refreshKey, setRefreshKey] = useState(0);
-  const [loading, setLoading] = useState(false);
 
   /**
    * **Das Detail lädt seinen Auftrag selbst.**
@@ -148,38 +134,37 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
    * Prozess als leer: kein Modul, keine Einzelinstanzen, «nicht gestartet». Genau das
    * war zu sehen – die Erzeugung lief pünktlich, die Ansicht wusste nur nichts davon.
    *
-   * Die Zeile aus dem Feed dient nur noch als Adresse (`object_id`).
+   * Die Zeile aus dem Feed dient nur noch als Adresse (`object_id`). Die Antwort jeder
+   * Handlung IST der neue Auftrag (`setQueryData`); nachgeladen wird über `lib/feed.TOUCHES`.
    */
   const objectId = record?.object_id ?? null;
-  useEffect(() => {
-    if (objectId == null) { setLive(null); return; }
-    let dead = false;
-    setLoading(true);
-    api.getOrder(objectId)
-      .then((o) => { if (!dead) setLive(o); })
-      .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); })
-      .finally(() => { if (!dead) setLoading(false); });
-    return () => { dead = true; };
-  }, [objectId]);
+  const qc = useQueryClient();
+  const orderQuery = useQuery({
+    queryKey: qk.order(objectId ?? 0),
+    queryFn: ({ signal }) => api.getOrder(objectId!, { signal }),
+    enabled: objectId != null,
+    meta: { what: 'Auftrag' },
+  });
+  const live = objectId == null ? null : orderQuery.data ?? null;
+  const setLive = useCallback((o: Order) => {
+    if (objectId != null) qc.setQueryData(qk.order(objectId), o);
+  }, [qc, objectId]);
 
   const draft = useMemo(() => ({
     lines: toPayload(lines),
     steps: steps.map(toModulePayload),
   }), [lines, steps]);
 
-  // Freigebbarkeit beim Server erfragen, nicht selbst behaupten.
-  useEffect(() => {
-    if (!isDraft) { setMissing(null); setPreview([]); return; }
-    let dead = false;
-    api.validateOrder(draft)
-      .then((v) => {
-        if (dead) return;
-        setMissing(v.missing ?? []);
-        setPreview(v.parents ?? []);
-      })
-      .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); });
-    return () => { dead = true; };
-  }, [isDraft, draft]);
+  // Freigebbarkeit beim Server erfragen, nicht selbst behaupten. **Die Vorschau der
+  // Quell-Aufträge** (Auftrag §2) kommt aus derselben Antwort – ein zweiter Aufruf wäre ein
+  // zweiter Stand desselben Entwurfs.
+  const check = useDebouncedQuery({
+    name: 'order', input: isDraft ? draft : null, ask: api.validateOrder, what: 'Prüfung des Auftrags',
+  });
+  const missing: string[] | null = !isDraft ? null
+    : check.data ? (check.data.missing ?? [])
+      : check.error ? [`Prüfung nicht möglich – ${check.error.message}`] : null;
+  const preview: RelatedOrder[] = (isDraft && check.data?.parents) || [];
 
   async function release() {
     setBusy(true); setError(null);
@@ -203,17 +188,17 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
                                          values: Record<string, Record<string, unknown>>,
                                          sources: number[] = [],
                                          place: number | null = null) => {
-    if (!live) return;
+    if (objectId == null) return;
     setBusy(true); setError(null);
     try {
-      setLive(await api.confirmStep(live.object_id, stepId, values,
+      setLive(await api.confirmStep(objectId, stepId, values,
                                     instanceObjectId, verification, sources, place));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
-  }, [live]);
+  }, [objectId, setLive]);
 
   /**
    * **Eine Handlung am Beleg** – derselbe Weg wie das Bestätigen: ein Aufruf, die
@@ -222,16 +207,16 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const runVoucher = useCallback(async (
     stepId: number, body: { action: string } & Record<string, unknown>,
   ) => {
-    if (!live) return;
+    if (objectId == null) return;
     setBusy(true); setError(null);
     try {
-      setLive(await api.updateVoucher(live.object_id, stepId, body));
+      setLive(await api.updateVoucher(objectId, stepId, body));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
-  }, [live]);
+  }, [objectId, setLive]);
 
   /**
    * **Den Auftrag noch einmal holen** – ohne eine Handlung an ihm.
@@ -241,17 +226,11 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
    * hat keine solche Antwort – gebucht wird sie vom Webhook –, also braucht genau sie
    * diesen einen Weg.
    */
-  const reload = useCallback(async () => {
-    if (objectId == null) return;
-    try {
-      setLive(await api.getOrder(objectId));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [objectId]);
+  const { refetch } = orderQuery;
+  const reload = useCallback(() => { void refetch(); }, [refetch]);
 
   const blocked = missing != null && missing.length > 0;
-  const shown = live;
+  const loadError = !live && orderQuery.error ? orderQuery.error.message : null;
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -259,15 +238,15 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
         type="order"
         // **Die Abweichung ist ein Zeichen am Symbol** (#699) – dieselbe Komponente wie
         // im Feed. Zwei Implementierungen driften garantiert auseinander (#688).
-        deviation={shown?.is_deviation ?? false}
-        title={shown?.name ?? null}
+        deviation={live?.is_deviation ?? false}
+        title={live?.name ?? null}
         placeholder="Neuer Auftrag"
-        objectId={shown?.object_id ?? record?.object_id ?? null}
+        objectId={live?.object_id ?? record?.object_id ?? null}
         objectIdText={isDraft ? '—' : undefined}
         objectIdHint={isDraft
           ? 'Die Objektnummer entsteht erst mit der Freigabe. Bis dahin existiert dieser Auftrag nur in diesem Fenster.'
           : undefined}
-        status={shown ? orderStatus(shown) : undefined}
+        status={live ? orderStatus(live) : undefined}
         actions={isDraft ? (
           <HeaderAction
             label="Freigeben"
@@ -276,18 +255,17 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             disabled={busy || blocked || missing == null}
             onClick={release}
           />
-        ) : shown?.object_id != null ? (
-          <LabelButton objectId={shown.object_id} title={shown.name} kind="Auftrag" />
+        ) : live?.object_id != null ? (
+          <LabelButton objectId={live.object_id} title={live.name} kind="Auftrag" />
         ) : undefined}
         onBack={onBack}
-        tabs={<DetailTabs tabs={TABS} active="auftrag" onChange={() => {}} />}
       />
 
       <div className="flex-1 p-5" style={{ background: 'var(--bg-2)' }}>
-        {error && (
+        {(error ?? loadError) && (
           <p className="mb-3 text-sm max-w-[880px] mx-auto px-3 py-2 rounded-ds-lg"
             style={{ color: 'var(--danger)', background: 'var(--danger-bg)' }}>
-            {error}
+            {error ?? loadError}
           </p>
         )}
 
@@ -298,17 +276,17 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
         {isDraft ? (
           <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}
             refreshKey={refreshKey} parents={preview} />
-        ) : shown ? (
-          <RunView order={shown} busy={busy} onConfirm={confirmStep}
+        ) : live ? (
+          <RunView order={live} busy={busy} onConfirm={confirmStep}
             onVoucher={runVoucher} onReload={reload}
             onDeviate={onDeviate} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
-            {loading ? 'Lädt …' : null}
+            {orderQuery.isFetching ? 'Lädt …' : null}
           </p>
         )}
-        {!isDraft && shown?.object_id != null && (
-          <DetailBody style={{ paddingBottom: 40 }}><DocumentTiles objectId={shown.object_id} /></DetailBody>
+        {!isDraft && live?.object_id != null && (
+          <DetailBody style={{ paddingBottom: 40 }}><DocumentTiles objectId={live.object_id} /></DetailBody>
         )}
 
       </div>
@@ -339,22 +317,20 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
   /** Die Quell-Aufträge, wie sie nach der Freigabe aussähen (Auftrag §2). */
   parents: RelatedOrder[];
 }) {
-  const [template, setTemplate] = useState<ArticleProcess | null>(null);
-
   // Welcher Artikel bringt den Prozess mit? Der erste mit Herkunft «Neu».
   const sourceArticle = useMemo(
     () => lines.find((l) => l.origin === NEU && l.articleObjectId !== null)?.articleObjectId ?? null,
     [lines],
   );
-
-  useEffect(() => {
-    if (sourceArticle === null) { setTemplate(null); return; }
-    let dead = false;
-    api.getArticleProcess(sourceArticle)
-      .then((p) => { if (!dead) setTemplate(p); })
-      .catch(() => { if (!dead) setTemplate(null); });
-    return () => { dead = true; };
-  }, [sourceArticle]);
+  // Die Vorlage ist eingefroren – einmal gelesen, gilt sie.
+  const templateQuery = useQuery({
+    queryKey: qk.articleProcess(sourceArticle ?? 0),
+    queryFn: ({ signal }) => api.getArticleProcess(sourceArticle!, { signal }),
+    enabled: sourceArticle !== null,
+    staleTime: Infinity,
+    meta: { what: 'Erzeugungsprozess' },
+  });
+  const template = sourceArticle === null ? null : templateQuery.data ?? null;
 
   const mirrored: DiagramStep[] | null = useMemo(() => {
     if (!template) return null;
@@ -761,7 +737,7 @@ function workOf(order: Order, stepId: number): StepWork[] {
 
 /*
  * **Der Ereignis-Log steht am Prozessobjekt**, an dem er passiert ist
- * (`process-diagram.historyTip`) – Start, Module und Ende tragen dieselbe Blase, denn
+ * (`lib/process-graph.historyTip`) – Start, Module und Ende tragen dieselbe Blase, denn
  * `start`/`end` haben kein Modul (`step_id = null`).
  */
 

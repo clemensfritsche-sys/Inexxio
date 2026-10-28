@@ -5,6 +5,9 @@ Aussondern, Bewegen, Verbrauch.
 import re
 
 from tests._source import (
+    _feed,
+    _diagram,
+    _kit,
     BACKEND,
     FRONTEND,
     ROOT,
@@ -175,13 +178,12 @@ def test_a_draft_never_touches_the_database():
     )
 
 
-def test_the_order_tab_row_has_exactly_one_tab():
-    """Genau EIN Reiter «Auftrag» – keine weiteren, auch keine leeren oder deaktivierten."""
+def test_the_order_window_has_no_tab_row():
+    """Der Auftrag hat keine Reiter – eine Leiste mit genau einem Reiter wählt nichts aus.
+    Auch keine leeren oder deaktivierten."""
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    m = re.search(r"const TABS = \[(.*?)\];", detail, re.S)
-    assert m, "TABS fehlt im Auftrags-Fenster."
-    assert m.group(1).count("key:") == 1, (
-        f"Das Auftrags-Fenster hat {m.group(1).count('key:')} Reiter – es soll genau einen haben."
+    assert "DetailTabs" not in detail and "tabs=" not in detail, (
+        "Das Auftrags-Fenster trägt wieder eine Reiter-Leiste."
     )
     tabs = _read(FRONTEND / "components" / "erp" / "detail-tabs.tsx")
     assert "disabled" not in tabs, (
@@ -216,7 +218,7 @@ def test_the_process_lines_are_computed_from_measured_anchors():
     # **Der Code, nicht die Prosa.** Ohne ``_code`` las dieser Waechter seine eigene
     # Begruendung mit: eine Erklaerung, die sagt «ohne absolute Position», enthaelt das
     # Wort – und er schlug an, weil jemand die Regel *beschreibt*, die er schuetzt.
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     assert "absolute" not in diagram, (
         "Das Diagramm positioniert einen Knoten absolut – Knoten liegen im Fluss."
     )
@@ -234,7 +236,7 @@ def test_the_process_object_is_one_component():
     Kein Copy-Paste je Modulart – sonst wächst mit jedem Modul ein zweites Bauteil, das
     beim nächsten Design-Wechsel vergessen wird.
     """
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     assert diagram.count("function StepCard") == 1, (
         "Es gibt mehr als eine Modul-Komponente."
     )
@@ -270,7 +272,7 @@ def test_colour_hangs_on_the_status_at_exactly_one_place():
     # Fassung verlangte, dass jede dieser Dateien `statusCfg` *nennt* – und hielt damit
     # einen Import am Leben, der längst nichts mehr tat. Ein Wächter, der tote Zeilen
     # erzwingt, arbeitet gegen sein eigenes Ziel.
-    for name in ("process-diagram.tsx", "order-detail.tsx", "stock-view.tsx",
+    for name in ("flow-column.tsx", "module-card.tsx", "order-detail.tsx", "stock-view.tsx",
                  "unit-numbers.tsx", "stock-bar.tsx"):
         src = _code(_read(FRONTEND / "components" / "erp" / name))
         # ``MODULE_TONE`` ist ausdrücklich erlaubt: Prozessmodule tragen eine eigene,
@@ -282,7 +284,7 @@ def test_colour_hangs_on_the_status_at_exactly_one_place():
             )
 
     # Und wer Farbe zeigt, holt sie dort: das Diagramm färbt Knoten nach Zustand.
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     assert "statusCfg" in diagram, "Das Diagramm färbt nicht über die zentrale Zuordnung."
 
 
@@ -293,7 +295,7 @@ def test_the_process_diagram_is_one_component_with_two_modes():
     «Erzeugungsprozess» ist dieselbe Darstellung, und ein zweites Bauteil liefe beim
     ersten Design-Wechsel auseinander.
     """
-    src = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    src = _diagram()
     assert "'definition'" in src and "'ausfuehrung'" in src, "Die zwei Modi fehlen."
     assert src.count("function StepCard") == 1, "Es gibt mehr als eine Modul-Komponente."
     # Die Definition der Einzelinstanzen ist ein Slot, kein fester Bestandteil – sonst
@@ -557,7 +559,7 @@ def test_large_quantities_are_counted_not_listed():
     assert "func.count(" in svc, "Die Gruppen werden nicht gezählt, sondern aufgelistet."
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
     assert "class FlowUnits(" in schema and "event_count" in schema
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     assert "GraphUnits" in diagram and "g.count" in diagram
     # Der Deckel steht dort, wo die Historie jetzt steht: **am Prozessobjekt** (§5).
     assert "von ${total} Einträgen" in diagram, "Der Deckel der Historie wird verschwiegen."
@@ -819,7 +821,7 @@ def test_a_module_is_created_by_the_palette_and_never_edited():
     assert "onPick" in src and "onChange([...modules," in src, (
         "Die Palette legt das Modul nicht direkt an."
     )
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     assert "onDelete" in diagram, "Der Mülleimer fehlt – dann gibt es gar keinen Weg zurück."
 
 
@@ -829,7 +831,7 @@ def test_the_palette_stands_where_the_next_module_would_go():
     Ein Symbol je Modultyp in seiner Farbe, Name im Hover – dieselbe Interaktion wie die
     Mengeneinheit am Artikel (`IconSwitch labelActiveOnly`), nicht etwas Neues.
     """
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     body = _body(diagram, "columnRows", kind="export function")
     # Der Palettenknoten wird **vor** dem Ende-Knoten eingeschoben – nicht danach und
     # nicht am Listenende, wo er hinter der Zielflagge stünde.
@@ -919,7 +921,7 @@ def test_a_supplier_sees_his_module_without_the_process_picture():
     assert "StepCard" in src and "stepBody(step" in src, (
         "Die Modul-Karte wird nachgebaut statt wiederverwendet."
     )
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     assert "export function StepCard(" in diagram
 
 
@@ -942,7 +944,7 @@ def test_an_unknown_module_looks_unknown_not_like_another_one():
         "Der Rückfall zeigt kein Fragezeichen – ein unbekanntes Modul gibt sich damit "
         "als ein bekanntes aus."
     )
-    for name in ("process-diagram.tsx", "process-designer.tsx", "order-detail.tsx"):
+    for name in ("flow-column.tsx", "module-card.tsx", "process-designer.tsx", "order-detail.tsx"):
         src = _read(FRONTEND / "components" / "erp" / name)
         assert "MODULE_ICON[" not in src, (
             f"{name} greift am ``moduleIcon`` vorbei in die Tabelle – und wählt damit "
@@ -984,7 +986,7 @@ def test_modules_are_reordered_by_dragging_not_by_a_second_form():
     macht ihren Inhalt zum Ziehgriff, und in ihren Eingabefeldern liesse sich kein Text
     mehr markieren. Das fällt bei einem Modul kaum auf und bei zwanzig sofort.
     """
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     card = _body(diagram, "StepCard", kind="function")
     assert "onDragStart" in card and "onDrop" in card
     grip = card[card.index("GripVertical") - 800:card.index("GripVertical")]
@@ -1124,7 +1126,7 @@ def test_the_journey_scales_by_grouping_not_by_listing():
 
 def test_no_neighbour_means_nothing_shown():
     """Kein Vorgänger/Nachfolger → **nichts**, kein Platzhalter mit Fantasiedaten."""
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     body = _body(diagram, "columnRows", kind="export function")
     pushes = re.findall(r"^\s*(if \(extra\.journey\w+\) rows\.push.*)$", body, re.M)
     assert len(pushes) == 2, f"Erwartet zwei Journey-Zeilen, gefunden {len(pushes)}."
@@ -1187,7 +1189,7 @@ def test_the_history_points_at_the_id_not_at_a_name():
         )
     # Die Historie steht seit §5 **am Prozessobjekt** statt in einer Box darunter – die
     # Regel ist dieselbe: aufgelöst wird über die ID.
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     log = _body(diagram, "historyTip", kind="export function")
     assert "e.step_id === node.at" in log, (
         "Die Historie löst den Schritt nicht über seine ID auf."
@@ -1230,7 +1232,7 @@ def test_the_process_picture_brings_its_own_width():
     zwei Stände sind; hier war es nicht die Komponente, sondern das Mass. Also bringt sie
     es selbst mit.
     """
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     assert "export const PROCESS_MAXW" in diagram, "Das Prozessbild hat keine eigene Breite."
     # Das Mass wird dort angewandt, wo der Rahmen entsteht – und den gibt es genau einmal.
     assert "maxWidth: PROCESS_MAXW" in _read(
@@ -1297,11 +1299,11 @@ def test_the_feed_learns_about_every_write_from_one_place():
     # betrifft. Die Listen des Feeds sind Queries – ein eigener `useState` je Liste daneben
     # wäre die zweite Datenquelle, die nach einem Schreibvorgang stehen bleibt.
     hook = _read(FRONTEND / "lib" / "use-feed.ts")
-    assert "feedsTouchedBy(path)" in hook and "invalidateQueries" in hook, (
+    assert "touchedBy(path)" in hook and "invalidateQueries" in hook, (
         "Der Feed hört nicht auf die Meldung – oder lädt ohne Blick auf den Pfad."
     )
     assert "detail: { path }" in api, "Die Meldung nennt den Pfad nicht."
-    feed = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    feed = _feed()
     assert "inexxio:data-changed" not in feed and "DATA_CHANGED" not in feed, (
         "Der Feed hört selbst auf die Meldung – das ist der zweite Weg."
     )
@@ -1311,11 +1313,40 @@ def test_the_feed_learns_about_every_write_from_one_place():
             f"Die Liste «{kind}» lebt neben React Query in einem eigenen Zustand."
         )
     # Und kein zweiter Melde-Weg in den Detailfenstern.
-    for name in ("order-detail.tsx", "article-detail.tsx", "instance-detail.tsx"):
+    for name in ("order-detail.tsx", "article-detail.tsx", "instance-detail.tsx", "documents.tsx"):
         src = _read(FRONTEND / "components" / "erp" / name)
-        assert "inexxio:data-changed" not in src, (
-            f"{name} meldet selbst – das ist der zweite Weg."
+        assert "inexxio:data-changed" not in src and "DATA_CHANGED" not in src, (
+            f"{name} hört selbst auf Schreibvorgänge – das ist der zweite Weg."
         )
+
+
+#: Eine lesende Anfrage, deren Antwort in einen eigenen Zustand geht (`.then(setX)` oder
+#: `.then((r) => { … setX(r) })`) – die Form der zweiten Datenquelle neben React Query.
+_READ_INTO_STATE = re.compile(
+    r"\bapi\.(?:get\w+|documentsOf|paymentsOf|personNewsletter|messageChannels|mailboxes"
+    r"|validate\w+|stepRecord|timeView|timePreview)\([^;]*?\)\s*"
+    r"\.then\(\s*(?:set[A-Z]\w*\s*\)|\(?\w*\)?\s*=>[^;]*?\bset[A-Z])")
+
+
+def test_a_detail_view_reads_through_react_query_only():
+    """Die Detailansichten lesen über React Query (`lib/queries.ts`), invalidiert an EINER
+    Stelle (`lib/feed.TOUCHES`). Eine Antwort, die in einen eigenen Zustand geht, ist die
+    zweite Datenquelle: sie veraltet nach einem Schreibvorgang, und eine ältere Antwort kann
+    eine neuere überholen. Ebenso eine Liste eines API-Typs in `useState` – sie lebt neben
+    der Query."""
+    for path in sorted((FRONTEND / "components" / "erp").glob("*-detail.tsx")):
+        src = _read(path)
+        hit = _READ_INTO_STATE.search(src)
+        assert not hit, (
+            f"{path.name}: «{hit.group(0)[:60]}…» legt eine Antwort in einen eigenen Zustand – "
+            "das gehört in eine Query (lib/queries.ts)."
+        )
+        m = re.search(r"import type \{([^}]*)\} from '@/types'", src)
+        api_types = {t.strip().split(" as ")[-1] for t in (m.group(1).split(",") if m else []) if t.strip()}
+        for t in api_types:
+            assert f"useState<{t}[]>" not in src, (
+                f"{path.name}: die Liste «{t}» lebt neben React Query in einem eigenen Zustand."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1488,11 +1519,11 @@ def test_the_trigger_sits_where_the_piece_stands():
     Stück schon steht. Eine eigene «Abweichung anlegen»-Aktion wäre ein zweiter
     Anlage-Weg.
     """
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     assert "onDeviate" in diagram, "Am Stück gibt es keinen Auslöser."
     assert "function StateRow(" in diagram
-    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
-    assert "OrderSeed" in page and "startCreate('order', seed)" in page, (
+    page = _feed()
+    assert "OrderSeed" in page and "onCreate('order', seed)" in page and "onCreate: startCreate" in page, (
         "Der Auslöser führt nicht in den gewöhnlichen Entwurf."
     )
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
@@ -1600,7 +1631,7 @@ def test_a_module_is_told_whether_it_may_run():
         "selbst kennen."
     )
 
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     card = _body(diagram, "StepCard", kind="function")
     assert "<fieldset disabled={locked}" in card, (
         "Die Sperre schaltet nicht die Eingaben ab – dann müsste jedes Modul sie kennen. "
@@ -1623,21 +1654,21 @@ def test_the_deviation_mark_comes_from_one_component():
     **eine** Komponente das Symbol eines Datensatzes, und beide Orte benutzen sie; nur die
     Grösse unterscheidet sie.
     """
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     assert "export function RecordIcon(" in fields
     assert "deviation" in _body(fields, "RecordIcon", kind="function")
 
-    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    page = _feed()
     assert "<RecordIcon" in page, "Der Feed baut das Symbol selbst."
     assert "Abweichung" not in _code(page), "Im Feed steht das Label noch als Text."
 
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    assert "deviation={shown?.is_deviation" in detail, "Der Kopf trägt das Zeichen nicht."
+    assert re.search(r"deviation=\{\w+\?\.is_deviation", detail), "Der Kopf trägt das Zeichen nicht."
 
 
 def test_modules_are_collapsed_unless_they_are_up_next():
     """**#696 — eingeklappt, ausser das Modul ist dran. Eine Stelle, nicht je Modultyp.**"""
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     card = _body(diagram, "StepCard", kind="function")
     assert "useState(!!defaultOpen)" in card, "Die Karte hat keinen Aufklapp-Zustand."
     assert "setOpen(!open)" in card, "Der Kopf klappt nicht auf."
@@ -1687,8 +1718,8 @@ def test_the_article_shortcut_only_preselects_the_article():
         "Der Shortcut tut nichts."
     )
     assert "api.createOrder" not in art, "Der Artikel legt selbst einen Auftrag an."
-    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
-    assert "startCreate('order', { articleObjectId })" in page
+    page = _feed()
+    assert "onCreate('order', { articleObjectId })" in page and "onCreate: startCreate" in page
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
     # **Optional, nicht abwesend.** Der Auslöser am Stück (§3.1) und die Entscheidung nach
     # einem «nicht bestanden» reichen sehr wohl Stücke herein – nur eben mehrere und nur
@@ -1708,7 +1739,7 @@ def test_the_start_time_comes_from_the_event_log():
     assert "ProcessEvent" in body and "KIND_START" in body, "Der Zeitpunkt kommt nicht aus dem Log."
     model = _read(BACKEND / "app" / "models" / "order_unit.py")
     assert "started_at" not in model, "Es gibt eine zweite Wahrheit als Spalte."
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     assert "startedAt" in diagram, "Der Hover zeigt den Zeitpunkt nicht."
 
 
@@ -1749,14 +1780,14 @@ def test_the_lane_widths_live_in_exactly_one_place():
     )
 
     # Keine zweite Stelle: die Prozess-Komponenten bringen keine eigenen Spurbreiten mit.
-    for name in ("process-columns.tsx", "process-diagram.tsx"):
+    for name in ("process-columns.tsx", "flow-column.tsx", "module-card.tsx"):
         code = _code(_read(FRONTEND / "components" / "erp" / name))
         strays = re.findall(r"const (SIDE_\w*|MID_\w*|WIDE|GAP)\s*=\s*\d", code)
         assert not strays, (
             f"{name} definiert eigene Spurmasse {strays} – sie gehören in "
             f"`process-flow.LANE`, sonst gibt es zwei Umbruchpunkte."
         )
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     assert "export const PROCESS_MAXW = LANE.MID_MAX" in diagram, (
         "PROCESS_MAXW ist wieder eine eigene Zahl statt der Spurbreite."
     )
@@ -1774,7 +1805,7 @@ def test_the_process_picture_has_one_line_system():
     Linientypen (durchgezogen · gestrichelt) – vier Zeichen für zwei Aussagen.
     """
     files = [_code(_read(FRONTEND / "components" / "erp" / f))
-             for f in ("process-columns.tsx", "process-diagram.tsx", "process-flow.tsx")]
+             for f in ("process-columns.tsx", "flow-column.tsx", "module-card.tsx", "process-flow.tsx")]
     code = "\n".join(files)
     assert "strokeDasharray" not in code, (
         "Im Prozessbild ist wieder eine gestrichelte Linie – das Fehlen einer Linie IST "
@@ -1897,7 +1928,7 @@ def test_the_branch_leaves_the_axis_and_the_line_reaches_the_module():
     # **Der Kantenzustand kommt vom Server, das Frontend rechnet ihn nicht.** Die frühere
     # Zählung «bis zum wievielten Knoten» las den *aktuellen* Zustand – und verschwand
     # darum, sobald an einer Stelle nichts mehr stand.
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     assert "walkedEdges" not in diagram and "walkedEdges" not in cols, (
         "Die Linienstärke wird wieder im Browser abgeleitet."
     )
@@ -1923,7 +1954,7 @@ def test_a_neighbour_is_its_process_and_a_lock_needs_no_paragraph():
     )
     detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
     assert "WaitingNotice" not in detail, "Die Warte-Notiz über dem Bild steht wieder da."
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     assert "function LockNotice(" not in diagram, "Die Sperr-Notiz im Modul steht wieder da."
     assert "fieldset disabled={locked}" in diagram.replace("<", ""), (
         "Die Sperre selbst ist weg – der Text war überflüssig, die Wirkung nicht."
@@ -1939,7 +1970,7 @@ def test_the_pill_reads_the_present_and_the_line_the_past():
     trägt: ``status``. Wer sie ignoriert und das Wort festverdrahtet, behauptet wieder
     Gegenwart über Vergangenes.
     """
-    src = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    src = _diagram()
     assert "u.status === IM_PROZESS" in src and "u.status !== IM_PROZESS" in src, (
         "Die ausgescherten Stücke werden nicht mehr nach ihrem Zustand getrennt – dann "
         "sagt die Pille wieder für immer «In Abweichung»."
@@ -1956,7 +1987,7 @@ def test_the_history_hangs_where_nothing_clips_it():
     **Modul** aber nicht: dort hing er an der Beschriftung, und die kürzt lange Namen
     (`truncate`). Ein Hinweis, der an manchen Objekten unsichtbar ist, ist kein Muster.
     """
-    src = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    src = _diagram()
     head = src.split("function StepCard(")[1].split("\nfunction ")[0]
     for block in re.findall(r"<span[^>]*truncate[^>]*>", head):
         assert "data-tip" not in block, (
@@ -1991,7 +2022,7 @@ def test_the_history_belongs_to_the_whole_head_not_to_the_symbol():
       (c) sie ist einzeilig (ohne `data-tip-list` bleiben die Zeilenumbrüche aus
           `attr()` unwirksam – die Liste stünde als ein Wortband da).
     """
-    src = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    src = _diagram()
     mark = src.split("export function ModuleMark(")[1].split("\nexport function ")[0]
     assert "data-tip" not in mark, (
         "Die Historie hängt wieder am Symbol – dann muss man ein 32-px-Quadrat treffen, "
@@ -2023,7 +2054,7 @@ def test_the_return_switch_sits_where_its_line_starts():
 
     Sie **bleibt**, wenn die Linie geht: sonst wäre die Entscheidung einmalig.
     """
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
     assert "function ReturnRow(" in diagram, "Es gibt keinen Schalter mehr."
     assert "if (extra.returns) rows.push({ key: 'return', slot: 'return' });" in diagram, (
@@ -2340,7 +2371,7 @@ def test_an_exit_is_one_property_with_three_consequences():
     # 3 – das Bild endet dort, auf beiden Seiten: Server (Graph) und Entwurf (Definition).
     flow = _read(BACKEND / "app" / "services" / "flow.py")
     assert "terminal" in _body(flow, "build"), "Der Graph hängt hinter den Ausgang ein Ende."
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     assert "s.terminal" in _body(diagram, "definitionGraph", kind="function"), (
         "Der Entwurf zeichnet hinter dem Ausgang ein Ende-Objekt."
     )
@@ -2370,7 +2401,7 @@ def test_a_module_colour_travels_with_the_step_and_is_never_guessed():
     echte Modulfarbe – eine unbekannte Familie sieht kaputt aus, statt sich als anderes
     Modul auszugeben.
     """
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     assert "tone?: (moduleType" not in diagram, (
         "Die Farbe ist wieder ein Prop des Rahmens – dann kann ein Aufrufer sie vergessen."
     )
@@ -2407,7 +2438,7 @@ def test_a_terminal_piece_is_not_offered_anywhere_in_the_interface():
     Geprüft wird darum die Kette, nicht die Meldung: der Zustand reist mit, die eine
     abgeleitete Frage wird gestellt, und keine Datei zählt dafür Status auf.
     """
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
     lines = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
     status = _code(_read(FRONTEND / "lib" / "process-status.ts"))
@@ -2649,7 +2680,7 @@ def test_the_active_module_opens_even_when_it_becomes_active_later():
     Der Effekt hängt an `defaultOpen` und nur daran: er läuft beim **Wechsel** des
     aktiven Moduls, nicht bei jedem Rendern. Wer selbst zuklappt, bleibt zugeklappt.
     """
-    code = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    code = _code(_diagram())
     assert "useEffect(() => { setOpen(!!defaultOpen); }, [defaultOpen]);" in code, (
         "Der Öffnungszustand zieht nicht mehr nach – ein Modul, das erst später dran "
         "wird, bleibt zu."
@@ -2663,7 +2694,7 @@ def test_the_order_shortcut_wears_the_order_icon():
     (#608) und nicht das Symbol. Es kommt aus derselben Zuordnung wie überall –
     `TYPE_META.order` –, nicht aus einer zweiten Liste daneben.
     """
-    code = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    code = _code(_diagram())
     assert "TYPE_META.order.icon" in code, (
         "Der Auftrags-Knopf am Stück trägt wieder ein eigenes Symbol statt des einen, "
         "das jeder Auftrag im Haus trägt."
@@ -2922,7 +2953,7 @@ def test_the_journey_row_holds_only_branches():
     Seite (gemessen: der mittlere Ast 14,1 px neben dem Startsymbol), und seine Linie
     bekam einen Knick. Er hat keine Linie – also steht er nicht in der Reihe der Aeste.
     """
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     row = _component(diagram, "JourneyRow")
     chips = row.split("items-start justify-center")[1].split("</div>")[0]
     assert "{note}" not in chips, "Der Hinweis steht wieder in der Reihe der Aeste."

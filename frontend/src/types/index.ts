@@ -21,6 +21,11 @@ export type UserProfile = Omit<UserProfileApi, 'role'> & {
   role: UserRole;
 };
 
+/** Was eine Person an sich selbst ändert (`PATCH /auth/me`, `people.apply_profile_update`). */
+export type UserProfileUpdate = components['schemas']['UserProfileUpdate'];
+/** Was das ERP an einer Person ändert – dasselbe plus Rolle und Anstellung. */
+export type ErpAdminUpdate = components['schemas']['ErpAdminUpdate'];
+
 // ─── Article ────────────────────────────────────────────────────────────────
 
 export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'm3' | 'kg' | 'l';

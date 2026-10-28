@@ -352,7 +352,7 @@ def test_the_role_is_the_access_in_every_surface():
     # (c) – **eine** Auflösung, und die anderen rufen sie.
     gate = _code(_read(FRONTEND / "lib" / "record-status.ts"))
     assert "export function isStaff(" in gate, "``isStaff`` fehlt (c)."
-    for where in ("components/auth/auth-gate.tsx", "app/(erp)/erp/page.tsx"):
+    for where in ("components/auth/auth-gate.tsx", "lib/use-feed-lists.ts"):
         src = _code(_read(FRONTEND / where))
         assert "isStaff(" in src, f"«{where}» fragt die Rolle selbst (c)."
         # ►►► **Gefragt ist die ZWEIER-Aufzählung, nicht «admin».** ◄◄◄ Der erste Anlauf

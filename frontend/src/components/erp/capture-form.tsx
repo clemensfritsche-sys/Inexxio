@@ -6,7 +6,7 @@ import type { CapturePoint } from '@/types';
 import { CAPTURE_ICON, NEEDS_TARGET } from '@/lib/modules';
 import { PhotoShot } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
-import { inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { inputCls, numericInputProps, numericOnly } from '@/components/erp/controls';
 
 /**
  * **Die Datenerfassung zur Laufzeit** — was das Modul festhält, bevor die Stücke vorrücken.
@@ -203,7 +203,7 @@ function ThumbChoice({ label, active, tone, disabled, onClick, children }: {
       style={{
         width: 44, height: 34,
         border: `1px solid ${active ? tone : 'var(--border-2)'}`,
-        background: active ? `${tone}1A` : '#fff',
+        background: active ? `${tone}1A` : 'var(--bg-1)',
         color: active ? tone : 'var(--fg-4)',
       }}>
       {children}

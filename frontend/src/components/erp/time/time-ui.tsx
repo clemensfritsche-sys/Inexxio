@@ -13,7 +13,9 @@ import {
   Activity, AlertTriangle, Baby, CalendarCheck, CalendarX, FileWarning, HelpCircle,
   OctagonAlert, Shield, Sun, Thermometer,
 } from 'lucide-react';
-import { InfoHint, MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
+import { InfoHint } from '@/components/erp/hints';
+import { MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
+import { inputClass } from '@/components/erp/controls';
 import { TONE } from '@/lib/status-tone';
 
 /** Lucide-Name (Backend) → Symbol. */
@@ -114,11 +116,6 @@ export function Pill({ tone, label, icon, tip }: {
     : badge;
 }
 
-/** Ein Punkt in der Farbe des Stempels: grün Kommen, rot Gehen. */
-export function Dot({ color }: { color: string }) {
-  return <span aria-hidden style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 999,
-    marginRight: 8, background: color, verticalAlign: 1 }} />;
-}
 
 export const ROW_FORM: CSSProperties = {
   display: 'flex', flexWrap: 'wrap', gap: '12px 16px', alignItems: 'flex-end',
@@ -136,12 +133,9 @@ export function TimeField({ id, label, value, onChange, info, bad, placeholder, 
         {label}{info && <InfoHint text={info} />}
       </label>
       <input id={id} value={value} placeholder={placeholder} autoComplete="off"
-        className="tabular-nums" onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') onEnter?.(); }}
-        style={{ padding: '8px 12px', borderRadius: 8, fontSize: 14, color: 'var(--fg-1)',
-          border: `1px solid ${bad ? 'var(--warning)' : 'var(--border-1)'}`,
-          background: bad ? 'var(--warning-bg)' : 'var(--bg-1)', outline: 'none', width: '100%',
-          boxSizing: 'border-box' }} />
+        className={`${inputClass(bad ? 'warn' : 'normal')} tabular-nums`}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onEnter?.(); }} />
     </div>
   );
 }
@@ -180,14 +174,13 @@ export function IconBar<T extends string>({ value, options, onChange }: {
 
 /** Ein Symbol-Knopf, der **nicht** ausklappt – der Name steht in der Blase (wie in einer
  *  Zeile, `module-ui.RowActions`), damit nichts unter dem Zeiger springt. */
-export function IconButton({ icon: Icon, label, onClick, height = 26, disabled, tone = 'neutral' }: {
-  icon: ElementType; label: string; onClick: () => void; height?: number; disabled?: boolean;
-  tone?: 'neutral' | 'primary';
+export function IconButton({ icon: Icon, label, onClick, height = 26 }: {
+  icon: ElementType; label: string; onClick: () => void; height?: number;
 }) {
   return (
     <span data-tip={label} className="inline-flex">
-      <button type="button" aria-label={label} disabled={disabled} onClick={onClick}
-        className={`erp-actbtn erp-actbtn-${tone} erp-actbtn-icon`}
+      <button type="button" aria-label={label} onClick={onClick}
+        className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
         style={{ height, '--actbtn-w': `${height}px` } as CSSProperties}>
         <Icon size={13} />
       </button>

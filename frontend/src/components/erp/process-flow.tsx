@@ -269,12 +269,10 @@ export function FlowFrame({ children, lines, gutter }: {
  * Zustandsanzeige und Ende teilen sich dieses eine Bauteil, es gibt keine Variante je
  * Modultyp (PROCESS_CORE.md §8).
  */
-export function FlowNode({ id, children, style, onClick, title }: {
+export function FlowNode({ id, children, style }: {
   id: string;
   children: ReactNode;
   style?: CSSProperties;
-  onClick?: () => void;
-  title?: string;
 }) {
   const register = useContext(Ctx);
   // An- **und** Abmeldung laufen über denselben Ruf: React gibt der Callback-Ref beim
@@ -295,8 +293,6 @@ export function FlowNode({ id, children, style, onClick, title }: {
       // DOM, statt sie aus dem Code zu erraten.
       data-flow-node={id}
       style={{ position: 'relative', zIndex: 1, ...style }}
-      onClick={onClick}
-      title={title}
     >
       {children}
     </div>

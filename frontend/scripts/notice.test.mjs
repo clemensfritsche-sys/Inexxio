@@ -45,9 +45,30 @@ test('dieselbe Meldung kommt nur einmal je fünf Minuten', () => {
   assert.equal(count - before, 2);
 });
 
+test('eine Meldung mit sticky bleibt stehen, bis man sie schliesst', () => {
+  const timers = [];
+  globalThis.window = { setTimeout: (fn) => { timers.push(fn); return 0; } };
+  try {
+    notice.notify('Nachricht «X» wurde NICHT gespeichert', 10, { sticky: true });
+    assert.equal(timers.length, 0);
+    notice.notify('Nicht geladen: Y – z', 10);
+    assert.equal(timers.length, 1);
+  } finally {
+    delete globalThis.window;
+  }
+});
+
 /** Stellen, an denen Schweigen richtig ist – mit Grund. */
 const ALLOWED = new Map([
-  ['components/scan/use-camera.ts', 'video.play() – die Autoplay-Politik, kein Abruf'],
+  ['components/scan/use-camera.ts', 'Kamera: Autoplay-Politik, Geräteliste, Lampe – das Bild sagt selbst, was geht'],
+  ['components/scan/use-barcode-scanner.ts', 'ein unlesbares Bild – der nächste Takt zählt'],
+  ['components/auth/passkey-nudge.tsx', 'localStorage voll oder gesperrt – nur eine Erinnerung'],
+  ['components/feedback/feedback-pin.tsx', 'die Rolle ist Beiwerk der Testnotiz'],
+  ['components/beleg/beleg-page.tsx', 'Nachfragen nach der Zahlung – der nächste Versuch kommt'],
+  ['components/beleg/paper.tsx', 'die Schriften des Papiers – gemessen wird trotzdem'],
+  ['app/(auth)/abmelden/page.tsx', 'Abmelden – es geht in jedem Fall zur Startseite'],
+  ['lib/api.ts', 'der Client selbst: Token-Abruf und ein Fehlerkörper ohne JSON'],
+  ['components/chunk-reload-guard.tsx', 'sessionStorage gesperrt – es wird trotzdem einmal neu geladen'],
 ]);
 
 function* files(dir) {
@@ -58,16 +79,55 @@ function* files(dir) {
   }
 }
 
+/**
+ * **Die Formen des Schweigens** – jede macht aus einem Fehler eine leere Liste, ein «nichts»
+ * oder gar nichts. Statt ihrer: `tell('…')` (der alte Stand bleibt) oder ein sichtbarer
+ * Zustand, der den Grund nennt.
+ */
+const COMMENT = String.raw`(?:\/\*[^*]*\*\/\s*)?`;
+const EMPTY = String.raw`(?:\[\s*\]|null|undefined|false)`;
+const SILENT = [
+  // .catch(() => {}) – auch mit einem Kommentar darin
+  new RegExp(String.raw`\.catch\(\s*\([^)]*\)\s*=>\s*\{\s*${COMMENT}\}\s*\)`, 'g'),
+  // .catch(() => []) · null · undefined · false
+  new RegExp(String.raw`\.catch\(\s*\([^)]*\)\s*=>\s*${EMPTY}\s*\)`, 'g'),
+  // .catch(() => setX([])) · .catch(() => { if (!dead) setX(null); })
+  new RegExp(String.raw`\.catch\(\s*\([^)]*\)\s*=>\s*\{?\s*(?:if\s*\([^)]*\)\s*)?\{?\s*set\w+\(\s*${EMPTY}\s*\)\s*;?\s*\}?\s*\}?\s*\)`, 'g'),
+  // try { … } catch {} · catch (e) { /* … */ }
+  new RegExp(String.raw`\bcatch\s*(?:\(\s*\w*\s*\))?\s*\{\s*${COMMENT}\}`, 'g'),
+];
+
+/** Wo im Quelltext eine der Formen steht – `datei:zeile`. */
+export function silentIn(text, rel) {
+  const found = [];
+  for (const re of SILENT) {
+    for (const m of text.matchAll(re)) found.push(`${rel}:${text.slice(0, m.index).split('\n').length}`);
+  }
+  return found;
+}
+
 test('kein stummes catch im Quelltext', () => {
-  const silent = /\.catch\(\s*\(\s*\)\s*=>\s*\{\s*(\/\*[^*]*\*\/\s*)?\}\s*\)/g;
   const found = [];
   for (const f of files(src)) {
     const rel = relative(src, f).replaceAll('\\', '/');
     if (ALLOWED.has(rel) || rel === 'lib/notice.ts') continue;
-    const text = readFileSync(f, 'utf8');
-    for (const m of text.matchAll(silent)) {
-      found.push(`${rel}:${text.slice(0, m.index).split('\n').length}`);
-    }
+    found.push(...silentIn(readFileSync(f, 'utf8'), rel));
   }
   assert.deepEqual(found, [], `stumm – stattdessen .catch(tell('…')) aus lib/notice:\n${found.join('\n')}`);
+});
+
+test('der Wächter erkennt jede Form (gegengeprüft)', () => {
+  const forms = [
+    'x.catch(() => {})', 'x.catch(() => { /* egal */ })', 'x.catch(() => [])',
+    'x.catch(() => null)', 'x.catch(() => undefined)', 'x.catch(() => false)',
+    'x.catch(() => setDocs([]))', 'x.catch(() => { if (!dead) setFull(null); })',
+    'x.catch(() => { if (!stale) setRows([]); })', 'try { a(); } catch {}',
+    'try { a(); } catch (e) { /* ignorieren */ }',
+  ];
+  for (const f of forms) assert.equal(silentIn(f, 't').length, 1, f);
+  const fine = [
+    "x.catch(tell('Aufträge'))", 'x.catch((e) => setError(e.message))',
+    'x.catch(() => { if (!gone) setCvFailed(true); })', 'try { a(); } catch (e) { report(e); }',
+  ];
+  for (const f of fine) assert.equal(silentIn(f, 't').length, 0, f);
 });

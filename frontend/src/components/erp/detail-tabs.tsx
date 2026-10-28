@@ -12,23 +12,23 @@ type DetailTab<K extends string = string> = {
   key: K; label: string; icon: ElementType;
 };
 
-export function DetailTabs<K extends string>({ tabs, active, onChange, style }: {
+export function DetailTabs<K extends string>({ tabs, active, onChange }: {
   tabs: DetailTab<K>[];
   active: K;
   onChange: (key: K) => void;
-  style?: React.CSSProperties;
 }) {
   return (
-    <div style={{ display: 'flex', gap: 2, ...style }}>
+    <div role="tablist" style={{ display: 'flex', gap: 2 }}>
       {tabs.map((t) => {
         const Icon = t.icon;
         return (
-          <button key={t.key} onClick={() => onChange(t.key)}
+          <button key={t.key} type="button" role="tab" aria-selected={active === t.key}
+            onClick={() => onChange(t.key)}
             // Der aktive Reiter markiert sich für die Testnotizen: eine Notiz weiss
             // dadurch, in welcher Ansicht sie gesetzt wurde (`context.view`).
             data-fb-tab={active === t.key ? t.label : undefined}
             className={cn('erp-tab', active === t.key && 'erp-tab-active')}>
-            <Icon size={15} /> {t.label}
+            <Icon size={15} aria-hidden /> {t.label}
           </button>
         );
       })}

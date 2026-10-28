@@ -2,10 +2,11 @@
 
 import { useCallback, useRef } from 'react';
 import { ScanLine } from 'lucide-react';
-import { SearchSelect, type SelectOption } from '@/components/erp/fields';
+import { SearchSelect, type SelectOption } from '@/components/erp/search-select';
 import { useScan } from '@/components/scan/scan-provider';
 import { LOOKUP_HINT, lookupHint, type ScanKind } from '@/lib/scan';
 import { formatObjectId } from '@/lib/utils';
+import { tell } from '@/lib/notice';
 
 /**
  * **Das eine Referenzfeld: «welchen Datensatz meinst du?»**
@@ -126,13 +127,11 @@ export function ObjectSelect<T extends ObjectOption>({
         // ohne Vorschlagsquelle bietet nichts an – wer «00787» tippt, sieht nichts,
         // obwohl es die Nummer gibt.
         suggest: (q: string) => find(q)
-          .then((rows) => rows.map((o) => ({ objectId: o.object_id, label: o.name })))
-          .catch(() => []),
+          .then((rows) => rows.map((o) => ({ objectId: o.object_id, label: o.name }))),
         // **Was es nicht gibt, kommt nicht durch**: sonst wird der Rahmen grün und
         // beim Aufrufer passiert stillschweigend nichts.
         exists: (id: number) => find(String(id))
-          .then((rows) => rows.some((o) => o.object_id === id))
-          .catch(() => false),
+          .then((rows) => rows.some((o) => o.object_id === id)),
         emptyOption: emptyOption ? { label: emptyOption, pick: () => onChange(null, null) } : undefined,
       }],
       onComplete: (ids) => {
@@ -140,7 +139,7 @@ export function ObjectSelect<T extends ObjectOption>({
         if (id == null) return;
         find(String(id))
           .then((rows) => onChange(id, rows.find((o) => o.object_id === id) ?? null))
-          .catch(() => onChange(id, null));
+          .catch((e: unknown) => { tell('Name des Datensatzes')(e); onChange(id, null); });
       },
     });
   }

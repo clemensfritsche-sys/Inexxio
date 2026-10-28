@@ -9,7 +9,7 @@ import { day, when } from '@/lib/when';
 import { VOUCHER_STAGE } from '@/lib/modules';
 import { PayOnline } from '@/components/erp/pay-online';
 import { DocLink, DocumentField, readValue } from '@/components/erp/document-field';
-import { Segmented, inputCls, Label, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { Segmented, inputCls, Label, numericInputProps, numericOnly } from '@/components/erp/controls';
 import { ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, Steady } from '@/components/erp/module-ui';
 import type { TransferInfo } from '@/types';
 import { CASH, TRANSFER, needsIban, startForm, taxed } from './forms';
@@ -139,8 +139,10 @@ function Deviation({ d, busy, form, setForm }: {
     );
   }
   if (!d.deviation || !d.invoice?.amount) return null;
+  // Zugesagt ist der Betrag der gewählten Angebotszeile – vom Server (`amount`,
+  // `voucher.agreed_amount`), nicht hier aus Rechnung minus Abweichung zurückgerechnet.
   const gap = Number(d.deviation);
-  const agreed = (Number(d.invoice.amount) - gap).toFixed(d.currency_decimals);
+  const agreed = d.amount ?? '—';
   const sign = gap > 0 ? '+' : '−';
   const open = form?.kind === 'accept';
   return (

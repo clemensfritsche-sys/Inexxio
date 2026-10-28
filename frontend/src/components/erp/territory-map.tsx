@@ -168,16 +168,17 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
               top: `clamp(8px, ${anchor.y}%, calc(100% - 8px))`,
               transform: `translate(${anchor.x > 65 ? '-100%' : anchor.x < 35 ? '0' : '-50%'}, ${anchor.y > 55 ? '-100%' : '0'})`,
               minWidth: 210, maxWidth: 300,
-              background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)',
+              background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)',
               boxShadow: 'var(--shadow-md)', padding: 11,
               display: 'flex', flexDirection: 'column', gap: 9,
             }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ font: '700 12.5px var(--font-body)', color: 'var(--fg-1)' }}>{selLabel}</span>
               <button type="button" onClick={() => { setSelected(null); setAdding(false); }}
+                aria-label={`${selLabel} schliessen`} data-tip="Schliessen"
                 style={{ marginLeft: 'auto', display: 'inline-flex', background: 'none', border: 'none',
                   padding: 2, cursor: 'pointer', color: 'var(--fg-4)' }}>
-                <X size={14} />
+                <X size={14} aria-hidden />
               </button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -189,7 +190,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px',
                       borderRadius: 999, cursor: busy ? 'default' : 'pointer',
                       border: `1px solid ${cur ? tone.ring : 'var(--border-1)'}`,
-                      background: cur ? tone.bg : '#fff', font: '600 12px var(--font-body)', color: 'var(--fg-1)' }}>
+                      background: cur ? tone.bg : 'var(--bg-1)', font: '600 12px var(--font-body)', color: 'var(--fg-1)' }}>
                     <span style={{ width: 7, height: 7, borderRadius: 999, background: tone.dot, flex: 'none' }} />
                     {c.name}
                     {cur && <Check size={12} style={{ color: tone.dot }} />}
@@ -236,7 +237,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
                       {candidates.map((c) => (
                         <button key={c.code} type="button" onClick={() => { setSelected(c.code); setAdding(false); setQuery(''); }}
                           style={{ padding: '4px 9px', borderRadius: 999, border: '1px solid var(--border-1)',
-                            background: '#fff', cursor: 'pointer', font: '500 12px var(--font-body)', color: 'var(--fg-1)' }}>
+                            background: 'var(--bg-1)', cursor: 'pointer', font: '500 12px var(--font-body)', color: 'var(--fg-1)' }}>
                           {c.label}
                         </button>
                       ))}

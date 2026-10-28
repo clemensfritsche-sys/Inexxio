@@ -4,6 +4,8 @@
 import re
 
 from tests._source import (
+    _diagram,
+    _kit,
     BACKEND,
     FRONTEND,
     _at,
@@ -442,7 +444,7 @@ def test_a_card_you_can_still_act_on_is_never_dimmed():
     sys.path.insert(0, str(BACKEND))
     from app.schemas.order import ProcessStepResponse
 
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     assert "dimmed={running && !isActive}" not in diagram, (
         "Gedämpft wird wieder allein danach, ob das Modul dran ist."
     )
@@ -1182,10 +1184,10 @@ def test_the_payment_element_is_as_big_as_the_fields_beside_it():
     Bug-Formen: (a) die Schrift ist wieder kleiner als daneben; (b) `condensed` fehlt;
     (c) die Beschriftung weicht von `fields.Label` ab.
     """
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     look = " ".join(_code(_read(FRONTEND / "components" / "erp" / "pay-online.tsx")).split())
-    cls = re.search(r"export const inputCls = '([^']+)'", fields)
-    assert cls, "«inputCls» steht nicht mehr in `fields.tsx` – der Spiegel hat kein Original."
+    cls = re.search(r"const INPUT_FORM = '([^']+)'", fields)
+    assert cls, "Die Form von «inputCls» (`INPUT_FORM`) steht nicht mehr in `fields.tsx` – der Spiegel hat kein Original."
     # Die drei Grössen, die im Haus überhaupt vorkommen. Eine vierte ist ein Fehler, kein
     # stiller Rückfall: dann sagt der Wächter, dass er sie nicht kennt.
     sizes = {"text-xs": "12px", "text-sm": "14px", "text-base": "16px"}
@@ -1554,7 +1556,7 @@ def test_a_typed_amount_has_the_decimals_of_its_currency():
     Bug-Formen: (a) `numericOnly` kann gar nicht begrenzen; (b) ein Betragsfeld begrenzt
     nicht; (c) es begrenzt fest auf zwei (JPY hat null, KWD drei).
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     assert "decimals?: boolean | number" in fields, "`numericOnly` kennt keine Stellenzahl (a)."
     assert "slice(0, decimals)" in fields, "`numericOnly` begrenzt nicht (a)."
     src = _beleg()
@@ -2019,7 +2021,7 @@ def test_a_term_is_a_value_on_the_document_not_a_row_of_buttons():
     Bug-Formen: (a) `TermField` ist zurück; (b) ein Schieberegler; (c) die Werte stehen
     als Literal im Browser; (d) die Frist ist kein `DocPick` mehr.
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     assert "function TermField" not in fields, (
         "`TermField` ist zurück (a) – eine Frist ist ein Wert, kein Formular."
     )
@@ -2894,11 +2896,11 @@ def test_the_way_to_the_money_needs_no_label():
     assert "label=" not in work[at:work.index("/>", at)], (
         "Die Zahlungsart trägt wieder eine Beschriftung (a)."
     )
-    seg = _body(_code(_read(FRONTEND / "components" / "erp" / "fields.tsx")),
+    seg = _body(_code(_kit()),
                 "Segmented", kind="export function")
-    assert "{label && <Label" in seg, (
-        "Ohne Beschriftung bleibt die leere Zeile stehen (b) – dieselbe Höhe ohne "
-        "denselben Inhalt."
+    # Kein Aufrufer gibt eine Beschriftung mit – also hat der Baustein keine Zeile dafür.
+    assert "<Label" not in seg, (
+        "Der Umschalter trägt eine Beschriftungszeile (b) – dieselbe Höhe ohne denselben Inhalt."
     )
 
 
@@ -3131,3 +3133,16 @@ def test_the_document_offers_firm_and_addresses_only_where_the_server_says_so():
     assert "<DocPick" in body and "choice?.options" in body and "<input" not in body, "(c)"
 
 
+
+
+def test_the_agreed_amount_comes_from_the_server():
+    """Was zugesagt ist, rechnet der Dienst (`voucher.agreed_amount` → `amount`). Die Karte
+    rechnete es aus «Rechnung minus Abweichung» zurück – Geld im Browser, mit Fliesskomma.
+    Bug-Form: eine Rechnung mit Betrag und `.toFixed` in der Abweichung."""
+    invoice = _code(_read(FRONTEND / "components" / "erp" / "beleg" / "invoice.tsx"))
+    body = invoice[invoice.index("function Deviation("):]
+    body = body[: body.index("\n}\n")]
+    assert "toFixed" not in body and "Number(d.invoice.amount)" not in body, (
+        "Die Abweichung rechnet den zugesagten Betrag im Browser."
+    )
+    assert "d.amount" in body, "Der zugesagte Betrag kommt nicht vom Server."

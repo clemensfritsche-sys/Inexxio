@@ -7,7 +7,7 @@ import type { RecordEntry, RecordValue } from '@/types';
 import { statusCfg } from '@/lib/process-status';
 import { UnitNumber } from '@/components/erp/unit-number';
 import { when, whenTitle } from '@/lib/when';
-import { MICRO_LABEL } from '@/components/erp/fields';
+import { MICRO_LABEL, StatusDot } from '@/components/erp/fields';
 
 /**
  * ►►► **Ein abgeschlossenes Modul zeigt lückenlos, was in ihm passiert ist.** ◄◄◄
@@ -128,9 +128,7 @@ function Row({ entry, first }: { entry: RecordEntry; first: boolean }) {
         {cfg && (
           <span className="ml-auto flex items-center gap-1.5 text-[11.5px]"
             style={{ color: cfg.color }}>
-            <span className="rounded-full" style={{
-              width: 6, height: 6, background: cfg.color, flex: 'none',
-            }} />
+            <StatusDot color={cfg.color} />
             {cfg.label}
           </span>
         )}

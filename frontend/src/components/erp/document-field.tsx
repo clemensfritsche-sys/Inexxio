@@ -32,7 +32,8 @@ export function DocumentField({ value, label, target, seed, disabled, onChange }
   target: DocumentTarget & { label?: string; lock?: string };
   seed?: Omit<DraftSeed, 'target'>;
   disabled?: boolean;
-  onChange: (doc: DocumentDetail, proposal: DocumentProposal | null) => void;
+  /** Nach dem Setzen – die Kacheln und Rechtstexte laden über `lib/feed.TOUCHES` selbst nach. */
+  onChange?: (doc: DocumentDetail, proposal: DocumentProposal | null) => void;
 }) {
   const nav = useErpNav();
   const [drafting, setDrafting] = useState(false);
@@ -42,7 +43,7 @@ export function DocumentField({ value, label, target, seed, disabled, onChange }
   async function pick(objectId: number) {
     setError('');
     try {
-      onChange(await api.setDocumentField(objectId, target), null);
+      onChange?.(await api.setDocumentField(objectId, target), null);
       setChanging(false);
     } catch (e) {
       setError((e as Error).message);
@@ -90,7 +91,7 @@ export function DocumentField({ value, label, target, seed, disabled, onChange }
       {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
       {drafting && (
         <DraftSheet seed={{ ...seed, target }} onCancel={() => setDrafting(false)}
-          onFiled={(doc, proposal) => { setDrafting(false); setChanging(false); onChange(doc, proposal); }} />
+          onFiled={(doc, proposal) => { setDrafting(false); setChanging(false); onChange?.(doc, proposal); }} />
       )}
     </div>
   );

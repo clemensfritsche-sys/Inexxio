@@ -9,7 +9,9 @@
  */
 import { useEffect, useState } from 'react';
 import { CalendarDays, CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Download, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
-import { Card, ErrorText, MICRO_LABEL, TodoChip } from '@/components/erp/fields';
+import { Card, TodoChip } from '@/components/erp/detail-frame';
+import { ErrorText } from '@/components/erp/hints';
+import { MICRO_LABEL } from '@/components/erp/fields';
 import { StageAction } from '@/components/erp/module-ui';
 import { ApiError, api } from '@/lib/api';
 import { dayShort, parseDay } from '@/lib/when';

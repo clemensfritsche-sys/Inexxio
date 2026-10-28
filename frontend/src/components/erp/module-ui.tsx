@@ -3,6 +3,7 @@
 import { createContext, useContext } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { StatusDot } from '@/components/erp/fields';
 import { formatAmount } from '@/lib/utils';
 
 /**
@@ -14,7 +15,7 @@ import { formatAmount } from '@/lib/utils';
  * `styles/design-system/colors_and_type.css`, jede Regel steht in
  * `docs/design-system/README.md`. Neu ist nur, dass sie hier **einmal** angewendet sind
  * statt an jeder Aufrufstelle mit leicht anderen Werten. Die Vorlage ist die
- * Detail-Ansicht eines Datensatzes (`fields.SPEC`).
+ * Detail-Ansicht eines Datensatzes (`detail-frame.SPEC`).
  */
 
 /**
@@ -35,7 +36,7 @@ export const MODULE_CARD: CSSProperties = {
  * Hauses (`SpecHead` eine Nummer kleiner, weil die Prozessspalte schmal ist).
  */
 export const MODULE_TITLE: CSSProperties = {
-  font: '800 16px var(--font-display)',
+  font: '700 16px var(--font-display)',
   letterSpacing: '-.01em',
   color: 'var(--fg-1)',
 };
@@ -49,7 +50,7 @@ export const ACT_H = { row: 26, inline: 30, main: 34, stage: 42 } as const;
 
 /**
  * **Der Abstand zwischen zwei Feldern einer Formular-Zeile** (#987/#990). **Unter** der
- * Beschriftung gibt es keinen: `fields.Label` bringt seine 4 px mit.
+ * Beschriftung gibt es keinen: `controls.Label` bringt seine 4 px mit.
  */
 export const FIELD_GAP = 12;
 
@@ -128,7 +129,7 @@ export function ActionButton({
  *
  * **Strikt einreihig**: was nicht passt, wird gekappt (Meta zuerst).
  */
-export function LedgerRow({ ident, meta, actions, date, amount, tip, faded }: {
+export function LedgerRow({ ident, meta, actions, date, amount, tip }: {
   /** Was diese Zeile **ist** – Rechnungsnummer, Zahlungsart. */
   ident: ReactNode;
   /** Zusatzangaben – geben als Erstes Platz ab. */
@@ -141,13 +142,9 @@ export function LedgerRow({ ident, meta, actions, date, amount, tip, faded }: {
   amount: ReactNode;
   /** Die Erklärung am Betrag – dort trägt die Farbe den Zustand (#997). */
   tip?: string;
-  /** Eine stornierte Zeile bleibt stehen, tritt aber zurück. */
-  faded?: boolean;
 }) {
   return (
-    <div className="ix-row flex items-baseline" style={{
-      gap: 10, minWidth: 0, flexWrap: 'nowrap', opacity: faded ? 0.55 : 1,
-    }}>
+    <div className="ix-row flex items-baseline" style={{ gap: 10, minWidth: 0, flexWrap: 'nowrap' }}>
       <span className="truncate" style={{
         flex: '0 1 auto', minWidth: 0, fontSize: 12.5, color: 'var(--fg-2)',
       }}>{ident}</span>
@@ -205,24 +202,22 @@ export function RowActions({ children }: { children: ReactNode }) {
  * **Die Handlung, die eine Sache eine Stufe weiterbringt** (#923): volle Breite, Fläche,
  * 42 px, 14 px Schrift – der Beleg («Rechnung stellen»), die Zeiterfassung («Erfassen»).
  */
-export function StageAction({ icon: Icon, label, disabled, tip, onClick }: {
+export function StageAction({ icon: Icon, label, disabled, onClick }: {
   icon: LucideIcon;
   label: string;
   disabled?: boolean;
-  tip?: string;
   onClick: () => void;
 }) {
   return (
     <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
-      disabled={disabled} style={{ height: ACT_H.stage, fontSize: 14 }}
-      {...(tip ? { 'data-tip': tip } : {})} onClick={onClick}>
+      disabled={disabled} style={{ height: ACT_H.stage, fontSize: 14 }} onClick={onClick}>
       <Icon size={16} /> {label}
     </button>
   );
 }
 
-export function Actions({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <div className="ix-actions" style={style}>{children}</div>;
+export function Actions({ children }: { children: ReactNode }) {
+  return <div className="ix-actions">{children}</div>;
 }
 
 /**
@@ -288,27 +283,19 @@ type BarSegment = {
   hint?: string;
 };
 
-export function ValueBar({ segments, height = 10, onPick, active, legendHint, trailing,
-  dim = true }: {
+export function ValueBar({ segments, height = 10, onPick, active, legendHint }: {
   segments: BarSegment[];
   height?: number;
   /** Klick auf ein Segment bzw. seine Beschriftung. Ohne Handler ist alles Anzeige. */
   onPick?: (key: string) => void;
   /** Welches Segment gerade offen ist – es tritt hervor, die anderen zurück. */
   active?: string | null;
-  /**
-   * **Treten die anderen zurück, wenn eines gewählt ist?** Beim Bestand ja (das ersetzt
-   * einen Filter); wo die Farbe einen Fortschritt trägt, nein – gedämpft sähen «vorbei»
-   * und «steht noch aus» gleich aus.
-   */
-  dim?: boolean;
   /** Was der Klick bedeutet, je nachdem ob dieses Segment offen ist. */
   legendHint?: (open: boolean) => string | undefined;
-  /** Was am Ende der Beschriftungszeile steht – z. B. ein «Alles»-Schalter. */
-  trailing?: ReactNode;
 }) {
   const total = segments.reduce((n, s) => n + s.value, 0);
-  const faded = (key: string) => dim && active != null && active !== key;
+  // Ist eines gewählt, treten die anderen zurück – das ersetzt einen Filter.
+  const faded = (key: string) => active != null && active !== key;
   return (
     <div className="flex flex-col gap-2">
       {total === 0 ? (
@@ -340,7 +327,6 @@ export function ValueBar({ segments, height = 10, onPick, active, legendHint, tr
           <SegmentMark key={s.key} seg={s} open={active === s.key}
             dimmed={faded(s.key)} hint={legendHint} onPick={onPick} />
         ))}
-        {trailing}
       </div>
     </div>
   );
@@ -359,9 +345,7 @@ function SegmentMark({ seg, open, dimmed, hint, onPick }: {
 }) {
   const body = (
     <>
-      <span aria-hidden className="rounded-full" style={{
-        width: 7, height: 7, flex: 'none', background: seg.color,
-      }} />
+      <StatusDot color={seg.color} />
       <span className={open ? 'font-medium' : undefined}
         style={{ color: open ? 'var(--fg-1)' : 'var(--fg-2)' }}>{seg.label}</span>
       {seg.text && <span className="ix-tnum" style={{ color: 'var(--fg-3)' }}>{seg.text}</span>}

@@ -15,6 +15,36 @@ def _read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+#: Die Grundbausteine des ERP – eine Familie, auf Dateien verteilt
+#: (`components/erp/fields.tsx` und die Teile daneben).
+ERP_KIT = ("fields", "detail-frame", "controls", "search-select", "hints")
+
+
+#: Das Prozessbild – reine Funktionen, die Spalte, die Modul-Karte.
+DIAGRAM = ("lib/process-graph.ts", "components/erp/flow-column.tsx", "components/erp/module-card.tsx")
+
+
+def _diagram() -> str:
+    """Das Prozessbild als EIN Text (`lib/process-graph`, `flow-column`, `module-card`)."""
+    return "\n".join(_read(FRONTEND / rel) for rel in DIAGRAM)
+
+
+#: Der ERP-Feed – die Seite und ihre Teile.
+FEED = ("app/(erp)/erp/page.tsx", "lib/use-feed-lists.ts", "lib/use-mail-sync.ts",
+        "lib/use-url-params.ts", "components/erp/feed-panel.tsx", "components/erp/detail-pane.tsx")
+
+
+def _feed() -> str:
+    """Der ERP-Feed als EIN Text – die Seite, ihre Listen und ihre beiden Hälften."""
+    return "\n".join(_read(FRONTEND / rel) for rel in FEED)
+
+
+def _kit() -> str:
+    """Die Grundbausteine als EIN Text – ein Wächter fragt nach dem Baustein, nicht nach der
+    Datei, in der er gerade steht."""
+    return "\n".join(_read(FRONTEND / "components" / "erp" / f"{n}.tsx") for n in ERP_KIT)
+
+
 def _code(source: str) -> str:
     """Nur der Code — Kommentare und Docstrings raus.
 

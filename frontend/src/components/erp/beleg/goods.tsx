@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { hashKey } from '@tanstack/react-query';
 import { ObjId } from '@/components/erp/obj-id';
-import { numericInputProps, numericOnly } from '@/components/erp/fields';
+import { numericInputProps, numericOnly } from '@/components/erp/controls';
 import { Amount } from '@/components/erp/module-ui';
 import { useAutosaveSignature } from '@/lib/use-autosave';
 import {
@@ -64,17 +65,17 @@ function fromLine(line: Line): LineDraft {
 function LineRow({ d, line, busy, onAction }: {
   d: Filled; line: Line; busy: boolean; onAction: Send;
 }) {
+  // `line` behält seine Identität, solange sich am Server nichts ändert (React Query teilt
+  // gleiche Teile der Antwort, `structuralSharing`) – ein Nachladen überschreibt nichts.
   const remote = useMemo(() => fromLine(line), [line]);
   const [draft, setDraft] = useState<LineDraft>(remote);
-  const key = JSON.stringify(remote);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setDraft(remote); }, [key]);
+  useEffect(() => { setDraft(remote); }, [remote]);
 
   const on = may(d, 'price');
   const priced = on && d.we_quote;
   const set = (patch: Partial<LineDraft>) => setDraft((x) => ({ ...x, ...patch }));
   const save = useCallback(() => {
-    void onAction({ action: 'price', lines: [{
+    return onAction({ action: 'price', lines: [{
       id: line.id,
       ...(d.we_quote ? { price: draft.price === '' ? null : draft.price, vat: draft.vat,
                          part: draft.part === null || draft.part === '' ? null : draft.part }
@@ -86,8 +87,8 @@ function LineRow({ d, line, busy, onAction }: {
   }, [onAction, line.id, d.we_quote, d.export, draft]);
   // Ein gewählter, aber noch leerer Teilbetrag ist noch keine Angabe – er wartet.
   const ready = !(draft.part !== null && draft.part === '' && line.part == null);
-  const now = useAutosaveSignature(JSON.stringify(draft),
-    on && ready && JSON.stringify(draft) !== key && !busy, save);
+  const sig = hashKey([draft]);
+  const now = useAutosaveSignature(sig, on && ready && sig !== hashKey([remote]) && !busy, save);
 
   return (
     <div className="flex flex-col" style={{ gap: 6, minWidth: 0 }}>

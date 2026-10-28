@@ -27,8 +27,7 @@
     "next": "^16.4.1",
     "qrcode.react": "^4.2.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "tailwind-merge": "^2.5.5"
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@types/google.maps": "^3.65.1",

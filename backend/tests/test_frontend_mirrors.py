@@ -8,6 +8,7 @@ Die Quelltext-Wächter der einzelnen Bereiche stehen in ``test_source_*.py``.
 import re
 
 from tests._source import (
+    _diagram,
     BACKEND,
     FRONTEND,
     _beleg,
@@ -124,8 +125,8 @@ def test_the_module_colour_comes_from_the_registry():
     assert set(modules.TONES.values()) <= tones, (
         "Das Backend nennt eine Farbfamilie, die die Oberfläche nicht kennt."
     )
-    for name in ("process-diagram.tsx", "process-designer.tsx"):
-        src = _read(FRONTEND / "components" / "erp" / name)
+    for name, src in (("das Prozessbild", _diagram()),
+                      ("process-designer.tsx", _read(FRONTEND / "components" / "erp" / "process-designer.tsx"))):
         assert "moduleTone" in src, f"{name} liest die Farbe nicht aus der einen Stelle."
         assert "#" not in re.sub(r"//.*|/\*.*?\*/", "", src, flags=re.S).replace("#'", ""), (
             f"{name} enthält einen harten Farbwert – Farben stehen in lib/modules."
@@ -328,7 +329,7 @@ def test_the_deliveries_mirror_the_backend_word_for_word():
     sys.path.insert(0, str(BACKEND))
     from app.domain.communication import DELIVERIES
 
-    ts = _read(FRONTEND / "components" / "erp" / "communication.tsx")
+    ts = _read(FRONTEND / "components" / "erp" / "communication" / "shared.tsx")
     body = ts.split("const DELIVERIES")[1].split("];")[0]
     assert dict(re.findall(r"key: '(\w+)', label: '([^']+)'", body)) == DELIVERIES
 

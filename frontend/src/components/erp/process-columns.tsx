@@ -6,11 +6,8 @@ import {
   BEND, FLOW_GAP, FlowFrame, channelX, channels, gutterFor, polyPath, port,
   type FlowAnchor, type FlowMetrics,
 } from './process-flow';
-import {
-  Axis, EMPTY_GRAPH, FlowColumn, PROCESS_MAXW, Stroke, axisEdges, columnRows, hasJourney,
-  journeyKeys, rowOfNode,
-  type ColumnProps, type ColumnRow, type DiagramStep, type JourneyOrigin,
-} from './process-diagram';
+import { Axis, FlowColumn, PROCESS_MAXW, Stroke, type ColumnProps } from './flow-column';
+import { EMPTY_GRAPH, axisEdges, columnRows, hasJourney, journeyKeys, rowOfNode, type ColumnRow, type DiagramStep, type JourneyOrigin } from '../../lib/process-graph';
 import { useErpNav } from './obj-id';
 import { formatObjectId } from '@/lib/utils';
 import { FREIGEGEBEN, statusCfg } from '@/lib/process-status';
@@ -205,6 +202,13 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
     [parents, onToggleReturn],
   );
 
+  // Nur **ob** es die Zeilen gibt, zählt – die Listen selbst sind bei jedem Rendern neue
+  // Objekte und als Abhängigkeit eine Endlosschleife statt einer Bedingung.
+  const withHead = !!midProps.head;
+  const withTail = !!midProps.tail;
+  const journeyInRow = hasJourney(inStops, origins);
+  const journeyOutRow = outStops.length > 0;
+  const returnsRow = returns.length > 0;
   const mid: Column = useMemo(() => ({
     prefix: '', objectId: midProps.objectId, graph: midProps.graph, steps: midProps.steps,
     side: 'mid',
@@ -213,16 +217,11 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
     // Raster sie nicht mit, sässe jeder Knoten eine Zeile daneben und jede Querlinie
     // dockte am falschen an.
     rows: columnRows(midProps.graph, {
-      head: !!midProps.head, tail: !!midProps.tail,
-      journeyIn: hasJourney(inStops, origins), journeyOut: outStops.length > 0,
-      returns: returns.length > 0,
+      head: withHead, tail: withTail,
+      journeyIn: journeyInRow, journeyOut: journeyOutRow, returns: returnsRow,
     }),
-    // Nur die **Länge** zählt: ob es die Journey-Zeile gibt, hängt an «leer oder nicht»,
-    // und die Listen selbst sind bei jedem Rendern neue Objekte – als Abhängigkeit
-    // wären sie eine Endlosschleife statt einer Bedingung.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [midProps.objectId, midProps.graph, midProps.steps, midProps.head, midProps.tail,
-    inStops.length, outStops.length, origins.length, returns.length]);
+  }), [midProps.objectId, midProps.graph, midProps.steps, withHead, withTail,
+    journeyInRow, journeyOutRow, returnsRow]);
 
   const left = useMemo(() => parents.map((r) => side(r, 'left')), [parents]);
   const right = useMemo(() => deviations.map((r) => side(r, 'right')), [deviations]);

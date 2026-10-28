@@ -10,7 +10,8 @@
  */
 import { useState } from 'react';
 import { Check, Plus } from 'lucide-react';
-import { ErrorText, InfoHint, MICRO_LABEL, Row } from '@/components/erp/fields';
+import { ErrorText, InfoHint } from '@/components/erp/hints';
+import { MICRO_LABEL, Row } from '@/components/erp/fields';
 import { LedgerRow } from '@/components/erp/module-ui';
 import { useErpNav } from '@/components/erp/obj-id';
 import { day as dayText, parseDay } from '@/lib/when';

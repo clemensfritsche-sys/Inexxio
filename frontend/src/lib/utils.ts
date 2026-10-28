@@ -1,8 +1,9 @@
 import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 
+/** Klassen zusammensetzen (Bedingungen, Listen) – ohne Mischen: wer zwei widersprüchliche
+ *  Klassen setzt, setzt eine zu viel. */
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return clsx(inputs);
 }
 
 /**

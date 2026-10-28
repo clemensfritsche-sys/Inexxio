@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { DetailBody, DetailHeader, ErrorText, HeaderAction, Segmented } from '@/components/erp/fields';
+import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/detail-frame';
+import { ErrorText } from '@/components/erp/hints';
+import { Segmented } from '@/components/erp/controls';
 import { DocumentPaper } from '@/components/erp/document-detail';
 import { Sheet } from '@/components/erp/document-draft';
 import type { PaperOut } from '@/types';

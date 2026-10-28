@@ -7,11 +7,12 @@
 ## Technologie
 Next.js 16 (statischer Export, Turbopack), React 19, TypeScript 5.9 strict, Tailwind CSS 3,
 App Router, ESLint 9 (Flat Config `eslint.config.mjs`), Node 22. Dazu: React Query 5
-(`@tanstack/react-query`) für die **Listen des ERP-Feeds** (siehe «Datenfluss des Feeds») und
-im Konto (`konto/page.tsx`, `profile-section.tsx`, eigener Client); Firebase 12 (Auth);
-SimpleWebAuthn 14 (Passkeys, `lib/passkey.ts`); ZXing (nur als dynamisch geladener Rückfall
-des Scanners); `@stripe/stripe-js` 10 (dynamisch, erst auf Klick in der Bezahlkarte). Die
-Detailansichten laden ihre Daten direkt über `lib/api.ts`.
+(`@tanstack/react-query`) für **alles, was das ERP vom Server liest** – die Listen des Feeds
+und die Detailansichten (siehe «Datenfluss») – und im Konto (`konto/page.tsx`,
+`profile-section.tsx`, eigener Client); Firebase 12 (Auth); SimpleWebAuthn 14 (Passkeys,
+`lib/passkey.ts`); ZXing (nur als dynamisch geladener Rückfall des Scanners);
+`@stripe/stripe-js` 10 (dynamisch, erst auf Klick in der Bezahlkarte); `clsx` (`lib/utils.cn`,
+setzt Klassen zusammen, mischt keine).
 - **Firebase bleibt auf 12**: 13 verlangt Node ≥ 24.12, die Workflows bauen mit Node 22.
 - **`@grpc/grpc-js` ist per `overrides` gehoben** (kommt nur über Firestore für Node herein,
   das das Frontend nie lädt) – `npm audit` meldet 0 Lücken.
@@ -70,9 +71,12 @@ src/components/
 └── feedback/  ← feedback-pin (Testnotizen; als Insel auch auf der Website)
 src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.ts (generiert) ·
                  process-status.ts · status-tone.ts · record-status.ts (isStaff) · account-cache.ts ·
-                 login-target.ts · legal-forms.ts · feed.ts (Listen des Feeds, was ein Pfad
-                 ändert) … und **alle Hooks** als `use-*.ts` (use-autosave, use-search,
-                 use-profile-completion, use-google-maps, use-maps-key, use-feed);
+                 login-target.ts · legal-forms.ts · feed.ts (was ein Pfad ändert, `TOUCHES`) ·
+                 queries.ts (Schlüssel der Detailansichten, `useDebouncedQuery`) ·
+                 saver.ts (Kern des Auto-Saves) · process-graph.ts (Prozessbild, reine
+                 Funktionen) · web-link.ts · notice.ts … und **alle Hooks** als `use-*.ts`
+                 (use-autosave, use-search, use-profile-completion, use-google-maps,
+                 use-maps-key, use-feed, use-feed-lists, use-mail-sync, use-url-params);
                  nur Kamera und Decoder liegen beim Scanner (components/scan/)
 src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands.mjs)
@@ -81,16 +85,20 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 ### `components/erp/` – eine Zeile je Datei
 | Datei | Rolle |
 |---|---|
-| `fields.tsx` | Grundbausteine: Detail-Anatomie (`SPEC`, `SpecHead`, `SpecSection`, `ReadField`, `DetailBody`/`DETAIL_MAXW`), `Card` (`info`, `extra`, `unclipped`, `anchor`), `SectionSep`, `TodoChip`, `Label`, `inputCls`, `SearchSelect`/`OptionRow`/`FieldAction`, `Segmented`, `StatusBadge`, `RecordIcon` (+ `IconMark`, Zahl «zu tun» aus `lib/todo`), `DetailHeader`, `Dialog`, `Tooltip`/`InfoHint` |
+| `fields.tsx` | Grundtöne: `MICRO_LABEL`, `StatusDot` (der eine Zustandspunkt, 6 px), `StatusBadge`, `Row` |
+| `detail-frame.tsx` | Anatomie eines Datensatz-Fensters: `DetailHeader`, `RecordIcon` (+ `IconMark`, Zahl «zu tun» aus `lib/todo`), `HeaderAction`, `DetailBody`/`DETAIL_MAXW`, `Card` (`info`, `extra`, `unclipped`, `anchor`), `SPEC`, `SpecHead`, `SpecSection`, `ReadField` (Link nur ins Web, `lib/web-link`), `SectionSep`, `SectionTitle`, `PanelHeader`, `TodoChip` |
+| `controls.tsx` | Bedienelemente: **die eine Feldform** `inputClass` (normal · warn · read) / `inputCls`, `Label`, `IconSwitch`, `Segmented`, `Dialog` (modal, Fokus hinein und zurück, Escape), `Palette`, `numericOnly`, `FieldAction` |
+| `search-select.tsx`, `hints.tsx` | `SearchSelect`/`OptionRow` (Liste per Portal am `body`) · `Tooltip`, `InfoHint`, `ErrorText` |
+| `feed-panel.tsx`, `detail-pane.tsx` | Die zwei Hälften der Feed-Seite: Liste (Suche, Typ-Filter, Zeilen, «+») · Detail (was angelegt wird oder ausgewählt ist, im `ErrorBoundary`) |
 | `module-ui.tsx` | Bauteile eines Prozessschrittmoduls (Tabelle unten) |
 | `object-select.tsx` | **Jedes Referenzfeld** («welchen Datensatz meinst du?»), Kamera im Feld |
 | `address-field.tsx`, `address-book.tsx` | Jede Adress-Eingabe (Google Places) · das Adressbuch einer Person (zwei Konten) |
 | `company-field.tsx` | Firmenzuordnung einer Person (Konto und ERP) |
-| `communication.tsx` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter): Verlauf als Chat ab der jüngsten Nachricht, «ältere laden», einzeilige Eingabe, Postfach; Versand Mail · Rundschreiben · Newsletter (Spiegel `DELIVERIES`) |
+| `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter): die Ansicht (`communication.tsx`, Verlauf als Query) · `timeline` (Chat ab der jüngsten Nachricht, «ältere laden») · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – Spiegel `DELIVERIES`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |
 | `new-record.tsx` | Anlegen aus dem Feed («+») |
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |
-| `process-diagram.tsx`, `process-columns.tsx`, `process-flow.tsx` | Prozessbild: `ModuleShell` (die Modul-Karte), drei Spuren, **ein** Liniengenerator (`polyPath`) |
+| `flow-column.tsx`, `module-card.tsx`, `process-columns.tsx`, `process-flow.tsx` | Prozessbild: die Spalte (`FlowColumn`, Achse, Zustände, Herkunft) · die Modul-Karte (`ModuleShell`, `StepCard`, `ModuleMark`) · drei Spuren · **ein** Liniengenerator (`polyPath`); die reinen Funktionen in `lib/process-graph.ts` (Wächter `scripts/process-graph.test.mjs`) |
 | `capture-work.tsx`, `capture-form.tsx`, `photo-capture.tsx`, `signature-pad.tsx` | Ausführung von Datenerfassung, Aussondern, Verbrauch, Bewegen |
 | `beleg-work.tsx`, `beleg/`, `pay-online.tsx` | Modul «Zahlung»: der Einstieg (gemeinsamer Zustand, Vorschau → Freigeben) · die Abschnitte (`stages`, `parties`, `goods`, `terms`, `quotes`, `invoice`, `documents`, `footer`, `shared`, `forms`, `paper-sheet`) · die eigene Bezahlkarte |
 | `documents.tsx`, `document-detail.tsx`, `document-draft.tsx`, `document-field.tsx`, `compose-chat.tsx`, `legal-texts.tsx` | **Dokumente** (`docs/dokumente.md`): Kacheln unten an jedem Datensatz · die Seite eines Dokuments (Senden, Löschen) · **der eine Entwurf** (Scannen · Datei · Verfassen, auch als `DraftSheet` über einem Modul) · ein Pflichtfeld mit Dokument · Verfassen im Chat · AGB/Datenschutz der Gesellschaft |
@@ -111,8 +119,8 @@ Skill `inexxio-design-system`.
   Zahlen `.ix-tnum`.
 - **Farbe = Bedeutung**: kühle, neutrale Grautöne (v4) = Fläche · Rot (`inexxio`) = der eine laute Akzent
   · Slate (`accent`) = Info/aktiv/Links im ERP.
-- **ERP**: Haarlinien + Weissraum statt Schatten; Status = Punkt + Wort; Lucide-Symbole;
-  8-px-Raster. Eine Detail-Ansicht hat **eine** Breite (`fields.DETAIL_MAXW` über
+- **ERP**: Haarlinien + Weissraum statt Schatten; Status = Punkt + Wort (`fields.StatusDot`); ein Eingabefeld hat EINE Form (`controls.inputClass`); Lucide-Symbole;
+  8-px-Raster. Eine Detail-Ansicht hat **eine** Breite (`detail-frame.DETAIL_MAXW` über
   `DetailBody`); eine Kürzungsgrenze an einer Zeile ist etwas anderes.
 - **Alt-Palette: 0 Vorkommen** (`slate-*`, `blue-*`, `gray-*`, `brand-*`, `#2563eb`, auch
   als Hex – Ausnahme Gebietskarte).
@@ -140,29 +148,38 @@ Skill `inexxio-design-system`.
   `backend/tests/test_source_*.py`; jeder Aufruf in `lib/api.ts` muss eine Backend-Route
   treffen (`test_api_routes.py`).
 
-## Datenfluss des Feeds (`app/(erp)/erp/page.tsx`, `lib/feed.ts`, `lib/use-feed.ts`)
-- **Ein `QueryClient` im ERP-Layout** (`app/(erp)/layout.tsx` → `useFeedClient`). Jede Liste
-  des Feeds ist eine Query – **die einzige Datenquelle** dieser Liste (ein Wächter verbietet
-  einen `useState<…[]>` je Liste daneben, `test_source_process`). Schlüssel: `['feed',
-  'people' | 'articles' | 'orders' | 'companies' | 'todo']`, mit der Suche
-  `['feed', 'instances', q]` (seitenweise, `useInfiniteQuery`, 100 je Seite) und
-  `['feed', 'documents', q]`; dazu `['me']` (einmal je Seitenaufruf). Firmen, Dokumente und
-  «zu tun» fragen erst, wenn die Rolle feststeht (`enabled: staff`). Die Suche ist entprellt
-  (300 ms) und Teil des Schlüssels – was zu einer anderen Suche gehört, steht nicht da.
-- **Nach einem Schreibvorgang nur das Betroffene**: `lib/api.ts` meldet jede erfolgreiche
-  Anfrage, die kein GET ist, mit ihrem Pfad (`DATA_CHANGED`, `detail.path`); `useFeedClient`
-  invalidiert die Listen aus `feedsTouchedBy(path)` (Tabelle in `lib/feed.ts`, erster
-  Treffer gilt; **unbekannt → alle**, Prüfen/Lesen/leerer Postfach-Abgleich → keine).
-  Wächter: `scripts/feed.test.mjs`. Neue Nachrichten (`MESSAGES_CHANGED`) laden «zu tun» und
-  Personen, `TODO_CHANGED` «zu tun». Eine Antwort einer Anlage/Änderung schreibt der Feed
-  zusätzlich direkt in den Cache (`setQueryData`).
-- **Veraltet nach 60 s**: kehrt man nach einer Pause zurück (Tab sichtbar), lädt eine Liste
-  einmal nach – kein Polling. Kein eigener Wiederholungsweg (`retry: false`, `lib/api.ts`
-  wiederholt selbst); gleichzeitige Abrufe derselben Liste sind einer.
+## Datenfluss (`lib/feed.ts`, `lib/use-feed.ts`, `lib/queries.ts`, `lib/use-feed-lists.ts`)
+- **Ein `QueryClient` im ERP-Layout** (`app/(erp)/layout.tsx` → `useFeedClient`). Was das
+  ERP vom Server liest, ist eine Query – **die einzige Datenquelle** (Wächter: kein
+  `useState<…[]>` je Liste neben dem Feed, keine Antwort einer lesenden Anfrage in einem
+  eigenen Zustand einer `*-detail.tsx`, `test_source_process`).
+- **Feed** (`app/(erp)/erp/page.tsx` → `lib/use-feed-lists.ts`): `['feed', 'people' |
+  'articles' | 'orders' | 'companies' | 'todo']`, mit der Suche `['feed', 'instances', q]`
+  (seitenweise, `useInfiniteQuery`, 100 je Seite) und `['feed', 'documents', q]`; dazu
+  `['me']`. Firmen, Dokumente und «zu tun» fragen erst, wenn die Rolle feststeht. Die Suche ist
+  entprellt (300 ms) und Teil des Schlüssels.
+- **Detailansichten**: Schlüssel aus `lib/queries.qk` (`[<Bereich>, …]`, Bereiche in
+  `feed.DETAILS`): Auftrag, Instanz, Dokument, Artikel (Umfeld), Erzeugungsprozess, Bestand
+  und Nummern (`useInfiniteQuery`), Dokumente an einem Datensatz (`useDocumentsOf`),
+  Zahlungen, Verlauf, Absender, Postfach, Newsletter, Gesellschaft. Die Antwort einer Handlung
+  geht per `setQueryData` in den Cache. **Prüfen und Vorschau** (Auftrag, Artikel,
+  Zeiterfassung) über `useDebouncedQuery`: Eingabe 250 ms entprellt und Teil des Schlüssels,
+  `keepPreviousData`, überholte Anfragen brechen ab (`api.get/post(…, { signal })`).
+- **Invalidiert wird an EINER Stelle**: `lib/api.ts` meldet jede erfolgreiche Anfrage, die
+  kein GET ist, mit ihrem Pfad (`DATA_CHANGED`); `useFeedClient` invalidiert die Bereiche aus
+  `touchedBy(path)` – Listen des Feeds **und** Detailansichten (Tabelle `TOUCHES` in
+  `lib/feed.ts`, erster Treffer gilt; **unbekannt → alle**, Prüfen/Lesen/leerer Abgleich →
+  keine). Neue Nachrichten (`MESSAGES_CHANGED`) laden «zu tun», Personen und den Verlauf,
+  `TODO_CHANGED` «zu tun». Wächter: `scripts/feed.test.mjs`.
+- **Query-Daten treiben nie ein Formular**: ein Formular mit Auto-Save (Person,
+  Gesellschaft, Konto) wird einmal befüllt; ein anderer Datensatz ist ein neues Bauteil
+  (`key`). Was am Server gleich bleibt, behält seine Identität (`structuralSharing`) – darum
+  setzt ein Nachladen keinen Entwurf zurück (Beleg: Positionen, Angebote).
+- **Veraltet nach 60 s**: kehrt man nach einer Pause zurück, lädt eine Query einmal nach –
+  kein Polling. Kein eigener Wiederholungsweg (`retry: false`, `lib/api.ts` wiederholt
+  selbst; ein Abbruch wird nicht wiederholt).
 - **Nichts scheitert still**: jede Query trägt `meta.what`, der `QueryCache` meldet ihren
-  Fehler über `tell()` («Nicht geladen: Aufträge – …»).
-- Die Detailansichten sind nicht umgebaut; `components/erp/documents.tsx` (Kacheln am
-  Datensatz) hört weiter selbst auf `DATA_CHANGED`.
+  Fehler über `tell()` («Nicht geladen: Aufträge – …»); der alte Stand bleibt stehen.
 
 ## API-Client (`lib/api.ts`)
 Fetch-Wrapper mit Bearer-Token (Firebase). **Den Token setzt niemand**: `request()` fragt
@@ -183,14 +200,22 @@ Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-s
 - **Im ERP wird gespeichert, nicht abgeschickt**: `lib/use-autosave.ts`
   (`useAutosaveValue` für einen Wert, `useAutosaveSignature` für einen Satz Werte; debounced
   `AUTOSAVE_DELAY` = 3 s, Enter sofort, Rückmeldung im Karten-Kopf). Kein Speichern-Knopf.
+  **Eine Logik für beide** (`lib/saver.ts`): beim Verlassen und beim Wechsel des Datensatzes
+  geht der offene Stand sofort an den Datensatz, für den er getippt wurde; gespeichert wird
+  hintereinander, nie überholt ein älterer PATCH einen neueren; ein Fehler meldet sich über
+  `tell()`. Wächter: `scripts/autosave.test.mjs` (in echtem React).
 - **`busy` sperrt Handlungen, nie Geometrie und nie Werte**: kein `disabled={busy}` an einem
   Eingabefeld, nichts verschwindet während eines Auto-Saves; was erst mit der Serverantwort
   entsteht, hat seinen Platz von Anfang an.
 - **Ein gescheiterter Abruf ist nie stumm** (`lib/notice.ts`): wer bei einem Fehler nichts
   anderes zu tun hat, schreibt `.catch(tell('Aufträge'))` – unten rechts steht dann «Nicht
   geladen: Aufträge – <Grund>» (`components/layout/notice-host.tsx`, im Wurzel-Layout),
-  dieselbe Meldung einmal je fünf Minuten. Ein `.catch(() => {})` verbietet
-  `scripts/notice.test.mjs`.
+  dieselbe Meldung einmal je fünf Minuten; was stehen bleiben muss, trägt `sticky` (eine
+  Nachricht, die nicht gespeichert wurde), eine Auskunft `tone: 'info'` – es gibt EINE
+  Meldezeile. Verboten sind alle Formen des Schweigens (`.catch(() => {} | [] | null |
+  false | undefined)`, `set…([] | null)` im catch, leeres `catch {}`) – `scripts/notice.test.mjs`
+  mit einer Liste begründeter Ausnahmen. Eine Frage nach einer Nummer trennt 404 vom Ausfall
+  (`api.absentOn404`).
 - **Datum nur über `lib/when.ts`**: `when()` = Auskunft («vor 3 Tagen», «gerade eben»),
   `day()` = Tag auf dem Papier (Beleg), `formatWhen()` gibt beides (Hover), `happened()`
   setzt Zeit + Zustandswort. Die Wörter stehen im Modul, nicht im ICU. Wächter:
@@ -297,7 +322,11 @@ Versand/Lieferung) → **Positionen** mit Summe → **Konditionen** (+ «Es gelt
 EIN Bauteil: als Pop-up über der Seite oder als Route `/login?from=…`. Danach **nie auf «/»**
 (das ist die Website): Ziel ist `?from=` · das gemerkte Ziel · sonst der Startplatz der
 Rolle (Personal → `/erp`, alle anderen → `/konto`); navigiert wird hart (`window.location`).
-Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.test.mjs`.
+Ein Ziel gilt nur, wenn es – so aufgelöst, wie der Browser es auflöst (`new URL`) – auf
+derselben Herkunft bleibt (`isSafeTarget`, auch für «daneben klicken»). Die Rückkehr vom
+Magic Link (`/login/verify`) ist dieselbe Lightbox (`.ix-login-scrim` + `.ix-login-card`).
+Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.test.mjs`; jede
+`ix-`-Klasse im Markup hat einen Stil (`test_source_ui`).
 
 ## Konventionen
 - `'use client'` nur, wo nötig. Lucide React für alle Icons. TypeScript strict, kein `any`.

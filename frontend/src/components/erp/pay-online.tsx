@@ -222,7 +222,7 @@ function appearance() {
   const v = (name: string) => css.getPropertyValue(name).trim();
   return {
     theme: 'stripe' as const,
-    // Die Beschriftung steht über dem Feld (#892) – dieselbe Anatomie wie `fields.Label`.
+    // Die Beschriftung steht über dem Feld (#892) – dieselbe Anatomie wie `controls.Label`.
     labels: 'above' as const,
     // Dichte Felder (#901).
     inputs: 'condensed' as const,
@@ -232,19 +232,19 @@ function appearance() {
       colorText: v('--fg-1'),
       colorDanger: v('--danger'),
       fontFamily: v('--font-body'),
-      // `inputCls` ist `rounded-md` – 6 px, nicht 8. Ein Feld des Dienstes neben einem
-      // Feld des Hauses zeigt jede Abweichung sofort, weil sie **nebeneinander** stehen.
-      borderRadius: '6px',
+      // `inputCls` ist `rounded-ds-md` – 8 px. Ein Feld des Dienstes neben einem Feld des
+      // Hauses zeigt jede Abweichung sofort, weil sie **nebeneinander** stehen.
+      borderRadius: '8px',
       // Schrift und Raster wie `inputCls` (#901): `text-sm` = 14 px; das Haus rechnet in
       // 8 px, die Hälfte davon ist 4.
       fontSizeBase: '14px',
       spacingUnit: '4px',
     },
     rules: {
-      // Dieselbe Polsterung und dieselbe Zeilenhöhe wie `inputCls` (`py-1.5 px-2.5`,
+      // Dieselbe Polsterung und dieselbe Zeilenhöhe wie `inputCls` (`py-2 px-3`,
       // `text-sm` = 14/20 px → 20 ÷ 14 = 1.43).
-      '.Input': { padding: '6px 10px', lineHeight: '1.43' },
-      // Buchstabengleich `fields.Label` – 11 px, 600, Versalien, .05em, `--fg-4`.
+      '.Input': { padding: '8px 12px', lineHeight: '1.43' },
+      // Buchstabengleich `controls.Label` – 11 px, 600, Versalien, .05em, `--fg-4`.
       '.Label': {
         fontSize: '11px', fontWeight: '600', textTransform: 'uppercase',
         letterSpacing: '.05em', color: v('--fg-4'), marginBottom: '4px',

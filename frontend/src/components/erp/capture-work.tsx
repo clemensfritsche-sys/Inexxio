@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine, Truck } from 'lucide-react';
-import { api } from '@/lib/api';
+import { absentOn404, api } from '@/lib/api';
 import type { CapturePoint, PlaceRef, StepNeed, StepWork } from '@/types';
 import { MOVE_MODULE } from '@/lib/modules';
 import { formatObjectId } from '@/lib/utils';
@@ -172,14 +172,13 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
     ? { label: 'Zielort', expected: target.object_id }
     : {
       label: 'Zielort',
-      exists: (id: number) => api.getPlace(id).then(() => true).catch(() => false),
+      exists: (id: number) => api.getPlace(id).then(() => true, absentOn404),
       // **Ein freier Schritt muss seine Vorschlagsquelle mitbringen** (#730/#731/#732).
       // Bei einer Verifikation ist sie abgeleitet (`offersFor` = die erwartete Nummer);
       // hier gibt es keine, also fragt der Scanner dieselbe Suche wie das Zielfeld im
       // Editor. Ohne sie tippt man «00292» und sieht nichts, obwohl es die Nummer gibt.
       suggest: (q: string) => api.searchPlaces(q)
-        .then((rows) => rows.map((p) => ({ objectId: p.object_id, label: p.label })))
-        .catch(() => []),
+        .then((rows) => rows.map((p) => ({ objectId: p.object_id, label: p.label }))),
     });
 
   const scanSteps = (w: StepWork) => [
@@ -520,7 +519,7 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, o
           <button type="button" onClick={onScan} disabled={busy}
             className="ml-auto flex items-center justify-center rounded-ds-md disabled:opacity-40"
             style={{ width: 32, height: 32, border: '1px solid var(--border-2)',
-                     background: '#fff', color: 'var(--fg-2)' }}
+                     background: 'var(--bg-1)', color: 'var(--fg-2)' }}
             aria-label={`Instanz ${nr} scannen`} data-tip="Diese Instanz scannen">
             <ScanLine size={17} />
           </button>

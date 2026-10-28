@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { NewsletterState, UserProfile } from '@/types';
+import type { NewsletterState, UserProfile, UserProfileUpdate } from '@/types';
 import { api } from '@/lib/api';
 import { day } from '@/lib/when';
 import { useAutosaveValue } from '@/lib/use-autosave';
@@ -44,7 +44,7 @@ function buildForm(p: UserProfile): Form {
 interface Props {
   profile: UserProfile;
   isStaff: boolean;
-  onSave: (data: Partial<UserProfile>) => Promise<void>;
+  onSave: (data: UserProfileUpdate) => Promise<void>;
 }
 
 export function ProfileSection({ profile, isStaff, onSave }: Props) {
@@ -70,7 +70,7 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
   formRef.current = form;
   const { status, errorMsg, saveNow } = useAutosaveValue(
     form,
-    (v) => { sentPhone.current = v.phone; return onSave({ ...v } as Partial<UserProfile>); },
+    (v) => { sentPhone.current = v.phone; return onSave({ ...v }); },
     resetKey,
   );
   useEffect(() => {
@@ -120,8 +120,8 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
         text="Bestellen Sie für einen Betrieb? Dann geht die Rechnung an die Firma.">
         <CompanyField look="kt" company={profile.company} readOnly={isStaff}
           country={profile.addresses?.[0]?.country}
-          onLink={(id) => onSave({ company_object_id: id } as Partial<UserProfile>)}
-          onCreate={(nc) => onSave({ new_company: nc } as Partial<UserProfile>)} />
+          onLink={(id) => onSave({ company_object_id: id })}
+          onCreate={(nc) => onSave({ new_company: nc })} />
         {profile.company && (
           <AddressBook owner={null} account="business" addresses={profile.addresses ?? []} cards
             loginEmail={profile.email} mapsKey={mapsKey}

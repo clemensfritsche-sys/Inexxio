@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { QueryCache, QueryClient } from '@tanstack/react-query';
-import { DATA_CHANGED, feedKey, feedsTouchedBy } from '@/lib/feed';
+import { DATA_CHANGED, MESSAGES_CHANGED, areaKey, feedKey, touchedBy } from '@/lib/feed';
+import { TODO_CHANGED } from '@/lib/todo';
 import { tell } from '@/lib/notice';
 
 /** Ab wann eine Liste als veraltet gilt: kehrt man nach einer Pause zurück (Tab wieder
@@ -35,21 +36,32 @@ function feedClient(): QueryClient {
 }
 
 /**
- * Der Client samt Anschluss an `lib/api.ts`: nach jedem Schreibvorgang werden **nur die
- * betroffenen** Feed-Listen invalidiert (`feedsTouchedBy(path)`, unbekannt → alle). Was
- * gerade angezeigt wird, lädt sofort nach; der Rest beim nächsten Gebrauch.
+ * Der Client samt Anschluss an `lib/api.ts` – **die eine Stelle der Invalidierung**: nach
+ * jedem Schreibvorgang werden nur die betroffenen Bereiche invalidiert (`touchedBy(path)`,
+ * Listen des Feeds und Detailansichten, unbekannt → alle). Was gerade angezeigt wird, lädt
+ * sofort nach; der Rest beim nächsten Gebrauch. Neue Nachrichten laden Verlauf, «zu tun» und
+ * Personen (ein unbekannter Absender ist jetzt eine Person), eine erledigte Aufgabe «zu tun».
  */
 export function useFeedClient(): QueryClient {
   const [client] = useState(feedClient);
   useEffect(() => {
+    const invalidate = (key: readonly string[]) => { void client.invalidateQueries({ queryKey: key }); };
     const onChanged = (e: Event) => {
       const path = (e as CustomEvent<{ path?: string }>).detail?.path ?? '';
-      for (const list of feedsTouchedBy(path)) {
-        void client.invalidateQueries({ queryKey: feedKey(list) });
-      }
+      touchedBy(path).forEach((area) => invalidate(areaKey(area)));
     };
+    const onMessages = () => {
+      invalidate(feedKey('todo')); invalidate(feedKey('people')); invalidate(areaKey('messages'));
+    };
+    const onTodo = () => invalidate(feedKey('todo'));
     window.addEventListener(DATA_CHANGED, onChanged);
-    return () => window.removeEventListener(DATA_CHANGED, onChanged);
+    window.addEventListener(MESSAGES_CHANGED, onMessages);
+    window.addEventListener(TODO_CHANGED, onTodo);
+    return () => {
+      window.removeEventListener(DATA_CHANGED, onChanged);
+      window.removeEventListener(MESSAGES_CHANGED, onMessages);
+      window.removeEventListener(TODO_CHANGED, onTodo);
+    };
   }, [client]);
   return client;
 }
