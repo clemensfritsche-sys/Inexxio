@@ -7,7 +7,7 @@ nicht gebaut – was heute wirklich steht, sagt `CLAUDE.md` («Was heute steht»
 ## Technologie-Stack
 | Bereich | Technologie |
 |---------|------------|
-| Frontend | Next.js 14 (statischer Export), TypeScript strict, Tailwind CSS |
+| Frontend | Next.js 16 / React 19 (statischer Export), TypeScript strict, Tailwind CSS |
 | Website | Astro 7 (`website/`, reines HTML) – dieselbe Hosting-Site |
 | Backend | FastAPI (Python 3.12), SQLAlchemy 2.1, Pydantic v2, Alembic |
 | Datenbank | PostgreSQL 16 |
@@ -17,7 +17,7 @@ nicht gebaut – was heute wirklich steht, sagt `CLAUDE.md` («Was heute steht»
 ## Lokale Entwicklung
 
 ### Voraussetzungen
-- Node.js 20+
+- Node.js 22 (die Website verlangt ≥ 22.12)
 - Python 3.12
 - PostgreSQL 16
 
@@ -32,13 +32,18 @@ createdb inexxio_local
 
 # 3. Backend starten
 cd backend
-pip install -r requirements.txt
-alembic upgrade head          # Alembic ist die Schema-Wahrheit
+pip install --require-hashes -r requirements.lock   # dieselben Pakete wie CI und Docker
+alembic upgrade head          # die Migration ist der einzige Weg zum Schema
 uvicorn app.main:app --reload --port 8000
 
-# 4. Frontend starten (neues Terminal)
+# 4. Website bauen (liefert Kopf und Fuss für das ERP; ohne sie sind es Platzhalter)
+cd website
+npm ci
+npm run build
+
+# 5. Frontend starten (neues Terminal)
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -49,9 +54,11 @@ docker-compose up -d
 
 ### Prüfen
 ```bash
-cd backend  && pytest                       # braucht PostgreSQL, sonst überspringen Wächter
-cd frontend && npm run type-check && npm run lint && npm run build
-cd backend  && python -m scripts.deadcode   # findet, was niemand mehr liest
+cd backend  && INEXXIO_REQUIRE_DB=1 pytest tests/ -rs   # wie die CI: ohne PostgreSQL ein Fehler
+cd backend  && ruff check .
+cd frontend && npm run type-check && npm run lint && npm test && npm run build
+cd website  && npm test && npx astro check && npm run build
+cd backend  && python -m scripts.deadcode   # findet, was niemand mehr liest   (das ganze Gate: .github/workflows/quality.yml)
 ```
 
 ## Dokumentation
@@ -60,6 +67,10 @@ cd backend  && python -m scripts.deadcode   # findet, was niemand mehr liest
 | `CLAUDE.md` | Kontext, was heute steht, verbindliche Regeln |
 | `PROCESS_CORE.md` | Die Prozesslogik (vor Arbeit am Prozess lesen) |
 | `SYSTEM_LOGIC.md` | Die Regeln als prüfbare Sätze (Massstab der Tests) |
+| `docs/prozessbild.md` | Wie das Prozessbild gezeichnet wird |
+| `docs/backlog.md` | Was offen ist (benannt, nicht gebaut) |
+| `website/WEBSITE_PLAN.md` | Die geltenden Entscheide der Website |
+
 | `docs/adr/` | Architekturentscheide, jeder mit Kopfstatus |
 | `docs/attic.md` | Was entfernt wurde, wo es liegt, welche Entscheidung darin steckt |
 | `docs/history/` | Archiv – beschreibt Zustände, die es nicht mehr gibt |

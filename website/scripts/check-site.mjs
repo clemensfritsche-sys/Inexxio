@@ -42,7 +42,7 @@ const FORBIDDEN = [
 /** Ganze Wörter, die nirgends stehen dürfen («Abo» – INEXXIO 365 ist kein Abo). */
 const FORBIDDEN_WORDS = [/\babos?\b/i];
 /**
- * Alte hs-steiner.ch-Pfade (Auftrag Kap. 14) → das Ziel, das die Tabelle verlangt. Jeder muss
+ * Alte hs-steiner.ch-Pfade (WEBSITE_PLAN Entscheid 12/40) → das Ziel, das die Tabelle verlangt. Jeder muss
  * die ERSTE passende Regel in ../firebase.json treffen (Firebase nimmt die erste) – oder es
  * gibt die Seite unter demselben Pfad (/kontakt).
  */

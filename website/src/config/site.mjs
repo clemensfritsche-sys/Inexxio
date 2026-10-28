@@ -299,7 +299,7 @@ export const site = {
   },
 
   /**
-   * Konto, Profil und ERP – bestehende Next-Anwendung auf derselben Domain (Auftrag Kap. 6).
+   * Konto, Profil und ERP – bestehende Next-Anwendung auf derselben Domain.
    * Die Website führt nur dorthin und zeigt den Anmeldezustand an (scripts/account.ts).
    */
   account: {

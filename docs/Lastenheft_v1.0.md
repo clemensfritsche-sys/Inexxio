@@ -5,8 +5,10 @@
 > abweicht, gilt der Code bzw. `CLAUDE.md`. Benannte Abweichungen: **TOTP-MFA für Admins**
 > ist nicht gebaut (vorgemerkt); **keine Statistik** (Plausible entfernt, kein
 > Einwilligungs-Dialog); **kein hCaptcha** (das Formular schützt sich mit Honigtopf,
-> Mindestzeit und Rate-Limit); **kein PWA/SSE**; **Cloud Storage, Typesense** nicht
-> verdrahtet; **Autosave** debounced 3 s (`frontend/src/lib/use-autosave.ts`).
+> Mindestzeit und Rate-Limit); **kein PWA/SSE**; **Typesense** nicht verdrahtet;
+> **Autosave** debounced 3 s (`frontend/src/lib/use-autosave.ts`). **Verdrahtet** sind
+> Cloud Storage (je Umgebung ein Bucket, `services/attachments`) und die KI (EINE Tür
+> `services/ai.py`, optional).
 
 > **WICHTIG für Claude Code:** Dieses Dokument enthält alle verbindlichen Projektentscheide für Inexxio.
 > Vor jeder Entwicklungsarbeit relevante Abschnitte konsultieren.

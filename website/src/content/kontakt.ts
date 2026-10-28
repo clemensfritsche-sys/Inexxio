@@ -1,4 +1,4 @@
-/** Kontakt (Auftrag Kap. 7.7, 11.1). */
+/** Kontakt. */
 export const kontakt = {
   title: 'Kontakt und Anfrage',
   description:

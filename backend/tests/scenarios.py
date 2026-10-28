@@ -47,7 +47,7 @@ class Case:
     impossible: Optional[str] = None
     #: Worauf der Fall zielt (für den Bericht).
     note: str = ""
-    #: **Ein bekannter, noch nicht behobener Befund** (``FINDINGS.md``).
+    #: **Ein bekannter, noch nicht behobener Befund** (``docs/backlog.md``, «Offene Befunde»).
     #:
     #: Das Soll bleibt stehen – es ist die Regel, nicht der Ist-Zustand. Der Fall gilt
     #: darum nicht als bestanden, sondern als **offen**, und die CI wird davon nicht rot.

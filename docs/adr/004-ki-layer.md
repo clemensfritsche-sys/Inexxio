@@ -1,12 +1,14 @@
 # ADR 004: KI-Layer – Inexxio als KI-First-System
 
-> ## Kopfstatus (August 2026): **historisch – der Code ist entfernt**
-> Der KI-Layer (`services/ai/`, `routers/ai.py`) ist mit dem Aufräumen gelöscht
-> (`docs/attic.md`, Commit `676a68c`). Die **Architektur-Entscheidungen**
-> hier sind der Grund, warum das Dokument bleibt: Gateway statt Anbieter im Fachcode,
-> KI-Identität als System-Benutzer mit Objektnummer, **Scoping = Authz, nicht Prompt**,
-> und «Entwürfe ja, Kritisches nur als Vorschlag». Wer die KI neu baut, fängt hier an –
-> nicht bei der alten Datei.
+> ## Kopfstatus (Oktober 2026): **historisch – der damalige Code ist entfernt**
+> Der KI-Layer dieses ADR (`services/ai/`, `routers/ai.py`, Assistent mit Werkzeugen) ist
+> gelöscht (`docs/attic.md`, Commit `676a68c`). **Heute** gibt es EINE Tür
+> `services/ai.py`: Lesen und Verfassen für Dokumente, Antwortform als Schema, Tagesdeckel,
+> jeder Aufruf im `audit_log` (`on_behalf = ai`), die KI schreibt nie selbst
+> (`docs/dokumente.md`). Die Grundsätze hier gelten darin weiter: Gateway statt Anbieter im
+> Fachcode, **Scoping = Authz, nicht Prompt**, «Vorschlag ja, schreiben nur nach dem Klick
+> eines Menschen». Was unten über Phasen, Werkzeuge und Tabellen steht, beschreibt den
+> alten Anlauf.
 
 
 **Status:** Accepted (2026-07-05) – Phase 0–2 umgesetzt (siehe «Umsetzungsstand»)

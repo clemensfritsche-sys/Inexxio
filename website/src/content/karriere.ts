@@ -1,5 +1,5 @@
 /**
- * Karriere (Auftrag Kap. 7.7) – eigenes Layout v4 (Oktober 2026): Kopf wie Porsche → Warum hier arbeiten
+ * Karriere – eigenes Layout v4 (Oktober 2026): Kopf wie Porsche → Warum hier arbeiten
  * (#warum) → Wer zu uns passt (drei Karten, keine ausgeschriebenen Stellen) → So bewerben Sie sich (Weg)
  * → Bewerbung (dunkle Karte, #bewerbung). Keine erfundenen Stellen, Leistungen oder Zahlen.
  */

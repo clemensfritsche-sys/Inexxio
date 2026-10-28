@@ -1,5 +1,5 @@
 /**
- * Anmeldezustand in der Kopfzeile – nur ANZEIGE (Auftrag Kap. 6.3).
+ * Anmeldezustand in der Kopfzeile – nur ANZEIGE (WEBSITE_PLAN §7.5, Anzeige-Cache).
  *
  * Quelle ist der Anzeige-Cache, den das Konto-/ERP-Frontend (frontend/, gleiche Domain)
  * nach jeder Anmeldung schreibt und beim Abmelden löscht (WEBSITE_PLAN §7.5, S1/S2).

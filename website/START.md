@@ -19,7 +19,9 @@
       Formular Telefon und `mailto:` (503).
 - [ ] Kontaktdaten (Telefon, E-Mail, Anschrift) stehen am Datensatz der Gesellschaft im ERP –
       Website und Formular lesen sie von dort (`GET /api/v1/public/contact`)
-- [ ] AGB rechtlich prüfen und anpassen (`frontend/src/app/(public)/agb/`)
+- [ ] AGB und Datenschutz rechtlich prüfen und anpassen: sie sind **Dokumente je eigener
+      Gesellschaft** (ERP → Gesellschaft → Karte «Rechtstexte», «Aus Vorlage übernehmen» nur
+      Admin); die Vorlagen liegen in `backend/app/assets/legal/agb/<gültig ab>.md` bzw. `…/datenschutz/…`
 - [ ] Login, Profil und ERP einmal mit einem echten Konto durchklicken (Mitarbeiter und
       Kunde): Profilmenü, «ERP» im Menü, Abmelden – auf Website **und** im ERP
 - [ ] Test auf iPhone (Safari) und Android (Chrome); externe Links einmal öffnen

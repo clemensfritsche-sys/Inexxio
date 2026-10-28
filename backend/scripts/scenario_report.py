@@ -55,7 +55,7 @@ def main() -> int:
     print()
     offen = [r for r in results if r.verdict == "offen"]
     print(f"**{len(results)} Fälle · {len(results) - len(bad)} bestanden · "
-          f"{len(offen)} bekannter Befund (🟠, siehe FINDINGS.md) · "
+          f"{len(offen)} bekannter Befund (🟠, siehe docs/backlog.md) · "
           f"{len(bad) - len(offen)} unerwartet abweichend**")
     for r in bad:
         print(f"\n### {r.case.id} — {r.case.title}")

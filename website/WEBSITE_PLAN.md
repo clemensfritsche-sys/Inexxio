@@ -8,24 +8,28 @@
 >
 > **Für Inhalte (Texte, Seiten, Versprechen, Branchen) ist der Code die Quelle**, nicht
 > dieser Plan: `src/config/site.mjs` (Name, Telefon, Navigation, Schalter, SEO) und
-> `src/content/*.ts`. Der Auftrag im Wortlaut steht in `AUFTRAG.md` (in zentralen Punkten
-> überholt), die Start-Checkliste in `START.md`, offene Fotos in `OFFENE_PUNKTE.md`.
+> `src/content/*.ts`. Der Auftrag im Wortlaut (in zentralen Punkten überholt) liegt in
+> `docs/history/2026-10-04-website-auftrag.md`, die Start-Checkliste in `START.md`, was den
+> Start blockiert und welche Fotos fehlen in `OFFENE_PUNKTE.md` (generiert).
 
 ## 1. Architektur
 
 - **1 · Astro 7 als eigenständiges Teilprojekt in `website/`** – reines HTML ohne
-  Laufzeit-Framework, Progressive Enhancement. Node ≥ 22.12 (die CI baut die Website mit
-  Node 22, das ERP mit Node 20).
+  Laufzeit-Framework, Progressive Enhancement. Node ≥ 22.12; die CI baut Website und ERP
+  mit Node 22.
 - **2 · Dieselbe Firebase-Hosting-Site wie das ERP**: die CI baut beide Teile und kopiert
   `website/dist` in `frontend/out` (`scripts/merge-hosting.mjs`, bricht bei jeder Kollision
-  ab). Die Website besitzt «/» und ihre Seiten; das ERP behält `/erp`, `/konto`, `/login`,
-  `/abmelden`, `/agb`. `robots.txt` und `404.html` kommen von der Website.
+  ab). Die Website besitzt «/» und ihre Seiten; welche Pfade dem ERP gehören, steht EINMAL in
+  `site.erpPaths` (`src/config/site.mjs`, daraus auch `robots.txt`). `404.html` kommt von der
+  Website.
 - **3 · Die alten Next-Seiten sind gelöscht**; `/agb` bleibt im Next-Frontend (der
   Anmeldedialog verweist darauf).
 - **5 · Farben aus dem Design-System, generiert** (`scripts/tokens.mjs` liest
   `frontend/src/styles/design-system/colors_and_type.css`). **34/37 · Formsprache = Design-System
-  v3**: Inter Tight 700/600, Knöpfe 8 px, Karten 12 px, flach. **36/71a · Logo** = das
-  gestapelte Logo mit «ehemals HS Steiner» (`public/logo/`).
+  v4** (`docs/design-system/README.md`, Vorlage `Startseite v4.dc.html`): Inter Tight 700/600,
+  kühle Grautöne, Rot als einziger lauter Akzent, Glas nur unter `html[data-site]`.
+  **36/71a · Logo** = das gestapelte Logo mit «ehemals HS Steiner» (`public/logo/`).
+
 - **12/40 · Weiterleitungen** der alten hs-steiner.ch-Pfade in `firebase.json`; **keine**
   Fangregel «alles andere → /» auf dieser Site (sie gehört auf die alte Domain).
   `check-site.mjs` prüft jedes Ziel.

@@ -128,4 +128,4 @@ ist ein Kapitel darin; und was man nicht belegen kann, hat nicht stattgefunden.*
 Alles Weitere in `PROCESS_CORE.md` und `SYSTEM_LOGIC.md` ist die Ausführung dieses
 Satzes. Wo das Modell heute an seine Grenze stösst, stösst es an **eine** Stelle: es
 kennt die Geschichte eines Stücks **durch die Zeit** — und keine einzige Beziehung
-**zu einem anderen Stück**. Das ist Gegenstand von `CONCEPT_REVIEW.md`.
+**zu einem anderen Stück**. Das ist Gegenstand von `docs/history/2026-07-concept-review.md`.

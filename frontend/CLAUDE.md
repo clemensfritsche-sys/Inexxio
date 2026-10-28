@@ -20,8 +20,10 @@ Detailansichten laden ihre Daten direkt über `lib/api.ts`.
 
 ## Die Website ist NICHT hier – aber Kopf und Fuss kommen von ihr
 - Startseite und alle öffentlichen Seiten liefert `website/` (Astro); die CI kopiert dessen
-  Ausgabe in `frontend/out`. Hier bleiben `/login`, `/abmelden`, `/konto`, `/erp` und `/agb`.
-  Links auf Website-Seiten sind schlichte `<a>`.
+  Ausgabe in `frontend/out`. Hier bleiben die ERP-Pfade – welche, steht EINMAL in
+  `website/src/config/site.mjs` (`erpPaths`: `/erp`, `/konto`, `/login`, `/abmelden`,
+  `/beleg`, `/dokument`, `/agb`, `/datenschutz`, `/impressum`, `/vendor`). Links auf
+  Website-Seiten sind schlichte `<a>`.
 - **Kopf und Fuss SIND die der Website** (WEBSITE_PLAN Entscheid 60). Der Website-Build legt
   HTML, Skript und ein auf `.ix-shell` beschränktes Stylesheet nach `website/dist/_shell/`;
   `scripts/site-shell.mjs` (läuft vor `dev`, `build`, `lint`, `type-check`, `test`) übernimmt
@@ -263,7 +265,7 @@ Versand/Lieferung) → **Positionen** mit Summe → **Konditionen** (+ «Es gelt
 - **Kundenseite** (`app/(public)/beleg`, `components/beleg/`): das eingefrorene Dokument in
   einem `iframe srcdoc`, darüber die Stationen und die Handlungen der Partei
   (`api.publicBeleg` · `acceptBeleg` · `declineBeleg` · `prepareBelegPayment`); `/agb` zeigt
-  das A4-Dokument vom Server (`api.publicAgb`).
+  das A4-Dokument vom Server (`api.publicLegal('agb')`; ebenso `/datenschutz`, `/impressum`).
 - API: `updateVoucher` · `previewVoucher` · `prepareVoucherPayment` · `voucherTransfer` ·
   `refundVoucherPayment` · `paymentsOf`. Vorgaben des Moduls im Editor:
   `MONEY_FORM` in `lib/modules.ts` (Spiegel getestet).

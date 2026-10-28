@@ -1,13 +1,11 @@
-# Passkeys (WebAuthn) & Cookie-Einwilligung
+# Passkeys (WebAuthn)
 
-Diese Notiz beschreibt zwei zusammen ausgelieferte Bausteine:
-
-1. **Passkeys** – passwortlose Anmeldung (FIDO2/WebAuthn) auf Basis von Firebase.
-2. **Cookie-/Einwilligungs-Layer** – schlanke, professionelle Consent-Lösung.
+Passwortlose Anmeldung (FIDO2/WebAuthn) auf Basis von Firebase – neben Magic Link und
+Google SSO der dritte Weg ins Konto.
 
 ---
 
-## 1. Passkeys – wie es funktioniert
+## Wie es funktioniert
 
 Firebase Authentication kennt **keinen** nativen Passkey-Provider. Wir führen die
 WebAuthn-Zeremonie darum selbst im Backend (`py_webauthn`) und stellen bei Erfolg einen
@@ -29,7 +27,7 @@ POST …/passkeys/register/verify         POST …/passkeys/login/verify
 
 **Daten:** `webauthn_credentials` (registrierte Passkeys je Nutzer) und
 `webauthn_challenges` (kurzlebige, einmalig gültige Challenges, DB-basiert für Cloud
-Run). Migration `065_webauthn_passkeys.py`.
+Run). Beide stehen in der Basis `alembic/versions/161_baseline.sql`.
 
 **RP-ID / Origin:** werden **pro Request aus dem `Origin`-Header abgeleitet** und gegen
 `CORS_ORIGINS` (+ `WEBAUTHN_EXTRA_ORIGINS`) geprüft. Dasselbe Deployment funktioniert damit
@@ -83,11 +81,10 @@ auf den expliziten Passkey-Knopf wird die laufende Autofill-Zeremonie über
 
 `components/auth/passkey-nudge.tsx` — ein **nicht** blockierender Anstoss, direkt nach einem Login
 **ohne** Passkey einen einzurichten (stärkster Adoptions-Hebel; nutzen-, nicht angst-orientiert).
-Selbst-enthalten über `onAuthChange` (wie das ConsentGate), in ERP-/Konto-/Public-Layout gemountet.
+Selbst-enthalten über `onAuthChange`, gemountet im öffentlichen Layout (`app/(public)/layout.tsx`).
 Erscheint NUR, wenn ein Plattform-Authenticator vorhanden ist **und** der Nutzer 0 Passkeys hat
 **und** kein Cooldown greift (localStorage `inexxio_passkey_nudge`: 30 Tage Ruhe nach „Später",
-max. 3×, danach nie mehr; „eingerichtet" schaltet ihn dauerhaft ab). Positioniert unten-links
-(Desktop) bzw. über dem KI-Widget (Mobile), damit es das KI-Widget unten-rechts nicht verdeckt.
+max. 3×, danach nie mehr; „eingerichtet" schaltet ihn dauerhaft ab).
 
 #### Freundlicher Gerätename
 
@@ -95,29 +92,3 @@ Ohne expliziten Namen leitet `friendlyDeviceName()` aus dem User-Agent einen les
 (iPhone / iPad / Mac / Windows-PC / Android-Gerät / Chromebook / Linux-Gerät) — statt eines
 nichtssagenden „Passkey 1". (Ein serverseitiges Umbenennen existiert bewusst nicht — reduziert.)
 
----
-
-## 2. Cookie-/Einwilligungs-Layer
-
-**Braucht Inexxio ein Cookie-Banner?** Rechtlich ist die Seite bewusst „cookie-arm":
-Anmeldung/Warenkorb sind technisch notwendig (keine Einwilligung nötig), Plausible ist
-cookielos und Stripe wird nur an der Kasse geladen. Ein Banner ist damit nicht zwingend –
-für einen Shop mit EU-Kundschaft ist eine **transparente, granulare Einwilligung** aber
-State of the Art und macht die (optionale) Statistik sauber zustimmungspflichtig.
-
-**Umsetzung (bewusst schlank, keine Fremd-CMP):**
-
-* `lib/consent.ts` – eine Wahrheit über den Einwilligungs-Status; Erstanbieter-Cookie
-  `inexxio_consent` (+ localStorage-Spiegel), versioniert, 6 Monate. Meldet Änderungen
-  per Event (`inexxio:consent-changed`).
-* `components/consent/cookie-consent.tsx` – nicht blockierendes Banner + Einstellungs-
-  Dialog. Genau **zwei** ehrliche Kategorien: **Notwendig** (immer aktiv) und **Statistik**
-  (optional). „Nur notwendige" ist so leicht wie „Alle akzeptieren" (keine Dark Patterns).
-* `components/analytics/plausible.tsx` – lädt Plausible **erst** mit Statistik-Einwilligung
-  (Domain aus `company_settings.plausible_domain`). CSP in `firebase.json` erweitert.
-* Footer-Link + Button in der Datenschutzerklärung („Cookie-Einstellungen") → jederzeit
-  widerrufbar/änderbar.
-
-Neue optionale Dienste (Marketing-Pixel etc.) einfach hinter `getConsent()?.analytics`
-bzw. eine neue Kategorie in `lib/consent.ts` hängen und `CONSENT_VERSION` erhöhen (löst
-eine erneute Abfrage aus).

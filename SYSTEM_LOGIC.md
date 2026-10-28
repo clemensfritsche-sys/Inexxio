@@ -6,10 +6,12 @@
 >
 > **Was es nicht ist.** Keine Architekturbeschreibung (die steht in `PROCESS_CORE.md`)
 > und keine Zusammenfassung der Implementierung. Wo Sollzustand und Code auseinandergehen,
-> ist das ein **Befund** und steht in `FINDINGS.md` — nicht hier.
+> ist das ein **offener Befund** – als `open_finding` am Fall der Matrix
+> (`backend/tests/matrix.py`) und mit drei Zeilen in `docs/backlog.md` («Offene Befunde») —
+> nicht hier.
 >
-> Reihenfolge: dieses Dokument entstand **vor** der Testkampagne. Das ist keine Formalie:
-> ein systematisch falscher Code besteht seine eigenen Tests immer.
+> Das Soll steht **vor** dem Test: ein systematisch falscher Code besteht seine eigenen
+> Tests immer.
 
 ---
 
@@ -34,13 +36,14 @@ Datenquelle.
 
 ### 1.1 Alle Status, vollständig
 
-Die Liste ist **geschlossen**. Ein Wert, der hier nicht steht, ist im System nicht
-gültig — weder als Eingabe noch als gespeicherter Wert. Drei Achsen teilen sich die
-Wörter, wo sie dasselbe meinen.
+Die Liste ist **geschlossen** (`domain/statuses.CATALOG`). Ein Wert, der hier nicht steht,
+ist im System nicht gültig — weder als Eingabe noch als gespeicherter Wert. Vier Achsen
+(Einzelinstanz · Auftrag · Artikel · Dokument) teilen sich die Wörter, wo sie dasselbe
+meinen.
 
 | Wert | Beschriftung | Achsen | terminal | selektierbar | Ton | Bestand |
 |---|---|---|---|---|---|---|
-| `freigegeben` | Freigegeben | Einzelinstanz · Artikel | nein | **ja** | grün | **lebend** |
+| `freigegeben` | Freigegeben | Einzelinstanz · Artikel · Dokument | nein | **ja** | grün | **lebend** |
 | `im_prozess` | Im Prozess | Einzelinstanz · Auftrag | nein | **ja** | gelb | **lebend** |
 | `gesperrt` | Gesperrt | Einzelinstanz | nein | **ja** | gelb | **lebend** |
 | `verbaut` | Verbaut | Einzelinstanz | nein | **ja** | **grün** | historisch |
@@ -49,6 +52,9 @@ Wörter, wo sie dasselbe meinen.
 | `abgeschlossen` | Abgeschlossen | Auftrag | – | – | grün | – |
 | `abgebrochen` | Abgebrochen | Auftrag | – | – | rot | – |
 | `inaktiv` | Inaktiv | Artikel | – | – | rot | – |  ← **abgeleitet** aus `replaced_by_id`
+| `unterschrift_angefragt` | Unterschrift angefragt | Dokument | – | – | gelb | – |  ← **abgeleitet**
+| `abgelehnt` | Abgelehnt | Dokument | – | – | rot | – |  ← **abgeleitet**
+| `geloescht` | Gelöscht | Dokument | – | – | rot | – |  ← **abgeleitet**
 
 **Bedeutung je Wert:**
 
@@ -57,9 +63,12 @@ Wörter, wo sie dasselbe meinen.
   «einsatzbereit», auf zwei Achsen.
 - **`im_prozess`** — An der Einzelinstanz: sie ist in **genau einem** Auftrag aktiv. Am
   Auftrag: es ist noch etwas unterwegs.
-- **`verkauft`** — An einen Kunden gegangen. **Grün**, weil es sein Ziel erreicht hat;
-  **historisch**, weil es nicht mehr in unserem Regal liegt; **nicht terminal**, weil eine
-  Retoure real ist. Der Ort fällt weg — wo es beim Kunden liegt, ist nicht unsere Auskunft.
+- **`verkauft`** — Gehört einer anderen Partei. Geschrieben am **Ende-Objekt**
+  (`process._finish`), wenn das jüngste nicht stornierte Zahlungsmodul, das das Stück
+  passiert hat, «geht an die Partei» sagt (`voucher.sold_units`). **Grün**, weil es sein
+  Ziel erreicht hat; **historisch** (kein Bestand, kein FIFO); **nicht terminal**, weil eine
+  Retoure real ist. **Der Ort bleibt** – es steht in der Halle, bis der Kunde es abholt
+  (ein Bewegen-Modul).
 - **`gesperrt`** — Aus dem Verkehr gezogen, **physisch noch da**. Nicht einplanbar,
   solange die Sperre gilt — **aber selektierbar**: das Greifen durch einen Auftrag **ist**
   das Aufheben. Es gibt bewusst keinen «Entsperren»-Endpunkt.
@@ -78,6 +87,9 @@ Wörter, wo sie dasselbe meinen.
   er gilt genau dann, wenn ein Nachfolger den Artikel abgelöst hat
   (`replaced_by_id`, PROCESS_CORE §5.5). Es gibt keinen Schalter dafür – und damit
   auch keinen Weg zurück: wer den Vorgänger weiterbauen will, ersetzt ihn nicht.
+- **Dokument-Zustände** — Freigegeben · Unterschrift angefragt · Abgelehnt · Gelöscht,
+  alle **abgeleitet** (`docs/dokumente.md`); sie gehören nicht zum Prozess und haben
+  keine Übergangsmatrix hier.
 
 **Nur ein Einzelinstanz-Zustand darf terminal sein.** Er ist der einzige, der gespeichert
 und geändert wird; Auftrags- und Artikelzustände sind abgeleitet bzw. anderswo geführt.
@@ -86,13 +98,13 @@ und geändert wird; Auftrags- und Artikelzustände sind abgeleitet bzw. anderswo
 `terminal`, der Schutz in der Datenbank ebenso, und die Bestands-Zugehörigkeit ist eine
 Eigenschaft am Status. Es darf keine zweite Liste geben, die jemand nachziehen muss.
 
-**Die Farbe folgt NICHT aus `terminal`.** Hier stand einmal «endgültig = rot, aufhebbar =
-gelb» – das stimmte, solange die einzigen Ausgänge *Verschrottet* und *Gesperrt* hiessen.
-Mit *Verbaut* stimmt es nicht mehr: aufhebbar **und** grün, weil es seinen Zweck erreicht
-hat. Der Ton sagt «gut · offen · Problem», `terminal` sagt «gibt es einen Weg zurück» –
-zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten Zustand falsch.
+**Die Farbe folgt NICHT aus `terminal`.** *Verbaut* ist aufhebbar **und** grün, weil es
+seinen Zweck erreicht hat. Der Ton sagt «gut · offen · Problem», `terminal` sagt «gibt es
+einen Weg zurück» – zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten
+Zustand falsch.
 
-> **Drei Wörter beantworten hier zwei Fragen** (`CONCEPT_REVIEW` §3). Kein Verhalten ist
+> **Drei Wörter beantworten hier zwei Fragen** (`docs/history/2026-07-concept-review.md`
+> §3). Kein Verhalten ist
 > davon falsch — die Kosten trägt, wer neu dazukommt, und `is_active` hat gezeigt, dass
 > solche Kosten irgendwann als Fehler anfallen:
 >
@@ -124,9 +136,9 @@ zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten Zustand
 | T7 | `im_prozess` | `gesperrt` | **step** | Modul «Aussondern», Ausprägung *Sperren*. |
 | T7b | `im_prozess` | `verbaut` | **step** | Modul «Verbrauch», für die **genannten Artikel**. Der Rest passiert dasselbe Modul unverändert (T5) – der Ausgang gilt je Stück, nicht je Modul. |
 | T7c | `verbaut` | `im_prozess` | **start** | Auftragsfreigabe, verbautes Stück wird gegriffen → **Demontage**, ebenfalls eine Abweichung. |
-| T7d | `im_prozess` | `verkauft` | **step** | *Kein Modul schreibt ihn mehr* – «Ausliefern» ist entfernt (§9.9). Der Übergang steht in der Vergangenheit: der Log ist append-only, und `verkauft` bleibt darum im Katalog. Er war ein **Ausgang**, und der Ort fiel dabei weg (`stock = historisch`). |
+| T7d | `im_prozess` | `verkauft` | **end** | Das Stück passiert das Ende-Objekt, kehrt nirgends zurück und **gehört einer anderen Partei** (jüngstes nicht storniertes Zahlungsmodul: «geht an die Partei», `voucher.sold_units`). Der Ort bleibt. |
 | T7e | `verkauft` | `im_prozess` | **start** | Auftragsfreigabe, verkauftes Stück wird gegriffen → **Retoure**, ebenfalls eine Abweichung. |
-| T8 | `im_prozess` | `freigegeben` | **end** | Das Stück passiert das Ende-Objekt und kehrt **nirgends** zurück. Der Wert ist der `end_status` des Auftrags (heute immer `freigegeben`, an einer Stelle hinterlegt). |
+| T8 | `im_prozess` | `freigegeben` | **end** | Das Stück passiert das Ende-Objekt, kehrt **nirgends** zurück und gehört uns. Der Wert ist der `end_status` des Auftrags (heute immer `freigegeben`, an einer Stelle hinterlegt). |
 | T9 | `im_prozess` | `im_prozess` | **end** | Das Stück passiert das Ende-Objekt und **kehrt in seinen Quell-Auftrag zurück**. Es bleibt im Prozess — es ist ja in einem. |
 
 **Ereignisse ohne Statuswechsel** (sie stehen im Log, ändern aber nichts am Zustand):
@@ -392,33 +404,31 @@ Landkarte dünn ist und an denen darum getestet wird.
 |---|---|---|
 | **R1 — die Wartekette** | Wartet ein Auftrag auf eine Abweichung, die ihrerseits wartet: löst sich die Kette bis nach oben auf? | **geprüft** (S43 · S47) — ja, über drei Ebenen |
 | **R2 — kein Abbruch** | Ein Auftrag, dessen Abweichung nie fertig wird: gibt es einen Ausgang? | **beantwortet** (§4.4) — ja, man entzieht ihr die Stücke (S59) |
-| **R3 — Nebenläufigkeit** | Zwei gleichzeitige Freigaben mit demselben freien Stück | **geprüft** (S63) — genau eine gewinnt; der Verlierer bekommt je nach Timing eine rohe Datenbankmeldung (🟡-5) |
+| **R3 — Nebenläufigkeit** | Zwei gleichzeitige Freigaben mit demselben freien Stück | **geprüft** (S63) — genau eine gewinnt; der Verlierer bekommt je nach Timing eine rohe Datenbankmeldung (`docs/backlog.md`, «Offene Befunde») |
 | **R4 — Stichprobe und Rückkehr** | Kann ein Stück durch eine Abweichung der Prüfung entgehen? | **geprüft** (S26) — nein, das Modul ist gesperrt, solange etwas zurückkommt |
 | **R5 — Artikel inaktiv** | Lässt sich mit einem inaktiven Artikel noch etwas erzeugen? | **behoben** (S98 · S98b) — «Neu» gesperrt, «Lager» bleibt |
 | **R6 — leere Menge** | Stimmt die Mengenbilanz nach vollständiger Aussonderung? | **geprüft** (S81) — ja, die Zeilen bleiben, nur der Zustand wechselt |
 | **R7 — `units_may_leave`** | Ein künftiger Modultyp mit Aussenwirkung darf `units_may_leave = False` setzen. Dann lässt sich ein Stück vor diesem Modul **nicht** herausnehmen — und weil der Abbruch genau darüber läuft (§4.4), wäre der Ausgang zu. | **latent, ungeprüft.** Heute gibt es keinen solchen Modultyp. Wer den ersten baut, muss den Ausgang mitbeantworten. |
-| **R8 — Korrektur nach dem Vorrücken** | Eine Erfassung ist falsch und fällt erst auf, wenn das Stück das Modul verlassen hat. Gibt es einen Weg? | **nein** (`CONCEPT_REVIEW` §1.6). Solange das Stück davorsteht, ersetzt das nächste Urteil das letzte (U4); danach findet `_units_at` es dort nicht mehr, und eine Ereignisart für eine Korrektur gibt es nicht. Der Docstring von `ProcessEvent` verspricht sie bereits. **Ohne sie wandert die Korrektur auf Papier — und ab da ist das System nicht mehr die Quelle.** |
+| **R8 — Korrektur nach dem Vorrücken** | Eine Erfassung ist falsch und fällt erst auf, wenn das Stück das Modul verlassen hat. Gibt es einen Weg? | **nein** (`docs/history/2026-07-concept-review.md` §1.6). Solange das Stück davorsteht, ersetzt das nächste Urteil das letzte (U4); danach findet `_units_at` es dort nicht mehr, und eine Ereignisart für eine Korrektur gibt es nicht. Der Docstring von `ProcessEvent` verspricht sie bereits. **Ohne sie wandert die Korrektur auf Papier — und ab da ist das System nicht mehr die Quelle.** |
 | **R9 — gleichzeitiges Bestätigen** | Zwei Personen bestätigen dieselbe Instanz am selben Modul im selben Moment. | **ungeprüft, Vermutung.** `confirm_step` nimmt keine Sperre; beide lesen dieselbe Warteliste. Erwartet wird kein kaputter Zustand, aber ein **doppelter Nachweis** (zwei Erfassungszeilen, zwei Schritt-Ereignisse). S63 prüft Nebenläufigkeit nur bei der **Freigabe**. |
 | **R10 — wer darf** | Jeder Endpunkt hängt an `require_employee`; es gibt keine Rolle je Modultyp. Wer sich anmelden kann, kann 600 Stück verschrotten. | **bewusst offen.** Die **Attribution** ist lückenlos (`actor_id` an jedem Ereignis) — damit ist die Absicht «wer es zu verantworten hat» erfüllt. Was fehlt, ist **Prävention** bei den unumkehrbaren Vorgängen. Der Ort für die Regel existiert (`Module`, neben `terminal`/`requires_verification`). |
 
 ### 4.6 Was ausserhalb dieser Landkarte liegt
 
 > §4.1–§4.2 kartieren jeden Zustand, den es **gibt**. Diese Tabelle nennt die Vorgänge, für
-> die es **keinen** gibt — sie können darum in keiner Sackgassen-Analyse auftauchen und
-> sind bis zum Konzeptreview (`CONCEPT_REVIEW.md`) nirgends festgehalten gewesen.
+> die es **keinen** gibt — sie können darum in keiner Sackgassen-Analyse auftauchen.
+> Montage (Modul «Verbrauch», `verbaut`) und Ort (Modul «Bewegen», `place_*`) sind
+> inzwischen gebaut (PROCESS_CORE §9.6, §9.8).
 
 | Vorgang | Warum das Modell ihn nicht kennt |
 |---|---|
-| **Montage** (4 Teile → 1 Baugruppe) | Es gibt **keine Beziehung zwischen zwei Einzelinstanzen** — nur die zeitliche (Journey §7.4). Kein «besteht aus», kein «steckt in». Dazu fehlt der Zustand: `verbraucht` ist im Katalog ausdrücklich **nicht angelegt**, und `_assert_single_new` (#693) verbietet die eine Auftragsform, die eine Montage wäre (verbrauchende `Lager`-Zeilen **plus** eine erzeugende `Neu`-Zeile). |
-| **Teilung** (eine 6-m-Stange → 3 Stücke) | Umkehrung derselben Lücke. Zusätzlich hat die Länge im Modell keinen Platz (keine Mengen-Spalte, D1) — sie lässt sich nur als Erfassungswert führen. |
-| **Verbrauch** | Ein Stück verlässt den Bestand heute ausschliesslich über `Verschrottet`. «Verbaut» als Endzustand gibt es nicht — der Bestand enthält damit auch alles, was eingebaut oder ausgeliefert wurde. |
-| **Ort** | Es gibt keinen Halter, keine Standort-Spalte, keine Kette. Solange ein Stück in einem Auftrag läuft, ist «vor Modul X» die Antwort; bei **freiem** Bestand ist sie leer. Das ist die grösste Abweichung zwischen der Absicht (*«wo es ist»*) und dem Modell. |
+| **Teilung** (eine 6-m-Stange → 3 Stücke) | Gegenrichtung der Montage. Zusätzlich hat die Länge im Modell keinen Platz (keine Mengen-Spalte) — sie lässt sich nur als Erfassungswert führen, und neue Stücke entstehen nur in einem Erzeugungsauftrag. |
 | **Zweck eines Auftrags** | Ein Auftrag trägt Objektnummer, den daraus gebildeten Namen und den Endzustand. Warum es ihn gibt, steht nirgends — bei zwei Aufträgen mit demselben Ablauf ist es nicht einmal erschliessbar. |
 | **Termin / Soll-Dauer** | Der Auftragsstatus hat keine Zeitachse. Ein Auftrag, an dem seit sechs Wochen niemand war, ist von einem laufenden nicht unterscheidbar. |
 
-**Der gemeinsame Prüfstein für die letzten drei:** die Regel «nichts speichern, was sich
+**Der gemeinsame Prüfstein für Zweck und Termin:** die Regel «nichts speichern, was sich
 ableiten lässt» (G3) ist richtig und bleibt. Sie hat aber auch Angaben mit entfernt, die
-sich **nicht** ableiten lassen — Ort, Zweck und Termin existieren nur im Kopf dessen, der
+sich **nicht** ableiten lassen — Zweck und Termin existieren nur im Kopf dessen, der
 handelt. Ein Feld ist zulässig, **wenn seine Angabe aus keiner anderen im System
 herleitbar ist**; alles Übrige bleibt verboten.
 
@@ -429,44 +439,31 @@ herleitbar ist**; alles Übrige bleibt verboten.
 Diese Punkte gehören zur Grundlogik, sind aber **nicht** entschieden. Sie werden
 einzeln nachgetragen — nicht beim Bauen erraten. Ein Test darf hier nichts behaupten.
 
-1. ~~**Abbruch eines Auftrags.**~~ **Entschieden** (§4.4): es gibt **keine**
-   Abbruch-Funktion. Ein Auftrag wird abgebrochen, indem ihm über einen
-   Abweichungsauftrag alle Stücke entzogen und die Rückführung gekappt wird — der Weg
-   zwingt dazu, das Schicksal der Stücke zu regeln.
-2. **Darf ein Abweichungsauftrag ausgelöst werden, während in einem Modul bereits mit der
+1. **Darf ein Abweichungsauftrag ausgelöst werden, während in einem Modul bereits mit der
    Eingabe begonnen wurde?** Gebaut ist die restriktivere Variante, **als Eigenschaft des
    Modultyps**, nicht als globale Regel. Serverseitig ist das nicht erzwingbar: eine nicht
    bestätigte Eingabe existiert nirgends.
-   **Achtung, seit §4.4:** derselbe Schalter (`Module.units_may_leave`) entscheidet auch,
-   ob sich ein Auftrag noch abbrechen lässt — siehe Risiko R7.
-3. **Stichprobenregel fehlt in einer Alt-Definition** → es gilt «alle». Das ist ein
-   dokumentierter Rückfall für **Historie**, kein Standardwert für neue Eingaben. Eine
-   neue Definition trägt die Regel immer.
-4. **Weitere Modultypen.** Zwei sind fertig (Datenerfassung, Aussondern). Was ein Modul
-   mit Aussenwirkung (Einkauf, Verkauf) beim Herausnehmen eines Stücks tun muss, ist noch
-   nicht entschieden — der Schalter dafür steht an einer Stelle.
-5. ~~**Montage, Teilung, Verbrauch.**~~ **Entschieden und gebaut** (Modul «Verbrauch»):
-   der Zustand `verbaut` steht im Katalog (**nicht** terminal – Demontage ist real), das
-   Modul setzt ihn **je Artikel** statt je Modul, und `_assert_single_new` heisst jetzt
-   «höchstens eine `Neu`-Zeile». Die **Stückliste ist eine Ableitung** über den
-   gemeinsamen Auftrag (`services/genealogy`), gelesen aus dem **Log** – darum überlebt
-   sie eine Demontage. Wächter: `tests/test_consumption_module.py`, Matrix S11 · S11b ·
-   S16 · S17 · S18.
-   **Offen bleibt die Teilung** (eine 6-m-Stange in drei Stücke): sie ist die
-   Gegenrichtung derselben Lücke und braucht zusätzlich eine Antwort darauf, wie neue
-   Stücke **ohne** Erzeugungsauftrag entstehen.
-6. **Ort.** Ob und wie ein Halter je Einzelinstanz geführt wird (§4.6). Bis dahin ist
-   *«wo ist es»* für freien Bestand unbeantwortbar. Der Vorgänger hatte eine
-   Standort-Kette; sie wieder aufzunehmen heisst, ihre Fehler nicht mitzunehmen.
-7. **Zweck des Auftrags.** Ein Pflichtfeld «warum gibt es diesen Auftrag» — ein Satz, wie
+   Derselbe Schalter (`Module.units_may_leave`) entscheidet auch, ob sich ein Auftrag
+   noch abbrechen lässt (§4.4) — siehe Risiko R7.
+2. **Stichprobenregel fehlt in einer Alt-Definition** → es gilt «alle»
+   (`modules.sample_of`). Das ist ein dokumentierter Rückfall für **Historie**, kein
+   Standardwert für neue Eingaben. Eine neue Definition trägt die Regel immer.
+3. **Was ein Modul mit Aussenwirkung beim Herausnehmen eines Stücks tun muss.** Heute
+   setzt keiner der fünf Modultypen `units_may_leave = False`; der Schalter steht an einer
+   Stelle.
+4. **Teilung** (eine 6-m-Stange in drei Stücke): die Gegenrichtung der Montage (Modul
+   «Verbrauch», gebaut); sie braucht eine Antwort darauf, wie neue Stücke **ohne**
+   Erzeugungsauftrag entstehen.
+5. **Zweck des Auftrags.** Ein Pflichtfeld «warum gibt es diesen Auftrag» — ein Satz, wie
    ihn das Aussondern-Modul für seinen Grund bereits verlangt, und aus demselben Grund.
-   Ohne ihn wirft das abgeleitete Label «Abweichung» acht verschiedene Vorgänge zusammen
-   (`CONCEPT_REVIEW` §2), und eine Sonderfreigabe hat keinen dokumentierten Anlass.
-8. **Termin und Soll-Dauer** (§4.6). Ohne Soll ist «hängt seit sechs Wochen» nicht von
+   Ohne ihn wirft das abgeleitete Label «Abweichung» verschiedene Vorgänge zusammen
+   (`docs/history/2026-07-concept-review.md` §2), und eine Sonderfreigabe hat keinen
+   dokumentierten Anlass.
+6. **Termin und Soll-Dauer** (§4.6). Ohne Soll ist «hängt seit sechs Wochen» nicht von
    «dauert eben so lange» zu unterscheiden — und zwar unabhängig davon, wie gut eine
    Auswertung gebaut wäre.
-9. **Werkzeug- und Prüfmittel-Nachweis — es gibt ihn nicht mehr.** Der Erfassungstyp
-   «Objekt scannen» ist **ersatzlos entfernt** (Testnotiz #719, bewusste Entscheidung).
+7. **Werkzeug- und Prüfmittel-Nachweis — es gibt ihn nicht.** Einen Erfassungstyp
+   «Objekt scannen» gibt es nicht (bewusst entfernt, `docs/attic.md`).
    Er war die einzige Stelle, an der «mit welchem Werkzeug wurde gearbeitet» bzw. «mit
    welchem Prüfmittel wurde gemessen» überhaupt festhaltbar war; damit ist diese Aussage
    im System **nirgends** mehr abgebildet.
@@ -485,38 +482,37 @@ einzeln nachgetragen — nicht beim Bauen erraten. Ein Test darf hier nichts beh
 
 ### 5.5 Setzt die Abweichung nach einem «nicht bestanden» VOR oder NACH dem Modul an?
 
-**Gebaut ist: davor.** Die Frage ist gestellt (Testnotiz #713) und die vorgeschlagene
-Präzisierung der Regel ist übernommen (§12.4): *die Abzweigung hängt an der aktuellen
+**Gebaut ist: davor.** Die Regel (PROCESS_CORE §12.4): *die Abzweigung hängt an der aktuellen
 Position der Einzelinstanz.* Genau das rechnet `flow.build` — der Abzweigepunkt sitzt auf
 `order_units.current_step_id`. Die Zeichnung ist damit **keine** Behauptung; sie gibt die
 Position wieder.
 
 Die eigentliche Frage ist darum nicht, wo gezeichnet wird, sondern: **rückt eine
-durchgefallene Einzelinstanz vor?** Heute nicht (§4.5), und daran hängen drei Dinge:
+durchgefallene Einzelinstanz vor?** Heute nicht (PROCESS_CORE §4.5), und daran hängen drei Dinge:
 
 | Was daran hängt | warum es ohne «steht davor» nicht geht |
 |---|---|
 | **Der Halt ist sichtbar** | `step_work` listet, was vor dem Modul steht. Rückt das Stück vor, verschwindet es aus dieser Liste — und mit ihm die Meldung «nicht bestanden» und die angebotene Abweichung. |
 | **Nichts läuft still weiter** | Ein vorgerücktes Stück steht vor dem **nächsten** Modul und wird dort ganz normal bearbeitet. Ein durchgefallenes Stück liefe damit bis zum Ende durch und käme als «Freigegeben» ans Lager. |
-| **Der Halt braucht keinen Schlüssel** | Ihn stattdessen zu **sperren** hiesse, eine Sperre einzuführen — und die bräuchte jemanden, der sie aufschliesst (§4.5 begründet ausführlich, warum es die nicht gibt). |
+| **Der Halt braucht keinen Schlüssel** | Ihn stattdessen zu **sperren** hiesse, eine Sperre einzuführen — und die bräuchte jemanden, der sie aufschliesst (PROCESS_CORE §4.5 begründet ausführlich, warum es die nicht gibt). |
 
-**Was die Notiz zu Recht bemängelt, bleibt bestehen:** kehrt ein Stück aus der Abweichung
-an denselben Punkt zurück, durchläuft es das Modul ein **zweites** Mal — und §7.1 verbietet
+**Was offen bleibt:** kehrt ein Stück aus der Abweichung
+an denselben Punkt zurück, durchläuft es das Modul ein **zweites** Mal — und PROCESS_CORE §7.1 verbietet
 die «Wiederholung an Ort und Stelle». Heute ist das der dokumentierte Ausweg aus dem Halt
-(«das nächste Urteil ersetzt das letzte», §4.5); wer die Wiederholung nicht will, **kappt
+(«das nächste Urteil ersetzt das letzte», PROCESS_CORE §4.5); wer die Wiederholung nicht will, **kappt
 die Rückführung** — dann läuft der Auftrag mit weniger Stücken weiter und die Nacharbeit
 lebt im Folgeauftrag.
 
 **Zu entscheiden ist also eine Modellfrage, nicht eine Zeichnungsfrage:** soll ein
 durchgefallenes Stück vorrücken und stattdessen ein **Zustand** es anhalten (der nächste
-Kandidat wäre `Gesperrt`, §5.2)? Das wäre die einzige Variante, die «nach dem Modul» trägt,
+Kandidat wäre `Gesperrt`, PROCESS_CORE §5.2)? Das wäre die einzige Variante, die «nach dem Modul» trägt,
 ohne stilles Weiterlaufen zu erlauben — und sie kehrt eine ausdrückliche Entscheidung um
-(§13: «weder Status noch automatischer Folgeauftrag»). Darum steht sie hier und ist nicht
-gebaut.
+(PROCESS_CORE §4.5: «weder Status noch automatischer Folgeauftrag»). Darum steht sie hier
+und ist nicht gebaut.
 
 ### 5.6 Was am Order-to-Cash bewusst NICHT gebaut ist
 
-Die Forderung ist als dritte Achse da (PROCESS_CORE §9.11); fünf Dinge daneben sind
+Die Forderung ist der Beleg selbst (PROCESS_CORE §9.15); diese Dinge daneben sind
 **benannt und nicht gebaut** – benannt, damit sie nicht als stille Lücke im Code stehen:
 
 **Rabatte.** Es gibt keine Preisliste (`article_prices` ist mit dem Basis-Neuaufbau
@@ -529,23 +525,26 @@ kennt **keine Reservierungen**. Die Auftragsfreigabe *ist* die Verfügbarkeitspr
 sind die Stücke im selben Moment weg, meldet sie es (§12.6a). Ein ATP-Wert daneben wäre
 eine Aussage über einen Zustand, den niemand hält.
 
-**Mahnwesen.** *Überfällig* ist eine Ableitung und sichtbar (`domain/voucher.invoice_state`);
-eine **Mahnung** ist eine Mitteilung. Einen Versandweg gibt es inzwischen (Gmail-Postfach
-der eigenen Gesellschaft, `services/mailbox`) – was fehlt, ist der **Anlass**: nichts
-schreibt eine Mahnung von selbst, sie wäre eine gewöhnliche Nachricht im Verlauf.
+**Automatisches Mahnen.** *Überfällig* ist eine Ableitung (`services/voucher.overdue`) und
+zählt in «zu tun» der Person. Die **Mahnung** selbst gibt es: drei Stufen à 10 Tage, ein
+A4-Dokument je Stufe, per Mail mit Link (`remind`, PROCESS_CORE §9.15) – aber **von Hand**.
+Nichts mahnt von selbst, und eine eigene Mahnliste gibt es nicht.
 
-**Rechnungs-PDF.** Die Rechnung trägt Betrag, Steuer je Satz und Leistungsdatum; die
-**Positionen** stehen am Beleg (`voucher_lines`). Was fehlt, ist der **Ausdruck** –
-und den gibt es nicht (das Dokumentmodul ist entfernt). Der Beleg lebt online; ein
-Papierformat ist eine Darstellung, kein Datenmodell.
+*Nicht mehr auf dieser Liste:* das **Rechnungs-PDF**. Jedes Papier (Offerte bis Mahnung)
+ist ein A4-Dokument aus einer Vorlage (`services/document.py`), im Browser als PDF
+druckbar, mit den AGB als letzte Seiten.
+
+**Bankabgleich** (camt.053). Zahlungen werden erfasst (bar, Überweisung) oder vom
+Zahlungsdienst gebucht (Karte); eine Bank-Datei liest nichts ein.
 
 **Übergabe an die Buchhaltung.** Es gibt keine. Der Standard-Schritt «automatische
 Weitergabe ans Finanzwesen» hat hier kein Gegenüber.
 
 *Nicht auf dieser Liste, weil es sie längst gibt:* **Kommissionierung** und **Versand**
-sind Bewegen-Module (§9.8), die Spedition ist ein Geldvorgang (§9.15). *Ein eigenes Modul
-für die Übergabe gab es eine Runde lang und ist entfernt: «gehört jetzt jemand anderem»
-ist die Folge aus Bewegen und Zahlung, kein eigener Vorgang (§9.9).*
+sind Bewegen-Module (PROCESS_CORE §9.8), die Spedition ist ein Zahlungs-Modul (§9.15).
+«Gehört jetzt jemand anderem» ist die Folge aus Bewegen und Zahlung, kein eigener Vorgang:
+am Ende-Objekt wird ein Stück, das der Partei gehört, `verkauft` (T7d).
+
 
 ---
 

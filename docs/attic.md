@@ -22,8 +22,8 @@ steckt – damit ein Wiederaufbau bei der Entscheidung anfängt und nicht bei de
 `models/{purchase,invoice,payment}.py` · `frontend/components/erp/purchase-work.tsx`
 
 **Der Stand:** der Commit vor dieser Löschung auf `develop` (`git log -- backend/app/services/purchase.py`).
-Die Tabellen `purchases`, `invoices`, `payments` stehen unverändert in der Datenbank
-(`docs/backlog.md`) – die Daten sind also da, nur ohne Code.
+Die Tabellen `purchases`, `invoices`, `payments` sind mit Migration `152` gefallen (nach
+Sicherung der produktiven Datenbank); die Daten liegen in der Sicherung.
 
 **Warum sie weg sind — es war eine Doppelung, kein Fehler.** Der Beleg war Angebot →
 Zusage → Erfüllung, mit Angebotsspiegel, Rechnungen, Zahlungen und Storno. Genau das ist
@@ -39,7 +39,7 @@ einem Quelltext-Wächter). An ihm war für die Löschung nichts zu tun.
 **Die Entscheidungen, die darin steckten und heute im Geldvorgang leben:**
 
 * *Drei Stufen, weil drei Dinge unumkehrbar sind* – nichts zugesagt · zugesagt · erfüllt.
-  Der Geldvorgang hat davon **zwei**: die Erfüllung ist ein **Zustand**, kein Schritt.
+  Der Beleg hat heute **drei** (Angebot · Auftrag · Rechnung); «Erledigt» ist ein **Zustand**, kein Schritt.
 * *Mehrere Gegenparteien sind eine Liste, kein zweiter Mechanismus* – der Angebotsspiegel
   des Einkaufs und der Tarifvergleich des Transports sind dieselbe Zeile.
 * *Ein Modul räumt selbst auf* – **eine** Gegenhandlung (`revoke`), und was sie bewirkt,
@@ -66,11 +66,11 @@ Je ein Satz, was es war, und wo die Entscheidung steht. Der Code liegt in der Gi
 
 | Was | Datei(en) | Warum weg | Entscheidung nachlesen |
 |---|---|---|---|
-| **«Zahlung (alt)»** – das `deal`-Modul | `domain/deal` · `services/deal` · `schemas/deal` · `models/deal` · `deal-work.tsx` | Sein Nachfolger, der **Beleg** (`beleg`), stand bewusst daneben und kann alles in einer besseren Datenform (Testnotiz #960). Tabellen `deals`/`deal_entries` stehen noch. | `docs/history/2026-09-zahlungsmodul-vorgaenger.md` |
-| **«Ausliefern»** | Modul-Eintrag in `domain/modules.py` | Ein Scan und ein Statuswechsel auf `Verkauft` – «gehört jetzt jemand anderem» ist die Folge aus Bewegen und Zahlung, kein Vorgang. `Verkauft` bleibt im Katalog (Vokabular des Logs). | PROCESS_CORE §9.9 |
+| **«Zahlung (alt)»** – das `deal`-Modul | `domain/deal` · `services/deal` · `schemas/deal` · `models/deal` · `deal-work.tsx` | Sein Nachfolger, der **Beleg** (`beleg`), stand bewusst daneben und kann alles in einer besseren Datenform (Testnotiz #960). Tabellen `deals`/`deal_entries` mit Migration `152` gefallen. | `docs/history/2026-09-zahlungsmodul-vorgaenger.md` |
+| **«Ausliefern»** | Modul-Eintrag in `domain/modules.py` | Ein Scan und ein Statuswechsel auf `Verkauft` – «gehört jetzt jemand anderem» ist die Folge aus Bewegen und Zahlung, kein Vorgang. `Verkauft` schreibt heute das Ende-Objekt, wenn das Stück der Partei gehört (`process._finish`, PROCESS_CORE §4.2). | `docs/history/2026-10-process-core-9-15-chronik.md` (§9.9) |
 | **Kontotyp** «Privat ↔ Geschäft» | `domain/accounts.py` · `lib/accounts.ts` · `assert_account` | Eine Angabe zu viel: ob jemand für eine Firma auftritt, sagt die **Zuordnung** zu einem Firmen-Datensatz (#1043, CRM Schritt 1). | `docs/history/2026-10-claude-md-chronik.md` («Kontotyp», «Die Rolle ist der Zugang») |
 | **Erfassungspunkt «Objekt scannen»** | `domain/capture_types/object_scan.py` | Der einzige Nachweis für Werkzeug/Prüfmittel – bewusst offen (`SYSTEM_LOGIC.md` §5.9); der Weg zurück beginnt bei der Modellfrage «Nutzung ohne Exklusivität». | `SYSTEM_LOGIC.md` §5.9 |
-| **Statistik + Einwilligungs-Dialog** (Plausible) | `track.ts`, Cookie-Dialog, `plausible_domain` | Das Skript lud nie; ohne Statistik braucht es keine Einwilligung (Cleanup 2026-10, E5). | `docs/cleanup-2026-10-analyse.md` |
+| **Statistik + Einwilligungs-Dialog** (Plausible) | `track.ts`, Cookie-Dialog, `plausible_domain` | Das Skript lud nie; ohne Statistik braucht es keine Einwilligung (Cleanup 2026-10, E5). | `docs/history/2026-10-cleanup-analyse.md` |
 
 ## Der Stand
 
@@ -130,6 +130,11 @@ Lieferschein). Die Entscheidungen:
 
 ## KI
 
+> **Wieder gebaut (Oktober 2026)** – neu, nicht aus dieser Datei: EINE Tür `services/ai.py`
+> (Lesen, Verfassen, Tagesdeckel, jeder Aufruf im `audit_log`), `docs/dokumente.md`. Hier
+> steht nur noch, was der alte Anlauf entschieden hatte; der Assistent mit Werkzeugen ist
+> nicht zurückgekommen.
+
 `services/ai/` · `routers/ai.py` · `schemas/ai.py` · `models/ai.py`
 
 Vier dünne Schichten (ADR 004, weiterhin unter `docs/adr/`): Gateway (Anbieter
@@ -158,7 +163,8 @@ Sie ist mitgegangen, weil sie nach dem Neuaufbau **kein einziger Schreiber mehr 
 der Endpunkt lieferte einen Strom aus, in den nichts mehr floss. Die Wahrheit über das
 Material steht seither im **Material-Journal** (`process_events`, ADR 007); ein zweiter
 Strom daneben wäre genau die zweite Wahrheit, die dieses Projekt nicht will. Die Tabelle
-bleibt vorerst in der Datenbank stehen (Historie), sie wird nur nicht mehr gelesen.
+`events` ist mit Migration `152` gefallen.
+
 
 ## Der Feature-Schalter
 

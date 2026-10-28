@@ -1,10 +1,10 @@
 # FINDINGS — Befunde des Audits
 
-> **Kopfvermerk (Oktober 2026):** Momentaufnahme des Audits vom August 2026. Alle drei 🟠
-> sind erledigt; «Fund 4» nennt Bereiche (`ai`, `selling`), die inzwischen gelöscht sind
-> (`docs/attic.md`). Die Datei bleibt am Ort, weil die Testmatrix auf einen offenen Befund
-> verweist (`backend/tests/matrix.py`, `open_finding="FINDINGS.md 🟡-1"`) und
-> `scripts/scenario_report.py` sie nennt. Laufende Wahrheit über die Szenarien ist
+> **Archiv (vormals `FINDINGS.md`, verschoben am 28.10.2026).** Momentaufnahme des Audits
+> vom August 2026. Alle drei 🟠 und 🟡-3 sind erledigt; die offenen 🟡-1, 🟡-2, 🟡-4 und
+> 🟡-5 stehen mit je drei Zeilen in `docs/backlog.md` («Offene Befunde»), und die
+> Testmatrix verweist dorthin (`backend/tests/matrix.py`, S94). «Fund 4» nennt Bereiche
+> (`ai`, `selling`), die inzwischen gelöscht sind. Laufende Wahrheit über die Szenarien ist
 > `python -m scripts.scenario_report`; der damalige Testbericht liegt in
 > `docs/history/2026-08-test-report.md`.
 

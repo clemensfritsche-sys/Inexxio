@@ -17,8 +17,8 @@ import { site } from '../config/site.mjs';
  * @param {string} base  SITE_URL ohne Schrägstrich am Ende
  */
 export function robotsTxt(mode, base) {
-  // Auch in der Vorschau stehen die Konto- und ERP-Pfade ausdrücklich da (Auftrag 12.5:
-  // «immer Disallow») – sonst fiele ihre Sperre beim Umschalten auf «live» als Erstes weg.
+  // Auch in der Vorschau stehen die Konto- und ERP-Pfade ausdrücklich da («immer
+  // Disallow») – sonst fiele ihre Sperre beim Umschalten auf «live» als Erstes weg.
   if (mode !== 'live') {
     return ['# Vorschau – nicht öffentlich (SITE_MODE=preview)', 'User-agent: *', 'Disallow: /', ...site.privatePaths.map((p) => `Disallow: ${p}`), ''].join('\n');
   }

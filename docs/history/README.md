@@ -14,15 +14,24 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-07-concept-review.md` | Konzept-Review |
 | `2026-07-vorschlaege-D-E-F.md` | Ausgearbeitete Vorschläge D/E/F |
 | `2026-08-test-report.md` | Testkampagne Prozessmodell (vormals `TEST_REPORT.md`, 71 Fälle; die Matrix ist seither gewachsen – laufend: `python -m scripts.scenario_report`) |
+| `2026-08-findings.md` | Befunde des Audits (vormals `FINDINGS.md`); die offenen 🟡 stehen in `docs/backlog.md` («Offene Befunde») |
 | `2026-08-cleanup.md` | Altlasten-Bereinigung August 2026 (vormals `docs/cleanup-2026-08.md`) |
 | `2026-09-zahlungsmodul-vorgaenger.md` | Das gelöschte `deal`-Modul «Zahlung (alt)» – Prosa aus `CLAUDE.md`/`frontend/CLAUDE.md` und, als Anhang, PROCESS_CORE §9.12–§9.14c im Wortlaut |
 | `2026-09-neuaufbau-zahlungsmodul.md` | Der Bauplan des Belegs (`beleg`), umgesetzt mit Migration 134 |
 | `2026-09-arbeitsauftrag-beleg.md`, `2026-09-arbeitsauftrag-beleg-2.md`, `2026-09-beleg-pflichtangaben.md` | Arbeitsaufträge und Pflichtangaben-Analyse zum Beleg (umgesetzt, Migrationen 131–133) |
 | `2026-09-konzept-eine-rechnung-je-modul.md` | «Der Beleg IST die Rechnung» (umgesetzt, Migration 138) |
+| `2026-09-13-konzept-beleg-shop-besitz.md` | Konzept Beleg · Shop · Besitz (vormals `docs/konzept-beleg-shop-besitz.md`); Frage 2 und 3 umgesetzt, der Shop steht offen in `docs/backlog.md` |
 | `2026-09-17-analyse-retoure.md` | Retoure/Gutschrift-Analyse – durch Migration 138 überholt |
 | `2026-10-claude-md-chronik.md` | **Die Chronik der Runden** aus `CLAUDE.md` (August–Oktober 2026), wörtlich |
 | `2026-10-backend-claude-md-chronik.md`, `2026-10-frontend-claude-md-chronik.md` | Die bisherigen `backend/CLAUDE.md` und `frontend/CLAUDE.md`, wörtlich (mit ihren Rundenberichten) |
 | `2026-10-website-plan-chronik.md` | Der vollständige Website-Plan mit allen 124 Entscheiden (die Nummern gelten als Verweis weiter) |
+| `2026-10-04-website-auftrag.md` | Der Auftrag der Website im Wortlaut, Fassung 2 (vormals `website/AUFTRAG.md`) – in zentralen Punkten überholt, es gilt `website/WEBSITE_PLAN.md` |
+| `2026-10-19-newsletter-rundschreiben.md` | Versandarten Mail · Rundschreiben · Newsletter, Einwilligung als Nachweis |
+| `2026-10-20-design-system-v4.md` | Design System v4: kühles Grau, Glas, Website-Sprache |
+| `2026-10-20-website-v4.md` | Website in Gestaltung v4 nach der Vorlage `Startseite v4.dc.html` |
+| `2026-10-21-website-v4-feinschliff.md` | Website v4: Feinschliff nach dem ersten Testen |
+| `2026-10-21-illustrationen-isometrisch.md` | Illustrationen neu: isometrisch, mittlere Distanz, mehr Detail |
+| `2026-10-21-logo-f1.md` | Logo v5 «F1» im Design System und überall, wo es eingesetzt ist |
 | `2026-10-03-website-report.md`, `2026-10-04-website-report.md` | Abschlussberichte der Website (Fassung 1 und Umbau v2) |
 | `2026-10-21-spezialloesungen-neu.md` | Neue Seite Speziallösungen (Kopf wie Porsche, Feld-Karten, Weg, Fragen-Grundbild) |
 | `2026-10-21-mobil-menue.md` | Handy-Menü mit einer Ebene (Karten zum Wischen, «Alles zu …», Sprache als Karten) |
@@ -40,15 +49,21 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-24-titel-ohne-ehemals.md` | Seitentitel und Beschreibungen ohne «ehemals HS Steiner», sieben Beschreibungen neu |
 | `2026-10-24-ueberschriften.md` | Eine Regel für Überschriften (Nutzen-Satz, Punkt, «So läuft es ab.») auf allen Seiten |
 | `2026-10-24-buehne-bilder.md` | Bühne «Ihre Aufgabe. Unsere Lösung.» mit drei KI-Bildern |
+| `2026-10-24-zeiterfassung.md` | Zeiterfassung im Personendatensatz (Rundenbericht) |
 | `2026-10-25-zahlungsmodul-umbau.md` | Umbau des Zahlungsmoduls: Stücke ziehen selbst weiter, Eigentum, ein Storno-Wort, A4-Dokumente mit AGB, Kundenseite `/beleg`, Zahlungen-Liste (Migration 155) |
 | `2026-10-25-rechtstexte.md` | Rechtstexte als A4-Dokumente des ERP (eine AGB, Datenschutz neu, Impressum), echte A4-Seiten, Schrift im Dokument, Beispielbilder und Bildnachweis entfernt |
 | `2026-10-26-verkauft-eigentum.md` | «Verkauft» als Status am Ziel, Eigentum abgeleitet statt gespeichert, Pflichtwahl «an die Partei · an uns», Ort bleibt ausser Verschrottet |
 | `2026-10-26-chrome-test-runde.md` | Befunde des Chrome-Tests: Stückauswahl, Hover, Parteiname, kein Springen, Ausfuhrnachweis als Upload, Seriennummer auf Dokumenten |
+| `2026-10-28-dokumente.md` | Dokumente – eine Ablage: Entwurf, Scannen, Verfassen, Pflichtfelder, Senden und Unterschreiben |
+| `2026-10-process-core-9-15-chronik.md` | PROCESS_CORE §9.8–§9.15 im Wortlaut bis Oktober 2026 (§9.15a–s, entfernte Module) |
+| `2026-10-backlog-erledigt.md` | Erledigte und überholte Einträge aus `docs/backlog.md` (Standort-Modell, Chargen, Drops, Stripe-Einrichtung) |
+| `2026-10-cleanup/`, `2026-10-cleanup-analyse.md` | Analyse und Paketplan des Cleanups Oktober 2026 (vormals `docs/cleanup-2026-10*`) |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.
 
 **Der heutige Stand steht in:** `CLAUDE.md` (Kontext und was gebaut ist) ·
 `PROCESS_CORE.md` (die Prozesslogik) · `SYSTEM_LOGIC.md` (die Regeln als prüfbare Sätze) ·
-`docs/attic.md` (was entfernt wurde und wo es liegt) · `docs/adr/` (Entscheidungen, jede
-mit Kopfstatus).
+`docs/attic.md` (was entfernt wurde und wo es liegt) · `docs/prozessbild.md` (wie das
+Prozessbild gezeichnet wird) · `docs/backlog.md` (was offen ist) · `docs/adr/`
+(Entscheidungen, jede mit Kopfstatus).

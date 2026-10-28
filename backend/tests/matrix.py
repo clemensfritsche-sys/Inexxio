@@ -1029,7 +1029,7 @@ def s93(w: World):
       {"A": A_NEU, "B": B_BATCH, "C": C_1, "D": D_ERFASSUNG, "E": E_KEINE, "F": "–"},
       {"code": 400, "spricht": True},
       note="Der Fehler kommt – er nennt aber nur den Punkt, nicht das Stück.",
-      open_finding="FINDINGS.md 🟡-1")
+      open_finding="docs/backlog.md «Offene Befunde» S94")
 def s94(w: World):
     from app.services import process as proc
 

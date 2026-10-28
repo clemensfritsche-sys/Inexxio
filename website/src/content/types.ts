@@ -14,7 +14,7 @@ export interface Action { label: string; href: string }
 export interface Step { title: string; text: string }
 
 
-/** Bereichsseite (Auftrag Kap. 7.4) – alle drei mit derselben Struktur. */
+/** Bereichsseite – alle drei mit derselben Struktur. */
 export interface AreaPage {
   id: AreaId;
   path: string;
@@ -32,7 +32,7 @@ export interface AreaPage {
   promises?: PromiseKey[];
 }
 
-/** Unterseite (Auftrag Kap. 7.5). */
+/** Unterseite. */
 export interface SubPage {
   area: AreaId;
   path: string;
