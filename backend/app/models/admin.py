@@ -48,7 +48,7 @@ class CompanySettings(Base):
     # Universelle Objektnummer: Jede Gesellschaft ist ein vollwertiger ERP-Datensatz
     # (im Feed als «Unternehmen» geführt, vom Admin pflegbar). Wird bei der ersten
     # Abfrage lazy vergeben (services/sites.operator) bzw. beim Anlegen (sites.create).
-    object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, index=True)
+    object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
     # **Betreiber der Website** – genau EINE Gesellschaft trägt den Titel (partieller
     # Unique-Index). Er vertritt die eine Website nach aussen (Impressum,
     # Fallback) und trägt die Plattform-/Systemkonfiguration. Anders als das frühere

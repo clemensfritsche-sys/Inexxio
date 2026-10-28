@@ -24,14 +24,14 @@ from sqlalchemy import text
 
 from app.models import CompanySettings, UserProfile
 from app.schemas.admin import ErpAdminUpdate, UserProfileResponse, UserProfileUpdate
-from app.services import people, voucher
+from app.services import objects as obj, people, voucher
 from tests.runner import BACKEND, session
 
 
 def _user(db, **kw) -> UserProfile:
     u = UserProfile(firebase_uid=kw.pop("uid", "uid-1"),
                     email=kw.pop("email", "a@b.ch"), role=kw.pop("role", "user"),
-                    object_id=kw.pop("object_id", None), **kw)
+                    object_id=kw.pop("object_id", None) or obj.next_object_id(db, "user"), **kw)
     db.add(u)
     db.flush()
     return u

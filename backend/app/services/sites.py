@@ -128,15 +128,6 @@ def legal_name(company: Any) -> str:
     return f"{name} {form}".strip()
 
 
-def _assign_object_id(db: Session, company: CompanySettings) -> None:
-    """Objektnummer lazy vergeben – ohne Nummer wäre die Gesellschaft kein ERP-Datensatz
-    (nicht referenzierbar, nicht als Halter verwendbar, nicht im Feed)."""
-    if company.object_id is None:
-        company.object_id = next_object_id(db, "organization")
-        db.commit()
-        db.refresh(company)
-
-
 def find_operator(db: Session) -> CompanySettings | None:
     """Der **Betreiber** als reines Lesen – ``None``, wenn es (noch) keine Gesellschaft gibt.
 
@@ -174,12 +165,12 @@ def operator(db: Session) -> CompanySettings:
         # Die Id kommt aus der Sequenz – eine fest gesetzte 1 liesse sie stehen, und der
         # nächste Einfüger bekäme sie ein zweites Mal.
         company = CompanySettings(is_operator=True, is_own=True,
-                                  company_name="Inexxio AG", legal_form="AG")
+                                  company_name="Inexxio AG", legal_form="AG",
+                                  object_id=next_object_id(db, "organization"))
         _rekey(company)
         db.add(company)
         db.commit()
         db.refresh(company)
-    _assign_object_id(db, company)
     return company
 
 

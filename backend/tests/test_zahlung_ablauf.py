@@ -884,12 +884,12 @@ def test_the_export_proof_takes_a_pdf(db):
 def _two_sales(db):
     """Ein Auftrag mit ZWEI Einnahme-Modulen hintereinander – dieselbe Partei."""
     from app.models import ProcessStep
-    from app.services import process as proc, voucher as svc
+    from app.services import release, voucher as svc
     who = _person(db)
     cfg = {"direction": "in", "parties": [{"party": who.object_id}], "ownership": "party"}
     art = _article(db, steps=[{"module_type": "beleg", "config": dict(cfg)},
                               {"module_type": "beleg", "config": dict(cfg)}], capture=False)
-    order = proc.release(db, lines=[{"article_object_id": art.object_id, "quantity": 2,
+    order = release.release(db, lines=[{"article_object_id": art.object_id, "quantity": 2,
                                      "origin": "neu", "units": []}], steps=[], actor_id=None)
     db.flush()
     steps = [s for s in db.query(ProcessStep).filter(ProcessStep.order_id == order.id)

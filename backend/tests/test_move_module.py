@@ -552,18 +552,20 @@ def test_a_company_gets_its_number_from_the_sequence():
     Bug-Formen: (a) der Python-Default ist zurück; (b) der Dienst vergibt wieder selbst.
     """
     from app.models import CompanySettings
-    from app.services import sites
+    from app.services import objects as obj, sites
     db = session()
     try:
         first = sites.operator(db)
-        second = CompanySettings(company_name="Werk Nord")
+        second = CompanySettings(company_name="Werk Nord",
+                                 object_id=obj.next_object_id(db, "organization"))
         db.add(second)
         db.flush()
         assert second.id != first.id, (
             f"Zwei Gesellschaften teilen sich die Id {second.id} – ein Python-Default "
             f"überschreibt die Sequenz (a)."
         )
-        third = CompanySettings(company_name="Werk Süd")
+        third = CompanySettings(company_name="Werk Süd",
+                                object_id=obj.next_object_id(db, "organization"))
         db.add(third)
         db.flush()
         assert len({first.id, second.id, third.id}) == 3

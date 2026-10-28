@@ -16,7 +16,7 @@ class UserProfile(Base, TimestampMixin):
     __tablename__ = "user_profiles"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, nullable=True, index=True)
+    object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
     firebase_uid: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     photo_url: Mapped[Optional[str]] = mapped_column(Text)

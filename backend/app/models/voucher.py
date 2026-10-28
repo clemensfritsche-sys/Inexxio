@@ -58,6 +58,12 @@ class Voucher(Base, TimestampMixin):
         # Partiell, weil ein zurückgenommener weiterhin als Zeile steht (Soft-Delete).
         Index("uq_vouchers_step", "step_id", unique=True,
               postgresql_where=text("is_active")),
+        # **Unsere Nummern genau einmal** (Rechnung und Gutschrift, Migration 164); eine
+        # Lieferantenrechnung trägt die Nummer der Gegenpartei und fällt nicht darunter.
+        Index("uq_vouchers_our_number", "number", unique=True,
+              postgresql_where=text("direction = 'in' AND number IS NOT NULL")),
+        Index("uq_vouchers_credit_number", "credit_number", unique=True,
+              postgresql_where=text("credit_number IS NOT NULL")),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
