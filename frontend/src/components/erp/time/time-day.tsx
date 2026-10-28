@@ -13,14 +13,17 @@ import { useState } from 'react';
 import {
   Calendar, Check, ChevronDown, Clock, FileCheck, LogIn, LogOut, Pencil, Plus, Undo2, Upload,
 } from 'lucide-react';
-import { ErrorText, IconSwitch, InfoHint, Row } from '@/components/erp/fields';
+import { ErrorText, IconSwitch, InfoHint, Row, StatusDot } from '@/components/erp/fields';
+
+/** Der Punkt des Stempels (grün Kommen, rot Gehen) steht vor dem Wort. */
+const STAMP_DOT = { marginRight: 8, verticalAlign: 1 };
 import { LedgerRow, StageAction } from '@/components/erp/module-ui';
 import { api, assetUrl } from '@/lib/api';
 import { useDebouncedQuery } from '@/lib/queries';
 import { day as dayText, dayShort, dayTitle, parseDay } from '@/lib/when';
 import type { EntryPreview, TimeAbsence, TimeDay, TimeEntryIn, TimeStamp, TimeView } from '@/types';
 import {
-  Dot, IconBar, IconButton, Note, Pill, QuietButton, ROW_FORM, TimeField, hm, parseClock,
+  IconBar, IconButton, Note, Pill, QuietButton, ROW_FORM, TimeField, hm, parseClock,
   parseHm, timeIcon, vacationText,
 } from './time-ui';
 
@@ -77,7 +80,7 @@ function StampRow({ s, editable, onSave, onVoid }: {
   }
   const m = s.mark;
   return (
-    <LedgerRow ident={<><Dot color={s.kind === 'in' ? 'var(--success)' : 'var(--danger)'} />{label}</>}
+    <LedgerRow ident={<><StatusDot color={s.kind === 'in' ? 'var(--success)' : 'var(--danger)'} style={STAMP_DOT} />{label}</>}
       actions={editable ? <IconButton icon={Pencil} label="Stempel korrigieren" onClick={() => setEdit(s.time)} /> : undefined}
       date={m ? <Pill tone="neutral" label={m.label} tip={m.tip}
         icon={m.kind === 'changed' ? Pencil : m.kind === 'added' ? Plus : undefined} /> : undefined}
@@ -237,7 +240,7 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
                 onVoid={() => act({ kind: 'void', replaces_id: s.id })} />
               {/* «Gehen» fehlt – direkt unter dem Kommen, zu dem es gehört. */}
               {s.missing_out && (
-                <LedgerRow ident={<><Dot color="var(--danger)" />Gehen</>}
+                <LedgerRow ident={<><StatusDot color="var(--danger)" style={STAMP_DOT} />Gehen</>}
                   actions={editable ? <IconButton icon={Plus} label="Erfassen" onClick={() => setCap(captureFor(d.day, 'out'))} /> : undefined}
                   date={<Pill tone="pending" label="fehlt" />} amount={<span style={{ color: 'var(--fg-4)' }}>–</span>} />
               )}

@@ -9,6 +9,7 @@ import { VERBAUT } from '@/lib/status-catalog';
 import type { Genealogy, GenealogyPart, InstanceUnit } from '@/types';
 import { statusCfg } from '@/lib/process-status';
 import { ObjId } from '@/components/erp/obj-id';
+import { StatusDot } from '@/components/erp/fields';
 import { UnitNumber } from '@/components/erp/unit-number';
 import { PlaceTrail } from '@/components/erp/place-trail';
 
@@ -189,9 +190,7 @@ export function UnitNumbers({ objectId, statuses, quantity, dense }: {
                   className="ml-auto flex items-center gap-1.5 text-[12.5px]"
                   style={{ color: cfg.color }}
                 >
-                  <span className="rounded-full" style={{
-                    width: 6, height: 6, background: cfg.color, flex: 'none',
-                  }} />
+                  <StatusDot color={cfg.color} />
                   {cfg.label}
                 </span>
               )}

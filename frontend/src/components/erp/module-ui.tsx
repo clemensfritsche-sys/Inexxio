@@ -3,6 +3,7 @@
 import { createContext, useContext } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { StatusDot } from '@/components/erp/fields';
 import { formatAmount } from '@/lib/utils';
 
 /**
@@ -35,7 +36,7 @@ export const MODULE_CARD: CSSProperties = {
  * Hauses (`SpecHead` eine Nummer kleiner, weil die Prozessspalte schmal ist).
  */
 export const MODULE_TITLE: CSSProperties = {
-  font: '800 16px var(--font-display)',
+  font: '700 16px var(--font-display)',
   letterSpacing: '-.01em',
   color: 'var(--fg-1)',
 };
@@ -344,9 +345,7 @@ function SegmentMark({ seg, open, dimmed, hint, onPick }: {
 }) {
   const body = (
     <>
-      <span aria-hidden className="rounded-full" style={{
-        width: 7, height: 7, flex: 'none', background: seg.color,
-      }} />
+      <StatusDot color={seg.color} />
       <span className={open ? 'font-medium' : undefined}
         style={{ color: open ? 'var(--fg-1)' : 'var(--fg-2)' }}>{seg.label}</span>
       {seg.text && <span className="ix-tnum" style={{ color: 'var(--fg-3)' }}>{seg.text}</span>}

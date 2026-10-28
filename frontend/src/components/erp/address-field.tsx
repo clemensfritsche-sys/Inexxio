@@ -454,10 +454,10 @@ const KT: Record<string, React.CSSProperties> = {
   },
   locate: {
     display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px',
-    borderRadius: 999, border: '1px solid var(--border-2)', background: '#fff',
+    borderRadius: 999, border: '1px solid var(--border-2)', background: 'var(--bg-1)',
     font: '500 13px var(--font-body)', color: 'var(--fg-1)', cursor: 'pointer',
   },
-  summary: { display: 'flex', gap: 10, padding: '14px 16px', borderRadius: 14, background: '#fff' },
+  summary: { display: 'flex', gap: 10, padding: '14px 16px', borderRadius: 14, background: 'var(--bg-1)' },
   line1: { font: '500 15px var(--font-body)', color: 'var(--fg-1)' },
   line2: { font: '400 14px var(--font-body)', color: 'var(--fg-3)' },
   note: { font: '400 13px var(--font-body)', color: 'var(--fg-3)', margin: 0 },

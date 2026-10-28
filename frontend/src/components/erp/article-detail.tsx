@@ -27,7 +27,7 @@ import type { DiagramStep } from '@/components/erp/process-diagram';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN } from '@/lib/process-status';
 
-import { ErrorText, IconSwitch, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, MICRO_LABEL } from '@/components/erp/fields';
+import { ErrorText, IconSwitch, inputCls, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, MICRO_LABEL } from '@/components/erp/fields';
 import { DocumentTiles } from '@/components/erp/documents';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { ObjId } from '@/components/erp/obj-id';
@@ -400,7 +400,7 @@ function NameField({ value, onChange, error }: {
         placeholder="Artikelname eingeben…"
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
-        className={FIN_CLS}
+        className={inputCls}
         style={error ? { borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)' } : undefined}
       />
       {error ? <ErrorText msg={error} /> : exact ? (
@@ -524,19 +524,18 @@ function OptField({ f, form, onSet, onRemove }: {
         </button>
       </div>
       {f.boolean ? (
-        <select value={form[f.key] === 'ja' ? 'ja' : ''} onChange={(e) => onSet(f.key, e.target.value)} className={FIN_CLS}>
+        <select value={form[f.key] === 'ja' ? 'ja' : ''} onChange={(e) => onSet(f.key, e.target.value)} className={inputCls}>
           <option value="">Nein</option>
           <option value="ja">Ja</option>
         </select>
       ) : (
-        <input value={form[f.key]} placeholder={f.placeholder} onChange={(e) => onSet(f.key, e.target.value)} className={FIN_CLS} />
+        <input value={form[f.key]} placeholder={f.placeholder} onChange={(e) => onSet(f.key, e.target.value)} className={inputCls} />
       )}
     </div>
   );
 }
 
 // Eingabefeld-Klasse analog Design-`.fin` (Rand border-2, r-md, 14/12-Padding, Akzent-Fokus mit 3-px-Ring).
-const FIN_CLS = 'w-full rounded-ds-md border border-border-2 bg-bg-1 px-3.5 py-3 text-[15px] font-medium text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent focus:ring-[3px] focus:ring-accent-soft';
 
 // Feld-Label der Spezifikation (Design `.lbl`): das Mikro-Label des Hauses, eine Stufe
 // dunkler und mit mehr Luft zum grösseren `.fin`-Feld darunter; Pflicht-Stern in Marken-Rot.
@@ -557,7 +556,7 @@ function EditField({ label, value, onChange, placeholder, hint, error, required,
     <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
       <FieldLabel required={required}>{label}</FieldLabel>
       <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
-        className={FIN_CLS} style={error ? { borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)' } : undefined} />
+        className={inputCls} style={error ? { borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)' } : undefined} />
       {error ? <ErrorText msg={error} /> : hint ? (
         <div style={{ marginTop: 8, font: '500 12.5px var(--font-body)', color: 'var(--fg-4)' }}>{hint}</div>
       ) : null}

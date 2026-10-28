@@ -1183,8 +1183,8 @@ def test_the_payment_element_is_as_big_as_the_fields_beside_it():
     """
     fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
     look = " ".join(_code(_read(FRONTEND / "components" / "erp" / "pay-online.tsx")).split())
-    cls = re.search(r"export const inputCls = '([^']+)'", fields)
-    assert cls, "«inputCls» steht nicht mehr in `fields.tsx` – der Spiegel hat kein Original."
+    cls = re.search(r"const INPUT_FORM = '([^']+)'", fields)
+    assert cls, "Die Form von «inputCls» (`INPUT_FORM`) steht nicht mehr in `fields.tsx` – der Spiegel hat kein Original."
     # Die drei Grössen, die im Haus überhaupt vorkommen. Eine vierte ist ein Fehler, kein
     # stiller Rückfall: dann sagt der Wächter, dass er sie nicht kennt.
     sizes = {"text-xs": "12px", "text-sm": "14px", "text-base": "16px"}

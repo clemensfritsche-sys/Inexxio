@@ -71,6 +71,7 @@ import { qk } from '@/lib/queries';
 import { useSearch } from '@/lib/use-search';
 import { formatWhen, whenDay, whenTitle } from '@/lib/when';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
+import { StatusDot } from '@/components/erp/fields';
 import { DraftSheet } from '@/components/erp/document-draft';
 import type { Mailbox, Message, MessageChannel, MessageIn, VoucherParty } from '@/types';
 import { notify, tell } from '@/lib/notice';
@@ -570,7 +571,7 @@ function SendButton({ mode, verb, problem, busy, held }: {
       <button type="submit" aria-label={tip} disabled={off}
         style={{ width: 40, height: 40, borderRadius: 999, border: 0, flex: 'none',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          cursor: off ? 'not-allowed' : 'pointer', color: off ? 'var(--fg-4)' : '#fff',
+          cursor: off ? 'not-allowed' : 'pointer', color: off ? 'var(--fg-4)' : 'var(--fg-on-red)',
           background: off ? 'var(--bg-3)' : 'var(--inexxio-red)' }}>
         <Icon size={17} />
       </button>
@@ -602,7 +603,7 @@ function KindBar({ value, onPick }: { value: string; onPick: (k: Kind) => void }
               style={{ border: 0, height: 30, padding: on ? '0 12px 0 10px' : '0 8px', borderRadius: 999,
                 font: 'inherit', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center',
                 gap: 6, cursor: 'pointer', transition: 'background .12s, color .12s',
-                background: on ? 'var(--fg-1)' : 'transparent', color: on ? '#fff' : 'var(--fg-3)' }}>
+                background: on ? 'var(--fg-1)' : 'transparent', color: on ? 'var(--bg-1)' : 'var(--fg-3)' }}>
               <k.Icon size={15} />{on && k.label}
             </button>
           </span>
@@ -692,7 +693,7 @@ function LaterRow({ mode, later, setLater }: { mode: Mode; later: string; setLat
           <button key={l.key} type="button" onClick={() => setLater(l.key)}
             style={{ border: 0, height: 26, padding: '0 10px', borderRadius: 13, fontSize: 13,
               cursor: 'pointer', background: later === l.key ? 'var(--fg-1)' : 'var(--bg-3)',
-              color: later === l.key ? '#fff' : 'var(--fg-1)' }}>{l.label}</button>
+              color: later === l.key ? 'var(--bg-1)' : 'var(--fg-1)' }}>{l.label}</button>
         ))}
       </span>
     </ComposerRow>
@@ -1117,7 +1118,7 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
           onClick={() => setLater(later ? null : 'tomorrow')}
           style={{ width: 36, height: 36, borderRadius: 8, border: 0, cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            background: later ? 'var(--fg-1)' : 'transparent', color: later ? '#fff' : 'var(--fg-3)' }}>
+            background: later ? 'var(--fg-1)' : 'transparent', color: later ? 'var(--bg-1)' : 'var(--fg-3)' }}>
           <Clock size={16} />
         </button>
         <span style={{ flex: 1 }} />
@@ -1150,8 +1151,7 @@ function Mailboxes({ boxes }: { boxes: Mailbox[] }) {
         <span key={b.channel} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}
           data-tip={b.problem ?? (b.connected ? 'Verbunden – Mails gehen hinaus und kommen herein'
             : 'Nicht verbunden')}>
-          <span style={{ width: 7, height: 7, borderRadius: 999, flex: 'none',
-            background: b.problem ? 'var(--danger)' : b.connected ? 'var(--success)' : 'var(--fg-4)' }} />
+          <StatusDot color={b.problem ? 'var(--danger)' : b.connected ? 'var(--success)' : 'var(--fg-4)'} />
           <span className="truncate">{b.address || 'Kein Postfach'}</span>
           {b.may_connect && (b.connected
             ? <button type="button" style={link} onClick={() => void drop(b)}>Trennen</button>

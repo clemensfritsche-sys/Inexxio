@@ -519,7 +519,7 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, o
           <button type="button" onClick={onScan} disabled={busy}
             className="ml-auto flex items-center justify-center rounded-ds-md disabled:opacity-40"
             style={{ width: 32, height: 32, border: '1px solid var(--border-2)',
-                     background: '#fff', color: 'var(--fg-2)' }}
+                     background: 'var(--bg-1)', color: 'var(--fg-2)' }}
             aria-label={`Instanz ${nr} scannen`} data-tip="Diese Instanz scannen">
             <ScanLine size={17} />
           </button>

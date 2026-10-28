@@ -124,7 +124,7 @@ export function SpecHead({ icon: Icon, title, right }: {
       paddingBottom: 14, marginBottom: 22, borderBottom: '1px solid var(--border-1)',
     }}>
       <span style={SPEC_ICO}><Icon size={17} /></span>
-      <h2 style={{ font: '800 18px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>{title}</h2>
+      <h2 style={{ font: '700 18px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>{title}</h2>
       {right && <span style={{ flex: 'none' }}>{right}</span>}
     </div>
   );
@@ -141,7 +141,7 @@ export function SpecSection({ icon: Icon, title, children }: {
     <div style={{ marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 11, paddingBottom: 14, margin: '18px 0 20px', borderBottom: '1px solid var(--border-1)' }}>
         <span style={{ ...SPEC_ICO, width: 32, height: 32 }}><Icon size={16} /></span>
-        <h3 style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>{title}</h3>
+        <h3 style={{ font: '600 16px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>{title}</h3>
       </div>
       <div style={SPEC.grid}>{children}</div>
     </div>
@@ -277,7 +277,26 @@ export function PanelHeader({ icon: Icon, title, tone = 'var(--accent)', info, r
   );
 }
 
-export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-bg-1 outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors';
+/**
+ * ►►► **EINE Form für jedes Eingabefeld** – ERP, Konto-Formulare im ERP, Zeiterfassung,
+ * Spezifikation: 8 px Radius, Haarlinie, 14 px Schrift, 8 × 12 px Polsterung, Fokus als
+ * leiser Ring in Slate. Was sich je Lage ändert, ist nur die Farbe (`inputClass`). ◄◄◄
+ * Ein Wert auf dem Beleg ist kein Eingabefeld, sondern gedruckter Text mit `.ix-editable`
+ * (`beleg/shared.DOC_FIELD`).
+ */
+const INPUT_FORM = 'w-full rounded-ds-md border px-3 py-2 text-sm outline-none placeholder:text-fg-4 transition-colors focus:ring-[3px] focus:ring-accent-soft';
+const INPUT_TONE = {
+  normal: 'border-border-2 bg-bg-1 text-fg-1 focus:border-accent',
+  /** Pflicht und leer, oder das Format stimmt nicht – gemeldet, nicht gesperrt. */
+  warn: 'border-warning bg-warning-bg text-fg-1',
+  read: 'border-border-1 bg-bg-2 text-fg-4 cursor-default',
+} as const;
+
+export function inputClass(tone: keyof typeof INPUT_TONE = 'normal'): string {
+  return `${INPUT_FORM} ${INPUT_TONE[tone]}`;
+}
+
+export const inputCls = inputClass();
 
 /**
  * **Schieber** für eine Wahl mit wenigen, einander ausschliessenden Optionen: EIN Gleis,
@@ -676,7 +695,7 @@ export const DH: Record<string, React.CSSProperties> = {
     // Deklaration geschrieben, und das Löschen der Longhand löscht ihn daraus. Übrig
     // bleibt der Initialwert – 400 statt 800. Als Einzelangabe steht 800 dagegen in
     // jedem Zustand im Objekt und wird zurückgeschrieben.
-    fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 26,
+    fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 26,
     letterSpacing: '-.03em', margin: 0, lineHeight: 1.05,
     color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
@@ -1150,6 +1169,19 @@ export function Segmented({ value, onChange, options, disabled, tip }: {
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * ►►► **Der Punkt eines Zustands** – 6 px in der Farbe des Tons, das Wort steht daneben
+ * (Design-System: «Status als Punkt + Wort»). EIN Bauteil für jeden Zustandspunkt. ◄◄◄
+ */
+export function StatusDot({ color, style }: { color: string; style?: React.CSSProperties }) {
+  return (
+    <span aria-hidden style={{
+      display: 'inline-block', width: 6, height: 6, borderRadius: 999, flex: 'none',
+      background: color, ...style,
+    }} />
   );
 }
 

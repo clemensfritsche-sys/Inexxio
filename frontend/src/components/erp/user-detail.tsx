@@ -10,7 +10,7 @@ import { userDisplayName } from '@/lib/utils';
 import { day, when } from '@/lib/when';
 import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
-import { Card, DetailBody, DetailHeader, SectionSep, TodoChip } from '@/components/erp/fields';
+import { Card, DetailBody, DetailHeader, SectionSep, StatusDot, TodoChip } from '@/components/erp/fields';
 import { DocumentTiles } from '@/components/erp/documents';
 import { TimeCard } from '@/components/erp/time/time-card';
 import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
@@ -111,8 +111,7 @@ function NewsletterConsent({ person }: { person: number }) {
   return (
     <div style={{ display: 'grid', gap: 8, minHeight: 44 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 999, flex: 'none',
-          background: on ? 'var(--success)' : 'var(--fg-4)' }} />
+        <StatusDot color={on ? 'var(--success)' : 'var(--fg-4)'} />
         <span style={{ fontWeight: 500 }}>Newsletter {on ? 'angemeldet' : 'nicht angemeldet'}</span>
         {state?.since && <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
           {on ? 'seit' : 'abgemeldet am'} {day(state.since)} · {state.source}</span>}

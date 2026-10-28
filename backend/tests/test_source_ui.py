@@ -97,7 +97,7 @@ def test_the_header_is_defined_once_for_every_record_type():
 def test_the_origin_uses_the_shared_switch():
     """**#694 — Neu/Lager ist derselbe Schiebe-Regler wie die Mengeneinheit.**"""
     ui = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
-    assert "IconSwitch, inputCls } from '@/components/erp/fields'" in ui, (
+    assert re.search(r"import \{[^}]*\bIconSwitch\b[^}]*\} from '@/components/erp/fields'", ui), (
         "Der Regler wird nicht aus dem gemeinsamen Vokabular geholt."
     )
     # Geprüft wird die **Verdrahtung**, nicht das Vorkommen des Wortes: der Regler muss
@@ -1283,3 +1283,42 @@ def test_dialogs_tabs_and_chips_say_what_they_are():
     territory = _read(FRONTEND / "components" / "erp" / "territory-map.tsx")
     close = territory[: territory.index("<X size={14}")]
     assert "aria-label=" in close[close.rindex("<button"):], "Das × der Gebietskarte hat keinen Namen."
+
+
+#: Ein selbst gebauter Punkt: 5–8 px, rund (`borderRadius: 999` oder `rounded-full`).
+_HAND_DOT = re.compile(
+    r"width: [5-8], height: [5-8],[^}]*?(?:borderRadius: 999|background)"
+    r"|rounded-full\" style=\{\{\s*width: [5-8], height: [5-8]")
+#: Punkte, die kein Zustand sind – mit Grund.
+_NOT_A_STATE = {
+    "components/erp/territory-map.tsx": "die Farbe einer Gesellschaft auf der Karte",
+    "components/erp/time/time-calendar.tsx": "eine Markierung in der Ecke eines Kalendertags",
+    "components/erp/fields.tsx": "StatusDot selbst und die Empfehlung am Schieber",
+}
+
+
+def test_a_state_dot_is_one_component():
+    """«Status als Punkt + Wort» – ein Bauteil (`fields.StatusDot`), nicht acht Eigenbauten
+    mit 6, 7 und 8 px."""
+    for rel, src in _frontend_sources(".tsx"):
+        if rel in _NOT_A_STATE:
+            continue
+        hit = _HAND_DOT.search(src)
+        assert not hit, f"«{rel}» baut einen Zustandspunkt selbst: {hit.group(0)[:60]} – dafür gibt es StatusDot."
+    assert _HAND_DOT.search("<span style={{ width: 7, height: 7, borderRadius: 999, flex: 'none' }} />")
+
+
+def test_every_input_has_the_one_form():
+    """Ein Eingabefeld hat EINE Form (`fields.inputClass`): Radius, Rahmen, Polsterung,
+    Schrift, Fokus. Die Felder der Konto-Bausteine im ERP, der Zeiterfassung und der
+    Spezifikation führen darauf zurück; eine zweite Fassung daneben läuft auseinander."""
+    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    assert "rounded-ds-md" in re.search(r"const INPUT_FORM = '([^']+)'", fields).group(1)
+    for rel in ("components/form/field.tsx", "components/erp/time/time-ui.tsx",
+                "components/erp/article-detail.tsx"):
+        src = _read(FRONTEND / rel)
+        assert "inputClass(" in src or "inputCls" in src, f"«{rel}» baut sein Eingabefeld selbst."
+        assert "FIN_CLS" not in src and "style.borderColor" not in src, f"«{rel}»: zweite Feldform."
+        assert not re.search(r"<input[^>]*?style=\{\{\s*padding: '8px 12px'", src, re.S), (
+            f"«{rel}» trägt die Form des Feldes inline."
+        )

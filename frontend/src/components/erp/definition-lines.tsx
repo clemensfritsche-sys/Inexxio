@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { qk, useSettled } from '@/lib/queries';
 import type { ArticleOption, UnitChoices, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
-import { FieldAction, IconSwitch, inputCls } from '@/components/erp/fields';
+import { FieldAction, IconSwitch, StatusDot, inputCls } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { UnitNumber } from '@/components/erp/unit-number';
 import { useScan } from '@/components/scan/scan-provider';
@@ -620,7 +620,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
                     background: group === s.status ? statusCfg(s.status).bg : 'transparent',
                     color: statusCfg(s.status).color,
                   }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 999, background: statusCfg(s.status).color }} />
+                  <StatusDot color={statusCfg(s.status).color} />
                   {statusLabel(s.status)} <span className="ix-tnum">{s.quantity}</span>
                 </button>
               ))}

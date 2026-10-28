@@ -1,3 +1,5 @@
+import { inputClass, inputCls } from '@/components/erp/fields';
+
 /**
  * **Weiche Format-Prüfung** (Testnotiz #326) – für Telefon und E-Mail.
  *
@@ -57,21 +59,7 @@ export function Field({ label, value, onChange, type = 'text', readOnly = false,
         list={list}
         onKeyDown={(e) => { if (e.key === 'Enter' && !readOnly && onEnter) { e.preventDefault(); onEnter(); } }}
         inputMode={type === 'tel' ? 'tel' : type === 'email' ? 'email' : undefined}
-        style={{
-          padding: '8px 12px',
-          borderRadius: 8,
-          border: isEmpty || issue ? '1px solid var(--warning)' : '1px solid var(--border-1)',
-          fontSize: 14,
-          color: readOnly ? 'var(--fg-4)' : 'var(--fg-1)',
-          background: isEmpty ? 'var(--warning-bg)' : readOnly ? 'var(--bg-2)' : 'var(--bg-1)',
-          outline: 'none',
-          width: '100%',
-          boxSizing: 'border-box',
-          cursor: readOnly ? 'default' : 'text',
-          transition: 'border-color 0.15s, background 0.15s',
-        }}
-        onFocus={(e) => { if (!readOnly) e.target.style.borderColor = isEmpty || issue ? 'var(--warning)' : 'var(--inexxio-red)'; }}
-        onBlur={(e) => { e.target.style.borderColor = isEmpty || issue ? 'var(--warning)' : 'var(--border-1)'; }}
+        className={inputClass(isEmpty || issue ? 'warn' : readOnly ? 'read' : 'normal')}
       />
       {/* Der Hinweis meldet, blockiert aber nicht (#326) – gespeichert wird trotzdem. */}
       {issue && <p style={{ fontSize: 12, color: 'var(--warning)', margin: 0 }}>{issue}</p>}
@@ -91,22 +79,8 @@ export function SelectField({ label, value, onChange, options }: SelectFieldProp
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)' }}>{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          padding: '8px 12px',
-          borderRadius: 8,
-          border: '1px solid var(--border-1)',
-          fontSize: 14,
-          color: 'var(--fg-1)',
-          background: 'var(--bg-1)',
-          outline: 'none',
-          width: '100%',
-          boxSizing: 'border-box',
-          cursor: 'pointer',
-        }}
-      >
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        className={`${inputCls} cursor-pointer`}>
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}

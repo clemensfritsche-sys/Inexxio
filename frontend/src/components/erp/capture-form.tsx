@@ -203,7 +203,7 @@ function ThumbChoice({ label, active, tone, disabled, onClick, children }: {
       style={{
         width: 44, height: 34,
         border: `1px solid ${active ? tone : 'var(--border-2)'}`,
-        background: active ? `${tone}1A` : '#fff',
+        background: active ? `${tone}1A` : 'var(--bg-1)',
         color: active ? tone : 'var(--fg-4)',
       }}>
       {children}

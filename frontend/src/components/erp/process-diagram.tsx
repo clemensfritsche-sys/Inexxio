@@ -18,6 +18,7 @@ import {
 import { formatObjectId } from '@/lib/utils';
 import { whenTitle } from '@/lib/when';
 import { useErpNav } from './obj-id';
+import { StatusDot } from './fields';
 import type {
   GraphEdge, GraphNode, GraphUnits, JourneyStop, ProcessEventResponse, ProcessGraph,
 } from '@/types';
@@ -949,7 +950,7 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
                        ['--ix-live' as string]: `${cfg.color}55` }}
               data-tip={onExpand ? 'Nummern anzeigen' : cfg.label}
             >
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.color }} />
+              <StatusDot color={cfg.color} />
               {cfg.label} · {g.count}
               {onExpand && (open
                 ? <ChevronUp size={11} style={{ opacity: 0.6 }} />

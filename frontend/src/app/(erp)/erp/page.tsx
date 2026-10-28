@@ -654,12 +654,15 @@ export default function ErpPage() {
                   </button>
                 </div>
               )}
+              {/* Er schwebt über der Liste (Schatten der schwebenden Ebene); der rote Schatten
+                  ist nur der Hover-Akzent des roten Knopfs (Design-System §3). */}
               <button
+                type="button"
                 onClick={() => setPlusOpen((o) => !o)}
                 data-tip={plusOpen ? undefined : 'Neuen Datensatz anlegen'}
                 aria-label="Neuen Datensatz anlegen"
-                className="w-[54px] h-[54px] rounded-full bg-inexxio hover:bg-inexxio-deep text-white flex items-center justify-center transition-all hover:-translate-y-0.5"
-                style={{ boxShadow: '0 10px 22px rgba(179,18,15,.28)' }}
+                aria-expanded={plusOpen}
+                className="w-[54px] h-[54px] rounded-full bg-inexxio hover:bg-inexxio-deep text-fg-on-red shadow-ds-md hover:shadow-ds-red flex items-center justify-center transition-all hover:-translate-y-0.5"
               >
                 <Plus size={24} className={cn('transition-transform', plusOpen && 'rotate-45')} />
               </button>

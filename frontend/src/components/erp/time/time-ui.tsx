@@ -13,7 +13,7 @@ import {
   Activity, AlertTriangle, Baby, CalendarCheck, CalendarX, FileWarning, HelpCircle,
   OctagonAlert, Shield, Sun, Thermometer,
 } from 'lucide-react';
-import { InfoHint, MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
+import { InfoHint, MICRO_LABEL, StatusBadge, inputClass } from '@/components/erp/fields';
 import { TONE } from '@/lib/status-tone';
 
 /** Lucide-Name (Backend) → Symbol. */
@@ -114,11 +114,6 @@ export function Pill({ tone, label, icon, tip }: {
     : badge;
 }
 
-/** Ein Punkt in der Farbe des Stempels: grün Kommen, rot Gehen. */
-export function Dot({ color }: { color: string }) {
-  return <span aria-hidden style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 999,
-    marginRight: 8, background: color, verticalAlign: 1 }} />;
-}
 
 export const ROW_FORM: CSSProperties = {
   display: 'flex', flexWrap: 'wrap', gap: '12px 16px', alignItems: 'flex-end',
@@ -136,12 +131,9 @@ export function TimeField({ id, label, value, onChange, info, bad, placeholder, 
         {label}{info && <InfoHint text={info} />}
       </label>
       <input id={id} value={value} placeholder={placeholder} autoComplete="off"
-        className="tabular-nums" onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') onEnter?.(); }}
-        style={{ padding: '8px 12px', borderRadius: 8, fontSize: 14, color: 'var(--fg-1)',
-          border: `1px solid ${bad ? 'var(--warning)' : 'var(--border-1)'}`,
-          background: bad ? 'var(--warning-bg)' : 'var(--bg-1)', outline: 'none', width: '100%',
-          boxSizing: 'border-box' }} />
+        className={`${inputClass(bad ? 'warn' : 'normal')} tabular-nums`}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onEnter?.(); }} />
     </div>
   );
 }
