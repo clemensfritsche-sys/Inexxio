@@ -7,6 +7,8 @@ pydantic==2.10.2
 pydantic-settings==2.6.1
 email-validator==2.2.0
 firebase-admin==6.6.0
+# Datei-Ablage (services/attachments) – kommt ohnehin mit firebase-admin, hier gepinnt, weil der Code es direkt liest
+google-cloud-storage==3.17.1
 # Passkeys / WebAuthn (FIDO2): serverseitige Register-/Login-Zeremonien.
 webauthn==2.5.2
 # httpx: Starlettes TestClient fährt darauf – ohne ihn läuft kein einziger Wächter.

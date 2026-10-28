@@ -140,6 +140,8 @@ PENDING_DROP: set[str] = {
     # Migration 154: Eintritt und Pensum stehen im Vertrag der Zeiterfassung.
     "user_profiles.employment_start_date",
     "user_profiles.weekly_hours",
+    # Migration 158: das Papier eines Belegs ist ein Dokument; die Spalte fällt in 160.
+    "voucher_documents.html",
 }
 
 

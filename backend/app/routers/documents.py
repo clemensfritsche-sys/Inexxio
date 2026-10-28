@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..domain import documents as dd
-from ..models import Attachment, Document, UserProfile
+from ..models import Document, UserProfile
 from ..schemas.documents import (
     DeleteIn, DocumentDetail, DocumentRefOut, DocumentSummary, FiledOut, ProposalOut,
     ProposedRef, RecordOut, RefIn, RequirementOut, SendIn, SignatureOut, SignerOut, TargetIn,
@@ -63,7 +63,7 @@ def detail(db: Session, doc: Document) -> DocumentDetail:
     names = docs.label_refs(db, refs)
     raw = None
     if doc.file_id is not None and (doc.mime == "text/html" or doc.mime == "application/pdf"):
-        raw = db.query(Attachment.data).filter(Attachment.id == doc.file_id).scalar()
+        raw = docs.raw_of(db, doc)
     base = summary(db, doc, docs.status_of(doc, sigs))
     return DocumentDetail(
         **base.model_dump(),
@@ -263,8 +263,7 @@ def read_later(object_id: int, db: Session = Depends(get_db),
     doc = docs.readable(db, object_id, user)
     if doc.text or doc.file_id is None:
         return detail(db, doc)
-    from ..models import Attachment
-    raw = db.query(Attachment.data).filter(Attachment.id == doc.file_id).scalar()
+    raw = docs.raw_of(db, doc)
     p = reading.propose(db, raw=raw, mime=doc.mime, actor=user)
     if p.read:
         doc.text, doc.keywords, doc.facts = p.text or None, p.keywords or None, p.facts or None

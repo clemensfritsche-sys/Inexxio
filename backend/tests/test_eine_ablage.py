@@ -10,7 +10,7 @@ import uuid
 import pytest
 
 from app.domain import voucher as vo
-from app.models import Attachment, DocumentRef, VoucherDocument
+from app.models import DocumentRef
 from app.services import adopt, documents, legal, todo, voucher as svc, voucher_docs
 from tests.runner import session
 from tests.test_zahlung_ablauf import _do, _house, _ready, _scene, _staff
@@ -36,7 +36,7 @@ def test_every_paper_is_a_document_in_the_module_field(db):
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     rec = svc.documents_of(db, row, vo.OFFER_DOC)[0]
-    assert rec.document_id and rec.html is None, "(a)"
+    assert rec.document_id and not hasattr(rec, "html"), "(a)"
     doc = documents.field_document(db, order.object_id, "voucher.doc", f"step:{step.id}")
     assert doc is not None and doc.id == rec.document_id and doc.source == "voucher", "(b)"
     assert documents.delete_problem(db, doc), "(b) ein Beleg lässt sich nie löschen"
@@ -58,28 +58,24 @@ def test_nothing_goes_out_without_release(db):
         "Was ansteht, zählt ins «zu tun» des Auftrags.")
 
 
-def test_adoption_takes_over_once(db):
-    """Bug-Formen: (a) die Übernahme legt beim zweiten Start wieder an; (b) die Datei wird
-    kopiert statt übernommen; (c) die Spalte zeigt danach noch auf den Korb."""
-    order, step, row, who = _scene(db, direction="out", first=True)
-    att = Attachment(token=uuid.uuid4().hex, filename="r.jpg", mime="image/jpeg",
-                     data=b"\xff\xd8\xff" + uuid.uuid4().bytes)
-    db.add(att)
-    db.flush()
-    row.original_id = att.id
-    legacy = VoucherDocument(voucher_id=row.id, kind=vo.OFFER_DOC, number="X-1",
-                             party_id=who.object_id, token=uuid.uuid4().hex,
-                             html=f"<p>alt {uuid.uuid4().hex}</p>")
-    db.add(legacy)
+def test_adoption_seeds_the_legal_texts_once(db):
+    """Bug-Formen: (a) die erste Übernahme lässt eine eigene Gesellschaft ohne AGB; (b) ein
+    zweiter Start legt wieder an (dann entstünde «von selbst», was ein Mensch wählt)."""
+    from app.models import CompanySettings
+    from app.services import objects
+    house = _house(db)
+    # Eine Umgebung, die noch nie einen Rechtstext hatte (im Test zurückgerollt).
+    db.query(DocumentRef).filter(DocumentRef.field.in_(tuple(legal.FIELD_OF.values()))).delete(
+        synchronize_session=False)
     db.flush()
     first = adopt.run(db)
-    assert first["papers"] >= 1 and first["files"] >= 1
-    assert legacy.document_id and legacy.html is None
-    assert "<p>alt" in voucher_docs.paper_of(db, legacy)
-    assert row.original_id >= adopt.FIRST_OBJECT_ID, "(c)"
-    doc = documents.field_document(db, order.object_id, "voucher.original", f"step:{step.id}")
-    assert doc is not None and doc.object_id == row.original_id and doc.file_id == att.id, "(b)"
-    assert adopt.run(db) == {"papers": 0, "files": 0, "legal": 0}, "(a)"
+    assert first["legal"] >= 2 and legal.document_of(db, house, legal.AGB) is not None, "(a)"
+    late = CompanySettings(is_own=True, company_name="Später", legal_form="AG",
+                           object_id=objects.next_object_id(db))
+    db.add(late)
+    db.flush()
+    assert adopt.run(db) == {"legal": 0}, "(b)"
+    assert legal.document_of(db, late, legal.AGB) is None, "(b) – sie wählt selbst"
 
 
 def test_legal_texts_come_from_the_company_field(db):

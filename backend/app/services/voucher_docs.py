@@ -362,11 +362,9 @@ def paper_of(db: Session, rec: VoucherDocument) -> str:
     """**Das Papier, wie es hinausging** – aus seinem Dokument."""
     from ..models import Document
     from . import documents
-    if rec.document_id is not None:
-        raw = documents.raw_of(db, db.query(Document).filter(Document.id == rec.document_id).first())
-        if raw is not None:
-            return raw.decode("utf-8", "replace")
-    return rec.html or ""
+    doc = db.query(Document).filter(Document.id == rec.document_id).first()
+    raw = documents.raw_of(db, doc)
+    return raw.decode("utf-8", "replace") if raw is not None else ""
 
 
 def _mail(db: Session, *, row: Voucher, rec: VoucherDocument, doc: document.Doc, kind: str,
@@ -425,12 +423,14 @@ def preview(db: Session, *, order: Order, step: Any, action: str, payload: dict[
     echten Papier abweichen könnte. Mails gehen ohnehin erst nach dem Festschreiben."""
     row = vs.of_step(db, step.id)
     before = {d.id for d in vs.documents_of(db, row)}
+    from . import attachments
     sp = db.begin_nested()
     try:
-        vs.apply(db, order=order, step=step, action=action, payload=payload, actor=actor)
-        db.flush()
-        return [{"word": word_of(d.kind, d.level), "number": d.number, "html": paper_of(db, d)}
-                for d in vs.documents_of(db, vs.of_step(db, step.id)) if d.id not in before]
+        with attachments.in_database():       # zurückgerollt: nichts in den Bucket
+            vs.apply(db, order=order, step=step, action=action, payload=payload, actor=actor)
+            db.flush()
+            return [{"word": word_of(d.kind, d.level), "number": d.number, "html": paper_of(db, d)}
+                    for d in vs.documents_of(db, vs.of_step(db, step.id)) if d.id not in before]
     finally:
         sp.rollback()
         db.expire_all()

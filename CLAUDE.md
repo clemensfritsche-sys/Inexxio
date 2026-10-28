@@ -28,8 +28,9 @@ Website:   Astro 7 (website/), reines HTML, gleiche Hosting-Site wie das ERP
 Backend:   FastAPI (Python 3.12), SQLAlchemy 2.0, Pydantic v2, Alembic
 DB:        PostgreSQL (Cloud SQL), universeller 9-stelliger Nummernkreis
 Auth:      Firebase Authentication (Magic Link · Google SSO · Passkeys/WebAuthn)
-Dateien:   in der Datenbank («Korb», services/attachments), ausgeliefert über einen
-           unerratbaren Token; ein Bucket hiesse: nur diesen Dienst ändern
+Dateien:   Cloud Storage, je Umgebung ein Bucket (inexxio-dev-files · inexxio-prod-files,
+           privat, vom Deploy angelegt); ohne Bucket in der DB. Eine Stelle:
+           services/attachments, ausgeliefert über einen unerratbaren Token
 Karten:    Google Places (Adress-Suche in jedem Adressfeld)
 Infra:     Google Cloud Run (europe-west6) + Firebase Hosting
 Zahlung:   Stripe – eigene Bezahlkarte im ERP (Payment Element + Webhook). OPTIONAL:
@@ -43,8 +44,8 @@ Scanner:   OpenCV.js (Paket @techstark/opencv-js, als /vendor/opencv-<Version>.j
            ausgeliefert, geladen erst beim Scannen)
 ```
 
-**Geplant, aber NICHT verdrahtet** (keine Zeile Code): Typesense (Suche) · Cloud Storage
-(Datei-Ablage) · Carrier-Anbindung (Versand). Was davon einmal gebaut und
+**Geplant, aber NICHT verdrahtet** (keine Zeile Code): Typesense (Suche) ·
+Carrier-Anbindung (Versand). Was davon einmal gebaut und
 wieder entfernt wurde, steht in `docs/attic.md`.
 
 ## Monorepo-Struktur
@@ -576,10 +577,7 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 - Newsletter-Versand über einen Dienst (heute Gmail, 20 je Abgleich), Rückläufer;
   Google Workspace, zentrale Gmail-Signatur, persönliche Postfächer – verschoben.
 - Zeiterfassung: Export für die Lohnbuchhaltung, Schichtpläne (`docs/zeiterfassung-spezifikation.md` §12).
-- Folge-Deploy: `user_profiles.employment_start_date`/`weekly_hours` und
-  `voucher_documents.html` droppen (`docs/backlog.md`).
-- Dokumente: Schlüssel `ANTHROPIC_API_KEY` hinterlegen (Secret Manager; ohne ihn kein Lesen und
-  Verfassen); automatische Freigabe einzelner Papiere (`voucher.AUTO_RELEASE`); Zugriff von
+- Dokumente: automatische Freigabe einzelner Papiere (`voucher.AUTO_RELEASE`); Zugriff von
   aussen auf Dokumente (heute nur über einen Link).
 - Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop und «Besitz»
   (`docs/konzept-beleg-shop-besitz.md`), offene-Posten-Liste je Partner, TOTP-MFA.

@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     #: Höchstens so viele KI-Aufrufe je Tag (Schutz vor einer Flut); 0 = kein Deckel.
     ai_daily_cap: int = 300
+    #: **Die Datei-Ablage** (Cloud Storage) – je Umgebung ein eigener Bucket
+    #: (``inexxio-dev-files`` · ``inexxio-prod-files``), gesetzt vom Deploy. Leer: die Dateien
+    #: liegen in der Datenbank (lokal, Tests).
+    files_bucket: str = ""
 
     # ── Postfach (``services/mailbox``, CRM Schritt 3) ───────────────────────────
     #: Der **OAuth-Client** des Google-Cloud-Projekts (Typ «Webanwendung»). **Leer heisst:

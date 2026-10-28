@@ -21,7 +21,8 @@ class Attachment(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     token: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     mime: Mapped[str] = mapped_column(String(100), default="image/jpeg", nullable=False)
-    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    #: Die Bytes – nur, wenn kein Bucket sie hält (``attachments.keep``).
+    data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
     filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
