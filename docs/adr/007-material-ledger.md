@@ -4,7 +4,7 @@
 > Das Material-Journal (`material_moves`, `services/ledger.py`) ist mit dem
 > Basis-Neuaufbau entfallen. Seine Rolle – **die Vergangenheit ist eine Buchung, keine
 > Ableitung aus dem heutigen Zustand** – trägt heute der Ereignis-Log
-> (`process_events`, PROCESS_CORE.md §8.1a).
+> (`process_events`, `docs/prozessbild.md` §8.1a).
 > **Der Grund, warum dieses Dokument bleibt**, ist seine Analyse: fast alle Mengen-Fehler
 > des Vorgängers kamen aus drei Wurzeln (Zustand als Skalar an einer Menge · «wer hält wie
 > viel» an vier Stellen · Vergangenheit aus der Gegenwart rekonstruiert). Wer eine
