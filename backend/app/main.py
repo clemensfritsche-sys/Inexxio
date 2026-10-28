@@ -512,22 +512,11 @@ def _repair_companies(conn, tables: set[str], insp) -> None:
                 conn.execute(text(stmt))
 
 
-def _repair_newsletter(conn, tables: set[str], insp) -> None:
-    """Das frühere Häkchen wird ein Nachweis (Migration ``153``) – nur, solange es die
-    Spalte noch gibt; selbstbegrenzend (``domain/newsletter.legacy_repair_sql``)."""
-    if {"user_profiles", "newsletter_consents"} <= tables and "newsletter_opt_in" in {
-            c["name"] for c in insp.get_columns("user_profiles")}:
-        from .domain.newsletter import legacy_repair_sql
-        for stmt in legacy_repair_sql():
-            conn.execute(text(stmt))
-
-
 _DATA_REPAIRS = (
     ("orders.name", _repair_order_names),
     ("instance_units.status", _repair_unit_status),
     ("user_profiles", _repair_people),
     ("company_settings", _repair_companies),
-    ("newsletter_consents", _repair_newsletter),
 )
 
 

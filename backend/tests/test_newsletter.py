@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from app.core.database import get_db
-from app.models import Message, MessageParty, NewsletterConsent, UserProfile
+from app.models import Message, MessageParty, UserProfile
 from app.routers import contact
 from app.routers import newsletter as router
 from app.schemas.communication import MessageIn
@@ -222,16 +222,3 @@ def test_the_inquiry_confirmation_asks_or_invites_but_never_twice(world):
     assert asked.url in mail.body and asked.label in mail.html
     assert inquiry.Inquiry(name="", email="", message="").newsletter is False
 
-
-def test_the_old_checkbox_becomes_a_proof_once(world):
-    """Migration 153 und Netz: das frühere Häkchen wird eine Zeile «legacy» – einmal."""
-    from sqlalchemy import text
-    from app.domain.newsletter import legacy_repair_sql
-    db, p = world.db, _person(world.db)
-    db.execute(text("UPDATE user_profiles SET newsletter_opt_in = true WHERE id = :i"), {"i": p.id})
-    for _ in range(2):
-        for stmt in legacy_repair_sql():
-            db.execute(text(stmt))
-    rows = db.query(NewsletterConsent).filter(
-        NewsletterConsent.person_object_id == p.object_id).all()
-    assert [(r.subscribed, r.source) for r in rows] == [(True, "legacy")]

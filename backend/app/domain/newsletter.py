@@ -25,13 +25,3 @@ SOURCES: dict[str, str] = {
 CONFIRM_DAYS = 30
 
 
-def legacy_repair_sql() -> list[str]:
-    """Das frühere Häkchen ``newsletter_opt_in`` wird ein Nachweis mit Quelle «legacy» –
-    gelesen von Migration 153 **und** vom Lifespan-Netz. Selbstbegrenzend: wer schon eine
-    Zeile hat, bekommt keine zweite."""
-    return ["INSERT INTO newsletter_consents (person_object_id, subscribed, source, wording, "
-            "at, created_at, updated_at, is_active) "
-            "SELECT u.object_id, true, 'legacy', NULL, now(), now(), now(), true "
-            "FROM user_profiles u WHERE u.newsletter_opt_in AND u.object_id IS NOT NULL "
-            "AND NOT EXISTS (SELECT 1 FROM newsletter_consents c "
-            "WHERE c.person_object_id = u.object_id)"]

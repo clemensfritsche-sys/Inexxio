@@ -3,16 +3,15 @@
 * ``newsletter_consents`` – je An-/Abmeldung eine Zeile (Quelle, Wortlaut, Zeitpunkt).
 * ``messages.group_id`` – Rundschreiben und Newsletter: je Empfänger eine Nachricht,
   alle zeigen auf die erste. ``messages.newsletter`` – Werbung mit Abmeldelink.
-* Das frühere Häkchen ``user_profiles.newsletter_opt_in`` wird ein Nachweis
-  (``domain/newsletter.legacy_repair_sql``); die Spalte fällt im Folge-Deploy.
+* Das frühere Häkchen ``user_profiles.newsletter_opt_in`` wird ein Nachweis (Quelle
+  «legacy»); die Spalte fiel in ``161``. Die SQL steht hier wörtlich (wie bei ``152``) –
+  die Fachschicht kennt die Spalte nicht mehr.
 
 Revision ID: 153
 Revises: 152
 """
 
 from alembic import op
-
-from app.domain.newsletter import legacy_repair_sql
 
 revision = "153"
 down_revision = "152"
@@ -40,8 +39,12 @@ def upgrade() -> None:
     op.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS newsletter BOOLEAN "
                "NOT NULL DEFAULT false")
     op.execute("CREATE INDEX IF NOT EXISTS ix_messages_group_id ON messages (group_id)")
-    for stmt in legacy_repair_sql():
-        op.execute(stmt)
+    op.execute("INSERT INTO newsletter_consents (person_object_id, subscribed, source, wording, "
+               "at, created_at, updated_at, is_active) "
+               "SELECT u.object_id, true, 'legacy', NULL, now(), now(), now(), true "
+               "FROM user_profiles u WHERE u.newsletter_opt_in AND u.object_id IS NOT NULL "
+               "AND NOT EXISTS (SELECT 1 FROM newsletter_consents c "
+               "WHERE c.person_object_id = u.object_id)")
 
 
 def downgrade() -> None:
