@@ -49,13 +49,13 @@ def _documents(db: Session) -> list[tuple[int, str]]:
     from ..domain import voucher as vo
     from ..models import Order, Voucher
     from . import requirements, voucher
-    out = [(r.object_id, r.label) for r in requirements._vouchers(db)]
+    out = [(r.object_id, r.label) for r in requirements.of_vouchers(db)]
     rows = (db.query(Voucher, Order.object_id).join(Order, Order.id == Voucher.order_id)
             .filter(Voucher.is_active.is_(True), Voucher.stage.in_((vo.AGREED, vo.BILLED)))
             .all())
     for row, oid in rows:
         for kind in voucher.papers_due(db, row):
-            out.append((oid, f"{vo.DOCUMENTS.get(kind, kind)} freigeben"))
+            out.append((oid, f"{vo.document_word(kind)} freigeben"))
     return out
 
 

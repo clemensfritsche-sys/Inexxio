@@ -162,7 +162,7 @@ def _scene(db, *, direction: str = "in", quantity: int = 3, parties=None):
     # **Die Lieferbedingung gehört zum vollständigen Beleg** (#964) – ohne sie geht er
     # nicht hinaus, und fast jede Prüfung hier will ihn hinausgehen lassen.
     svc.apply(db, order=order, step=step, action="incoterm",
-              payload={"incoterm": "FCA", "incoterm_place": "Rorschach"})
+              payload={"incoterm": "FCA"})
     db.flush()
     return order, step, row, who, art
 
@@ -814,7 +814,7 @@ def test_a_correction_carries_the_reference_to_what_it_corrects():
     könnte sagen, was sie mindert.
 
     Bug-Formen: (a) ``corrects_id`` kommt nicht an; (b) der Verweis steht nicht in der
-    Antwort; (c) ein Beleg korrigiert sich selbst; (d) eine Kette läuft im Kreis.
+    Antwort; (c) ein Beleg korrigiert sich selbst; (d) eine Gutschrift wird gemindert.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -839,23 +839,22 @@ def test_a_correction_carries_the_reference_to_what_it_corrects():
             svc.apply(db, order=back_order, step=back_step, action="correct",
                       payload={"corrects": back.id})
         assert e.value.status_code == 400, "Ein Beleg korrigiert sich selbst (c)."
-        # (d) **Kein Kreis** – die Kette muss irgendwo enden. Dafür braucht es einen
-        # zweiten gestellten Beleg, der auf den ersten zurückzeigt; der Verweis wird dort
-        # von Hand gesetzt, weil das Verb in der Stufe «Rechnung» keinen Zugang mehr hat
-        # (das hat seinen eigenen Wächter).
+        # (d) **Keine Kette** – gemindert wird eine Rechnung, nie eine Gutschrift; damit
+        # kann kein Kreis entstehen. Die Gutschrift zu ``row`` ist gestellt und zeigt auf
+        # ``row``; ein dritter Beleg, der SIE mindern will, wird abgewiesen.
         credit_order, credit_step, credit = _credit(db, target=row, who=who[0])
         svc.apply(db, order=credit_order, step=credit_step, action="bill", payload={})
         db.flush()
-        row.corrects_id = credit.id
-        db.flush()
-        third_order, third_step, _third, _w2, _a2 = _scene(db, quantity=1,
-                                                           parties=[who[0]])
+        third_order, third_step, third, _w2, _a2 = _scene(db, quantity=1, parties=[who[0]])
         with pytest.raises(HTTPException) as e:
             svc.apply(db, order=third_order, step=third_step, action="correct",
                       payload={"corrects": credit.id})
-        assert e.value.status_code == 400 and "Kreis" in str(e.value.detail), (
-            "Eine Kette aus Korrekturen läuft im Kreis (d)."
-        )
+        assert e.value.status_code == 400 and "Gutschrift" in str(e.value.detail), (
+            "Eine Gutschrift lässt sich mindern (d) – dann gibt es Ketten und Kreise.")
+        assert e.value.detail == svc.correction_problem(db, third, credit), (
+            "Tor und Auskunft sagen Verschiedenes (d).")
+        assert credit.id not in [r["id"] for r in svc.correctable(db, third, third_step)], (
+            "Die Suche bietet an, was das Tor abweist (d).")
     finally:
         db.rollback(); db.close()
 
@@ -1175,11 +1174,14 @@ def test_the_door_knows_every_field_it_accepts():
     for field in ("party", "parties", "lead_days", "payment_days", "amount",
                   "reference", "note", "booked_on", "billed_on",
                   "corrects", "entry",
-                  "lines", "vat", "currency", "method", "incoterm", "incoterm_place",
+                  "lines", "vat", "currency", "method", "incoterm",
                   "issuer"):
         assert field in known, (
             f"«{field}» fehlt an der Tür – es käme nie an, und niemand würde es merken."
         )
+    # **Der Ort der Lieferbedingung ist kein Feld** – er folgt aus Klausel und Anschriften;
+    # an der Tür nähme ihn der Dienst an und verwürfe ihn still.
+    assert "incoterm_place" not in known, "Die Tür nimmt einen Ort an, den niemand liest."
 
 
 def test_a_price_leaves_the_service_in_the_scale_of_its_currency():
@@ -1499,11 +1501,9 @@ def test_a_cancel_is_reachable_at_every_step_that_happened():
         )
         # (c) **Ein Wort in jeder Stufe** (Umbau Oktober 2026) – was der Storno bewirkt,
         # folgt aus der Stufe, nicht aus dem Wort.
-        assert {vo.undo_word(k) for k in (vo.OFFER, vo.AGREED, vo.BILLED)} == {"Stornieren"}, (
-            "Der Storno heisst je Stufe anders (c)."
-        )
+        assert vo.UNDO == "Stornieren", "Der Storno heisst anders (c)."
         assert svc.embed_data(db, order=order, step=step,
-                              viewer=staff)["undo"] == vo.undo_word(vo.OFFER), (
+                              viewer=staff)["undo"] == vo.UNDO, (
             "Der Beleg nennt ein anderes Wort als die Auflösung (c)."
         )
 
@@ -1691,7 +1691,7 @@ def test_an_incomplete_document_does_not_go_out():
             "Ohne Lieferbedingung geht der Beleg hinaus (c)."
         )
         svc.apply(db, order=order, step=step, action="incoterm",
-                  payload={"incoterm": "FCA", "incoterm_place": "Rorschach"})
+                  payload={"incoterm": "FCA"})
 
         # (a)/(b) Ohne Zoll-Angaben – **Pflicht nur bei einer Ausfuhr**: die Lieferadresse
         # liegt im Ausland. Sie stehen am Artikel und reisen von dort mit.
@@ -2608,6 +2608,11 @@ def _fake_stripe(monkey, *, raises=None):
         Refund = _Refund
 
     monkey.setattr(stripe_pay, "_api", lambda: _Api)
+    # **Eingerichtet** – sonst führt ``can`` das Verb gar nicht (dasselbe Tor wie im Router).
+    from app.core.config import get_settings
+    for key, value in (("stripe_secret_key", "sk_test_x"),
+                       ("stripe_publishable_key", "pk_test_x")):
+        monkey.setattr(get_settings(), key, value)
     return calls
 
 
@@ -2632,20 +2637,41 @@ def _card_scene(db):
     return order, step, row, intent
 
 
-def _webhook_refund(db, row, intent, *, total: int, refunds: list[dict]):
-    """**Was der Webhook buchen würde** – über dieselbe Ableitung, ohne seinen Commit.
+class _Listing:
+    """Eine Liste des Dienstes – ``auto_paging_iter`` wie beim echten SDK."""
 
-    ``_note_refund`` committet (der Zahlungsdienst meldet eine Tatsache, und die soll
-    stehen) – in einer Prüfung risse das die ganze Szene aus dem Rollback. Geprüft wird
-    darum die Ableitung selbst (``_refunds``) und die Buchung über dieselbe Tür.
-    """
-    from app.domain import voucher as vo
-    from app.services import stripe_pay, voucher as svc
-    data = {"payment_intent": intent, "amount_refunded": total,
-            "refunds": {"data": refunds}}
-    for ref, amount, _meta in stripe_pay._refunds(data, intent, row.currency):
-        svc.record_payment(db, row=row, amount=-amount, reference=ref,
-                           note="Erstattung", method=vo.CARD)
+    def __init__(self, rows):
+        self.rows = rows
+
+    def auto_paging_iter(self):
+        return iter(self.rows)
+
+
+def _refund_api(refunds: list[dict]):
+    """Der Dienst, der die Erstattungen einer Zahlung vorliest (``Refund.list``)."""
+
+    class _Refund:
+        @staticmethod
+        def list(**kw):
+            return _Listing([{"status": "succeeded", **r} for r in refunds])
+
+    class _Api:
+        Refund = _Refund
+
+    return _Api
+
+
+def _webhook_refund(db, row, intent, *, refunds: list[dict]):
+    """**Was der Webhook bucht** – ``charge.refunded`` über ``_note_refund``, sein Commit
+    als ``flush`` (sonst risse er die Szene aus dem Rollback). Die Meldung trägt KEINE
+    Liste: die Erstattungen liest der Dienst selbst vor."""
+    from app.services import stripe_pay
+    commit = db.commit
+    db.commit = db.flush
+    try:
+        stripe_pay._note_refund(db, _refund_api(refunds), {"payment_intent": intent})
+    finally:
+        db.commit = commit
     db.flush()
 
 
@@ -2672,27 +2698,26 @@ def test_a_refund_never_goes_out_twice(monkeypatch):
     try:
         _order, _step, row, intent = _card_scene(db)
         entry = svc.refundable(db, row)[0]
-        assert svc.refundable_amount(db, row, entry) == Decimal("100.0000")
+        assert svc.refundable_amount(db, entry) == Decimal("100.0000")
 
         # (a) **Der Aufruf trägt einen Schlüssel** – und er nennt den Stand VOR ihm.
         calls = _fake_stripe(monkeypatch)
-        stripe_pay.refund(db, row=row, entry_id=entry.id)
+        stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
         assert len(calls) == 1 and calls[0].get("idempotency_key"), (
             f"Die Erstattung geht ohne Idempotenz-Schlüssel hinaus (a): {calls}."
         )
         first_key = calls[0]["idempotency_key"]
         # **Ein zweiter Klick im selben Fenster trägt denselben Schlüssel** – beim Dienst
         # entsteht damit genau eine Erstattung, obwohl hier noch nichts gebucht ist.
-        stripe_pay.refund(db, row=row, entry_id=entry.id)
+        stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
         assert calls[1]["idempotency_key"] == first_key, (
             "Zwei Klicks im Wartefenster tragen verschiedene Schlüssel – dann erstattet "
             "der Dienst zweimal."
         )
 
         # (b) **Sobald der Webhook gemeldet hat, gibt es nichts mehr zu erstatten.**
-        _webhook_refund(db, row, intent, total=10000,
-                        refunds=[{"id": "re_1", "amount": 10000}])
-        assert svc.refundable_amount(db, row, entry) == Decimal("0"), (
+        _webhook_refund(db, row, intent, refunds=[{"id": "re_1", "amount": 10000}])
+        assert svc.refundable_amount(db, entry) == Decimal("0"), (
             "Die vollständig erstattete Zahlung hat wieder einen Rest (b)."
         )
         assert entry.id not in [e.id for e in svc.refundable(db, row)], (
@@ -2700,7 +2725,7 @@ def test_a_refund_never_goes_out_twice(monkeypatch):
         )
         # (c) **Und der Weg dorthin ist zu** – mit einem Satz, nicht mit einem Rohfehler.
         with pytest.raises(HTTPException) as err:
-            stripe_pay.refund(db, row=row, entry_id=entry.id)
+            stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
         assert err.value.status_code == 409 and "erstatten" in err.value.detail, (
             f"Der zweite Aufruf geht hinaus oder sagt nichts (c): {err.value.detail}."
         )
@@ -2731,16 +2756,15 @@ def test_a_partial_refund_leaves_the_rest_and_only_the_rest(monkeypatch):
         _order, _step, row, intent = _card_scene(db)
         entry = svc.refundable(db, row)[0]
         calls = _fake_stripe(monkeypatch)
-        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="30.00")
-        _webhook_refund(db, row, intent, total=3000,
-                        refunds=[{"id": "re_1", "amount": 3000}])
+        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="30.00", viewer=None)
+        _webhook_refund(db, row, intent, refunds=[{"id": "re_1", "amount": 3000}])
         # (a)
-        assert svc.refundable_amount(db, row, entry) == Decimal("70.0000"), (
-            f"Der Rest stimmt nicht (a): {svc.refundable_amount(db, row, entry)}."
+        assert svc.refundable_amount(db, entry) == Decimal("70.0000"), (
+            f"Der Rest stimmt nicht (a): {svc.refundable_amount(db, entry)}."
         )
         # (b) **Mehr als der Rest geht nicht** – und der Satz nennt beide Zahlen.
         with pytest.raises(HTTPException) as err:
-            stripe_pay.refund(db, row=row, entry_id=entry.id, amount="80.00")
+            stripe_pay.refund(db, row=row, entry_id=entry.id, amount="80.00", viewer=None)
         assert err.value.status_code == 409 and "70" in err.value.detail, (
             f"Mehr als der Rest geht durch (b): {err.value.detail}."
         )
@@ -2749,18 +2773,20 @@ def test_a_partial_refund_leaves_the_rest_and_only_the_rest(monkeypatch):
         #     verschwand still.
         # (d) **Zweimal derselbe Betrag, zwei Vorhaben** – der Stand dazwischen ist
         #     gewachsen, also ist es auch der Schlüssel.
-        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="30.00")
+        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="30.00", viewer=None)
         assert calls[-1]["idempotency_key"] != calls[0]["idempotency_key"], (
             "Eine zweite Teilerstattung über denselben Betrag trägt denselben Schlüssel "
             "(d) – der Dienst verschluckt sie still."
         )
-        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="20.00")
-        _webhook_refund(db, row, intent, total=5000,
-                        refunds=[{"id": "re_2", "amount": 2000},
-                                 {"id": "re_1", "amount": 3000}])
-        assert svc.refunded_on(db, row, entry) == Decimal("50.0000"), (
+        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="20.00", viewer=None)
+        _webhook_refund(db, row, intent, refunds=[{"id": "re_2", "amount": 2000},
+                                                  {"id": "re_1", "amount": 3000}])
+        # **Dieselbe Meldung noch einmal** bucht nichts – idempotent je Erstattung.
+        _webhook_refund(db, row, intent, refunds=[{"id": "re_2", "amount": 2000},
+                                                  {"id": "re_1", "amount": 3000}])
+        assert svc.refunded_on(db, entry) == Decimal("50.0000"), (
             f"Die zweite Erstattung ist nicht angekommen (c): "
-            f"{svc.refunded_on(db, row, entry)}."
+            f"{svc.refunded_on(db, entry)}."
         )
     finally:
         db.rollback()
@@ -2788,7 +2814,7 @@ def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(monkeypatch
         raw = "Charge ch_123 has already been refunded."
         _fake_stripe(monkeypatch, raises=_Refused("charge_already_refunded", raw))
         with pytest.raises(HTTPException) as err:
-            stripe_pay.refund(db, row=row, entry_id=entry.id)
+            stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
         # (a)
         assert raw not in err.value.detail and "refund" not in err.value.detail.lower(), (
             f"Der Rohtext des Dienstes steht in der Antwort (a): {err.value.detail}."
@@ -2800,7 +2826,7 @@ def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(monkeypatch
         #     Ursache schickt jemanden in die falsche Richtung.
         _fake_stripe(monkeypatch, raises=_Refused("something_new", "Internal oops at 0x1"))
         with pytest.raises(HTTPException) as err:
-            stripe_pay.refund(db, row=row, entry_id=entry.id)
+            stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
         assert err.value.detail == stripe_pay.STRIPE_TROUBLE, (
             f"Ein unbekannter Fehler bringt Technisches durch (b): {err.value.detail}."
         )
@@ -3217,10 +3243,10 @@ def test_a_firm_number_and_the_creditor_address_have_one_form():
             "CHE-123.456.788")
         assert svc._uid(None) is None
         assert "_uid(firm)" in inspect.getsource(svc.billing_of), "(b)"
-        cred = svc._creditor(db, row)
+        cred = svc.creditor_of(db, row)
         assert cred["street"] == f"{house.street} {house.street_nr}".strip()
         assert cred["zip"] == house.zip_code and cred["country"] == "CH"
-        body = inspect.getsource(svc._creditor)
+        body = inspect.getsource(svc.creditor_of)
         assert "of_company" in body and "getattr" not in body, "(c)"
     finally:
         db.rollback()

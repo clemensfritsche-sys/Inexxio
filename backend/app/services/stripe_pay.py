@@ -1,8 +1,8 @@
 """**Der Zahlungsdienst — dünn, und die Oberfläche bleibt unsere.**
 
-Zwei Funktionen: eine Zahlung **vorbereiten** und eine Rückmeldung **entgegennehmen**.
-Mehr nicht – eine Erstattung löst man im Dashboard des Dienstes aus, und der Webhook bucht
-sie wie jede andere Rückmeldung.
+Drei Wege: eine Zahlung **vorbereiten**, eine Kartenzahlung **erstatten** (beides löst beim
+Dienst etwas aus und bucht nichts) und eine Rückmeldung **entgegennehmen** – nur der
+Webhook schreibt Geld-Zeilen (``voucher.record_payment``).
 
 ## Das ERP nennt Betrag und Währung. Der Dienst kassiert.
 
@@ -37,9 +37,8 @@ Frage. Dieselbe Regel wie überall im Haus: die Genauigkeit ist die der Quelle.
 * **Keine Quittungs-Mail des Dienstes** (``receipt_email``). Sie trüge fremdes Briefpapier
   für einen Vorgang, der bei uns steht; der Nachweis ist die Zeile im Geldvorgang, und die
   sieht die Gegenpartei in ihrer eigenen Ansicht.
-* **Keinen eigenen Erstattungs-Knopf.** Der Dienst bietet ihn an, und «erstattet wird auf
-  dem Weg, auf dem gezahlt wurde» ist dort ohnehin die einzige Möglichkeit. Der Rückweg
-  bleibt lückenlos: ``charge.refunded`` bucht eine **negative** Zahlung.
+* **Keine Buchung beim Erstatten.** «Zurück auf die Karte» löst die Erstattung beim Dienst
+  aus; gebucht wird sie, wenn ``charge.refunded`` sie meldet – je Erstattung eine Zeile.
 * **Keine Liste von Zahlungsarten bei uns.** Welche angeboten werden (Karte, TWINT, …),
   entscheidet das Konto beim Dienst – ``automatic_payment_methods``. Eine zweite Liste
   hier wäre die Stelle, an der beim nächsten Freischalten jemand nichts sieht.
@@ -69,7 +68,7 @@ from sqlalchemy.orm import Session
 from ..core.config import get_settings, payment_service_ready
 from ..domain import currency as cur
 from ..domain import voucher as dm
-from ..models import Order, Voucher
+from ..models import Order, UserProfile, Voucher
 from . import voucher as voucher_svc
 
 #: **Der Faden zurück**: unter diesem Schlüssel steht der Beleg in den Metadaten der
@@ -182,7 +181,8 @@ def _minor(amount: Decimal, code: str) -> int:
     return int((amount.scaleb(cur.minor_units(code))).quantize(Decimal("1")))
 
 
-def prepare(db: Session, *, row: Voucher, order: Order) -> dict[str, Any]:
+def prepare(db: Session, *, row: Voucher, order: Order,
+            viewer: Optional[UserProfile]) -> dict[str, Any]:
     """►►► **Eine Zahlung über den offenen Betrag vorbereiten.** ◄◄◄
 
     Zurück kommt, was **unsere** Karte zum Zeichnen braucht: das ``client_secret`` der
@@ -200,8 +200,11 @@ def prepare(db: Session, *, row: Voucher, order: Order) -> dict[str, Any]:
     **Ohne Zustand bei uns**: jeder Aufruf erzeugt eine neue Absicht. Eine gespeicherte Id
     wäre eine zweite Wahrheit über eine Sache, die dem Dienst gehört; eine unbenutzte
     Absicht kostet nichts und verfällt dort von selbst.
+
+    Das Tor ist dasselbe wie für jede Handlung am Beleg (``assert_allowed``, gesperrt).
     """
     stripe = _api()
+    voucher_svc.assert_allowed(db, row, "pay_online", viewer)
     owed = voucher_svc.balance_of(db, row).open
     if owed <= 0:
         raise HTTPException(
@@ -247,63 +250,37 @@ def prepare(db: Session, *, row: Voucher, order: Order) -> dict[str, Any]:
 
 
 def refund(db: Session, *, row: Voucher, entry_id: Optional[int],
-           amount: Optional[str] = None) -> None:
-    """►►► **Geld zurück – auf dem Weg, auf dem es gekommen ist** (Testnotiz #860). ◄◄◄
+           amount: Optional[str] = None, viewer: Optional[UserProfile]) -> None:
+    """►►► **Geld zurück – auf die Karte, über den Dienst, der sie belastet hat.** ◄◄◄
 
-    *«Wenn bezahlt wurde, dann wurde bezahlt … ich kann bzw. soll können einen Betrag
-    zurückerstatten.»* Bar und per Überweisung ist die Erstattung eine ganz gewöhnliche
-    **negative Zahlung** – die gibt es längst. Eine **Karte** kann nur der Dienst
-    zurückgeben, der sie belastet hat; ein Mensch kann sie nicht überweisen.
+    Bar und per Überweisung ist die Erstattung eine gewöhnliche negative Zahlung; eine Karte
+    kann nur der Dienst zurückgeben. **Gebucht wird hier nichts** – der Webhook meldet die
+    Erstattung (``charge.refunded``) und bucht sie.
 
-    Wer im Dashboard des Dienstes erstattet, müsste das ERP verlassen und dort die Zahlung
-    wiederfinden, die hier eine Zeile mit einer Nummer ist.
-
-    **Gebucht wird auch hier nichts.** Der Dienst meldet die Erstattung, der Webhook bucht.
-    (``charge.refunded``), und der Webhook schreibt die negative Zeile – dieselbe Regel wie
-    beim Einziehen, und aus demselben Grund: die Buchung folgt dem Geld, nicht dem Klick.
-
-    **Der Betrag ist optional**: ohne Angabe der ganze **Rest**. Eine Teilerstattung ist
-    dieselbe Handlung mit einer kleineren Zahl – kein zweites Verb.
-
-    ►►► **Zweimal geklickt ist EINE Erstattung** (Testnotiz #1018). ◄◄◄ Der Knopf liess
-    sich mehrfach drücken, und der zweite Aufruf brachte den Rohfehler des Dienstes
-    («Charge has already been refunded») auf den Bildschirm. Drei Ebenen, und alle drei
-    sind nötig, weil jede eine andere Lücke schliesst:
-
-    * **Der Rest** (``voucher.refundable_amount``) – die fachliche Wahrheit, sobald die
-      Erstattung gebucht ist. Sie schliesst den Knopf.
-    * **Der Idempotenz-Schlüssel** – das Fenster davor: zwischen Klick und Buchung liegt
-      die Meldung des Webhooks, und in dieser Zeit sieht auch der Server noch nichts.
-      Zwei Klicks in diesem Fenster tragen **denselben** Schlüssel, also entsteht beim
-      Dienst genau eine Erstattung.
-    * **Die deutsche Meldung** (``_speaking``) – das Netz darunter: was dem Dienst sonst
-      noch missfällt, sagt er auf Englisch, und das gehört ins Log, nicht ins Bild.
-
-    **Der Schlüssel nennt den Stand VOR dem Aufruf** (``refunded``): damit ist ein
-    Doppelklick dasselbe Vorhaben (gleicher Stand, gleicher Betrag) – und zwei
-    *nacheinander* gewollte Teilerstattungen über denselben Betrag sind es nicht, weil der
-    Stand dazwischen gewachsen ist. Ein Schlüssel ohne ihn schluckte die zweite still.
+    **Der Betrag ist optional** (ohne Angabe der ganze Rest) und höchstens, was geschuldet
+    ist. **Zweimal geklickt ist EINE Erstattung**: der Idempotenz-Schlüssel nennt den Stand
+    vor dem Aufruf (``refunded``) – ein Doppelklick ist dasselbe Vorhaben, zwei gewollte
+    Teilerstattungen über denselben Betrag sind es nicht. Was dem Dienst sonst missfällt,
+    sagt ``_speaking`` auf Deutsch.
     """
     stripe = _api()
+    # **Welche Zahlung** zuerst (der Satz nennt die Lage), auf dem gesperrten Beleg – dann
+    # dasselbe Tor wie für jede Handlung.
+    voucher_svc.hold(db, row)
     entry = voucher_svc.card_payment(db, row, entry_id)
+    voucher_svc.assert_allowed(db, row, "refund_online", viewer)
     code = cur.assert_code(row.currency)
     # **Der Rest, nicht der Betrag der Zahlung** – eine teilweise erstattete Karte darf
     # nur noch um den Rest zurückgehen.
-    rest = voucher_svc.refundable_amount(db, row, entry)
+    rest = voucher_svc.refundable_amount(db, entry)
     done = entry.amount - rest
     # **Höchstens, was geschuldet ist** – an einer Gutschrift ihr offener Betrag, an einer
     # überzahlten Rechnung das Zuviel. Mehr zurückzugeben wäre eine neue Schuld.
     owed = voucher_svc.balance_of(db, row).open
     rest = max(Decimal("0"), min(rest, owed if voucher_svc.minus(row) else -owed))
-    # **Aus einer Eingabe wird an EINER Stelle eine Zahl** (``dm.amount``): sie liest ein
-    # Komma als Dezimaltrennzeichen und rundet auf die kleinste Einheit *dieser* Währung.
-    # Ein blosses ``Decimal(...)`` daneben wäre eine zweite Lesart – und bei einem
-    # unlesbaren Wert eine Ablehnung ohne Erklärung: an der Tür ein 500 statt eines Satzes.
+    # **Aus einer Eingabe wird an EINER Stelle eine Zahl** (``dm.amount``); die Grenzen
+    # (über null, höchstens der Rest) nennt der Satz darunter, darum ``allow_negative``.
     try:
-        # ``allow_negative`` steht hier bewusst offen: die **Grenzen** nennt der Satz
-        # darunter, und er nennt beide. Ohne ihn käme bei «−5» die Erklärung einer
-        # *Zusage* zurück («die Richtung sagt, wohin das Geld fliesst») – richtig für ein
-        # Angebot, an einer Erstattung eine Antwort auf eine andere Frage.
         named = dm.amount(amount, code, allow_negative=True)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -316,12 +293,9 @@ def refund(db: Session, *, row: Voucher, entry_id: Optional[int],
                     + (f" ({cur.money(done, code)} {code} sind bereits zurückgegangen.)"
                        if done > 0 else "")),
         )
-    # **Die Referenz IST die Zahlungsabsicht** (``pi_…``): sie steht in derselben Spalte,
-    # in der bei einer Überweisung der Zahlungszweck steht – ein Feld, zwei Wege, keine
-    # ``stripe_*``-Spalte. Der Dienst findet über sie die Belastung selbst; wir müssen
-    # die ``ch_…`` gar nicht kennen.
-    # ►►► **Wohin die Erstattung gebucht wird, sagt die Metadate** – an der Gutschrift,
-    # aus der sie kommt, sonst an der Rechnung der Zahlung (``_note_refund``). ◄◄◄
+    # **Die Referenz IST die Zahlungsabsicht** (``pi_…``); der Dienst findet über sie die
+    # Belastung. **Wohin die Erstattung gebucht wird, sagt die Metadate** – an der
+    # Gutschrift, aus der sie kommt, sonst an der Rechnung der Zahlung (``_note_refund``).
     with _speaking("Erstattung"):
         stripe.Refund.create(
             payment_intent=str(entry.reference),
@@ -363,10 +337,10 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
         return "ignored"
     data = (event.get("data") or {}).get("object") or {}
     handler = {PAID: _note_payment, REFUNDED: _note_refund}[kind]
-    return handler(db, data)
+    return handler(db, stripe, data)
 
 
-def _note_payment(db: Session, data: dict[str, Any]) -> str:
+def _note_payment(db: Session, api: Any, data: dict[str, Any]) -> str:
     """``payment_intent.succeeded`` → eine Zahlung über den **erhaltenen** Betrag.
 
     ``amount_received`` und nicht ``amount``: gebucht wird, was wirklich angekommen ist –
@@ -395,36 +369,27 @@ def _note_payment(db: Session, data: dict[str, Any]) -> str:
     return "paid"
 
 
-def _note_refund(db: Session, data: dict[str, Any]) -> str:
-    """``charge.refunded`` → eine **negative** Zahlung über den erstatteten Betrag.
+def _note_refund(db: Session, api: Any, data: dict[str, Any]) -> str:
+    """``charge.refunded`` → **je Erstattung eine Zeile** – nicht die kumulierte Summe.
 
-    Keine Gutschrift: es ist Geld geflossen, nur rückwärts. Ob die **Forderung** gemindert
-    wird, ist eine andere Frage und eine menschliche Entscheidung (eine **negative
-    Rechnung**) – genau darum sind Forderung und Geld zwei Achsen.
+    Die Erstattungen liest der Dienst selbst vor (``_refunds``); jede trägt ihre Id und
+    damit ihre Referenz, idempotent je Erstattung. Steht in ihren Metadaten eine Gutschrift,
+    gehört die Zeile dorthin (als ihre Zahlung), sonst negativ an die Rechnung.
     """
     intent = str(data.get("payment_intent") or "")
-    # **Gesucht wird über die Referenz, nicht über eine Metadate** – eine Erstattung trägt
-    # die Zahlungsabsicht, und die steht an genau einer Zeile im Haus.
-    row = voucher_svc.of_reference(db, intent)
+    # **Gesucht wird über die Referenz** – die Zahlungsabsicht steht an genau einer Zeile.
+    row = voucher_svc.of_reference(db, intent) if intent else None
     if row is None:
         return "unknown"
     booked = 0
-    for ref, amount, meta in _refunds(data, intent, row.currency):
-        # ►►► **Aus einer Gutschrift?** Dann steht die Erstattung dort – als ihre Zahlung
-        # (sie mindert, das Wort sagt «Erstattung»). Sonst an der Rechnung, negativ. ◄◄◄
+    for ref, amount, meta in _refunds(api, intent, row.currency):
         credit = _row_of(db, meta)
         if credit is not None and credit.id != row.id and voucher_svc.minus(credit):
             target, value = credit, amount
         else:
             target, value = row, -amount
-        voucher_svc.record_payment(
-            db, row=target, amount=value,
-            # **Eine eigene Referenz** – sonst fiele die Erstattung mit der Zahlung
-            # zusammen, und die Idempotenz würfe sie weg.
-            reference=ref,
-            note="Erstattung",
-            method=dm.CARD,
-        )
+        voucher_svc.record_payment(db, row=target, amount=value, reference=ref,
+                                   note="Erstattung", method=dm.CARD)
         booked += 1
     if not booked:
         return "ignored"
@@ -432,37 +397,35 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
     return "refunded"
 
 
-def _refunds(data: dict[str, Any], intent: str,
+#: Welche Erstattungen gebucht werden – das Geld ist unterwegs oder angekommen. Eine
+#: gescheiterte oder abgebrochene ging nie hinaus.
+BOOKED_REFUNDS = ("succeeded", "pending")
+
+
+def _refunds(api: Any, intent: str,
              code: Any) -> list[tuple[str, Decimal, dict[str, Any]]]:
-    """►►► **Je Erstattung eine Zeile — nicht die kumulierte Summe.** ◄◄◄
+    """►►► **Die Erstattungen einer Zahlung, wie der Dienst sie führt** – je eine Zeile. ◄◄◄
 
-    ``amount_refunded`` an der Belastung ist **kumulativ**: nach zwei Teilerstattungen über
-    je 30 steht dort 60. Gebucht wurde daraus eine einzige Zeile mit der Referenz
-    ``pi_…:refund`` – und die zweite Meldung fand sie wieder (Idempotenz über die Referenz)
-    und schrieb **nichts**. Der Betrag im Haus stand damit auf 30, während 60 zurückgingen;
-    unauffällig, solange nur vollständig erstattet wird, und genau die Zahl, auf der
-    ``refundable_amount`` beruht.
-
-    Gelesen wird darum die **Liste** der Erstattungen; jede trägt ihre eigene Id, also
-    ihre eigene Referenz, und die Idempotenz greift je Erstattung statt je Belastung.
-
-    **Die älteste behält die alte Referenz** (``pi_…:refund``): eine Zeile aus der Zeit
-    davor bedeutet genau sie – sonst entstünde bei der nächsten Zustellung eine zweite,
-    und die Erstattung wäre doppelt gebucht. ``refunds.data`` kommt neueste zuerst.
+    Gelesen über ``Refund.list(payment_intent=…)``, nicht aus der Meldung: dort ist die
+    Liste je nach Version gekürzt oder gar nicht dabei. Je Erstattung die Referenz
+    ``voucher.refund_reference(pi_…, re_…)``, ihr Betrag und ihre Metadaten.
     """
-    rows = ((data.get("refunds") or {}).get("data")) or []
-    if not rows:
-        # **Eine Meldung ohne Liste** – dann ist die kumulierte Summe alles, was wir haben.
-        amount = _amount_of(data.get("amount_refunded"), code)
-        return [(f"{intent}:refund", amount, {})] if amount > 0 else []
+    with _speaking("Erstattungen lesen"):
+        listing = api.Refund.list(payment_intent=intent, limit=100)
+        rows = [_plain(r) for r in listing.auto_paging_iter()]
     out: list[tuple[str, Decimal, dict[str, Any]]] = []
-    for i, r in enumerate(reversed(rows)):
+    for r in rows:
         amount = _amount_of(r.get("amount"), code)
-        if amount <= 0:
+        if r.get("status") not in BOOKED_REFUNDS or amount <= 0 or not r.get("id"):
             continue
-        out.append((f"{intent}:refund" if i == 0 else f"{intent}:refund:{r.get('id')}",
-                    amount, dict(r.get("metadata") or {})))
+        out.append((voucher_svc.refund_reference(intent, str(r["id"])), amount,
+                    dict(r.get("metadata") or {})))
     return out
+
+
+def _plain(obj: Any) -> dict[str, Any]:
+    """Ein Objekt des Dienstes als reine Daten – ein ``StripeObject`` ist kein ``dict``."""
+    return obj.to_dict() if hasattr(obj, "to_dict") else dict(obj)
 
 
 def _amount_of(value: Any, code: Any) -> Decimal:

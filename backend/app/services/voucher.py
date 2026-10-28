@@ -23,8 +23,10 @@ from typing import Any, Callable, Optional
 from fastapi import HTTPException
 from sqlalchemy import func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..core import clock
 from ..core.config import payment_service_ready
 from ..domain import currency as cur
 from ..domain import incoterms as inc
@@ -144,13 +146,21 @@ def of_step(db: Session, step_id: int) -> Optional[Voucher]:
     )
 
 
-def entries_of(db: Session, row: Voucher) -> list[VoucherEntry]:
-    """**Die Zahlungen**, älteste zuerst – nur die gültigen.
+def hold(db: Session, row: Voucher) -> Voucher:
+    """►►► **Die eine Sperre am Beleg** – ``SELECT … FOR UPDATE``, danach frisch gelesen. ◄◄◄
 
-    Es gibt nur noch eine Art Geld-Zeile: die Forderung ist der **Beleg selbst**
-    (``billed_on`` & Co.). Eine alte ``charge``-Zeile ist von Migration 138 auf inaktiv
-    gesetzt worden – ohne das zählte sie hier als Geldeingang.
+    Wer handelt oder bucht, wartet hier auf den, der es gerade tut, und sieht danach dessen
+    Ergebnis: zweimal «Rechnung stellen» ist eine Rechnung und ein 409. Gesperrt wird VOR
+    dem Tor (``assert_allowed``), sonst prüften beide denselben alten Stand.
     """
+    db.flush()
+    return (db.query(Voucher).filter(Voucher.id == row.id)
+            .with_for_update().populate_existing().one())
+
+
+def entries_of(db: Session, row: Voucher) -> list[VoucherEntry]:
+    """**Die Geld-Zeilen** (Zahlung · Ausbuchung · Trinkgeld), älteste zuerst – nur die
+    gültigen. Die Forderung ist keine davon: sie ist der Beleg selbst (``billed_on`` & Co.)."""
     return (
         db.query(VoucherEntry)
         .filter(VoucherEntry.voucher_id == row.id, VoucherEntry.is_active.is_(True))
@@ -322,7 +332,7 @@ def balance_of(db: Session, row: Voucher) -> vo.Balance:
     je Beleg, und sie ist der Beleg. Dazu jede Geld-Zeile mit ihrer Art.
     """
     return vo.balance(agreed_amount(db, row), row.amount,
-                      [(e.kind or vo.PAYMENT, e.amount) for e in entries_of(db, row)],
+                      [(e.kind, e.amount) for e in entries_of(db, row)],
                       credited=credited(row))
 
 
@@ -632,7 +642,7 @@ def expired(db: Session, row: Voucher) -> bool:
     """►►► **Ist die Offerte abgelaufen?** ◄◄◄ Dann ist «Annehmen» gesperrt, und «Erneut
     anbieten» beginnt die Frist neu – in derselben Handlung wie «Anbieten»."""
     until = valid_until(db, row)
-    return row.stage == vo.OFFER and until is not None and date.today() > until
+    return row.stage == vo.OFFER and until is not None and clock.today() > until
 
 
 def fingerprint(db: Session, row: Voucher) -> str:
@@ -694,7 +704,7 @@ def reminders(db: Session, row: Voucher) -> list[VoucherDocument]:
 
 def overdue(db: Session, row: Voucher) -> bool:
     """**Überfällig** – fällig, und es ist noch etwas offen."""
-    return bool(row.stage == vo.BILLED and row.due_on and row.due_on < date.today()
+    return bool(row.stage == vo.BILLED and row.due_on and row.due_on < clock.today()
                 and balance_of(db, row).open > vo.SETTLED_TOLERANCE)
 
 
@@ -709,8 +719,8 @@ def next_reminder(db: Session, row: Voucher) -> Optional[tuple[int, date]]:
     sent = reminders(db, row)
     if len(sent) >= len(vo.REMIND_LEVELS):
         return None
-    after = (sent[-1].created_at.date() + timedelta(days=vo.REMIND_DAYS) if sent
-             else (row.due_on or date.today()) + timedelta(days=1))
+    after = (sent[-1].created_at.astimezone(clock.ZONE).date() + timedelta(days=vo.REMIND_DAYS) if sent
+             else (row.due_on or clock.today()) + timedelta(days=1))
     return len(sent) + 1, after
 
 
@@ -749,8 +759,6 @@ def sold_units(db: Session, unit_ids: list[int]) -> set[int]:
     """
     if not unit_ids:
         return set()
-    from ..models import ProcessEvent
-    from ..models.process_event import KIND_STEP
     rows = (
         db.query(ProcessEvent.instance_unit_id, Voucher.ownership)
         .join(Voucher, Voucher.step_id == ProcessEvent.step_id)
@@ -827,7 +835,7 @@ def situation(db: Session, row: Voucher, *, order: Order,
 def _paper_state(kind: str) -> dict[str, Any]:
     """**Ein Papier steht an** – die Auftragsbestätigung nach der Zusage, die Quittung nach
     dem Geld. Hinaus geht es mit der Freigabe (``release``)."""
-    word = vo.DOCUMENTS.get(kind, kind)
+    word = vo.document_word(kind)
     return _state("paper", f"{word} steht an", "pending",
                   f"Sie sind dran: {word} prüfen und freigeben", primary="release")
 
@@ -864,7 +872,7 @@ def _offer_state(db: Session, row: Voucher, flow: vo.Direction) -> dict[str, Any
                       "Sie sind dran: anderen Partner wählen oder stornieren",
                       primary="party")
     if expired(db, row):
-        days = (date.today() - valid_until(db, row)).days
+        days = (clock.today() - valid_until(db, row)).days
         return _state("expired", "Offerte abgelaufen", "danger",
                       f"seit {days} {'Tag' if days == 1 else 'Tagen'} – Sie sind dran",
                       primary="ask")
@@ -930,8 +938,8 @@ def _billed_state(db: Session, row: Voucher, flow: vo.Direction,
 def _overdue_state(db: Session, row: Voucher, proof: str) -> dict[str, Any]:
     nxt = next_reminder(db, row)
     sent = reminders(db, row)
-    days = (date.today() - row.due_on).days if row.due_on else 0
-    if nxt is not None and nxt[1] <= date.today():
+    days = (clock.today() - row.due_on).days if row.due_on else 0
+    if nxt is not None and nxt[1] <= clock.today():
         return _state("overdue", "Überfällig", "danger",
                       f"seit {days} {'Tag' if days == 1 else 'Tagen'} – die "
                       f"{vo.remind_word(nxt[0])} ist fällig{proof}", primary="remind")
@@ -1184,7 +1192,7 @@ def gaps(db: Session, row: Voucher, *, action: str,
     # und wäre nie möglich. Und wo noch gar keine feststeht, wird die Gegenseite nicht
     # geprüft: beim Anfragen gibt es sie noch nicht, und der Knopf muss trotzdem da sein.
     look = party_id if party_id is not None else party_of(db, row)
-    head = _head_for(db, row, look)
+    head = document_head(db, row, won=True, party_id=look)
     flow = vo.of(row.direction)
     us, party = ((head["supplier"], head["customer"]) if flow.collects
                  else (head["customer"], head["supplier"]))
@@ -1214,16 +1222,7 @@ def gaps(db: Session, row: Voucher, *, action: str,
     return out
 
 
-def _head_for(db: Session, row: Voucher, party_id: Optional[int]) -> dict[str, Any]:
-    """Der Belegkopf, wie er **mit dieser Partei** aussähe – ohne den Beleg zu ändern.
-
-    Dieselbe Ableitung wie ``document_head``; ein zweiter Kopf-Aufbau daneben wäre die
-    zweite Wahrheit, die beim nächsten Feld auseinanderläuft.
-    """
-    return document_head(db, row, won=True, party_id=party_id)
-
-
-def next_action(db: Session, row: Voucher) -> str:
+def next_action(row: Voucher) -> str:
     """**Welche Handlung steht an dieser Stufe an?** – die, deren Lücken zählen.
 
     Eine Liste aller Lücken über alle Stufen wäre eine Mängelliste statt einer Auskunft:
@@ -1248,11 +1247,6 @@ def where_of(db: Session, row: Voucher) -> tuple[Order, ProcessStep]:
     order = db.query(Order).filter(Order.id == row.order_id).first()
     step = db.query(ProcessStep).filter(ProcessStep.id == row.step_id).first()
     return order, step
-
-
-#: **Verben, die nur die Geld-Zeilen betreffen** – sie bleiben nach dem Storno, denn eine
-#: Anzahlung muss zurückgehen können.
-MONEY_VERBS = ("pay", "refund", "reverse", "pay_online", "refund_online")
 
 
 def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
@@ -1302,7 +1296,7 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
         drop.add("tip")
     if row.stage == vo.CANCELLED:
         drop |= {"writeoff", "tip", "remind", "export"}
-    if next_reminder(db, row) is None or next_reminder(db, row)[1] > date.today():
+    if next_reminder(db, row) is None or next_reminder(db, row)[1] > clock.today():
         drop.add("remind")
     if not (billed and is_export(db, row) and not row.export_number):
         drop.add("export")
@@ -1321,16 +1315,17 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
                 else money.open < -vo.SETTLED_TOLERANCE)
     if not (owe_back and payment_service_ready() and refundable(db, row)):
         drop.add("refund_online")
-    out = [a for a in out if a not in drop]
+    # **Was Angaben braucht, die es nicht gibt, steht hier nicht – für jede Rolle.** Die
+    # Lücken speisen ``can``; die Vollständigkeit ist damit keine zweite Regel.
+    out = [a for a in out if a not in drop
+           and not (VERBS[a].needs and gaps(db, row, action=a))]
     if viewer is not None and viewer.role not in STAFF_ROLES:
         # Die Gegenpartei darf nur, was ihre Rolle im Beleg hergibt – und nur, solange sie
         # tatsächlich angefragt ist.
         if not any(q.party_id == viewer.object_id for q in quotes):
             return []
         return [a for a in out if VERBS[a].allows(flow)]
-    # ►►► **Was Angaben braucht, die es nicht gibt, steht hier nicht.** ◄◄◄ Die Lücken
-    # speisen ``can`` – die Vollständigkeit ist damit **keine zweite Regel**.
-    return [a for a in out if not (VERBS[a].needs and gaps(db, row, action=a))]
+    return out
 
 
 def reversible(db: Session, row: Voucher) -> list[VoucherEntry]:
@@ -1348,17 +1343,19 @@ def assert_allowed(db: Session, row: Voucher, action: str,
                    party_id: Optional[int] = None) -> None:
     """►►► **Das Tor zu ``can`` – zwei Formen einer Regel, ein Namensstamm.** ◄◄◄
 
-    Sie liest **dieselbe** Liste: ein zweiter, milderer Massstab wäre ein Knopf, der
-    bereitsteht und dann scheitert, oder eine Tür, die etwas durchlässt, das niemand
-    anbietet. Öffentlich, weil nicht jedes Verb durch ``apply`` läuft.
+    Sie liest **dieselbe** Liste, auf dem gesperrten Beleg (``hold``). Nennt die Nutzlast
+    die Partei (Zuschlag), gelten zusätzlich deren Lücken – ``can`` kennt sie noch nicht.
+    Öffentlich, weil nicht jedes Verb durch ``apply`` läuft (Karte, Erstattung).
     """
-    if action in can(db, row, viewer):
-        return
-    # **«Geht nicht» ohne «woran es liegt» ist eine Sackgasse mit Ausrufezeichen.** Es gibt
-    # zwei Gründe, und sie verlangen verschiedene Handlungen: die **Stufe** (zu früh oder
-    # zu spät) und eine **fehlende Angabe** (hingehen und eintragen).
+    hold(db, row)
+    needs = action in VERBS and bool(VERBS[action].needs)
+    allowed = action in can(db, row, viewer)
+    # **Zwei Gründe, zwei Handlungen**: eine fehlende Angabe (hingehen und eintragen) und
+    # die Stufe bzw. der Zugang (siehe unten).
     missing = (gaps(db, row, action=action, party_id=party_id)
-               if action in VERBS and VERBS[action].needs else [])
+               if needs and (party_id is not None or not allowed) else [])
+    if allowed and not missing:
+        return
     if missing:
         first = missing[0]
         raise HTTPException(
@@ -1444,14 +1441,9 @@ def _after(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     db.flush()
 
 
-def _fixed(step: ProcessStep) -> dict[str, Any]:
-    """**Was die Moduldefinition vorgibt** – es steht im Beleg fest (``Beleg.presets``)."""
-    return modules.Beleg.presets_of(step.config)
-
-
 def _reject_fixed(step: ProcessStep, data: dict[str, Any]) -> None:
-    """Eine Vorgabe des Moduls ändert man am Modul, nicht am Beleg."""
-    fixed = _fixed(step)
+    """Eine Vorgabe des Moduls (``Beleg.presets_of``) ändert man am Modul, nicht am Beleg."""
+    fixed = modules.Beleg.presets_of(step.config)
     for key in data:
         if key in fixed and data[key] != fixed[key]:
             raise HTTPException(
@@ -1647,10 +1639,7 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     allowed = modules.Beleg.parties_allowed(step.config)
     wanted = list(data.get("parties") or []) or allowed or parties_on(row)
     _assert_ask(db, row, step, wanted)
-    if row.unit_ids is None:
-        row.unit_ids = sorted(
-            int(i) for (i,) in db.query(OrderUnit.instance_unit_id).filter(
-                OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None)).all())
+    _freeze_units(db, row, order)
     lead, days = row.lead_days, row.payment_days
     priced = priced_dicts(db, row) if flow.quoted_by == vo.BY_US else []
     amount = vo.gross_of(priced, row.currency) if priced else None
@@ -1671,7 +1660,7 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         q.state = vo.QUOTED if priced else vo.ASKED
         q.amount = amount
         q.lead_days, q.payment_days = lead, days
-        q.sent_on = date.today()
+        q.sent_on = clock.today()
         sent.append(number)
     db.flush()
     if flow.quoted_by == vo.BY_US:
@@ -1680,6 +1669,15 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             for number in sent:
                 voucher_docs.issue(db, row=row, kind=vo.OFFER_DOC, actor=actor,
                                    party_id=number)
+
+
+def _freeze_units(db: Session, row: Voucher, order: Order) -> None:
+    """**Mit dem ersten Hinausgehen frieren die Stücke ein** (``unit_ids``) – ab hier
+    spricht der Beleg über genau die, die jetzt offen im Auftrag stehen."""
+    if row.unit_ids is None:
+        row.unit_ids = sorted(
+            int(i) for (i,) in db.query(OrderUnit.instance_unit_id).filter(
+                OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None)).all())
 
 
 def _quote(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -1703,7 +1701,7 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
                             detail="Ohne Betrag ist es keine Offerte.")
     _assert_terms(line.lead_days, line.payment_days)
     line.state = vo.QUOTED
-    line.sent_on = line.sent_on or date.today()
+    line.sent_on = line.sent_on or clock.today()
 
 
 def _decline(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -1758,10 +1756,7 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
                             detail="Ohne Betrag gibt es keine Zusage.")
     _assert_terms(line.lead_days, line.payment_days)
     _assert_ownership_chosen(row)
-    if row.unit_ids is None:
-        row.unit_ids = sorted(
-            int(i) for (i,) in db.query(OrderUnit.instance_unit_id).filter(
-                OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None)).all())
+    _freeze_units(db, row, order)
     for other in quotes_of(db, row):
         if other.id != line.id and other.state == vo.CHOSEN:
             other.state = vo.QUOTED
@@ -1771,7 +1766,7 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     line.state = vo.CHOSEN
     row.incoterm_place = incoterm_place_of(db, row)
     row.stage = vo.AGREED
-    row.agreed_on = date.today()
+    row.agreed_on = clock.today()
     db.flush()
     if vo.CONFIRM_DOC in AUTO_RELEASE and vo.CONFIRM_DOC in papers_due(db, row):
         voucher_docs.issue(db, row=row, kind=vo.CONFIRM_DOC, actor=actor)
@@ -1815,14 +1810,26 @@ def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     row.cancel_note = _text(data.get("note"), 200)
     billed = is_billed(row)
     if billed and flow.collects and not row.credit_number:
-        row.credit_number = _our_number(db, order)
-    seen = flow.collects and bool(documents_of(db, row))
+        row.credit_number = _our_number(db, row)
+    told = _told(db, row) if flow.collects else []
     row.stage = vo.CANCELLED
-    row.cancelled_on = date.today()
+    row.cancelled_on = clock.today()
     db.flush()
-    if seen:
+    for party in told:
         voucher_docs.issue(db, row=row, kind=vo.CREDIT_DOC if billed else vo.STORNO_DOC,
-                           actor=actor)
+                           actor=actor, party_id=party)
+
+
+def _told(db: Session, row: Voucher) -> list[int]:
+    """**Wer vom Storno erfährt** – die gebundene Partei, sonst jede, die ein Papier bekam."""
+    bound = party_of(db, row)
+    if bound is not None:
+        return [bound]
+    out: list[int] = []
+    for d in documents_of(db, row):
+        if d.party_id is not None and d.party_id not in out:
+            out.append(d.party_id)
+    return out
 
 
 def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -1849,9 +1856,10 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
                 detail=(f"Ohne Preis gibt es nichts zu berechnen – bei einer "
                         f"{flow.label} nennen wir ihn."))
         gross = vo.gross_of(priced, row.currency)
-        split = vo.split_for(gross, priced, row.currency)
+        split = vo.vat_split(priced, row.currency)
     else:
-        gross = _amount(data.get("amount"), row.currency) or agreed_amount(db, row)
+        given = _amount(data.get("amount"), row.currency)
+        gross = given if given is not None else agreed_amount(db, row)
         if gross is None:
             raise HTTPException(status_code=400, detail="Ohne Betrag ist es keine Rechnung.")
         try:
@@ -1871,8 +1879,8 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
                         f"zuordnen – sie steht auf seinem Papier."))
         row.number = number
     elif not row.number:
-        row.number = _our_number(db, order)
-    booked = _day(data.get("billed_on")) or date.today()
+        row.number = _our_number(db, row)
+    booked = _day(data.get("billed_on")) or clock.today()
     row.billed_on = booked
     row.due_on = _due(booked, due_days_of(db, row))
     row.amount = gross
@@ -1916,42 +1924,46 @@ def _accept(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     row.deviation_note = note
 
 
+def correction_problem(db: Session, row: Voucher,
+                       target: Optional[Voucher]) -> Optional[str]:
+    """►►► **Kann ``row`` diesen Beleg mindern?** – der Satz, oder ``None``. ◄◄◄
+
+    Gemindert wird eine gestellte **Rechnung** in derselben Richtung – nie der Beleg selbst
+    und nie eine Gutschrift (damit kann keine Kette und kein Kreis entstehen). Zwei Formen
+    einer Regel: ``_assert_correction`` ist das Tor, ``correctable`` filtert mit ihr.
+    """
+    if target is None or not target.is_active:
+        return "Diesen Beleg gibt es nicht."
+    if target.id == row.id:
+        return "Ein Beleg korrigiert nicht sich selbst."
+    if minus(target):
+        return (f"«{target.number or target.id}» ist selbst eine Gutschrift – gemindert wird "
+                f"die Rechnung, nicht ihre Korrektur.")
+    if not is_billed(target):
+        return "Dieser Beleg trägt noch keine Rechnung – es gibt nichts zu korrigieren."
+    if target.direction != row.direction:
+        return (f"Eine {vo.of(row.direction).label} korrigiert keine "
+                f"{vo.of(target.direction).label}: das Geld flösse in die andere Richtung.")
+    return None
+
+
+def _assert_correction(db: Session, row: Voucher, target: Optional[Voucher]) -> None:
+    """Das Tor zu ``correction_problem`` – derselbe Satz, nur geworfen."""
+    problem = correction_problem(db, row, target)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+
+
 def _correct(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
              data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """►►► **Welchen Beleg mindert dieser hier?** ◄◄◄ Der Verweis darf über Auftragsgrenzen
-    zeigen – die Gutschrift gehört dorthin, wo die Ware zurückkommt. Drei Ablehnungen: sich
-    selbst · keine Rechnung · ein Kreis."""
+    """**Welche Rechnung mindert dieser Beleg?** Der Verweis darf über Auftragsgrenzen zeigen
+    – die Gutschrift gehört dorthin, wo die Ware zurückkommt (``correction_problem``)."""
     value = _int(data.get("corrects"))
     if value is None:
         row.corrects_id = None
         return
-    target = db.query(Voucher).filter(Voucher.id == value,
-                                      Voucher.is_active.is_(True)).first()
-    if target is None:
-        raise HTTPException(status_code=404, detail="Diesen Beleg gibt es nicht.")
-    if target.id == row.id:
-        raise HTTPException(status_code=400, detail="Ein Beleg korrigiert nicht sich selbst.")
-    if not is_billed(target):
-        raise HTTPException(
-            status_code=400,
-            detail=("Dieser Beleg trägt noch keine Rechnung – es gibt nichts zu "
-                    "korrigieren."))
-    if target.direction != row.direction:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"Eine {vo.of(row.direction).label} korrigiert keine "
-                    f"{vo.of(target.direction).label}: das Geld flösse in die andere "
-                    f"Richtung."))
-    seen = {row.id}
-    walk: Optional[Voucher] = target
-    while walk is not None:
-        if walk.id in seen:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"«{walk.number or walk.id}» führt im Kreis zurück auf diesen "
-                        f"Beleg – eine Kette aus Korrekturen muss irgendwo enden."))
-        seen.add(walk.id)
-        walk = corrects(db, walk)
+    target = db.query(Voucher).filter(Voucher.id == value).first()
+    _assert_correction(db, row, target)
     row.corrects_id = target.id
     # **Vorbelegt ist der Rechnungsbetrag** – je Position der Preis der korrigierten
     # Rechnung, wo dieselbe Ware wieder dasteht. Ein Limit gibt es nicht.
@@ -1965,25 +1977,50 @@ def _correct(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 def _entry(db: Session, row: Voucher, *, amount: Decimal, kind: str = vo.PAYMENT,
            data: Optional[dict[str, Any]] = None, method: Optional[str] = None,
            reason: Optional[str] = None, reverses: Optional[int] = None) -> VoucherEntry:
-    """**Die eine Stelle, an der eine Geld-Zeile entsteht** (von Hand). Eine Referenz
-    gehört zu genau einer Zahlung – zweimal dieselbe ist ein Irrtum mit Namen."""
+    """**Eine Geld-Zeile von Hand** – geschrieben über ``_book``."""
     data = data or {}
-    reference = _text(data.get("reference"), 120)
-    if reference and db.query(VoucherEntry).filter(
-            VoucherEntry.reference == reference, VoucherEntry.is_active.is_(True)).first():
-        raise HTTPException(status_code=409, detail=(
-            f"Die Referenz «{reference}» ist schon gebucht – zweimal dieselbe Zahlung gibt "
-            f"es nicht."))
     entry = VoucherEntry(
         voucher_id=row.id, amount=amount, kind=kind,
-        booked_on=_day(data.get("booked_on")) or date.today(),
-        reference=reference,
+        booked_on=_day(data.get("booked_on")) or clock.today(),
+        reference=_text(data.get("reference"), 120),
         note=_text(data.get("note"), 200), method=method, reason=reason,
         reverses_id=reverses, iban=_iban(data.get("iban")),
     )
-    db.add(entry)
-    db.flush()
+    _book(db, row, entry)
     return entry
+
+
+def booked_as(db: Session, reference: str) -> Optional[VoucherEntry]:
+    """Die gültige Geld-Zeile mit dieser Referenz – oder ``None``."""
+    return (db.query(VoucherEntry)
+            .filter(VoucherEntry.reference == reference, VoucherEntry.is_active.is_(True))
+            .first())
+
+
+def reference_problem(db: Session, row: Voucher, reference: Optional[str]) -> Optional[str]:
+    """►►► **Eine Referenz gehört zu genau einer Zahlung im Haus** – der Satz, oder ``None``."""
+    seen = booked_as(db, reference) if reference else None
+    if seen is None:
+        return None
+    where = "an einem anderen Beleg" if seen.voucher_id != row.id else "schon"
+    return (f"Die Referenz «{reference}» ist {where} gebucht – zweimal dieselbe Zahlung "
+            f"gibt es nicht.")
+
+
+def _book(db: Session, row: Voucher, entry: VoucherEntry) -> None:
+    """►►► **Die eine Stelle, an der eine Geld-Zeile in die Datenbank geht.** ◄◄◄ Die
+    Referenz prüft ``reference_problem``; trifft eine gleichzeitige Buchung denselben
+    Unique-Index, kommt derselbe Satz als 409 statt eines Absturzes."""
+    problem = reference_problem(db, row, entry.reference)
+    if problem:
+        raise HTTPException(status_code=409, detail=problem)
+    try:
+        with db.begin_nested():
+            db.add(entry)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail=(
+            reference_problem(db, row, entry.reference)
+            or f"Die Referenz «{entry.reference}» ist schon gebucht."))
 
 
 def _method(row: Voucher, value: Any) -> Optional[str]:
@@ -2031,8 +2068,8 @@ def _refund(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 
 def _writeoff(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
               data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """►►► **Ausbuchen** – der Rest, mit Grund. Rechtlich immer eine Entgeltsminderung:
-    Netto und MWST werden anteilig korrigiert (MWSTG Art. 41). Kein Geld fliesst. ◄◄◄"""
+    """**Ausbuchen** – der Rest als eigene Zeile mit Grund; kein Geld fliesst. Rechtlich eine
+    Entgeltsminderung (MWSTG Art. 41) – ihre Steuer rechnet erst die Buchhaltung."""
     try:
         reason = vo.assert_reason(data.get("reason"))
     except ValueError as e:
@@ -2043,8 +2080,8 @@ def _writeoff(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 
 def _tip(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
          data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """►►► **Als Trinkgeld behalten** – was zu viel kam, bleibt bei der Firma: es ist
-    Entgelt, mit MWST zum Satz der Rechnung (MWSTG Art. 24). ◄◄◄"""
+    """**Als Trinkgeld behalten** – was zu viel kam, bleibt als eigene Zeile stehen. Es ist
+    Entgelt (MWSTG Art. 24) – seine Steuer rechnet erst die Buchhaltung."""
     _entry(db, row, amount=-balance_of(db, row).open, kind=vo.TIP, data=data)
 
 
@@ -2251,46 +2288,46 @@ def _target(db: Session, row: Voucher, data: dict[str, Any],
 # Aufteilung über mehrere Rechnungen liegt über Modulgrenzen (offene-Posten-Liste,
 # ``docs/backlog.md``).
 
-def refunded_on(db: Session, row: Voucher, entry: VoucherEntry) -> Decimal:
-    """►►► **Was von DIESER Karten-Zahlung schon zurückgegangen ist.** ◄◄◄
+def refund_reference(payment: str, refund: str) -> str:
+    """**Die Referenz einer Erstattung** – die der Zahlung, ``:refund:`` und die Id der
+    Erstattung beim Dienst. Je Erstattung eine Zeile, idempotent über diese Referenz."""
+    return f"{payment}:refund:{refund}"
 
-    Gelesen werden die Karten-Zeilen, die der Webhook zu ihr gebucht hat – ihre Referenz
-    ist die der Zahlung mit dem Zusatz ``:refund`` (``stripe_pay._refunds``). **Über alle
-    Belege**: eine Erstattung aus einer Gutschrift steht an der Gutschrift, nicht an der
-    Rechnung, und mindert die Zahlung trotzdem.
-    """
+
+def refunded_on(db: Session, entry: VoucherEntry) -> Decimal:
+    """►►► **Was von DIESER Karten-Zahlung schon zurückgegangen ist.** ◄◄◄ Die Zeilen, deren
+    Referenz mit ``refund_reference(<Zahlung>, …)`` beginnt – über alle Belege: eine
+    Erstattung aus einer Gutschrift steht an der Gutschrift und mindert die Zahlung trotzdem."""
     if not entry.reference:
         return Decimal("0")
-    mark = f"{entry.reference}:refund"
     rows = (db.query(VoucherEntry)
             .filter(VoucherEntry.is_active.is_(True),
-                    (VoucherEntry.reference == mark)
-                    | VoucherEntry.reference.like(f"{mark}:%"))
+                    VoucherEntry.reference.startswith(refund_reference(entry.reference, ""),
+                                                      autoescape=True))
             .all())
     return sum((abs(e.amount) for e in rows), Decimal("0"))
 
 
-def refundable_amount(db: Session, row: Voucher, entry: VoucherEntry) -> Decimal:
+def refundable_amount(db: Session, entry: VoucherEntry) -> Decimal:
     """**Wie viel von dieser Zahlung noch zurückgegeben werden kann** – nie unter null."""
-    rest = entry.amount - refunded_on(db, row, entry)
+    rest = entry.amount - refunded_on(db, entry)
     return rest if rest > 0 else Decimal("0")
 
 
 def refundable(db: Session, row: Voucher) -> list[VoucherEntry]:
     """**Die Karten-Zahlungen, die man zurückgeben kann** – jüngste zuerst.
 
-    Nur eine **Karte** (bar und per Überweisung erstattet ein Mensch), nur eine
-    **positive**, und nur, solange etwas übrig ist (Testnotiz #1018). ►►► **An einer
-    Gutschrift sind es die Karten-Zahlungen der Rechnung, die sie mindert** – das Geld geht
-    dorthin zurück, woher es kam. ◄◄◄ Und nur, wo das Geld zu uns kam (``inbound`` der
-    Rechnung).
+    Nur eine **positive Karten-Zahlung** (bar und per Überweisung erstattet ein Mensch),
+    solange etwas übrig ist, und nur, wo das Geld zu uns kam. An einer Gutschrift sind es
+    die Karten-Zahlungen der Rechnung, die sie mindert – das Geld geht dorthin zurück,
+    woher es kam.
     """
     source = corrects(db, row) if minus(row) else row
     if source is None or not inbound(source):
         return []
     return [e for e in reversed(entries_of(db, source))
             if e.method == vo.CARD and e.amount > 0
-            and e.reference and refundable_amount(db, source, e) > 0]
+            and e.reference and refundable_amount(db, e) > 0]
 
 
 def card_payment(db: Session, row: Voucher,
@@ -2321,13 +2358,9 @@ def card_payment(db: Session, row: Voucher,
 
 def of_reference(db: Session, reference: str) -> Optional[Voucher]:
     """**Zu welchem Beleg gehört diese Zahlungsreferenz?** – der Rückweg einer Erstattung."""
-    row = (
-        db.query(VoucherEntry)
-        .filter(VoucherEntry.reference == reference, VoucherEntry.is_active.is_(True))
-        .first()
-    )
-    return (db.query(Voucher).filter(Voucher.id == row.voucher_id).first()
-            if row is not None else None)
+    found = booked_as(db, reference) if reference else None
+    return (db.query(Voucher).filter(Voucher.id == found.voucher_id).first()
+            if found is not None else None)
 
 
 def record_payment(db: Session, *, row: Voucher, amount: Decimal,
@@ -2345,30 +2378,18 @@ def record_payment(db: Session, *, row: Voucher, amount: Decimal,
     ist das ein Irrtum und kein Duplikat – er wird **genannt**, denn ein stiller
     Nicht-Effekt ist schlimmer als ein Fehler.
 
-    *Ein ``charge_id`` gab es hier einmal: worauf die Zahlung geht. Die Frage hat genau
-    eine Antwort – der Beleg, an dem die Zeile hängt –, und eine Frage mit genau einer
-    Antwort stellt man nicht.*
+    Gesperrt wird der Beleg zuerst (``hold``): zwei gleichzeitige Zustellungen derselben
+    Meldung buchen eine Zeile, die zweite findet sie.
     """
-    if reference:
-        seen = (
-            db.query(VoucherEntry)
-            .filter(VoucherEntry.reference == reference,
-                    VoucherEntry.is_active.is_(True))
-            .first()
-        )
-        if seen is not None:
-            if seen.voucher_id != row.id:
-                raise HTTPException(
-                    status_code=409,
-                    detail=(f"Die Referenz «{reference}» hängt bereits an einem anderen "
-                            f"Beleg. Zweimal dieselbe Zahlung gibt es nicht."))
-            return seen
+    hold(db, row)
+    seen = booked_as(db, reference) if reference else None
+    if seen is not None and seen.voucher_id == row.id:
+        return seen
     entry = VoucherEntry(
         voucher_id=row.id, amount=amount,
-        booked_on=date.today(), reference=reference, note=note, method=method,
+        booked_on=clock.today(), reference=reference, note=note, method=method,
     )
-    db.add(entry)
-    db.flush()
+    _book(db, row, entry)
     # **Dasselbe danach wie bei einer erfassten Zahlung** – Quittung, Stücke weiter.
     order, step = where_of(db, row)
     if order is not None and step is not None:
@@ -2380,32 +2401,11 @@ def correctable(db: Session, row: Voucher, step: ProcessStep, *,
                 search: str = "", limit: int = 20) -> list[dict[str, Any]]:
     """►►► **Welche Rechnungen lassen sich mit diesem Beleg korrigieren?** ◄◄◄
 
-    Gesucht wird über **alle Aufträge** – das ist der Kern dieser Runde: die Gutschrift
-    gehört dorthin, wo die Ware zurückkommt, nicht in den Auftrag, der sie geliefert hat.
-
-    Vier Bedingungen, und jede folgt aus der Sache: es muss eine **Rechnung** geben
-    (``billed_on``), sie muss in **dieselbe Richtung** zeigen (sonst flösse das Geld
-    andersherum), sie darf nicht **selbst** eine Korrektur sein (eine Kette aus
-    Korrekturen von Korrekturen ist keine Auskunft mehr) und sie muss **denselben
-    Partner** betreffen – man mindert keine fremde Forderung.
-
-    **Gefragt wird nach den MÖGLICHEN Parteien** (``_possible_parties``: zugelassen ∪
-    gewählt ∪ angefragt), nicht nach dem Vertragspartner: ein Korrekturbeleg steht in der
-    Stufe «Angebot», wenn man ihn zuordnet – dort gibt es noch keine Zusage, und
-    ``party_of`` wäre ``None``. Die **Zielbelege** dagegen tragen eine: sie sind gestellt.
-
-    Der Partner eines Ziels ist eine **Ableitung** (die gewählte Angebotszeile), also
-    lässt er sich nicht in der Datenbank filtern; gelesen wird darum eine grosszügige
-    Seite und danach gefiltert. Bei einer Handvoll Belegen je Partner kostet das nichts.
-
-    ►►► **``search`` sucht die Rechnungsnummer** (Testnotiz #1050). ◄◄◄ Dieselbe Bedingung
-    wie jede Referenz-Suche im Haus – ein Teilstring, nicht eine fertige Liste. Gesucht
-    wird in der **Datenbank**, nicht nachträglich im Python: sonst filterte man die Seite,
-    die man ohnehin schon gekappt hat, und der gesuchte Beleg wäre genau der, der nicht
-    mehr darin steht.
-
-    *Eine **Kamera** gibt es dafür nicht: eine Rechnung zieht keine Objektnummer, es kann
-    für sie gar kein Etikett geben – dieselbe Regel wie bei der Einzelinstanz.*
+    Gesucht wird über **alle Aufträge** (die Gutschrift gehört dorthin, wo die Ware
+    zurückkommt), nach der Rechnungsnummer (``search``, ein Teilstring, in der Datenbank).
+    Was erscheint, lässt ``correction_problem`` zu – dieselbe Regel wie das Tor – und es
+    betrifft einen der **möglichen** Partner dieses Belegs (``_possible_parties``: vor der
+    Zusage gibt es noch keinen gebundenen).
     """
     wanted = set(_possible_parties(db, row, step))
     if not wanted:
@@ -2422,7 +2422,8 @@ def correctable(db: Session, row: Voucher, step: ProcessStep, *,
     if text:
         q = q.filter(Voucher.number.ilike(f"%{text}%"))
     rows = q.order_by(Voucher.billed_on.desc(), Voucher.id.desc()).limit(limit * 5).all()
-    found = [r for r in rows if party_of(db, r) in wanted][:limit]
+    found = [r for r in rows if party_of(db, r) in wanted
+             and correction_problem(db, row, r) is None][:limit]
     numbers = {
         o.id: o.object_id
         for o in db.query(Order).filter(Order.id.in_([r.order_id for r in found] or [0]))
@@ -2653,7 +2654,7 @@ def _uid(company) -> Optional[str]:
     return uid_fmt.display(company.uid_number) or None
 
 
-def _creditor(db: Session, row: Voucher) -> dict[str, Any]:
+def creditor_of(db: Session, row: Voucher) -> dict[str, Any]:
     """**Wer das Geld bekommt** – Name und Anschrift für den Einzahlungsschein.
 
     Die Anschrift ist die der Gesellschaft (``address.of_company``, die eine Stelle);
@@ -2677,7 +2678,7 @@ def freeze(db: Session, row: Voucher, party: int) -> dict[str, Any]:
     scheins (``creditor``). **Nicht** dabei ist die IBAN: sie sagt, wohin *heute* gezahlt
     wird, und ein eingefrorenes altes Konto schickte das Geld an eine geschlossene Bank.
     """
-    return {"party": party, "ours": _ours(db, row), "creditor": _creditor(db, row),
+    return {"party": party, "ours": _ours(db, row), "creditor": creditor_of(db, row),
             "billing": billing_of(db, row, party), "names": _freeze_lines(db, row)}
 
 
@@ -2854,45 +2855,62 @@ def choices_of(db: Session, row: Voucher, party_id: int,
     }
 
 
-def transfer_info(db: Session, row: Voucher) -> dict[str, Any]:
-    """►►► **Wie man diese Rechnung überweist.** ◄◄◄
+@dataclass(frozen=True)
+class Transfer:
+    """►►► **Die Überweisung an uns** – was Einzahlungsschein und Auskunft gleich lesen. ◄◄◄"""
 
-    Die dritte Bezahlart ist **keine Buchung**, sondern eine **Auskunft**: «Jetzt bezahlen»
-    löst etwas aus, «Zahlung erfassen» schreibt etwas auf – die Überweisung braucht
-    *Angaben*, damit der Zahlende sie selbst auslöst.
+    iban: Optional[str]
+    creditor: dict[str, Any]
+    debtor: dict[str, Any]
+    amount: Decimal
+    number: str
+    reference: str
+    #: Warum es keinen QR gibt – oder ``None`` (``qrbill.problem``).
+    problem: Optional[str]
+    qr: Optional[str]
 
-    **Bankverbindung im Klartext UND als QR** – nicht entweder-oder: der Code spart das
-    Abtippen, der Klartext ist der Weg, wenn die Kamera nicht mitspielt. Wo es keinen QR
-    geben kann (fremde Währung, keine CH-IBAN), steht der **Grund** statt einer leeren
-    Fläche.
+
+def transfer_of(db: Session, row: Voucher) -> Transfer:
+    """►►► **Die eine Ableitung der QR-Daten** – an den Aussteller, über den offenen Betrag. ◄◄◄
+
+    Die **IBAN ist die von heute** (wohin gezahlt wird, friert nicht ein, ``freeze``), Name
+    und Anschrift des Empfängers sind die eingefrorenen, der Zahlende kommt aus
+    ``billing_of``. Wo es keinen QR geben kann, steht der Grund statt einer leeren Fläche.
     """
-    # **Überwiesen wird an den Aussteller**, nicht an den Betreiber: eine zweite Lesart
-    # wäre ein QR-Code, der auf ein anderes Konto zeigt als der Beleg darüber.
-    company = issuer_company(db, row)
-    # **Die IBAN ist die von heute** – wohin gezahlt wird, friert nicht ein (``freeze``).
-    iban = getattr(company, "iban", None)
-    # **Die Rechnung IST der Beleg** – es gibt eine.
+    iban = getattr(issuer_company(db, row), "iban", None)
     number = row.number or str(row.id)
     amount = balance_of(db, row).open
-    # **Name und Anschrift des Empfängers stehen auf dem Beleg** – also die eingefrorenen.
-    creditor = dict((row.head or {}).get("creditor") or _creditor(db, row))
+    creditor = dict((row.head or {}).get("creditor") or creditor_of(db, row))
     who = billing_of(db, row)
     seat = who.get("address") or {}
-    debtor = {
-        "name": who.get("name") or "",
-        "street": seat.get("line1"), "street_nr": "",
-        "zip": seat.get("postal_code"), "city": seat.get("city"),
-        "country": seat.get("country"),
-    }
-    trouble = qrbill.problem(iban=iban, currency=row.currency, amount=amount)
+    debtor = {"name": who.get("name") or "", "street": seat.get("line1"), "street_nr": "",
+              "zip": seat.get("postal_code"), "city": seat.get("city"),
+              "country": seat.get("country")}
+    trouble = qrbill.problem(iban=iban, currency=row.currency, amount=amount,
+                             creditor=creditor)
     code = None if trouble else qrbill.svg(qrbill.payload(
         iban=iban or "", creditor=creditor, amount=amount,
         currency=row.currency, debtor=debtor, number=number))
+    return Transfer(iban=iban, creditor=creditor, debtor=debtor, amount=amount,
+                    number=number, reference=qrbill.reference(number), problem=trouble,
+                    qr=code)
+
+
+def transfer_info(db: Session, row: Voucher) -> dict[str, Any]:
+    """**Wie man diese Rechnung überweist** – Bankverbindung im Klartext UND als QR.
+
+    Nur an einer gestellten Rechnung, deren Geld **zu uns** kommt (``inbound``): an einer
+    Lieferantenrechnung stünde sonst unsere eigene Bankverbindung.
+    """
+    if not (is_billed(row) and inbound(row)):
+        raise HTTPException(status_code=404, detail=(
+            "Zu diesem Beleg gibt es nichts zu überweisen – es steht keine Rechnung, deren "
+            "Geld zu uns kommt."))
+    t = transfer_of(db, row)
     return {
-        "iban": iban, "creditor": creditor["name"],
-        "reference": qrbill.reference(number),
-        "amount": _money(amount, row.currency), "currency": row.currency,
-        "invoice": number, "qr": code, "problem": trouble,
+        "iban": t.iban, "creditor": t.creditor["name"], "reference": t.reference,
+        "amount": _money(t.amount, row.currency), "currency": row.currency,
+        "invoice": t.number, "qr": t.qr, "problem": t.problem,
     }
 
 
@@ -3116,21 +3134,20 @@ def delivery_date(db: Session, row: Voucher) -> Optional[date]:
     return _due(row.agreed_on, q.lead_days)
 
 
-def _our_number(db: Session, order: Order) -> str:
-    """``<Auftragsnummer>-<laufend>`` – **immer mit Suffix**, ab ``-1``.
+def _our_number(db: Session, row: Voucher) -> str:
+    """►►► **Unsere nächste Nummer im Auftrag** – ``<Auftragsnummer>-<laufend>``, ab ``-1``. ◄◄◄
 
-    Dieselbe Regel wie die Nummer einer Einzelinstanz. Gezählt wird über den **Auftrag**
-    (zwei Module vergäben sonst dieselbe Nummer zweimal) und **nur, was WIR nummerieren** –
-    sonst verbraucht eine erfasste Lieferantenrechnung die Zählung. Auch stornierte Zeilen
-    zählen mit: eine einmal vergebene Nummer wird nicht erneut vergeben.
-
-    *Die bewusste Grenze: kein Unique-Index darüber. Bei einem Einkauf steht dort die
-    Nummer der Gegenpartei, und zwei Lieferanten dürfen beide eine «2026-001» schicken.*
+    Rechnungen **und** Gutschriften ziehen aus derselben Zählung (eine Gutschrift ist ein
+    eigenes Dokument mit eigener Nummer, MWSTG Art. 26); stornierte zählen mit, eine Nummer
+    wird nie zweimal vergeben. Gezählt wird unter der Sperre des Auftrags – zwei Module, die
+    gleichzeitig stellen, bekommen zwei Nummern. Nur, was **wir** nummerieren: eine erfasste
+    Lieferantenrechnung trägt die Nummer der Gegenpartei.
     """
+    order = (db.query(Order).filter(Order.id == row.order_id)
+             .with_for_update().one())
     used = (
-        db.query(func.count(Voucher.id))
-        .filter(Voucher.order_id == order.id, Voucher.direction == vo.IN,
-                Voucher.number.isnot(None))
+        db.query(func.count(Voucher.number) + func.count(Voucher.credit_number))
+        .filter(Voucher.order_id == order.id, Voucher.direction == vo.IN)
         .scalar()
     ) or 0
     return f"{order.object_id}-{used + 1}"
@@ -3277,7 +3294,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "ownership_label": vo.OWNERSHIP_LABEL,
         "ownership_options": [{"key": k, "label": v} for k, v in vo.OWNERSHIP],
         # ─── Der Beleg selbst ────────────────────────────────────────────────────
-        "allowed": (_named(db, modules.Beleg.parties_allowed(step.config))
+        "allowed": (named(db, modules.Beleg.parties_allowed(step.config))
                     if internal else []),
         "quotes": _quotes(db, row, step, viewer=viewer, internal=internal),
         "recipients": ([their_side(db, row, n, internal=True)
@@ -3287,9 +3304,9 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "ask_problem": (ask_problem(db, row, step, lines=lines)
                         if "ask" in allowed or row.stage == vo.OFFER else None),
         **document_head(db, row, won=won, internal=internal),
-        "gaps": (gaps(db, row, action=next_action(db, row)) if internal else []),
+        "gaps": (gaps(db, row, action=next_action(row)) if internal else []),
         "party_object_id": party if won else None,
-        "party_name": (_named(db, [party])[0]["name"] if party and won else None),
+        "party_name": (named(db, [party])[0]["name"] if party and won else None),
         "amount": _money(chosen.amount, row.currency) if (chosen and won) else None,
         "due_days": due_days_of(db, row) if won else None,
         "lead_days": lead_days_of(db, row) if won else None,
@@ -3348,7 +3365,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                 "booked_at": e.created_at,
                 "method": e.method,
                 "method_label": vo.method_name(e.method),
-                "kind": e.kind or vo.PAYMENT,
+                "kind": e.kind,
                 "reason": e.reason,
                 "reason_label": vo.reason_label(e.reason),
                 "reverses_id": e.reverses_id,
@@ -3371,8 +3388,7 @@ def public_link(token: str) -> str:
 
 def _document_out(d: VoucherDocument) -> dict[str, Any]:
     """Ein Dokument in der Liste der Karte – Art, Wort, Nummer, Zeitpunkt, Link."""
-    word = (vo.remind_word(d.level or 1) if d.kind == vo.REMINDER_DOC
-            else vo.DOCUMENTS.get(d.kind, d.kind))
+    word = vo.document_word(d.kind, d.level)
     return {"id": d.id, "kind": d.kind, "label": word, "number": d.number,
             "sent_at": d.created_at, "url": public_link(d.token)}
 
@@ -3490,7 +3506,7 @@ def _quotes(db: Session, row: Voucher, step: ProcessStep, *,
             "amount": _money(q.amount, row.currency),
             "lead_days": q.lead_days,
             "payment_days": q.payment_days,
-            "state": q.state or vo.ASKED,
+            "state": q.state,
             "reference": q.reference,
             "link": q.link,
             "sent_on": q.sent_on,
@@ -3525,7 +3541,7 @@ def _stages(db: Session, row: Voucher, flow: vo.Direction) -> list[dict[str, Any
             for i, k in enumerate(keys)]
 
 
-def _named(db: Session, numbers: list[Optional[int]]) -> list[dict[str, Any]]:
+def named(db: Session, numbers: list[Optional[int]]) -> list[dict[str, Any]]:
     """Objektnummern auf ihren Anzeigenamen – **eine** Abfrage, nicht eine je Zeile."""
     wanted = [n for n in numbers if n]
     if not wanted:

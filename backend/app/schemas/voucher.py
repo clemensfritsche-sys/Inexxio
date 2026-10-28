@@ -629,10 +629,8 @@ class VoucherUpdate(BaseModel):
     vat: Optional[str] = None
     currency: Optional[str] = None
     method: Optional[str] = None
-    #: Klausel **und** benannter Ort – sie sind **eine** Vereinbarung: eine Klausel ohne
-    #: Ort ist keine, ein Ort ohne Klausel sagt nichts.
+    #: Die Klausel der Lieferbedingung – der Ort folgt aus ihr und den Anschriften.
     incoterm: Optional[str] = None
-    incoterm_place: Optional[str] = None
     issuer: Optional[int] = None
     #: **An wen und wohin** (``address``) – nur Gesendetes wirkt; ``null`` heisst «der
     #: Standard» bzw. «die Vorgabe».

@@ -1097,9 +1097,9 @@ export interface paths {
          * Voucher Transfer Details
          * @description **Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.
          *
-         *     Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
-         *     den Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar
-         *     Kilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.
+         *     Eine **Auskunft**, keine Buchung: sie darf jeder sehen, der den Beleg sieht – der
+         *     Zahlende zuerst. Nur an einer Rechnung, deren Geld zu uns kommt (``transfer_info``).
+         *     **Erst auf Klick**: der Code ist ein paar Kilobyte SVG.
          */
         get: operations["voucher_transfer_details_api_v1_erp_orders__object_id__steps__step_id__voucher_transfer_get"];
         put?: never;
@@ -1119,20 +1119,11 @@ export interface paths {
         };
         /**
          * Voucher Correctable
-         * @description ►►► **Welche Rechnung mindert dieser Beleg?** – und sie darf woanders stehen. ◄◄◄
+         * @description ►►► **Welche Rechnung mindert dieser Beleg?** – sie darf in einem anderen Auftrag
+         *     stehen (``voucher.correctable``). ◄◄◄
          *
-         *     Das ist der Kern des Umbaus: eine Gutschrift gehört in den Auftrag, in dem die Ware
-         *     **zurückkommt**, nicht in den, der sie geliefert hat. Gesucht wird darum über alle
-         *     Aufträge – gefiltert auf denselben Partner und dieselbe Richtung, denn man mindert
-         *     keine fremde Forderung und das Geld fliesst nicht andersherum.
-         *
-         *     **Personal-only**: es ist eine Liste fremder Belege desselben Partners.
-         *
-         *     ►►► **Und sie wird GESUCHT, nicht mitgeliefert** (Testnotiz #1050). ◄◄◄ *«Hier haben
-         *     wir ja eine global gültige Logik – etablieren mit Suchfeld.»* Dieselbe Bauart wie jede
-         *     andere Referenz im Haus: tippen fragt den Server (``search`` – Rechnungsnummer oder
-         *     Auftragsnummer), und die Liste trägt nur, was passt. Eine fertige Liste war bei einer
-         *     Handvoll Belegen richtig und ist es beim hundertsten nicht mehr.
+         *     Gesucht, nicht mitgeliefert: ``search`` ist ein Teil der Rechnungsnummer. **Personal
+         *     only** – es ist eine Liste fremder Belege desselben Partners.
          */
         get: operations["voucher_correctable_api_v1_erp_orders__object_id__steps__step_id__voucher_correctable_get"];
         put?: never;
@@ -6999,8 +6990,6 @@ export interface components {
             method?: string | null;
             /** Incoterm */
             incoterm?: string | null;
-            /** Incoterm Place */
-            incoterm_place?: string | null;
             /** Issuer */
             issuer?: number | null;
             /** Bill To Company */

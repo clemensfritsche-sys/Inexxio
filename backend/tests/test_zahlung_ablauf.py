@@ -873,3 +873,218 @@ def test_the_export_proof_takes_a_pdf(db):
     assert svc.is_done(db, row)
     found = documents.field_document(db, order.object_id, "voucher.export", f"step:{step.id}")
     assert found is not None and found.object_id == doc.object_id, "(c)"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► NUMMERN, SPERREN, TORE – die Tiefenanalyse vom Oktober 2026
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _two_sales(db):
+    """Ein Auftrag mit ZWEI Einnahme-Modulen hintereinander – dieselbe Partei."""
+    from app.models import ProcessStep
+    from app.services import process as proc, voucher as svc
+    who = _person(db)
+    cfg = {"direction": "in", "parties": [{"party": who.object_id}], "ownership": "party"}
+    art = _article(db, steps=[{"module_type": "beleg", "config": dict(cfg)},
+                              {"module_type": "beleg", "config": dict(cfg)}], capture=False)
+    order = proc.release(db, lines=[{"article_object_id": art.object_id, "quantity": 2,
+                                     "origin": "neu", "units": []}], steps=[], actor_id=None)
+    db.flush()
+    steps = [s for s in db.query(ProcessStep).filter(ProcessStep.order_id == order.id)
+             .order_by(ProcessStep.position).all() if s.module_type == "beleg"]
+    return order, steps, [svc.of_step(db, s.id) for s in steps], who
+
+
+def test_invoice_and_credit_never_share_a_number(db):
+    """Rechnung und Gutschrift sind je ein eigenes Dokument mit eigener Nummer
+    (MWSTG Art. 26): A stellen, A stornieren (Gutschrift), B stellen → drei Nummern.
+
+    Bug-Form: die Gutschrift zählt nicht mit – B bekommt die Nummer der Gutschrift."""
+    from app.domain import voucher as vo
+    from app.services import voucher as svc, voucher_docs as docs
+    order, (sa, sb), (a, b), who = _two_sales(db)
+    for step, row in ((sa, a), (sb, b)):
+        _ready(db, order, step, row)
+        _do(db, order, step, "ask")
+        _do(db, order, step, "agree", party=who.object_id)
+    _do(db, order, sa, "bill")
+    _do(db, order, sa, "revoke")
+    _do(db, order, sb, "bill")
+    numbers = [a.number, a.credit_number, b.number]
+    assert numbers == [f"{order.object_id}-{n}" for n in (1, 2, 3)], numbers
+    credit = docs.paper_of(db, svc.documents_of(db, a, vo.CREDIT_DOC)[-1])
+    assert a.credit_number in credit, "Die Gutschrift trägt ihre eigene Nummer."
+    assert f"{a.number} vom {a.billed_on:%d.%m.%Y}" in credit, (
+        "Die Gutschrift nennt die Originalrechnung mit Nummer und Datum.")
+
+
+def test_a_second_bill_waits_for_the_first_and_is_refused():
+    """Zweimal «Rechnung stellen» gleichzeitig ist EINE Rechnung und ein 409 – die zweite
+    Sitzung wartet an der Sperre des Belegs (``hold``) und sieht danach die Rechnung.
+
+    Gefahren mit zwei echten Sitzungen; die Szene muss dafür festgeschrieben sein.
+    Bug-Form: ohne Sperre prüfen beide denselben alten Stand – zwei Rechnungen."""
+    import threading
+    import time
+    from fastapi import HTTPException
+    from app.core.database import SessionLocal
+    from app.domain import voucher as vo
+    from app.models import Order, ProcessStep, Voucher
+    from app.services import voucher as svc
+    s = session()
+    _house(s)
+    order, step, row, _who = _sold(s)
+    s.commit()
+    oid, sid, vid = order.id, step.id, row.id
+    s.close()
+
+    first, second = SessionLocal(), SessionLocal()
+    seen: list[object] = []
+
+    def bill(db):
+        return svc.apply(db, order=db.get(Order, oid), step=db.get(ProcessStep, sid),
+                         action="bill", payload={})
+
+    def other():
+        try:
+            bill(second)
+            second.commit()
+            seen.append("billed")
+        except HTTPException as exc:
+            seen.append(exc.status_code)
+            second.rollback()
+        except Exception as exc:                      # noqa: BLE001 – genau das prüfen wir
+            seen.append(f"{type(exc).__name__}: {exc}")
+            second.rollback()
+
+    try:
+        bill(first)
+        runner = threading.Thread(target=other)
+        runner.start()
+        time.sleep(0.5)                               # die zweite wartet jetzt an der Sperre
+        first.commit()
+        runner.join(timeout=30)
+        papers = svc.documents_of(first, first.get(Voucher, vid), vo.INVOICE_DOC)
+    finally:
+        first.close()
+        second.close()
+    assert seen == [409], f"Die zweite Rechnung ging durch oder scheiterte anders: {seen}"
+    assert len(papers) == 1, f"{len(papers)} Rechnungen stehen am Beleg."
+
+
+def test_a_racing_reference_is_a_sentence_not_a_crash(db, monkeypatch):
+    """Trifft eine gleichzeitige Buchung den Unique-Index der Referenz, kommt ein 409 mit
+    Satz – kein ``IntegrityError`` (an der Tür ein 500). Das Rennen wird nachgestellt,
+    indem die Vorab-Prüfung nichts sieht."""
+    from fastapi import HTTPException
+    from app.services import voucher as svc
+    order, step, row, who = _billed(db)
+    _do(db, order, step, "pay", amount="100.00", method="transfer", reference="ZW-1")
+    monkeypatch.setattr(svc, "reference_problem", lambda *a, **k: None)
+    with pytest.raises(HTTPException) as exc:
+        _do(db, order, step, "pay", amount="100.00", method="transfer", reference="ZW-1")
+    assert exc.value.status_code == 409 and "ZW-1" in exc.value.detail
+    assert svc.balance_of(db, row).paid == Decimal("100.00"), "Die Sitzung bleibt brauchbar."
+
+
+def test_a_supplier_invoice_over_zero_is_refused(db):
+    """«0» ist ein Betrag, kein leeres Feld: eine Lieferantenrechnung über null wird
+    abgewiesen, statt still die Zusage zu verrechnen."""
+    from fastapi import HTTPException
+    from app.services import voucher as svc
+    order, step, row, who = _scene(db, direction="out", first=True)
+    _do(db, order, step, "incoterm", incoterm="EXW")
+    _do(db, order, step, "ask")
+    _do(db, order, step, "quote", party=who.object_id, amount="427.00", lead_days=5,
+        payment_days=30)
+    _do(db, order, step, "agree", party=who.object_id)
+    with pytest.raises(HTTPException) as exc:
+        _do(db, order, step, "bill", amount="0", reference="R-0",
+            original=_file(db).object_id, vat="normal")
+    assert exc.value.status_code == 400 and "null" in exc.value.detail
+    assert not svc.is_billed(row)
+
+
+def test_a_storno_reaches_every_party_that_got_an_offer(db):
+    """Vor der Zusage an mehrere angeboten, dann storniert: jede Partei, die ein Papier
+    bekam, bekommt die Stornierung – nicht keine, weil es «den einen» Adressaten nicht gibt."""
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    a, b = _person(db, "Alpha"), _person(db, "Beta")
+    order, step, row, _ = _scene(db, first=True, party=a, config={
+        "parties": [{"party": a.object_id}, {"party": b.object_id}]})
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    _do(db, order, step, "revoke")
+    told = sorted(d.party_id for d in svc.documents_of(db, row, vo.STORNO_DOC))
+    assert told == sorted([a.object_id, b.object_id]), told
+
+
+def test_the_qr_bill_names_the_issuer_and_only_complete_addresses(db):
+    """Der Zahlteil: der Zahlende nur mit Name, PLZ, Ort und Land; fehlt dem Aussteller
+    die Anschrift, nennt der Satz ihn; eine Ausgabe hat keine Überweisung an uns."""
+    from fastapi import HTTPException
+    from app.services import qrbill, voucher as svc
+    creditor = {"name": "Inexxio AG", "street": "Weg 1", "zip": "9430", "city": "St. M.",
+                "country": "CH"}
+    half = {"name": "Anna", "street": "Feld 8", "zip": "", "city": "Altstätten",
+            "country": "CH"}
+    text = qrbill.payload(iban="CH9300762011623852957", creditor=creditor,
+                          amount=Decimal("10.00"), currency="CHF", debtor=half, number="1-1")
+    assert "Anna" not in text, "Eine halbe Anschrift des Zahlenden steht im Code."
+    trouble = qrbill.problem(iban="CH9300762011623852957", currency="CHF",
+                             amount=Decimal("10.00"), creditor={**creditor, "city": ""})
+    assert trouble and "«Inexxio AG»" in trouble, trouble
+    order, step, row, who = _scene(db, direction="out", first=True)
+    _do(db, order, step, "incoterm", incoterm="EXW")
+    _do(db, order, step, "ask")
+    _do(db, order, step, "quote", party=who.object_id, amount="50.00", lead_days=5,
+        payment_days=30)
+    _do(db, order, step, "agree", party=who.object_id)
+    _do(db, order, step, "bill", amount="50.00", reference="R-9",
+        original=_file(db).object_id, party_uid="CHE-111.222.333 MWST", vat="normal")
+    with pytest.raises(HTTPException) as exc:
+        svc.transfer_info(db, row)
+    assert exc.value.status_code == 404, "Eine Lieferantenrechnung zeigt unser Konto."
+
+
+def test_the_party_cannot_accept_what_we_could_not_confirm(db):
+    """Die Lücken gelten für jede Rolle: fehlt UNSERE UID, sieht die Partei auf ihrer Seite
+    kein «Annehmen», und die Tür weist sie mit dem Feldnamen ab (400)."""
+    from fastapi import HTTPException
+    from app.domain import voucher as vo
+    from app.services import voucher as svc, voucher_docs as docs
+    house = _house(db)
+    house.vat_number, house.uid_number = None, None
+    db.flush()
+    order, step, row, who = _scene(db, first=True)
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    offer = svc.documents_of(db, row, vo.OFFER_DOC)[-1]
+    assert "agree" not in docs.public_view(db, offer)["actions"]
+    with pytest.raises(HTTPException) as exc:
+        _do(db, order, step, "agree", actor=docs.party_user(db, offer), party=who.object_id)
+    assert exc.value.status_code == 400 and "UID" in exc.value.detail
+    assert row.stage == vo.OFFER
+
+
+def test_a_refund_the_service_did_not_make_is_not_booked(db):
+    """Gebucht wird je Erstattung, wie der Dienst sie führt – eine gescheiterte nicht."""
+    from app.services import stripe_pay
+
+    class _Refund:
+        @staticmethod
+        def list(**kw):
+            class _L:
+                def auto_paging_iter(self):
+                    return iter([{"id": "re_a", "amount": 500, "status": "failed"},
+                                 {"id": "re_b", "amount": 700, "status": "succeeded",
+                                  "metadata": {"voucher_id": "7"}}])
+            assert kw.get("payment_intent") == "pi_x"
+            return _L()
+
+    class _Api:
+        Refund = _Refund
+
+    rows = stripe_pay._refunds(_Api, "pi_x", "CHF")
+    assert rows == [("pi_x:refund:re_b", Decimal("7.00"), {"voucher_id": "7"})], rows

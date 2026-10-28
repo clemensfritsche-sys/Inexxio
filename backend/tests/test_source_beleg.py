@@ -761,7 +761,7 @@ def test_what_the_erp_already_knows_is_not_asked_again():
         "Die Angaben über den Zahlenden werden zweimal hergeleitet (d) – beim nächsten "
         "neuen Adressfeld sagen Bezahlkarte und Einzahlungsschein Verschiedenes."
     )
-    assert "billing_of(db, row)" in _body(deal_src, "transfer_info"), (
+    assert "billing_of(db, row)" in _body(deal_src, "transfer_of"), (
         "Der Einzahlungsschein leitet den Zahlenden selbst her (d)."
     )
     svc = _code(svc)
@@ -2235,7 +2235,7 @@ def test_each_side_of_the_head_names_both_addresses():
     body = src[src.index("def _addresses("):]
     body = body[:body.index("\ndef ", 1)]
     assert "BILLING_LABEL" in body and "SHIPPING_LABEL" in body, "Die Beschriftungen kommen nicht aus der einen Auflösung (a)."
-    head = src[src.index("def _ours("):src.index("def _creditor(")]
+    head = src[src.index("def _ours("):src.index("def creditor_of(")]
     assert "_addresses(" in head, "Unsere Seite nennt ihre Anschriften nicht (b)."
     assert src.count("_addresses(") >= 3, "Nicht beide Seiten lesen dieselbe Auflösung (a/b)."
     card = _code(_beleg())
@@ -2380,7 +2380,7 @@ def test_the_sender_side_names_the_address_the_goods_leave_from():
     assert "not vo.of(row.direction).collects" in theirs, (
         "Die Gegenseite rät ihre Rolle (b)."
     )
-    head = src[src.index("def _ours("):src.index("def _creditor(")]
+    head = src[src.index("def _ours("):src.index("def creditor_of(")]
     assert "sends=flow.collects" in head, "Unsere Seite rät ihre Rolle (b)."
     assert "Versandadresse" not in _code(_beleg()), (
         "Das Wort steht als Literal in der Karte (c)."

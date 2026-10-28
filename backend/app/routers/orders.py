@@ -966,8 +966,7 @@ def prepare_voucher_payment(
     """
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
-    voucher_svc.assert_allowed(db, row, "pay_online", user)
-    return PaymentSetup(**stripe_pay.prepare(db, row=row, order=order))
+    return PaymentSetup(**stripe_pay.prepare(db, row=row, order=order, viewer=user))
 
 
 @router.post("/{object_id}/steps/{step_id}/voucher/refund",
@@ -989,8 +988,7 @@ def refund_voucher_payment(
     """
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
-    voucher_svc.assert_allowed(db, row, "refund_online", user)
-    stripe_pay.refund(db, row=row, entry_id=body.entry, amount=body.amount)
+    stripe_pay.refund(db, row=row, entry_id=body.entry, amount=body.amount, viewer=user)
     return _to_response(db, order, viewer=user)
 
 
@@ -1004,17 +1002,12 @@ def voucher_transfer_details(
 ):
     """**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.
 
-    Eine **Auskunft**, keine Buchung: sie ändert nichts und darf darum jeder sehen, der
-    den Beleg sieht – der Zahlende zuerst. **Erst auf Klick**: der Code ist ein paar
-    Kilobyte SVG, und er interessiert genau dann, wenn jemand wirklich zahlen will.
+    Eine **Auskunft**, keine Buchung: sie darf jeder sehen, der den Beleg sieht – der
+    Zahlende zuerst. Nur an einer Rechnung, deren Geld zu uns kommt (``transfer_info``).
+    **Erst auf Klick**: der Code ist ein paar Kilobyte SVG.
     """
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
-    if not voucher_svc.is_billed(row):
-        raise HTTPException(
-            status_code=404,
-            detail="Zu diesem Beleg gibt es nichts zu überweisen – es steht keine "
-                   "Rechnung.")
     return TransferInfo(**voucher_svc.transfer_info(db, row))
 
 
@@ -1027,20 +1020,11 @@ def voucher_correctable(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(require_employee),
 ):
-    """►►► **Welche Rechnung mindert dieser Beleg?** – und sie darf woanders stehen. ◄◄◄
+    """►►► **Welche Rechnung mindert dieser Beleg?** – sie darf in einem anderen Auftrag
+    stehen (``voucher.correctable``). ◄◄◄
 
-    Das ist der Kern des Umbaus: eine Gutschrift gehört in den Auftrag, in dem die Ware
-    **zurückkommt**, nicht in den, der sie geliefert hat. Gesucht wird darum über alle
-    Aufträge – gefiltert auf denselben Partner und dieselbe Richtung, denn man mindert
-    keine fremde Forderung und das Geld fliesst nicht andersherum.
-
-    **Personal-only**: es ist eine Liste fremder Belege desselben Partners.
-
-    ►►► **Und sie wird GESUCHT, nicht mitgeliefert** (Testnotiz #1050). ◄◄◄ *«Hier haben
-    wir ja eine global gültige Logik – etablieren mit Suchfeld.»* Dieselbe Bauart wie jede
-    andere Referenz im Haus: tippen fragt den Server (``search`` – Rechnungsnummer oder
-    Auftragsnummer), und die Liste trägt nur, was passt. Eine fertige Liste war bei einer
-    Handvoll Belegen richtig und ist es beim hundertsten nicht mehr.
+    Gesucht, nicht mitgeliefert: ``search`` ist ein Teil der Rechnungsnummer. **Personal
+    only** – es ist eine Liste fremder Belege desselben Partners.
     """
     order = orders_svc.get(db, object_id)
     step, row = _voucher_step(db, order, step_id, user)

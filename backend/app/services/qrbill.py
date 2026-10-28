@@ -79,20 +79,19 @@ def payload(*, iban: str, creditor: dict[str, Any], amount: Decimal, currency: s
         # Empfänger – strukturierte Adresse (`S`): Strasse und Nummer getrennt.
         "S", creditor["name"], creditor.get("street") or "",
         creditor.get("street_nr") or "", creditor.get("zip") or "",
-        creditor.get("city") or "", creditor.get("country") or "CH",
+        creditor.get("city") or "", creditor.get("country") or "",
         # Endempfänger: sieben leere Zeilen. Er ist für Sammelaufträge gedacht und
         # bleibt hier leer – ein erfundener Wert wäre eine Behauptung über ein Konto.
         "", "", "", "", "", "", "",
         f"{amount:.2f}", currency,
     ]
-    if debtor and debtor.get("name"):
+    if complete(debtor):
         lines += ["S", debtor["name"], debtor.get("street") or "",
                   debtor.get("street_nr") or "", debtor.get("zip") or "",
                   debtor.get("city") or "", debtor.get("country") or ""]
     else:
-        # **Ohne vollständige Adresse steht der Zahlende NICHT da.** Eine halbe Anschrift
-        # macht die Nutzlast ungültig; leer heisst «der Zahlende trägt sich selbst ein»,
-        # und genau das tut seine App ohnehin.
+        # **Ohne vollständige Anschrift steht der Zahlende NICHT da.** Eine halbe macht die
+        # Nutzlast ungültig; leer heisst «der Zahlende trägt sich selbst ein».
         lines += ["", "", "", "", "", "", ""]
     lines += ["SCOR", reference(number), "", _TRAILER]
     return "\n".join(lines)
@@ -151,17 +150,24 @@ def svg(text: str) -> str:
     )
 
 
-def problem(*, iban: Optional[str], currency: str, amount: Decimal) -> Optional[str]:
+def complete(party: Optional[dict[str, Any]]) -> bool:
+    """**Ist diese Anschrift vollständig genug für die Nutzlast?** – Name, PLZ, Ort, Land."""
+    return bool(party) and all(party.get(k) for k in ("name", "zip", "city", "country"))
+
+
+def problem(*, iban: Optional[str], currency: str, amount: Decimal,
+            creditor: dict[str, Any]) -> Optional[str]:
     """**Warum es hier keinen QR gibt** – oder ``None``.
 
-    Zwei Formen einer Regel, ein Namensstamm (wie ``pick_problem``/``unpickable`` im
-    Prozess): dieselbe Prüfung nennt den Grund und verhindert den Code. Ohne den Grund
-    stünde an einer EUR-Rechnung eine leere Fläche, und niemand wüsste, ob sie fehlt oder
-    lädt.
+    Zwei Formen einer Regel: dieselbe Prüfung nennt den Grund und verhindert den Code. Der
+    Satz nennt den **Aussteller** (``creditor``) – an ihm fehlt, was fehlt.
     """
+    issuer = f"«{creditor['name']}»" if creditor.get("name") else "der ausstellenden Gesellschaft"
     if not iban or not _plain(iban):
-        return ("Ohne IBAN gibt es keinen Einzahlungsschein – sie steht am Unternehmen, "
-                "das die Website betreibt.")
+        return f"Ohne IBAN gibt es keinen Einzahlungsschein – sie fehlt bei {issuer}."
+    if not complete(creditor):
+        return (f"Ohne vollständige Anschrift (PLZ, Ort, Land) von {issuer} gibt es keinen "
+                f"Einzahlungsschein.")
     if _plain(iban)[:2] not in COUNTRIES:
         return ("Die QR-Rechnung gilt für Konten in der Schweiz und in Liechtenstein; "
                 "für andere Länder steht die Bankverbindung im Klartext daneben.")
