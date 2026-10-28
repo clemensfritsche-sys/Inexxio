@@ -75,6 +75,9 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
   async function signInAgain() {
     localStorage.setItem(PENDING, email.trim());
     await logout();
+    // Hart navigiert, wie jeder Weg zur Anmeldung (frontend/CLAUDE.md «Anmelden»): nach dem
+    // Abmelden soll kein Zustand der alten Sitzung im Speicher bleiben.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign(`/login?from=${encodeURIComponent('/konto#sicherheit')}`);
   }
 

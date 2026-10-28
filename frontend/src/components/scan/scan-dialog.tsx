@@ -243,7 +243,6 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
         onKeyDown={onKeyDown}
       >
         {cameraLive ? (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
           <video ref={videoRef} style={video} muted playsInline autoPlay />
         ) : (
           <div style={cameraOff}>

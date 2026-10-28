@@ -128,7 +128,6 @@ function Live({ cv, onShot, next }: { cv: Cv | null; onShot: (s: Shot) => void; 
   const k = v?.videoWidth ? PROBE_W / v.videoWidth : 1;
   return (
     <>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video ref={videoRef} muted playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
       {quad && v?.videoWidth ? (
         <svg viewBox={`0 0 ${PROBE_W} ${Math.round(v.videoHeight * k)}`} preserveAspectRatio="xMidYMid meet"
