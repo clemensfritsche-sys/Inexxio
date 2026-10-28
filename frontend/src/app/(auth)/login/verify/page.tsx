@@ -75,8 +75,8 @@ export default function VerifyPage() {
         {status === 'loading' && (
           <>
             <Loader2 className="animate-spin ix-verify-icon" style={{ color: 'var(--inexxio-red)' }} aria-hidden />
-            <h1 id="ix-verify-title">Anmeldung wird verarbeitet …</h1>
-            <p className="ix-login-sub">Bitte einen Moment warten.</p>
+            <h1 id="ix-verify-title">Einen Moment</h1>
+            <p className="ix-login-sub">Die Anmeldung wird verarbeitet.</p>
           </>
         )}
 
