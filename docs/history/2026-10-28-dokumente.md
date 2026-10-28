@@ -85,8 +85,10 @@ Fotos und Nachweise müssen nicht mitkommen.
 - **Übernahme alter Daten entfernt** (`services/adopt` hält nur noch die Rechtstexte):
   Rückwärtskompatibilität ist nicht verlangt. `voucher_documents.html` hat sein Mapping
   verloren und fällt im Folge-Deploy (Migration `160`, Zwei-Deploy-Regel).
-- **Cloud Storage**: je Umgebung ein Bucket `<Projekt>-files`, angelegt vom Deploy, Zugriff
-  für `cloudrun-backend@…`; `FILES_BUCKET` nur, wenn es den Bucket gibt. Die Bytes gehen in den
+- **Cloud Storage**: je Umgebung ein Bucket `<Projekt>-files` mit Zugriff für
+  `cloudrun-backend@…`. Der Deploy durfte ihn nicht anlegen (`deploy-sa` ohne
+  `storage.buckets.create`) – angelegt hat ihn der Auftraggeber einmal in der Cloud Shell; der
+  Deploy setzt `FILES_BUCKET` jetzt fest, ohne nachzusehen. Die Bytes gehen in den
   Bucket, `attachments.data` ist leer (Migration `159`). **Ohne Bucket oder bei einem Fehler
   bleiben sie in der Zeile** – eine Datei geht nie verloren, weil der Speicher hakt. Die
   Vorschau eines Belegs (zurückgerollt) schreibt nie in den Bucket (`in_database`); gelöscht
@@ -94,3 +96,9 @@ Fotos und Nachweise müssen nicht mitkommen.
 - **KI-Schlüssel**: auf dev lag er schon im Secret Manager und war eingebunden; der
   Prod-Deploy bindet `ANTHROPIC_API_KEY` (und Gmail) jetzt ebenso optional ein.
 - Das Design-Canvas «INEXXIO Dokumente» ist gelöscht.
+- **Scanner fand kein gewöhnliches Blatt**: eine Karte (Canny 50/150) und «die grösste
+  Kontur» scheiterten an weissem Tisch, Daumen am Rand, Gegenstand daneben, Blatt weiter weg
+  (nachgestellt: 6 von 10; zufällig 20 von 120). Jetzt drei Karten (hell · Kanten · Kanten
+  fein), konvexe Hülle, und ein Viereck zählt nur, wenn sein Rand trägt (innen heller als
+  aussen, an allen vier Seiten): 10 von 10, zufällig 116 von 120, kein Schein-Blatt auf leerem
+  Tisch. Wächter `frontend/scripts/doc-scan.test.mjs` (die alte Fassung fällt durch).

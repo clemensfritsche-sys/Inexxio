@@ -70,14 +70,14 @@ sie gibt. **Suchen** ist reine Datenbank (Nummer, Art, Name, Volltext über Gele
 ## Speicher
 
 Die Bytes liegen in **Cloud Storage**, je Umgebung ein eigener Bucket (`inexxio-dev-files` ·
-`inexxio-prod-files`, Region europe-west6, privat, Objektname = Token). Der Deploy legt ihn an
-und gibt dem Dienstkonto `cloudrun-backend@…` die Rolle «Storage-Objekt-Administrator»; dann
-setzt er `FILES_BUCKET`. Ohne Bucket (lokal, Tests) oder wenn er gerade nicht schreibbar ist,
-bleiben die Bytes in der Zeile (`attachments.data`) – eine Datei geht nie verloren. Gelöscht
+`inexxio-prod-files`, Region europe-west6, privat, Objektname = Token), einmal von Hand
+angelegt (unten); der Deploy setzt `FILES_BUCKET`. Ohne Bucket (lokal, Tests) oder wenn er
+gerade nicht schreibbar ist, bleiben die Bytes in der Zeile (`attachments.data`) – eine Datei
+geht nie verloren. Gelöscht
 wird das Objekt erst nach dem Commit. Alles steht in `services/attachments` (`keep` ·
 `bytes_of` · `discard`). Grenze 25 MB je Datei (Cloud Run nimmt 32 MB je Anfrage).
 
-Klappt das Anlegen im Deploy nicht (fehlende Rechte), einmal von Hand – je Umgebung:
+Angelegt (Oktober 2026) in der Cloud Shell – für eine neue Umgebung dasselbe:
 
 ```bash
 P=inexxio-dev   # bzw. inexxio-prod

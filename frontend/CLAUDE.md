@@ -217,7 +217,10 @@ Versand/Lieferung) → **Positionen** mit Summe → **Konditionen** (+ «Es gelt
   `onSigned`) oder Ablehnen; gelöscht → ein Satz (410).
 - **Scanner** (`components/scan/doc-scanner.tsx`): OpenCV.js unter `/vendor/opencv-<Version>.js`
   (`scripts/vendor-opencv.mjs` legt es vor `dev`/`build` ab, nicht im Repo), erst beim Scannen
-  geladen; ohne OpenCV ein Fotoapparat.
+  geladen; ohne OpenCV ein Fotoapparat. Die Blatterkennung (`lib/doc-scan.detect`): drei Karten
+  (hell · Kanten · Kanten fein), konvexe Hülle, ein Viereck zählt nur, wenn sein Rand trägt
+  (innen heller als aussen, an allen vier Seiten). Wächter `scripts/doc-scan.test.mjs`
+  (nachgebildete Kamerabilder, echtes OpenCV.js).
 
 ## Referenz-Eingabe und Kamera-Scan
 - **`ObjectSelect`** ist auf `SearchSelect` gebaut: tippen sucht auf dem Server (Nummer ODER
