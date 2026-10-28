@@ -96,12 +96,9 @@ def website_url() -> str:
     from ..core.config import get_settings
     return get_settings().frontend_base_url.rstrip("/")
 
-# Die **Plattform-Konfiguration** – sie gilt für die EINE Website, nicht je Gesellschaft,
-# und lebt als Spalten auf dem Betreiber-Datensatz. Gepflegt wird sie ausschliesslich über
-# ``PATCH /admin/settings``; ``apply_update`` schreibt sie NIE, damit eine Tochter-
-# gesellschaft nicht die Schlüssel der gemeinsamen Website setzen kann. Die ``iban`` ist
-# Entität, wird aber gesondert behandelt (verschlüsselte Spalte).
-PLATFORM_FIELDS = ("google_maps_api_key",)
+# Eine **Plattform-Konfiguration** in der Datenbank gibt es nicht mehr: der einzige Wert, der
+# Google-Maps-Schlüssel, kommt aus der Deploy-Konfiguration (``config.google_maps_api_key``).
+# Die ``iban`` ist Entität, wird aber gesondert behandelt (verschlüsselte Spalte).
 
 
 def legal_name(company: Any) -> str:

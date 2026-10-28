@@ -177,11 +177,10 @@ def test_platform_config_is_never_editable_per_company():
 
     ``apply_update`` schreibt nur ``ENTITY_FIELDS`` (+ Bank-Chiffren); Plattform-Felder
     werden ignoriert."""
-    from app.services.sites import ENTITY_FIELDS, PLATFORM_FIELDS
+    from app.services.sites import ENTITY_FIELDS
     from app.services import sites
 
-    leaked = [f for f in PLATFORM_FIELDS if f in ENTITY_FIELDS]
-    assert not leaked, f"Plattform-Felder dürfen nicht je Gesellschaft editierbar sein: {leaked}"
+    assert "google_maps_api_key" not in ENTITY_FIELDS, "der Maps-Schlüssel kommt aus dem Deploy"
 
     # apply_update wählt strikt über ENTITY_FIELDS (+ iban) – kein setattr über
     # beliebige Keys, das Plattform-Felder durchliesse.
@@ -298,14 +297,14 @@ def test_the_public_settings_name_only_the_maps_key_and_invent_nothing():
     Feld hatte die Antwort ohnehin nie erreicht, das Skript lud darum nie.
 
     Bug-Formen: (a) ein erfundener Firmenname ist zurück; (b) die Plausible-Domain ist zurück;
-    (c) die Antwort trägt wieder Angaben ohne Leser."""
+    (c) die Antwort trägt wieder Angaben ohne Leser; (d) der Schlüssel kommt wieder aus der
+    Datenbank statt aus der Deploy-Konfiguration (ein Neuaufbau löschte ihn)."""
     from app.routers import admin
-    from app.services import sites
     code = _code(admin.get_public_settings)
     assert "Inexxio" not in code and "info@" not in code
     assert "plausible" not in code
     assert "google_maps_api_key" in code and "uid_number" not in code and "street" not in code
-    assert sites.PLATFORM_FIELDS == ("google_maps_api_key",)
+    assert "get_settings()" in code and "find_operator" not in code, "(d)"
 
 
 def test_no_analytics_script_and_no_consent_layer():

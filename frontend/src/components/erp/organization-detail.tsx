@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Server, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare, HandCoins } from 'lucide-react';
+import { Building2, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare, HandCoins } from 'lucide-react';
 import { Communication } from '@/components/erp/communication';
 import { api } from '@/lib/api';
 import type { CompanySettings, Todo } from '@/types';
@@ -19,7 +19,6 @@ import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { Field as AField } from '@/components/form/field';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
-import { SystemConfigSection } from '@/components/erp/system-config-section';
 import { TerritoryMap } from '@/components/erp/territory-map';
 import { ObjId } from '@/components/erp/obj-id';
 import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
@@ -104,7 +103,7 @@ export function splitStreet(line: string): [string, string] {
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
 
-type OrgTab = 'stamm' | 'pay' | 'system' | 'docs' | 'comm';
+type OrgTab = 'stamm' | 'pay' | 'docs' | 'comm';
 
 /** Das Formular – nur die Felder, die es noch gibt (alles String, wie im Konto). */
 interface OrgForm {
@@ -362,9 +361,6 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
           // **Zahlungen** – nur an einer eigenen Gesellschaft: alle, die in ihrem Namen laufen.
           ...(own ? [{ key: 'pay' as const, label: 'Zahlungen', icon: HandCoins }] : []),
-          // Der System-Reiter (Plattform-Konfiguration der EINEN Website) erscheint nur am
-          // Betreiber – es gibt ihn genau einmal.
-          ...(isOperator && isAdmin ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
           { key: 'comm', label: 'Kommunikation', icon: MessagesSquare },
         ]} />}
@@ -378,9 +374,6 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
         )}
         {tab === 'pay' && own && record.object_id != null && (
           <CompanyPayments company={record.object_id} name={organizationName(base)} />
-        )}
-        {tab === 'system' && isOperator && (
-          <SystemConfigSection settings={base} onSaved={(s) => onSaved({ ...base, ...s })} />
         )}
         {tab === 'stamm' && (
         <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>

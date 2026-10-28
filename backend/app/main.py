@@ -56,7 +56,6 @@ _COLUMN_SAFETY_NET = (
     # und der öffentliche Impressum-Endpunkt. Fehlt hier eine Spalte, die das Modell kennt,
     # endet jede dieser Abfragen in einem 500 – das nimmt ERP **und** Website mit. Genau
     # das ist mit ``is_primary`` passiert (Migration 090), als sie hier fehlte.
-    ("company_settings", "google_maps_api_key", "VARCHAR(255)"),
     ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false"),
     ("company_settings", "currency", "VARCHAR(3) NOT NULL DEFAULT 'CHF'"),
     ("company_settings", "is_active", "BOOLEAN NOT NULL DEFAULT true"),

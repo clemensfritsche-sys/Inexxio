@@ -145,3 +145,8 @@ Gesucht nach demselben Muster wie bei KI und Migration:
   leitet `/api/**` nur an einen öffentlichen Dienst weiter; die Rechte prüft das Backend selbst.
   Wirkt erst beim ersten Prod-Deploy. Prod wird heute nicht genutzt; der Stand der
   Prod-Datenbank ist unbekannt – der Wächter nach dem Deploy sagt ihn.
+- **Maps-Schlüssel aus der Datenbank in die Deploy-Konfiguration** (`GOOGLE_MAPS_API_KEY`,
+  optionales Secret wie Gmail und KI): er stand als Spalte am Betreiber und ging mit dem
+  Neuaufbau von dev verloren. Reiter «System», `GET/PATCH /admin/settings` und
+  `sites.PLATFORM_FIELDS` sind weg; `/admin/settings/public` liest die Konfiguration. Die
+  Spalte fällt im Folge-Deploy (Zwei-Deploy-Regel).

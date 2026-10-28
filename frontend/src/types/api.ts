@@ -249,28 +249,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Settings
-         * @description Der **Betreiber** – Trägerin der Plattform-Konfiguration der einen Website. Der
-         *     Reiter «System» am Unternehmens-Datensatz liest und schreibt genau diese Zeile.
-         */
-        get: operations["get_settings_api_v1_admin_settings_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update Settings */
-        patch: operations["update_settings_api_v1_admin_settings_patch"];
-        trace?: never;
-    };
     "/api/v1/admin/settings/public": {
         parameters: {
             query?: never;
@@ -282,8 +260,10 @@ export interface paths {
          * Get Public Settings
          * @description Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.
          *
-         *     Er steht ohnehin im Browser (auf die Domain eingeschränkt). Impressum und
-         *     Kontaktdaten liefert die Website bzw. ``/public/contact``.
+         *     Er kommt aus der Deploy-Konfiguration der Umgebung (``GOOGLE_MAPS_API_KEY``), nicht aus
+         *     der Datenbank: so überlebt er einen Neuaufbau, und dev und prod haben je ihren eigenen.
+         *     Er steht ohnehin im Browser (in Google Cloud auf die Adressen eingeschränkt). Impressum
+         *     und Kontaktdaten liefert die Website bzw. ``/public/contact``.
          */
         get: operations["get_public_settings_api_v1_admin_settings_public_get"];
         put?: never;
@@ -3059,8 +3039,6 @@ export interface components {
              * @default
              */
             website: string;
-            /** Google Maps Api Key */
-            google_maps_api_key: string | null;
             /**
              * People
              * @default []
@@ -3105,8 +3083,6 @@ export interface components {
             email?: string | null;
             /** Phone */
             phone?: string | null;
-            /** Google Maps Api Key */
-            google_maps_api_key?: string | null;
             /** Is Own */
             is_own?: boolean | null;
         };
@@ -7451,59 +7427,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicContact"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_settings_api_v1_admin_settings_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CompanySettingsResponse"];
-                };
-            };
-        };
-    };
-    update_settings_api_v1_admin_settings_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CompanySettingsUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CompanySettingsResponse"];
                 };
             };
             /** @description Validation Error */

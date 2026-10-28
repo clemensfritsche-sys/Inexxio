@@ -16,7 +16,6 @@ from ..schemas.admin import (
     TerritoryRegion,
 )
 from ..services import sites
-from ..services.admin import log_audit
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -55,43 +54,16 @@ def _company_response(db: Session, company) -> CompanySettingsResponse:
     return resp
 
 
-@router.get("/settings", response_model=CompanySettingsResponse)
-async def get_settings(
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_admin),
-):
-    """Der **Betreiber** – Trägerin der Plattform-Konfiguration der einen Website. Der
-    Reiter «System» am Unternehmens-Datensatz liest und schreibt genau diese Zeile."""
-    return _company_response(db, sites.operator(db))
-
-
-@router.patch("/settings", response_model=CompanySettingsResponse)
-async def update_settings(
-    data: CompanySettingsUpdate,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
-):
-    s = sites.operator(db)
-    # Nur die Plattform-Konfiguration – Entitäts-Felder (und «eigen») laufen über
-    # ``PATCH /admin/companies/{object_id}``, damit es für jede Angabe EINEN Pfad gibt.
-    for key, value in data.model_dump(exclude_unset=True).items():
-        if key in sites.PLATFORM_FIELDS:
-            setattr(s, key, value)
-            log_audit(db, "company_settings", key, str(value), current_user.id)
-    db.commit()
-    db.refresh(s)
-    return _company_response(db, s)
-
-
 @router.get("/settings/public")
-async def get_public_settings(db: Session = Depends(get_db)):
+async def get_public_settings():
     """Ohne Anmeldung: der **Google-Maps-Schlüssel** für die Adress-Suche – sonst nichts.
 
-    Er steht ohnehin im Browser (auf die Domain eingeschränkt). Impressum und
-    Kontaktdaten liefert die Website bzw. ``/public/contact``."""
-    from ..services.sites import find_operator
-    s = find_operator(db)
-    return {"google_maps_api_key": s.google_maps_api_key if s else None}
+    Er kommt aus der Deploy-Konfiguration der Umgebung (``GOOGLE_MAPS_API_KEY``), nicht aus
+    der Datenbank: so überlebt er einen Neuaufbau, und dev und prod haben je ihren eigenen.
+    Er steht ohnehin im Browser (in Google Cloud auf die Adressen eingeschränkt). Impressum
+    und Kontaktdaten liefert die Website bzw. ``/public/contact``."""
+    from ..core.config import get_settings
+    return {"google_maps_api_key": get_settings().google_maps_api_key or None}
 
 
 # ─── Unternehmen (Gesellschaften) ─────────────────────────────────────────────

@@ -128,6 +128,12 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 `voucher_documents.html` (seit `158` im Dokument), `user_profiles.employment_start_date` und
 `.weekly_hours` (seit `154` im Vertrag).
 
+## Offen: Folge-Deploy – `company_settings.google_maps_api_key` droppen
+
+Seit dem 28.10.2026 kommt der Maps-Schlüssel aus der Deploy-Konfiguration
+(`GOOGLE_MAPS_API_KEY`); die Spalte hat ihr Mapping verloren (nullable, kein Netz nötig) und
+steht in `PENDING_DROP`. Im **nächsten** Deploy: Spalte droppen, aus `PENDING_DROP` streichen.
+
 ## Offen: Folge-Deploy – `user_profiles.newsletter_opt_in` droppen
 
 Seit Migration `153` ist die Einwilligung ein Nachweis (`newsletter_consents`); das

@@ -31,7 +31,8 @@ Auth:      Firebase Authentication (Magic Link · Google SSO · Passkeys/WebAuth
 Dateien:   Cloud Storage, je Umgebung ein Bucket (inexxio-dev-files · inexxio-prod-files,
            privat, FILES_BUCKET vom Deploy); ohne Bucket in der DB. Eine Stelle:
            services/attachments, ausgeliefert über einen unerratbaren Token
-Karten:    Google Places (Adress-Suche in jedem Adressfeld)
+Karten:    Google Places (Adress-Suche in jedem Adressfeld); Schlüssel je Umgebung aus dem
+           Secret Manager (GOOGLE_MAPS_API_KEY), nicht aus der Datenbank
 Infra:     Google Cloud Run (europe-west6) + Firebase Hosting
 Zahlung:   Stripe – eigene Bezahlkarte im ERP (Payment Element + Webhook). OPTIONAL:
            ohne Schlüssel gibt es den Dienst nicht (docs/stripe-setup.md)
