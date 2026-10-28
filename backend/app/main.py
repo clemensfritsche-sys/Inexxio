@@ -223,9 +223,6 @@ _NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
 #: erfindet es beim nächsten unmapped gewordenen Pflichtfeld neu, und bis dahin laufen
 #: alle Inserts auf.
 _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
-    # Das Papier eines Belegs steht im Dokument (Migration 158) – geschrieben wird hier
-    # nichts mehr; die Spalte fällt im Folge-Deploy weg.
-    ("voucher_documents", "html"),
     # Die Bytes einer Datei liegen im Bucket der Umgebung (Migration 159).
     ("attachments", "data"),
 )
