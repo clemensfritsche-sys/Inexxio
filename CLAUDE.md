@@ -23,7 +23,7 @@ Website** (siehe «Status»).
 
 **Im Einsatz** – verdrahtet und in Betrieb:
 ```
-Frontend:  Next.js 14, TypeScript strict, App Router, Tailwind CSS (statischer Export)
+Frontend:  Next.js 16, React 19, TypeScript strict, App Router, Tailwind CSS (statischer Export)
 Website:   Astro 7 (website/), reines HTML, gleiche Hosting-Site wie das ERP
 Backend:   FastAPI (Python 3.12), SQLAlchemy 2.1, Pydantic v2, Alembic
 DB:        PostgreSQL (Cloud SQL), universeller 9-stelliger Nummernkreis
