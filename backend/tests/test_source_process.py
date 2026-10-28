@@ -1292,7 +1292,7 @@ def test_the_feed_learns_about_every_write_from_one_place():
 
     api = _read(FRONTEND / "lib" / "api.ts")
     assert "function notifyDataChanged" in api, "Die Meldestelle fehlt."
-    assert "if (!idempotent) notifyDataChanged(path);" in api, (
+    assert re.search(r"if \(!idempotent\) \{?[^}\n]*\bnotifyDataChanged\(path\);", api), (
         "Nicht jede schreibende Anfrage meldet – dann bleibt der Feed irgendwann stehen."
     )
     # Und kein zweiter Melde-Weg in den Detailfenstern.

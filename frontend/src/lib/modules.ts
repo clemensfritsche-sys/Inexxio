@@ -271,7 +271,7 @@ export const SAMPLE_PRESETS: { value: SampleMode; label: string; percent?: numbe
 ];
 
 /** Was ohne Angabe gilt – **alle**, wie im Backend (`sampling.DEFAULT`). */
-export const SAMPLE_ALL: SampleDraft = { mode: 'all', value: '' };
+const SAMPLE_ALL: SampleDraft = { mode: 'all', value: '' };
 
 /**
  * Entwurfsform → das eine Feld, das der Server kennt. Ein frei getippter Anteil geht
@@ -374,10 +374,9 @@ const MONEY_FORM = {
     // Tolerant gelesen: eine fehlende Richtung ist eine **Ausgabe**, wie im Backend. (Die
     // Vorgabe eines **neuen** Moduls ist die Einnahme, #791 – eine andere Frage.)
     direction: (c.direction === 'in' ? 'in' : 'out') as 'in' | 'out',
-    // Tolerant gelesen wie im Backend: die alte Form war die blosse Objektnummer, und ein
-    // freigegebener Prozess ist eingefroren – sie steht in laufenden Aufträgen.
+    // Je Partner eine Zeile `{ party, ref }` – die einzige Form, die der Editor schreibt.
     parties: asRows(c.parties).map((r) => ({
-      party: Number(r.party ?? r), ref: String(r.ref ?? ''),
+      party: Number(r.party), ref: String(r.ref ?? ''),
     })).filter((r) => Number.isFinite(r.party)),
     instruction: String(c.instruction ?? ''),
     presets: presetsDraft(c),
@@ -477,10 +476,10 @@ export const MODULE_FORM: Record<string, {
   },
 };
 
-/** Eine gespeicherte Liste als Zeilen lesen – tolerant, denn sie kommt aus JSONB. */
+/** Eine gespeicherte Liste als Zeilen lesen (sie kommt aus JSONB) – was keine Zeile ist, fällt weg. */
 function asRows(value: unknown): Record<string, unknown>[] {
   if (!Array.isArray(value)) return [];
-  return value.map((v) => (v && typeof v === 'object' ? v as Record<string, unknown> : { party: v }));
+  return value.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
 }
 
 /**

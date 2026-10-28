@@ -52,15 +52,14 @@ export async function registerPasskey(deviceName?: string): Promise<Passkey> {
 
 /**
  * Passwortlose Anmeldung (modaler Dialog – expliziter «Mit Passkey anmelden»-Knopf).
- * Nach Erfolg besteht eine reguläre Firebase-Session; das zurückgegebene ID-Token
- * spiegelt den Google-Login-Fluss (Profil laden, Redirect).
+ * Nach Erfolg besteht eine reguläre Firebase-Session – weiter wie beim Google-Login
+ * (Profil laden, Redirect).
  */
-export async function loginWithPasskey(): Promise<{ token: string }> {
+export async function loginWithPasskey(): Promise<void> {
   const optionsJSON = await api.passkeyLoginOptions();
   const credential = await startAuthentication({ optionsJSON });
   const { firebase_token } = await api.passkeyLoginVerify(credential);
-  const { token } = await signInWithPasskey(firebase_token);
-  return { token };
+  await signInWithPasskey(firebase_token);
 }
 
 /**
@@ -70,12 +69,11 @@ export async function loginWithPasskey(): Promise<{ token: string }> {
  * bleibt er offen (per {@link cancelPasskeyAutofill} abbrechbar). Kein Knopfdruck nötig –
  * genau das reibungslose «es erscheint einfach»-Erlebnis.
  */
-export async function loginWithPasskeyAutofill(): Promise<{ token: string }> {
+export async function loginWithPasskeyAutofill(): Promise<void> {
   const optionsJSON = await api.passkeyLoginOptions();
   const credential = await startAuthentication({ optionsJSON, useBrowserAutofill: true });
   const { firebase_token } = await api.passkeyLoginVerify(credential);
-  const { token } = await signInWithPasskey(firebase_token);
-  return { token };
+  await signInWithPasskey(firebase_token);
 }
 
 /** Eine laufende Autofill-/WebAuthn-Zeremonie abbrechen (z. B. beim Verlassen der Seite). */
@@ -89,7 +87,7 @@ export function cancelPasskeyAutofill(): void {
 
 /** Freundlicher Default-Gerätename aus dem User-Agent (z. B. «iPhone», «Mac», «Windows»,
  *  «Android») – damit die Passkey-Liste lesbar ist, ohne den Nutzer zu fragen. */
-export function friendlyDeviceName(): string {
+function friendlyDeviceName(): string {
   if (typeof navigator === 'undefined') return 'Dieses Gerät';
   const ua = navigator.userAgent || '';
   if (/iPhone/.test(ua)) return 'iPhone';

@@ -30,6 +30,7 @@ import {
 } from '@/lib/passkey';
 import { api } from '@/lib/api';
 import { goTo, loginTarget, rememberFrom } from '@/lib/login-target';
+import { cachedRole, rememberName, rememberRole } from '@/lib/account-cache';
 
 type Step = 'input' | 'loading' | 'sent';
 
@@ -42,8 +43,6 @@ function getMailUrl(email: string): string {
   if (domain === 'bluewin.ch') return 'https://mail.bluewin.ch';
   return `mailto:${email}`;
 }
-
-const ROLE_KEY = 'inexxio_user_role';
 
 function getGoogleErrorMessage(code: string): string {
   switch (code) {
@@ -99,8 +98,8 @@ export function LoginDialog({ onClose, fallback }: {
     (async () => {
       if (!(await passkeyAutofillSupported())) return;
       try {
-        const { token } = await loginWithPasskeyAutofill();
-        if (!cancelled) await finishTokenLogin(token);
+        await loginWithPasskeyAutofill();
+        if (!cancelled) await finishLogin();
       } catch (err: unknown) {
         if (!cancelled && !isPasskeyCancellation(err)) {
           setError(err instanceof Error ? err.message : 'Passkey-Anmeldung fehlgeschlagen.');
@@ -111,23 +110,21 @@ export function LoginDialog({ onClose, fallback }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Gemeinsamer Abschluss für Token-basierte Logins (Google, Passkey): Token setzen,
-  // Profil (Rolle/Name) cachen und **hart** weiter (`login-target`). Bewusst ohne
+  // Gemeinsamer Abschluss für Logins mit sofortiger Sitzung (Google, Passkey): Profil
+  // (Rolle/Name) cachen und **hart** weiter (`login-target`). Den Token holt der API-Client
+  // selbst (`lib/firebase.ts`). Bewusst ohne
   // `onClose()`: an der Route heisst «schliessen» «zur Website», und diese Navigation
   // überholte die Weiterleitung – der Login landete auf der Startseite statt im ERP.
-  async function finishTokenLogin(token: string) {
-    api.setToken(token);
-    localStorage.setItem('inexxio_token', token);
+  async function finishLogin() {
     let role: string | null = null;
     try {
       const profile = await api.getMe();
       role = profile.role;
-      localStorage.setItem(ROLE_KEY, profile.role);
-      const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
-      if (fullName) localStorage.setItem('inexxio_user_fullname', fullName);
+      rememberRole(profile.role);
+      rememberName([profile.first_name, profile.last_name].filter(Boolean).join(' '));
     } catch {
       // Rolle unbekannt – dann führt der Startplatz ins Konto; das ERP prüft selbst.
-      role = localStorage.getItem(ROLE_KEY);
+      role = cachedRole();
     }
     goTo(loginTarget(role, fallback));
   }
@@ -137,8 +134,8 @@ export function LoginDialog({ onClose, fallback }: {
     setError('');
     setPasskeyLoading(true);
     try {
-      const { token } = await loginWithPasskey();
-      await finishTokenLogin(token);
+      await loginWithPasskey();
+      await finishLogin();
     } catch (err: unknown) {
       if (!isPasskeyCancellation(err)) {
         setError(err instanceof Error ? err.message : 'Passkey-Anmeldung fehlgeschlagen.');
@@ -178,9 +175,9 @@ export function LoginDialog({ onClose, fallback }: {
     window.addEventListener('focus', onFocus, { once: true });
 
     try {
-      const { token } = await signInWithGoogle();
+      await signInWithGoogle();
       settled = true;
-      await finishTokenLogin(token);
+      await finishLogin();
     } catch (err: unknown) {
       settled = true;
       setGoogleLoading(false);

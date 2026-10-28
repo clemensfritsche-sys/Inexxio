@@ -5,6 +5,7 @@ import { LoginDialog } from '@/components/auth/login-dialog';
 import { auth, onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { goTo, loginTarget } from '@/lib/login-target';
+import { cachedRole } from '@/lib/account-cache';
 
 /**
  * **Die Route ist der zweite Weg zum selben Dialog.**
@@ -30,9 +31,8 @@ export default function LoginPage() {
       if (!first) return;
       first = false;
       if (!user) { setReady(true); return; }
-      api.setToken(await user.getIdToken());
       let role: string | null = null;
-      try { role = (await api.getMe()).role; } catch { role = localStorage.getItem('inexxio_user_role'); }
+      try { role = (await api.getMe()).role; } catch { role = cachedRole(); }
       goTo(loginTarget(role));
     });
   }, []);

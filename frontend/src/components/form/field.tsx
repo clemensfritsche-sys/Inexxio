@@ -9,7 +9,7 @@
  * tippt, die offensichtlich keine ist (zu wenige Ziffern, fremde Zeichen), sieht einen
  * Hinweis; gespeichert wird trotzdem, denn die Angabe ist informativ, nicht funktional.
  */
-export function fieldFormatIssue(type: string, value: string): string | null {
+function fieldFormatIssue(type: string, value: string): string | null {
   const v = value.trim();
   if (!v) return null;
   if (type === 'tel') {
@@ -115,40 +115,6 @@ export function SelectField({ label, value, onChange, options, hint, disabled = 
         ))}
       </select>
       {hint && <p style={{ fontSize: 12, color: 'var(--fg-4)', margin: 0 }}>{hint}</p>}
-    </div>
-  );
-}
-
-interface ToggleFieldProps {
-  label: string;
-  description?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}
-
-export function ToggleField({ label, description, checked, onChange }: ToggleFieldProps) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-      <div>
-        <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--fg-1)', margin: 0 }}>{label}</p>
-        {description && <p style={{ fontSize: 13, color: 'var(--fg-3)', margin: '2px 0 0' }}>{description}</p>}
-      </div>
-      <button
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        style={{
-          width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-          background: checked ? 'var(--inexxio-red)' : 'var(--border-2)',
-          position: 'relative', flexShrink: 0, transition: 'background 0.2s',
-        }}
-      >
-        <span style={{
-          position: 'absolute', top: 3, left: checked ? 23 : 3,
-          width: 18, height: 18, borderRadius: '50%', background: 'var(--bg-1)',
-          transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-        }} />
-      </button>
     </div>
   );
 }

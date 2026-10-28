@@ -13,7 +13,6 @@ from tests._source import (
     _code,
     _component,
     _frontend_sources,
-    _module_ui,
     _read,
 )
 
@@ -298,8 +297,12 @@ def test_a_button_without_effect_is_caught_by_the_linter():
     Leiche, sondern **46** – darunter zwei API-Abfragen für einen Wert, den niemand liest.
     """
     cfg = json.loads(_read(FRONTEND.parent / ".eslintrc.json"))
-    rule = cfg.get("rules", {}).get("no-unused-vars")
+    # Die TypeScript-Fassung der Regel (sie kennt auch Typen); die Basisregel ist dafür aus.
+    rule = cfg.get("rules", {}).get("@typescript-eslint/no-unused-vars")
     assert rule, "Die Regel gegen ungenutzte Variablen ist nicht eingeschaltet."
+    assert "@typescript-eslint" in cfg.get("plugins", []), (
+        "Die Regel nennt ein Plugin, das die Konfiguration nicht lädt."
+    )
     assert rule[0] == "error", "Die Regel warnt nur – dann fällt nichts auf."
     assert "destructuredArrayIgnorePattern" in rule[1], (
         "Ohne diese Option bleibt die tote `useState`-Destrukturierung unbemerkt – "
@@ -568,31 +571,6 @@ def test_a_button_is_an_icon_and_says_its_name_on_hover():
 # ---------------------------------------------------------------------------
 
 
-def test_the_section_heads_of_a_card_stand_on_one_edge():
-    """►►► **Die Status-Spalte steht immer, auch leer** (Testnotiz #899). ◄◄◄
-
-    Ein Punkt vor der Beschriftung rückt sie um seine Breite ein. In einer Karte, in der
-    nur **manche** Abschnitte ein Schritt sind – «Positionen» und «Bedingungen» sind
-    Inhalt, «Angebot» und «Rechnung & Zahlung» sind Schritte –, stünden die Überschriften
-    damit auf zwei verschiedenen Kanten. Gemessen: 18 px ↔ 33 px im selben Beleg.
-
-    Der Platz wird darum **reserviert**; was ihn füllt, sagt der Abschnitt. Ein Punkt für
-    alle wäre die andere Lösung und die falsche: er behauptete einen Fortschritt, den ein
-    Inhalts-Abschnitt gar nicht hat.
-
-    Bug-Form: der Punkt hängt wieder an `state` – dann verschiebt sich jede Überschrift
-    ohne Schritt.
-    """
-    ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
-    section = " ".join(_body(ui, "ModuleSection", kind="export function").split())
-    assert "{state && (" not in section, (
-        "Die Status-Spalte gibt es nur mit Schritt – dann rücken die Überschriften ohne "
-        "Schritt aus der Kante (#899)."
-    )
-    assert "state ? STEP_COLOR[state] : 'transparent'" in section, (
-        "Der reservierte Platz trägt keine Farbe mehr bzw. füllt sich nicht mehr aus dem "
-        "Zustand."
-    )
 
 
 def test_the_suggestion_list_hangs_on_the_body_not_in_the_field():
@@ -715,8 +693,8 @@ def test_a_note_names_the_element_not_its_whole_subtree():
         "Die Modul-Karte benennt sich nicht – dann steht in keiner Notiz, aus welchem "
         "Modul sie kommt."
     )
-    assert "data-fb-section" in _code(
-        _read(FRONTEND / "components" / "erp" / "module-ui.tsx")), (
+    assert "data-fb-section" in _code(_component(
+        _read(FRONTEND / "components" / "erp" / "beleg" / "shared.tsx"), "Section")), (
         "Der Abschnitt eines Moduls benennt sich nicht."
     )
 
@@ -966,72 +944,8 @@ def test_a_row_action_is_flush_right():
         )
 
 
-def test_a_section_head_carries_weight():
-    """►►► **Die Abschnittsköpfe tragen mehr Gewicht** (Testnotiz #1006). ◄◄◄
-
-    Erlaubt waren vier Mittel (Gewicht · Abstand · Trennlinie · Nummerierung), zu wählen
-    war eine **Kombination, nicht alles**. Die Trennlinie steht seit jeher, eine
-    Nummerierung behauptete eine Reihenfolge, die es bei Inhalts-Abschnitten nicht gibt –
-    bleiben Gewicht und Abstand. Beide gehören der **Gattung** und stehen darum in
-    ``ModuleSection``, nicht an der Aufrufstelle.
-
-    **800, nicht 700** – gemessen: ``MICRO_LABEL`` steht bereits auf 700; ein «höheres
-    Gewicht» dorthin wäre wirkungslos gewesen und hätte ausgesehen wie ein Fix.
-
-    Bug-Formen: (a) das Gewicht ist zurück auf dem von ``MICRO_LABEL``; (b) der Abstand
-    steht an der Aufrufstelle statt an der Gattung.
-    """
-    ui = _module_ui()
-    micro = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
-    assert "font: '700 11px var(--font-body)'" in micro, (
-        "MICRO_LABEL hat sein Gewicht geändert – dann ist die Zahl unten neu zu messen."
-    )
-    head = _code(_component(ui, "ModuleSection"))
-    assert "fontWeight: 800" in head, (
-        "Der Abschnittskopf trägt kein eigenes Gewicht (a) – 700 ist der Wert, den "
-        "MICRO_LABEL ohnehin setzt."
-    )
-    assert "SECTION_GAP" in head and "const SECTION_GAP" in _code(ui), (
-        "Der Abstand über einem Abschnitt steht nicht als eine Zahl an der Gattung (b)."
-    )
 
 
-def test_a_section_head_is_a_bar_not_only_a_word():
-    """►►► **Der Abschnittskopf ist eine LEISTE** (Testnotiz #1015). ◄◄◄
-
-    *«Die Bereichsüberschriften sind immer noch zu wenig ausgeprägt … eine klare, ruhige
-    Bereichsüberschrift über die volle Modulbreite, schmale Leiste, deutlich vom Inhalt
-    darunter abgesetzt.»*
-
-    Der dritte Anlauf – die beiden davor (Gewicht 800, mehr Luft) galten dem **Text**.
-    Eine Überschrift, die eine Zone eröffnet, braucht eine **Fläche**: gedämpfte Füllung,
-    dunkle Schrift, kräftige Trennlinie. Nicht Vollschwarz: in einer Spalte mit fünf
-    Modulen stünden fünf schwarze Balken untereinander, und die ERP-Regel heisst
-    *Struktur vor Fläche*.
-
-    Bug-Formen: (a) die Leiste hat keine Fläche; (b) die Trennlinie ist wieder eine
-    Haarlinie wie jede andere; (c) sie endet an der Satzkante statt an der Karte;
-    (d) die Regel steht an einer Aufrufstelle statt in `ModuleSection`.
-    """
-    src = _module_ui()
-    sec = _code(_component(src, "ModuleSection"))
-    assert "background: 'var(--bg-3)'" in sec, (
-        "Der Abschnittskopf hat keine Fläche (a) – dann ist er wieder nur ein Wort."
-    )
-    assert "borderBottom: '2px solid var(--border-2)'" in sec, (
-        "Die Trennlinie ist eine Haarlinie wie jede andere (b)."
-    )
-    # **Volle Modulbreite** – der negative Seitenrand ist die Polsterung der Karte.
-    pad = re.search(r"padding:\s*'16px (\d+)px'", _code(src))
-    assert pad, "Die Karte nennt ihre Polsterung nicht mehr – dann rät die Leiste."
-    assert f"-{pad.group(1)}px" in sec, (
-        f"Die Leiste endet an der Satzkante (c) statt an der Karte "
-        f"(erwartet -{pad.group(1)}px aus `MODULE_CARD`)."
-    )
-    # (d) Keine zweite Fassung daneben: jedes künftige Modul erbt sie.
-    assert "var(--bg-3)" not in _code(_beleg()), (
-        "Ein Modul baut sich seinen eigenen Abschnittskopf (d)."
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1117,33 +1031,6 @@ def test_every_css_variable_is_defined_somewhere():
 # ---------------------------------------------------------------------------
 
 
-def test_the_section_head_is_one_step_above_a_field_label():
-    """►►► **Kopf und Feld-Label waren dieselbe Schrift** (Testnotiz #1051). ◄◄◄
-
-    *«Kann man die Überschriften der Kategorien etwas prägnanter machen – im Stil, nicht
-    im Text? Es geht irgendwie so unter.»*
-
-    Gemessen war die Hierarchie flach: der Abschnittskopf trug `MICRO_LABEL`, und genau
-    dasselbe trägt jede Beschriftung **in** einem Abschnitt. Er trägt jetzt das
-    **Overline**-Register des Design-Systems – eine Stufe darüber, und als **Token**, nicht
-    als geratene Zahl.
-
-    Bug-Formen: (a) der Kopf trägt wieder `MICRO_LABEL`; (b) die Grösse steht als Zahl
-    da; (c) `MICRO_LABEL` selbst wird angefasst – dann wandert die Beschriftung mit, und
-    der Abstand zwischen den Ebenen ist wieder null.
-    """
-    ui = _read(FRONTEND / "components" / "erp" / "module-ui.tsx")
-    head = _code(_component(ui, "ModuleSection"))
-    assert "var(--overline)" in head and "var(--tracking-overline)" in head, (
-        "Der Abschnittskopf trägt nicht das Overline-Register (a/b) – dann steht er auf "
-        "derselben Stufe wie die Beschriftung eines Feldes darunter."
-    )
-    assert "MICRO_LABEL" not in head, "Der Kopf trägt wieder die leise Beschriftung (a)."
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
-    assert "font: '700 11px var(--font-body)'" in fields, (
-        "`MICRO_LABEL` ist angefasst worden (c) – es trägt im ganzen Haus die leisen "
-        "Beschriftungen, und von ihnen soll sich der Kopf abheben."
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1210,8 +1097,8 @@ def test_autosave_is_one_module_with_one_delay():
         assert not re.search(r"function useAutosave\w*\s*[(<]", src), f"«{rel}» (a)"
 
 
-def test_card_and_subblock_have_one_home():
-    """**`Card` und `SubBlock` stehen EINMAL** (F-41/F-42) – in `fields.tsx`.
+def test_card_has_one_home():
+    """**`Card` steht EINMAL** (F-41) – in `fields.tsx`.
 
     Konto und ERP-Benutzer bauten beide nach (wortgleich), und ein Kommentar behauptete
     das Gegenteil.
@@ -1221,10 +1108,9 @@ def test_card_and_subblock_have_one_home():
     for rel, src in _frontend_sources(".tsx"):
         if rel == "components/erp/fields.tsx":
             continue
-        for name in ("Card", "SubBlock"):
-            assert not re.search(rf"\bfunction {name}\s*\(", src), (
-                f"«{rel}» baut `{name}` nach – er steht in `fields.tsx`."
-            )
+        assert not re.search(r"\bfunction Card\s*\(", src), (
+            f"«{rel}» baut `Card` nach – sie steht in `fields.tsx`."
+        )
 
 
 def test_the_micro_label_is_written_once():

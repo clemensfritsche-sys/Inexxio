@@ -19,13 +19,12 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { onAuthChange } from '@/lib/firebase';
+import { cachedRole, rememberRole } from '@/lib/account-cache';
 import {
   FEEDBACK_ENABLED, UI_MARKER, currentObjectId, currentRoute, describeAnchor,
   describeContext, locateAnchor, notesToMarkdown, startErrorCapture,
 } from '@/lib/feedback';
 import type { FeedbackAnchor, FeedbackNote, FeedbackStatus } from '@/types';
-
-const ROLE_KEY = 'inexxio_user_role';   // gleiche Quelle wie das ERP-Layout
 
 /** Ampel: offen = gelb (zu tun), erledigt = grün, verworfen = neutral. */
 const DOT: Record<FeedbackStatus, string> = {
@@ -64,12 +63,11 @@ export function FeedbackPin() {
     return onAuthChange(async (fbUser) => {
       if (!fbUser) { setSignedIn(false); return; }
       try {
-        api.setToken(await fbUser.getIdToken());
         setSignedIn(true);
-        const cached = localStorage.getItem(ROLE_KEY);
+        const cached = cachedRole();
         if (cached) { setRole(cached); return; }
         const me = await api.getMe();
-        localStorage.setItem(ROLE_KEY, me.role);
+        rememberRole(me.role);
         setRole(me.role);
       } catch { /* Rolle ist nur Beiwerk der Notiz – kein Grund, nichts zu rendern */ }
     });

@@ -26,7 +26,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Pencil, Search, CheckCircle2, LocateFixed, Loader2 } from 'lucide-react';
-import { useGoogleMaps } from './use-google-maps';
+import { useGoogleMaps } from '@/lib/use-google-maps';
 
 export type Address = {
   /** Strasse inkl. Hausnummer – genau so, wie Google sie liefert (eine Zeile). */
@@ -302,7 +302,7 @@ export function AddressField({
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           {usable && typeof navigator !== 'undefined' && 'geolocation' in navigator && (
             <button type="button" onClick={useMyLocation} disabled={locating} style={S.locate}>
-              {locating ? <Loader2 size={13} style={{ animation: 'spin 0.7s linear infinite' }} /> : <LocateFixed size={13} />}
+              {locating ? <Loader2 size={13} className="animate-spin" /> : <LocateFixed size={13} />}
               {locating ? 'Standort wird ermittelt…' : 'Aktuellen Standort verwenden'}
             </button>
           )}

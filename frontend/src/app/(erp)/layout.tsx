@@ -1,76 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { onAuthChange } from '@/lib/firebase';
-import { api } from '@/lib/api';
-import { isStaff } from '@/lib/record-status';
+import { AuthGate, MAIN_H } from '@/components/auth/auth-gate';
 import { FeedbackPin } from '@/components/feedback/feedback-pin';
 
-const ROLE_KEY = 'inexxio_user_role';
-
+/** Das ERP – nur für Personal (`AuthGate staffOnly`). */
 export default function ERPLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthChange(async (firebaseUser) => {
-      if (!firebaseUser) {
-        router.replace(`/login?from=${window.location.pathname}`);
-        return;
-      }
-
-      const token = await firebaseUser.getIdToken();
-      api.setToken(token);
-
-      try {
-        const profile = await api.getMe();
-        localStorage.setItem(ROLE_KEY, profile.role);
-        // ►►► **Ins ERP darf, wer im Haus arbeitet** (Testnotiz #1043). ◄◄◄ Vorher
-        // stand hier «ausser Kunden dürfen alle» – also liess die Sperre jeden Wert
-        // durch, den sie nicht kannte, und ein «Lieferant» landete auf einer Oberfläche,
-        // die ihm der Server danach leer beantwortet. Gefragt wird jetzt dasselbe wie im
-        // Backend (`people.STAFF_ROLES`): zwei Rollen, nicht «nicht diese eine».
-        // Wer nicht hinein darf, landet in seinem **Konto**, nicht auf «/»: dort steht die
-        // Website, und die kennt keine Anmeldung (`lib/login-target`).
-        if (!isStaff(profile.role)) {
-          router.replace('/konto');
-          return;
-        }
-      } catch {
-        // Ohne Antwort gilt der letzte bekannte Stand – und ein unbekannter ist keiner.
-        if (!isStaff(localStorage.getItem(ROLE_KEY))) {
-          router.replace('/konto');
-          return;
-        }
-      }
-
-      setLoading(false);
-    });
-    return unsubscribe;
-  }, [router]);
-
-  if (loading) {
-    return (
-      <>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - var(--site-header-h) - 280px)' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ display: 'inline-block', height: 32, width: 32, borderRadius: '50%', border: '4px solid var(--inexxio-red)', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
-            <p style={{ marginTop: 8, fontSize: 14, color: 'var(--fg-3)' }}>Wird geladen…</p>
-          </div>
-        </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </>
-    );
-  }
-
   return (
-    <>
-      <main style={{ minHeight: 'calc(100vh - var(--site-header-h) - 280px)', background: 'var(--bg-2)' }}>
+    <AuthGate staffOnly>
+      <main style={{ minHeight: MAIN_H, background: 'var(--bg-2)' }}>
         {children}
       </main>
 
       <FeedbackPin />
-    </>
+    </AuthGate>
   );
 }

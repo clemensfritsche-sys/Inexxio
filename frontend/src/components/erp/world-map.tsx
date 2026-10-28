@@ -60,7 +60,7 @@ const MASK: string[] = [
   '.....................LL.................................................', // −45–−50
 ];
 
-export type MapCell = { x: number; y: number; region: string };
+type MapCell = { x: number; y: number; region: string };
 
 /** Die Maske einmal in Zellen je Region übersetzt (Modul-Konstante – keine Laufzeitarbeit). */
 const CELLS_BY_REGION: Record<string, MapCell[]> = (() => {

@@ -1,8 +1,6 @@
 import { Check, CreditCard, FileText, Flag, Truck, type LucideIcon } from 'lucide-react';
-import type { components } from '@/types/api';
+import type { Station } from '@/types';
 import css from './beleg.module.css';
-
-type Station = components['schemas']['StationOut'];
 
 /** Das Symbol je Station – Offerte · Auftragsbestätigung · Rechnung · Bezahlt (`voucher_docs.WAY`). */
 const ICONS: LucideIcon[] = [FileText, Truck, CreditCard, Flag];

@@ -111,7 +111,7 @@ export interface DiagramStep {
   records?: boolean;
 }
 
-export type DiagramMode = 'definition' | 'ausfuehrung';
+type DiagramMode = 'definition' | 'ausfuehrung';
 
 /**
  * **Der Graph eines Entwurfs.** Ein Auftragsentwurf lebt im Browser (§6.1) – es gibt
@@ -267,7 +267,7 @@ export interface JourneyOrigin {
 }
 
 /** Wie viele Nachbarn eine Journey-Zeile **vollständig** zeigt (wie `RELATED_LIMIT`). */
-export const JOURNEY_LIMIT = 3;
+const JOURNEY_LIMIT = 3;
 
 const journeyId = (where: 'in' | 'out', key: string | number) => `j:${where}:${key}`;
 
@@ -344,7 +344,7 @@ export function axisEdges(g: ProcessGraph): GraphEdge[] {
  * und *seit wann läuft es hier* (#689). Der Zeitpunkt kommt aus dem Ereignis-Log; ein
  * Feld dafür gäbe es nicht zu bauen.
  */
-export interface UnitChip {
+interface UnitChip {
   number: string;
   startedAt?: string | null;
   /**
@@ -441,7 +441,7 @@ export interface ColumnProps {
 /**
  * **Eine geplante Rückführung** – ein Quell-Auftrag und die Frage, ob es zu ihm zurückgeht.
  */
-export interface ReturnTarget {
+interface ReturnTarget {
   objectId: number;
   on: boolean;
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Building2, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare, HandCoins } from 'lucide-react';
 import { Communication } from '@/components/erp/communication';
 import { api } from '@/lib/api';
-import type { CompanySettings, Todo } from '@/types';
+import type { CompanySettings, CompanySettingsUpdate, Todo } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { DetailBody, Card, DetailHeader, SectionSep, Segmented } from '@/components/erp/fields';
 import { DocumentTiles } from '@/components/erp/documents';
@@ -15,7 +15,7 @@ import { organizationStatus } from '@/lib/record-status';
 import { organizationName } from '@/lib/record-name';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { legalForms } from '@/lib/legal-forms';
-import { useMapsApiKey } from '@/components/erp/use-maps-key';
+import { useMapsApiKey } from '@/lib/use-maps-key';
 import { Field as AField } from '@/components/form/field';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
@@ -26,7 +26,7 @@ import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment
 // Das Unternehmen führt das Land als Klarnamen (nicht ISO-2). Die Adress-Suche mappt Googles
 // ISO-2-Code über ``toIso2`` auf diese Klarnamen (siehe address-field.tsx). Eine Gesellschaft
 // kann überall sitzen – daher eine breitere Auswahl als bei einer CH/EU-Personenadresse.
-export const COMPANY_COUNTRIES: [string, string][] = [
+const COMPANY_COUNTRIES: [string, string][] = [
   ['Schweiz', 'Schweiz'], ['Deutschland', 'Deutschland'], ['Österreich', 'Österreich'],
   ['Frankreich', 'Frankreich'], ['Italien', 'Italien'], ['Liechtenstein', 'Liechtenstein'],
   ['USA', 'USA'], ['Grossbritannien', 'Grossbritannien'], ['Spanien', 'Spanien'],
@@ -92,13 +92,13 @@ const TAX_IDS_DEFAULT: TaxIds = {
   uid: { label: 'Steuernummer', ph: '' },
   vat: { label: 'USt-Nummer (optional)', ph: '' },
 };
-export function taxIds(country: string | undefined): TaxIds {
+function taxIds(country: string | undefined): TaxIds {
   return TAX_IDS_BY_ISO2[toIso2(country)] ?? TAX_IDS_DEFAULT;
 }
 
 /** «Musterstrasse 12» → ('Musterstrasse', '12'). Das Unternehmen führt Strasse und
  *  Hausnummer getrennt; Google (und jede andere Quelle) liefert sie als eine Zeile. */
-export function splitStreet(line: string): [string, string] {
+function splitStreet(line: string): [string, string] {
   const m = line.trim().match(/^(.*?)[\s,]+(\d+[a-zA-Z]?)$/);
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
@@ -110,12 +110,12 @@ interface OrgForm {
   company_name: string;
   legal_form: string;
   street: string;
-  street_number: string;
-  zip: string;
+  street_nr: string;
+  zip_code: string;
   city: string;
   country: string;
   currency: string;
-  uid: string;
+  uid_number: string;
   vat_number: string;
   phone: string;
   iban: string;
@@ -126,12 +126,12 @@ function buildForm(s: CompanySettings): OrgForm {
     company_name: s.company_name ?? '',
     legal_form: s.legal_form ?? '',
     street: s.street ?? '',
-    street_number: s.street_number ?? '',
-    zip: s.zip ?? '',
+    street_nr: s.street_nr ?? '',
+    zip_code: s.zip_code ?? '',
     city: s.city ?? '',
     country: s.country || 'Schweiz',
     currency: s.currency || 'CHF',
-    uid: s.uid ?? '',
+    uid_number: s.uid_number ?? '',
     vat_number: s.vat_number ?? '',
     phone: s.phone ?? '',
     // Die IBAN steht im Feld wie jede andere Angabe (#870): leer heisst «da ist nichts».
@@ -219,17 +219,17 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
       // ►►► **Eine fremde Firma ist ihre Identität** – Name, Rechtsform, UID, sonst
       // nichts (`sites.EXTERNAL_FIELDS`). Ihre Anschriften gehören den Personen, die für
       // sie bestellen; der Dienst weist alles Weitere ab.
-      const data: Partial<CompanySettings> = {
+      const data: CompanySettingsUpdate = {
         company_name: v.company_name.trim(),
         legal_form: nn(v.legal_form),
-        uid: nn(v.uid),
+        uid_number: nn(v.uid_number),
       };
       // Die IBAN wird gesendet wie jede andere Angabe (#870) – auch leer, sonst ginge ein
       // absichtliches Löschen verloren.
       if (own) {
         Object.assign(data, {
-          street: v.street, street_number: nn(v.street_number),
-          zip: v.zip, city: v.city, country: v.country,
+          street: v.street, street_nr: nn(v.street_nr),
+          zip_code: v.zip_code, city: v.city, country: v.country,
           vat_number: nn(v.vat_number), phone: nn(v.phone),
           iban: nn(v.iban), currency: v.currency,
         });
@@ -250,7 +250,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
     const [street, nr] = splitStreet(a.street);
     const suggested = suggestCurrency(a.country);
     setForm((prev) => ({
-      ...prev, street, street_number: nr, zip: a.zip, city: a.city, country: a.country,
+      ...prev, street, street_nr: nr, zip_code: a.zip, city: a.city, country: a.country,
       ...(suggested ? { currency: suggested } : {}),
     }));
   }
@@ -298,8 +298,8 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
   }
 
   const address: Address = {
-    street: [form.street, form.street_number].filter(Boolean).join(' '),
-    zip: form.zip, city: form.city, country: form.country,
+    street: [form.street, form.street_nr].filter(Boolean).join(' '),
+    zip: form.zip_code, city: form.city, country: form.country,
   };
   const forms = legalForms(form.country);
   // Welche steuerlichen Kennungen dieses Land kennt (#346) – die USA z. B. keine MWST-Nr.
@@ -401,7 +401,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
                 Karte. Gefragt wird, was es im Land gibt (#346): eine US-Gesellschaft hat
                 eine EIN und keine MWST-Nummer. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label={ids.uid.label} value={form.uid} onChange={str('uid')}
+              <AField label={ids.uid.label} value={form.uid_number} onChange={str('uid_number')}
                 placeholder={ids.uid.ph} required={own} onEnter={saveNow} />
               {own && ids.vat && (
                 <AField label={ids.vat.label} value={form.vat_number} onChange={str('vat_number')}

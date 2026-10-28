@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import type { UserProfile } from '@/types';
 
 /** Ein fehlender Pflichtwert: wie er heisst und wo auf der Konto-Seite er steht. */
-export interface MissingField { label: string; anchor: 'person' | 'adressen' }
+interface MissingField { label: string; anchor: 'person' | 'adressen' }
 
-export interface ProfileCompletion {
+interface ProfileCompletion {
   percentage: number;
   /** Was fehlt, in der Reihenfolge der Seite – die Konto-Seite nennt das erste. */
   missing: MissingField[];

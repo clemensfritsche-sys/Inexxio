@@ -49,22 +49,6 @@ export function Card({ icon: Icon, title, right, children, info, extra, unclippe
   );
 }
 
-/** Ein Block **in** einer `Card` (getönte Fläche, Symbol + Mikro-Label), z. B. die
- *  Anstellung einer Person – im Konto und im ERP dieselbe Anatomie. */
-export function SubBlock({ icon: Icon, title, children }: {
-  icon: ElementType; title: string; children: ReactNode;
-}) {
-  return (
-    <div style={{ padding: 16, background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border-1)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-        <Icon style={{ width: 13, height: 13, color: 'var(--fg-3)' }} />
-        <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)' }}>{title}</span>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 // ─── Spezifikations-Karte: die Lese-Ansicht eines Datensatzes ────────────────
 //
 // EINE Karte, in der die Angaben eines Datensatzes stehen – warme Fläche, Haarlinie,
@@ -165,7 +149,7 @@ export function SpecSection({ icon: Icon, title, right, grid = true, children }:
 }
 
 const SPEC_ICO: React.CSSProperties = {
-  width: 34, height: 34, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238',
+  width: 34, height: 34, borderRadius: 'var(--r-sm)', background: 'var(--accent-soft)', color: 'var(--accent)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
 };
 

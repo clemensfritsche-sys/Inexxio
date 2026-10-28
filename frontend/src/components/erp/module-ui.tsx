@@ -226,21 +226,6 @@ export function Actions({ children, style }: { children: ReactNode; style?: CSSP
 }
 
 /**
- * **Wie weit ist ein Schritt?** `past` – vorbei · `active` – dran · `ahead` – steht noch
- * aus. Bewusst nicht `done`/`open`: das sind die Wörter der Beleg-Stufen bzw. der Leiste.
- */
-export type StepState = 'past' | 'active' | 'ahead';
-
-const STEP_COLOR: Record<StepState, string> = {
-  past: 'var(--fg-2)',
-  active: 'var(--accent)',
-  ahead: 'var(--border-2)',
-};
-
-/** **Die Luft über einem Abschnitt** (#971/#1006) – sie gehört der Gattung, nicht der Aufrufstelle. */
-const SECTION_GAP = 34;
-
-/**
  * **EIN Betrag — Zahl, Währung, Zustandsfarbe** (#1007). Die Währung ist ein **Kind** der
  * Zahl und erbt ihre Farbe (`color: inherit`) – sie kann keine andere haben; zurücktreten
  * tut sie über Grösse, Gewicht und Deckkraft. Formatiert wird hier, sonst nirgends.
@@ -281,62 +266,6 @@ export function Amount({ value, currency, decimals = 2, color, size = 13, weight
 }
 
 /**
- * **Ein Abschnitt einer Modul-Karte** – Kopfleiste mit Versalien-Beschriftung, rechts
- * Platz für das, was zum Abschnitt gehört. **Der Verlauf steht an den Abschnitten**
- * (#868): ein Punkt vor der Beschriftung sagt, wie weit der Abschnitt ist (Punkt + Wort,
- * die Anatomie jedes Status im Haus) – eine eigene Stufen-Leiste gibt es nicht.
- */
-export function ModuleSection({ title, state, right, children, first }: {
-  /**
-   * **Leer heisst: kein Kopf.** Sagt der Name nichts, was der Inhalt nicht schon sagt,
-   * ist eine Überschrift Fläche.
-   */
-  title?: string;
-  /** Wie weit dieser Abschnitt ist – Punkt vor der Beschriftung. Ohne Angabe: kein Punkt. */
-  state?: StepState;
-  right?: ReactNode;
-  /** Der erste Abschnitt schliesst direkt an die Kopf-Linie an. */
-  first?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    // `data-fb-section` benennt den Abschnitt für eine Testnotiz («‹Modul› › ‹Abschnitt›»).
-    <section data-fb-section={title || undefined}
-      style={{ marginTop: first ? 0 : SECTION_GAP, minWidth: 0 }}>
-      {(title || right) && (
-        // **Der Abschnittskopf ist eine LEISTE** (#1015): gedämpfte Füllung (`--bg-3`),
-        // dunkle Schrift, kräftige Trennlinie – nicht Vollschwarz (Struktur vor Fläche).
-        // Über die volle Modulbreite: der negative Seitenrand entspricht der Polsterung
-        // der Karte (`MODULE_CARD.padding` = 18 px).
-        <div className="flex items-center gap-2" style={{
-          padding: '6px 18px', margin: '0 -18px 14px',
-          background: 'var(--bg-3)', borderBottom: '2px solid var(--border-2)',
-        }}>
-          {/* **Die Status-Spalte steht immer, auch leer**: sonst stünden die Überschriften
-              von Schritt- und Inhalts-Abschnitten auf zwei Kanten (gemessen 18 ↔ 33 px). */}
-          <span aria-hidden className="rounded-full" style={{
-            width: 7, height: 7, flex: 'none',
-            background: state ? STEP_COLOR[state] : 'transparent',
-          }} />
-          {/* **Der Kopf ist eine Stufe über dem Feld-Label** (#1051): das Overline-Register
-              (`--overline`, `--tracking-overline`) in 800 statt `MICRO_LABEL`, das jede
-              Beschriftung **in** einem Abschnitt trägt. */}
-          <span style={{
-            flex: 1, minWidth: 0,
-            font: 'var(--overline)', fontWeight: 800,
-            letterSpacing: 'var(--tracking-overline)',
-            textTransform: 'uppercase',
-            color: 'var(--fg-1)',
-          }}>{title}</span>
-          {right}
-        </div>
-      )}
-      {children}
-    </section>
-  );
-}
-
-/**
  * **Ein Anteil an einem Ganzen — Leiste, Wort, Zahl.** `StockBar` ist ihre Ausprägung für
  * die Zustände von Einzelinstanzen.
  *
@@ -346,7 +275,7 @@ export function ModuleSection({ title, state, right, children, first }: {
  *   summierten sich die Breiten über 100 %.
  * - **Der Gewählte tritt hervor, die anderen verschwinden nicht** – sonst wäre es ein Filter.
  */
-export type BarSegment = {
+type BarSegment = {
   key: string;
   label: string;
   /** Der Anteil – dieselbe Einheit wie bei den Geschwistern (Stück, Geld, Schritte). */

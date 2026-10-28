@@ -131,7 +131,7 @@ interface Column {
  * Was eine Nachbarspalte ausmacht (`prefix`, `faded`, die Journey-Zeilen, der Platz im
  * Raster), gehört nicht dazu: das entsteht hier.
  */
-export type MidColumn =
+type MidColumn =
   Omit<ColumnProps, 'prefix' | 'faded' | 'containerStyle' | 'rowStyle'
     | 'journeyIn' | 'journeyOut' | 'origins' | 'returns' | 'onToggleReturn'>
   & {

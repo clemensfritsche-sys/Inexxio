@@ -293,26 +293,27 @@ def test_a_company_is_named_the_same_in_the_feed_and_in_its_window():
     Anzeigefunktion.»*
 
     Die gemeinsame Funktion gab es (`organizationName`) – **die Angabe kam nur nie an**:
-    `mapSettingsFromBackend` baut sein Objekt Feld für Feld, und `legal_name` stand nicht
-    darin. Was ein solcher Mapper nicht nennt, verschwindet **still** – dieselbe
-    Fehlerform wie eine Pydantic-Klasse, die ein Feld nicht kennt, nur in der anderen
-    Richtung. Der Rückfall auf den blossen Namen griff damit an *jeder* Stelle, und die
-    Rechtsform stand im ganzen ERP nirgends.
+    ein handgeschriebener Mapper (`mapSettingsFromBackend`) baute das Objekt Feld für Feld,
+    und `legal_name` stand nicht darin. Was ein solcher Mapper nicht nennt, verschwindet
+    **still**. Heute gibt es keinen Mapper mehr: das Unternehmen IST der generierte Typ
+    (`CompanySettingsResponse`), geändert wird mit `CompanySettingsUpdate` – das die
+    abgeleiteten Felder gar nicht kennt.
 
-    Bug-Formen: (a) der Mapper verliert das Feld wieder; (b) eine Aufrufstelle baut sich
-    einen eigenen Namen daneben; (c) der abgeleitete Name wird zurückgeschickt.
+    Bug-Formen: (a) ein Mapper/eine Abschrift des Typs kehrt zurück und verliert das Feld;
+    (b) eine Aufrufstelle baut sich einen eigenen Namen daneben; (c) der abgeleitete Name
+    kann zurückgeschickt werden (Änderung typisiert als das ganze Unternehmen).
     """
     api = _code(_read(FRONTEND / "lib" / "api.ts"))
-    mapper = _body(api, "mapSettingsFromBackend", kind="function")
-    assert "legal_name" in mapper, (
-        "Der Mapper verliert die Rechtsform wieder (a) – sie kommt vom Server und "
-        "erreicht den Browser nicht, und niemand sieht es."
+    types = _code(_read(FRONTEND / "types" / "index.ts"))
+    assert "mapSettings" not in api and "interface CompanySettings" not in types, (
+        "Ein handgeschriebener Mapper bzw. Typ für das Unternehmen ist zurück (a) – was er "
+        "nicht nennt, erreicht den Browser nicht, und niemand sieht es."
     )
-    # (c) **Abgeleitet heisst: nicht zurückschreiben.**
-    back = _body(api, "mapSettingsToBackend", kind="function")
-    assert "'legal_name'" in back, (
-        "Der abgeleitete Name geht zurück an den Server (c) – die zweite Wahrheit neben "
-        "den beiden Feldern, aus denen er kommt."
+    assert "CompanySettings = components['schemas']['CompanySettingsResponse']" in types, "(a)"
+    # (c) **Abgeleitet heisst: nicht zurückschreiben** – die Änderung hat ihren eigenen Typ.
+    assert re.search(r"updateCompany\(objectId: number, data: CompanySettingsUpdate\)", api), (
+        "Die Änderung eines Unternehmens ist nicht mehr `CompanySettingsUpdate` (c) – der "
+        "abgeleitete Name könnte als zweite Wahrheit zurück an den Server gehen."
     )
     # (b) **Eine Anzeige, ein Aufruf** – im Feed wie in der Kopfzeile, ohne Rückfall.
     detail = _code(_read(FRONTEND / "components" / "erp" / "organization-detail.tsx"))
@@ -351,7 +352,7 @@ def test_the_role_is_the_access_in_every_surface():
     # (c) – **eine** Auflösung, und die anderen rufen sie.
     gate = _code(_read(FRONTEND / "lib" / "record-status.ts"))
     assert "export function isStaff(" in gate, "``isStaff`` fehlt (c)."
-    for where in ("app/(erp)/layout.tsx", "app/(erp)/erp/page.tsx"):
+    for where in ("components/auth/auth-gate.tsx", "app/(erp)/erp/page.tsx"):
         src = _code(_read(FRONTEND / where))
         assert "isStaff(" in src, f"«{where}» fragt die Rolle selbst (c)."
         # ►►► **Gefragt ist die ZWEIER-Aufzählung, nicht «admin».** ◄◄◄ Der erste Anlauf
@@ -362,6 +363,9 @@ def test_the_role_is_the_access_in_every_surface():
         assert "'employee'" not in src, (
             f"«{where}» zählt die Personal-Rollen daneben auf (c)."
         )
+    assert "<AuthGate staffOnly" in _code(_read(FRONTEND / "app" / "(erp)" / "layout.tsx")), (
+        "Das ERP-Layout lässt nicht mehr nur Personal hinein (c)."
+    )
     # (c′) Der gemeinsame Kopf (Website **und** ERP, WEBSITE_PLAN Entscheid 60) zeigt den
     # ERP-Link nach derselben Frage – er läuft vor jedem Framework und kann `isStaff` nicht
     # importieren, also zählt er das Paar auf; gefragt ist, dass es **dasselbe** ist.
@@ -586,12 +590,12 @@ def test_the_address_mode_is_a_derivation_not_a_latch():
         "Der Modus ist keine Ableitung mehr (b)."
     )
     assert "pending" in src, "Ohne «noch nicht bekannt» entscheidet er zu früh (c)."
-    key = _code(_read(FRONTEND / "components" / "erp" / "use-maps-key.ts"))
+    key = _code(_read(FRONTEND / "lib" / "use-maps-key.ts"))
     assert re.search(r"useMapsApiKey\(\): string \| null \| undefined", key), (
         "Der Schlüssel unterscheidet «noch nicht bekannt» nicht von «es gibt keinen» (c) "
         "– gefragt ist seine ANTWORT, nicht der Typ seines inneren Zustands."
     )
-    maps = _code(_read(FRONTEND / "components" / "erp" / "use-google-maps.ts"))
+    maps = _code(_read(FRONTEND / "lib" / "use-google-maps.ts"))
     assert "if (apiKey === undefined) return;" in maps, (
         "Ein unbekannter Schlüssel wird wie ein fehlender behandelt (d)."
     )
@@ -640,7 +644,7 @@ def test_a_late_profile_cannot_undo_a_logout():
     räumt vor ``signOut`` bzw. nicht im ``finally``.
     """
     sync = _code(_read(FRONTEND / "components" / "layout" / "account-sync.tsx"))
-    check, write = sync.find("currentUid() !== user.uid"), sync.find("localStorage.setItem(ROLE_KEY")
+    check, write = sync.find("currentUid() !== user.uid"), sync.find("rememberRole(")
     assert -1 < sync.find("await api.getMe()") < check < write, "(a)"
     fb = _code(_read(FRONTEND / "lib" / "firebase.ts"))
     body = fb[fb.index("export async function logout"):fb.index("export function currentUid")]

@@ -7,7 +7,6 @@
     "dev": "next dev",
     "prebuild": "node scripts/site-shell.mjs && node scripts/vendor-opencv.mjs",
     "build": "node scripts/build-islands.mjs && next build",
-    "start": "next start",
     "prelint": "node scripts/site-shell.mjs",
     "lint": "next lint",
     "pretype-check": "node scripts/site-shell.mjs",

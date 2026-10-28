@@ -38,7 +38,7 @@ const PAGE = 50;
  * **Ein Sonderfall für Einzelserialisierung existiert nicht** (PROCESS_CORE.md §2): eine
  * Einzelinstanz ist eine Instanz mit Menge 1 – dieselbe Zeile, dieselbe Leiste.
  */
-export type StockScope =
+type StockScope =
   /** Alles von diesem Artikel – die Aggregation holt der Endpunkt. */
   | { kind: 'article'; objectId: number }
   /**

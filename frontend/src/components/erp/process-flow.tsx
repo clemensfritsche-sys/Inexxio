@@ -105,7 +105,7 @@ export interface FlowMetrics {
  * der Fokus die schmalste Spalte, sobald es eng wird — genau der Fehler, den ein
  * `minmax(0,1fr)` in der Mitte schon einmal erzeugt hat.
  */
-export function flowMetrics(width: number, gutter: number = LANE.GAP): FlowMetrics {
+function flowMetrics(width: number, gutter: number = LANE.GAP): FlowMetrics {
   const { GAP, MID_MIN, MID_MAX, SIDE_MIN, SIDE_MAX } = LANE;
   const gap = Math.max(GAP, Math.round(gutter));
   const mid = clamp(MID_MIN, width - 2 * SIDE_MIN - 2 * gap, MID_MAX);
@@ -148,7 +148,7 @@ export interface FlowAnchor {
   cy: number;
 }
 
-export interface FlowSize {
+interface FlowSize {
   w: number;
   h: number;
 }
@@ -351,7 +351,7 @@ export const FLOW_GAP = 2 * BEND;
  * **Messung** kommt, stimmt er bei jeder Modulhöhe, jedem Umbruch und jedem Auf- und
  * Zuklappen – ohne dass irgendwo eine Zahl nachgeführt werden müsste.
  */
-export type Port = 'top' | 'bottom' | 'left' | 'right' | 'center';
+type Port = 'top' | 'bottom' | 'left' | 'right' | 'center';
 
 export function port(a: FlowAnchor, side: Port): [number, number] {
   if (side === 'top') return [a.cx, a.top];

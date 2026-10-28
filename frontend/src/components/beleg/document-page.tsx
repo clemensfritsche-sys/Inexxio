@@ -2,15 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Check, Clock, X } from 'lucide-react';
-import type { components } from '@/types/api';
+import type { PublicDocument as View } from '@/types';
 import { api, ApiError, assetUrl } from '@/lib/api';
 import { day } from '@/lib/when';
 import meta from '@/lib/site-meta.json';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { Paper, StageWord } from './paper';
 import css from './beleg.module.css';
-
-type View = components['schemas']['PublicDocument'];
 
 /**
  * ►►► **Die Seite eines Dokuments nach aussen** – über den Link aus unserer Mail. ◄◄◄

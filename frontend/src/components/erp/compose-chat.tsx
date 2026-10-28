@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { inputCls } from '@/components/erp/fields';
 
 /** Was eine Runde dem Entwurf übergibt: das Papier und was dazu gehört. */
-export interface ComposedPaper {
+interface ComposedPaper {
   html: string;
   art: string;
   name: string;

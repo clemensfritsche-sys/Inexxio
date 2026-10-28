@@ -5,17 +5,16 @@ import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { completeMagicLink } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { goTo, loginTarget } from '@/lib/login-target';
-
-const ROLE_KEY = 'inexxio_user_role';
+import { cachedRole, rememberRole } from '@/lib/account-cache';
 
 /** Rolle holen und das Ziel bestimmen – dieselbe Antwort wie Dialog und Route. */
 async function finish(): Promise<string> {
   let role: string | null = null;
   try {
     role = (await api.getMe()).role;
-    localStorage.setItem(ROLE_KEY, role);
+    rememberRole(role);
   } catch {
-    role = localStorage.getItem(ROLE_KEY); // wird beim nächsten Laden nachgeholt
+    role = cachedRole(); // wird beim nächsten Laden nachgeholt
   }
   return loginTarget(role);
 }
@@ -28,13 +27,11 @@ export default function VerifyPage() {
   useEffect(() => {
     async function verify() {
       try {
-        const result = await completeMagicLink();
-        if (!result) {
+        const user = await completeMagicLink();
+        if (!user) {
           goTo('/login');
           return;
         }
-        api.setToken(result.token);
-        localStorage.setItem('inexxio_token', result.token);
         const target = await finish();
         setStatus('success');
         setTimeout(() => goTo(target), 1500);
@@ -56,10 +53,7 @@ export default function VerifyPage() {
     setStatus('loading');
     try {
       localStorage.setItem('emailForSignIn', email);
-      const result = await completeMagicLink();
-      if (result) {
-        api.setToken(result.token);
-        localStorage.setItem('inexxio_token', result.token);
+      if (await completeMagicLink()) {
         const target = await finish();
         setStatus('success');
         setTimeout(() => goTo(target), 1500);
@@ -80,7 +74,7 @@ export default function VerifyPage() {
 
           {status === 'loading' && (
             <>
-              <Loader2 style={{ width: 36, height: 36, color: 'var(--inexxio-red)', margin: '0 auto 16px', animation: 'ix-spin 0.7s linear infinite' }} />
+              <Loader2 className="animate-spin" style={{ width: 36, height: 36, color: 'var(--inexxio-red)', margin: '0 auto 16px' }} />
               <h1 style={vTitle}>Anmeldung wird verarbeitet…</h1>
               <p style={vMuted}>Bitte einen Moment warten.</p>
             </>

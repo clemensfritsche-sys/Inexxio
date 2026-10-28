@@ -128,24 +128,6 @@ _USER_SURFACES = ("components/erp/user-detail.tsx",
                   "components/account/sections/profile-section.tsx")
 
 
-def _unconditional(src: str, title: str) -> str:
-    """Steht dieser ``SubBlock`` **ohne Bedingung** da? Sonst der Grund als Satz.
-
-    ►►► **Gefragt ist die Zeile DAVOR, nicht die danach.** ◄◄◄ Der erste Anlauf schnitt
-    am ``<SubBlock`` und las den Rest – also genau das Stück **hinter** der Bedingung, und
-    liess damit seine eigene Bug-Form durch (gemessen). Ein `{cond && (` steht entweder
-    auf derselben Zeile oder am Ende der vorigen; beide werden geprüft.
-    """
-    line = src.rfind("\n", 0, _at(src, f'title="{title}"')) + 1
-    head = src[line:src.index("\n", line)].strip()
-    before = src[:line].rstrip().rsplit("\n", 1)[-1].strip()
-    if not head.startswith("<SubBlock"):
-        return f"«{title}» steht hinter einer Bedingung: {head[:80]}"
-    if before.endswith(("&& (", "? (", "&&", "?")):
-        return f"«{title}» steht hinter einer Bedingung: {before[-80:]}"
-    return ""
-
-
 def _address_field() -> str:
     return _code(_read(FRONTEND / "components" / "erp" / "address-field.tsx"))
 

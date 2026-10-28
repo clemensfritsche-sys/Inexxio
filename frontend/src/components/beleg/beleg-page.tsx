@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Check, CreditCard, Loader2, X } from 'lucide-react';
-import type { components } from '@/types/api';
+import type { BelegNote as Note, BelegView as View } from '@/types';
 import { api, ApiError } from '@/lib/api';
 import meta from '@/lib/site-meta.json';
 import { PayOnline } from '@/components/erp/pay-online';
@@ -10,8 +10,6 @@ import { Paper, StageWord } from './paper';
 import { Stations } from './stations';
 import css from './beleg.module.css';
 
-type View = components['schemas']['BelegView'];
-type Note = components['schemas']['NoteOut'];
 type Act = 'agree' | 'decline';
 
 /** Nach einer Kartenzahlung: so oft und so lange fragen wir nach, ob sie gebucht ist. */

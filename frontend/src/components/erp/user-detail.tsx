@@ -23,7 +23,7 @@ import { sectionItems, todoChanged } from '@/lib/todo';
 import { Field as AField, SelectField } from '@/components/form/field';
 import { AddressBook } from '@/components/erp/address-book';
 import { CompanyField } from '@/components/erp/company-field';
-import { useMapsApiKey } from '@/components/erp/use-maps-key';
+import { useMapsApiKey } from '@/lib/use-maps-key';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
 import type { NewsletterState, Todo, UserProfile, UserRole } from '@/types';

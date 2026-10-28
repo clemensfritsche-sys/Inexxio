@@ -197,7 +197,6 @@ export default function ErpPage() {
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
-  const [viewerRole, setViewerRole] = useState<'staff' | 'party'>('staff');
   const [plusOpen, setPlusOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(50);
   const plusRef = useRef<HTMLDivElement>(null);
@@ -221,11 +220,13 @@ export default function ErpPage() {
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
         if (me.value.object_id) setMe({ object_id: me.value.object_id, name: userDisplayName(me.value) });
-        setViewerRole(isStaff(me.value.role) ? 'staff' : 'party');
         // Firmen erst laden, wenn die Rolle feststeht – eigene wie fremde sieht jedes
-        // Personal (CRM Schritt 1); der Endpunkt ist Personal-only.
-        if (isStaff(me.value.role)) api.getCompanies().then(setCompanies).catch(tell('Firmen'));
-        if (isStaff(me.value.role)) setStaff(true);
+        // Personal (CRM Schritt 1); der Endpunkt ist Personal-only. Ins ERP kommt ohnehin
+        // nur Personal (`AuthGate staffOnly`) – `staff` sagt, dass die Antwort da ist.
+        if (isStaff(me.value.role)) {
+          setStaff(true);
+          api.getCompanies().then(setCompanies).catch(tell('Firmen'));
+        }
       }
       setLoading(false);
     });
@@ -700,7 +701,7 @@ export default function ErpPage() {
           </div>
 
           {/* FAB — neuen Datensatz anlegen (Menü öffnet nach oben) */}
-          {viewerRole === 'staff' && (
+          {staff && (
             <div ref={plusRef} className="absolute right-5 bottom-5 z-20">
               {plusOpen && (
                 <div className="absolute right-0 bottom-[calc(100%+10px)] bg-bg-1 border border-border-1 rounded-ds-md shadow-ds-lg p-1 min-w-[170px]">

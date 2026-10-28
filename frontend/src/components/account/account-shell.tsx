@@ -15,7 +15,7 @@ import { Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { isStaff } from '@/lib/record-status';
-import { useProfileCompletion } from '@/hooks/useProfileCompletion';
+import { useProfileCompletion } from '@/lib/use-profile-completion';
 import { ProfileSection } from './sections/profile-section';
 import { SecuritySection } from './sections/security-section';
 
@@ -74,7 +74,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   if (isLoading || !profile) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
-        {isLoading && <Loader2 style={{ width: 28, height: 28, color: 'var(--inexxio-red)', animation: 'ix-spin 0.7s linear infinite' }} />}
+        {isLoading && <Loader2 className="animate-spin" style={{ width: 28, height: 28, color: 'var(--inexxio-red)' }} />}
       </div>
     );
   }

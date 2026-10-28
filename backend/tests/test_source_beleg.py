@@ -984,8 +984,10 @@ def test_the_progress_stands_at_the_sections_not_as_a_bar_above_them():
     Schritte sind keiner – sie standen als drei **gleich breite** Segmente da, was schon
     sagte, dass die Breite nichts bedeutet.
 
-    Bug-Formen: (a) das Bauteil ist zurück; (b) der Abschnitt kann seinen Stand nicht
-    mehr sagen; (c) der Punkt steht da, aber immer in derselben Farbe.
+    Heute sagen es die **Stationen** über dem Beleg (`beleg/stages.tsx`); der Abschnitt
+    mit Punkt (`ModuleSection`) hatte zuletzt keine Aufrufstelle mehr und ist entfernt.
+
+    Bug-Form: das Bauteil ist zurück.
     """
     ui = _code(_read(FRONTEND / "components" / "erp" / "module-ui.tsx"))
     for gone in ("function ModuleSteps", "ALL_STEPS", "type ModuleStep "):
@@ -993,16 +995,6 @@ def test_the_progress_stands_at_the_sections_not_as_a_bar_above_them():
             f"«{gone}»: die Stufen-Leiste ist zurück (a) – sie trägt dieselben Wörter wie "
             f"die Abschnitte darunter, nur quer."
         )
-    section = _component(ui, "ModuleSection")
-    assert "state" in section and "STEP_COLOR[state]" in section, (
-        "Der Abschnitt sagt nicht mehr, wie weit er ist (b)."
-    )
-    # (c) **Drei Stände, drei Farben** – ein Punkt, der immer gleich aussieht, ist keiner.
-    tones = re.search(r"STEP_COLOR[^{]*\{([^}]*)\}", ui)
-    assert tones, "Die Zuordnung Stand → Farbe fehlt."
-    assert len(set(re.findall(r"'([^']+)'", tones.group(1)))) == 3, (
-        "Die drei Stände sehen nicht mehr verschieden aus (c)."
-    )
 
 
 def test_the_currency_option_says_its_name_once():

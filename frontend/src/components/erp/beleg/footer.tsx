@@ -20,7 +20,7 @@ type Way = NonNullable<Filled['ways']>[number];
 type Primary = { label: string; icon: LucideIcon; run: () => void; problem?: string | null };
 
 /** Was die Leiste von der Karte braucht. */
-export type FooterProps = {
+type FooterProps = {
   d: Filled; busy: boolean;
   form: Form | null; setForm: (f: Form | null) => void;
   ways: Way[]; way: Way | null; setWay: (key: string) => void;

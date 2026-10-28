@@ -44,7 +44,7 @@ export function subscribe(fn: (list: Notice[]) => void): () => void {
 }
 
 /** Der Grund in einem Satz – die Meldung des Servers, sonst «keine Antwort». */
-export function reasonOf(e: unknown): string {
+function reasonOf(e: unknown): string {
   const msg = e instanceof Error ? e.message.trim() : '';
   return msg || 'keine Antwort vom Server';
 }
