@@ -3,15 +3,12 @@
 > **Verbindlich und systemweit.** Wer ein Prozessschrittmodul baut, hält sich hieran.
 > Was hier nicht steht, ist nicht entschieden — und wird nicht erfunden.
 >
-> Stand: August 2026, nach dem Basis-Neuaufbau (Einzelinstanz-Modell), der Neuanlage des
-> Datensatztyps «Auftrag» und den Entscheiden A1–A6. Die frühere Prozesslogik ist
-> ersatzlos entfernt; nichts davon ist Vorlage.
->
-> **Stand der Umsetzung:** §1–§12 sind **gebaut und im Browser durchgeprüft**. Gebaut sind
-> fünf Prozessschrittmodule: **Datenerfassung** (§9.0–§9.3, §9.5) · **Aussondern** (§9.4) ·
+> Stand: Oktober 2026. Einzelinstanz-Modell, Entscheide A1–A6; §1–§12 sind gebaut. Fünf
+> Prozessschrittmodule: **Datenerfassung** (§9.0–§9.3, §9.5) · **Aussondern** (§9.4) ·
 > **Verbrauch** (§9.6) · **Bewegen** (§9.8) · **Zahlung** (`beleg`, §9.15). Entfernte Module
-> (Ausliefern, Beschaffen, Verkauf, «Zahlung (alt)») stehen in §9.9/§9.9a/§9.12–9.14 nur
-> noch als Vermerk; ihr Wortlaut liegt in `docs/history/`.
+> stehen in §9.9/§9.9a/§9.12–9.14 als Verweis auf `docs/attic.md`. Wie das Prozessbild
+> gezeichnet wird, steht in `docs/prozessbild.md`; wie die Regeln entstanden sind, in
+> `docs/history/`.
 
 ---
 
@@ -36,8 +33,7 @@ geordnete Folge von **Prozessschrittmodulen** — alles, was im Unternehmen geta
                   ( ⚑ )  ENDE       Im Prozess → Freigegeben
 ```
 
-Die einzelnen Module werden **einzeln definiert** und sind hier bewusst nicht
-aufgezählt. Das erste wird die Datenerfassung sein.
+Die Module werden **einzeln definiert** (§9).
 
 ---
 
@@ -117,12 +113,9 @@ Nur die definierten Einzelinstanzen dürfen im Auftrag verarbeitet werden.
 - Kein Ersetzen zur Laufzeit.
 - Ein Verstoss ist ein **harter Fehler** (HTTP 409, benannte Ursache), kein Durchwinken.
 
-Diese Härte ist der Grund, warum das Modell überhaupt neu gebaut wurde. Im
-Vorgängersystem war die Menge eines Auftrags ein bewegliches Ziel: Anteile wurden
-umgehängt, Reservierungen gekürzt, Ausleihen zurückgereicht. Jede dieser Bewegungen
-war eine Stelle, an der zwei Aussagen über dasselbe Stück entstehen konnten. Eine
-Definition, die nach der Freigabe nicht mehr wackelt, macht diese ganze Klasse von
-Fehlern unmöglich — statt sie zu bewachen.
+Eine Definition, die nach der Freigabe nicht mehr wackelt, macht eine ganze Klasse von
+Fehlern unmöglich (zwei Aussagen über dasselbe Stück durch umgehängte Anteile, gekürzte
+Reservierungen) — statt sie zu bewachen.
 
 ---
 
@@ -139,7 +132,7 @@ Fehlern unmöglich — statt sie zu bewachen.
   **harter, sprechender Fehler** — er nennt das Stück und den Auftrag, in dem es aktiv
   ist. Kein stilles Überschreiben, kein Duplizieren.
 - Die Regel wird **auf Datenbankebene** erzwungen, nicht nur in der Anwendungslogik.
-  Sonst hebelt der erste Parallelzugriff sie aus (§10.2).
+  Sonst hebelt der erste Parallelzugriff sie aus (§11.2).
 - **Folge, ausdrücklich gewollt: Reservierung, Anteil und Unterdeckung entfallen
   ersatzlos.** Nichts davon wird gebaut, auch nicht vorbereitend.
 - Solange ein Stück in einem Auftrag steckt, ist es für jeden anderen tabu. **Es gibt
@@ -151,9 +144,11 @@ Fehlern unmöglich — statt sie zu bewachen.
 1. **Normalfall:** Ein Stück wird frei, sobald es **das Ende-Objekt passiert** hat — nicht
    erst, wenn der Auftrag abgeschlossen ist. Der Auftrag ist abgeschlossen, wenn alle
    seine Stücke das Ende passiert haben; das ist eine **Folge**, keine eigene Regel.
-2. **Abbruch:** Jedes Stück, das beim Abbruch noch nicht am Ende ist, wird mit einem
-   **eigenen Log-Eintrag** freigegeben (`Im Prozess → Freigegeben`, Grund: Abbruch). Kein
-   stiller Statuswechsel — ein Abbruch ist ein Ereignis wie jedes andere.
+2. **Ausgang:** ein terminales Modul (§4.6) schliesst die Zugehörigkeit ebenso.
+3. **Abweichung:** ein anderer Auftrag entzieht das Stück (§12). Eine Abbruch-Funktion
+   gibt es nicht: abgebrochen wird ein Auftrag, indem ihm eine Abweichung alle Stücke mit
+   gekappter Rückführung entzieht (`SYSTEM_LOGIC.md` §4.4) – das zwingt dazu, ihr
+   Schicksal zu regeln.
 
 ---
 
@@ -190,16 +185,15 @@ Freigabe verlässlich und nicht von Modelliersorgfalt abhängig.
 
 ### 4.2 Der Endzustand ist EIN Wert an EINER Stelle (A6)
 
-Heute ist der Endzustand **immer** `Freigegeben` — ein Stück ist danach wieder
-verfügbar. Es gibt genau einen Endzustand.
+Der Endzustand ist ein **Wert des Ende-Objekts**, heute für jeden Auftrag `Freigegeben`
+— ein Stück ist danach wieder verfügbar. Er darf **an keiner zweiten Stelle** hart codiert
+werden. Kein UI, keine Auswahl: der Wert existiert, er ist nicht wählbar.
 
-Für später ist offen gehalten, dass das letzte Modul mehrere Endzustände bestimmen
-kann (verkauft, verbaut, ausgesondert …). **Konsequenz für heute:** der Endzustand wird
-als **konfigurierbarer Wert des Ende-Objekts** modelliert, der auf `Freigegeben`
-festgesetzt ist. Er darf **an keiner zweiten Stelle** hart codiert werden — sonst kostet
-die Erweiterung einen Umbau statt einer Änderung.
-
-Kein UI, keine Auswahllogik dafür. Der Wert existiert, er ist nur nicht wählbar.
+**Eine Ausnahme liest das Ende-Objekt selbst, statt sie zu speichern:** ein Stück, das
+einer anderen Partei **gehört**, wird am Ende **`Verkauft`** statt `Freigegeben`
+(`process._finish`). Wem es gehört, ist eine Ableitung aus dem jüngsten nicht stornierten
+Zahlungsmodul, das es passiert hat (`voucher.sold_units`, §9.15). Ein Stück, das in seinen
+Quell-Auftrag zurückkehrt, bleibt `Im Prozess`.
 
 **Der Ort ist `orders.end_status`.** Damit bleibt die Schrittliste rein (§10.1 hält Start
 und Ende bewusst aus ihr heraus) und der Wert hat trotzdem genau eine Adresse. Die
@@ -235,8 +229,8 @@ Etikett geben. Daraus fällt der Unterschied von selbst heraus:
 | `unit`, 12 Stück | 12 | **12** | 12 |
 
 Kein `if`, keine Abfrage nach der Serialisierung im Modul. Ein Bestätigen deckt genau die
-Stücke **einer** Instanz ab; darum ist `confirm_step` seit dieser Runde ein **Teil**-
-Abschluss und gibt zurück, was er bewirkt hat (`{moved, held, result}`).
+Stücke **einer** Instanz ab; `confirm_step` ist darum ein **Teil**-Abschluss und gibt
+zurück, was er bewirkt hat (`{moved, held, result}`).
 
 **Die Tastatur ist die Alternative, nicht die Umgehung.** Wer die Kamera nicht nutzen
 kann, tippt die Nummer — im selben Dialog. Auch das ist eine Bestätigung, und sie wird
@@ -255,14 +249,10 @@ Ergibt eine Erfassung ein negatives Urteil, passiert **dreierlei und nicht mehr*
 2. **Nichts rückt vor** — die Stücke bleiben an diesem Modul stehen, sichtbar mit Grund.
 3. Das System **bietet** den Folgeauftrag an, mit vorgewählten Stücken.
 
-**Es gibt genau EINE Option, und das ist der Abweichungsauftrag** (Testnotiz #713).
-Daneben stand einmal eine «100 %-Kontrolle» über den ungeprüften Rest. Sie war **kein
-zweiter Mechanismus**, sondern derselbe: ein Abweichungsauftrag über die übrigen Stücke
-mit der Stichprobe «alle». Zwei Wege zu demselben Ergebnis sind einer zu viel — und der
-zweite war der schwächere, weil er die Stichprobe der Auflösung stillschweigend festlegte,
-statt sie wählen zu lassen. Entfallen ist sie **ersatzlos**: der Knopf, die Gruppe `rest`
-im Dienst und die im Endpunkt. Wer den Rest behandeln will, legt einen Auftrag an und
-wählt ihn aus — der eine Weg, den es für alles gibt.
+**Es gibt genau EINE Option, und das ist der Abweichungsauftrag.** Auch der ungeprüfte
+Rest wird so behandelt: ein Auftrag über die übrigen Stücke, mit der Stichprobe, die man
+dort wählt — eine eigene «100 %-Kontrolle» daneben wäre ein zweiter Weg zum selben
+Ergebnis.
 
 Es legt ihn **nicht** an. Ein automatischer Entwurf wäre ein Auftrag, den niemand
 bestellt hat — und er zöge Stücke aus dem laufenden Auftrag, ohne dass jemand zugestimmt
@@ -284,17 +274,14 @@ zuletzt ein negatives Urteil?» und sonst nichts. Eine erneute Erfassung ist dam
 möglich, und sie ist der eine Ausweg: das nächste Urteil ersetzt das letzte (§9.2 — was
 erfasst wurde, hängt am Stück, und der Log behält beide).
 
-Das ist keine Nachlässigkeit, sondern die Bedingung dafür, dass der Haltezustand kein
-**toter Punkt** ist. Eine Sperre bräuchte einen Schlüssel; dieser Schlüssel wäre ein
-zweiter Weg neben der Erfassung, und er müsste entscheiden, wer ihn drehen darf. Solange
-das Urteil selbst der Ausweg ist, gibt es diese Frage nicht.
+Eine Sperre bräuchte einen Schlüssel – einen zweiten Weg neben der Erfassung, mit der
+Frage, wer ihn drehen darf. Solange das Urteil selbst der Ausweg ist, gibt es diese Frage
+nicht.
 
 Daraus folgt eine harte Regel für die Oberfläche: **der Haltezustand steht NEBEN dem Weg
-nach vorn, nie an seiner Stelle.** Ein Modul, das bei `held` das Formular und den
-Scan-Knopf durch die Entscheidung ersetzt, erfindet eine Sperre, die es im Dienst nicht
-gibt — und die erfundene Sperre hat keinen Schlüssel, weil der Dienst gar nicht weiss, dass
-er einen ausgeben müsste. Der Auftrag steht dann für immer still, obwohl jeder
-Backend-Aufruf ihn weiterbewegen würde. Wächter:
+nach vorn, nie an seiner Stelle.** Ein Modul, das bei `held` Formular und Scan-Knopf durch
+die Entscheidung ersetzt, erfindet eine Sperre ohne Schlüssel, die es im Dienst nicht gibt.
+Wächter:
 `test_capture_module.test_a_hold_is_never_a_dead_end` und
 `test_source_process.test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it`.
 
@@ -313,15 +300,10 @@ ohne eine einzige Fallunterscheidung im Ablauf:
 | **Es passiert das Ende-Objekt nicht** (`_finish`) | es ist selbst eines |
 | **Eine geplante Rückführung endet** | die Rückkehr hängt am Ende-Objekt – dorthin kommt das Stück nie |
 
-**Warum das eine EIGENSCHAFT ist und keine Regel im Editor.** Es wird nicht dreimal
-aufgeschrieben, sondern einmal deklariert und dreimal gelesen: der Editor blendet aus, die
-Freigabe weist ab, das Bild endet. Der Editor allein wäre eine **Bitte** (eine fehlende
-Schaltfläche hindert keinen API-Aufruf und keine Artikel-Vorlage); die Freigabe allein
-liesse den Menschen modellieren, was nie laufen kann, und meldete es erst am Schluss. Und
-das Bild ist keine Kosmetik: hängte es hinter den Ausgang ein Ende-Objekt, stünden die
-ausgesonderten Stücke auf einer Kante, die niemand gegangen ist – die Invariantenprüfung
-(§10) meldet das zu Recht. Ein neuer Modultyp mit `terminal = True` erbt alle drei
-Wirkungen, ohne eine Zeile dafür.
+**Warum das eine EIGENSCHAFT ist und keine Regel im Editor.** Einmal deklariert, dreimal
+gelesen: der Editor blendet aus, die Freigabe weist ab, das Bild endet. Der Editor allein
+wäre eine **Bitte**, die Freigabe allein meldete es erst am Schluss. Ein neuer Modultyp mit
+`terminal = True` erbt alle drei Wirkungen, ohne eine Zeile dafür.
 
 **Die letzte Zeile ist der Kern und kostet keine Zeile Wartelogik.** Ein Quell-Auftrag
 zählt seine Ausleihen über die **offene** Zugehörigkeit (`waiting_counts`,
@@ -372,10 +354,15 @@ Achsenlisten, Anzeige-Reihenfolge, Gruppierung im Bestand, Farbe, Frontend-Katal
 | `Freigegeben` | Grün | Stück · Artikel | live | Einsatzbereit, in keinem laufenden Auftrag. Anfangs- **und** (heute einziger) regulärer Endzustand. |
 | `Im Prozess` | Orange | Stück · Auftrag | live | Im Prozess genau eines freigegebenen Auftrags. |
 | `Gesperrt` | Orange | Stück | live | Aus dem Verkehr gezogen, **physisch noch da**. Nicht einplanbar, solange die Sperre gilt – **aufhebbar**. |
+| `Verbaut` | Grün | Stück | history | Steckt in einem anderen Stück (§9.6). Nicht endgültig: das Greifen IST der Ausbau. |
+| `Verkauft` | Grün | Stück | history | Gehört einer anderen Partei (§4.2, §9.15). Behält seinen Ort; das Greifen IST die Retoure. |
 | `Verschrottet` | Rot | Stück | history | Aus dem Verkehr gezogen und **physisch weg**. Endgültig. |
 | `Abgeschlossen` | Grün | Auftrag | — | **Den definierten Weg zu Ende gegangen.** |
 | `Abgebrochen` | Rot | Auftrag | — | Ziel nicht mehr erreichbar. |
 | `Inaktiv` | Rot | Artikel | — | Ausser Betrieb: erzeugt nichts Neues. **Abgeleitet** aus `replaced_by_id` (§5.5). |
+
+Dieselbe Liste trägt die Zustände eines **Dokuments** (Freigegeben · Unterschrift angefragt ·
+Abgelehnt · Gelöscht, abgeleitet – `docs/dokumente.md`); sie gehören nicht zum Prozess.
 
 **«Abgeschlossen» heisst nicht «hat das Ende-Objekt passiert».** Ein **Ausgang** (§4.6)
 ist ebenfalls ein Ende: wer dort ausgesondert wird, ist seinen Weg zu Ende gegangen.
@@ -392,9 +379,9 @@ zu stehen:
 
 - **Wählbarkeit** (`is_selectable`) – aus einem Endzustand heraus gibt es nichts mehr zu
   tun, also nimmt ihn kein Auftrag auf (`process.release`, Auswahl-Liste in
-  `routers/orders`). Das war einmal ein eigenes Feld `selectable`; zwei Felder für
-  dieselbe Frage sind zwei Stellen, an denen sie verschieden beantwortet werden kann.
-- die **Farbe** – was endgültig ist, ist rot; was aufhebbar ist, orange.
+  `routers/orders`). Ein eigenes Feld dafür wäre eine zweite Antwort auf dieselbe Frage.
+- **nicht** die Farbe: der Ton sagt «gut · offen · Problem», `terminal` sagt «gibt es einen
+  Weg zurück» – `Verbaut` ist aufhebbar **und** grün (`SYSTEM_LOGIC.md` §1.1).
 - der **Schutz in der Datenbank** – siehe §5.3.
 
 Daraus fällt das **Zurückholen** von selbst heraus: ein gesperrtes Stück nimmt ein ganz
@@ -408,11 +395,9 @@ eigenes Segment (gesperrt) bzw. im Historie-Block (verschrottet), am Stück mit 
 Auftrag und Person aus dem Ereignis-Log.
 
 **Eine fachliche Zuordnung gehört an den Status, nicht in die Ansicht, die sie braucht.**
-«Zählt dieser Zustand zum aktuellen Bestand?» stand einmal als eigene Liste daneben
-(`LIVE_UNIT_STATUSES`) – die Form, die man beim nächsten neuen Zustand vergisst: er wäre
-stillschweigend als Bestand gezählt worden, weil «alles, was ein Stück tragen kann»
-zufällig heute dasselbe ist. Jetzt ist es ein Feld, und sein **Fehlen ist ein Fehler beim
-Start** (`_check`), kein stiller Standardwert. Zur Laufzeit reist die Antwort als
+«Zählt dieser Zustand zum aktuellen Bestand?» ist ein Feld am Status (`stock`), und sein
+**Fehlen ist ein Fehler beim Start** (`_check`), kein stiller Standardwert – eine eigene
+Liste daneben vergässe man beim nächsten neuen Zustand. Zur Laufzeit reist die Antwort als
 `StockState.stock` mit den Daten – die Oberfläche entscheidet nichts und meldet einen
 Zustand ohne Zuordnung, statt ihn zu raten.
 
@@ -424,13 +409,8 @@ Zustand ohne Zuordnung, statt ihn zu raten.
 | `gebunden` | war der Reservierungs-Begriff. **A3 streicht Reservierung ersatzlos** — der Wert wäre vorbereitendes Bauen für etwas, das es nicht geben soll |
 | `verbraucht` | Endzustand. **A6 sagt: heute genau einer** – und das Aussondern (§9.4) hat seine zwei eigenen, weil es sie wirklich braucht |
 
-*`gesperrt` stand hier einmal als «erfunden, weil die Fehlerbehandlung nicht entschieden
-ist». Sie ist es jetzt (§4.5), und das Aussondern-Modul (§9.4) braucht den Wert – er ist
-damit kein Vorrat mehr, sondern die Aussage eines gebauten Vorgangs.*
-
 **Eine frisch angelegte Einzelinstanz ist `Freigegeben`** (`INITIAL_UNIT_STATUS`): sie ist
-einsatzbereit und in keinem Auftrag – genau das heisst das Wort. Der frühere Platzhalter
-`new` aus dem Basis-Neuaufbau ist mit Migration `104` entfallen.
+einsatzbereit und in keinem Auftrag – genau das heisst das Wort.
 
 ### 5.3 Ein Endzustand ist endgültig – und das steht in der Datenbank
 
@@ -447,8 +427,9 @@ Ein Zustand mit `terminal = True` wird **nicht verlassen**. Nicht «soll nicht»
 **Es gibt keine Umgehung.** Kein Parameter, kein Force-Flag, keine Administrator-Ausnahme.
 Wer eine bräuchte, hat kein Sonderrecht, sondern ein Modellproblem: ein Zustand, den man
 doch verlassen können muss, ist schlicht **nicht terminal** – und das ist eine Zeile im
-`CATALOG`. Der Trigger wird aus genau dieser Liste erzeugt und bei **jedem Start**
-nachgezogen (`main._ensure_columns`), damit die Datenbank von ihr nicht abweichen kann.
+`CATALOG`. Der Trigger wird aus genau dieser Liste erzeugt (`statuses.terminal_guard_sql`)
+und bei **jedem Start** nachgezogen (`main.lifespan` → `_sync_database_rules`), damit die
+Datenbank von ihr nicht abweichen kann.
 
 **Und «endgültig» heisst auch: unerreichbar.** Ein Stück in einem terminalen Zustand ist
 für **jede weitere Prozessaktion** aus dem Spiel – kein Abweichungstrigger, keine
@@ -463,19 +444,13 @@ auf:
 | Entwurf (`orders.validate_draft`) | **nicht freigebbar**, und der Grund steht da |
 | Freigabe (`process.release`) | 409 |
 
-Vorher sagte nur die letzte nein – und zwar erst beim Klick. Das ist die unangenehmste
-Form einer Regel: sichtbar erst, wenn man alles getan hat. **`Gesperrt` ist nicht
-terminal** und bleibt greifbar: das Greifen IST das Aufheben (§5.2).
+Eine Regel, die erst beim letzten Klick nein sagt, ist sichtbar erst, wenn man alles getan
+hat. **`Gesperrt` ist nicht terminal** und bleibt greifbar: das Greifen IST das Aufheben
+(§5.2).
 
-**Warum so tief, und nicht im Modul.** Der Schreiber, der wirklich Schaden anrichtet, ist
-nicht der, an den man denkt. Eine Alt-Reparatur im Startvorgang setzte
-`UPDATE instance_units SET status='freigegeben' WHERE status NOT IN ('freigegeben','im_prozess')`
-– eine Liste aus einer Zeit, in der es nur diese beiden Zustände gab. Als `Gesperrt` und
-`Verschrottet` dazukamen, wurde sie still falsch, und seither hat **jeder Start** jedes
-ausgesonderte Stück zurückgesetzt. Über keinen Dienstpfad und in keiner einzelnen Anfrage
-war das nachstellbar; eine Prüfung im Modul hätte nichts genützt. Die Lehre steht in der
-Reparatur selbst: sie nimmt ihre Liste jetzt aus dem `CATALOG` und repariert nur, was er
-**nicht kennt**.
+**Warum so tief, und nicht im Modul.** Der Schreiber, der Schaden anrichtet, ist oft keiner
+der Dienstpfade, sondern ein Skript, eine Migration oder eine Reparatur mit einer
+veralteten Statusliste. Gegen ihn hilft nur die Tabelle selbst.
 
 ### 5.4 Farbe
 
@@ -499,26 +474,14 @@ und dürfen nicht wie welche aussehen.
 
 > ►►► **«Ausser Betrieb» ist keine eigene Angabe — es ist die Folge des Ersetzens.** ◄◄◄
 >
-> «Soll man das Inaktiv-Setzen gänzlich eliminieren und die Inaktivität indirekt über den
-> Ersetzungsartikel steuern?» (Testnotiz #773) — ja. Es gibt genau **eine** Angabe,
-> ``articles.replaced_by_id``, und der Zustand fällt aus ihr heraus (``Article.status`` ist
-> eine **Projektion**, keine Spalte mehr; Migration ``121``).
->
-> **Warum das mehr ist als ein Knopf weniger.** Die Spalte daneben wurde von *zwei* Stellen
-> gesetzt — vom Ersetzen und von einem Schalter — und von ``may_create`` gelesen. Ein von
-> Hand stillgelegter Artikel **ohne** Nachfolger hing damit an genau dem Schalter, der ihn
-> stillgelegt hatte; wer ihn nicht fand, hatte den Artikel verloren. Zwei Angaben über
-> dieselbe Sache sind die Form, in der so etwas entsteht.
+> Es gibt genau **eine** Angabe, ``articles.replaced_by_id``, und der Zustand fällt aus ihr
+> heraus (``Article.status`` ist eine **Projektion**, keine Spalte). Einen Schalter
+> «inaktiv» gibt es nicht: zwei Angaben über dieselbe Sache liessen einen Artikel ohne
+> Nachfolger an einem Schalter hängen, den niemand mehr findet.
 >
 > **Der eine Preis, ausdrücklich abgenommen:** ein abgelöster Artikel erzeugt nichts Neues
-> mehr — auch nicht als **Ersatzteil**. Das war unter dem Zwei-Achsen-Modell möglich
-> (#766) und ist es nicht mehr; wer den Vorgänger weiterbauen will, ersetzt ihn nicht.
-> Bestehende Stücke bleiben unberührt: «ab Lager» ist weiterhin erlaubt.
->
-> Migration ``121`` **heilt die Altdaten**: was von Hand «inaktiv» gesetzt wurde, ohne dass
-> ein Nachfolger es erklärt, wird wieder freigegeben — sonst wäre es für immer stillgelegt.
-> Dieselbe Falle wie beim deaktivierten Benutzer (``118``), und sie ist beim **Wegnehmen**
-> des Schalters zu schliessen, nicht danach.
+> mehr — auch nicht als **Ersatzteil**; wer den Vorgänger weiterbauen will, ersetzt ihn
+> nicht. Bestehende Stücke bleiben unberührt: «ab Lager» ist weiterhin erlaubt.
 
 **Die Wirkung ist eine einzige und steht an einer Stelle** (``articles.may_create``): ein
 Artikel ausser Betrieb **erzeugt nichts Neues**. Alles andere bleibt: bestehende Stücke
@@ -562,9 +525,8 @@ und sagt dabei, welchen er ablöst. Ein Feld am Vorgänger («wer löst mich ab?
 jederzeit änderbar und damit eine zweite Wahrheit über dieselbe Kette.
 
 **Ersetzen nimmt ausser Betrieb** — das ist keine zusätzliche Wirkung, sondern die
-Bedeutung: wer abgelöst ist, erzeugt nichts Neues mehr. Und es ist seit #773 nicht einmal
-mehr eine zweite Zuweisung: der Zustand **ist** die Projektion dieser einen Angabe. Ein
-Vorgang, ein Aufruf, eine Transaktion.
+Bedeutung: wer abgelöst ist, erzeugt nichts Neues mehr. Der Zustand **ist** die Projektion
+dieser einen Angabe. Ein Vorgang, ein Aufruf, eine Transaktion.
 
 Drei Ablehnungen, jede mit ihrem Grund im Satz (``articles.assert_replaceable``):
 
@@ -585,18 +547,9 @@ Stelle, an der die Kette auseinanderläuft.
 #### Darstellung
 
 Reihe (ersetzt / ersetzt durch), «wird verbaut in» und die gemeldeten Lücken stehen als
-**ein schmaler Streifen über der Spezifikation** — drei Zeilen mit Versalien-Mikro-Label,
-Haarlinie, gedämpfte Schrift: nicht zu prominent, aber ohne Klick sichtbar. Im
-**Anlage-Modus** steht an derselben Stelle die Auswahl «Ersetzt Artikel»; es ist dieselbe
-Frage, nur vor statt nach der Freigabe.
-
-Der Streifen **lädt sich selbst** (wie der Erzeugungsprozess und der Bestand daneben) —
-genau **ein** Pfad liefert das Umfeld, das ``GET``-Detail. Es an die Schreibpfade zu
-hängen hiesse, dieselbe Auskunft zweimal zu rechnen und sie trotzdem nur dort zu haben,
-wo zufällig gerade geschrieben wurde.
-
-Wächter: ``tests/test_article_lifecycle.py`` (13 Prüfungen, jede gegen ihre Bug-Form
-gegengeprüft).
+**ein schmaler Streifen über der Spezifikation**; im **Anlage-Modus** steht dort die
+Auswahl «Ersetzt Artikel». Der Streifen lädt sich selbst über das `GET`-Detail – ein Pfad
+liefert das Umfeld. Wächter: ``tests/test_article_lifecycle.py``.
 
 ---
 
@@ -635,10 +588,8 @@ Spezifikation **und** mindestens ein Prozessschrittmodul. Und weil ein Artikel e
 seiner Freigabe entsteht (§2.2), heisst das: bis dahin gibt es **keine Zeile und keine
 Objektnummer**. Kein Autosave, kein Zwischenspeichern, kein Datensatz «Entwurf».
 
-*Vorher war es anders, und das war ein Fehler:* das Formular speicherte, sobald die
-Spezifikation stand. Es entstand ein Artikel mit Objektnummer, der nichts erzeugen
-konnte, weil sein Prozess leer war — ein Datensatz, der eine Zusage macht, die er nicht
-halten kann.
+Ein Artikel mit Objektnummer, aber leerem Prozess wäre ein Datensatz, der eine Zusage
+macht, die er nicht halten kann.
 
 ### 6.3 Was «Freigeben» auslöst — exakte Reihenfolge
 
@@ -676,8 +627,9 @@ Ein Wächter hält die Reihenfolge fest.
 
 Die Prozessstruktur ist **eingefroren**. Nur noch Ausführung, keine Modellierung. Der
 Übergang ist ein bewusster, einmaliger Akt und **nicht umkehrbar**: ein freigegebener
-Prozess wird nicht wieder zum Entwurf. Was nicht mehr passt, wird abgebrochen, nicht
-umgeschrieben.
+Prozess wird nicht wieder zum Entwurf. Was nicht mehr passt, geht in eine Abweichung
+(§12), nicht in eine Änderung.
+
 
 ### 6.5 Definitionen rasten ein (A5)
 
@@ -802,362 +754,19 @@ Die **Definitions-Liste der Einzelinstanzen** ist bewusst **nicht** Teil des Dia
 sondern ein Slot darüber: der Artikel hat keine Einzelinstanzen, und ein Diagramm, das
 sie voraussetzt, wäre dort nicht wiederverwendbar.
 
-### 8.1a′ Das Bild ist ein GRAPH, und der Server liefert ihn
+### 8.1a Das Bild — Zeichenregeln in `docs/prozessbild.md`
 
-Die Oberfläche **layoutet und zeichnet**. Sie leitet nichts ab. Vier Ebenen, strikt
-getrennt — mehr Begriffe gibt es nicht:
-
-| Ebene | | |
-|---|---|---|
-| **1 Graph** | `services/flow.build` | **Knoten**: `start` · `module` · `end` · `fork` · `join`. **Kanten**: Verbindung zwischen genau zwei Knoten. |
-| **2 Position** | `FlowEdge.units` | Wo ein Stück steht — **immer eine Kante**, nie ein Knoten, nie ein Zwischenraum. |
-| **3 Kantenzustand** | `FlowEdge.walked` | Kräftig, wenn laut **Log** mindestens **eine Einzelinstanz diese Kante genommen** hat. Sonst Haarlinie. Kein dritter Wert, nie gesetzt. |
-| **4 Layout/Pfade** | `process-flow.polyPath` | **Ein** Generator zeichnet **jede** Linie – Achse, Ausscherung, Rückführung. |
-
-**Abzweige- und Rückführpunkt sind eigene Knoten.** Fachlich bleibt es *ein*
-Zustandspunkt «vor Modul X» (§12.4, `current_step_id`); im Bild ist es seine Darstellung
-in der Zeit — davor und danach. Erst dadurch lässt sich sagen, wer **geblieben** ist (auf
-dem Bypass `fork → join`) und wer **zurückkam** (auf `join → Modul`). Als ein Knoten
-standen beide an derselben Stelle, und die Zeichnung verschwieg die Runde.
-
-**Der Graph wird aus dem Ereignis-Log abgeleitet, nicht aus dem Zustand.** Ein
-`handover`-Eintrag verschwindet nie: eine Abzweigung, die einmal passiert ist, bleibt im
-Bild, auch wenn das Stück längst zurück und weitergezogen ist. Alle Zähler sind
-Zeilenzahlen im Log und können nur wachsen — daraus folgt «eine einmal kräftige Kante
-wird nie wieder schwach» **von selbst**, statt bewacht zu werden.
-
-**Der Kantenzustand gehört der KANTE, nicht dem Punkt.** Der Hauptstrang ist keine
-durchgehende Linie, sondern eine Folge von Kanten, und jede beantwortet ihre eigene
-Frage. «Hier ist Material angekommen» gilt für die Kante **zum** Abzweigepunkt; ob danach
-noch jemand geradeaus weiterging, ist eine andere. Nimmt eine Abweichung **alle** Stücke
-mit, hat den geraden Weg niemand genommen — er ist dünn, obwohl unmittelbar darüber sehr
-wohl Material stand. Gerechnet wird das als **Bilanz entlang der Achse**: sie beginnt mit
-dem, was am Punkt angekommen ist, jeder Abzweigepunkt zieht seine Ausgescherten ab, jeder
-Rückführpunkt addiert seine Rückkehrer (`flow._branches`). Kein `if` je Kantenart, kein
-Sonderfall «Abweichung nimmt alles» — die Zahl ist grösser als null oder eben nicht.
-Gezählt werden dafür **Einzelinstanzen**, nicht Log-Zeilen: ein Stück kann dieselbe
-Stelle mehrfach verlassen (Abweichung der Abweichung), und die Bilanz ginge sonst nicht
-auf.
-
-**Wer wartet, hat nichts verlassen.** Die Bilanz beginnt mit «wer ist an diesem Punkt
-angekommen» — und dafür muss der Log zwei Dinge auseinanderhalten, die er gleich
-aufschreibt: *Modul passiert* und *Auftrag an diesem Modul verlassen* sind beide ein
-`step`-Eintrag. Unterschieden werden sie allein durch die **Zugehörigkeit**: verlassen
-heisst geschlossene Zeile, warten heisst offene (`flow._exit_points`). Ohne diese
-Bedingung galt jedes wartende Stück als ausgetreten und wurde abgezogen; warteten alle,
-stand die Bilanz auf null und die Achse hinter dem Abzweigepunkt war eine Haarlinie,
-obwohl die Stücke sie gegangen sind und dort stehen.
-
-**Und die Linienstärke wird gegen den LOG geprüft, nicht nur gegen die Positionen**
-(`flow._verify_walked`): *wer ein Modul passiert hat, ist die Kante davor gegangen* —
-ausgenommen, wer erst dort eingetreten ist (`_enter_at_step`; er hat sie nie gesehen).
-Die Invariante «wo etwas steht, ist etwas gewesen» trägt nur so lange, wie noch jemand
-dortsteht; in einem **abgeschlossenen** Auftrag ist jede Zugehörigkeit geschlossen, keine
-Achsenkante hat mehr Mitglieder, und eine falsche Haarlinie fiele durch jedes Netz.
-Zwei Herleitungen derselben Aussage: die Bilanz **muss** rechnen (ein Bypass ist eine
-Differenz), diese hier kann nur zählen — weichen sie ab, steht es da, statt still
-gezeichnet zu werden.
-
-**Eine Kante über die Auftragsgrenze** (`out`/`back`) nennt den Nachbarn als
-`order:<Objektnummer>`. Das Frontend zeichnet sie, wenn **beide Enden im Bild stehen** –
-darum muss keine Seite wissen, welche Spalten gerade sichtbar sind, und beide Richtungen
-stammen aus dem Log dessen, bei dem sie passiert sind.
-
-**Die Nachbarn kommen aus demselben Graph** (`Graph.neighbours` → `OrderResponse.
-deviations`). Es gab die Frage zweimal: die Spalten daneben aus einer eigenen Log-Abfrage,
-die Abzweigungen aus den Kanten. Zwei Ableitungen derselben Sache laufen auseinander, und
-man sieht es erst am Bildschirm — als Abzweigepunkt **ohne** seinen Nachbarn: kein Block,
-keine Linie, nur der Punkt. Ein Nachbar existiert jetzt genau dann, wenn es seine Kante
-gibt. *Der übergeordnete Auftrag bleibt beim Log: im eigenen Graph gibt es ihn nicht, die
-Übernahme steht in **seinem**.*
-
-**Eine Position hat genau eine Adresse: die Kante.** Der Zähler an der Pille und die Liste
-beim Aufklappen fragen **dieselbe** (`FlowEdge.members` → `flow.units_on`,
-`GET …/units?edge=…`). Vorher zählte die Pille aus dem Graph und das Dropdown holte «alle
-Stücke an Schritt X»: an einem Punkt mit Teilung stand «1 Stk» und im Aufklappen zwei
-Nummern. Zwei Fragen an dieselbe Sache laufen auseinander, sobald die Sache feiner wird.
-
-**Invarianten** (`tests/test_flow_graph.py`, gegen echtes PostgreSQL): jede Einzelinstanz
-hat genau eine Position · die Summe der Positionen ist die Stückzahl des Auftrags · Zähler
-und Aufklappen fragen dieselbe Position · jede Kante hat genau einen Zustand · eine
-kräftige Kante bleibt kräftig · jeder Pfad stammt aus dem einen Generator · keine zwei
-Kanten teilen sich einen Kanal · keine Kante überlagert einen Knoten-Container. Verletzt
-heisst **sichtbar kaputt**: `FlowGraph.problems` wird als rote Notiz gerendert, statt eine
-falsche Zeichnung anzubieten.
-
-### 8.1a″ Wie eine Linie geführt wird — Ports, Kanäle, ein Layer
-
-Die drei Regeln sind aus etablierten Diagramm-Werkzeugen übernommen, nicht erfunden. Sie
-sind der Grund, warum «mehrere Abweichungen» kein neuer Fall mehr ist.
-
-**1 · Ports statt Flächen** (React Flow nennt sie *Handles*, bpmn-js *docking points*,
-Miro schlicht Ankerpunkte). Eine Linie beginnt und endet an einem **Punkt auf dem Rand**
-eines Knotens (`process-flow.port`), nie irgendwo auf ihm und nie dahinter. Damit kennt
-sie seine Fläche gar nicht mehr und kann nicht in ihn hineinragen – bei jeder Modulhöhe,
-jedem Umbruch, jedem Auf- und Zuklappen, jeder Rahmenbreite. Eine **Querverbindung dockt
-an der Spalte an**, nicht an einem Knoten darin: oben an deren erster, unten an deren
-letzter Zeile. Am `end`-Objekt anzudocken war der Grund, warum die Rückführung senkrecht
-durch alles lief, was darunter noch stand.
-
-**2 · Kanäle statt einer Gasse** (ELK nennt sie *tracks* im *layer pipe*). Die Spurlücke
-ist ein **Bündel**: jede Abzweigung bekommt ihre eigene senkrechte Spur. Zwei Spannen, die
-sich überschneiden, bekommen verschiedene Spuren – das ist eine Färbung des
-Intervall-Graphen, und für Intervalle ist **gierig nach Anfang sortiert optimal**
-(`process-flow.channels`). Gerechnet wird auf **Zeilennummern**, nicht auf gemessenen
-Pixeln: die Zuteilung steht fest, bevor irgendetwas gemessen ist, und die Lücke richtet
-sich danach (`gutterFor`) statt umgekehrt. Deterministisch, nicht «meistens passt es».
-Und Nachbarn, deren Spannen sich überschneiden, stehen **untereinander** in einem Band:
-im selben Rasterfeld lägen zwei Rasterelemente sonst aufeinander.
-
-**3 · Ein Linien-Layer, der nichts beschneidet.** Ein einziges SVG über der ganzen
-Prozessfläche, `overflow: visible`, gehört keiner Spalte. Platz wird im **Layout** gemacht
-(`paddingTop`/`paddingBottom` des Rasters), nicht mit einem Versatz an der Linie und nicht
-mit z-index. Ein Zug, der einen Pixel über die gemessene Rahmenhöhe hinausliefe, fehlte
-sonst still – und still fehlend ist genau das, was ein Prozessbild nicht darf.
-
-**Der Zug beginnt IM Punkt.** Eine Ausscherung startet **auf** dem Abzweigepunkt und
-knickt `BEND` daneben; weil ein **Endstück ganz im Bogen aufgehen darf** (die Halbierung
-in `polyPath` gibt es nur zwischen zwei benachbarten Ecken), ist der Punkt zugleich der
-Anfang des Bogens. Vorher lag davor noch ein gerades Stück auf der Achse – sichtbar als
-überstehendes Endchen, das die Hauptlinie überlagerte.
-
-**Die Krümmung ist die Richtung.** Der Fluss läuft von oben nach unten, und das Stück,
-mit dem eine Querlinie die Achse berührt, wird **immer stromabwärts durchlaufen**:
-
-| | | |
-|---|---|---|
-| **hinaus** | der Punkt ist der **Anfang** | ab ihm hinunter, dann weg → die Kurve **schert aus** |
-| **herein** | der Punkt ist das **Ende** | über ihm herein, dann hinunter → die Kurve **mündet ein** |
-
-Damit sind Zuführung und Rückführung **allein an der Krümmung** zu unterscheiden – ohne
-Farbe, ohne Pfeil, ohne Beschriftung; im Abweichungsauftrag spiegelverkehrt und nach
-derselben Regel. Nach der **Lage des Ziels** zu entscheiden liegt nahe (die Linie ginge
-dann «zur richtigen Seite hinaus»), kehrt die Aussage aber um: beide wären gleich
-gekrümmt, und der Rückführpunkt sähe aus wie ein Abzweigepunkt.
-
-**Der senkrechte Takt ist eine Ableitung des Radius** (`process-flow.FLOW_GAP` =
-`2·BEND`), und er gilt im Raster **wie** in der Spalte. Zwischen einem Abzweigepunkt und
-*seinem* Rückführpunkt liegen **zwei Waagrechte** — hinaus bei `fork + BEND`, herein bei
-`join − BEND`. Übrig bleibt `FLOW_GAP + POINT − 2·BEND`, und genau das muss so viel sein,
-dass zwei Linien als zwei zu lesen sind:
-
-```
-FLOW_GAP + POINT − 2·BEND  =  POINT      ⟹  FLOW_GAP = 2 · BEND
-```
-
-Der frühere Takt (`2·BEND − 8`) liess davon **einen** Pixel: rechnerisch
-überschneidungsfrei, im Bild eine einzige Linie (gemessen: 1,6 px Abstand über 172 px
-gemeinsame Länge). Sichtbar wurde es dort, wo nichts die beiden Punkte auseinanderzieht —
-in der schmalen Nachbarspalte, nicht in der Mitte. Zwei Rhythmen hiessen darum: in einer
-der beiden Ansichten stimmt es, in der anderen nicht.
-
-**Die Querverbindung ist EINE Waagrechte.** Der Nachbar trägt oben und unten denselben
-Streifen Luft (`NEIGHBOUR_PAD` = `LEAD + BEND + 8`), und der **Rückführpunkt sitzt am
-Ende seiner Zeile** – dort, wo der Nachbar aufhört. Damit liegen Ein- und Auslauf auf
-einer Höhe und der Versatz in der Rückführung fällt weg (`polyPath.straighten` begradigt
-den Rest). *Nicht überall möglich:* der **übergeordnete** Auftrag steht über alle Zeilen
-gespannt, seine Punkte liegen dort, wo sein eigener Prozess sie hinlegt – zwei
-unabhängige Abläufe lassen sich nicht auf eine Zeile ausrichten, ohne einen davon zu
-verbiegen. Dort bleibt der Weg über den Kanal.
-
-### 8.1a‴ Kreuzungsfreiheit — sie entsteht im Graph, nicht beim Zeichnen
-
-Das Bild ist ein **Raupengraph**: eine Achse mit Anhängseln. Ein solcher Graph ist genau
-dann kreuzungsfrei zeichenbar, wenn die Ansatz-**Intervalle** der Anhängsel einander
-nicht überschneiden. Und weil ein Stück immer an den Punkt zurückkehrt, an dem es
-ausgeschert ist (§12.4), ist jedes Intervall das eines **einzelnen** Zustandspunkts.
-
-Daraus folgt die eine Regel: **je Nachbar ein eigenes Paar `fork`/`join`**, hintereinander
-auf der Achse —
-
-```
-… → fork₁ → join₁ → fork₂ → join₂ → [ Modul ]
-      └──►A──┘         └──►B──┘
-```
-
-— statt eines gemeinsamen Paares für alle. Mit **einem** Rückführpunkt liegt er unter dem
-letzten Nachbarn, und der Rückweg des ersten muss an allen folgenden vorbei, quer durch
-deren Hinwege: das war das Bild, das bei zwei Abweichungen «zu wirr» wurde. Mit eigenen
-Paaren sind die Intervalle **disjunkt**, jeder Nachbar steht in den Zeilen seines eigenen
-Punktes, jede Verbindung ist eine **kurze Waagrechte** – und eine Kreuzung ist damit nicht
-vermieden, sondern **unmöglich**. Das skaliert linear: drei, vier, fünf Abweichungen sind
-drei, vier, fünf Paare; geschachtelte sind gar kein Fall, weil ein Enkel im Bild des
-Kindes steht, nicht in dem des Auftrags.
-
-Die **Reihenfolge** ist chronologisch (aufsteigende Objektnummer): gleiche Daten, gleiches
-Bild. Wer geblieben ist, steht auf dem Bypass der **ersten noch offenen** Abzweigung –
-einer, nicht mehreren: eine Position ist eine Kante.
-
-Invariante: `tests/test_flow_graph.py: test_branches_at_one_point_get_their_own_pair_and_never_overlap`
-prüft die paarweise Disjunktheit am echten Knotenverlauf.
-
-### 8.1a Das Liniensystem — zwei Stärken, sonst nichts
-
-Eine Prozesslinie trägt genau **eine** Aussage, und die hat zwei Werte:
-
-| | |
-|---|---|
-| **gegangen** | kräftig — **mindestens eine Einzelinstanz hat genau diese Kante genommen** |
-| **ausstehend** | Haarlinie — hier ist noch keine gegangen |
-
-Keine dritte Farbe, kein zweiter Linientyp, keine Strichmuster. Eine **Ausscherung** in
-einen Nebenauftrag ist keine andere Art Linie, sondern derselbe Strang, der abzweigt —
-sie folgt darum derselben Regel. Ob ein Stück zurückkehrt, sagt **ob es die Linie gibt**:
-eine gekappte Ausleihe hat keinen Rückweg, und das Fehlen ist die Aussage.
-
-**Die Linie sagt die Vergangenheit, die Pille die Gegenwart.** Das ist die Arbeitsteilung
-zwischen beiden, und sie ist keine Konvention, sondern folgt aus ihren Quellen: ``walked``
-kommt aus dem Log (monoton, verschwindet nie), ``units[].status`` ist der **heutige**
-Zustand des Stücks. Eine Abzweigung bleibt darum für immer im Bild, aber das Wort daneben
-wechselt: solange das Stück in einem anderen Prozess steht, heisst es «In Abweichung»;
-danach «Abgegeben» (gekappt) bzw. es verschwindet (zurückgekehrt — dann steht es wieder
-auf der Achse). Eine Zustandsanzeige in der Gegenwartsform, die Vergangenes behauptet,
-ist ein Fehler, auch wenn sie einmal richtig war.
-
-**«Gegenwart» heisst: die Gegenwart DIESES Auftrags — und die endet mit ihm.** Das ist die
-Präzisierung, ohne die der Satz oben in sein Gegenteil kippt. Eine Kante der **Achse**
-(`at is None` bei einer geschlossenen Zeile) sagt «hier hat der Auftrag das Stück
-abgegeben»; was ein **anderer** Auftrag danach damit tat, ist nicht seine Geschichte.
-Die Pille liest dort darum den Status aus dem **Log** — den letzten `status_after`, den
-dieser Auftrag selbst geschrieben hat (`flow._left_with`). Auf einer **Ausscherung**
-(`at` gesetzt) gilt weiterhin der heutige Zustand: dort IST der Verbleib die Aussage —
-«In Abweichung» ↔ «Abgegeben» ist genau die Frage, ob das Stück noch woanders steht.
-
-Vier Fälle, eine Tabelle, keine Sonderregel:
-
-| Zeile | `at` | Pille |
-|---|---|---|
-| offen (Stück steht hier) | – | heutiger Status |
-| geschlossen, **Achse** | `NULL` | Status aus dem Log — eingefroren |
-| geschlossen, **Ausscherung** | gesetzt | heutiger Status |
-| offen, Ausscherung | gesetzt | heutiger Status |
-
-Ohne die zweite Zeile zeigte ein längst abgeschlossener Auftrag Ereignisse, die nie zu ihm
-gehörten: verschrottet ein Folgeauftrag eines seiner Stücke, stand plötzlich «eines im
-Prozess, eines verschrottet» in einem Bild, in dem nichts ausgesondert wurde. Der Fehler
-sieht aus, als käme er aus dem Nichts — er kommt daraus, dass eine Ansicht der
-Vergangenheit eine Grösse las, die sich weiterbewegt. Wächter:
-`test_flow_graph.test_a_finished_order_does_not_retell_what_happened_elsewhere`.
-
-**Herkunft und Verbleib sind Äste desselben Strangs** (§6). Über dem Start und unter dem
-Ende steht, aus welchen Aufträgen die Einzelinstanzen kamen und wohin sie gingen — nicht
-als Textzeile neben dem Bild, sondern als **Verzweigung**: jeder Nachbar fällt auf eine
-gemeinsame Waagrechte und läuft von dort in das Start- bzw. aus dem Ende-Objekt. Ein
-**Bus**, kein Bündel: die Äste treffen sich auf einer Linie und teilen sich danach den
-Weg, wie in jedem Stammbaum — das ist die Zusammenführung selbst und darum keine
-Überlagerung im Sinne von §8.1a″. Möglich ist es nur, weil die Zeile **nicht umbricht**
-(sonst fiele ein Ast der oberen Reihe durch die untere) und weil sie **gekappt** ist
-(`JOURNEY_LIMIT`, der Rest gezählt).
-
-**Gruppiert nach Nachbar, nicht je Stück** — eine Verzweigung mit Anzahl. Bei drei
-Instanzen sieht man dasselbe wie bei 5000; wer die Nummern braucht, öffnet den Nachbarn,
-und dort ist er die Mitte. **Zwei Ebenen, mehr nicht**: Rekursion im Bild wäre Tiefe ohne
-Grenze. Die eine Herkunft, die nicht im Log steht, ist die **Entstehung** — ein
-Erzeugungsauftrag hat keinen Vorgänger, seine Stücke entstehen bei der Freigabe; sie
-stehen als eigener Ast «N× ⟨Artikel⟩». Beide zusammen decken **jedes** Stück ab (gegen
-echtes PostgreSQL gemessen: Erzeugung · Lagerzugriff · zwei Vorgänger · Abweichung), und
-genau darum ist der frühere Definitions-Container entfallen: er sagte ein zweites Mal,
-was am Baum steht.
-
-**Auch im Entwurf, und dort mit dem echten Ziel** (§5 + §8.1c): sobald die Auswahl einem
-laufenden Auftrag ein Stück abnimmt, steht **er** in der linken Spur — mit dem
-Abzweigepunkt, der entstünde, und der Rückführung, wenn zurückgeführt wird.
-
-**Der Schalter steht auf der Linie, die er schaltet**: eine Pille unter dem Ende-Objekt,
-also an der **letzten Zeile der Spalte** — genau dort dockt die Rückführungslinie an
-(§8.1a″), sie geht von ihm ab. Er **bleibt**, wenn die Linie geht (sonst wäre die
-Entscheidung einmalig statt änderbar), und trägt seinen Zustand im Wort («kehrt zurück» ↔
-«bleibt hier»), nicht im Strichmuster.
-
-Drei Anläufe stehen dahinter, und der Unterschied ist jedes Mal, *wo* die Entscheidung
-sitzt: **neben der Stückauswahl** (die Aussage stand woanders als ihre Wirkung) · als
-**Ersatz-Knoten mit eigener Linie** (zwei Rückweg-Linien für **eine** Entscheidung, und
-die zweite war die erfundene) · als **Klick auf die ganze Nachbarspalte** (kein
-Bedienelement, sondern eine Fläche ohne Aufforderung — man sieht ihr nicht an, dass sie
-etwas tut, und trifft sie versehentlich).
-
-**Kräftig läuft die Linie bis in das Modul, das jetzt dran ist.** «Vor Modul X stehen»
-(`current_step_id`) und «X ist dran» (`active_step_id`) sind **dieselbe** Tatsache – der
-Server sagt beides über denselben Zustand, und zwischen dem Zustandspunkt und dem Modul
-liegt kein Prozessobjekt. Der Abstand dazwischen ist Layout (die Zeile macht Platz für
-einen Nebenauftrag), kein Weg. Ein aktives Modul, zu dem eine Haarlinie führt, sähe aus,
-als wäre es nicht erreicht.
-
-Geometrie, verbindlich:
-
-- Start- und Ende-Objekte werden **senkrecht** betreten und verlassen.
-- Ecken sind gerundet, und der Radius entsteht an **einer** Stelle (`polyPath`).
-- Eine Ausscherung geht von der **Achse** ab, nicht vom Rand der Spur. Ein Zustandsknoten
-  ist so breit wie seine Spur; nähme man seinen rechten Rand, begänne die Linie weit
-  neben der Prozesslinie und hinge sichtbar an nichts.
-- Querlinien laufen in der **Spurlücke**, nie unter einer Karte hindurch: eine gezeichnete
-  Linie, die ein Knoten verdeckt, ist eine Linie, die es für den Betrachter nicht gibt.
-  Wie das erzwungen wird, steht in §8.1a″ — Ports, Kanäle, ein Layer.
-- **Seitwärts scrollen ist verboten**, ausser es ist ausdrücklich gewollt. Gescrollt wird
-  senkrecht. Insbesondere darf **nichts Unsichtbares die Breite bestimmen**: ein absolut
-  positioniertes Kind (etwa ein Hover-Tooltip) zählt zur *scrollable overflow area*
-  seiner Vorfahren – auch bei `opacity: 0`.
-
-### 8.1b Drei Spuren — und warum der Nebenauftrag in einer Zeile steht
-
-Der Auftrag steht in der Mitte, der übergeordnete links, die Abweichungen rechts. Das
-Ganze ist **ein** Raster mit **einer Zeile je Knoten der Mitte**; ein Nebenauftrag steht
-in der Zeile seines Zustandspunkts.
-
-Das ist keine Layout-Laune, sondern die Bedingung dafür, dass die Verbindung kurz bleibt:
-die Zeile wächst auf die Höhe des Nebenauftrags, und damit wächst **die Hauptachse an
-genau dieser Stelle mit**. Übrig bleibt das Bild, das die Sache ohnehin ist — Teilung,
-zwei parallele Wege, Zusammenfluss. Stehen die Spalten unabhängig nebeneinander, liegt der
-Start des Nebenauftrags irgendwo, und die Linie muss quer über das halbe Bild.
-
-**Der übergeordnete Auftrag ist davon ausgenommen** (er spannt über alle Zeilen): er ist
-vorher gelaufen und gehört nicht in den Takt dieser Achse. Eine eigene Zeile über dem Bild
-schöbe den eigenen Prozess um seine ganze Höhe nach unten — und der ist das, was man sehen
-will.
-
-**Ein Nachbar ist sein Prozess — sonst nichts.** Keine Kopfkarte mit Art, Nummer, Status
-und Stückzahl: dass es eine Abweichung ist, sagt die Abzweigung; wie weit sie ist, sagt
-ihre Linie; wie viele Stücke unterwegs sind, sagen die Pillen an den Zustandspunkten.
-Geblieben ist, was das Bild nicht kann — **hinführen**: ein Klick auf die Spalte öffnet den
-Auftrag, der Rest steht im Hover. Dasselbe gilt für die Sperre eines Moduls: ein Symbol und
-eine tote Eingabe, kein Absatz.
-
-**Die Spurmasse stehen an genau einer Stelle** (`process-flow.LANE`). Entschieden wird
-nach **effektiver CSS-Breite** des gemessenen Rahmens, nicht nach der Panel-Auflösung und
-nicht per Media-Query: ein 13,3″-Notebook mit 2560 × 1600 Pixeln liefert dem Browser
-1440 CSS-Pixel. Reicht die Breite nicht, stehen die Nachbarn untereinander — dieselben
-Spalten, nur ohne Querlinien.
-
-### 8.1c Der Entwurf ist dasselbe Bild, nur früher
-
-Ein Entwurf, der einem laufenden Auftrag ein Stück abnimmt, zeigt ihn **schon vor der
-Freigabe** in der linken Spur — mit dem Abzweigepunkt, der entstünde, und (falls
-zurückgeführt wird) dem Rückführpunkt.
-
-**Es gibt genau einen Rahmen** (`ProcessColumns`). Was in der Mitte steht, sagt der
-Aufrufer: der laufende Auftrag seinen Server-Graph, der Entwurf seine Definition samt
-Modul-Editor. Ein zweites Bauteil für «Bild mit Nachbarn» neben «Bild ohne Nachbarn» wäre
-die zweite Darstellung derselben Sache — genau der Schnitt, den §8.1 verbietet. Ohne
-Nachbarn ist das Bild schlicht die Spalte, und dann trägt sie ihr eigenes Mass.
-
-**Die Vorschau ist keine zweite Wahrheit.** Sie kommt aus derselben Ableitung wie das
-echte Bild — `flow.build(db, row, planned=[…])`, wobei `Planned` nur sagt, *an welchem
-Zustandspunkt* eine Abzweigung *entstünde* und *ob* sie zurückführt. Nichts Geplantes ist
-je **gegangen**: es gibt keine Log-Zeile dafür, also bleibt jede geplante Kante Haarlinie.
-Geprüft wird die Gleichheit selbst — Vorschau vor der Freigabe gegen den echten Graph
-danach, bis auf die Objektnummer und `walked` (`test_the_draft_shows_the_source_order_
-exactly_as_it_will_be`, gegen echtes PostgreSQL).
-
-**Der Entwurf hat eine Adresse, keine Objektnummer** (§6.1). Die Vorschau nennt ihn als
-Ziel ihrer Abzweigung; dafür teilen sich beide Seiten `DRAFT_OBJECT_ID` (0 — der
-Nummernkreis beginnt bei 100'000'001, eine Kollision ist unmöglich). Läuft der Wert
-auseinander, fände die Linie ihr Ende nicht und verschwände **still**; ein Wächter
-vergleicht die beiden Stellen.
-
-**Woher der Zustandspunkt kommt:** aus der Absicht der Auswahl (`UnitPick.from_order`,
-§12.6a) und der offenen Zeile des Quell-Auftrags (`OrderUnit.current_step_id`) — nicht aus
-dem heutigen Aufenthaltsort. Sonst zeigte die Vorschau etwas anderes, als die Freigabe
-täte.
+Wie das Prozessbild entsteht und gezeichnet wird, steht in **`docs/prozessbild.md`**
+(§8.1a′ Graph vom Server · §8.1a″ Ports, Kanäle, ein Linien-Layer · §8.1a‴
+Kreuzungsfreiheit · §8.1a Liniensystem · §8.1b drei Spuren · §8.1c Entwurf · §10.2
+Technologie). Der Kern in drei Sätzen: **der Server liefert einen Graph** (`services/flow.build`,
+Knoten `start · module · end · fork · join`, eine Position ist immer eine Kante),
+abgeleitet aus dem **Ereignis-Log**, nicht aus dem Zustand; **eine Linie ist kräftig, wenn
+laut Log mindestens eine Einzelinstanz diese Kante genommen hat**, sonst Haarlinie, und
+eine einmal kräftige Kante wird nie wieder schwach; **die Oberfläche layoutet und zeichnet**
+(`process-flow.polyPath`, ein Generator für jede Linie) und leitet nichts ab. Verletzte
+Invarianten stehen als `FlowGraph.problems` rot im Bild, statt eine falsche Zeichnung
+anzubieten.
 
 ### 8.2 Artikel-Reiter «Erzeugungsprozess» — die Vorlage
 
@@ -1169,7 +778,8 @@ Neben «Spezifikation» trägt der Artikel den Reiter «Erzeugungsprozess»:
 - **Kein Anstossen von Prozessen, keine Einzelinstanzen, keine Ausführung.** Das ist
   keine bewachte Regel, sondern eine fehlende Tür: die Vorlage liegt in einer eigenen
   Tabelle (`article_process_steps`), und es gibt keinen Endpunkt, der sie ausführt.
-- Sie friert mit der Artikel-Freigabe ein (`status != 'draft'` ⇒ read-only).
+- Sie entsteht mit dem Artikel (ein `POST`, Anlegen = Freigeben) und ist danach nicht
+  mehr änderbar.
 
 **Kopie, nicht Verweis.** Bei der Freigabe eines Erzeugungsauftrags wird die Liste in
 `process_steps` **kopiert** und mit `Article.process_version` gestempelt
@@ -1177,21 +787,20 @@ Neben «Spezifikation» trägt der Artikel den Reiter «Erzeugungsprozess»:
 spätere Artikeländerung laufende Aufträge rückwirkend umschreibt — das widerspricht
 «eingefroren» (§6.4).
 
-*Zum Namen: «Erzeugungsprozess» statt «Prozess», weil er sagt, wofür der Prozess da ist
-— wie ein Stück entsteht — und weil damit Platz bleibt, falls ein Artikel später eine
-zweite Art Vorlage trägt. «Prozess» wäre der Behälter, nicht die Sache.*
 
 ---
 
 ## 9. Die Prozessschrittmodule
 
-Es gibt heute **drei**: die **Datenerfassung** (§9.1–§9.3), das **Aussondern** (§9.4) und
-den **Verbrauch** (§9.6). Das frühere Testmodul war ein Testvehikel für den Mechanismus
-und ist **ersatzlos entfallen** — den Mechanismus gibt es jetzt echt.
+Es gibt heute **fünf**: die **Datenerfassung** (§9.0–§9.3, §9.5), das **Aussondern**
+(§9.4), den **Verbrauch** (§9.6), das **Bewegen** (§9.8) und die **Zahlung** (§9.15). Was
+ein Modultyp ist, steht in `domain/modules.py` (`MODULES`); ausgeführt wird jeder über
+einen Endpunkt (`…/steps/{id}/confirm`, `process.confirm_step`).
 
-**Was alle drei gemeinsam haben, steht nicht bei ihnen**, sondern im Rahmen: der Halt bei
-«nicht bestanden» (§4.5), die Verifikation vor der Eingabe (§4.4), die Stichprobe (§9.3)
-— und das **Protokoll** (§9.7). Ein vierter Modultyp erbt sie ohne eine eigene Zeile.
+**Was alle gemeinsam haben, steht nicht bei ihnen**, sondern im Rahmen: der Halt bei
+«nicht bestanden» (§4.5), die Verifikation vor der Eingabe (§4.4), die Stichprobe (§9.3),
+der Ausgang (§4.6) — und das **Protokoll** (§9.7). Ein neuer Modultyp erbt sie ohne eine
+eigene Zeile.
 
 ### 9.0 Das Modul «Datenerfassung»
 
@@ -1226,10 +835,9 @@ ausgeblendet, und die Regel steht serverseitig (`Photo.missing`).
 welche die gemeinte ist; bei keiner wäre der Punkt ein Vermerk statt eines Belegs. Neu
 aufnehmen geht (das verwirft die alte) — *sammeln* nicht.
 
-*Ein Typ **«Objekt scannen»** hat existiert und ist ersatzlos entfernt (Testnotiz #719).
-Er war zugleich der einzige Nachweis für **Werkzeug und Prüfmittel**; dass es diesen
-Nachweis damit nicht mehr gibt, steht als bewusst offener Punkt in `SYSTEM_LOGIC.md` §5.9
-— nicht stillschweigend gestrichen.*
+*Einen Typ «Objekt scannen» gibt es nicht (`docs/attic.md`); dass es damit keinen
+Nachweis für **Werkzeug und Prüfmittel** gibt, steht als bewusst offener Punkt in
+`SYSTEM_LOGIC.md` §5.9.*
 
 Geschlossen wie die Statuswerte (§5.1) — aber ein Typ ist nicht nur ein Wort, sondern
 **Verhalten**: prüfen, wissen was fehlt, bewerten. Darum ist jeder Typ eine eigene Datei
@@ -1294,11 +902,9 @@ vorhersagbar und damit als Stichprobe wertlos.
 gezogen, läuft ohne Erfassung durch») und ist keine stille Auslassung. Bestätigt wird für
 die gezogenen Stücke; vorgerückt wird die **ganze** Instanz.
 
-**Und die Zahl der SCANS folgt der Ziehung, nicht umgekehrt** (Testnotiz #714). Die
-Reihenfolge stand einmal auf dem Kopf: jede wartende Instanz wurde zum Scan angeboten,
-und erst danach entschied die Ziehung, ob es dort etwas zu erfassen gab. Bei zwei
-Instanzen und 50 % waren das zwei Scans für **eine** Erfassung; der zweite bestätigte
-nichts — er war nur der Weg, das ungezogene Stück weiterzubewegen.
+**Und die Zahl der SCANS folgt der Ziehung, nicht umgekehrt.** Ein Scan für eine Instanz
+ohne gezogenes Stück bestätigte nichts – er wäre nur der Weg, das ungezogene Stück
+weiterzubewegen.
 
 | ergibt sich aus | |
 |---|---|
@@ -1372,9 +978,8 @@ Daraus folgt die Zahl, und zwar aus der **Ziehung**, nie aus der Zahl der Scans:
 | Charge über 6000, Stichprobe ¼ | 1 | **1500** |
 | Einzelserialisierung 3, «alle» | 3 | 3 |
 
-Vorher stand hier **ein** Wertesatz je Bestätigung, kopiert auf jedes gezogene Stück. Das
-war nicht bloss unbequem – es war eine **Behauptung**: zwei Zeilen, gemessen eine. Ein
-Nachweis mit mehr Zeilen als Messungen ist keiner.
+Ein Wertesatz je Bestätigung, kopiert auf jedes gezogene Stück, wäre eine **Behauptung**:
+zwei Zeilen, gemessen eine. Ein Nachweis mit mehr Zeilen als Messungen ist keiner.
 
 **Die Nutzlast ist darum zweistufig**: Nummer der Einzelinstanz → (Punkt → Wert). Der
 Server verlangt **Deckung in beide Richtungen** (`process._captures_for`) – ein Satz für
@@ -1387,12 +992,9 @@ Ergebnis; fällt **eines** durch, bleibt die ganze Instanz stehen (§4.5) – ei
 durchgefallene Stichprobe ist nicht mehr repräsentativ.
 
 **Und das gilt bis in den Log hinein.** Das `capture`-Ereignis (§11.3) trägt je Stück
-sein **eigenes** Ergebnis, nicht das der Bestätigung. Der Unterschied fällt erst auf,
-wenn er zählt: bestanden 4 von 5 Stück und fällt eines durch, ist die Bestätigung als
-Ganzes «nicht bestanden» – schrieb der Log diesen einen Wert auf alle fünf Zeilen, waren
-vier davon **falsch**, und aus dem Nachweis liess sich hinterher nicht mehr lesen, welches
-Stück das schlechte war. Der Halt gehört der Instanz, das Urteil dem Stück; wer beides in
-dasselbe Feld schreibt, verliert das zweite.
+sein **eigenes** Ergebnis, nicht das der Bestätigung: sonst stünde bei 4 von 5 bestanden
+auf allen fünf Zeilen «nicht bestanden», und welches Stück das schlechte war, liesse sich
+nicht mehr lesen. Der Halt gehört der Instanz, das Urteil dem Stück.
 
 **Welche Stücke gezogen sind, kommt erst auf Klick** (`…/steps/{id}/hold?group=sample`) –
 dieselbe Auskunft, aus der auch die Vorauswahl der Entscheidung kommt. Bei 1500 gezogenen
@@ -1452,7 +1054,7 @@ ohnehin festhält, was ein Modul festgehalten hat.
 
 Das ist **kein Ersatzfeld**. Ein `into_instance_id` an der Einzelinstanz wäre eine zweite
 Wahrheit, die bei einer Demontage geleert würde – womit die Vergangenheit des Getriebes
-verschwände. Dieselbe Regel wie im Prozessbild (§8.1a): *eine Ansicht der Vergangenheit
+verschwände. Dieselbe Regel wie im Prozessbild (`docs/prozessbild.md` §8.1a): *eine Ansicht der Vergangenheit
 darf keine bewegliche Grösse lesen.*
 
 **Welche Schraube in welches Getriebe geht, ist keine menschliche Entscheidung** –
@@ -1599,9 +1201,7 @@ wissen.** Das ist die Robustheitsgarantie, konstruktiv statt geprüft.
 
 `instance_units.place_object_id` — die Objektnummer des **Halters**. Kein Typfeld
 daneben: Objektnummern sind systemweit eindeutig, der Typ ist ableitbar
-(`objects.resolve_object_type`). Der Vorgänger führte `location_type` neben
-`location_id` und musste einen entfallenen Wert tolerant zu `None` auflösen, weil er
-sonst jede Ansicht zerlegt hätte. Was es nicht gibt, kann nicht veralten.
+(`objects.resolve_object_type`). Was es nicht gibt, kann nicht veralten.
 
 **Gehalten wird die Einzelinstanz, Halter ist eine Objektnummer.** Diese Asymmetrie ist
 kein Kompromiss, sondern die einzig mögliche Aussage: eine Einzelinstanz zieht bewusst
@@ -1650,9 +1250,8 @@ Die Regel hängt am **Status** und steht an der einen Stelle, an der ein Status 
 wird. Wer einen *neuen* Ort hat, setzt ihn im selben Zug — der Verbrauch seinen Träger.
 
 **Der Ort hängt am Stück, nicht an der Gruppe.** Zwei Schrauben derselben Charge dürfen an
-zwei Orten liegen. Genau das konnte der Vorgänger nicht: er führte eine Standort→Menge-Map
-an der Instanz **plus** einen denormalisierten Skalar daneben, mit einem Umschalter
-dazwischen. Im Einzelinstanz-Modell fällt das ersatzlos weg — ein Stück, ein Ort.
+zwei Orten liegen — ein Stück, ein Ort; eine Standort→Menge-Map an der Instanz gibt es
+nicht.
 
 **`NULL` ist ein regulärer Zustand**, kein fehlender Wert: ein frisch erzeugtes Stück liegt
 nirgends, bis ein Modul es irgendwohin bringt.
@@ -1683,9 +1282,8 @@ erfindet keine Antwort, wo es keine gibt.
 
 **Aufgelöst wird je Halter, nie je Stück** (`places.chains_for`, stufenweise in Batches).
 Sechzig Schrauben in einem Regal sind **eine** Kette; je Zeile aufzulösen wären es sechzig
-mal Kettentiefe — die N+1-Falle, an der die Ortsanzeige des Vorgängers hing. Gemessen
-statt behauptet: `test_move_module.test_the_chain_is_resolved_per_holder_not_per_piece`
-zählt die Abfragen (11 statt 660).
+mal Kettentiefe. Wächter: `test_move_module.test_the_chain_is_resolved_per_holder_not_per_piece`
+zählt die Abfragen.
 
 **Die Kette ist Dekoration, nie der Datensatz.** Scheitert ihre Auflösung (Altdaten,
 gelöschter Halter), kostet das die Kette — die Ansicht bleibt lesbar.
@@ -1713,798 +1311,168 @@ Kein neuer Mechanismus: die Scan-Sequenz ist genau dafür gebaut, und der Ziel-S
 einer mehr in derselben Liste. Der **Sammel-Scan** quittiert das Ziel **einmal** — eine
 Fuhre geht an einen Ort; wer verschiedene Ziele hat, bestätigt einzeln.
 
-#### Selbst gebracht oder eingekauft — der Beleg ist ENTFALLEN
+#### Eine Spedition ist ein Einkauf
 
-Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft**. Das
-Bewegen-Modul trug dafür einmal denselben Einkaufs-Beleg wie das Beschaffen-Modul
-(`Module.buys = BUY_IF_CHOSEN`), samt Schalter «Selbst ↔ Beschaffen» an der
-Ausführungsstelle. Die Einsicht dahinter war richtig — *eine Sendung aufzugeben IST ein
-Einkauf*: der Spediteur ist ein Lieferant, der Tarifvergleich ist der Angebotsspiegel.
+Wer eine Spedition beauftragt, legt ein Zahlungs-Modul (Ausgabe, §9.15) daneben; das
+Bewegen-Modul weiss davon nichts – es bewegt. *Paket* und *Fracht* sind keine
+Transportarten, sondern zwei Angebote desselben Einkaufs. Der frühere Einkaufs-Beleg am
+Bewegen-Modul ist entfallen (`docs/attic.md`, «Die Handels-Module»).
 
-**Mit den Handels-Modulen ist der Beleg gegangen** (§9.9a), und der Schalter mit ihm. Was
-bleibt, ist die richtigere Form derselben Aussage: wer eine Spedition beauftragt, legt
-einen **Geldvorgang** daneben (§9.12) — dieselbe Maschine, ohne die Bindung an Ware, und
-mit demselben Angebotsspiegel. Das Bewegen-Modul selbst weiss davon nichts mehr; es
-bewegt.
+### 9.9 «Ausliefern» — entfernt
 
-**Die frühere Liste `manuell · paket · fracht` bleibt ebenso entfallen** — *Paket* und
-*Fracht* sind keine zwei Arten, sondern zwei **Angebote** desselben Einkaufs; das
-entscheidet der Tarif, nicht der Modellierer. Ein Roboter, der es fährt, ist «selbst»:
-unser Gerät, keine Rechnung.
+Siehe `docs/attic.md` («Kleinere Entfernungen»). «Gehört jetzt jemand anderem» ist die
+Folge aus Bewegen und Zahlung; `Verkauft` schreibt das Ende-Objekt (§4.2, §9.15).
 
+### 9.9a «Beschaffen» und «Verkauf» — entfernt
 
-### 9.9 Das Modul «Ausliefern» ist ENTFERNT
+Siehe `docs/attic.md` («Die Handels-Module»). Einkauf und Verkauf sind ein Zahlungs-Modul
+(§9.15) neben den Modulen, die das Material bewegen.
 
-> **Status: gelöscht.** Es war das, was vom Verkaufs-Modul übrig blieb, nachdem der Beleg
-> herausgenommen war — ein Scan und ein Statuswechsel auf `Verkauft`, sonst nichts. Eine
-> Runde später ist auch das weg.
+### 9.12–9.14 «Zahlung (alt)» — entfernt
 
-**Der Grund ist derselbe wie beim Beleg: es sagte nichts, was nicht schon dasteht.** Was
-*physisch* geschieht, sagen die Module, die es tun — **«Bewegen»** bringt das Stück zum
-Kunden, **«Zahlung»** (§9.12) regelt das Geld. «Das Stück gehört jetzt jemand anderem»
-ist die **Folge** aus beidem, kein eigener Vorgang. Ein Modul, dessen ganze Aussage eine
-Folge ist, beschreibt nichts; es verlangt nur einen zusätzlichen Scan dafür, dass jemand
-sie aufschreibt.
+Siehe `docs/attic.md`; Wortlaut in `docs/history/2026-09-zahlungsmodul-vorgaenger.md`. Was
+davon weiter gilt, steht in §9.15.
 
-#### Der Status `Verkauft` bleibt — und das ist kein Widerspruch
+### 9.15 Das Modul «Zahlung» — der Beleg
 
-Er hat heute **keinen Schreiber** mehr. Er steht trotzdem im `CATALOG`, und das ist die
-eine Stelle, an der «was nicht gebraucht wird, ist weg» nicht gilt:
+> Schlüssel `beleg`. Fachkern `domain/voucher.py`, Dienst `services/voucher.py` (`VERBS`,
+> `can`, `situation`), Papiere `services/voucher_docs.py` + `services/document.py`,
+> Kundenseite `routers/beleg.py`, Liste `services/payment_list.py`, Karte
+> `components/erp/beleg-work.tsx`. Tabellen `vouchers` · `voucher_lines` · `voucher_quotes`
+> · `voucher_entries` · `voucher_documents`. Entstehung und frühere Fassungen §9.15a–s:
+> `docs/history/2026-10-process-core-9-15-chronik.md`.
 
-> **Der Statuskatalog ist nicht nur die Liste dessen, was ENTSTEHEN kann — er ist das
-> Vokabular, in dem der append-only Ereignis-Log geschrieben ist.**
+**Geld mit einer zweiten Partei, in beide Richtungen EIN Modul.** Einnahme ↔ Ausgabe ist
+eine Einstellung (`Direction`), kein zweiter Modul-Schlüssel; Einkauf, Verkauf, eine
+eingekaufte Spedition, Miete oder Gebühr sind derselbe Vorgang. Der Vorgang hängt am
+**Schritt**, nicht am Auftrag: ein Auftrag kann eine Ausgabe und eine Einnahme tragen, eine
+Anzahlung ist ein zweites Modul.
 
-Jedes Stück, das je ausgeliefert wurde, trägt das Wort in seiner Zeile und in seiner
-Geschichte. `flow._left_with` liest es von dort (§8.1a), die Bestandsleiste gruppiert
-danach (§10.3). Ihn zu streichen machte Vergangenes nicht ungeschehen, sondern
-**unlesbar** — und eine Ansicht meldete einen Zustand, den sie nicht kennt. Dieselbe
-Regel wie bei den Tabellen der entfernten Bereiche.
-
-**Und die Retoure bleibt, was sie war**: ein ganz gewöhnlicher Auftrag, der das Stück
-greift — **das Greifen IST die Rücknahme**. Sie hing nie an diesem Modul.
-
-
-### 9.9a Die Module «Beschaffen» und «Verkauf» sind ENTFERNT
-
-Sie sind nicht abgeschaltet, sondern gelöscht — mit ihrem Beleg, ihren Tabellen und ihren
-Diensten (`domain/procurement`, `domain/money`, `services/purchase`, `services/invoices`,
-`services/payments`, `models/purchase`, `models/invoice`, `models/payment`,
-`components/erp/purchase-work.tsx`).
-
-**Der Grund ist keine Geschmacksfrage, sondern eine Doppelung.** Der Beleg dieser Module
-war Angebot → Zusage → Erfüllung mit Angebotsspiegel, Rechnungen, Zahlungen und Storno.
-Genau das ist der **Geldvorgang** (§9.12) — nur ohne die Bindung an Ware, und damit auch
-für Miete, Lohn, Gebühr, Spesen und eine eingekaufte Spedition brauchbar. Zwei Maschinen
-für dasselbe Geschäft laufen beim ersten neuen Verb auseinander.
-
-**Was an ihre Stelle tritt:**
-
-| war | ist jetzt |
-|---|---|
-| «Beschaffen»: anfragen, bestellen, Wareneingang | ein **Geldvorgang** (Ausgabe) plus die Module, die das Material physisch bewegen |
-| «Verkauf»: anbieten, zusagen, liefern | ein **Geldvorgang** (Einnahme) plus die Module, die das Material physisch bewegen |
-| Einkauf **in** einem Bewegen-Modul (Spedition) | ein Geldvorgang neben dem Bewegen-Modul |
-| Rechnungen und Zahlungen am Beleg | die Geld-Zeilen des Vorgangs (§9.12) |
-
-**Stripe ist geblieben** (`services/stripe_pay`, `docs/stripe-setup.md`): der Webhook
-schreibt eine Geld-Zeile am **Vorgang** statt am Beleg. Das Bedienelement, das mit der
-Beleg-Karte verschwunden war, ist inzwischen wieder da — und zwar als **eigene Bezahlkarte
-im ERP** statt als Zahllink (§9.13).
-
-Die Tabellen `purchases`, `invoices` und `payments` bleiben stehen (Zwei-Deploy-Regel,
-`docs/backlog.md`): eine Spalte, die niemand liest, kostet nichts; ein Tabellen-Drop
-kostet die Vergangenheit.
-
-
-### 9.12–9.14 Der Vorgänger «Zahlung (alt)» ist ENTFERNT — was davon weiter gilt
-
-> **Status: gelöscht** (Testnotiz #960). Die Abschnitte §9.12–§9.14c beschrieben das
-> `deal`-Modul (`domain/deal`, `services/deal`, `deal-work.tsx`); ihr Wortlaut liegt
-> unverändert in `docs/history/2026-09-zahlungsmodul-vorgaenger.md` (Anhang). Gebaut ist
-> heute allein der **Beleg** (§9.15, Schlüssel `beleg`, Beschriftung «Zahlung»).
-
-Diese Entscheidungen entstanden dort und gelten im Beleg unverändert:
-
-- **Geld mit einer zweiten Partei, in beide Richtungen EIN Modul** (Einnahme ↔ Ausgabe als
-  Einstellung, nicht als zweiter Modul-Schlüssel) – und **es bewegt keine Stücke**: ein
-  Durchläufer (`Im Prozess` → `Im Prozess`), darum muss keine andere Regel von ihm wissen.
-- **`can` ist Auskunft UND Tor**: dieselbe Tabelle zeigt die Knöpfe und weist ab.
-- **Ableitung statt Spalte**: *offen*, *fällig*, *überfällig* rechnen sich aus Beträgen und
-  Daten; eine gespeicherte «offen»-Spalte wäre die zweite Wahrheit.
-- **Bezahlt wird BEI UNS** (vormals §9.13): eigene Bezahlkarte im ERP (Payment Element),
-  gebucht wird nur vom Webhook; der Anbieter steht nicht im Geldvorgang
-  (`core/config.payment_service_ready`). Einrichtung: `docs/stripe-setup.md`.
-- **Eine Rechnung je Modul** (vormals §9.14) – seit §9.15q keine Regel mehr, sondern die
-  Struktur: der Beleg IST die Rechnung. Eine Anzahlung ist ein zweites Modul mit eigenen
-  Positionspreisen.
-- **Drei Wege zum Geld** (bar · Überweisung · Karte); die Überweisung ist eine Auskunft
-  (Bankverbindung, RF-Referenz, Swiss QR-Rechnung), keine Buchung (§9.15i).
-- **Die Karte IST der Beleg und wächst** (vormals §9.14c): dieselben Zeilen, ein Zustand
-  weiter – keine zweite Darstellung nach der Zusage.
-
-
-### 9.15 Der Beleg — das Zahlungsmodul, neu aufgebaut
-
-> `docs/history/2026-09-neuaufbau-zahlungsmodul.md` · `domain/voucher` · `services/voucher` ·
-> Tabellen `vouchers` · `voucher_quotes` · `voucher_lines` · `voucher_entries` ·
-> Migration `134`
-
-**Fachlich dasselbe wie §9.12–§9.14**: Geld mit einer zweiten Partei, in beide Richtungen
-dieselbe Maschine, drei Achsen ohne Reihenfolge, `can` als Auskunft **und** Tor, und die
-eine Regel, aus der die Robustheit folgt – **es bewegt keine Stücke.**
-
-**Neu ist die FORM**, an drei Stellen, an denen der Vorgänger die Hälfte seiner Zeilen
-verbraucht hat:
-
-| | Vorgänger (`zahlung`) | Neu (`beleg`) |
-|---|---|---|
-| Angebotsspiegel | JSONB an der Kopfzeile, bei jeder Änderung neu gebaut | eine **Tabelle** |
-| Position | **drei** Formen (abgeleitet · je Angebot kopiert · eingefroren), 21 Fundstellen | **eine** Tabelle; eingefroren durch die **Stufe** |
-| Ein Verb | **vier** Deklarationen (`ACTIONS` · `REQUIRED_FOR`/`_UP_TO` · `HANDLERS` · `party_actions`) | **eine** Zeile in `VERBS` |
-
-**Drei Spalten sind Ableitungen geworden**: *mit wem* · *was vereinbart ist* · *welche
-Zahlungsfrist* stehen an der **gewählten Angebotszeile** (`state = gewaehlt`). Am
-Vorgänger standen sie daneben und wurden beim Zuschlag hineinkopiert – damit konnte
-derselbe Beleg zwei Dinge sagen, und eine eigene Regel musste den Widerspruch verhindern.
-Als Ableitung kann er **nicht entstehen**.
-
-**Ein neues Verb: `price`.** Die Positionen zu bepreisen ist eine eigene Handlung, nicht
-ein Nebeneffekt des Anfragens. Damit gilt die Hausregel «gespeichert, nicht abgeschickt»
-auch für das Herzstück des Belegs: man tippt, es wird gespeichert, und `ask` schickt es
-hinaus.
-
-**Die Positionen gehören dem BELEG, nicht der Angebotszeile.** Ein Beleg hat *einen* Satz
-Positionen mit *einem* Satz Preise – zwei Kunden zwei verschiedene Preise anzubieten sind
-zwei Angebote, also zwei Belege. Beim Vergleich mehrerer Lieferanten (der eigentliche
-Zweck des Spiegels) nennt ohnehin jeder eine **Summe**, und die steht an seiner Zeile.
-
-**Der Vorgang bleibt am SCHRITT**, nicht am Auftrag: ein Auftrag kann eine Einnahme *und*
-eine Ausgabe tragen (wir kaufen Material, wir verkaufen das Produkt) – «ein Vorgang je
-Auftrag» bräuchte sofort die Regel «je Richtung». Und dass eine Anzahlung ein **zweites
-Modul** ist, bleibt richtig: drei Zeitpunkte sind drei Punkte im Prozess (§9.14).
-
-►►► **Und der Vorgänger ist gelöscht** (Testnotiz #960). ◄◄◄ *«Dieses Prozessschrittmodul
-kann vollständig und gänzlich aus dem Code eliminiert werden wie bereits geplant.»* – Es
-war ein **Löschen**, kein Umbau, und genau dafür wurde dieses Modul **neben** ihn gebaut
-statt in ihn hinein: gefallen sind `domain/deal` · `services/deal` · `schemas/deal` ·
-`models/deal` · `deal-work.tsx`, der Modul-Eintrag, fünf Endpunkte, fünf API-Methoden und
-54 Wächter, die seine Form prüften. **Hier keine Zeile.** Die befristete Doppelung des
-Steuerkatalogs ist damit aufgelöst, und es gibt wieder genau eine Fassung.
-
-*Die Tabellen `deals`/`deal_entries` bleiben stehen* – dieselbe Regel wie bei jeder
-Alt-Tabelle: eine Spalte, die niemand liest, kostet nichts; ein Tabellen-Drop kostet die
-Vergangenheit und verlangt vorher eine Sicherung der produktiven Datenbank
-(`docs/backlog.md`).
-
-#### 9.15a Was auf dem Beleg steht, ist Pflicht
-
-> Testnotiz #964 · `voucher._assert_complete` · `.ix-editable.is-missing`
-
-*«Alle Eingabefelder hier in diesem Modul – also alles, was so leicht blau hinterlegt ist –
-sollen Muss-Felder sein.»* «Leicht blau hinterlegt» **ist** die Auszeichnung änderbarer
-Werte (§9.15, `.ix-editable`), also gilt die Regel jedem Wert, den der Beleg trägt: Preis
-und Steuersatz je Position, die beiden **Zoll**-Angaben, die beiden **Fristen** und die
-**Lieferbedingung** samt ihrem Ort.
-
-**Geprüft wird an der EINEN Stelle, an der er nach aussen geht** (`ask`) – nicht bei jedem
-Tippen: der Beleg *entsteht* unvollständig, und eine Meldung dabei sagte nur, dass man noch
-nicht fertig ist. Die rote Tönung im Browser ist die **freundliche Hälfte** derselben
-Regel, nie ein zweiter Massstab (dieselbe Bauart wie `pick_problem`/`unpickable`).
-
-**Gelesen wird der Wert, der auf dem Beleg STEHT** – die Zeile, wo sie etwas trägt, sonst
-der Artikel. Die rohe Spalte zu prüfen hiesse, eine Angabe zu verlangen, die sichtbar längst
-dasteht. Und **der Satz nennt die Position**: «Ohne Zolltarifnummer …» über einem Beleg mit
-zwölf Zeilen ist eine Sackgasse mit Ausrufezeichen.
-
-*Die eine benannte Folge: die Zoll-Angaben sind Pflicht **auch im Inland**. Man könnte sie
-am Ziel festmachen (Empfängerland ≠ Ausstellerland), aber ein Pflichtfeld, das je nach
-Empfänger eines ist oder nicht, ist keins – sondern eine Regel, die man erst beim Scheitern
-kennenlernt. Sie stehen ohnehin am **Artikel** und reisen von dort auf jeden Beleg: wer sie
-einmal pflegt, tippt sie nie wieder.*
-
-#### 9.15b Der Belegkopf nennt gar keine Belegart
-
-> Testnotizen #974 · #977
-
-Im Kopf stand an einem **erledigten** Vorgang «Erledigt» – ein Zustand, kein Beleg. Der
-erste Anlauf machte daraus die **Belegart** («Offerte» · «Auftragsbestätigung»), und das
-war die Auslegung einer Ablehnung: #974 hiess *«ich möchte, dass diese Anzeige
-verschwindet»*, und #977 hat es wiederholt.
-
-**Sie sagt oben auch nichts, was die Karte nicht schon sagt**: wie weit der Beleg ist,
-steht als Punkt an **jedem** Abschnitt (`ModuleSection state`), und was als Nächstes zu tun
-ist, steht auf dem Knopf, der es tut. Damit hatte `Direction.document_label` keinen Leser
-mehr – und eine Auflösung ohne Leser ist die zweite Wahrheit, die beim nächsten Umbau
-abweicht; sie ist mitsamt `VoucherEmbed.stage_label` entfallen.
-
-**Der Storno bleibt.** Er ist keine Belegart, sondern eine **Tatsache** über dieses Papier
-(`cancelled_on`), und er steht sonst nirgends: *der Beleg behält seinen Weg.* `label_of`
-bleibt unverändert daneben – eine Fehlermeldung über die Stufe muss die Stufe nennen
-dürfen. **Zwei Fragen, zwei Antworten.**
-
-#### 9.15c Eine Chronik gibt es nicht — die Daten stehen an ihrem Ort
-
-> Testnotizen #968 · #969 · #970
-
-*«Die Chronik kann vollständig und gänzlich entfallen. Ich möchte die Information dort
-darstellen, wo sie eigentlich angezeigt werden.»* Sie zählte **zwei Daten** auf, und beide
-haben einen eigenen Ort: *wann offeriert wurde* am Kopf der Angebote, *wann zugesagt wurde*
-an der Zeile, bei der zugesagt wurde, *wann storniert wurde* im Belegkopf. Ein Abschnitt,
-der dieselben Daten ein zweites Mal nennt, ist nicht der Nachweis, sondern seine ärmere
-Kopie: nacktes Datum statt Aussage.
-
-**Die Aussage steht da, die Tatsache im Hover** («vor 3 Tagen offeriert» ↔ Datum und
-Uhrzeit) – dieselbe Regel wie bei der Fälligkeit einer Geld-Zeile (§9.14).
-
-**Und der Moment brauchte keine Spalte**: `created_at` einer Angebotszeile *ist* der
-Moment, in dem sie hinausging (`_ask` legt sie genau dort an und nirgends sonst), und
-`updated_at` der **gewählten** Zeile ist der Moment des Zuschlags (`_agree` setzt `CHOSEN`
-in einem Zug mit der Stufe, und danach fasst kein Verb sie mehr an). `sent_on` bleibt
-daneben: das ist das **Datum auf dem Papier** – ein Beleg trägt einen Tag, keine Uhrzeit.
-
-#### 9.15d Die Gegenpartei: eine Liste, eine Form
-
-> Testnotiz #962 · `voucher._possible_parties`
-
-Dieselbe Sache stand in **zwei** Formensprachen da: eine angefragte Partei als Chip mit
-Zustandspunkt und ✕, eine zugelassene, noch nicht angefragte als `+ Name`-Knopf – und der
-trug ausgerechnet `.ix-editable`, die Auszeichnung **änderbarer Werte**. Damit sah *jede*
-Partei dauerhaft «aktiv» aus, und ob eine angefragt war, war an der Form nicht abzulesen.
-
-**Ein Chip je möglicher Gegenpartei**, und eine Anatomie: Punkt (gefüllt = angefragt ↔
-hohler Ring), Name, Handlung (`+` fragt an, `✕` zieht zurück). Der **Name zeigt die
-Anschrift** – immer, auch bei einer noch nicht angefragten: im Offertenschritt ist niemand
-angefragt, und die Anschrift will man sehen, **bevor** man anbietet. `recipients` trägt
-darum die **Vereinigung** zugelassen ∪ angefragt; eine zweite Abfrage braucht es nicht.
-
-**Und die Liste hängt nicht mehr an `ask`.** Sie stand nur da, solange man anfragen
-*durfte* – fehlte eine Stammdatenangabe, verschwand mit dem Anfragen auch das Abwählen und
-die Anschrift. Was man **tun** darf, entscheidet weiterhin `can`, je Chip; was man **sehen**
-darf, ist eine andere Frage.
-
-#### 9.15e Ein Feld stellte zwei Fragen — darum sind es zwei
-
-> `domain/voucher.TASK` · `ORDER_REF` · `Direction.party_ref` · `Beleg.INSTRUCTION`
-
-*«Bei Einkaufsteilen ist es oft ‹gemäss Spezifikation›, aber wenn ein intern gefertigtes
-Teil auswärts nachbearbeitet werden muss, soll dieses Feld dafür genutzt werden … bei der
-Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll. Es ist ein
-Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»*
-
-Die Pflichtangabe **je Partner** meinte zwei verschiedene Dinge, und darum war sie in der
-einen Richtung sinnvoll und in der anderen unbeantwortbar:
-
-| | gehört zu | Pflicht? | wo? |
-|---|---|---|---|
-| **Was ist zu tun?** («Härten auf 58 HRC») | dem **Modul** – der Satz lautet für jeden Partner gleich | **nein**, leer heisst «gemäss Spezifikation» | `config.instruction` |
-| **Wie bestellen?** (seine Artikelnummer, sein Shop-Link) | der **Paarung** Modul × Partner – derselbe Lieferant führt je Teil eine andere Nummer | **ja** – aber nur, wo wir bestellen | `config.parties[].ref` |
-
-**Der Ort bleibt die Definition**, und das ist die Antwort auf die Frage dahinter: in einem
-Fertigungsprozess wird **vorher** definiert, was zu tun ist; am Band wird er abgearbeitet
-(§4). Was ein Mensch erst zur Laufzeit weiss, gehört nicht hierher – aber «Härten auf
-58 HRC» weiss er beim Modellieren.
-
-**Leer ist eine vollständige Aussage, keine fehlende Angabe.** *Was* gehandelt wird, sagt
-der Beleg über seine Positionen und deren Spezifikation; der Satz ergänzt nur, was daraus
-nicht hervorgeht. Ein Pflichtfeld, das bei der Hälfte der Vorgänge nichts aufzunehmen hat,
-lädt zu einer Eingabe ein, die niemand liest – und beim Verkauf gab es darauf gar keine
-richtige Antwort.
-
-**Die zweite Frage hängt an der RICHTUNG** (`Direction.party_ref`), nicht an einem `if` im
-Dienst: beim Verkauf liefern **wir**, also gibt es sie dort nicht, und ein trotzdem
-gesendeter Wert wird **verworfen**. Jede künftige Richtung erbt die Regel, und die
-Oberfläche fragt eine Angabe statt einen Schlüssel zu vergleichen.
-
-#### 9.15f Beide Anschriften, auf beiden Seiten, immer
-
-> Testnotizen #952 · #975 · `voucher._addresses`
-
-*«Standardmässig immer bei Informationen ausweisen, global etablieren, auch wenn sie
-zweimal das Gleiche anzeigt. Eine Logik für alles, Komplexität und If/Else verringern.»*
-
-Ein Beleg stellt zwei Fragen – *wohin die Rechnung, wohin die Ware* – und stellt sie auf
-**jeder** Seite gleich. Bis hierher standen die Beschriftungen nur auf der Gegenseite und
-nur dort, wo die beiden sich unterscheiden: **zwei** Bedingungen für eine Frage, die immer
-gleich lautet – und die eine verbliebene Zeile beantwortete danach keine der beiden
-erkennbar.
-
-**Eine Regel für beide Seiten**: gibt es nur eine Anschrift, steht sie unter beiden
-Beschriftungen. Das ist die Auskunft «an dieselbe», nicht eine Doppelung. **Wo gar keine
-dasteht, gibt es auch keine Beschriftung** – dort sagt die Seite, dass sie fehlt; eine
-Beschriftung über einer Lücke wäre eine leere Behauptung.
-
-Erfunden wird weiterhin nichts: die zweite Zeile entsteht nur aus Angaben, die am Benutzer
-stehen (Rechnungsadresse ≠ Hauptadresse).
-
-#### 9.15g Die dominante Handlung — und daneben die leise
-
-> Testnotiz #976 · `beleg-work.StageRow`
-
-*«Kann man diesen Bereich ähnlich darstellen wie ‹Vorgang abschliessen› und daneben das
-unscheinbarere Abbrechen?»* – Gemeldet an der **Angebotszeile** (annehmen ↔ absagen), und
-damit ist es keine Eigenschaft einer Zeile, sondern die **Anatomie einer Entscheidung** auf
-diesem Beleg: eine Handlung bringt ihn weiter und nimmt den Platz, alles andere steht als
-Quadrat daneben und klappt beim Zeigen seinen Namen aus.
-
-Sie steht darum **einmal** – die Fusszeile der Karte (Abschluss ↔ Storno, §9.14) und der
-Zuschlag an einer Angebotszeile sind dieselbe Zeile. **Welche die dominante ist, sagen die
-Daten**: annehmen, sobald ein Preis dasteht; sonst ihn erfassen. Eine Offerte zu
-*korrigieren*, während man sie annehmen könnte, ist der Nebenweg.
-
-#### 9.15h Eine Blase steht über dem, was sie erklärt
-
-> Testnotiz #978 · `beleg-work.Note`
-
-*«Kann das nicht irgendwo neben dem Betrag oder so stehen – und den Hovertext direkt
-darüber und nicht wie jetzt irgendwo.»* – **Zwei Meldungen, eine Ursache.** Die Blase des
-Hauses sitzt über der **Mitte ihres Elements** (`[data-tip]::after`, `left: 50%`); nur war
-das Element nicht die Auskunft, sondern die ganze Zeile: ein Kind einer Flex-**Spalte** wird
-blockifiziert und auf die volle Breite gezogen. Bei 460 px stand die Blase einen halben
-Beleg neben den drei Wörtern, die sie erklärt.
-
-`width: fit-content` ist die Antwort und **nicht** `align-self` – dieselbe Lehre wie bei
-`Editable` (§9.15, #961/#963): eine **definite** Quergrösse wirkt in der Spalte *und* in der
-Zeile. Gemessen: Box == Text, Δ 0,00 px; die Bug-Form meldet 1146 px.
-
-#### 9.15i Rechnung & Zahlung — zwei Fächer, eine Handlung, eine Wahl
-
-> `docs/konzept-beleg-shop-besitz.md` · `beleg-work.Money` · `voucher._ways`
-
-*«Irgendwie scheint mir dieser Bereich zu komplex, zu unstrukturiert, zu wirr, zu viele
-Optionen, die sich gegeneinander stören, kannibalisieren.»*
-
-**Gezählt, nicht vermutet.** An einer Rechnung standen bis zu **sechs** gleich aussehende
-Knöpfe mit **drei** Bedeutungen — eine Buchung («Rechnung erfassen»), eine Korrektur
-(«Stornieren») und eine blosse **Auskunft** («Überweisen» zeigt IBAN und QR und bucht gar
-nichts). Dazu standen **zwei Rollen** in einer Zeile: «Rechnung erfassen» ist unsere
-Handlung, «Jetzt bezahlen» die des Zahlenden. Und einen **Fortschritt** gab es nicht,
-obwohl es drei klare Zustände gibt: *nichts gefordert → gefordert → bezahlt.*
-
-**(1) Zwei Fächer statt einer Knopfreihe.** Es sind zwei Fragen, und jede gehört genau
-einer Seite:
-
-| Fach | Frage | Wem es gehört |
-|---|---|---|
-| **Fordern** | Was schuldet uns jemand? | uns — stellen, stornieren, gutschreiben |
-| **Begleichen** | Wie kommt das Geld hierher? | dem Zahlenden — bar · Überweisung · Karte |
-
-Beide sind ein gewöhnlicher `ModuleSection` und tragen damit denselben Fortschritts-Punkt
-wie jeder andere Abschnitt des Belegs. Dazwischen die Zeile **«Offen»** — das Ergebnis von
-*gefordert minus beglichen*. Der frühere gemeinsame Titel «Rechnung & Zahlung» ist
-**entfallen**: er fasste zwei Fragen zu einer Überschrift zusammen, und genau daraus kam
-die Unordnung.
-
-**(2) Genau eine Handlung bringt weiter** — unten, breit, als `StageAction` (dasselbe
-Bauteil wie der Zuschlag und der Modul-Abschluss, §9.15): *Rechnung stellen* → *Zahlung
-erfassen* → nichts mehr. Alles andere ist eine **Korrektur** und steht klein bei der Zeile,
-die sie korrigiert — nie im selben Rang. Welche gerade dran ist, folgt aus `can` und
-`credit_only`; ein Rang, den die Oberfläche selbst vergäbe, wäre die zweite Regel daneben.
-
-**(3) Der Weg zum Geld ist eine WAHL, kein Verb.** Bar · Überweisung · Karte sind drei
-Antworten auf **eine** Frage; was dahinter passiert, ist verschieden (buchen ↔ Angaben
-zeigen ↔ Zahlformular öffnen), die Frage ist dieselbe. Als drei Knöpfe standen sie im
-selben Rang wie eine Buchung und wie eine Korrektur.
-
-Welche Antworten es gibt, sagt der Server (`ways`, abgeleitet aus `can`), und **jeder Weg
-sagt selbst, was er auslöst** (`action`/`verb`) und **ob er eine Auskunft mitbringt**
-(`info`). Beides leer heisst *reine Auskunft* — so sieht die Gegenpartei die Überweisung,
-und dort steht kein Knopf, der nach Buchung aussieht. Ein Vergleich auf den Schlüssel
-«transfer» in der Oberfläche wäre der Spiegel über die API-Grenze, der beim nächsten Weg
-still falsch wird.
-
-**Und welche Rechnung gemeint ist, sagt der Dienst** (`settle_charge`): je Modul lebt
-höchstens **eine** offene Forderung (§9.14), die Frage hat also genau eine Antwort. Sie in
-den Zeilen zu suchen wäre die zweite Regel neben `open_charges` — genau daraus kam #859.
-
-**«Rechnung STELLEN» ↔ «Rechnung ERFASSEN»** (`Direction.charge_verb`): bei einer
-**Einnahme** entsteht der Beleg hier, bekommt unsere Nummer und geht hinaus; bei einer
-**Ausgabe** schreiben wir ab, was der Lieferant geschickt hat. Die **Zahlung** wird in
-beiden Richtungen *erfasst* — das System bucht eine Zeile, es überweist nichts.
-
-*Bewusst nicht gebaut und benannt: die **Automatisierung** (Bank-Datei camt.053,
-Mahnliste) und die **Zustellung** (PDF, E-Mail). Beides steht im Konzept.*
-
-#### 9.15j Die zweite Anschrift heisst je Rolle anders
-
-> Testnotiz #979 · `voucher._addresses`
-
-*«Beim Leistungserbringer wäre es evtl. besser/richtiger zu sagen Absendeadresse oder so?
-Etabliere hier korrektes.»*
-
-«Lieferadresse» heisst *wohin geliefert wird* — an der eigenen Anschrift des
-**Leistungserbringers** stand damit, man möge **ihm** dorthin liefern, während er
-derjenige ist, der liefert. Von seiner Seite aus geht die Ware **ab**: das ist die
-**Versandadresse** (im Handel, in der Logistik und im Zoll ist der *Versender* die
-Gegenrolle des Empfängers).
-
-**Nur diese eine Beschriftung ist rollenabhängig**, und das ist Absicht: die
-«Rechnungsadresse» beantwortet auf beiden Seiten dieselbe Frage — *welche Anschrift gilt
-in Rechnungssachen* —, und so steht sie auch auf jedem gedruckten Beleg. Ein zweites Wort
-dafür wäre eine Unterscheidung ohne Unterschied.
-
-Die Rolle wird **nicht übergeben, sondern gelesen**: `document_head` kennt sie als
-`flow.collects`, `their_side` leitet sie selbst ab (`not collects`). Ein Parameter wäre
-eine Angabe, die jeder der beiden Aufrufer einzeln falsch setzen kann.
-
-#### 9.15k Die Auswahl der Gegenpartei steht über ihrer Rolle
-
-> Testnotiz #981 · `beleg-work.Party`
-
-*«Gefühlt sollte die Auswahloptionen oberhalb vom Headline Leistungsempfänger stehen und
-dann je nachdem was angewählt wurde unterhalb der Headline die Angaben geladen werden.»*
-
-Die Chips standen **in** der Namenszeile, also unter der Rolle und an genau der Stelle, an
-der sonst der Name steht: sie **ersetzten** die Angabe, die sie auswählen. Über der Rolle
-ist es die Reihenfolge des Lesens — erst *wen meine ich*, dann *was gilt für ihn*.
-
-Das Raster bekommt dafür eine achte Zeile (`PARTY_ROWS`), und auf unserer Seite bleibt sie
-**leer**: die Symmetrie ist die Aussage, nicht die Dichte (§9.15, #913). Nach dem Zuschlag
-gibt es nichts mehr zu wählen — dann ist die Zeile leer, und die unterlegenen Angebote
-stehen als Nachweis in ihrem Abschnitt.
-
-#### 9.15l Ein Eingabefeld nennt sich, während man tippt
-
-> Testnotiz #982 · `beleg-work.Customs`
-
-*«Im fertigen Beleg steht eigentlich immer ‹Zolltarif xy, Ursprung xy› — hier bei der
-Eingabe steht einfach nur das Eingabefeld, aber der entsprechende Text nicht davor. Das
-ist eine unerlaubte Abweichung von unserer Logik.»*
-
-Der Name stand als **Platzhalter** im Feld — also an der Stelle, an der eine Oberfläche
-sagt «hier ist nichts» — und verschwand beim ersten Zeichen. Die Regel dieses Belegs
-lautet *der gedruckte Wert IST das Bedienelement* (§9.15, #922): was man ändert, muss
-aussehen wie das, was gedruckt wird. Beschriftung und Wert stehen darum in **beiden**
-Zuständen als eine Zeile, in derselben Grösse und Farbe; die Auszeichnung trägt allein der
-Wert, denn nur er ist änderbar.
-
-
-#### 9.15m Jede Angabe des Belegs hat ihr Verb
-
-> Testnotiz #985 · `voucher._terms` · Migration `135`
-
-*«Eingaben in ‹Zahlungsfrist› und ‹Lieferfrist› werden nicht persistiert — nach einem
-Reload sind sie wieder weg. Der Fix muss für beide Felder und alle weiteren Feldtypen im
-Modul gleichermassen greifen.»*
-
-Und die Ursache war **keine Eigenheit dieser zwei Felder**: beide Fristen existierten
-ausschliesslich an der **Angebotszeile**, und die entsteht erst mit dem Anfragen. Vorher
-gab es im ganzen Datenmodell keinen Ort für sie — getippt lebten sie im Browser und
-reisten allein in der Nutzlast von `ask` mit.
-
-Damit waren sie die **einzige** Angabe des Belegs ohne eigenes Verb: Währung, Aussteller,
-Lieferbedingung, Preis, Steuersatz und die beiden Zoll-Angaben werden längst sofort
-geschrieben. Der Fix schliesst darum die Lücke, statt zwei Felder zu flicken — die Regel
-lautet: **jeder änderbare Wert auf dem Beleg wird sofort persistiert, und keiner lebt nur
-im Browser.**
-
-- **Der Entwurf steht am Beleg** (`vouchers.lead_days`/`payment_days`), die **Vereinbarung**
-  weiterhin an der gewählten Angebotszeile. Keine zwei Wahrheiten, sondern zwei
-  **Zeitpunkte**: was wir anbieten wollen, und was zugesagt wurde. `due_days_of` /
-  `lead_days_of` lesen die Zusage und fallen auf den Entwurf zurück — die Reihenfolge *ist*
-  die Regel.
-- **`ask` liest den Beleg**, nicht die Nutzlast: das Angebot ist die Kopie der Fristen,
-  genauso wie der Betrag die Kopie der Positionen ist. Ein gesendeter Wert wird
-  **verworfen**.
-- **Geprüft wird beim Hinausgehen, nicht beim Tippen** (`_assert_terms` in `_ask`/`_quote`):
-  ein Beleg entsteht unvollständig, und eine Meldung dabei sagte nur, dass man noch nicht
-  fertig ist.
-
-#### 9.15n Der Zustand einer Forderung — abgeleitet, mit Toleranz
-
-> Testnotiz #991 · `domain/voucher.charge_state`
-
-*Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt · Storniert* — aus **zwei
-Zahlen** (Betrag der Rechnung und Rest), **null Spalten**. Ein gespeichertes Zustandsfeld
-wäre die zweite Wahrheit, und die eine vergessene Nachzieh-Stelle fällt erst auf, wenn
-jemand mahnt.
-
-- **Rundungstoleranz `0.05`**: bei einer Auslandsüberweisung bleiben Rappen liegen, und
-  eine Rechnung, die wegen drei Rappen für immer «offen» heisst, ist keine Auskunft,
-  sondern eine Mahnliste voller Geister. Die Zahl steht im Fachmodell, nicht in der
-  Oberfläche — sie ist eine fachliche Entscheidung, und wer mahnt, liest denselben Zustand.
-- **Gerechnet wird mit dem Vorzeichen**, nicht mit «grösser null»: eine **Gutschrift** ist
-  eine negative Rechnung (§9.11), und «offen < 0 heisst überzahlt» nennte jede unbeglichene
-  Gutschrift «Überzahlt». Überzahlt ist, wo Rest und Betrag **verschiedene** Vorzeichen
-  tragen.
-- **Drei Töne, die des Hauses** (`done` · `pending` · `danger`). Eine vierte Farbe für Geld
-  wäre eine zweite Farbsprache — und ein Zustand, den sonst niemand im ERP lesen kann.
-  *Storniert* ist rot wie jeder «Stopp»-Zustand (dieselbe Lesart wie *inaktiv*).
-
-►►► **Die Überzahlung ist ein GUTHABEN, und dafür braucht es nichts Neues.** ◄◄◄ Der
-negative offene Betrag **ist** die Zahl — mit Vorzeichen, in derselben Spalte. Eine eigene
-Guthaben-Tabelle wäre ein zweites Modell für etwas, das schon dasteht, und sie müsste bei
-jeder Buchung nachgezogen werden. Zurückgezahlt wird über den Weg, auf dem gezahlt wurde:
-eine gewöhnliche **negative Zahlung** (bar, Überweisung) bzw. `refund_online` (Karte).
-**Verrechnet wird ein Guthaben nie automatisch** — welche Rechnung es mindern soll, weiss
-nur ein Mensch.
-
-
-#### 9.15o Wählen ist nicht anfragen
-
-> Testnotiz #1000 · `services/voucher._add_party` · Migration `136`
-
-*«Wurde beim Anlegen kein Partner vorgewählt, lässt er sich nachträglich nicht mehr
-setzen. Die Auswahl wird korrekt angezeigt, aber nicht übernommen/persistiert.»*
-
-**Nachgestellt über die echten Dienstpfade, und die Ursache ist strukturell.** Die Wahl im
-freien Feld löste unmittelbar `ask` aus — und das ist die Handlung, mit der der Beleg
-**nach aussen** geht: sie verlangt Preis, beide Fristen und die Lieferbedingung
-(§9.15a/§9.15m). An einem frischen Modul fehlt davon naturgemäss alles, der Dienst wies
-mit einem Satz ab, und die Wahl war weg.
-
-Damit war *«wen meine ich»* die letzte Angabe des Belegs **ohne eigenes Verb**. Die Regel
-gilt unverändert: **jeder änderbare Wert des Belegs wird sofort persistiert**, und was
-nach aussen geht, ist eine eigene, ausdrückliche Handlung.
-
-- **Drei Quellen, eine Liste** (`_possible_parties`): die **zugelassenen** aus der
-  Definition (eine Vorlage für jeden künftigen Auftrag), die **gewählten** am Beleg
-  (`vouchers.parties`) und die **angefragten** aus dem Spiegel. Ohne Dubletten.
-- **Warum eine Liste und keine Tabelle.** `config.parties` steht eine Ebene höher in
-  derselben Form: eine Liste von Objektnummern, ohne Eigenschaften und ohne Zustand. Was
-  **hinausgegangen** ist, bleibt eine Zeile (`voucher_quotes`) mit Betrag, Fristen,
-  Zustand und Datum — genau diese Trennung war der Grund des Neuaufbaus, und sie bleibt.
-- **Geprüft wird die Wahl selbst**, nicht die Reife des Belegs (`_party`): dass es die
-  Nummer gibt, dass sie zu einem Datensatz gehört, mit dem man handeln kann, und dass die
-  Definition sie nicht ausschliesst. Eine Auswahl, die der Dienst später abwiese, wäre
-  keine.
-- **Auch die blosse Wahl adressiert** (`addressee_of`): sonst meldete der Belegkopf
-  «Anschrift fehlt» über jemanden, den man eine Zeile höher ausgewählt hat.
-- **Eine Gegenhandlung, ein Klick** (`unask`): was sie bewirkt, sagt der Beleg — steht eine
-  Zeile da, wird sie zurückgezogen; steht keine, fällt die Wahl weg. Beides zusammen, wo
-  beides da ist. Zwei Verben wären zwei Wörter für eine Sache.
-
-#### 9.15p Die Zeilen-Grammatik — und der Saldo ist eine Farbe
-
-> Testnotizen #995–#999 · #1001–#1003 · `module-ui.LedgerRow`
-
-**Eine Zeile, vier Plätze, immer dieselben:**
+#### Stufen, Verben, Leiste
 
 ```
-[ Identifikator ] [ Meta ] ············ [ Aktion ] [ Betrag ]
+offer      Angebot      schreiben · anbieten (ask) · annehmen (agree)
+agreed     Auftrag      → bill: Nummer, Betrag, Steuer, Fälligkeit werden eingefroren
+billed     Rechnung     → Geld (pay · refund · writeoff · tip · reverse) · Mahnung · Ausfuhrnachweis
+cancelled  storniert    Ausgang
 ```
 
-Vier Notizen betrafen vier Plätze derselben Zeile — der Zustandspunkt **vor** der
-Rechnungsnummer (#996), die Korrekturen **hinter** dem Betrag (#998/#1002) und eine
-**zweite Zeile** mit einer Angabe, die die erste schon sagt (#999). Also ist es keine
-Sammlung von Einzelfällen, sondern eine **Grammatik**, und sie steht als ein Bauteil da.
+- **Jedes Verb steht an EINER Stelle** (`VERBS`): Stufen, nötige Stammdaten, ob die
+  Gegenpartei es darf, die Funktion. **`can` ist Auskunft UND Tor** – dieselbe Antwort zeigt
+  die Knöpfe und weist eine Anfrage ab, für das ERP wie für die Kundenseite.
+- **Erledigt ist abgeleitet** (`is_done`): gestellt ∧ Saldo 0 (∧ Ausfuhrnachweis bei Export).
+  Eine Stufe «done» oder einen Knopf «abschliessen» gibt es nicht.
+- **Die Leiste** (`situation`) nennt Stand, wer dran ist und die eine Handlung; sie ist nie
+  leer ausser bei Erledigt/Storniert – ein Wächter prüft, dass jeder Zustand einen nächsten
+  Schritt hat («keine Sackgasse»).
+- **Jeder änderbare Wert wird sofort gespeichert** (Fristen, Währung, Aussteller,
+  Lieferbedingung, Preis, Steuersatz, Zoll, Partei, Anschrift, Eigentum) – keiner lebt nur
+  im Browser. **Geprüft wird beim Hinausgehen** (`ask`, `gaps`): was auf dem Beleg steht,
+  ist Pflicht, und der Satz nennt die Position. Die Tönung im Browser ist die freundliche
+  Hälfte derselben Regel.
+- **Wählen ist nicht anbieten**: die Partei wählt `party` (sofort gespeichert), `ask` geht
+  hinaus, `unask` nimmt beides zurück. Mögliche Parteien = zugelassene der Definition ∪
+  gewählte ∪ angefragte (`_possible_parties`). Die eigene Gesellschaft ist nie Gegenpartei.
+- **Was zu tun ist** (`config.instruction`, frei, leer = «gemäss Spezifikation») gehört dem
+  Modul; **wie bestellen** (`config.parties[].ref`) der Paarung Modul × Partner und nur, wo
+  wir bestellen (`Direction.party_ref`).
+- **Gültigkeit** in Tagen ab «Anbieten» (Vorgabe 30); abgelaufen → «Erneut anbieten».
+  **Angenommen wird nur die aktuelle Fassung** (`offered_hash`): wer danach ändert, bietet
+  erneut an.
 
-- **Der Identifikator** sagt, was die Zeile *ist*: die Rechnungsnummer, die Zahlungsart.
-  Nichts steht davor.
-- **Der Betrag steht immer zuletzt** und damit in jeder Zeile auf derselben Flucht —
-  nicht, weil jemand eine Spaltenbreite pflegt, sondern weil er das letzte Element ist.
-- **Die Aktion steht links davon und belegt ihren Platz immer** (`opacity`, kein
-  `display`): erschiene sie erst beim Zeigen, rutschte der Betrag unter dem Zeiger zur
-  Seite. Gemessen: Δ 0.00 px.
-- **Strikt einreihig** — was nicht passt, wird gekappt (Meta zuerst).
+#### Die Stücke ziehen von selbst weiter – und das Eigentum wird abgeleitet
 
-►►► **Der Saldo sagt seinen Zustand als FARBE** (#997, `domain/voucher.balance_state`).
-◄◄◄ «Offen 0.00» las sich wie «bezahlt», und das Wort war ohnehin nur an einem der vier
-Zustände richtig. Also nennt die Karte allein die **Zahl** und färbt sie: orange, solange
-etwas aussteht · rot, sobald ein Termin vorbei ist · grün, wenn es aufgeht. Das **Wort**
-reist mit und steht im Hover — Farbe allein ist kein zugängliches Signal (WCAG 1.4.1).
+- **Die Stücke passieren das Modul von selbst** (`voucher.passable`,
+  `process.advance_payments`): mit der Zusage, bei Vorauszahlung erst mit der vollen
+  Zahlung. Einen «Bestätigen»-Knopf gibt es nicht (`PASSES_ITSELF`); der Status bleibt
+  `Im Prozess`, ein Ort wird nicht gesetzt.
+- **Eigentum** «geht an die Partei · geht an uns» ist eine **Pflichtwahl ohne Vorbelegung**
+  (`ownership_problem`: ohne Wahl kein Anbieten, keine Zusage), eingefroren mit der Zusage.
+- **Wem ein Stück gehört, ist eine Ableitung** (`voucher.sold_units`): das jüngste nicht
+  stornierte Zahlungsmodul, das es passiert hat. Gelesen wird sie nur am Ende-Objekt
+  (`process._finish`, §4.2): gehört es der Partei, wird es **Verkauft** (Historie, behält
+  seinen Ort), sonst **Freigegeben**. Ein Storno wirkt damit von selbst; eine Retoure «an
+  uns» gibt frei; eine Reparatur ohne Zahlungsmodul lässt Verkauftes Verkauft.
+- **Passen die Stücke nicht mehr** (`units_problem`: ein eingefrorenes Stück hat den Auftrag
+  verlassen, ohne das Modul zu passieren), bleibt nur «Stornieren»; die übrigen führt ein
+  gewöhnlicher Abweichungsauftrag weiter.
 
-**Ein Guthaben ist grün und nennt sich beim Namen.** An einer einzelnen Forderung ist
-«Überzahlt» ein Problem — dort stimmt der Beleg nicht mit dem Geld überein; im **Saldo**
-ist es eine Tatsache: niemand schuldet mehr etwas. Ein **Minus** wäre dort die schlechtere
-Antwort — ein offener Posten ist eine Forderung und kein negativer Wert, und «−250.00»
-neben dem Wort «Guthaben» wäre eine doppelte Verneinung.
+#### Der Beleg IST die Rechnung – eine je Modul
 
-**Und die Handlung steht in dem Fach, zu dem sie gehört** (#1001): *Rechnung stellen* zu
-«Fordern», *Zahlung erfassen* zu «Begleichen» — dort zuunterst, direkt unter der
-Zahlungsart, mit der sie eine Einheit bildet. Unter **beiden** Abschnitten stand sie
-hinter allem, was in ihnen wächst: jede erfasste Zahlung schob sie weiter weg von der
-Wahl, zu der sie gehört.
+- Nummer, Datum, Fälligkeit, Betrag und Steuer stehen **am Beleg** (`vouchers`), nicht in
+  einer Forderungszeile. «Eine Rechnung je Modul» ist damit die Struktur, keine Regel.
+  Rechnungsnummer `<Auftragsnummer>-<laufend>`.
+- **Die Steuer wird eingefroren**, nicht nachgerechnet: eine spätere Änderung am Katalog
+  ändert keine gestellte Rechnung.
+- **Ein Wort für den Storno: «Stornieren»** (`revoke`), in jeder Stufe. Nach der Rechnung
+  entsteht die **Gutschrift über die ganze Rechnung von selbst** (`credit_number`, eigene
+  Nummer); «Rechnung zurücknehmen» gibt es nicht. Was bezahlt ist, geht über «Erstatten»
+  zurück.
+- **Eine Korrektur ist ein eigener Beleg in einem eigenen Modul** (`correct` →
+  `corrects_id`), auch über Auftragsgrenzen: die Gutschrift gehört dorthin, wo die Ware
+  zurückkommt, und ihre Positionen entstehen aus den Stücken, die zurückkommen. Die
+  Warenlogik ist die Mengenkontrolle des Geldes.
+- **Jede Zahl auf dem Beleg ist eine Menge**, nie negativ getippt. Ob ein Beleg mindert,
+  sagt `corrects_id` (`minus`); die Wörter auf den Knöpfen sagen es («Gutschrift stellen»,
+  «Erstattung erfassen», `charge_word`/`payment_word`). Wohin das Geld fliesst, ist
+  `inbound` (= `collects != minus`) – es entscheidet über Zahlungsdienst und QR-Rechnung.
 
-#### 9.15q Der Beleg IST die Rechnung — eine je Modul
+#### Geld, Zustand, Mahnung
 
-> `docs/history/2026-09-konzept-eine-rechnung-je-modul.md` · Migration `138` ·
-> `vouchers.billed_on`/`due_on`/`number`/`amount`/`vat`/`service_date`/`corrects_id`
->
-> *Nachgezogen (Testnotiz #1047): das Verb `issue` («Rechnung ist versendet») ist
-> gelöscht – samt Spalten-Mapping `vouchers.issued_on` (Drop im Folge-Deploy). Gestellt
-> **ist** draussen.*
-
-*«Nur eine Rechnung pro Zahlungsmodul — wirklich nur eine, auch keine
-Stornierungsrechnung. Wenn es eine Korrektur gibt, dann durch ein zweites Zahlungsmodul.
-Insbesondere bei Retouren wäre sonst der Warenverkehr getrennt von der monetären
-Abwicklung: ich müsste im originalen Modul stornieren — aber dort, wo das Geschehen ist,
-soll ich es auch abwickeln können.»*
-
-**Der Befund war eine Doppelung, keine Geschmacksfrage.** Betrag, Steuer, Nummer, Datum
-und Fälligkeit standen auf **beiden** Ebenen: die Forderungs-Zeile
-(`voucher_entries.kind = 'charge'`) war eine Kopie des Belegs, der sie enthielt — genau
-die Fehlerform, die der Neuaufbau bei den Positionen schon einmal beseitigt hat (dort gab
-es sie dreimal). Daraus folgte fast alles, was sich «zu komplex» anfühlte: eine Funktion
-musste **zählen**, was eine «Forderung nach aussen» ist (`live_charge`), eine zweite
-beantwortete «welche Rechnung meint diese Zahlung» (`_charge_for_payment` · `_split` ·
-`allocate` · `paid_map`), und **ein Verb machte zwei Dinge** — `reverse` hiess je nach
-Bezahlstatus «Stornieren» oder «Gutschrift», auseinandergehalten von **einer Zahl**.
-
-**Danach ist der Beleg die Rechnung.** Acht Angaben wandern eine Ebene hoch, und damit
-kann es sie nicht zweimal geben: «eine Rechnung je Modul» ist keine Regel mehr, die
-jemand durchsetzt, sondern die **Struktur**.
-
-```
-offer     Angebot        schreiben · anfragen · zusagen
-agreed    Auftrag        → bill    (Nummer, Betrag, Steuer, Fälligkeit einfrieren)
-billed    Rechnung       → pay · unbill (solange kein Geld geflossen ist)
-done / cancelled         Ausgänge (unverändert)
-```
-
-- **Die dritte Stufe ist keine Wiederholung des Fehlers von damals.** «Abgeschlossen» war
-  ein *Zustand* in einer Reihe von *Schritten* — man tat nichts, um ihn zu erreichen. Eine
-  Rechnung zu stellen ist eine **Handlung mit unumkehrbarem Ergebnis**: eine Nummer ist
-  vergeben, die Steuer steht fest, ein Papier existiert.
-- **`unbill` ist die Gegenhandlung zu `bill`**, und sie endet, sobald **Geld geflossen**
-  ist (eine Frage an die Daten, in `can`). Die **Nummer bleibt** — die
-  zurückgenommene Rechnung ist nie hinausgegangen, es gibt sie nach aussen nicht, und die
-  neu gestellte ist derselbe Beleg, korrigiert, bevor er das Haus verliess.
-- **Kassiert wird auf eine GESTELLTE Rechnung** – gestellt ist draussen, in beide
-  Richtungen gleich. Ein eigener Knopf «ist versendet» (`issue`) stand eine Runde lang
-  dazwischen und ist ersatzlos gelöscht (#1047): er setzte ein Datum für das System und
-  sperrte am Ende den Zahlungseingang eines Kunden, der die Rechnung längst vor sich hat.
-- **Die Steuer wird EINGEFROREN, nicht gerechnet.** Die Positionen stehen ab der Zusage
-  fest, die Summe wäre also stabil — die **Aufteilung** ist es nicht: eine künftige
-  Änderung an `vat_split` oder am Katalog änderte rückwirkend die Steuer einer längst
-  gestellten Rechnung. Ein Beleg behält, was auf ihm stand.
-
-►►► **Die Korrektur ist ein eigener Beleg in einem eigenen Modul** (`corrects_id`). ◄◄◄
-
-- **Die Positionen tragen positive Preise** — niemand tippt ein Minus. «3 × Getriebe à 200»
-  ist die Aussage, und sie ist MWST-korrekt.
-- **`bill` dreht das Vorzeichen**: wo `corrects_id` steht, wird `amount` negativ
-  gespeichert und die Steueraufteilung **gespiegelt**. Danach rechnet jede Zahl
-  vorzeichenrichtig, ohne eine einzige Fallunterscheidung beim Lesen.
-- **Der Verweis steht auf dem Papier** («Korrektur zu …») — eine **Ableitung**, kein
-  zweites Feld. MWSTG Art. 26 verlangt die eindeutige Bestimmbarkeit von Leistung und
-  Entgelt; ohne Verweis wäre es eine zweite Rechnung mit negativem Vorzeichen.
-- ►►► **Und `corrects_id` darf über Auftragsgrenzen zeigen.** ◄◄◄ Das ist der Kern: die
-  Gutschrift gehört dorthin, wo die Ware **zurückkommt**.
-
-**Und die Retoure macht das Modell KLEINER, nicht grösser.** Steht der Gutschriftsbeleg im
-Retourenauftrag, entstehen seine Positionen **von selbst** aus den Stücken, die
-zurückkommen (`sync_lines`) — der Auftrag greift drei Getriebe, der Beleg hat drei
-Getriebe, und er kann keine fünf greifen, wenn nur drei existieren.
-
-> **Die Warenlogik ist die Mengenkontrolle des Geldes.**
-
-Damit entfällt ersatzlos, was `docs/history/2026-09-17-analyse-retoure.md` als Arbeit auflistete:
-Teilkorrektur mit Positionsauswahl (§1 — die Teilmenge **ist** die zurückgenommene Ware),
-Gutschrift ohne Positionsbezug (§2 — es gibt immer Positionen) und die Summenregel
-«Σ Gegenbuchungen ≤ Betrag» (§6 — man kann nicht mehr zurücknehmen, als geliefert wurde).
-
-**Die Entscheidung «Storno oder Gutschrift» trifft damit niemand mehr** — sie fällt aus
-dem **Zeitpunkt** heraus: vor dem Versenden gibt es nur `unbill`, danach nur den
-Korrekturbeleg.
-
-**Was ersatzlos entfällt:** `live_charge` · `open_charges` · `charge_state` (aufgegangen in
-`invoice_state`) · `balance_state` (dieselbe Funktion) · `_charge_for_payment` · `_split` ·
-`allocate` · `paid_map` · `_reversal_of` · `reverse_word` · `settle_charge` ·
-`credit_only` · `Balance.next_charge` · das Verb `reverse` · `VoucherAllocation` ·
-`VoucherEntry.kind`/`charge_id`/`due_on`/`vat`/`service_date`/`reverses_id`.
-
-⚠ **Eine Funktion wird dabei zurückgenommen, und das steht hier ausdrücklich:** die
-**Sammelzahlung innerhalb eines Moduls** (#1010–#1017) wird gegenstandslos — sie teilte
-eine Zahlung auf mehrere Rechnungen **desselben Belegs** auf, und davon gibt es künftig
-eine. **Der Fall selbst bleibt real** (eine Überweisung über 1'500 begleicht 1'000 und
-500), liegt aber zwingend über **Modulgrenzen**: das ist die **offene-Posten-Liste** je
-Partner, und die ist Buchhaltung (`docs/backlog.md`). Bis dahin sind es zwei erfasste
-Zeilen, wo im Kontoauszug eine steht — eine Zeile mehr auf dem Bildschirm, keine falsche
-Zahl.
-
-**Was offen bleibt, benannt statt versteckt:** die offene-Posten-Liste je Partner · der
-reine Rechnungsfehler **nach** dem Versand (er braucht einen Auftrag über die betroffenen
-Stücke — derselbe offene Punkt wie «ein Beleg ganz ohne Ware», weil `assert_releasable`
-mindestens eine Einzelinstanz verlangt) · Mahnwesen, camt.053 und die PDF-Zustellung.
-
-#### 9.15r Jede Zahl auf dem Beleg ist eine MENGE
-
-> Testnotizen #1054/#1055/#1056/#1059 · Migration `141` ·
-> `domain/voucher.inbound`/`charge_word`/`payment_word` · `services/voucher.minus`
-
-*«Im Begleichen-Teil möchte ich keine Minus-Beträge eingeben, das ist verwirrend — denn am
-Anfang sage ich ja, ob es eine Ein- oder Ausgabe ist.»*
-
-**Der Betrag ist eine Menge. Wohin das Geld fliesst, sagt der Beleg — einmal.**
-
-Das war die **Grundursache von drei Meldungen auf einmal**. Ein Korrekturbeleg trug einen
-**negativen** Betrag (`bill` drehte das Vorzeichen, `_mirror` spiegelte die Steuer), und
-drei Leser fragen «ist der Betrag grösser als null?» — bei einer Gutschrift ist er das nie:
-
-| Leser | fragt | bei einer Gutschrift |
-|---|---|---|
-| `pay_online` | `open > 0` | fällt weg → «Stripe ist nicht mehr verfügbar» (#1054) |
-| `next_payment` | `open > 0` | leer → man musste **−43.24** tippen (#1055) |
-| `settled` | `paid >= agreed` | `−43.24 >= +43.24` ist **nie** wahr → bei Saldo 0 kein
-  Abschluss (#1056) |
-
-Gemessen über die echten Dienstpfade, nicht vermutet. Mit der Menge stimmen alle drei
-**unverändert**: es ist nichts gebaut worden, **vier** Sonderfälle sind gefallen — die
-drei oben plus der Vorzeichen-Vergleich in `invoice_state` («überzahlt ist, wo Rest und
-Betrag verschiedene Vorzeichen tragen» → wieder schlicht `remaining < 0`).
-
-**Das Minus verschwindet nicht, es bekommt einen Ort:** die Buchhaltung sieht eine
-Gutschrift negativ, und sie leitet das aus `corrects_id` ab — an **einer** Stelle, wenn es
-sie gibt. Eine Spalte mit Vorzeichen daneben wäre die zweite Wahrheit, und ein `signed()`
-ohne Leser die zweite Wahrheit ohne Nutzen.
-
-**Was ein Mensch tippt, ist nie negativ.** Die eine Ausnahme ist die Korrektur einer
-erfassten Zahlung — und dort **setzt das System** den Betrag (die Oberfläche belegt ihn mit
-dem Gegenwert vor); niemand schreibt ein Minus.
-
-**Und eine Gutschrift wird dadurch SICHTBAR** (#1054 war auch eine Meldung über
-Unsichtbarkeit: *«irgendwie hat sich die Funktion voll verändert»*). Der Belegkopf nennt
-bewusst keine Belegart (§9.15b), also sagen es die **Wörter auf den Knöpfen** — dort, wo
-man handelt: **«Gutschrift stellen»** statt «Rechnung stellen», **«Erstattung erfassen»**
-statt «Zahlung erfassen». Zusammengesetzt aus **zwei Bits** (`charge_word`), nicht als
-Tabelle mit vier fertigen Sätzen: mit der Gutschrift kam eine zweite Frage dazu, und vier
-Sätze wären vier Stellen, an denen einer stehenbleibt. Die Fuge ist ein Leerzeichen vor
-einem Infinitiv — in allen vier Fällen richtiges Deutsch, anders als eine gerechnete
-Beugung («Kundeen», #787).
-
-**`inbound` ist nicht `collects`** (`vo.inbound` = `collects != minus`): wer den Beleg
-**ausstellt**, bleibt bei einer Gutschrift derselbe (wir schreiben unserem Kunden gut), nur
-fliesst das Geld andersherum. Zwei Fragen, zwei Antworten — und nur die zweite entscheidet
-über den **Zahlungsdienst** (er *zieht ein*) und den **Einzahlungsschein** (er trägt unsere
-Bankverbindung). *Bis hierher fiel beides an einer Gutschrift ebenfalls weg, aber aus dem
-falschen Grund: der Betrag war negativ. Ein Zufall, der stimmt, ist keine Regel.*
-
-**#1059, validiert:** die Gutschrift bleibt in der **Einnahme**-Logik, und das ist richtig
-— steuerlich ist sie eine *Umsatzminderung*, keine Ausgabe (eine Ausgabe wäre Vorsteuer).
-Was sie unangenehm machte, war nicht der Ort, sondern das Minus.
-
-Migration `141` hat bestehende Gutschriften und die Erstattungen darauf gedreht (seit der
-Basis `161` Teil der Geschichte).
-
-
-#### 9.15s Umbau Oktober 2026 — was jetzt gilt (geht §9.15a–r vor)
-
-> Entscheide: Dokument «Zahlungsmodul – Ziel, Muster, Plan» und das Mockup
-> (`docs/history/2026-10-25-zahlungsmodul-umbau.md`). Code: `domain/voucher`,
-> `services/voucher` (`VERBS`, `can`, `situation`), `services/voucher_docs`,
-> `services/document`, `services/legal`, `services/payment_list`, `routers/beleg.py`,
-> Migration `155`. **Wo ein älterer Unterabschnitt etwas anderes sagt, gilt dieser.**
-
-- **Die Stücke passieren das Modul von selbst** – mit der Zusage, bei Vorauszahlung mit
-  der vollen Zahlung (`voucher.passable`, `process.advance_payments`). Einen
-  «Bestätigen»-Knopf gibt es an einem Zahlungsmodul nicht (`PASSES_ITSELF`). Der Status
-  bleibt `Im Prozess`. **Eigentum** «geht an die Partei · geht an uns» ist eine Pflichtwahl
-  ohne Vorbelegung, eingefroren mit der Zusage. **Wem ein Stück gehört, wird abgeleitet**
-  (`voucher.sold_units`): das jüngste nicht stornierte Zahlungsmodul, das es passiert hat.
-  Am Ziel des Auftrags wird ein Stück, das der Partei gehört, **Verkauft** (Historie, behält
-  seinen Ort), sonst Freigegeben. Storno → frei, Retoure «an uns» → frei, Reparatur ohne
-  Zahlung → bleibt Verkauft; eine stornierte Retoure lässt den Verkauf wieder gelten.
-- **Erledigt ist abgeleitet**: gestellt ∧ Saldo 0 (∧ Ausfuhrnachweis bei Export). Die Stufe
-  `done` und «Vorgang abschliessen» gibt es nicht mehr.
-- **Ein Wort für den Storno: «Stornieren»**, in jeder Stufe. Nach der Rechnung entsteht die
-  Gutschrift über die ganze Rechnung von selbst (`credit_number`, eigene Nummer). «Rechnung
-  zurücknehmen» (`unbill`) gibt es nicht mehr.
-- **Passen die Stücke nicht mehr** (ein beim ersten Hinausgehen eingefrorenes Stück hat den
-  Auftrag verlassen, ohne das Modul passiert zu haben – `units_problem`), bleibt nur
-  «Stornieren». Die übrigen Stücke führt ein gewöhnlicher Abweichungsauftrag weiter.
-- **Geld-Zeilen haben eine Art**: Zahlung (negativ = Erstattung) · Ausbuchung (mit Grund aus
-  fester Liste, Entgeltsminderung) · Trinkgeld (Entgelt). «Falsch erfasst?» bucht genau eine
-  Zeile gegen. Eine Referenz gehört zu genau einer aktiven Zeile (Unique-Index).
-- **Gültigkeit** in Tagen ab «Anbieten» (Vorgabe 30); abgelaufen → «Erneut anbieten» (dieselbe
-  Handlung). **Angenommen wird nur die aktuelle Fassung** (`offered_hash`): wer nach dem
-  Anbieten ändert, bietet erneut an.
-- **Die Anschrift entscheidet**: Ware → Steuersatz nach Lieferadresse (Ausland: 0 % Export,
-  fest), Dienstleistung → nach Sitz (Ausland: Reverse Charge); Fremdwährung nur ins Ausland;
-  Zoll (Tarif, Ursprung, Gewicht) nur bei Export; Ort der Lieferbedingung abgeleitet (E/F:
-  Versandadresse des Erbringers, C/D: Lieferadresse). Die eigene Gesellschaft ist nie
-  Gegenpartei.
-- **Lieferantenrechnung**: Rechnungsnummer, -datum, MWST-Nr. (bei Steuer Pflicht), Foto
-  Pflicht; weicht sie von der Zusage ab, wird erst nach «So annehmen …» (mit Grund) bezahlt.
+- **Geld-Zeilen** (`voucher_entries`) haben eine Art: Zahlung (negativ = Erstattung) ·
+  Ausbuchung (Grund aus fester Liste, Entgeltsminderung) · Trinkgeld (Entgelt). «Falsch
+  erfasst?» bucht genau eine Zeile gegen. **Eine Referenz gehört zu genau einer aktiven
+  Zahlung** (Unique-Index).
+- **Drei Wege zum Geld**: bar · Überweisung (eine Auskunft: Bankverbindung, Referenz, Swiss
+  QR-Rechnung `services/qrbill`) · Karte (eigene Bezahlkarte mit Stripe Payment Element,
+  gebucht **nur vom Webhook**, zurück auf die Karte nur, was geschuldet ist;
+  `docs/stripe-setup.md`). Welche Wege es gibt, sagt der Server (`_ways`).
+- **Der Zustand einer Rechnung ist abgeleitet** (`invoice_state`, Toleranz `0.05`) aus
+  Betrag und Rest: offen · teilweise · beglichen · überfällig · überzahlt · storniert. Eine
+  Überzahlung ist ein Guthaben, das ein Mensch zurückzahlt oder verrechnet – nie
+  automatisch.
 - **Teilbetrag je Position** (netto); jedes Zahlungsmodul steht für sich.
-- **Mahnung**: drei Stufen, je 10 Tage, von Hand; die Stufe ist die Zahl der Mahn-Dokumente.
-  Überfälliges zählt an der Person (`todo`), eine eigene Mahnliste gibt es nicht.
-- **Dokumente**: jede Stufe, die die Partei sehen soll, ist ein eingefrorenes A4-Dokument aus
-  EINER Vorlage (AGB als letzte Seite, Datum der AGB-Fassung genannt) mit einem Link
-  `/beleg?t=…` und einer Mail über das Postfach der Gesellschaft. Auf der Seite handelt die
-  Partei mit denselben Verben (`can`).
-- **Die Leiste** (`situation`) ist nie leer ausser bei Erledigt/Storniert; ein Wächter prüft,
-  dass jeder Zustand einen nächsten Schritt hat.
-- **Modul-Vorgaben** (Fristen, Gültigkeit, Lieferbedingung, Eigentum) stehen im Beleg fest.
+- **Mahnung**: drei Stufen, je 10 Tage, von Hand (`remind`); die Stufe ist die Zahl der
+  Mahn-Dokumente. Überfälliges zählt in «zu tun» der Person; eine eigene Mahnliste gibt es
+  nicht.
+
+#### Die Anschrift entscheidet
+
+Beide Anschriften (Rechnung, Lieferung bzw. beim Erbringer «Versand») stehen auf beiden
+Seiten, auch wenn sie gleich sind. Aus ihnen folgt:
+
+- **Steuer** je Position (MWSTG Art. 26), gerundet je Satz auf der Summe: Ware nach
+  Lieferadresse (Ausland fest 0 % Export), Dienstleistung nach Sitz (Ausland Reverse
+  Charge). Sätze: `domain/voucher.VAT_RATES`.
+- **Fremdwährung** nur ins Ausland, **eine Währung je Vorgang**; **Zoll** (Tarif, Ursprung,
+  Gewicht) nur bei Export; der **Ort der Lieferbedingung** (Incoterms 2020) abgeleitet –
+  E/F: Versandadresse des Erbringers, C/D: Lieferadresse.
+
+**Lieferantenrechnung**: Nummer, Datum, MWST-Nr. (bei Steuer Pflicht) und das **Dokument**
+(Feld `voucher.original`, die Werte liest die KI vor). Weicht sie von der Zusage ab, wird
+erst nach «So annehmen» mit Grund bezahlt (`accept`). **Ausfuhrnachweis** = Nummer der
+Veranlagungsverfügung + ihr Dokument (Feld `voucher.export`).
+
+#### Die Papiere
+
+- **Jedes Papier** (Offerte, Auftragsbestätigung, Rechnung, Quittung, Stornierung,
+  Gutschrift, Mahnung – `DOCUMENTS`) entsteht aus **einer A4-Vorlage**
+  (`services/document.py`), nennt je Position die Seriennummer (`serials_of`), trägt die
+  AGB der stellenden Gesellschaft auf eigenen Seiten und ist ein **Dokument** (Feld
+  `voucher.doc`, nie löschbar; `voucher_documents` hält nur Link, Partei und Mail).
+- **Vorschau → Freigeben**: was ein Papier hinausgibt (`PAPER_VERBS`), zeigt die Karte
+  vorher (`voucher_docs.preview`, zurückgerollter Lauf). Auftragsbestätigung und Quittung
+  **stehen an** (`papers_due`, «zu tun») und gehen mit «Prüfen und freigeben» (`release`),
+  nie von selbst (`AUTO_RELEASE` ist leer).
+- Hinaus geht es per Mail über das Postfach der Gesellschaft mit einem Link `/beleg?t=…`;
+  dort handelt die Partei mit denselben Verben (annehmen, ablehnen, bezahlen).
+- **Die Zahlungen-Liste** (`GET /erp/payments`) ist eine Ableitung an jeder Person und an
+  jeder eigenen Gesellschaft.
+
+**Offen und benannt** (`docs/backlog.md`): die offene-Posten-Liste je Partner (mit der
+Sammelzahlung über mehrere Module), ein Beleg ganz ohne Ware (`assert_releasable` verlangt
+mindestens eine Einzelinstanz), die automatische Freigabe einzelner Papiere, Bankabgleich
+(camt.053).
 
 ## 10. Darstellung
 
@@ -2524,55 +1492,10 @@ Basis `161` Teil der Geschichte).
 - **Keine erfundenen Daten, keine Fallback-Anzeigen.** Fehlt etwas, kommt ein Fehler mit
   Ursache und Ort.
 
-### 10.2 Technologie-Entscheid: Fluss-Layout + SVG-Overlay auf gemessenen Ankern
+### 10.2 Technologie
 
-**Geprüft, nicht vermutet.** Der Verdacht war richtig: der frühere SVG-Ansatz scheiterte
-nicht an SVG. Zwei konkrete Ursachen, beide inzwischen belegt:
-
-1. **Feste Spurbreiten** im Vorgängersystem. Daraus folgte, dass Ecken als
-   CSS-Rahmenkanten gezeichnet wurden — und an der Naht zwischen einem gerasterten
-   `div` und einem analytisch gezeichneten SVG-Pfad ist jede halbe Pixelverschiebung
-   sichtbar.
-2. **Ein Registrierungsfehler** in der ersten Fassung des neuen Rahmens: die Abmeldung
-   eines Knotens lag in einem Effekt statt in der Callback-Ref. Im StrictMode räumte
-   dessen doppelter Lauf jeden Knoten wieder aus der Messung — es wurde **keine einzige
-   Linie** gezeichnet. Das sah aus wie «SVG funktioniert nicht».
-
-Beides ist behoben und **im Browser nachgemessen** (Chromium, 320–1440 px, 3 wie 50
-Module): Versatz Linie ↔ Knotenkante **0 px**, **0** absolut positionierte Knoten,
-**0 px** waagrechter Überlauf.
-
-**Geprüfte Alternativen:**
-
-| Ansatz | Warum nicht |
-|---|---|
-| **CSS-Rahmen / Pseudo-Elemente am Knoten** | Kein eigener Layer nötig, aber: eine Linie, die von einer Spalte in eine andere läuft, ist so nicht darstellbar; die div/SVG-Rasterungsnaht kommt zurück; und **eine Bewegung entlang eines Pfades ist unmöglich** — das schliesst die geforderte Animation aus. |
-| **Canvas** | Erst ab Tausenden von Kanten im Vorteil. Dafür: keine DOM-Knoten (kein Fokus, keine Tastaturbedienung, kein Hit-Testing geschenkt), keine Design-Tokens, und jede Animation muss von Hand durch `requestAnimationFrame` getrieben werden. Bei ≤ 50 Kanten ein Preis ohne Gegenwert. |
-| **Graph-Bibliothek** (React Flow, D3) | 40–90 kB und ein eigenes Layout-Modell, das gegen «Knoten bestimmen ihre Position selbst» arbeitet. Wir haben keinen Graphen, sondern eine **Liste** (§10.1). Pan/Zoom/Minimap/Drag brauchen wir nicht. |
-
-**Entscheid: SVG-Overlay auf gemessenen Ankern** — die einfachste Lösung, die alle drei
-Anforderungen erfüllt.
-
-**Wie es bei 50 Objekten und beim Resize stabil bleibt.** Es gibt keine gespeicherte
-Position. Jeder Knoten meldet sich beim Rahmen an; ein `ResizeObserver` misst ihn und
-den Rahmen, zusätzlich wird nach jedem Commit neu gemessen (ein Knoten kann wandern,
-ohne seine Grösse zu ändern). Aus den Rechtecken entstehen die Pfade. Ob es 3 oder 50
-Knoten sind, ändert nur die Länge einer Schleife; ob das Fenster 320 oder 1440 px breit
-ist, ändert nur die gemessenen Zahlen. **Auch die Layout-Entscheidung (drei Spuren oder
-eine) fällt an der gemessenen Breite** — nicht an einer Media-Query, sonst hätten Layout
-und Linien zwei verschiedene Massstäbe.
-
-**Wie eine spätere Animation andockt.** Ohne Umbau, weil die Linie bereits ein `<path>`
-mit stabiler Identität ist:
-
-| Gewünscht | Mittel |
-|---|---|
-| Fluss-Richtung andeuten | `stroke-dasharray` + animierter `stroke-dashoffset` |
-| Aktiven Pfad hervorheben | `stroke`/`stroke-width` wechseln (CSS-Transition) |
-| Stück wandert von Objekt zu Objekt | `path.getPointAtLength()` entlang derselben Kante — der Pfad ist schon da und schon vermessen |
-
-Voraussetzung, die heute erfüllt ist: jede Kante hat einen **stabilen Schlüssel** über
-Re-Renders hinweg. `prefers-reduced-motion` ist dann zu beachten.
+Fluss-Layout mit einem SVG-Overlay auf gemessenen Ankern (kein Canvas, keine
+Graph-Bibliothek) – Begründung und geprüfte Alternativen in `docs/prozessbild.md` §10.2.
 
 ### 10.3 Der Bestand — eine Frage, drei Ebenen, kein Filter
 
@@ -2589,10 +1512,8 @@ der Darstellung:
 | Artikel, Reiter «Bestand» | alles von diesem Artikel | seine **Instanzen**, aufklappbar zu ihren Nummern |
 | Instanz-Datensatz | diese eine Gruppe | direkt ihre **Einzelinstanzen** |
 
-Die Ansicht an der Instanz ist damit exakt der Teilbaum, den man am Artikel aufklappt.
-Zwei Fassungen hätten sich beim ersten neuen Zustand, beim ersten Design-Wechsel und bei
-der ersten Regel (Bestand ↔ Historie) getrennt — genau so stand es hier: der Artikel
-hatte drei Ebenen mit Leiste und Legende, die Instanz eine schlichte Liste.
+Die Ansicht an der Instanz ist damit exakt der Teilbaum, den man am Artikel aufklappt;
+zwei Fassungen trennten sich beim ersten neuen Zustand.
 
 **Drei Ebenen, jede vollständiger als die darüber:**
 
@@ -2607,26 +1528,19 @@ viel Rauschen enthält; und er versteckt, was er nicht zeigt. Stattdessen ist di
 **Aufteilung selbst das Bedienelement**: ein Segment anklicken heisst «zeig mir diese
 Nummern», und der Rest bleibt in der Leiste sichtbar.
 
-**Die Leiste NENNT ihre Zustände — die Farbe allein kann es nicht** (Testnotiz #789).
+**Die Leiste NENNT ihre Zustände — die Farbe allein kann es nicht.**
 Der Katalog kennt **drei** Ampeltöne für **sechs** Zustände eines Stücks: *Freigegeben*,
 *Verbaut* und *Verkauft* sind alle grün, *Im Prozess* und *Gesperrt* beide gelb. Zwei
 gleichfarbige Segmente nebeneinander sind damit **strukturell** nicht unterscheidbar, und
 keine Feinabstimmung des Tons ändert daran etwas — das Wort ist die Unterscheidung.
 Also stehen Punkt, Wort und Menge **unter der Leiste, als Teil von ihr**, eine Haarlinie
-trennt die Segmente, und die Beschriftung ist zugleich die Auswahl.
+trennt die Segmente, und die Beschriftung ist zugleich die Auswahl – es gibt nur **eine**
+Fassung, keine Sektionen je Zustand daneben.
 
-Damit ist die frühere **Liste von Sektionen** ersatzlos entfallen — je Zustand ein Kopf
-mit Chevron, Punkt, Wort und Menge, darunter der Inhalt: Zeile für Zeile dasselbe, was
-die Leiste eine Zeile höher schon zeigte, nur zwanzigmal höher. *Das ist kein Rückschritt
-hinter #716, sondern sein zweiter Schritt:* damals stand eine Legende **neben** den
-Gruppen und sagte dasselbe zweimal; entfernt wurde die Doppelung, nicht die Beschriftung.
-Jetzt gibt es nur noch **eine** Fassung.
+**Und genau EINER ist offen**, zu Beginn keiner: eine Gruppe, die von selbst offensteht,
+entscheidet für den Betrachter, was ihn interessiert; die Mengen in der Leiste sagen ihm,
+ob sich das Öffnen lohnt.
 
-**Und genau EINER ist offen.** Zwei Zustände gleichzeitig zu betrachten war der Grund,
-warum es Sektionen gab — und nie eine Frage, die jemand hatte. Zu Beginn ist keiner
-offen (dieselbe Regel wie #716): eine Gruppe, die von selbst offensteht, entscheidet für
-den Betrachter, was ihn interessiert; die Mengen in der Leiste sagen ihm, ob sich das
-Öffnen lohnt.
 
 **Die Ansicht zählt dabei keinen einzigen Status auf.** Alles folgt aus dem Status selbst
 (§5.2):
@@ -2634,28 +1548,24 @@ den Betrachter, was ihn interessiert; die Mengen in der Leiste sagen ihm, ob sic
 | Frage | Antwort kommt von |
 |---|---|
 | Welche Segmente gibt es? | den gelieferten `states` – nie einer Liste in der Ansicht |
-| In welcher **Reihenfolge**? | der Position im `CATALOG` = **Lebenszyklus** (Freigegeben → Im Prozess → Gesperrt → Verschrottet) |
+| In welcher **Reihenfolge**? | der Position im `CATALOG` = **Lebenszyklus** (Freigegeben → Im Prozess → Gesperrt → Verbaut → Verkauft → Verschrottet) |
 | Welche **Farbe**? | dem Ampelton des Status |
-| Zählt es zum Bestand? | `stock` – heute eine gelesene Eigenschaft, keine Gruppierung mehr |
+| Zählt es zum Bestand? | `stock` – eine Eigenschaft am Status |
 
 Ein neuer Zustand erscheint damit **ohne eine Zeile Änderung** an seiner Stelle im
 Lebenszyklus, in seiner Farbe, mit seinem Wort. Ein Zustand **ohne** Zuordnung wird
 **gemeldet** statt einsortiert.
 
-**Keine Gesamtzahl im Kopf.** Sie summierte alles – auch Verschrottetes – und war damit
-zugleich irreführend (das ist kein Bestand) und uninformativ (sie sagte nicht, wovon). Die
-Zahlen stehen an der Leiste, je eine je Zustand.
+**Keine Gesamtzahl im Kopf.** Sie summierte auch Verschrottetes (das ist kein Bestand) und
+sagte nicht, wovon. Die Zahlen stehen an der Leiste, je eine je Zustand.
 
 **Die Karte ist die der Spezifikation** (`SPEC.card` + `SpecHead` aus `fields.tsx`) – die
-Anatomie jeder Detail-Ansicht, nicht die des Artikels. Sie stand lokal im Artikel und war
-dort auf «Spezifikation» festgenagelt; wer daneben etwas baute, schrieb sich einen eigenen
-Kopf, und dann sahen die Karten nur noch *ähnlich* aus.
+Anatomie jeder Detail-Ansicht, nicht die des Artikels.
 
 **Die Instanz hat keinen Zustand, sondern eine Aufstellung.** Eine Gruppe mit drei
-freigegebenen und einem laufenden Stück hat keinen einen Zustand (Testnotiz #675); jede
-gewählte Antwort wäre eine Behauptung. `states` zählt darum auf, und die Menge ist die
-Summe — **eine** Abfrage, zwei Lesarten. Genau daran scheiterte der Vorgänger: er las
-`Instance.status`, eine Spalte, die es nicht gibt, und endete bei jedem Aufruf mit 500.
+freigegebenen und einem laufenden Stück hat keinen einen Zustand; jede gewählte Antwort
+wäre eine Behauptung. `states` zählt darum auf, und die Menge ist die Summe — **eine**
+Abfrage, zwei Lesarten.
 
 **Kein Sonderfall für Einzelserialisierung.** Eine Einzelinstanz ist eine Instanz mit
 Menge 1 — dieselbe Zeile, dieselbe Leiste, dieselbe Nummernliste. Und die Leiste ist
@@ -2668,9 +1578,8 @@ Reihenfolge, in der das Material entstanden ist. Der Feed sortiert absteigend, w
 dort den zuletzt angelegten Datensatz sucht; hier sucht man das älteste Material. **Ein
 eigenes Datum braucht es dafür nicht**, und es wäre die zweite Wahrheit neben der Nummer.
 
-**Gruppiert wird nach Instanz, nicht nach Zustand.** Die Vorgängeransicht gruppierte nach
-Zustand, weil sie keine Leiste hatte — die Gruppenköpfe *waren* die Übersicht. Mit der
-Leiste ist diese Frage oben beantwortet, und die Instanz ist die Klammer, die zählt: sie
+**Gruppiert wird nach Instanz, nicht nach Zustand.** Die Frage nach dem Zustand
+beantwortet die Leiste oben, und die Instanz ist die Klammer, die zählt: sie
 trägt die Objektnummer, die man scannt und zitiert. Nach Zustand gruppiert erschiene
 dieselbe Charge in zwei Gruppen und ihre Menge nirgends vollständig.
 
@@ -2684,10 +1593,8 @@ eine Nachbaransicht, die sie einen Klick weiter bricht, ist keine Regel.
 
 ## 11. Datenstruktur — drei Ebenen
 
-Die Trennung ist die Voraussetzung für Skalierbarkeit. Sie ist zugleich die Lehre aus
-dem Vorgängersystem: dort wurde der Zustand aus dem heutigen Bestand **rekonstruiert**,
-und weil der Bestand ein bewegliches Ziel ist, schrieb jede Änderung die Vergangenheit
-um.
+Die Trennung ist die Voraussetzung für Skalierbarkeit: ein Zustand, der aus dem heutigen
+Bestand **rekonstruiert** wird, schreibt mit jeder Änderung die Vergangenheit um.
 
 ### 11.1 Ebene 1 — Prozessdefinition (die Modellierung)
 
@@ -2762,13 +1669,9 @@ Der Log trägt damit **zwei** Fragen, nicht eine: was ist mit diesem Auftrag pas
 (§7.2) und **wo war dieses Stück vorher bzw. nachher** (§7.4). Für die zweite steht ein
 Index `(instance_unit_id, id)` daneben — dieselbe Tabelle, nur eine zweite Leserichtung.
 
-**Eine eigene Tabelle, und zwar die EINZIGE.** Daneben stand einmal ein zweiter,
-allgemeiner `events`-Strom — eine Beobachtungs-Outbox mit freier Payload für Analytik.
-Er ist entfernt (`docs/attic.md`), und die Begründung dafür ist dieselbe, aus der er nie
-mit diesem hier verschmolzen werden durfte: eine «nice to have»-Spur und eine
-verbindliche Buchführung in denselben Zeilen zu führen heisst, dass die schwächere
-Garantie gewinnt. Wer Analytik braucht, liest **diesen** Log — er ist die Wahrheit über
-das Material; ein zweiter daneben wäre eine zweite Antwort auf dieselbe Frage.
+**Eine eigene Tabelle, und zwar die EINZIGE.** Einen zweiten, allgemeinen Ereignis-Strom
+gibt es nicht (`docs/attic.md`): wer Analytik braucht, liest **diesen** Log — er ist die
+Wahrheit über das Material.
 
 ---
 
@@ -2806,12 +1709,10 @@ Material, das gerade **nicht** zur Verfügung stand. Genau diese Frage steht im 
 kind = 'start' AND status_before <> 'freigegeben'
 ```
 
-**Die Regel nennt keinen Status.** Sie hiess einmal `status_before = 'im_prozess'`, also
-«einem laufenden Auftrag entzogen» – technisch stimmig, fachlich zu eng: ein **gesperrtes**
-Stück wieder in Betrieb zu nehmen gehört zu keinem laufenden Auftrag und fiel damit heraus,
-obwohl es in der Qualitätssicherung der Musterfall einer **Sonderfreigabe** ist. Der Zweck
-des Labels ist die **Nachweisbarkeit**; ein Nachweis, der den auffälligsten Fall auslässt,
-ist keiner.
+**Die Regel nennt keinen Status.** «Einem laufenden Auftrag entzogen» wäre zu eng: ein
+**gesperrtes** Stück wieder in Betrieb zu nehmen ist der Musterfall einer
+**Sonderfreigabe**, ebenso Demontage (`Verbaut`) und Retoure (`Verkauft`). Der Zweck des
+Labels ist die **Nachweisbarkeit**.
 
 Als Vergleich gegen den einen Regelstart ist sie zugleich die **einfachere** Regel und die
 haltbarere: ein künftiger Zustand ist automatisch eine Abweichung, ohne dass ihn jemand
@@ -2870,13 +1771,9 @@ Modul, wenn es abweicht — auch nach einem «nicht bestanden», denn das rückt
 nicht vor (§4.5). Die Linie geht darum vor dem Modul ab und führt an **denselben Punkt**
 zurück; das Stück durchläuft das Modul danach regulär.
 
-> **Achtung, hier stand eine zu enge Begründung.** «Ein Stück kann nur abweichen, solange
-> am Modul noch nichts eingegeben wurde (§12.7) — es hat das Modul also gar nicht
-> betreten» stimmt für den Regelfall, aber nicht für den wichtigsten: nach einer
-> **durchgefallenen** Erfassung ist sehr wohl etwas eingegeben, und genau dort *bietet*
-> §4.5 die Abweichung an. Die Position ist trotzdem «davor», weil nichts vorgerückt ist —
-> und **das** ist der Grund, nicht die Eingabe. Was daraus folgt und was noch offen ist,
-> steht in `SYSTEM_LOGIC.md` §5.5.
+Auch nach einer **durchgefallenen** Erfassung steht das Stück «davor», weil nichts
+vorgerückt ist — die Position ist der Grund, nicht die Eingabe. Was daraus folgt und was
+offen ist, steht in `SYSTEM_LOGIC.md` §5.5.
 
 ```
         ⋮
@@ -2900,11 +1797,9 @@ Ein gemerkter «Rücksprungpunkt» wäre eine zweite Aussage über dieselbe Sach
 von der ersten abweichen. Diese hier kann es nicht.
 
 **Im Bild gibt es keinen Rückfall.** Ein Zustandspunkt wird gezeichnet, wenn dort etwas
-steht — anwesend **oder** ausgeschert — **oder** wenn eine Abzweigung an ihm ansetzt. Der
-letzte Fall ist der, an dem es zuerst fehlte: sind alle Stücke ausgeschert oder längst
-zurück und weitergezogen, steht am Punkt nichts mehr, und die Linie fiel auf das
-nächstbeste Element zurück — das Modul. Weil ein Punkt nach dem Modul heisst, vor dem er
-liegt, ist sein Anker **berechenbar** (`statePointId`); gesucht oder geraten wird nichts.
+steht — anwesend **oder** ausgeschert — **oder** wenn eine Abzweigung an ihm ansetzt, auch
+wenn alle Stücke längst zurück und weitergezogen sind. Weil ein Punkt nach dem Modul
+heisst, vor dem er liegt, ist sein Anker **berechenbar** (`statePointId`).
 
 Und weil ein Abweichungsauftrag an **mehreren** Punkten zugreifen kann, ist die Angabe
 eine **Liste** (`RelatedOrder.branches`). Ein Einzelwert hätte sich für einen entschieden
@@ -2954,7 +1849,7 @@ zählt** (§12.5): leiht A an B und B weiter an C, ist auch A gesperrt.
 
 > **Ein Modul fragt nicht, ob es darf. Ihm wird gesagt, dass es nicht darf.**
 
-Ein künftiger Einkauf oder Verkauf erbt beides, ohne eine Zeile dafür zu schreiben.
+Jeder Modultyp erbt beides, ohne eine Zeile dafür zu schreiben.
 `fieldset[disabled]` schaltet jede Eingabe und jeden Knopf darin ab, ganz gleich was das
 Modul rendert — die Sperre muss nicht wissen, was sie sperrt.
 
@@ -2972,10 +1867,9 @@ Darum trägt jeder gewählte Anteil seine **Absicht** mit (`UnitPick.from_order`
 | Objektnummer | «ich hole es aus genau diesem Auftrag» — das ist die Abweichung |
 
 Die Freigabe vergleicht die Absicht mit der Wirklichkeit (`process._assert_as_picked`).
-Weicht sie ab, passiert **nichts**, und der Fehler nennt beide Seiten. Ohne diese Prüfung
-entschied die Reihenfolge der Klicks, welche **Art** Auftrag entsteht: ein als frei
-gewähltes Stück, das inzwischen lief, machte die Freigabe still zur Abweichung und entzog
-es dem anderen Auftrag — mit `return_to = NULL`, also für immer.
+Weicht sie ab, passiert **nichts**, und der Fehler nennt beide Seiten. Sonst entschiede
+die Reihenfolge der Klicks, welche **Art** Auftrag entsteht: ein als frei gewähltes Stück,
+das inzwischen läuft, machte die Freigabe still zur Abweichung.
 
 Das ist optimistisches Sperren mit dem Wert, den der Mensch gesehen hat, und es ist **eine**
 Auswahl-Logik für beide Fälle: konkrete Stücke, vorher sichtbar, änderbar. Einen zweiten
@@ -2985,16 +1879,10 @@ einen: FIFO schlägt vor, der Mensch übersteuert.
 **Ein Auftrag darf nie unbemerkt seine Art ändern.**
 
 **Freie und gebundene Stücke dürfen im selben Auftrag stehen** — und es braucht dafür
-**keine** Regel. Die Frage «grün und orange nicht mischen» ist bereits beantwortet, nur
-eine Ebene tiefer: die Absicht steht **je Stück**, nicht je Auftrag. Damit ist eine
-gemischte Auswahl kein Zwitter, sondern schlicht ein Auftrag, der ein freies Stück
-übernimmt *und* einem laufenden eines abnimmt — beide Wege gehen durch dasselbe
-Start-Objekt (§4.1), und `return_to_order_id` entsteht genau für die geliehenen. Auch die
-Rückführung ist keine Ausnahme: ein freies Stück kommt aus keinem Auftrag, es kann darum
-nirgends zurückkehren. Gemessen an den echten Dienstpfaden (eine Zeile, zwei Zeilen,
-gekappt und rückführend): Graph widerspruchsfrei, Nachbar-Liste korrekt, Bypass korrekt.
-Eine zusätzliche Regel wäre eine zweite Aussage über dieselbe Sache — und die überstimmt
-irgendwann die erste.
+**keine** Regel: die Absicht steht **je Stück**, nicht je Auftrag. Beide Wege gehen durch
+dasselbe Start-Objekt (§4.1), und `return_to_order_id` entsteht genau für die geliehenen;
+ein freies Stück kommt aus keinem Auftrag und kann nirgends zurückkehren.
+
 
 ### 12.7 Wann darf ein Stück ein Modul verlassen?
 
@@ -3003,9 +1891,7 @@ Modul mit der Eingabe **begonnen** wurde, ist der Auslöser gesperrt.
 
 Sie steht als **Eigenschaft des Modultyps** (`Module.units_may_leave`), nicht als globale
 Regel — denn die richtige Antwort hängt am Modul: eine begonnene Datenerfassung ist
-verlorene Tipparbeit, eine ausgelöste Bestellung ist Aussenwirkung. Ein Modultyp, der
-etwas Unwiderrufliches tut, wird die Antwort «nein» brauchen, während sie für die
-Datenerfassung eher «ja» lautet.
+verlorene Tipparbeit, ein hinausgegangenes Angebot ist Aussenwirkung.
 
 **Serverseitig kann diese Regel nicht erzwungen werden**, und das ist kein Versäumnis:
 eine nicht bestätigte Eingabe existiert nirgends — nicht in der Datenbank, nicht im Log.
@@ -3028,7 +1914,7 @@ beantwortet, sobald ein Modul mit Aussenwirkung existiert.
 - Ein Klick öffnet den Nachbarn: er wird zur Mitte, und seine Nachbarn erscheinen um ihn
   herum. Es gibt keine Sonderansicht — nur einen anderen Auftrag in der Mitte.
 - **Die Prozesslinien führen.** Eine Querlinie geht dorthin, wo das Stück ausgeschert
-  ist, und eine **gestrichelte** kommt dorthin zurück, wo es weitergeht. Ist die
+  ist, und eine zweite kommt dorthin zurück, wo es weitergeht. Ist die
   Rückführung gekappt, fehlt die zweite Linie — das Bild sagt es, ohne ein Wort.
 - **Skalierung:** die Seitenspalte rendert **höchstens drei** Nachbarn voll; der Rest
   steht als Zeile «+N weitere» mit der Gesamtzahl und ist anklickbar. Abschneiden mit
@@ -3042,35 +1928,25 @@ beantwortet, sobald ein Modul mit Aussenwirkung existiert.
 Diese Punkte gehören zur Grundlogik, sind aber **nicht** entschieden. Sie werden einzeln
 nachgetragen — nicht beim Bauen erraten.
 
-1. **Die weiteren Prozessschrittmodule.** Zwei sind fertig: Datenerfassung (§9.0–§9.3)
-   und Aussondern (§9.4). *Nicht mehr offen: die Erfassungsgrösse ist die **Instanz**
-   (§4.4), was bei «nicht bestanden» passiert steht in §4.5, und ein Modul darf das
-   Stück aus dem Auftrag hinausführen (§4.6).*
+1. **Weitere Prozessschrittmodule** nach Bedarf. Fünf sind gebaut (§9); ein
+   Wiederaufbau eines entfernten beginnt bei der Modellfrage in `docs/attic.md`.
 2. **Darf ein Abweichungsauftrag noch ausgelöst werden, wenn in einem Modul bereits mit
    der Dateneingabe begonnen wurde?** Gebaut ist vorläufig die restriktivere Variante
    (nein) — als **Eigenschaft des Modultyps**, nicht als globale Regel (§12.7).
-3. **Abbruch.** §3.1 schlägt vor, was mit den Stücken geschieht; wer abbrechen darf und
-   was mit dem Auftrag selbst passiert, ist offen.
-4. **~~Fehlerbehandlung im Modul.~~ Entschieden (§4.5): weder Status noch automatischer
-   Abzweig.** Das Stück bleibt stehen, das Ergebnis ist geloggt, und der Mensch
-   entscheidet — angeboten wird ein ganz gewöhnlicher Auftrag mit vorgewählten Stücken.
-   «Nicht bestanden» ist eine Aussage über die **Messung**, kein Zustand des Stücks; ein
-   Stück in einem Abweichungsauftrag ist `Im Prozess`, dort, wo es hingehört. Was daraus
-   folgt, entscheidet der Folgeauftrag — und **wenn** er aussondert, sagt das sein Modul
-   (§9.4), nicht die Datenerfassung.
-5. **Zwei `Neu`-Zeilen mit verschiedenen Vorlagen.** Heute ein harter Fehler: ein Auftrag
+3. **Wer darf aussondern, verschrotten, stornieren?** Heute jede Person mit Zugang zum
+   ERP (`SYSTEM_LOGIC.md` §4.5, R10). Der Abbruch selbst ist entschieden: es gibt keine
+   Abbruch-Funktion, sondern eine Abweichung mit gekappter Rückführung (§3.1).
+4. **Zwei `Neu`-Zeilen mit verschiedenen Vorlagen.** Heute ein harter Fehler: ein Auftrag
    hat einen Prozess (§14). Ob es dafür je einen Fall gibt, ist nicht entschieden.
-6. **Die Vorlage im Entwurf abweichen lassen.** Heute nicht möglich — der Stempel wäre
+5. **Die Vorlage im Entwurf abweichen lassen.** Heute nicht möglich — der Stempel wäre
    sonst eine Behauptung. Falls es gebraucht wird, ist es ein eigener Vorgang
    («Prozess dieses Auftrags von der Vorlage lösen»), kein stilles Editieren.
-7. **Wiederkehrende Aufträge — eine Schlaufe mit Intervall im Prozess.** Wartung,
+6. **Wiederkehrende Aufträge — eine Schlaufe mit Intervall im Prozess.** Wartung,
    Kalibrierung, monatliche Lieferung und ein Abo sind **derselbe** Fall: eine Regel, die
    in einem Takt einen ganz gewöhnlichen Auftrag erzeugt. Bewusst **nicht** als
-   «Abo»-Objekt am Verkauf gebaut: das Vorgängersystem hatte es dort
-   (`article_prices.kind` → `orders.recurrence_kind` → `_spawn_recurrence` →
-   Auto-Fulfillment im Webhook → «Abos lassen sich nicht mischen»), und die ganze Kette
-   hing an einer Eigenschaft des **Preises**. Steht die Wiederkehr im Prozess, muss der
-   Verkauf von ihr nichts wissen — und jedes andere Modul erbt sie.
+   Eigenschaft des **Preises** (so hing es im Vorgängersystem, `docs/attic.md` «Verkauf und
+   Shop»): steht die Wiederkehr im Prozess, muss die Zahlung von ihr nichts wissen — und
+   jedes andere Modul erbt sie.
 
 ---
 
@@ -3081,37 +1957,36 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 
 | | |
 |---|---|
-| **Die Statusliste hat genau zwei Werte** | `Freigegeben` ersetzt `verfügbar` (ein Zustand, ein Wort). `gebunden`/`gesperrt`/`verbraucht` sind zurückgezogen — Gründe in §5.2. |
-| **Ein neues Stück ist `Freigegeben`** | Alles andere bräuchte eine Regel, wie es das wird — und die gibt es noch nicht. |
+| **Die Statusliste ist geschlossen und steht an einer Stelle** | `domain/statuses.CATALOG` (§5.2). `Freigegeben` statt `verfügbar` (ein Zustand, ein Wort); `gebunden` und `verbraucht` sind zurückgezogen — Gründe in §5.2. |
+| **Ein neues Stück ist `Freigegeben`** | Es ist einsatzbereit und in keinem Auftrag; ein eigener Anfangszustand bräuchte eine Regel, wie es `Freigegeben` wird. |
 | **Kein gespeicherter Zustand «Entwurf»** | Folgt zwingend aus §6.1 + §6.3. Der «Speichern»-Knopf ist entfallen; es gibt nur «Freigeben». |
 | **Exklusivität als partieller Unique-Index auf `order_units`** | Die Zuordnungstabelle behält die Historie, `released_at IS NULL` ist «aktiv». Eine Spalte an der Einzelinstanz wäre ebenso exklusiv, verlöre aber die Liste des abgeschlossenen Auftrags. |
 | **Exklusivitätsprüfung VOR der Nummernvergabe** | Sonst verbrennt jeder Verstoss eine Objektnummer (§6.3). |
 | **`orders.end_status` als Ort des Endzustands** | Hält die Schrittliste rein und gibt dem Endzustand seine eine Adresse. |
 | **A5 gilt für Modul-Definitionen, nicht für die Instanz-Liste** | Bei einer Liste wäre «löschen und neu anlegen» dasselbe wie «bearbeiten». |
-| **Der Auftrag kennt `released` und `completed`** | «Abgeschlossen» ist abgeleitet: alle Stücke sind durch. Kein Feld, das jemand von Hand setzt. |
-| **Ein Modul bewegt alle Stücke einer INSTANZ, die davor stehen** | *(Ersetzt «alle Stücke, die davor stehen».)* Ein Bestätigen je Stück wäre bei 500 Stück unbedienbar — je **Instanz** ist es die richtige Grösse, weil der Scan die Instanz verifiziert (§4.4): eine Charge ist ein Griff, zwölf Einzelteile sind zwölf. Die Historie bleibt **je Stück** ein eigener Eintrag. |
-| **Die Datenerfassung erfasst EINMAL je Instanz** | *(Ersetzt «einmal für alle Davorstehenden» — entschieden über §4.4.)* Nicht die bequemere, sondern die einzig mögliche Grösse: ein Wertesatz gehört zu **einem** Urteil, und verifiziert wird eine Instanz. **Gespeichert wird weiterhin je Einzelinstanz**, damit die Zeile in deren Historie steht. |
+| **Der Auftragsstatus ist abgeleitet, nie gesetzt** | Im Prozess · Abgeschlossen · Abgebrochen aus den Zugehörigkeiten (`_derive`, §12.5). Kein Feld, das jemand von Hand setzt. |
+| **Ein Modul bewegt alle Stücke einer INSTANZ, die davor stehen** | Ein Bestätigen je Stück wäre bei 500 Stück unbedienbar — je **Instanz** ist es die richtige Grösse, weil der Scan die Instanz verifiziert (§4.4): eine Charge ist ein Griff, zwölf Einzelteile sind zwölf. Die Historie bleibt **je Stück** ein eigener Eintrag. |
+| **Ein Scan je Instanz, ein Wertesatz je gezogener Einzelinstanz** | Verifiziert wird die Instanz, gemessen das Stück (§9.5); gespeichert wird je Einzelinstanz, damit die Zeile in deren Historie steht. |
 | **Die Stichprobe wird zufällig gezogen, nicht gerechnet** | «Jedes n-te Stück» wäre vorhersagbar und damit als Stichprobe wertlos. Gezogen wird, wenn das Modul **erreicht** wird (vorher steht die Menge nicht fest), und **eingefroren im Log** — sie ändert sich nicht mehr, wenn jemand die Seite neu lädt (§9.3). |
-| **Die Stichprobenregel gilt über die GESAMTMENGE** | *(Ersetzt «je Instanz».)* Ein Modul sieht die Summe dessen, was davorsteht – «10 %» heisst 10 % davon. Je Instanz gerechnet stünde «10 %» am Bildschirm, während in Wahrheit aus jeder Kiste einzeln gezogen wird (und aus einer Kiste mit einem Stück immer dieses eine). |
+| **Die Stichprobenregel gilt über die GESAMTMENGE** | Ein Modul sieht die Summe dessen, was davorsteht – «10 %» heisst 10 % davon. Je Instanz gerechnet stünde «10 %» am Bildschirm, während in Wahrheit aus jeder Kiste einzeln gezogen wird (und aus einer Kiste mit einem Stück immer dieses eine). |
 | **Ein «nicht bestanden» hält die GANZE Instanz an** | Auch die nicht gezogenen Stücke: eine durchgefallene Stichprobe ist nicht mehr repräsentativ, der Rest ist verdächtig (Sortierprüfung). Ihn weiterlaufen zu lassen hiesse, ihn hinterher wieder einzusammeln. |
-| **Die 100 %-Kontrolle ist ein gewöhnlicher Auftrag** | Kein neuer Mechanismus — nur eine andere Vorbelegung (der ungeprüfte Rest statt der Durchfaller). Ihr Umfang ist der Rest **dieser Instanz an diesem Modul**: Stücke, die anderswo laufen oder längst am Lager liegen, hat dieses Modul nie behandelt, und eine Aussage über sie wäre eine über Material, das hier nie war. |
-| **Die Nummern der Entscheidungs-Gruppen kommen erst auf Klick** | Bei einer 6000er-Charge wäre der «Rest» sechstausend Nummern — mitgeliefert bei jedem Öffnen des Auftrags. Eigener Endpunkt (`GET …/steps/{id}/hold`). |
+| **Die Nummern der angehaltenen und gezogenen Stücke kommen erst auf Klick** | Bei einer 6000er-Charge wären es tausende Nummern — mitgeliefert bei jedem Öffnen des Auftrags. Eigener Endpunkt (`GET …/steps/{id}/hold`). |
 | **Die Art der Bestätigung steht im Log** | `scan` oder `manual`. Ohne den Vermerk wäre die Tastatur eine stille Umgehung der Scan-Pflicht statt ihrer protokollierten Alternative. |
 | **Zwei Zustände statt einem «ausgesondert»** | Sie unterscheiden sich in genau einer Sache, und die zählt: ob es einen Weg zurück gibt. Ein gemeinsamer Wert mit einem Flag daneben wäre dieselbe Aussage in zwei Feldern – und die Farbe müsste sie erraten. |
 | **`Gesperrt` zählt zum Bestand** | Das Stück liegt im Regal. Es in die Historie zu legen hiesse, den Bestand kleiner zu melden, als er ist; die Leiste zeigt es als eigenes Segment, und genau das ist die Auskunft. |
 | **Das Greifen IST das Aufheben der Sperre** | Kein Endpunkt «entsperren», kein zweiter Weg: ein gewöhnlicher Auftrag nimmt das Stück auf, das Start-Objekt setzt es auf «Im Prozess». Ein eigener Mechanismus wäre eine zweite Art, dasselbe zu tun. |
 | **Verschrotten ist keine Bestandsbewegung mit Ziel** | Es gibt kein «Schrottlager». Der Zustand IST die Aussage «gibt es nicht mehr»; ein Lagerort dafür wäre ein Ort für etwas, das weg ist. |
 | **Aussondern kennt keine Teilmengen** | Was am Modul ankommt, wird ausgesondert. Wer nur einen Teil meint, gibt nur diesen Teil in den Auftrag – eine Auswahl im Modul wäre ein zweiter Weg zur selben Entscheidung. |
-| **Der Grund ist Pflicht beim Sperren, nicht beim Verschrotten** | Eine Sperre ohne Begründung ist in drei Monaten wertlos. Beim Verschrotten ist der Scan die Bestätigung; ein zweites Feld macht den Fall nicht häufiger richtig. |
-| **Der Grund ist ein Erfassungspunkt, den das MODUL deklariert** | Kein neuer Mechanismus, aber auch keine Konfiguration: wäre er einstellbar, könnte man ihn wegkonfigurieren – und genau er ist der Sinn der Sperre. |
+| **Der Grund des Aussonderns ist Pflicht – beim Modellieren, für beide Ausprägungen** | Er steht in der Definition (`config.reason`), nicht als Erfassungspunkt: er lautet für jedes Stück gleich, und zur Laufzeit ist der Scan die Bestätigung (§9.4). Ohne Grund ist das Modul nicht anlegbar. |
 | **Ein terminales Modul darf nur zuletzt stehen** | Alles dahinter bekäme nie ein Stück. Eine tote Definition durchzulassen wäre schlimmer als ein Freigabe-Fehler: sie sieht aus wie ein Prozess. |
-| **Die Kettenregel gilt auch für die Artikel-Vorlage** | Sie stand nur in der Auftrags-Freigabe; ein Erzeugungsprozess mit gebrochener Kette liess sich anlegen und scheiterte erst beim ersten Auftrag – dann aber ist der Artikel eingefroren und nicht mehr zu reparieren. Jetzt in `domain/chain.py`, von beiden Definitionsorten gerufen. |
+| **Die Kettenregel gilt auch für die Artikel-Vorlage** | Ein Erzeugungsprozess mit gebrochener Kette scheiterte erst beim ersten Auftrag – dann ist der Artikel eingefroren und nicht mehr zu reparieren. `domain/chain.py`, von beiden Definitionsorten gerufen. |
+
 | **Der Auftragsstatus bekommt keinen vierten Wert** | Die bestehende Regel trägt beide Fälle: wer aussondert, hat sein Ziel erreicht (`Abgeschlossen`); wem die Stücke dadurch endgültig fehlen, dessen Ziel ist unerreichbar (`Abgebrochen`). |
-| **Der Übergang gehört zum Modultyp, nicht zum Anwender** | «Fest verdrahtet, nicht einstellbar» (Vorgabe). Zwei Status-Auswahlen beim Anlegen hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon feststand — und deren falsche einen Prozess ergäbe, der nicht läuft. **Der Typ darf dabei seine eigene Konfiguration lesen** (`status_after_for`, seit dem Aussondern): gewählt wird «was soll passieren», nicht «welcher Status». |
-| **Alles, was angelegt ist, ist Pflicht** | *(Ersetzt «standardmässig Pflicht, optional als Häkchen».)* Man legt einen Punkt an, weil er erfasst werden soll. Ein Häkchen daneben wäre die Frage, warum man einen Punkt anlegt, den niemand ausfüllen muss — und jeder ausgeschaltete eine Lücke, die erst später auffällt. |
+| **Der Übergang gehört zum Modultyp, nicht zum Anwender** | «Fest verdrahtet, nicht einstellbar» (Vorgabe). Zwei Status-Auswahlen beim Anlegen hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon feststand — und deren falsche einen Prozess ergäbe, der nicht läuft. **Der Typ darf dabei seine eigene Konfiguration lesen** (`status_after_for`): gewählt wird «was soll passieren», nicht «welcher Status». |
+| **Alles, was angelegt ist, ist Pflicht** | Man legt einen Punkt an, weil er erfasst werden soll. Ein Häkchen daneben wäre die Frage, warum man einen Punkt anlegt, den niemand ausfüllen muss — und jeder ausgeschaltete eine Lücke, die erst später auffällt. |
 | **Ein Erfassungspunkt-Typ ist eine Datei, keine Zeile in einer Liste** | Ein Typ ist **Verhalten** (prüfen · fehlt der Wert · bewerten), nicht nur ein Wort. Als `if/else` verteilt sich das auf drei Stellen, von denen man die dritte vergisst. |
 | **Der Artikel entsteht erst bei seiner Freigabe** | Dieselbe Regel wie beim Auftrag (§6.1) und aus demselben Grund. Ein Artikel, der schon eine Objektnummer hat, aber nichts erzeugen kann, ist ein Datensatz mit einer Zusage, die er nicht halten kann. |
-| **`articles.status` kennt nur noch `released` und `inactive`** | `draft` hatte keinen Zustand mehr zu beschreiben: vor der Freigabe gibt es keine Zeile. Vorgefundene Entwürfe (Ergebnis des behobenen Fehlers) werden **inaktiv** — nicht gelöscht, denn ihre Objektnummer ist vergeben. |
+| **Der Artikel-Zustand ist eine Projektion** | `Freigegeben` oder `Inaktiv`, abgeleitet aus `replaced_by_id` (§5.5); eine Spalte `articles.status` gibt es nicht, einen Zustand «Entwurf» ebenso wenig – vor der Freigabe gibt es keine Zeile. |
 | **Der Erzeugungsprozess ist nach der Freigabe nicht mehr änderbar** | Er entsteht mit dem Artikel; es gibt keinen Endpunkt, der ihn danach anfasst. Ein «Modul nachträglich hinzufügen» wäre eine Tür in einen Datensatz, der bereits Aufträge speist — und die Kopien in laufenden Aufträgen trügen einen Stempel, der nicht mehr stimmt. |
 | **Reiter-Name «Erzeugungsprozess»** | Sagt, wofür der Prozess da ist, und lässt Platz für eine zweite Art Vorlage. |
 | **Mehrere Definitionszeilen sind erlaubt** | Aber nur mit Herkunft `Lager`: «Neu» steht für sich allein (#693, siehe unten). |
@@ -3132,7 +2007,7 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **Ein Zustandspunkt heisst nach dem Modul, vor dem er liegt** | Er braucht keine eigene Identität: `current_step_id` beantwortet «wo steht dieses Stück» bereits. Damit ist der Anker der Abzweigung berechenbar statt suchbar — und der Rückfall «gibt es den Punkt nicht, nimm das Modul» entfällt ersatzlos. |
 | **Ein Abweichungsauftrag kann an mehreren Punkten ansetzen** | Darum eine Liste. Zwei rückführende Abweichungen am selben Punkt bleiben dagegen im Gleichschritt — die Sperre (§12.6) sorgt dafür; zwei **verschiedene** Punkte entstehen erst über eine gekappte. |
 | **Die Bezeichnung eines Erfassungspunktes bleibt** | Sie ist nicht der eliminierte Name (das war der **Modul**name, #682/#686), sondern die **Frage, die im Prozess gestellt wird** — ohne sie steht dort ein Daumen hoch/runter ohne Text. Verlangt wird sie bei der **Freigabe**, nicht im Schema: der Entwurf legt den Punkt beim Klick an und füllt ihn beim Tippen. |
-| **«Neu» steht für sich allein** | Ein Erzeugungsauftrag fährt die Vorlage genau dieses Artikels; ihr Versionsstempel gilt nur für seine Stücke. Die Regel liest sich von beiden Enden gleich: mit «Neu» kommt keine zweite Zeile dazu, und zu einer zweiten Zeile lässt sich «Neu» nicht wählen. *(Ersetzt die frühere Annahme «Artikel A `Neu` + Artikel B `Lager` ist ein normaler Fall».)* |
+| **«Neu» steht für sich allein** | Ein Erzeugungsauftrag fährt die Vorlage genau dieses Artikels; ihr Versionsstempel gilt nur für seine Stücke. Die Regel liest sich von beiden Enden gleich: mit «Neu» kommt keine zweite Zeile dazu, und zu einer zweiten Zeile lässt sich «Neu» nicht wählen. |
 | **Ein Modul startet eingeklappt, ausser es ist dran** | Im laufenden Auftrag ist das «dran» das aktive Modul, im Entwurf das zuletzt angelegte – dieselbe Aussage, zwei Orte. |
 | **Der Kopf löst die Typ-Identität selbst auf** | Symbol, Farbfamilie und Eyebrow kommen aus `TYPE_META`; die Aufrufer können sie nicht mehr übergeben. Der runde Symbol-Kasten beim Benutzer ist die eine **Form**regel, die vom Typ abhängt – sie steht in derselben Komponente, damit keine Aufrufstelle sie neu erfindet. |
 
