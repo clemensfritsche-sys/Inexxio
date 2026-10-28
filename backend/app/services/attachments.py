@@ -1,4 +1,8 @@
-"""Bild-Uploads (Fotos) – Speicherung in der DB, Auslieferung per Token.
+"""**Der Korb** – Dateien in der DB, Auslieferung per Token.
+
+Zwei Wege hinein: ``store_raw`` legt die Datei eines Dokuments unverändert ab (die eine
+Ablage, ``services/documents``); ``store_image`` normalisiert ein Bild, das kein Dokument
+ist (die Unterschrift, die Fotos einer Anfrage).
 
 Bewusst ohne Cloud-Bucket: sofort lauffähig auf Cloud Run, ohne IAM/Bucket-Setup. Der
 Schnitt ist so gelegt, dass später NUR dieser Service auf einen Bucket umgestellt werden
@@ -34,26 +38,6 @@ def _flatten_to_rgb(img):
         bg.alpha_composite(rgba)
         return bg.convert("RGB")
     return img.convert("RGB")
-
-
-PDF = "application/pdf"
-_MAX_PDF_BYTES = 10 * 1024 * 1024      # ein amtliches Dokument (Veranlagungsverfügung) ist klein
-
-
-def store_file(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:
-    """**Ein Bild ODER ein PDF** – der Ausfuhrnachweis kommt vom Zoll als PDF per Mail, im
-    Büro gibt es dafür keine Kamera. Ein PDF wird **unverändert** abgelegt (es ist das
-    Dokument selbst; erkannt am Kopf ``%PDF-``, nicht am Dateinamen), alles andere geht durch
-    ``store_image``."""
-    if raw[:5] != b"%PDF-":
-        return store_image(db, raw, filename, actor_id)
-    if len(raw) > _MAX_PDF_BYTES:
-        raise HTTPException(413, detail="PDF zu gross (max. 10 MB)")
-    att = Attachment(token=secrets.token_urlsafe(24), mime=PDF, data=raw,
-                     filename=(filename or None), byte_size=len(raw), created_by=actor_id)
-    db.add(att)
-    db.flush()
-    return att
 
 
 def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:

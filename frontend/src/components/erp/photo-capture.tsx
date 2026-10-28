@@ -2,11 +2,14 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { Camera, CameraOff, Loader2, RotateCcw, Zap } from 'lucide-react';
-import { api, attachmentUrl } from '@/lib/api';
+import { attachmentUrl } from '@/lib/api';
+import { DraftSheet } from '@/components/erp/document-draft';
 import { useCamera } from '@/components/scan/use-camera';
 
 /**
- * **Ein Bild, aufgenommen — nicht hochgeladen** (Testnotizen #718/#720).
+ * **Ein Bild, aufgenommen — nicht hochgeladen** (Testnotizen #718/#720) – **und ein Dokument**:
+ * die Aufnahme öffnet denselben Entwurf wie jede Datei (Regel B), das Stück als Referenz mit
+ * Schloss (Feld `capture.photo`); erst die Freigabe macht sie zum Wert des Punkts.
  *
  * **Kein Hochladen**: eine Datei aus der Galerie belegt nichts über *diesen* Vorgang, und
  * ein Nachweis, der auf beide Arten entstehen kann, ist hinterher keiner.
@@ -19,21 +22,19 @@ import { useCamera } from '@/components/scan/use-camera';
  * Linsenwahl, dieselbe Taschenlampe, dasselbe Aufräumen. Was hier fehlt, ist der
  * Decoder – dieses Bauteil sucht keine Codes, es hält fest, was zu sehen ist.
  */
-export function PhotoShot({ value, onChange, disabled = false }: {
+export function PhotoShot({ value, unit, label, onChange, disabled = false }: {
   /** Die URL der Aufnahme – oder `null`, solange keine gemacht wurde. */
   value: string | null;
-  /**
-   * URL **und** Nummer (`UploadResult.id`) in EINEM Aufruf: wer die Aufnahme als Datensatz
-   * braucht (der Beleg: Foto der Lieferantenrechnung), liest die Nummer. Zwei Aufrufe
-   * nacheinander schrieben beide auf denselben alten Formularstand – der zweite löschte
-   * die Nummer, und «Buchen» blieb gesperrt (Chrome-Test).
-   */
-  onChange: (url: string | null, id?: number) => void;
+  /** Das Stück (`<Instanznr>-<Suffix>`), dem das Bild gilt – seine Referenz im Entwurf. */
+  unit: string;
+  /** Der Erfassungspunkt – die Art des Dokuments. */
+  label: string;
+  onChange: (url: string | null) => void;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [shot, setShot] = useState<File | null>(null);
+  const instance = Number(unit.split('-')[0]);
 
   if (value) {
     return (
@@ -56,36 +57,33 @@ export function PhotoShot({ value, onChange, disabled = false }: {
     );
   }
 
+  if (shot) {
+    return (
+      <DraftSheet onCancel={() => setShot(null)}
+        seed={{ files: [shot], source: 'capture', art: label, name: unit,
+                target: { object_id: instance, part: `unit:${unit}`, field: 'capture.photo', extra: {},
+                          label: unit, lock: label } }}
+        onFiled={(doc) => { setShot(null); setOpen(false); onChange(doc.file_url ?? null); }} />
+    );
+  }
+
   if (!open) {
     return (
       <div className="flex flex-col gap-1">
         <button type="button" className="erp-actbtn erp-actbtn-primary"
           style={{ height: 36 }} disabled={disabled}
-          onClick={() => { setErr(null); setOpen(true); }}>
+          onClick={() => setOpen(true)}>
           <Camera size={15} /> Aufnehmen
         </button>
-        {err && <span className="text-[11.5px]" style={{ color: 'var(--danger)' }}>{err}</span>}
       </div>
     );
   }
 
   return (
     <Viewfinder
-      busy={busy}
+      busy={false}
       onCancel={() => setOpen(false)}
-      onShot={async (blob) => {
-        setBusy(true); setErr(null);
-        try {
-          const file = new File([blob], 'aufnahme.jpg', { type: 'image/jpeg' });
-          const { id, url } = await api.uploadAttachment(file);
-          onChange(url, id);
-          setOpen(false);
-        } catch (e) {
-          setErr(e instanceof Error ? e.message : 'Aufnahme fehlgeschlagen');
-        } finally {
-          setBusy(false);
-        }
-      }}
+      onShot={(blob) => setShot(new File([blob], `${unit}.jpg`, { type: 'image/jpeg' }))}
     />
   );
 }

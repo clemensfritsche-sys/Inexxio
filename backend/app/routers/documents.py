@@ -106,8 +106,14 @@ def search_targets(q: str = "", db: Session = Depends(get_db),
 @router.get("/of/{object_id}", response_model=list[DocumentSummary])
 def documents_of(object_id: int, db: Session = Depends(get_db),
                  user: UserProfile = Depends(require_employee)):
-    """Die Kacheln unten an einem Datensatz (Regel 4)."""
-    return summaries(db, docs.shown_on(db, object_id, user))
+    """Die Kacheln unten an einem Datensatz (Regel 4) – je Kachel, welches Pflichtfeld des
+    Datensatzes sie füllt (ein Feld zeigt sein Dokument, ohne danach zu suchen)."""
+    found = docs.shown_on(db, object_id, user)
+    out = summaries(db, found)
+    refs = docs.refs_of(db, (d.id for d in found))
+    for doc, row in zip(found, out):
+        row.fields = [r.field for r in refs[doc.id] if r.object_id == object_id and r.field]
+    return out
 
 
 def _json(raw: str, what: str):
@@ -148,6 +154,8 @@ async def file_document(
     if existed and not access.may(user, docs.refs_of(db, [doc.id])[doc.id]):
         raise HTTPException(status_code=409, detail=(
             "Diese Datei gibt es schon als Dokument – du darfst es nicht sehen."))
+    if existed and wanted:
+        docs.add_refs(db, doc, wanted, user)
     if aim is not None:
         fields.apply(db, actor=user, doc=doc, object_id=aim.object_id, part=aim.part,
                      field=aim.field, extra=aim.extra)

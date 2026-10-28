@@ -686,15 +686,17 @@ def _write(db: Session, actor: UserProfile, person: UserProfile, entry: TimeEntr
 
 
 def _check_proof(db: Session, url: Optional[str]) -> None:
+    """**Ein Nachweis ist ein Dokument** (Feld ``time.proof``, ``services/fields``) – eine
+    lose Datei im Korb ist keiner. So gibt es genau einen Weg: den Entwurf."""
     if not url:
         return
-    from . import attachments
+    from ..models import Attachment, Document
     prefix = "/api/v1/attachments/"
     token = url[len(prefix):] if url.startswith(prefix) else ""
-    try:
-        attachments.get_by_token(db, token)
-    except HTTPException:
-        raise HTTPException(400, detail="Der Nachweis ist kein hochgeladenes Bild.")
+    found = (db.query(Document.id).join(Attachment, Attachment.id == Document.file_id)
+             .filter(Attachment.token == token, Document.deleted_at.is_(None)).first())
+    if found is None:
+        raise HTTPException(400, detail="Der Nachweis ist kein freigegebenes Dokument.")
 
 
 def record(db: Session, actor: UserProfile, person: UserProfile, data) -> Optional[TimeEntry]:

@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Document, Order, UserProfile, Voucher, VoucherQuote
 from . import ai, objects, records
-from .requirements import Requirement, open_for
+from .requirements import FIELD_KEYS, Requirement, open_for
 
 
 class Fact(BaseModel):
@@ -181,7 +181,8 @@ def propose(db: Session, *, raw: bytes, mime: str, actor: UserProfile,
         label = records.labels(db, [chosen.object_id]).get(chosen.object_id)
         out.refs = [Ref(chosen.object_id, f"{label.label if label else chosen.object_id}"
                         f" · {chosen.label.replace(' fehlt', '')}", chosen.part, chosen.field)]
-        out.values, out.requirement = values, chosen.key
+        out.values = {FIELD_KEYS.get(k, k): v for k, v in values.items()}
+        out.requirement = chosen.key
         out.why = f"Das Modul wartet auf genau dieses Dokument. {why}"
         return out
     hit = _by_number(db, found.numbers) if found is not None else None

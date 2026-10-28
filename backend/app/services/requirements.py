@@ -57,6 +57,17 @@ SENTENCES = {
 }
 
 
+#: ►►► **Unter welchem Namen ein abgelesener Wert ins Modul geht** – die Felder der Maske
+#: (``bill``: ``reference`` · ``billed_on`` · ``party_uid`` · ``amount``; ``export``:
+#: ``reference``). Abgelesen wird nach der Beschriftung, vorbelegt nach dem Schlüssel.
+FIELD_KEYS = {
+    "Rechnungsnummer": "reference", "Rechnungsdatum": "billed_on", "MWST-Nummer": "party_uid",
+    "Gesamtbetrag": "amount", "Fälligkeit": "due_on",
+    "Nummer der Veranlagungsverfügung": "reference", "Datum": "date",
+    "Gültig von": "from", "Gültig bis": "to",
+}
+
+
 def _money(value: Optional[Decimal]) -> str:
     if value is None:
         return "–"

@@ -3322,11 +3322,11 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "corrects_suggested": (suggested_corrections(db, row, order)
                                if internal and row.stage == vo.OFFER else []),
         "party_uid": row.party_uid if won else None,
-        "original": row.original_id if won else None,
+        "original": (row.original_id or _field_doc(db, row, order, "voucher.original")) if won else None,
         "deviation": _money(deviation(db, row), row.currency) if won else None,
         "deviation_note": row.deviation_note if won else None,
         "export_number": row.export_number if won else None,
-        "export_photo": row.export_photo_id if won else None,
+        "export_photo": (row.export_photo_id or _field_doc(db, row, order, "voucher.export")) if won else None,
         "charged": _money(money.charged, row.currency) if won else None,
         "credited": _money(money.credited, row.currency) if won else None,
         "paid": _money(money.paid, row.currency) if won else None,
@@ -3377,6 +3377,14 @@ def _document_out(d: VoucherDocument) -> dict[str, Any]:
             else vo.DOCUMENTS.get(d.kind, d.kind))
     return {"id": d.id, "kind": d.kind, "label": word, "number": d.number,
             "sent_at": d.created_at, "url": public_link(d.token)}
+
+
+def _field_doc(db: Session, row: Voucher, order: Order, field: str) -> Optional[int]:
+    """Das Dokument, das schon im Feld des Moduls steht (vor dem Buchen) – die Maske übernimmt
+    es, statt danach zu fragen."""
+    from . import documents
+    found = documents.field_document(db, order.object_id, field, f"step:{row.step_id}")
+    return found.object_id if found is not None else None
 
 
 def suggested_corrections(db: Session, row: Voucher, order: Order) -> list[dict[str, Any]]:

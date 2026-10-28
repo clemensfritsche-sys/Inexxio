@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FileText, Loader2, PenLine, ScanLine, Sparkles, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
@@ -49,7 +50,8 @@ interface DraftRef { object_id: number; label: string; target?: DocumentTarget; 
  */
 export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
   seed?: DraftSeed;
-  onFiled: (doc: DocumentDetail) => void;
+  /** Freigegeben – mit dem Vorschlag, aus dem ein Modul seine Felder vorbelegt. */
+  onFiled: (doc: DocumentDetail, proposal: DocumentProposal | null) => void;
   onCancel: () => void;
   /** Dieselbe Datei gibt es schon – das vorhandene Dokument öffnen. */
   onOpen?: (objectId: number) => void;
@@ -116,8 +118,10 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
         text: proposal?.text, keywords: proposal?.keywords,
         facts: proposal?.facts as Record<string, unknown> | undefined,
       });
-      if (res.existed) setExisting(res.document);
-      else onFiled(res.document);
+      // Dieselbe Datei gibt es schon: mit einem Feld ist sie jetzt dort (der Dienst hat es
+      // gesetzt), ohne Feld bietet die Seite das vorhandene Dokument an.
+      if (res.existed && !target) setExisting(res.document);
+      else onFiled(res.document, proposal);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -151,7 +155,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
                 <div style={{ font: '700 15px var(--font-body)', color: 'var(--fg-1)' }}>Diese Datei gibt es schon</div>
                 <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{existing.art} · {existing.name}</div>
               </div>
-              <HeaderAction label="Öffnen" onClick={() => (onOpen ? onOpen(existing.object_id) : onFiled(existing))} />
+              <HeaderAction label="Öffnen" onClick={() => (onOpen ? onOpen(existing.object_id) : onFiled(existing, proposal))} />
             </div>
           )}
           <input ref={picker} type="file" hidden onChange={(e) => choose(e.target.files, 'file')} />
@@ -277,10 +281,18 @@ function Pages({ files }: { files: Blob[] }) {
  * der Zeiterfassung kommt. Kein zweites Interface: der Rahmen ist neu, der Inhalt derselbe.
  */
 export function DraftSheet(props: React.ComponentProps<typeof DocumentDraft>) {
-  return (
+  // An `body` gehängt: ein Vorfahr mit `transform` (eine Modul-Karte) machte aus «fixed» sonst
+  // «in der Karte».
+  return <Sheet><DocumentDraft {...props} /></Sheet>;
+}
+
+/** **Ein Blatt über der ganzen Seite** – Entwurf, Vorschau eines Papiers. */
+export function Sheet({ children }: { children: React.ReactNode }) {
+  return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 55, display: 'flex', flexDirection: 'column',
                   background: 'var(--bg-2)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-      <DocumentDraft {...props} />
-    </div>
+      {children}
+    </div>,
+    document.body,
   );
 }

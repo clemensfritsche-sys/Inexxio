@@ -132,7 +132,7 @@ class ApiClient {
   // erreicht die App dann GAR NICHT und wird kurz erneut versucht (auch
   // schreibende, da der Server sie nie verarbeitet hat → keine Doppelanlage).
   // 500/504 hingegen nur bei LESENDEN (idempotenten) Anfragen wiederholen.
-  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(path: string, options: RequestInit = {}, as: 'json' | 'blob' = 'json'): Promise<T> {
     // (Der Erfolgspfad unten meldet die Änderung – siehe ``notifyDataChanged``.)
     // Eine Datei geht als `FormData` – den Typ samt Grenze setzt dann der Browser selbst.
     const headers: Record<string, string> = {
@@ -161,7 +161,7 @@ class ApiClient {
       if (response.ok) {
         if (!idempotent) notifyDataChanged(path);
         if (response.status === 204) return {} as T;
-        return response.json() as Promise<T>;
+        return (as === 'blob' ? response.blob() : response.json()) as Promise<T>;
       }
 
       // 401 = Token abgelaufen (typisch nach längerer Pause / Ruhezustand). EINMAL einen
@@ -435,6 +435,23 @@ class ApiClient {
   updateVoucher(orderObjectId: number, stepId: number,
                 body: { action: string } & Record<string, unknown>): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/voucher`, body);
+  }
+
+  /** **Vorschau → Freigeben**: das Papier, das diese Handlung hinausgäbe – es geschieht nichts. */
+  previewVoucher(orderObjectId: number, stepId: number,
+                 body: { action: string } & Record<string, unknown>): Promise<import('@/types/api').components['schemas']['PapersOut']> {
+    return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/voucher/preview`, body);
+  }
+
+  /** **Ein Anhang einer Nachricht als Datei** – für den Entwurf eines Dokuments. */
+  async messageAttachment(messageId: number, index: number, name: string): Promise<File> {
+    const blob = await this.request<Blob>(`/api/v1/erp/messages/${messageId}/attachments/${index}`, {}, 'blob');
+    return new File([blob], name, { type: blob.type });
+  }
+
+  /** «Aus Vorlage»: AGB oder Datenschutz einer eigenen Gesellschaft (nur Admin). */
+  legalFromTemplate(company: number, kind: 'agb' | 'datenschutz'): Promise<DocumentDetail> {
+    return this.post('/api/v1/erp/documents/template', { company, kind });
   }
 
   /**

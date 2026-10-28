@@ -5,7 +5,8 @@ import type { ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { afterPaint, holdPlace } from '@/lib/hold-place';
-import type { VoucherEmbed } from '@/types';
+import type { PaperOut, VoucherEmbed } from '@/types';
+import { PaperSheet } from '@/components/erp/beleg/paper-sheet';
 import { Documents } from '@/components/erp/beleg/documents';
 import { Footer } from '@/components/erp/beleg/footer';
 import type { Form } from '@/components/erp/beleg/forms';
@@ -57,12 +58,24 @@ export function BelegWork({
     const at = (e.target as Element).closest?.('section');
     if (at) lastSection.current = at;
   };
-  const send: Send = useCallback(async (body) => {
+  const run: Send = useCallback(async (body) => {
     const keep = holdPlace(lastSection.current);
     await onAction(body);
     await afterPaint();
     keep();
   }, [onAction]);
+  // ►►► **Vorschau → Freigeben**: was ein Papier hinausgibt (Offerte, Rechnung, Storno,
+  // Mahnung, Auftragsbestätigung, Quittung), zeigt die Karte vorher – gerechnet von derselben
+  // Handlung auf dem Server. Erst «Freigeben» führt sie aus. Welche Verben das sind, sagt der
+  // Server (`paper_verbs`). ◄◄◄
+  const [papers, setPapers] = useState<{ body: Parameters<Send>[0]; list: PaperOut[] } | null>(null);
+  const paperVerbs = voucher.paper_verbs;
+  const send: Send = useCallback(async (body) => {
+    if (!(paperVerbs ?? []).includes(body.action)) return run(body);
+    const shown = await api.previewVoucher(orderObjectId, stepId, body);
+    if (!shown.papers?.length) return run(body);
+    setPapers({ body, list: shown.papers });
+  }, [paperVerbs, run, orderObjectId, stepId]);
   const [shown, setShown] = useState<number | null>(null);
   const [picking, setPicking] = useState(false);
   const [form, setForm] = useState<Form | null>(null);
@@ -138,6 +151,10 @@ export function BelegWork({
         setWay={chooseWay} setCard={setCard} onPicking={() => setPicking(true)}
         onRefundCard={() => void refundCard()} refunding={refunding} fresh={fresh}
         onAction={send} />
+      {papers && (
+        <PaperSheet papers={papers.list} onCancel={() => setPapers(null)}
+          onRelease={async () => { await run(papers.body); setPapers(null); }} />
+      )}
     </div>
   );
 }

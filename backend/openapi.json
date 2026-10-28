@@ -3826,7 +3826,7 @@
           "documents"
         ],
         "summary": "Documents Of",
-        "description": "Die Kacheln unten an einem Datensatz (Regel 4).",
+        "description": "Die Kacheln unten an einem Datensatz (Regel 4) – je Kachel, welches Pflichtfeld des\nDatensatzes sie füllt (ein Feld zeigt sein Dokument, ohne danach zu suchen).",
         "operationId": "documents_of_api_v1_erp_documents_of__object_id__get",
         "security": [
           {
@@ -5137,6 +5137,61 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/v1/erp/messages/{message_id}/attachments/{index}": {
+      "get": {
+        "tags": [
+          "communication"
+        ],
+        "summary": "Attachment",
+        "description": "**Ein Anhang zum Öffnen im Entwurf** – die Datei, wie sie kam (``mailbox.attachment``).\nAusgeliefert als Download in einem Sandkasten: angezeigt wird sie im Entwurf.",
+        "operationId": "attachment_api_v1_erp_messages__message_id__attachments__index__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Message Id"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Index"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/erp/messages": {
@@ -7318,6 +7373,17 @@
               }
             ],
             "title": "Url"
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime"
           }
         },
         "type": "object",
@@ -8654,6 +8720,14 @@
             ],
             "title": "Snippet"
           },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields",
+            "default": []
+          },
           "file_url": {
             "anyOf": [
               {
@@ -8912,6 +8986,14 @@
               }
             ],
             "title": "Snippet"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields",
+            "default": []
           }
         },
         "type": "object",

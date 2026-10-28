@@ -586,8 +586,48 @@ def _strip_quote(text: str) -> str:
 
 
 def _attachments(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    return [{"name": p["filename"], "size": (p.get("body") or {}).get("size", 0)}
+    """Name, Grösse, Sorte und wo der Teil in Gmail steht – die Datei selbst bleibt dort und
+    wird erst geholt, wenn ein Mensch sie öffnet (``attachment``)."""
+    return [{"name": p["filename"], "size": (p.get("body") or {}).get("size", 0),
+             "mime": p.get("mimeType") or "", "part": p.get("partId")}
             for p in _parts(payload) if p.get("filename")]
+
+
+def attachment(db: Session, msg: Message, index: int) -> tuple[bytes, str, str]:
+    """►►► **Ein Anhang, wie er gekommen ist** – ``(Bytes, Sorte, Name)``. ◄◄◄
+
+    Ein Foto des Kontaktformulars liegt im Korb; ein Anhang einer Mail wird aus Gmail geholt
+    (über das Postfach, in dem die Mail steht) – gesucht über seine Stelle in der Mail, bei
+    einer älteren Nachricht über den Namen. Er wird ein Dokument erst mit der Freigabe."""
+    items = msg.attachments or []
+    if not 0 <= index < len(items):
+        raise HTTPException(404, detail="Diesen Anhang gibt es nicht.")
+    item = items[index]
+    name = str(item.get("name") or "Anhang")
+    if item.get("url"):
+        from . import attachments as korb
+        token = str(item["url"]).rsplit("/", 1)[-1]
+        att = korb.get_by_token(db, token)
+        return bytes(att.data), att.mime, name
+    mb = active(db, msg.channel)
+    token = _access(mb) if mb is not None and not mb.problem and msg.gmail_id else None
+    if token is None:
+        raise HTTPException(409, detail=(
+            f"Der Anhang «{name}» liegt in Gmail – das Postfach ist gerade nicht verbunden."))
+    try:
+        full = _get(token, f"messages/{msg.gmail_id}", format="full").json()
+        part = next((p for p in _parts(full.get("payload") or {}) if p.get("filename") and (
+            p.get("partId") == item.get("part") if item.get("part") else p.get("filename") == name)),
+            None)
+        if part is None:
+            raise HTTPException(404, detail=f"Den Anhang «{name}» gibt es in Gmail nicht mehr.")
+        body = part.get("body") or {}
+        data = body.get("data") or (_get(token, f"messages/{msg.gmail_id}/attachments/"
+                                            f"{body.get('attachmentId')}").json().get("data") or "")
+    except httpx.HTTPError:
+        raise HTTPException(503, detail=f"Gmail antwortet gerade nicht – «{name}» später öffnen.")
+    raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+    return raw, str(part.get("mimeType") or item.get("mime") or "application/octet-stream"), name
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ from typing import Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -70,6 +70,23 @@ def callback(code: str = "", state: str = "", error: str = "",
 
 # Die offenen Nachrichten je Person zählt ``GET /erp/todo`` mit (``services/todo``) – EINE
 # Zahl am Symbol für alles, was zu tun ist.
+
+
+@router.get("/{message_id}/attachments/{index}")
+def attachment(message_id: int, index: int, db: Session = Depends(get_db),
+               _: UserProfile = Depends(require_employee)) -> Response:
+    """**Ein Anhang zum Öffnen im Entwurf** – die Datei, wie sie kam (``mailbox.attachment``).
+    Ausgeliefert als Download in einem Sandkasten: angezeigt wird sie im Entwurf."""
+    from urllib.parse import quote
+    from ..models import Message
+    msg = db.query(Message).filter(Message.id == message_id, Message.is_active.is_(True)).first()
+    if msg is None:
+        raise HTTPException(404, detail="Diese Nachricht gibt es nicht.")
+    raw, mime, name = mailbox.attachment(db, msg, index)
+    db.commit()     # ein erneuertes Zugangs-Token bleibt stehen
+    return Response(content=raw, media_type=mime, headers={
+        "Content-Security-Policy": "sandbox", "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
 
 @router.get("", response_model=list[MessageOut])

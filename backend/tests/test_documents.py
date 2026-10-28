@@ -17,7 +17,7 @@ from app.core.auth import require_employee
 from app.core.database import get_db
 from app.domain import documents as dd
 from app.domain import statuses as st
-from app.models import Attachment, AuditLog, Document, Order, UserProfile
+from app.models import Attachment, AuditLog, Document, UserProfile
 from app.routers import attachments as att_router
 from app.routers import documents as router
 from app.services import access, documents as docs, objects
@@ -168,7 +168,7 @@ def test_deleted_file_can_be_released_again(world):
 # ─── Regel 9: Zugriff ──────────────────────────────────────────────────────────
 
 def test_a_private_part_is_seen_only_by_the_person_and_the_admin(world):
-    db, staff = world.db, world.staff
+    db = world.db
     owner, colleague, admin = _person(db), _person(db), _person(db, "admin")
     doc, _ = _file(db, owner)
     docs.set_field(db, document_object_id=doc.object_id, object_id=owner.object_id,
@@ -209,7 +209,7 @@ def test_search_finds_number_name_and_read_text(world):
 # ─── Die Routen ───────────────────────────────────────────────────────────────
 
 def test_routes_release_reference_and_delete(world):
-    db, staff = world.db, world.staff
+    db = world.db
     order_person = _person(db, "user")
     r = world.client.post("/api/v1/erp/documents", data={
         "art": "Vertrag", "name": "Wartung HK-12", "source": "file",

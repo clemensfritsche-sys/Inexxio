@@ -146,6 +146,12 @@ function primaryOf(p: FooterProps): Primary | null {
                run: () => (d.we_quote
                  ? void p.onAction({ action: 'bill' })
                  : p.setForm(startForm('bill', d))) };
+    case 'release':
+      // **Ein Papier steht an** (Auftragsbestätigung, Quittung) – die Karte zeigt es vorher.
+      return d.paper_due && may(d, 'release')
+        ? { label: 'Prüfen und freigeben', icon: FileText,
+            run: () => void p.onAction({ action: 'release', kind: d.paper_due }) }
+        : null;
     case 'pay':
     case 'remind':
       return wayOf(p);

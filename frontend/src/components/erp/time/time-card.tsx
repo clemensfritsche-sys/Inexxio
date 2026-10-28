@@ -16,7 +16,8 @@ import { Card, ErrorText, InfoHint, MICRO_LABEL } from '@/components/erp/fields'
 import { ApiError, api } from '@/lib/api';
 import { parseDay } from '@/lib/when';
 import { todoChanged } from '@/lib/todo';
-import type { TimeContractIn, TimeEntryIn, TimeView } from '@/types';
+import type { TimeAbsence, TimeContractIn, TimeEntryIn, TimeView } from '@/types';
+import { DraftSheet } from '@/components/erp/document-draft';
 import { TimeCalendar } from './time-calendar';
 import { TimeContracts } from './time-contracts';
 import { type Capture, TimeDayDetail, usePreview } from './time-day';
@@ -98,12 +99,10 @@ export function TimeCard({ person }: { person: number }) {
       setBusy(false);
     }
   };
-  /** Ein Eintrag (mit Nachweis-Bild, falls gewählt) – `null` = geklappt, sonst der Satz. */
-  const entry = async (data: TimeEntryIn, file?: File | null): Promise<string | null> => {
+  /** Ein Eintrag – `null` = geklappt, sonst der Satz. */
+  const entry = async (data: TimeEntryIn): Promise<string | null> => {
     try {
-      const payload = { ...data };
-      if (file) payload.proof_url = (await api.uploadAttachment(file)).url;
-      show(await api.timeEntry(person, payload, view?.month));
+      show(await api.timeEntry(person, data, view?.month));
       setCap(null);
       todoChanged();
       return null;
@@ -111,9 +110,10 @@ export function TimeCard({ person }: { person: number }) {
       return message(e, OFFLINE);
     }
   };
-  const proof = (absence: number, file: File) => {
-    entry({ kind: 'proof', replaces_id: absence }, file).then((e) => { if (e) setSwipeErr(e); });
-  };
+  // ►►► **Der Nachweis ist ein Dokument** – derselbe Entwurf wie überall, das Feld der Absenz
+  // als Referenz mit Schloss; die Freigabe trägt ihn ein (`services/fields`). ◄◄◄
+  const [proofFor, setProofFor] = useState<TimeAbsence | null>(null);
+  const proofArt = proofFor ? view?.vocab.arts.find((a) => a.key === proofFor.art)?.proof ?? 'Nachweis' : '';
   const contract = async (c: TimeContractIn): Promise<string | null> => {
     try {
       show(await api.timeContract(person, c, view?.month));
@@ -184,11 +184,22 @@ export function TimeCard({ person }: { person: number }) {
             <div style={{ minWidth: 0 }}>
               {selDay
                 ? <TimeDayDetail key={selDay.day} view={view} d={selDay} cap={cap} setCap={setCap} preview={preview}
-                    onEntry={entry} onProof={proof} />
+                    onEntry={entry} onProof={setProofFor} />
                 : <Note>Einen Tag wählen.</Note>}
             </div>
           </div>
         </>
+      )}
+      {proofFor && (
+        <DraftSheet onCancel={() => setProofFor(null)}
+          seed={{ source: 'scan', art: proofArt, hint: `time.proof:${proofFor.id}`,
+                  target: { object_id: person, part: `time:${proofFor.id}`, field: 'time.proof', extra: {},
+                            label: 'Zeiterfassung', lock: proofArt } }}
+          onFiled={() => {
+            setProofFor(null);
+            todoChanged();
+            api.timeView(person, view.month).then(show).catch(() => {});
+          }} />
       )}
     </Card>
   );

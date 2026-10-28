@@ -1416,7 +1416,8 @@ export interface paths {
         };
         /**
          * Documents Of
-         * @description Die Kacheln unten an einem Datensatz (Regel 4).
+         * @description Die Kacheln unten an einem Datensatz (Regel 4) – je Kachel, welches Pflichtfeld des
+         *     Datensatzes sie füllt (ein Feld zeigt sein Dokument, ohne danach zu suchen).
          */
         get: operations["documents_of_api_v1_erp_documents_of__object_id__get"];
         put?: never;
@@ -1885,6 +1886,27 @@ export interface paths {
          *     Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.
          */
         post: operations["sync_api_v1_erp_messages_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/messages/{message_id}/attachments/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Attachment
+         * @description **Ein Anhang zum Öffnen im Entwurf** – die Datei, wie sie kam (``mailbox.attachment``).
+         *     Ausgeliefert als Download in einem Sandkasten: angezeigt wird sie im Entwurf.
+         */
+        get: operations["attachment_api_v1_erp_messages__message_id__attachments__index__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2670,6 +2692,8 @@ export interface components {
             size: number;
             /** Url */
             url?: string | null;
+            /** Mime */
+            mime?: string | null;
         };
         /**
          * BelegView
@@ -3216,6 +3240,11 @@ export interface components {
             preview_url?: string | null;
             /** Snippet */
             snippet?: string | null;
+            /**
+             * Fields
+             * @default []
+             */
+            fields: string[];
             /** File Url */
             file_url?: string | null;
             /** Filename */
@@ -3298,6 +3327,11 @@ export interface components {
             preview_url?: string | null;
             /** Snippet */
             snippet?: string | null;
+            /**
+             * Fields
+             * @default []
+             */
+            fields: string[];
         };
         /**
          * EmailCheck
@@ -9868,6 +9902,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SyncOut"];
+                };
+            };
+        };
+    };
+    attachment_api_v1_erp_messages__message_id__attachments__index__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: number;
+                index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

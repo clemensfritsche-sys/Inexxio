@@ -164,6 +164,7 @@ export type ModuleCatalog = components['schemas']['ModuleCatalog'];
  * Modultyp – die Oberfläche braucht damit keine Fallunterscheidung, genau wie bei `needs`.
  */
 export type VoucherEmbed = components['schemas']['VoucherEmbed'];
+export type PaperOut = components['schemas']['PaperOut'];
 /**
  * **Eine Angebotszeile** – eine Gegenpartei, ein Preis, zwei Fristen.
  *

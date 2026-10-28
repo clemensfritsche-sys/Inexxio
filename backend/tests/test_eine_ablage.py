@@ -87,3 +87,21 @@ def test_legal_texts_come_from_the_company_field(db):
     db.flush()
     items = {t.object_id: [i.label for i in t.items] for t in todo.todo(db, _staff(db))}
     assert "Datenschutz fehlt" in items.get(house.object_id, []), "(c)"
+
+
+def test_a_form_photo_opens_as_the_file_it_was(db):
+    """Ein Foto des Kontaktformulars öffnet sich im Entwurf als die Datei, die es war –
+    derselbe Weg wie ein Anhang einer Mail. Bug-Form: der Index greift daneben."""
+    import pytest
+    from fastapi import HTTPException
+    from app.models import Message
+    from app.services import attachments, mailbox
+    att = attachments.store_raw(db, b"\xff\xd8\xff" + uuid.uuid4().bytes, "a.jpg", "image/jpeg", None)
+    msg = Message(sender_object_id=1, channel="c1", subject="x", body="",
+                  attachments=[{"name": "a.jpg", "size": 3, "url": attachments.public_url(att)}])
+    db.add(msg)
+    db.flush()
+    raw, mime, name = mailbox.attachment(db, msg, 0)
+    assert raw == bytes(att.data) and mime == "image/jpeg" and name == "a.jpg"
+    with pytest.raises(HTTPException):
+        mailbox.attachment(db, msg, 1)

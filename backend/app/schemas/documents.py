@@ -40,6 +40,8 @@ class DocumentSummary(BaseModel):
     preview_url: Optional[str] = None
     #: Wo das Gesuchte im gelesenen Text steht (nur bei einer Suche).
     snippet: Optional[str] = None
+    #: Welche Pflichtfelder des gefragten Datensatzes es füllt (nur an einem Datensatz).
+    fields: list[str] = []
 
 
 class DocumentDetail(DocumentSummary):

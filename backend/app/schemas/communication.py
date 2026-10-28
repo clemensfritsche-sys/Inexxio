@@ -35,8 +35,10 @@ class Attachment(BaseModel):
     name: str
     size: int = 0
     #: Liegt die Datei bei uns (ein Bild aus dem Anfrage-Formular), ihre Adresse – sonst
-    #: liegt sie in Gmail, und der Weg dorthin ist ``gmail_url``.
+    #: liegt sie in Gmail. Geöffnet wird beides gleich: ``GET …/messages/{id}/attachments/{i}``
+    #: in den Entwurf eines Dokuments.
     url: Optional[str] = None
+    mime: Optional[str] = None
 
 
 class MailboxOut(BaseModel):

@@ -60,14 +60,15 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowDownUp, Check, ChevronDown, ChevronUp, Clock, ExternalLink, Lock, Mail, Megaphone, MoreHorizontal,
+import { ArrowDownUp, Check, ChevronDown, ChevronUp, Clock, ExternalLink, Loader2, Lock, Mail, Megaphone, MoreHorizontal,
   Newspaper, Paperclip, Phone, Reply, Send, X } from 'lucide-react';
 import meta from '@/lib/site-meta.json';
 import { MODULE_TONE } from '@/lib/modules';
 import { api } from '@/lib/api';
 import { useSearch } from '@/lib/use-search';
 import { formatWhen, whenDay, whenTitle } from '@/lib/when';
-import { ObjId } from '@/components/erp/obj-id';
+import { ObjId, useErpNav } from '@/components/erp/obj-id';
+import { DraftSheet } from '@/components/erp/document-draft';
 import type { Mailbox, Message, MessageChannel, MessageIn, VoucherParty } from '@/types';
 
 type Person = { object_id: number; name: string; company?: string | null; email?: string | null;
@@ -319,24 +320,49 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
   );
 }
 
-/** Was an einer Mail hängt: Anhänge (die Datei liegt in Gmail) und ob sie noch hinaus
- *  muss. Steht nichts davon an, steht hier nichts. */
+/** Was an einer Mail hängt: Anhänge und ob sie noch hinaus muss. Steht nichts davon an,
+ *  steht hier nichts.
+ *
+ *  ►►► **Ein Anhang öffnet den Entwurf eines Dokuments** – dasselbe Interface wie überall
+ *  (Regel: eine Ablage). Gibt es die Datei schon als Dokument, sagt es der Entwurf und öffnet
+ *  das vorhandene. Der Absender ist der Hinweis für die Zuordnung. ◄◄◄ */
 function MailFoot({ m }: { m: Message }) {
   const files = m.attachments ?? [];
+  const nav = useErpNav();
+  const [draft, setDraft] = useState<File | null>(null);
+  const [loading, setLoading] = useState<number | null>(null);
+  const [error, setError] = useState('');
   if (!files.length && !m.pending) return null;
+  const open = async (i: number, name: string) => {
+    setError('');
+    setLoading(i);
+    try { setDraft(await api.messageAttachment(m.id, i, name)); } catch (e) { setError((e as Error).message); }
+    finally { setLoading(null); }
+  };
+  const form = files.some((f) => f.url);
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8,
       fontSize: 12, color: 'var(--fg-3)' }}>
-      {files.map((f, i) => {
-        const chip = { display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%',
-          padding: '2px 8px', borderRadius: 6, background: 'var(--bg-3)', color: 'inherit' } as const;
-        const inner = <><Paperclip size={12} style={{ flex: 'none' }} /><span className="truncate">{f.name}</span></>;
-        // Ein Bild aus dem Anfrage-Formular liegt bei uns – es öffnet sich direkt.
-        return f.url
-          ? <a key={i} href={f.url} target="_blank" rel="noreferrer" style={chip}>{inner}</a>
-          : <span key={i} style={chip}>{inner}</span>;
-      })}
+      {files.map((f, i) => (
+        <button key={i} type="button" onClick={() => void open(i, f.name)} disabled={loading != null}
+          data-tip="Als Dokument öffnen"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%', border: 0,
+                   padding: '2px 8px', borderRadius: 6, background: 'var(--bg-3)', color: 'inherit',
+                   font: 'inherit', cursor: 'pointer' }}>
+          {loading === i ? <Loader2 size={12} className="animate-spin" style={{ flex: 'none' }} />
+            : <Paperclip size={12} style={{ flex: 'none' }} />}
+          <span className="truncate">{f.name}</span>
+        </button>
+      ))}
       {m.pending && <span>{m.planned ? 'wird zum Zeitpunkt gesendet' : 'wartet auf Versand'}</span>}
+      {error && <span style={{ color: 'var(--danger)' }}>{error}</span>}
+      {draft && (
+        <DraftSheet onCancel={() => setDraft(null)}
+          seed={{ files: [draft], source: form ? 'form' : 'mail', sender: m.sender.object_id,
+                  from: `${form ? 'Aus der Anfrage' : 'Aus der Mail'} von ${m.sender.name} · ${draft.name}` }}
+          onOpen={(id) => { setDraft(null); nav?.(id); }}
+          onFiled={(doc) => { setDraft(null); nav?.(doc.object_id); }} />
+      )}
     </div>
   );
 }
