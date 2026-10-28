@@ -217,7 +217,9 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
  */
 function appearance() {
   const css = getComputedStyle(document.documentElement);
-  const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+  // Ohne Rückfall-Farbe: die Tokens sind immer definiert (`colors_and_type.css`), und eine
+  // Hex-Zahl hier wäre genau die zweite Farbsprache von oben.
+  const v = (name: string) => css.getPropertyValue(name).trim();
   return {
     theme: 'stripe' as const,
     // Die Beschriftung steht über dem Feld (#892) – dieselbe Anatomie wie `fields.Label`.
@@ -225,11 +227,11 @@ function appearance() {
     // Dichte Felder (#901).
     inputs: 'condensed' as const,
     variables: {
-      colorPrimary: v('--accent', '#2C6E8F'),
-      colorBackground: v('--bg-1', '#ffffff'),
-      colorText: v('--fg-1', '#181411'),
-      colorDanger: v('--danger', '#b3261e'),
-      fontFamily: v('--font-body', 'Inter, system-ui, sans-serif'),
+      colorPrimary: v('--accent'),
+      colorBackground: v('--bg-1'),
+      colorText: v('--fg-1'),
+      colorDanger: v('--danger'),
+      fontFamily: v('--font-body'),
       // `inputCls` ist `rounded-md` – 6 px, nicht 8. Ein Feld des Dienstes neben einem
       // Feld des Hauses zeigt jede Abweichung sofort, weil sie **nebeneinander** stehen.
       borderRadius: '6px',
@@ -245,7 +247,7 @@ function appearance() {
       // Buchstabengleich `fields.Label` – 11 px, 600, Versalien, .05em, `--fg-4`.
       '.Label': {
         fontSize: '11px', fontWeight: '600', textTransform: 'uppercase',
-        letterSpacing: '.05em', color: v('--fg-4', '#8a8078'), marginBottom: '4px',
+        letterSpacing: '.05em', color: v('--fg-4'), marginBottom: '4px',
       },
     },
   };

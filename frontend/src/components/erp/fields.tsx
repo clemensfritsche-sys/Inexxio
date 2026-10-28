@@ -149,7 +149,7 @@ export function SpecSection({ icon: Icon, title, right, grid = true, children }:
 }
 
 const SPEC_ICO: React.CSSProperties = {
-  width: 34, height: 34, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238',
+  width: 34, height: 34, borderRadius: 'var(--r-sm)', background: 'var(--accent-soft)', color: 'var(--accent)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
 };
 
