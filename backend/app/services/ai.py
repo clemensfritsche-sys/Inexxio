@@ -13,6 +13,8 @@
 
 **Ohne Schlüssel, am Deckel oder bei einem Fehler gibt es keinen Vorschlag – sonst nichts.**
 Alles geht auch ohne KI: Art und Name tippt der Mensch, gesucht wird in der Datenbank.
+**Warum es keinen gab, sagt** ``problem()`` in einem Satz (Schlüssel abgelehnt, Guthaben leer,
+Deckel …) – die Oberfläche zeigt ihn, damit ein Ausfall nie stumm bleibt.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, time, timezone
 from html import unescape
@@ -33,6 +36,37 @@ from ..models import AuditLog, UserProfile
 from .admin import log_audit
 
 T = TypeVar("T", bound=BaseModel)
+
+#: Warum der letzte Aufruf in dieser Anfrage keinen Vorschlag brachte – leer, wenn er einen brachte.
+_PROBLEM: ContextVar[str] = ContextVar("ai_problem", default="")
+
+
+def problem() -> str:
+    """**Warum es keinen Vorschlag gab** – ein Satz, oder leer."""
+    return _PROBLEM.get()
+
+
+def problem_of(exc: Exception) -> str:
+    """Ein Fehler der Schnittstelle als ein Satz für den Menschen."""
+    status = getattr(exc, "status_code", None)
+    text = str(getattr(exc, "message", "") or exc)
+    if status == 401:
+        return "Der KI-Schlüssel wird abgelehnt (ungültig oder gelöscht) – bitte im Secret Manager ersetzen."
+    if status == 403:
+        return "Der KI-Schlüssel darf dieses Modell nicht nutzen."
+    if status == 404:
+        return "Das KI-Modell ist unbekannt."
+    if status == 400 and "credit" in text.lower():
+        return "Das Guthaben beim KI-Anbieter ist aufgebraucht – bitte in der Anthropic Console aufladen."
+    if status == 429:
+        return "Die KI ist gerade ausgelastet (zu viele Anfragen) – gleich noch einmal."
+    if status is not None and status >= 500:
+        return "Die KI antwortet gerade nicht – gleich noch einmal."
+    if status is not None:
+        return f"Die KI weist die Anfrage ab ({status}): {text[:200]}"
+    if "timeout" in type(exc).__name__.lower():
+        return "Die KI hat zu lange gebraucht – gleich noch einmal."
+    return "Die KI ist nicht erreichbar – gleich noch einmal."
 
 
 @dataclass(frozen=True)
@@ -104,7 +138,12 @@ def ask(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
     """►►► **Ein Aufruf durch das Tor.** ◄◄◄ Gibt die geprüfte Antwort zurück – oder ``None``
     (keine KI, Deckel erreicht, abgelehnt, Antwort unbrauchbar, Netz weg). Nie eine Ausnahme:
     ein Ausfall der KI darf nie eine Handlung zerlegen."""
+    _PROBLEM.set("")
+    if not ready():
+        _PROBLEM.set("Kein KI-Schlüssel hinterlegt.")
+        return None
     if not available(db):
+        _PROBLEM.set("Der Tagesdeckel der KI ist erreicht – morgen wieder.")
         return None
     spec = TASKS[task]
     result: Optional[T] = None
@@ -117,8 +156,12 @@ def ask(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
                  "stop": response.stop_reason}
         if response.stop_reason not in ("refusal", "max_tokens"):
             result = response.parsed_output
+        if result is None:
+            _PROBLEM.set("Die KI hat abgelehnt." if response.stop_reason == "refusal"
+                         else "Die Antwort der KI war unvollständig.")
     except Exception as exc:                                   # noqa: BLE001
-        usage = {"error": type(exc).__name__}
+        usage = {"error": type(exc).__name__, "status": getattr(exc, "status_code", None)}
+        _PROBLEM.set(problem_of(exc))
         print(f"WARNING: ai.{task} failed: {exc!r}", flush=True)
     log_audit(db, "ai", task, json.dumps({"model": spec.model, **usage}),
               actor.id if actor else None, on_behalf="ai")

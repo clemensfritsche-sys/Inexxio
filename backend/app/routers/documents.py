@@ -181,7 +181,8 @@ async def read_draft(
     db.commit()     # das Log des KI-Aufrufs
     return ProposalOut(art=p.art, name=p.name, text=p.text, keywords=p.keywords, facts=p.facts,
                        refs=[ProposedRef(**r.__dict__) for r in p.refs], why=p.why, read=p.read,
-                       ai=ai.ready(), values=p.values, requirement=p.requirement)
+                       ai=ai.ready(), ai_problem="" if p.read else ai.problem(),
+                       values=p.values, requirement=p.requirement)
 
 
 @router.get("/requirements", response_model=list[RequirementOut])
@@ -207,9 +208,8 @@ def compose(data: ComposeIn, db: Session = Depends(get_db),
                               current=current)
     db.commit()     # der Aufruf der KI zählt (Deckel, Log)
     if paper is None:
-        return ComposeOut(ai=ai.available(db), reply=(
-            "Gerade kann ich nicht schreiben – versuchen Sie es gleich noch einmal." if ai.ready()
-            else "Ohne KI gibt es kein Verfassen."))
+        return ComposeOut(ai=ai.available(db), reply=ai.problem() or (
+            "Gerade kann ich nicht schreiben – versuchen Sie es gleich noch einmal."))
     signers = composing.signers_of(db, paper.signers)
     return ComposeOut(reply=paper.reply, paper=paper.model_dump(), art=paper.art, name=paper.name,
                       html=composing.render(db, paper, [(x["object_id"], x["name"]) for x in signers]),

@@ -114,6 +114,8 @@ class ProposalOut(BaseModel):
     read: bool = False
     #: Gibt es heute eine KI (Schlüssel, Deckel)?
     ai: bool = False
+    #: Warum die KI nicht gelesen hat – ein Satz (``ai.problem``), sonst leer.
+    ai_problem: str = ""
     #: Die Felder der gewählten Anforderung, wie abgelesen – das Modul füllt sich daraus vor.
     values: dict = {}
     requirement: Optional[str] = None

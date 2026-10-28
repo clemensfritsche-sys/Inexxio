@@ -227,7 +227,8 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
                   )}
                   {!reading && proposal && !proposal.read && (
                     <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
-                      {proposal.ai ? 'Die KI konnte diese Datei nicht lesen' : 'Keine KI verfügbar'} – Art und Name selbst eintragen.
+                      {proposal.ai_problem || (proposal.ai ? 'Die KI konnte diese Datei nicht lesen.' : 'Keine KI verfügbar.')}
+                      {' '}Art und Name selbst eintragen.
                     </span>
                   )}
                 </div>
