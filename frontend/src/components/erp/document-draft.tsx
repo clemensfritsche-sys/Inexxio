@@ -103,8 +103,8 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
     return () => { gone = true; };
   }, [files, source, seed?.sender, seed?.hint]);
 
-  const preview = useMemo(() => (files[0] ? URL.createObjectURL(files[0]) : null), [files]);
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  const first = useMemo(() => files.slice(0, 1), [files]);
+  const preview = useObjectUrls(first)[0] ?? null;
 
   function choose(list: FileList | null, how: DraftSource) {
     if (!list?.length) return;
@@ -323,8 +323,7 @@ function SourceTiles({ onScan, onFile, onCompose }: {
 
 /** Gescannte Seiten nebeneinander – beim Freigeben werden sie ein PDF. */
 function Pages({ files }: { files: Blob[] }) {
-  const urls = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
-  useEffect(() => () => urls.forEach((u) => URL.revokeObjectURL(u)), [urls]);
+  const urls = useObjectUrls(files);
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
       {urls.map((u, i) => (
@@ -358,4 +357,19 @@ export function Sheet({ children }: { children: React.ReactNode }) {
     </div>,
     document.body,
   );
+}
+
+/**
+ * **Adressen für Dateien im Browser** – angelegt und freigegeben im selben Effekt. Mit
+ * `useMemo` angelegt und im Aufräumen freigegeben, blieb nach einem zweiten Lauf des Effekts
+ * (StrictMode) eine freigegebene Adresse stehen: das Bild war kaputt.
+ */
+function useObjectUrls(files: Blob[]): string[] {
+  const [urls, setUrls] = useState<string[]>([]);
+  useEffect(() => {
+    const made = files.map((f) => URL.createObjectURL(f));
+    setUrls(made);
+    return () => made.forEach((u) => URL.revokeObjectURL(u));
+  }, [files]);
+  return urls;
 }
