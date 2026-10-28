@@ -581,7 +581,10 @@ export default function ErpPage() {
               return (
                 <button
                   key={t}
+                  type="button"
                   onClick={() => setTypeFilter(active ? null : t)}
+                  aria-label={`Nur ${meta.label} zeigen (${displayCount(t)})`}
+                  aria-pressed={active}
                   data-tip={`${meta.label} · ${displayCount(t)}`}
                   data-tip-pos="bottom"
                   {...(active ? { 'data-tip-hidden': '' } : {})}

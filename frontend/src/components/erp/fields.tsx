@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ElementType, ReactNode } from 'react';
 import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Home, Search, Info, Sparkles, ExternalLink, type LucideIcon } from 'lucide-react';
@@ -696,25 +696,43 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
   icon?: ElementType; title: string; tone?: string; width?: number;
   onClose: () => void; children: ReactNode;
 }) {
+  const titleId = useId();
+  const panel = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  // **Fokus hinein und zurück**: beim Öffnen auf das erste Bedienelement (sonst den Dialog
+  // selbst), beim Schliessen dorthin, wo er vorher war. Escape schliesst.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    const before = document.activeElement as HTMLElement | null;
+    const node = panel.current;
+    if (node && !node.contains(document.activeElement)) {
+      (node.querySelector<HTMLElement>(FOCUSABLE) ?? node).focus();
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') close.current(); }
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      before?.focus?.();
+    };
+  }, []);
   return (
     <div onClick={onClose}
       style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, var(--bg-dark) 45%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()}
-        style={{ background: 'var(--bg-1)', borderRadius: 'var(--r-lg)', width: `min(${width}px, 100%)`, maxHeight: '86vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: 'var(--bg-1)', borderRadius: 'var(--r-lg)', width: `min(${width}px, 100%)`, maxHeight: '86vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)', outline: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-1)' }}>
-          {Icon && <Icon size={18} style={{ color: tone }} />}
-          <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)' }}>{title}</span>
+          {Icon && <Icon size={18} aria-hidden style={{ color: tone }} />}
+          <h2 id={titleId} style={{ font: '700 15px var(--font-display)', color: 'var(--fg-1)', margin: 0 }}>{title}</h2>
         </div>
         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>{children}</div>
       </div>
     </div>
   );
 }
+
+/** Was im Dialog den Fokus nehmen kann – das erste davon bekommt ihn beim Öffnen. */
+const FOCUSABLE = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
 /**
  * **Eine Palette: Symbole in einer Reihe.** Mehr nicht – der Name steht im Hover des

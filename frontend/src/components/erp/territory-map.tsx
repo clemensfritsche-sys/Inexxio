@@ -175,9 +175,10 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ font: '700 12.5px var(--font-body)', color: 'var(--fg-1)' }}>{selLabel}</span>
               <button type="button" onClick={() => { setSelected(null); setAdding(false); }}
+                aria-label={`${selLabel} schliessen`} data-tip="Schliessen"
                 style={{ marginLeft: 'auto', display: 'inline-flex', background: 'none', border: 'none',
                   padding: 2, cursor: 'pointer', color: 'var(--fg-4)' }}>
-                <X size={14} />
+                <X size={14} aria-hidden />
               </button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

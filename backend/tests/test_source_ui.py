@@ -1260,3 +1260,26 @@ def test_every_ix_class_in_the_markup_exists():
     for rel, src in _frontend_sources(".tsx"):
         missing = _ix_classes_without_css(src, css)
         assert not missing, f"«{rel}» trägt Klassen ohne Stil: {sorted(missing)}"
+
+
+def test_dialogs_tabs_and_chips_say_what_they_are():
+    """Ein Bildschirmleser hört, was ein Bauteil ist: der Dialog ist ein modaler Dialog mit
+    Titel, nimmt den Fokus und gibt ihn zurück (Escape schliesst); die Reiter sind eine
+    Reiterliste mit gewähltem Reiter; ein Filter-Chip sagt, ob er gedrückt ist; ein Knopf
+    nur mit Symbol hat einen Namen."""
+    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    start = fields.index("export function Dialog(")
+    dialog = fields[start: fields.index("\n}\n", start)]
+    for need in ('role="dialog"', 'aria-modal="true"', "aria-labelledby={titleId}", "'Escape'",
+                 ".focus()", "before?.focus"):
+        assert need in dialog, f"Der Dialog: «{need}» fehlt."
+    tabs = _read(FRONTEND / "components" / "erp" / "detail-tabs.tsx")
+    for need in ('role="tablist"', 'role="tab"', "aria-selected="):
+        assert need in tabs, f"Die Reiter: «{need}» fehlt."
+    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    chip = page[page.index("FILTER_TYPES.filter"):]
+    chip = chip[: chip.index("</button>")]
+    assert "aria-pressed={active}" in chip and "aria-label=" in chip, "Der Filter-Chip sagt nicht, was er ist."
+    territory = _read(FRONTEND / "components" / "erp" / "territory-map.tsx")
+    close = territory[: territory.index("<X size={14}")]
+    assert "aria-label=" in close[close.rindex("<button"):], "Das × der Gebietskarte hat keinen Namen."
