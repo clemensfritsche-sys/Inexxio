@@ -34,7 +34,10 @@ if [ -z "$STATE" ]; then
   exit 0
 fi
 echo "::error::Die Datenbank steht auf $(echo "$BODY" | jq -r .revision) statt $(echo "$BODY" | jq -r .head) – eine Migration ist beim Start gescheitert. Die Zeilen des Starts:"
-gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"$SERVICE\"" \
-  --project "$PROJECT" --freshness 20m --limit 150 --format 'value(textPayload)' 2>/dev/null | tac \
-  || echo "(Die Logs sind für das Deploy-Konto nicht lesbar – Cloud Run → $SERVICE → Logs.)"
+if LOGS=$(gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"$SERVICE\"" \
+     --project "$PROJECT" --freshness 20m --limit 150 --format 'value(textPayload)' 2>&1) && [ -n "$LOGS" ]; then
+  echo "$LOGS" | tac
+else
+  echo "(Die Logs sind für das Deploy-Konto nicht lesbar – Cloud Run → $SERVICE → Logs. $LOGS)"
+fi
 exit 1
