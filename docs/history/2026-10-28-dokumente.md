@@ -107,3 +107,8 @@ Fotos und Nachweise müssen nicht mitkommen.
   90 s mit Wiederholung, Verfassen bis 240 s). Jetzt: Lesen höchstens 50 s, Verfassen 55 s, kein
   zweiter Versuch, kürzere Antworten; `ai.problem()` nennt den Grund eines Ausfalls, und der
   Entwurf zeigt oben über «Art», dass die KI liest – oder warum nicht.
+- **Auf dev liess sich kein Dokument anlegen** (`column documents.object_id does not exist`):
+  dort stand noch die Tabelle `documents` des früheren Moduls – `102` hatte sie gelöscht, ein
+  damaliges `create_all` legte sie aus dem alten Modell wieder an, und `157` (`CREATE TABLE IF
+  NOT EXISTS`) liess sie stehen. Migration `161` ersetzt sie, nur wenn diese alte Form da ist;
+  Wächter `tests/test_documents_old_form.py` stellt die Lage nach (ohne `161` rot).
