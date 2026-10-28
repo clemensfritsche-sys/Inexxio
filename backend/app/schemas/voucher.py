@@ -203,6 +203,8 @@ class VoucherInvoice(BaseModel):
     #: Die eingefrorene Steuer-Aufteilung. **Nicht nachgerechnet**: ein Beleg behält, was
     #: auf ihm stand – sonst wäre die Vergangenheit eine Funktion der Gegenwart.
     vat: list[VatShare] = Field(default_factory=list)
+    #: Netto der eingefrorenen Aufteilung (Summe von ``vat[].net``).
+    net: Optional[str] = None
     #: Wann die Leistung erbracht wurde (MWSTG Art. 26 Abs. 2 Bst. c).
     service_date: Optional[date] = None
     #: **Überfällig ist eine Ableitung, kein Zustand**: fällig *und* noch etwas offen.
@@ -448,6 +450,8 @@ class VoucherEmbed(BaseModel):
     service_date_label: str = "Leistungsdatum"
     net: Optional[str] = None
     tax: Optional[str] = None
+    #: Brutto unserer Positionen (Summe der Aufteilung) – die Karte rechnet nicht selbst.
+    total: Optional[str] = None
     vat_split: list[VatShare] = Field(default_factory=list)
     #: **Eine Ausfuhr** – Zoll und Ausfuhrnachweis.
     export: bool = False

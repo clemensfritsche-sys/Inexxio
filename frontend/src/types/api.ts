@@ -3566,6 +3566,10 @@ export interface components {
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
+            /** Notification Email */
+            notification_email?: boolean | null;
+            /** Notification Inapp */
+            notification_inapp?: boolean | null;
             /** Role */
             role?: ("admin" | "employee" | "user") | null;
         };
@@ -6007,6 +6011,12 @@ export interface components {
              * @default []
              */
             missing_fields: components["schemas"]["MissingField"][];
+            /** Language */
+            language: string;
+            /** Notification Email */
+            notification_email: boolean;
+            /** Notification Inapp */
+            notification_inapp: boolean;
             /** Last Login At */
             last_login_at: string | null;
         };
@@ -6027,6 +6037,10 @@ export interface components {
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
+            /** Notification Email */
+            notification_email?: boolean | null;
+            /** Notification Inapp */
+            notification_inapp?: boolean | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -6265,6 +6279,8 @@ export interface components {
             net?: string | null;
             /** Tax */
             tax?: string | null;
+            /** Total */
+            total?: string | null;
             /** Vat Split */
             vat_split?: components["schemas"]["VatShare"][];
             /**
@@ -6628,6 +6644,8 @@ export interface components {
             amount?: string | null;
             /** Vat */
             vat?: components["schemas"]["VatShare"][];
+            /** Net */
+            net?: string | null;
             /** Service Date */
             service_date?: string | null;
             /**

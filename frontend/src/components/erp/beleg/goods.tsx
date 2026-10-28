@@ -350,13 +350,9 @@ function Sums({ d, onAction }: { d: Filled; onAction: Send }) {
   const dec = d.currency_decimals;
   const theirs = !d.we_quote ? (d.invoice?.vat ?? []) : [];
   const rows = sumLines(d, theirs);
-  const net = d.we_quote
-    ? d.net
-    : (theirs.length ? theirs.reduce((n, v) => n + Number(v.net), 0).toFixed(dec) : null);
-  const total = d.we_quote
-    ? (d.vat_split?.length ? d.vat_split.reduce((n, v) => n + Number(v.net) + Number(v.tax), 0)
-      .toFixed(dec) : null)
-    : (d.invoice?.amount ?? d.amount ?? null);
+  // Alle Beträge rechnet der Server; die Karte zeigt sie nur.
+  const net = d.we_quote ? d.net : (d.invoice?.net ?? null);
+  const total = d.we_quote ? d.total : (d.invoice?.amount ?? d.amount ?? null);
   return (
     <div className="flex flex-col" style={{
       gap: 4, marginTop: 4, paddingTop: 9, borderTop: '1px solid var(--border-1)',

@@ -1134,3 +1134,18 @@ def test_a_read_that_writes_never_sees_an_old_state(db):
         db.add(VoucherQuote(voucher_id=row.id, party_id=other.object_id, state=vo.ASKED))
         db.flush()
         assert len(svc.quotes_of(db, row)) == before + 1
+
+
+def test_the_card_gets_its_sums_from_the_server(db):
+    """**Geld rechnet der Server** – die Karte zeigt Netto und Total nur an.
+
+    Bug-Form: ``total`` fehlt, und die Karte summiert Gleitkommazahlen selbst."""
+    from decimal import Decimal
+    from app.services import voucher_view
+    order, step, row, _who = _scene(db, first=True)
+    _ready(db, order, step, row)
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=_staff(db))
+    split = seen["vat_split"]
+    assert split and seen["total"] is not None
+    assert Decimal(seen["total"]) == sum(Decimal(v["net"]) + Decimal(v["tax"]) for v in split)
+    assert Decimal(seen["total"]) == Decimal(seen["net"]) + Decimal(seen["tax"])

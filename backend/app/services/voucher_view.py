@@ -398,6 +398,8 @@ def _embed_goods(v: _View) -> dict[str, Any]:
                         if "ask" in v.allowed or row.stage == vo.OFFER else None),
         "net": sums["net"] if v.won else None,
         "tax": sums["tax"] if v.won else None,
+        #: Brutto unserer Positionen – gerechnet hier, nie im Browser.
+        "total": sums["gross"] if (v.won and split) else None,
         "vat_split": split if v.won else [],
         "export": is_export(db, row),
         "incoterm": row.incoterm,
@@ -459,6 +461,7 @@ def _embed_invoice(v: _View) -> dict[str, Any]:
         "invoice": ({
             "number": row.number, "billed_on": row.billed_on, "due_on": row.due_on,
             "amount": amount_text(row.amount, row.currency), "vat": list(row.vat or []),
+            "net": vo.totals(list(row.vat), row.currency)["net"] if row.vat else None,
             "service_date": row.service_date, "overdue": overdue(db, row),
             **_invoice_state(db, row),
         } if (is_billed(row) and won) else None),

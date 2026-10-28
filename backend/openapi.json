@@ -9585,6 +9585,28 @@
               }
             ]
           },
+          "notification_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification Email"
+          },
+          "notification_inapp": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification Inapp"
+          },
           "role": {
             "anyOf": [
               {
@@ -14387,6 +14409,18 @@
             "title": "Missing Fields",
             "default": []
           },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "notification_email": {
+            "type": "boolean",
+            "title": "Notification Email"
+          },
+          "notification_inapp": {
+            "type": "boolean",
+            "title": "Notification Inapp"
+          },
           "last_login_at": {
             "anyOf": [
               {
@@ -14416,6 +14450,9 @@
           "phone",
           "date_of_birth",
           "company_object_id",
+          "language",
+          "notification_email",
+          "notification_inapp",
           "last_login_at"
         ],
         "title": "UserProfileResponse"
@@ -14487,6 +14524,28 @@
                 "type": "null"
               }
             ]
+          },
+          "notification_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification Email"
+          },
+          "notification_inapp": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification Inapp"
           }
         },
         "type": "object",
@@ -14992,6 +15051,17 @@
               }
             ],
             "title": "Tax"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           },
           "vat_split": {
             "items": {
@@ -15972,6 +16042,17 @@
             },
             "type": "array",
             "title": "Vat"
+          },
+          "net": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net"
           },
           "service_date": {
             "anyOf": [
