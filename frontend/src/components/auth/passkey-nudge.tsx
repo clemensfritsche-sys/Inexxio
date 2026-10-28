@@ -56,7 +56,6 @@ export function PasskeyNudge() {
       if (evaluated || suppressed()) return;
       evaluated = true;
       try {
-        api.setToken(await fbUser.getIdToken());
         if (!(await platformPasskeyAvailable())) return;
         const list = await api.listPasskeys();
         if (!cancelled && list.length === 0 && !suppressed()) {

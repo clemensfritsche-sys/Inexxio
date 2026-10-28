@@ -19,6 +19,33 @@ export const PHOTO_KEY = 'inexxio_user_photo';
 
 type Contact = { email?: string | null; phone?: string | null; company_name?: string | null };
 
+/** Die Rolle, wie sie zuletzt bekannt war – `null`, wenn keine (oder kein Speicher). */
+export function cachedRole(): string | null {
+  try {
+    return localStorage.getItem(ROLE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Merkt die Rolle (Kopf der Website: ERP-Punkt; ERP-Layout: Rückfall ohne Antwort). */
+export function rememberRole(role: string): void {
+  try {
+    localStorage.setItem(ROLE_KEY, role);
+  } catch {
+    // Kein Speicher – dann fragt der nächste Aufruf eben den Server.
+  }
+}
+
+/** Merkt den Namen (Kopf der Website). Ein leerer Name ändert nichts. */
+export function rememberName(name: string): void {
+  try {
+    if (name) localStorage.setItem(NAME_KEY, name);
+  } catch {
+    // Kein Speicher – dann zeigt der Kopf die Rolle ohne Namen.
+  }
+}
+
 /** Schreibt die Kontaktangaben, die das Anfrage-Formular vorausfüllt (S2). */
 export function rememberContact(p: Contact): void {
   try {

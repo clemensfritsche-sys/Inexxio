@@ -36,8 +36,8 @@ function KontoInner() {
       const firstName = data.first_name ?? profile?.first_name ?? '';
       const lastName = data.last_name ?? profile?.last_name ?? '';
       const fullName = [firstName, lastName].filter(Boolean).join(' ');
+      // Den Anzeige-Cache schreibt `AccountSync` – hier wird der Name nur gemeldet.
       if (fullName) {
-        localStorage.setItem('inexxio_user_fullname', fullName);
         window.dispatchEvent(new CustomEvent<string>('inexxio:profile-name-updated', { detail: fullName }));
       }
     }

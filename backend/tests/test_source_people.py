@@ -351,7 +351,7 @@ def test_the_role_is_the_access_in_every_surface():
     # (c) – **eine** Auflösung, und die anderen rufen sie.
     gate = _code(_read(FRONTEND / "lib" / "record-status.ts"))
     assert "export function isStaff(" in gate, "``isStaff`` fehlt (c)."
-    for where in ("app/(erp)/layout.tsx", "app/(erp)/erp/page.tsx"):
+    for where in ("components/auth/auth-gate.tsx", "app/(erp)/erp/page.tsx"):
         src = _code(_read(FRONTEND / where))
         assert "isStaff(" in src, f"«{where}» fragt die Rolle selbst (c)."
         # ►►► **Gefragt ist die ZWEIER-Aufzählung, nicht «admin».** ◄◄◄ Der erste Anlauf
@@ -362,6 +362,9 @@ def test_the_role_is_the_access_in_every_surface():
         assert "'employee'" not in src, (
             f"«{where}» zählt die Personal-Rollen daneben auf (c)."
         )
+    assert "<AuthGate staffOnly" in _code(_read(FRONTEND / "app" / "(erp)" / "layout.tsx")), (
+        "Das ERP-Layout lässt nicht mehr nur Personal hinein (c)."
+    )
     # (c′) Der gemeinsame Kopf (Website **und** ERP, WEBSITE_PLAN Entscheid 60) zeigt den
     # ERP-Link nach derselben Frage – er läuft vor jedem Framework und kann `isStaff` nicht
     # importieren, also zählt er das Paar auf; gefragt ist, dass es **dasselbe** ist.
@@ -640,7 +643,7 @@ def test_a_late_profile_cannot_undo_a_logout():
     räumt vor ``signOut`` bzw. nicht im ``finally``.
     """
     sync = _code(_read(FRONTEND / "components" / "layout" / "account-sync.tsx"))
-    check, write = sync.find("currentUid() !== user.uid"), sync.find("localStorage.setItem(ROLE_KEY")
+    check, write = sync.find("currentUid() !== user.uid"), sync.find("rememberRole(")
     assert -1 < sync.find("await api.getMe()") < check < write, "(a)"
     fb = _code(_read(FRONTEND / "lib" / "firebase.ts"))
     body = fb[fb.index("export async function logout"):fb.index("export function currentUid")]

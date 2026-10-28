@@ -61,6 +61,9 @@ export class ApiError extends Error {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+/** Wie lange ein abgerufenes eigenes Profil für weitere Fragen gilt (`ApiClient.getMe`). */
+const ME_TTL = 10_000;
+
 /** **Eine Datei des Servers** (`/api/v1/…`, z. B. ein Dokument oder sein Vorschaubild) –
  *  im Betrieb dieselbe Herkunft, lokal das Backend. Die eine Stelle, die die Basis kennt. */
 export function assetUrl(path: string): string {
@@ -107,24 +110,32 @@ class ApiClient {
     }
   }
 
-  private token: string | null = null;
   /**
-   * Liefert einen **frischen** Token (Firebase erneuert bei Bedarf selbst). Wird von der
-   * Auth-Schicht registriert, damit `api.ts` frei von Firebase-Abhängigkeiten bleibt.
-   *
-   * Hintergrund: `token` ist ein Schnappschuss vom letzten `onIdTokenChanged`. Firebase
-   * erneuert proaktiv per Timer – der wird in einem **Hintergrund-Tab gedrosselt** und im
-   * Ruhezustand des Geräts gar nicht ausgeführt. Kommt der Nutzer nach längerer Pause
-   * zurück, ist der Schnappschuss abgelaufen → jede Anfrage 401. Genau dafür ist das hier.
+   * **Woher der Token kommt** – je Anfrage gefragt, nie als Schnappschuss gehalten. Die
+   * Auth-Schicht (`lib/firebase.ts`) registriert ihn, damit `api.ts` frei von Firebase
+   * bleibt. Firebase hält den Token selbst vor und erneuert ihn erst kurz vor Ablauf –
+   * eine Anfrage kostet also keinen Abruf. `force` erzwingt einen frischen (nach einem 401:
+   * im Hintergrund-Tab oder im Ruhezustand läuft Firebases Erneuerungs-Timer nicht).
+   * Ohne Anmeldung liefert er `null`, und die Anfrage geht ohne Token (öffentliche Seiten).
    */
-  private tokenProvider: (() => Promise<string | null>) | null = null;
+  private tokenProvider: ((force: boolean) => Promise<string | null>) | null = null;
 
-  setToken(token: string) {
-    this.token = token;
+  setTokenProvider(fn: (force: boolean) => Promise<string | null>) {
+    this.tokenProvider = fn;
   }
 
-  setTokenProvider(fn: () => Promise<string | null>) {
-    this.tokenProvider = fn;
+  /**
+   * **Das eigene Profil – EIN Abruf für alle, die es gleichzeitig fragen.** Beim Öffnen des
+   * ERP fragten Layout, Kopf-Cache, Feed und Testnotizen je selbst (vier gleiche Anfragen).
+   * Gehalten wird die laufende bzw. jüngste Antwort für `ME_TTL`; jede schreibende Anfrage
+   * und jeder Wechsel der Anmeldung (`forgetMe`) verwirft sie, ein Fehler wird nicht
+   * gehalten.
+   */
+  private me: { at: number; promise: Promise<UserProfile> } | null = null;
+
+  /** Das gehaltene Profil verwerfen – beim Abmelden und bei jedem Wechsel der Person. */
+  forgetMe() {
+    this.me = null;
   }
 
   // Transiente Transportfehler (Kaltstart / Skalierung / kurz nach einem Deploy)
@@ -139,7 +150,8 @@ class ApiClient {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...((options.headers as Record<string, string>) || {}),
     };
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    const token = this.tokenProvider ? await this.tokenProvider(false).catch(() => null) : null;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const method = (options.method ?? 'GET').toUpperCase();
     const idempotent = method === 'GET' || method === 'HEAD';
@@ -159,7 +171,7 @@ class ApiClient {
       }
 
       if (response.ok) {
-        if (!idempotent) notifyDataChanged(path);
+        if (!idempotent) { this.forgetMe(); notifyDataChanged(path); }
         if (response.status === 204) return {} as T;
         return (as === 'blob' ? response.blob() : response.json()) as Promise<T>;
       }
@@ -170,9 +182,8 @@ class ApiClient {
       // der Pfad läuft nur, wenn tatsächlich ein 401 kam.
       if (response.status === 401 && !refreshed && this.tokenProvider) {
         refreshed = true;
-        const fresh = await this.tokenProvider().catch(() => null);
+        const fresh = await this.tokenProvider(true).catch(() => null);
         if (fresh) {
-          this.token = fresh;
           headers['Authorization'] = `Bearer ${fresh}`;
           continue;   // zählt als Versuch – kein Backoff nötig, der Server war erreichbar
         }
@@ -250,7 +261,11 @@ class ApiClient {
   // ─── Auth / Profile ────────────────────────────────────────────────────────
 
   getMe(): Promise<UserProfile> {
-    return this.get('/api/v1/auth/me');
+    if (this.me && Date.now() - this.me.at < ME_TTL) return this.me.promise;
+    const entry = { at: Date.now(), promise: this.get<UserProfile>('/api/v1/auth/me') };
+    this.me = entry;
+    entry.promise.catch(() => { if (this.me === entry) this.me = null; });
+    return entry.promise;
   }
 
   updateMe(data: Partial<UserProfile>): Promise<UserProfile> {
@@ -768,8 +783,8 @@ class ApiClient {
   // ─── Foto-/Bild-Upload (multipart) ──────────────────────────────────────────
   // Gibt eine relative URL (Token) zurück; die speichern die Verbraucher als String.
   async uploadAttachment(file: File): Promise<import('@/types/api').components['schemas']['UploadResult']> {
-    const headers: Record<string, string> = {};
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    const token = this.tokenProvider ? await this.tokenProvider(false).catch(() => null) : null;
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     const form = new FormData();
     form.append('file', file);
     const res = await fetch(`${API_BASE}/api/v1/erp/attachments`, { method: 'POST', headers, body: form });

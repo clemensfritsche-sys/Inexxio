@@ -12,17 +12,17 @@
 import { useEffect } from 'react';
 import { currentUid, onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
-import { NAME_KEY, ROLE_KEY, clearAccountCache, rememberContact, rememberPhoto } from '@/lib/account-cache';
+import { clearAccountCache, rememberContact, rememberName, rememberPhoto, rememberRole } from '@/lib/account-cache';
 
 type ShellApi = { init: () => void; account: () => void };
 const shellApi = () => (window as unknown as { inexxioShell?: ShellApi }).inexxioShell;
 
 export function AccountSync() {
-  // Name im Profil geändert (konto/page.tsx) – gleich im Kopf zeigen.
+  // Name im Profil geändert (konto/page.tsx) – gleich im Kopf zeigen. Geschrieben wird er
+  // nur hier; das Konto meldet ihn bloss.
   useEffect(() => {
     const onName = (e: Event) => {
-      const name = (e as CustomEvent<string>).detail;
-      try { if (name) localStorage.setItem(NAME_KEY, name); } catch { /* kein Speicher */ }
+      rememberName((e as CustomEvent<string>).detail);
       shellApi()?.account();
     };
     window.addEventListener('inexxio:profile-name-updated', onName);
@@ -40,15 +40,13 @@ export function AccountSync() {
       // Sofort das Bild der Anmeldung, danach das des Datensatzes – derselbe Vorrang wie im ERP.
       rememberPhoto(user.photoURL);
       try {
-        api.setToken(await user.getIdToken());
         const me = await api.getMe();
         // ►►► **Nach einem `await` gilt die Voraussetzung nicht mehr von selbst.** ◄◄◄ Wer
         // inzwischen abgemeldet hat (oder ein anderes Konto angemeldet), bekäme sonst den
         // Cache dieser Antwort zurück – genau das war «zweimal abmelden».
         if (currentUid() !== user.uid) return;
-        localStorage.setItem(ROLE_KEY, me.role);
-        const name = [me.first_name, me.last_name].filter(Boolean).join(' ');
-        if (name) localStorage.setItem(NAME_KEY, name);
+        rememberRole(me.role);
+        rememberName([me.first_name, me.last_name].filter(Boolean).join(' '));
         rememberContact({ email: me.email, phone: me.phone, company_name: me.company?.legal_name });
         rememberPhoto(me.photo_url || user.photoURL);
       } catch {

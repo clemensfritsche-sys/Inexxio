@@ -47,11 +47,19 @@ if (typeof window !== 'undefined') {
     // initializeAuth throws on hot-reload / multiple calls — fall back
     auth = getAuth(app);
   }
+  // Wechselt die angemeldete Person (Abmelden, anderes Konto), gilt das gehaltene Profil
+  // nicht mehr (`api.getMe`).
+  let uid: string | null | undefined;
+  onIdTokenChanged(auth, (user) => {
+    const next = user?.uid ?? null;
+    if (uid !== undefined && next !== uid) api.forgetMe();
+    uid = next;
+  });
 }
 
 export { auth };
 
-export const googleProvider = new GoogleAuthProvider();
+const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 function getActionCodeSettings() {
@@ -73,7 +81,7 @@ export async function sendMagicLink(email: string): Promise<void> {
   localStorage.setItem('emailForSignIn', email);
 }
 
-export async function completeMagicLink(): Promise<{ token: string; user: User } | null> {
+export async function completeMagicLink(): Promise<User | null> {
   if (!auth) return null;
   if (!isSignInWithEmailLink(auth, window.location.href)) return null;
 
@@ -84,25 +92,22 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
 
   const result = await signInWithEmailLink(auth, email, window.location.href);
   localStorage.removeItem('emailForSignIn');
-  const token = await result.user.getIdToken();
-  return { token, user: result.user };
+  return result.user;
 }
 
-export async function signInWithGoogle(): Promise<{ token: string; user: User }> {
+export async function signInWithGoogle(): Promise<User> {
   if (!auth) throw new Error('Firebase not initialized');
   const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
-  const token = await result.user.getIdToken();
-  return { token, user: result.user };
+  return result.user;
 }
 
 // Passkey-Anmeldung: Das Backend prüft die WebAuthn-Assertion und stellt einen
 // Firebase Custom Token aus. Damit wird hier eine ganz normale Firebase-Session
 // begründet – ab jetzt verhält sich alles wie bei Magic Link / Google.
-export async function signInWithPasskey(firebaseToken: string): Promise<{ token: string; user: User }> {
+export async function signInWithPasskey(firebaseToken: string): Promise<User> {
   if (!auth) throw new Error('Firebase not initialized');
   const result = await signInWithCustomToken(auth, firebaseToken);
-  const token = await result.user.getIdToken();
-  return { token, user: result.user };
+  return result.user;
 }
 
 export async function logout(): Promise<void> {
@@ -118,8 +123,8 @@ export async function logout(): Promise<void> {
   try {
     if (auth) await signOut(auth);
   } finally {
+    api.forgetMe();
     clearAccountCache();
-    localStorage.removeItem('inexxio_token');
   }
 }
 
@@ -128,30 +133,24 @@ export function currentUid(): string | null {
   return auth?.currentUser?.uid ?? null;
 }
 
-export async function getIdToken(): Promise<string | null> {
-  if (!auth?.currentUser) return null;
-  return auth.currentUser.getIdToken();
-}
-
-// Selbstheilung bei 401: Der API-Client hält den Token als Schnappschuss (gesetzt von
-// `onIdTokenChanged`). Firebases proaktive Erneuerung ist ein Timer – im Hintergrund-Tab
-// gedrosselt, im Ruhezustand des Geräts gar nicht. Kommt der Nutzer nach einer Pause
-// zurück, kann der Schnappschuss abgelaufen sein. Statt das als «keine Daten» enden zu
-// lassen, holt der Client bei einem 401 EINMAL erzwungen einen frischen Token
-// (`getIdToken(true)`) und wiederholt die Anfrage. Hier registriert, damit `api.ts`
-// nichts von Firebase wissen muss (keine zirkuläre Abhängigkeit).
-api.setTokenProvider(async () => {
-  if (!auth?.currentUser) return null;
-  return auth.currentUser.getIdToken(true);
+// ►►► **Der Token kommt je Anfrage von hier** – kein Aufrufer setzt ihn. ◄◄◄ Der API-Client
+// fragt vor jeder Anfrage (`force = false`: Firebase liefert den vorgehaltenen Token und
+// erneuert ihn selbst kurz vor Ablauf) und nach einem 401 EINMAL erzwungen
+// (`getIdToken(true)`: im Hintergrund-Tab oder im Ruhezustand läuft Firebases
+// Erneuerungs-Timer nicht). `authStateReady` wartet beim Laden der Seite, bis Firebase die
+// gespeicherte Sitzung gelesen hat – sonst ginge die erste Anfrage ohne Token hinaus.
+// Hier registriert, damit `api.ts` nichts von Firebase wissen muss.
+api.setTokenProvider(async (force) => {
+  if (!auth) return null;
+  await auth.authStateReady();
+  return auth.currentUser ? auth.currentUser.getIdToken(force) : null;
 });
 
 export function onAuthChange(callback: (user: User | null) => void) {
   if (!auth) return () => {};
-  // FIX: onAuthStateChanged feuert nur bei Login/Logout – NICHT bei der stündlichen
-  // Token-Rotation. Der Bearer-Token wurde deshalb nie erneuert und nach ~1h scheiterte
-  // jeder API-Call mit 401, bis die Seite hart neu geladen wurde. onIdTokenChanged hat
-  // dieselbe Signatur, feuert zusätzlich bei jeder Token-Erneuerung – alle Abonnenten
-  // (AuthProvider, ERP-/Konto-Layout, Navbar) setzen den API-Token damit automatisch neu.
+  // `onIdTokenChanged` statt `onAuthStateChanged`: feuert bei Anmelden/Abmelden UND bei
+  // jeder Token-Erneuerung (die Abonnenten – `AuthGate`, `AccountSync`, Testnotizen,
+  // Passkey-Hinweis – prüfen darum selbst, ob sich für sie etwas geändert hat).
   return onIdTokenChanged(auth, callback);
 }
 
@@ -193,7 +192,7 @@ export async function refreshAfterEmailChange(): Promise<string | null> {
   try {
     await auth?.currentUser?.reload();
     const token = await auth?.currentUser?.getIdToken(true);
-    if (token) api.setToken(token);
+    api.forgetMe();   // die neue Adresse steht erst in der nächsten Antwort
     return token ?? null;
   } catch {
     await logout();
