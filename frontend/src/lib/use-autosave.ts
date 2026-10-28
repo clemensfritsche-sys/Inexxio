@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createSaver, type Saver } from './saver';
+import { tell } from './notice';
 
 /**
- * **Auto-Save – ein Modul, eine Vorgabe.** Im ERP wird nicht abgeschickt, sondern
- * gespeichert: debounced 3 s, Enter löst sofort aus (Hausregel). Zwei Formen, weil zwei
- * Aufrufstellen Verschiedenes in der Hand haben:
+ * **Auto-Save – ein Modul, eine Vorgabe, EINE Logik** (`lib/saver.ts`). Im ERP wird nicht
+ * abgeschickt, sondern gespeichert: debounced 3 s, Enter löst sofort aus (Hausregel). Für
+ * beide Formen gilt dasselbe: ein offener Stand geht beim Verlassen (Unmount) und beim
+ * Wechsel des Datensatzes (`resetKey`) **sofort** hinaus, Speichervorgänge laufen
+ * hintereinander (nie überholt ein älterer einen neueren), und ein Fehler meldet sich über
+ * `tell()`. Zwei Formen, weil zwei Aufrufstellen Verschiedenes in der Hand haben:
  *
  * - `useAutosaveValue` – ein **Formularwert**, und der Hook meldet den Zustand
  *   (`SaveStatus` für `SaveStatusIndicator`). Für Detailfenster mit Karten-Kopf.
  * - `useAutosaveSignature` – eine **Signatur** des Zustands und ein Rückruf; den Zustand
  *   meldet der Aufrufer selbst (der Beleg: `busy` und die Antwort des Servers).
- *
- * Beide warten `AUTOSAVE_DELAY` – zwei Vorgaben wären zwei Antworten auf «wann speichert
- * das ERP?».
  */
 export const AUTOSAVE_DELAY = 3000;
 
@@ -20,9 +22,34 @@ const SAVED_SHOWN = 2500;
 
 export type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
+/** Fehler eines Auto-Saves – unten rechts, auch wenn die Karte schon weg ist. */
+const report = tell('Änderung', 'Nicht gespeichert');
+
+/** Ein Saver je Bauteil; beim Verlassen geht der offene Stand sofort hinaus. */
+function useSaver<T>(onStatus?: (s: SaveStatus) => void, onError?: (e: unknown) => void): Saver<T> {
+  const hooks = useRef({ onStatus, onError });
+  hooks.current = { onStatus, onError };
+  const ref = useRef<Saver<T> | null>(null);
+  if (!ref.current) {
+    ref.current = createSaver<T>({
+      delay: AUTOSAVE_DELAY,
+      onStatus: (s) => hooks.current.onStatus?.(s),
+      onError: (e) => { report(e); hooks.current.onError?.(e); },
+    });
+  }
+  const saver = ref.current;
+  useEffect(() => () => {
+    // Nach dem Verlassen meldet sich nur noch `tell` – kein setState auf ein totes Bauteil.
+    hooks.current = { onStatus: undefined, onError: undefined };
+    void saver.flush();
+  }, [saver]);
+  return saver;
+}
+
 /**
  * Speichert `value`, sobald er sich ändert (debounced). `resetKey` wechselt mit dem
- * Datensatz: der erste Wert nach dem Wechsel ist geladen, nicht getippt.
+ * Datensatz: der offene Stand geht dann sofort an den alten, und der erste Wert danach ist
+ * geladen, nicht getippt.
  */
 export function useAutosaveValue<T>(
   value: T,
@@ -31,46 +58,34 @@ export function useAutosaveValue<T>(
 ): { status: SaveStatus; errorMsg: string; saveNow: () => Promise<void> } {
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const skipRef = useRef(true);
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  const valueRef = useRef(value);
-  valueRef.current = value;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saver = useSaver<T>(
+    (s) => {
+      if (idle.current) { clearTimeout(idle.current); idle.current = null; }
+      setStatus(s);
+      if (s === 'saved') idle.current = setTimeout(() => setStatus('idle'), SAVED_SHOWN);
+    },
+    (e) => setErrorMsg(e instanceof Error ? e.message : 'Fehler'),
+  );
+  useEffect(() => () => { if (idle.current) clearTimeout(idle.current); }, []);
 
-  const run = useCallback(async () => {
-    setStatus('saving');
-    try {
-      await saveRef.current(valueRef.current);
-      setStatus('saved');
-      timerRef.current = setTimeout(() => setStatus('idle'), SAVED_SHOWN);
-    } catch (e: unknown) {
-      setErrorMsg(e instanceof Error ? e.message : 'Fehler');
-      setStatus('error');
-    }
-  }, []);
+  // Der geladene Stand – er ist nicht getippt und geht nicht hinaus.
+  const loaded = useRef(value);
+  useEffect(() => {
+    void saver.flush();
+    loaded.current = value;
+    // Nur der Wechsel des Datensatzes setzt den geladenen Stand, nicht jeder neue Wert.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey, saver]);
 
   useEffect(() => {
-    skipRef.current = true;
-  }, [resetKey]);
+    if (Object.is(value, loaded.current)) return;
+    saver.change(value, save);
+    // `save` reist mit dem Wert (Saver) – er gehört zu dem Stand, den er speichert.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, saver]);
 
-  useEffect(() => {
-    if (skipRef.current) {
-      skipRef.current = false;
-      return;
-    }
-    setStatus('dirty');
-    timerRef.current = setTimeout(run, AUTOSAVE_DELAY);
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [value, run]);
-
-  const saveNow = useCallback(async () => {
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-    await run();
-  }, [run]);
-
+  const saveNow = useCallback(() => saver.flush(), [saver]);
   return { status, errorMsg, saveNow };
 }
 
@@ -79,38 +94,33 @@ export function useAutosaveValue<T>(
  * wahr ist. Gibt `flush` zurück, um sofort zu speichern (Enter).
  *
  * Pro Signatur wird **höchstens einmal** automatisch gespeichert: schlägt ein Speichern
- * fehl, machte der Wechsel von `saving` (true→false) `canSave` erneut wahr, und derselbe
- * Stand ginge in Endlosschleife wieder hinaus. Erneut gesendet wird erst nach einer
- * Änderung (neue Signatur) oder per `flush()`.
+ * fehl, ginge derselbe Stand sonst in Endlosschleife wieder hinaus. Erneut gesendet wird
+ * erst nach einer Änderung (neue Signatur) oder per `flush()`. Wird `canSave` falsch (der
+ * Server hat den Stand schon), verfällt der offene Stand.
  */
 export function useAutosaveSignature(
   signature: string,
   canSave: boolean,
-  onSave: () => void,
+  onSave: () => Promise<unknown> | void,
 ): () => void {
-  const state = useRef({ canSave, onSave, signature });
-  state.current = { canSave, onSave, signature };
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Signatur, für die zuletzt ein Auto-Save ausgelöst wurde (verhindert die Schleife).
-  const firedSig = useRef<string | null>(null);
+  const saver = useSaver<string>();
+  const fired = useRef<string | null>(null);
+  const now = useRef({ signature, canSave, onSave });
+  now.current = { signature, canSave, onSave };
+  const queue = useCallback((sig: string) => {
+    const save = now.current.onSave;
+    saver.change(sig, (s) => { fired.current = s; return save(); });
+  }, [saver]);
 
   useEffect(() => {
-    if (!canSave) return;
-    if (firedSig.current === signature) return;
-    timer.current = setTimeout(() => {
-      firedSig.current = signature;
-      state.current.onSave();
-    }, AUTOSAVE_DELAY);
-    return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [signature, canSave]);
+    if (!canSave) { saver.cancel(); return; }
+    if (fired.current !== signature) queue(signature);
+  }, [signature, canSave, saver, queue]);
 
-  // Sofort speichern (Enter): erlaubt bewusst einen erneuten Versuch für dieselbe
-  // Signatur (manueller Retry nach einem Fehler).
+  // Sofort speichern (Enter): erlaubt bewusst einen erneuten Versuch für dieselbe Signatur.
   return useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    if (state.current.canSave) {
-      firedSig.current = state.current.signature;
-      state.current.onSave();
-    }
-  }, []);
+    if (!now.current.canSave) return;
+    if (!saver.pending()) queue(now.current.signature);
+    void saver.flush();
+  }, [saver, queue]);
 }

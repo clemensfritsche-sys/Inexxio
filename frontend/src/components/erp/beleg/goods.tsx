@@ -74,7 +74,7 @@ function LineRow({ d, line, busy, onAction }: {
   const priced = on && d.we_quote;
   const set = (patch: Partial<LineDraft>) => setDraft((x) => ({ ...x, ...patch }));
   const save = useCallback(() => {
-    void onAction({ action: 'price', lines: [{
+    return onAction({ action: 'price', lines: [{
       id: line.id,
       ...(d.we_quote ? { price: draft.price === '' ? null : draft.price, vat: draft.vat,
                          part: draft.part === null || draft.part === '' ? null : draft.part }

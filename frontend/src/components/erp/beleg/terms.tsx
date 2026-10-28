@@ -63,7 +63,7 @@ function SavedTerm({ d, label, field, busy, on, days, terms, hint, onAction }: {
   const fixed = isFixed(d, field);
   const save = useCallback(() => {
     // **Die Null ist eine Angabe** («Vorauszahlung» · «Sofort») – geprüft wird auf leer.
-    void onAction({ action: 'terms', [field]: draft === '' ? null : Number(draft) });
+    return onAction({ action: 'terms', [field]: draft === '' ? null : Number(draft) });
   }, [onAction, field, draft]);
   useAutosaveSignature(`${field}:${draft}`, on && !fixed && draft !== remote && !busy, save);
 
