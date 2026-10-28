@@ -20,7 +20,8 @@ from .services import address_book, people, sites
 from .routers import (
     admin, articles, attachments, auth, beleg, communication, contact, documents, erp, feedback,
     health, website,
-    instances, newsletter, orders, passkey, payments, payments_list, places, timekeeping,
+    instances, newsletter, orders, passkey, payments, payments_list, places, public_documents,
+    timekeeping,
 )
 
 settings = get_settings()
@@ -1067,6 +1068,7 @@ app.include_router(instances.router)
 app.include_router(places.router)
 app.include_router(attachments.router)
 app.include_router(documents.router)
+app.include_router(public_documents.router)
 app.include_router(payments.router)
 app.include_router(beleg.router)
 app.include_router(payments_list.router)

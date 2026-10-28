@@ -1469,6 +1469,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/documents/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compose
+         * @description **Eine Runde Verfassen** (``services/composing``) – gespeichert wird nichts; nur der
+         *     Aufruf der KI steht im Log.
+         */
+        post: operations["compose_api_v1_erp_documents_compose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/{object_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send
+         * @description **Senden** – je Empfänger ein Link ohne Ablauf und eine Mail; mit ``sign`` sollen sie
+         *     unterschreiben (``services/signing``).
+         */
+        post: operations["send_api_v1_erp_documents__object_id__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/documents/template": {
         parameters: {
             query?: never;
@@ -1593,6 +1635,63 @@ export interface paths {
         get: operations["get_document_api_v1_erp_documents__object_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/document/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** View */
+        get: operations["view_api_v1_public_document__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/document/{token}/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign
+         * @description **Unterschreiben** – endgültig.
+         */
+        post: operations["sign_api_v1_public_document__token__sign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/document/{token}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline
+         * @description **Ablehnen** – mit Grund; danach unterschreibt niemand mehr.
+         */
+        post: operations["decline_api_v1_public_document__token__decline_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2749,6 +2848,11 @@ export interface components {
              */
             target: string;
             /**
+             * Signers
+             * @default []
+             */
+            signers: string;
+            /**
              * Text
              * @default
              */
@@ -3037,6 +3141,51 @@ export interface components {
             vocab: components["schemas"]["TimeVocab"];
         };
         /**
+         * ComposeIn
+         * @description Eine Runde Verfassen: das Gespräch und der letzte Stand (lebt im Browser).
+         */
+        ComposeIn: {
+            /** Turns */
+            turns: components["schemas"]["TurnIn"][];
+            /** Current */
+            current?: Record<string, never> | null;
+        };
+        /**
+         * ComposeOut
+         * @description Das Papier dieser Runde – als A4-HTML und als Stand für die nächste Runde.
+         */
+        ComposeOut: {
+            /**
+             * Ai
+             * @default true
+             */
+            ai: boolean;
+            /**
+             * Reply
+             * @default
+             */
+            reply: string;
+            /** Paper */
+            paper?: Record<string, never> | null;
+            /** Html */
+            html?: string | null;
+            /**
+             * Art
+             * @default
+             */
+            art: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Signers
+             * @default []
+             */
+            signers: components["schemas"]["SignerOut"][];
+        };
+        /**
          * ConsentRow
          * @description Eine An- oder Abmeldung – der Nachweis.
          */
@@ -3187,6 +3336,11 @@ export interface components {
              */
             stamps: components["schemas"]["StampOut"][];
             absence?: components["schemas"]["AbsenceOut"] | null;
+        };
+        /** DeclineIn */
+        DeclineIn: {
+            /** Reason */
+            reason: string;
         };
         /**
          * DefinitionLine
@@ -4975,6 +5129,45 @@ export interface components {
             address_lines: string[];
         };
         /**
+         * PublicDocument
+         * @description Was die Seite eines Links zeigt.
+         */
+        PublicDocument: {
+            /** Art */
+            art: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Mime */
+            mime: string;
+            /** Html */
+            html?: string | null;
+            /** Url */
+            url?: string | null;
+            /** Filename */
+            filename?: string | null;
+            /**
+             * Signers
+             * @default []
+             */
+            signers: components["schemas"]["PublicSigner"][];
+            /**
+             * Actions
+             * @default []
+             */
+            actions: string[];
+        };
+        /** PublicSigner */
+        PublicSigner: {
+            /** Name */
+            name: string;
+            /** Signed At */
+            signed_at?: string | null;
+            /** Declined At */
+            declined_at?: string | null;
+        };
+        /**
          * RecordEntry
          * @description Ein Vorgang an einem Modul, an **einer** Einzelinstanz.
          *
@@ -5104,6 +5297,29 @@ export interface components {
             via?: components["schemas"]["ArticleLink"][];
             replaced_by?: components["schemas"]["ArticleLink"] | null;
         };
+        /**
+         * SendIn
+         * @description Senden: an wen, ob sie unterschreiben sollen, und ein Satz dazu.
+         */
+        SendIn: {
+            /** To */
+            to: number[];
+            /**
+             * Sign
+             * @default false
+             */
+            sign: boolean;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /** SignIn */
+        SignIn: {
+            /** Image */
+            image: string;
+        };
         /** SignatureOut */
         SignatureOut: {
             /** Id */
@@ -5118,6 +5334,13 @@ export interface components {
             declined_at?: string | null;
             /** Reason */
             reason?: string | null;
+        };
+        /** SignerOut */
+        SignerOut: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name: string;
         };
         /** StampOut */
         StampOut: {
@@ -5584,6 +5807,13 @@ export interface components {
             qr?: string | null;
             /** Problem */
             problem?: string | null;
+        };
+        /** TurnIn */
+        TurnIn: {
+            /** Who */
+            who: string;
+            /** Text */
+            text: string;
         };
         /**
          * UnitChoices
@@ -9159,6 +9389,74 @@ export interface operations {
             };
         };
     };
+    compose_api_v1_erp_documents_compose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComposeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_api_v1_erp_documents__object_id__send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     from_template_api_v1_erp_documents_template_post: {
         parameters: {
             query?: never;
@@ -9378,6 +9676,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    view_api_v1_public_document__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sign_api_v1_public_document__token__sign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decline_api_v1_public_document__token__decline_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeclineIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDocument"];
                 };
             };
             /** @description Validation Error */

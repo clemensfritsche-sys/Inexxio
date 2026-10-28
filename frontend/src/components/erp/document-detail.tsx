@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Clock, Download, Trash2, X } from 'lucide-react';
+import { Check, Clock, Download, Send, Trash2, X } from 'lucide-react';
 import { api, assetUrl } from '@/lib/api';
 import { statusCfg } from '@/lib/process-status';
 import { when } from '@/lib/when';
@@ -9,7 +9,7 @@ import {
   DetailBody, DetailHeader, Dialog, ErrorText, MICRO_LABEL, ReadField, inputCls,
 } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
-import { RefChips, mimeIcon } from '@/components/erp/documents';
+import { RefChip, RefChips, mimeIcon } from '@/components/erp/documents';
 import type { DocumentDetail as Doc } from '@/types';
 
 /** Ein Datensatz zum Referenzieren – in der Form, die `ObjectSelect` kennt. */
@@ -78,6 +78,7 @@ export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack:
   const [doc, setDoc] = useState<Doc | null>(null);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [sending, setSending] = useState(false);
   const readOnce = useRef(false);
 
   const load = useCallback(() => {
@@ -114,6 +115,11 @@ export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack:
                 <Download size={15} />
               </a>
             )}
+            <button type="button" className="erp-idbtn" style={{ width: 28, height: 28 }}
+              aria-label="Senden" data-tip="Senden – je Empfänger ein Link, auf Wunsch zum Unterschreiben"
+              onClick={() => setSending(true)}>
+              <Send size={15} />
+            </button>
             <button type="button" className="erp-idbtn erp-idbtn-danger" style={{ width: 28, height: 28 }}
               disabled={!!doc.delete_problem} aria-label="Löschen"
               data-tip={doc.delete_problem ?? 'Löschen'} onClick={() => setDeleting(true)}>
@@ -156,6 +162,10 @@ export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack:
           )}
         </DetailBody>
       </div>
+      {sending && (
+        <SendDialog doc={doc} onClose={() => setSending(false)}
+          onSend={(to, sign, note) => act(() => api.sendDocument(doc.object_id, to, sign, note)).then(() => setSending(false))} />
+      )}
       {deleting && (
         <DeleteDialog onClose={() => setDeleting(false)}
           onConfirm={(reason) => act(() => api.deleteDocument(doc.object_id, reason)).then(() => setDeleting(false))} />
@@ -181,6 +191,51 @@ function Signatures({ doc }: { doc: Doc }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * **Senden** – an wen (Personen mit E-Mail), ob sie unterschreiben sollen, ein Satz dazu. Je
+ * Empfänger ein Link ohne Ablauf; die Mail steht im Verlauf der Person.
+ */
+function SendDialog({ doc, onClose, onSend }: {
+  doc: Doc; onClose: () => void; onSend: (to: number[], sign: boolean, note: string) => void;
+}) {
+  const open = (doc.signatures ?? []).filter((x) => !x.signed_at && !x.declined_at);
+  const [to, setTo] = useState<{ object_id: number; name: string }[]>(
+    open.map((x) => ({ object_id: x.person_object_id, name: x.name })));
+  const [sign, setSign] = useState(open.length > 0);
+  const [note, setNote] = useState('');
+  return (
+    <Dialog icon={Send} title="Senden" width={520} onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={MICRO_LABEL}>An</span>
+        {to.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {to.map((x) => (
+              <RefChip key={x.object_id} objectId={x.object_id} label={x.name}
+                onRemove={() => setTo(to.filter((y) => y.object_id !== x.object_id))} />
+            ))}
+          </div>
+        )}
+        <ObjectSelect<{ object_id: number; name: string }> value={null} find={(q) => api.searchPeople(q, 20)}
+          placeholder="Person – Nummer oder Name"
+          onChange={(id, opt) => { if (id && !to.some((x) => x.object_id === id)) setTo([...to, { object_id: id, name: opt?.name ?? String(id) }]); }} />
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--fg-1)' }}>
+        <input type="checkbox" checked={sign} onChange={(e) => setSign(e.target.checked)} />
+        Sie sollen unterschreiben
+      </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={MICRO_LABEL}>Ein Satz dazu</span>
+        <textarea className={inputCls} rows={3} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)}
+          placeholder="z. B. Bitte bis Freitag unterschreiben." />
+      </label>
+      <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!to.length}
+        style={{ height: 42, justifyContent: 'center' }} onClick={() => onSend(to.map((x) => x.object_id), sign, note.trim())}>
+        <Send size={15} /> Senden{to.length > 1 ? ` (${to.length})` : ''}
+      </button>
+    </Dialog>
   );
 }
 

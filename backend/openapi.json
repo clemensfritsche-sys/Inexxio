@@ -3950,6 +3950,111 @@
         ]
       }
     },
+    "/api/v1/erp/documents/compose": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Compose",
+        "description": "**Eine Runde Verfassen** (``services/composing``) – gespeichert wird nichts; nur der\nAufruf der KI steht im Log.",
+        "operationId": "compose_api_v1_erp_documents_compose_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/documents/{object_id}/send": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Send",
+        "description": "**Senden** – je Empfänger ein Link ohne Ablauf und eine Mail; mit ``sign`` sollen sie\nunterschreiben (``services/signing``).",
+        "operationId": "send_api_v1_erp_documents__object_id__send_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/documents/template": {
       "post": {
         "tags": [
@@ -4303,6 +4408,154 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/document/{token}": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "View",
+        "operationId": "view_api_v1_public_document__token__get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicDocument"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/document/{token}/sign": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Sign",
+        "description": "**Unterschreiben** – endgültig.",
+        "operationId": "sign_api_v1_public_document__token__sign_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicDocument"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/document/{token}/decline": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Decline",
+        "description": "**Ablehnen** – mit Grund; danach unterschreibt niemand mehr.",
+        "operationId": "decline_api_v1_public_document__token__decline_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicDocument"
                 }
               }
             }
@@ -7516,6 +7769,11 @@
             "title": "Target",
             "default": ""
           },
+          "signers": {
+            "type": "string",
+            "title": "Signers",
+            "default": "[]"
+          },
           "text": {
             "type": "string",
             "title": "Text",
@@ -8278,6 +8536,93 @@
         ],
         "title": "CompanyTimeView"
       },
+      "ComposeIn": {
+        "properties": {
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/TurnIn"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Turns"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          }
+        },
+        "type": "object",
+        "required": [
+          "turns"
+        ],
+        "title": "ComposeIn",
+        "description": "Eine Runde Verfassen: das Gespräch und der letzte Stand (lebt im Browser)."
+      },
+      "ComposeOut": {
+        "properties": {
+          "ai": {
+            "type": "boolean",
+            "title": "Ai",
+            "default": true
+          },
+          "reply": {
+            "type": "string",
+            "title": "Reply",
+            "default": ""
+          },
+          "paper": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper"
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          },
+          "art": {
+            "type": "string",
+            "title": "Art",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "signers": {
+            "items": {
+              "$ref": "#/components/schemas/SignerOut"
+            },
+            "type": "array",
+            "title": "Signers",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "ComposeOut",
+        "description": "Das Papier dieser Runde – als A4-HTML und als Stand für die nächste Runde."
+      },
       "ConsentRow": {
         "properties": {
           "subscribed": {
@@ -8614,6 +8959,21 @@
           "credit"
         ],
         "title": "DayOut"
+      },
+      "DeclineIn": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "DeclineIn"
       },
       "DefinitionLine": {
         "properties": {
@@ -12262,6 +12622,121 @@
         ],
         "title": "PublicContact"
       },
+      "PublicDocument": {
+        "properties": {
+          "art": {
+            "type": "string",
+            "title": "Art"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "mime": {
+            "type": "string",
+            "title": "Mime"
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "signers": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSigner"
+            },
+            "type": "array",
+            "title": "Signers",
+            "default": []
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "art",
+          "name",
+          "status",
+          "mime"
+        ],
+        "title": "PublicDocument",
+        "description": "Was die Seite eines Links zeigt."
+      },
+      "PublicSigner": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "signed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed At"
+          },
+          "declined_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declined At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "PublicSigner"
+      },
       "RecordEntry": {
         "properties": {
           "number": {
@@ -12577,6 +13052,50 @@
         "title": "RetiredInput",
         "description": "Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels."
       },
+      "SendIn": {
+        "properties": {
+          "to": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "To"
+          },
+          "sign": {
+            "type": "boolean",
+            "title": "Sign",
+            "default": false
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "to"
+        ],
+        "title": "SendIn",
+        "description": "Senden: an wen, ob sie unterschreiben sollen, und ein Satz dazu."
+      },
+      "SignIn": {
+        "properties": {
+          "image": {
+            "type": "string",
+            "maxLength": 600000,
+            "title": "Image"
+          }
+        },
+        "type": "object",
+        "required": [
+          "image"
+        ],
+        "title": "SignIn"
+      },
       "SignatureOut": {
         "properties": {
           "id": {
@@ -12634,6 +13153,24 @@
           "name"
         ],
         "title": "SignatureOut"
+      },
+      "SignerOut": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "name"
+        ],
+        "title": "SignerOut"
       },
       "StampOut": {
         "properties": {
@@ -13565,6 +14102,26 @@
         ],
         "title": "TransferInfo",
         "description": "►►► **Wie man diese Rechnung überweist** (Testnotiz #865). ◄◄◄\n\nDie dritte Bezahlart ist **keine Buchung, sondern eine Auskunft**: «Jetzt bezahlen»\nlöst etwas aus, «Zahlung erfassen» schreibt etwas auf – eine Überweisung braucht\n*Angaben*, damit der Zahlende sie selbst auslöst. Darum steht hier auch kein Verb.\n\n**Klartext UND Code, nicht entweder-oder**: der QR spart das Abtippen, die\nBankverbindung ist der Weg, wenn die Kamera nicht mitspielt. Wo es keinen Code geben\nkann, steht ``problem`` – ein Grund, keine leere Fläche."
+      },
+      "TurnIn": {
+        "properties": {
+          "who": {
+            "type": "string",
+            "pattern": "^(user|ai)$",
+            "title": "Who"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "who",
+          "text"
+        ],
+        "title": "TurnIn"
       },
       "UnitChoices": {
         "properties": {

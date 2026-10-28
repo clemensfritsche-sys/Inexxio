@@ -321,6 +321,18 @@ class ApiClient {
   // jemand angemeldet, reist sein Token mit – die Routen fragen nicht danach.
 
   /** **Ein Dokument über seinen Link** – das eingefrorene Papier, der Weg, die Handlungen. */
+  publicDocument(token: string): Promise<import('@/types/api').components['schemas']['PublicDocument']> {
+    return this.get(`/api/v1/public/document/${encodeURIComponent(token)}`);
+  }
+
+  signDocument(token: string, image: string): Promise<import('@/types/api').components['schemas']['PublicDocument']> {
+    return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/sign`, { image });
+  }
+
+  declineDocument(token: string, reason: string): Promise<import('@/types/api').components['schemas']['PublicDocument']> {
+    return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/decline`, { reason });
+  }
+
   publicBeleg(token: string): Promise<import('@/types/api').components['schemas']['BelegView']> {
     return this.get(`/api/v1/public/beleg/${encodeURIComponent(token)}`);
   }
@@ -447,6 +459,17 @@ class ApiClient {
   async messageAttachment(messageId: number, index: number, name: string): Promise<File> {
     const blob = await this.request<Blob>(`/api/v1/erp/messages/${messageId}/attachments/${index}`, {}, 'blob');
     return new File([blob], name, { type: blob.type });
+  }
+
+  /** **Eine Runde Verfassen** – gespeichert wird nichts. */
+  composeDocument(turns: { who: 'user' | 'ai'; text: string }[], current: Record<string, unknown> | null):
+    Promise<import('@/types/api').components['schemas']['ComposeOut']> {
+    return this.post('/api/v1/erp/documents/compose', { turns, current });
+  }
+
+  /** **Senden** – je Empfänger ein Link und eine Mail; `sign`: sie sollen unterschreiben. */
+  sendDocument(objectId: number, to: number[], sign: boolean, note: string): Promise<DocumentDetail> {
+    return this.post(`/api/v1/erp/documents/${objectId}/send`, { to, sign, note });
   }
 
   /** «Aus Vorlage»: AGB oder Datenschutz einer eigenen Gesellschaft (nur Admin). */
@@ -709,6 +732,8 @@ class ApiClient {
   fileDocument(files: Blob[], data: {
     art: string; name: string; source: string; refs: number[];
     target?: DocumentTarget | null; text?: string; keywords?: string; facts?: Record<string, unknown>;
+    /** Wer unterschreiben soll (Personen). */
+    signers?: number[];
   }): Promise<{ document: DocumentDetail; existed: boolean }> {
     const form = new FormData();
     files.forEach((f, i) => form.append('files', f, f instanceof File ? f.name : `seite-${i + 1}`));
@@ -717,6 +742,7 @@ class ApiClient {
     form.append('source', data.source);
     form.append('refs', JSON.stringify(data.refs.map((object_id) => ({ object_id }))));
     if (data.target) form.append('target', JSON.stringify(data.target));
+    if (data.signers?.length) form.append('signers', JSON.stringify(data.signers));
     if (data.text) form.append('text', data.text);
     if (data.keywords) form.append('keywords', data.keywords);
     if (data.facts && Object.keys(data.facts).length) form.append('facts', JSON.stringify(data.facts));

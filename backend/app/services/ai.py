@@ -39,13 +39,16 @@ T = TypeVar("T", bound=BaseModel)
 class Task:
     model: str
     max_tokens: int
+    #: Wie lange auf die Antwort gewartet wird (Sekunden) – Verfassen schreibt Seiten.
+    timeout: float = 90.0
 
 
 #: ►►► **Die Aufgaben – und welches Modell sie macht.** ◄◄◄ Lesen ist Masse (jede Datei),
-#: also das schnelle, günstige Modell; Verfassen ist selten und anspruchsvoll.
+#: also das schnelle, günstige Modell; Verfassen schreibt ein Papier von ein paar Seiten –
+#: das mittlere Modell reicht dafür, das grösste kostete ein Vielfaches für denselben Brief.
 TASKS: dict[str, Task] = {
     "read": Task(model="claude-haiku-5-5", max_tokens=16000),
-    "compose": Task(model="claude-opus-5-5", max_tokens=32000),
+    "compose": Task(model="claude-sonnet-5-5", max_tokens=8000, timeout=240.0),
 }
 
 #: Was die KI lesen kann – Bilder und PDF direkt, Text als Text.
@@ -90,10 +93,10 @@ def content_of(raw: bytes, mime: str) -> Optional[dict]:
     return None
 
 
-def _client():
+def _client(timeout: float = 90.0):
     import anthropic
     return anthropic.Anthropic(api_key=get_settings().anthropic_api_key, max_retries=1,
-                               timeout=90.0)
+                               timeout=timeout)
 
 
 def ask(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
@@ -107,7 +110,7 @@ def ask(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
     result: Optional[T] = None
     usage: dict = {}
     try:
-        response = _client().messages.parse(
+        response = _client(spec.timeout).messages.parse(
             model=spec.model, max_tokens=spec.max_tokens, system=system,
             messages=[{"role": "user", "content": content}], output_format=schema)
         usage = {"in": response.usage.input_tokens, "out": response.usage.output_tokens,

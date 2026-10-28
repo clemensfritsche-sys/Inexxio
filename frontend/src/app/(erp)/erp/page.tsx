@@ -25,7 +25,6 @@ import { TODO_CHANGED } from '@/lib/todo';
 import { NewCompany, NewPerson } from '@/components/erp/new-record';
 import { DocumentDetail } from '@/components/erp/document-detail';
 import { DocumentDraft } from '@/components/erp/document-draft';
-import { ComposeChat } from '@/components/erp/compose-chat';
 import { statusCfg } from '@/lib/process-status';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
@@ -768,7 +767,6 @@ export default function ErpPage() {
           )}
           {creating === 'document' && (
             <DocumentDraft key="new-document" onCancel={cancelCreate}
-              compose={(done) => <ComposeChat onDone={done} />}
               onFiled={(d) => { setCreating(null); setSel({ type: 'document', objectId: d.object_id }); }}
               onOpen={(oid) => { setCreating(null); setSel({ type: 'document', objectId: oid }); }} />
           )}

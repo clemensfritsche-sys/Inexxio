@@ -133,3 +133,66 @@ class TemplateIn(BaseModel):
     """«Aus Vorlage»: welche Gesellschaft, welcher Rechtstext (``agb`` · ``datenschutz``)."""
     company: int
     kind: str
+
+
+class TurnIn(BaseModel):
+    who: str = Field(pattern="^(user|ai)$")
+    text: str = Field(max_length=4000)
+
+
+class ComposeIn(BaseModel):
+    """Eine Runde Verfassen: das Gespräch und der letzte Stand (lebt im Browser)."""
+    turns: list[TurnIn] = Field(min_length=1, max_length=40)
+    current: Optional[dict] = None
+
+
+class SignerOut(BaseModel):
+    object_id: int
+    name: str
+
+
+class ComposeOut(BaseModel):
+    """Das Papier dieser Runde – als A4-HTML und als Stand für die nächste Runde."""
+    ai: bool = True
+    reply: str = ""
+    paper: Optional[dict] = None
+    html: Optional[str] = None
+    art: str = ""
+    name: str = ""
+    signers: list[SignerOut] = []
+
+
+class SendIn(BaseModel):
+    """Senden: an wen, ob sie unterschreiben sollen, und ein Satz dazu."""
+    to: list[int] = Field(min_length=1, max_length=20)
+    sign: bool = False
+    note: str = Field(default="", max_length=1000)
+
+
+class PublicSigner(BaseModel):
+    name: str
+    signed_at: Optional[datetime] = None
+    declined_at: Optional[datetime] = None
+
+
+class PublicDocument(BaseModel):
+    """Was die Seite eines Links zeigt."""
+    art: str
+    name: str
+    status: str
+    mime: str
+    html: Optional[str] = None
+    url: Optional[str] = None
+    filename: Optional[str] = None
+    signers: list[PublicSigner] = []
+    #: ``sign`` · ``decline`` – was der Empfänger jetzt tun kann.
+    actions: list[str] = []
+
+
+class SignIn(BaseModel):
+    #: Der Zug als PNG (``data:image/png;base64,…``).
+    image: str = Field(max_length=600_000)
+
+
+class DeclineIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=300)

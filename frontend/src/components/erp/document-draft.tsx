@@ -8,6 +8,8 @@ import {
   DetailBody, DetailHeader, ErrorText, HeaderAction, MICRO_LABEL, inputCls,
 } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
+import { DocScanner } from '@/components/scan/doc-scanner';
+import { ComposeChat } from '@/components/erp/compose-chat';
 import { RefChip } from '@/components/erp/documents';
 import {
   DocumentLayout, DocumentPaper, MicroLabel, findTargets, type TargetOption,
@@ -48,15 +50,13 @@ interface DraftRef { object_id: number; label: string; target?: DocumentTarget; 
  * und füllt **Art, Name und Referenz** vor; das sind gewöhnliche Felder, ohne KI tippt sie der
  * Mensch. «Freigeben» legt das Dokument an – erst dann gibt es eine Nummer (Regel 2).
  */
-export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
+export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
   seed?: DraftSeed;
   /** Freigegeben – mit dem Vorschlag, aus dem ein Modul seine Felder vorbelegt. */
   onFiled: (doc: DocumentDetail, proposal: DocumentProposal | null) => void;
   onCancel: () => void;
   /** Dieselbe Datei gibt es schon – das vorhandene Dokument öffnen. */
   onOpen?: (objectId: number) => void;
-  /** Die Quelle «Verfassen» (Stufe 4) – ohne sie steht die Kachel nicht da. */
-  compose?: (done: (files: Blob[], art: string, name: string, refs: DraftRef[]) => void) => React.ReactNode;
 }) {
   const [files, setFiles] = useState<Blob[]>(seed?.files ?? []);
   const [source, setSource] = useState<DraftSource | null>(seed?.files?.length ? (seed.source ?? 'file') : null);
@@ -70,12 +70,17 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [existing, setExisting] = useState<DocumentDetail | null>(null);
+  /** Wer unterschreiben soll – beim Verfassen von der KI vorgeschlagen, sonst von Hand. */
+  const [signers, setSigners] = useState<SignerRef[]>([]);
+  /** Das verfasste Papier (Quelle «Verfassen») – es ist die Datei. */
+  const [composed, setComposed] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
-  const camera = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
 
   // **Lesen, sobald es eine Datei gibt** – einmal je Entwurf. Gespeichert wird dabei nichts.
+  // Ein verfasstes Papier liest niemand nach: die KI hat es eben geschrieben.
   useEffect(() => {
-    if (!files.length) return;
+    if (!files.length || source === 'compose') return;
     let gone = false;
     setReading(true);
     api.readDraft(files, { sender: seed?.sender ?? null, hint: seed?.hint })
@@ -96,7 +101,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
       .catch(() => { /* ohne Vorschlag geht es auch */ })
       .finally(() => { if (!gone) setReading(false); });
     return () => { gone = true; };
-  }, [files, seed?.sender, seed?.hint]);
+  }, [files, source, seed?.sender, seed?.hint]);
 
   const preview = useMemo(() => (files[0] ? URL.createObjectURL(files[0]) : null), [files]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
@@ -117,6 +122,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
         refs: refs.filter((r) => !r.target).map((r) => r.object_id), target,
         text: proposal?.text, keywords: proposal?.keywords,
         facts: proposal?.facts as Record<string, unknown> | undefined,
+        signers: signers.map((x) => x.object_id),
       });
       // Dieselbe Datei gibt es schon: mit einem Feld ist sie jetzt dort (der Dienst hat es
       // gesetzt), ohne Feld bietet die Seite das vorhandene Dokument an.
@@ -159,19 +165,23 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
             </div>
           )}
           <input ref={picker} type="file" hidden onChange={(e) => choose(e.target.files, 'file')} />
-          <input ref={camera} type="file" hidden accept="image/*" capture="environment" multiple
-            onChange={(e) => choose(e.target.files, seed?.source === 'capture' ? 'capture' : 'scan')} />
-          {!source && (
-            <SourceTiles onScan={() => camera.current?.click()} onFile={() => picker.current?.click()}
-              onCompose={compose ? () => setSource('compose') : undefined} />
+          {scanning && (
+            <DocScanner onCancel={() => setScanning(false)} onDone={(pages) => {
+              setScanning(false);
+              setSource('scan');
+              setFiles(pages.map((b, i) => new File([b], `seite-${i + 1}.jpg`, { type: 'image/jpeg' })));
+            }} />
           )}
-          {source === 'compose' && !files.length && compose?.((f, a, n, r) => {
-            setArt(a); setName(n); setRefs(r); setFiles(f);
-          })}
-          {files.length > 0 && (
-            <DocumentLayout paper={files.length > 1 && files.every((f) => f.type.startsWith('image/'))
-              ? <Pages files={files} />
-              : <DocumentPaper url={preview} mime={mime} filename={(files[0] as File).name} />}>
+          {!source && (
+            <SourceTiles onScan={() => setScanning(true)} onFile={() => picker.current?.click()}
+              onCompose={() => setSource('compose')} />
+          )}
+          {(files.length > 0 || source === 'compose') && (
+            <DocumentLayout paper={source === 'compose'
+              ? (composed ? <DocumentPaper url={null} mime="text/html" html={composed} /> : <ComposeHint />)
+              : files.length > 1 && files.every((f) => f.type.startsWith('image/'))
+                ? <Pages files={files} />
+                : <DocumentPaper url={preview} mime={mime} filename={(files[0] as File).name} />}>
               {seed?.from && <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{seed.from}</div>}
               <label style={{ display: 'flex', flexDirection: 'column' }}>
                 <MicroLabel>Art *</MicroLabel>
@@ -222,6 +232,19 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
                   )}
                 </div>
               </div>
+              <Signers signers={signers} onChange={setSigners} />
+              {source === 'compose' && (
+                <div>
+                  <MicroLabel>Verfassen</MicroLabel>
+                  <ComposeChat onPaper={(p) => {
+                    setComposed(p.html);
+                    setFiles([new File([p.html], `${p.art || 'Dokument'}.html`, { type: 'text/html' })]);
+                    if (p.art) setArt(p.art);
+                    if (p.name) setName(p.name);
+                    setSigners((have) => [...have, ...p.signers.filter((x) => !have.some((h) => h.object_id === x.object_id))]);
+                  }} />
+                </div>
+              )}
             </DocumentLayout>
           )}
         </DetailBody>
@@ -230,9 +253,49 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen, compose }: {
   );
 }
 
+/** Eine Person, die unterschreiben soll. */
+interface SignerRef { object_id: number; name: string }
+
+/**
+ * **Wer unterschreiben soll** – mit der Freigabe verlangt; hinaus geht die Bitte mit «Senden».
+ * Beim Verfassen steht für jeden eine Linie auf dem Papier.
+ */
+function Signers({ signers, onChange }: { signers: SignerRef[]; onChange: (s: SignerRef[]) => void }) {
+  return (
+    <div>
+      <MicroLabel>Unterschreiben</MicroLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {signers.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {signers.map((x) => (
+              <RefChip key={x.object_id} objectId={x.object_id} label={x.name}
+                onRemove={() => onChange(signers.filter((y) => y.object_id !== x.object_id))} />
+            ))}
+          </div>
+        )}
+        <ObjectSelect<SignerRef> value={null} find={(q) => api.searchPeople(q, 20)}
+          placeholder="Person – Nummer oder Name (niemand: leer lassen)"
+          onChange={(id, opt) => {
+            if (id && !signers.some((x) => x.object_id === id)) onChange([...signers, { object_id: id, name: opt?.name ?? String(id) }]);
+          }} />
+      </div>
+    </div>
+  );
+}
+
+function ComposeHint() {
+  return (
+    <div style={{ width: '100%', maxWidth: 440, aspectRatio: '210 / 297', border: '1.5px dashed var(--border-2)',
+                  borderRadius: 4, display: 'grid', placeItems: 'center', padding: 24, textAlign: 'center',
+                  fontSize: 13, color: 'var(--fg-3)' }}>
+      Hier steht das Papier, sobald die KI es geschrieben hat.
+    </div>
+  );
+}
+
 /** Die drei Quellen – zu Beginn das Einzige, was zu sehen ist. */
 function SourceTiles({ onScan, onFile, onCompose }: {
-  onScan: () => void; onFile: () => void; onCompose?: () => void;
+  onScan: () => void; onFile: () => void; onCompose: () => void;
 }) {
   const tiles: Array<[string, string, React.ElementType, (() => void) | undefined]> = [
     ['Scannen', 'Kamera, mehrere Seiten', ScanLine, onScan],

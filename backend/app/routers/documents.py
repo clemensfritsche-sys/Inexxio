@@ -16,10 +16,11 @@ from ..domain import documents as dd
 from ..models import Attachment, Document, UserProfile
 from ..schemas.documents import (
     DeleteIn, DocumentDetail, DocumentRefOut, DocumentSummary, FiledOut, ProposalOut,
-    ProposedRef, RecordOut, RefIn, RequirementOut, SignatureOut, TargetIn, TemplateIn,
+    ProposedRef, RecordOut, RefIn, RequirementOut, SendIn, SignatureOut, SignerOut, TargetIn,
+    TemplateIn, ComposeIn, ComposeOut,
 )
-from ..services import (access, ai, document, documents as docs, fields, legal, people,
-                        reading, records, sites)
+from ..services import (access, ai, composing, document, documents as docs, fields, legal,
+                        people, reading, records, signing, sites)
 from ..services import requirements as reqs
 
 router = APIRouter(prefix="/api/v1/erp/documents", tags=["documents"])
@@ -80,8 +81,8 @@ def detail(db: Session, doc: Document) -> DocumentDetail:
         signatures=[SignatureOut(id=s.id, person_object_id=s.person_object_id, name=s.name,
                                  signed_at=s.signed_at, declined_at=s.declined_at,
                                  reason=s.reason) for s in sigs],
-        html=(raw.decode("utf-8", "replace") if raw and doc.mime == "text/html"
-              else _legal_html(db, doc)),
+        html=(signing.signed_html(raw.decode("utf-8", "replace"), sigs)
+              if raw and doc.mime == "text/html" else _legal_html(db, doc)),
         read_later=(doc.file_id is not None and not doc.text and ai.ready()
                     and (doc.mime in ai.IMAGE_TYPES or doc.mime == "application/pdf")),
     )
@@ -135,7 +136,7 @@ async def _upload(files: list[UploadFile]) -> tuple[bytes, str, Optional[str]]:
 async def file_document(
     files: list[UploadFile] = File(...),
     art: str = Form(...), name: str = Form(...), source: str = Form("file"),
-    refs: str = Form("[]"), target: str = Form(""),
+    refs: str = Form("[]"), target: str = Form(""), signers: str = Form("[]"),
     text: str = Form(""), keywords: str = Form(""), facts: str = Form(""),
     db: Session = Depends(get_db), user: UserProfile = Depends(require_employee),
 ):
@@ -145,6 +146,7 @@ async def file_document(
     try:
         wanted = [docs.RefIn(object_id=int(r["object_id"])) for r in (_json(refs, "Die Referenzen") or [])]
         aim = TargetIn(**_json(target, "Das Feld")) if target else None
+        signing_ids = [int(x) for x in (_json(signers, "Die Unterzeichner") or [])]
     except (KeyError, TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Die Referenzen sind unlesbar.")
     raw, mime, filename = await _upload(files)
@@ -156,6 +158,8 @@ async def file_document(
             "Diese Datei gibt es schon als Dokument – du darfst es nicht sehen."))
     if existed and wanted:
         docs.add_refs(db, doc, wanted, user)
+    if signing_ids:
+        signing.request(db, doc, signing_ids, user)
     if aim is not None:
         fields.apply(db, actor=user, doc=doc, object_id=aim.object_id, part=aim.part,
                      field=aim.field, extra=aim.extra)
@@ -186,6 +190,45 @@ def open_requirements(db: Session = Depends(get_db), user: UserProfile = Depends
     return [RequirementOut(key=r.key, label=r.label, sentence=r.sentence, fields=list(r.fields),
                            object_id=r.object_id, part=r.part, field=r.field)
             for r in reqs.open_for(db, user)]
+
+
+@router.post("/compose", response_model=ComposeOut)
+def compose(data: ComposeIn, db: Session = Depends(get_db),
+            user: UserProfile = Depends(require_employee)):
+    """**Eine Runde Verfassen** (``services/composing``) – gespeichert wird nichts; nur der
+    Aufruf der KI steht im Log."""
+    current = None
+    if data.current:
+        try:
+            current = composing.Paper(**data.current)
+        except ValueError:
+            current = None
+    paper = composing.compose(db, actor=user, turns=[composing.Turn(**t.model_dump()) for t in data.turns],
+                              current=current)
+    db.commit()     # der Aufruf der KI zählt (Deckel, Log)
+    if paper is None:
+        return ComposeOut(ai=ai.available(db), reply=(
+            "Gerade kann ich nicht schreiben – versuchen Sie es gleich noch einmal." if ai.ready()
+            else "Ohne KI gibt es kein Verfassen."))
+    signers = composing.signers_of(db, paper.signers)
+    return ComposeOut(reply=paper.reply, paper=paper.model_dump(), art=paper.art, name=paper.name,
+                      html=composing.render(db, paper, [(x["object_id"], x["name"]) for x in signers]),
+                      signers=[SignerOut(**x) for x in signers])
+
+
+@router.post("/{object_id}/send", response_model=DocumentDetail)
+def send(object_id: int, data: SendIn, db: Session = Depends(get_db),
+         user: UserProfile = Depends(require_employee)):
+    """**Senden** – je Empfänger ein Link ohne Ablauf und eine Mail; mit ``sign`` sollen sie
+    unterschreiben (``services/signing``)."""
+    doc = docs.readable(db, object_id, user)
+    if data.sign:
+        signing.request(db, doc, data.to, user)
+    signing.send(db, doc, data.to, data.note, user)
+    db.commit()
+    from ..services import voucher_docs
+    voucher_docs.send_pending(db)
+    return detail(db, doc)
 
 
 @router.post("/template", response_model=DocumentDetail)

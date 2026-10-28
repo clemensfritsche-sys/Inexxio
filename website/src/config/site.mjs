@@ -319,7 +319,8 @@ export const site = {
    * verlinken (check-site), und robots.txt sperrt jede `private` in jedem Modus
    * (`privatePaths`). Offen bleiben die AGB (öffentlich) und die Bundles des ERP – ohne sie
    * lässt sich keine seiner Seiten darstellen. `/beleg` ist die Seite eines Belegs über
-   * seinen unerratbaren Link (`/beleg?t=…`) – privat je Link, darum gesperrt und `noindex`.
+   * seinen unerratbaren Link (`/beleg?t=…`) – privat je Link, darum gesperrt und `noindex`;
+   * ebenso `/dokument` (ein Dokument zum Ansehen und Unterschreiben, `/dokument?t=…`).
    * @type {{ path: string, page: boolean, private: boolean }[]}
    */
   erpPaths: [
@@ -328,6 +329,7 @@ export const site = {
     { path: '/login', page: true, private: true },
     { path: '/abmelden', page: true, private: true },
     { path: '/beleg', page: true, private: true },
+    { path: '/dokument', page: true, private: true },
     { path: '/agb', page: true, private: false },
     { path: '/datenschutz', page: true, private: false },
     { path: '/impressum', page: true, private: false },

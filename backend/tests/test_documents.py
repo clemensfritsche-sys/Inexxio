@@ -271,7 +271,7 @@ def test_without_key_the_proposal_is_empty_but_the_sender_still_counts(world, mo
 
 def test_the_gate_logs_every_call_and_respects_the_cap(world, monkeypatch):
     monkeypatch.setattr(ai, "ready", lambda: True)
-    monkeypatch.setattr(ai, "_client", lambda: _FakeClient(_reading()))
+    monkeypatch.setattr(ai, "_client", lambda *a: _FakeClient(_reading()))
     monkeypatch.setattr(ai, "used_today", lambda db: 0)
     p = reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
     assert p.read and p.art == "Lieferschein" and "pump" in p.keywords
@@ -285,10 +285,10 @@ def test_the_gate_logs_every_call_and_respects_the_cap(world, monkeypatch):
 def test_a_refusal_or_broken_answer_is_no_proposal(world, monkeypatch):
     monkeypatch.setattr(ai, "ready", lambda: True)
     monkeypatch.setattr(ai, "used_today", lambda db: 0)
-    monkeypatch.setattr(ai, "_client", lambda: _FakeClient(_reading(), stop="refusal"))
+    monkeypatch.setattr(ai, "_client", lambda *a: _FakeClient(_reading(), stop="refusal"))
     assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
 
-    def boom():
+    def boom(*a):
         raise RuntimeError("Netz weg")
     monkeypatch.setattr(ai, "_client", boom)
     assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
@@ -298,7 +298,7 @@ def test_our_number_on_the_sheet_points_to_the_record(world, monkeypatch):
     target = _person(world.db, "user")
     monkeypatch.setattr(ai, "ready", lambda: True)
     monkeypatch.setattr(ai, "used_today", lambda db: 0)
-    monkeypatch.setattr(ai, "_client", lambda: _FakeClient(_reading(numbers=[str(target.object_id)])))
+    monkeypatch.setattr(ai, "_client", lambda *a: _FakeClient(_reading(numbers=[str(target.object_id)])))
     p = reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
     assert [r.object_id for r in p.refs] == [target.object_id] and "Nummer" in p.why
 
