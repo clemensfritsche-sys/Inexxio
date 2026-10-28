@@ -75,8 +75,14 @@ def signers_of(db: Session, names: list[str]) -> list[dict]:
     """**Wer unterschreiben soll** – ein Name wird zur Person nur, wenn er genau eine trifft."""
     out = []
     for name in names[:10]:
-        found = people.search(db, name, limit=2) if name.strip() else []
-        if len(found) == 1:
+        words = name.split()
+        if not words:
+            continue
+        # Gesucht wird nach einem Wort (die Suche kennt Vor- ODER Nachname), passen muss der
+        # ganze Name – sonst würde «Beat Muster» zu jedem Muster.
+        found = [u for u in people.search(db, words[-1], limit=50)
+                 if " ".join((u.display_name or "").lower().split()) == " ".join(w.lower() for w in words)]
+        if len(found) == 1 and all(x["object_id"] != found[0].object_id for x in out):
             out.append({"object_id": found[0].object_id, "name": found[0].display_name or name})
     return out
 

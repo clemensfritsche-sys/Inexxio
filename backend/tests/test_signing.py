@@ -110,3 +110,12 @@ def test_a_signature_must_be_a_real_png(db):
     for bad in ("", "data:image/png;base64,AAAA", "data:text/html;base64,PGI+"):
         with pytest.raises(HTTPException):
             signing.sign(db, link, bad)
+
+
+def test_a_full_name_becomes_exactly_one_person(db):
+    """Bug-Formen: (a) ein ganzer Name findet niemanden; (b) ein Nachname trifft jeden mit ihm."""
+    hans = _person(db, "user", "Hansjakob")
+    _person(db, "user", "Hansjakob")          # gleicher Vorname, anderer Nachname
+    assert composing.signers_of(db, [hans.display_name]) == [
+        {"object_id": hans.object_id, "name": hans.display_name}], "(a)"
+    assert composing.signers_of(db, [hans.last_name]) == [], "(b)"

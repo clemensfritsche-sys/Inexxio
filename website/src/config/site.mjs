@@ -335,6 +335,8 @@ export const site = {
     { path: '/impressum', page: true, private: false },
     { path: '/api', page: false, private: true },
     { path: '/_next', page: false, private: false },
+    // OpenCV für den Dokumentscanner des ERP (frontend/scripts/vendor-opencv.mjs).
+    { path: '/vendor', page: false, private: false },
   ],
   /**
    * Was robots.txt sperrt – abgeleitet aus `erpPaths`. Ein Pfad, der keine Seite ist, wird als

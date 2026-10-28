@@ -31,8 +31,11 @@ class Record:
 
     @property
     def label(self) -> str:
-        return f"{TYPE_WORDS.get(self.type, self.type)} · {self.name}" if self.name else \
-            TYPE_WORDS.get(self.type, self.type)
+        """«Typ · Name» – ausser der Name beginnt schon mit dem Typ («Auftrag 100000029»)."""
+        word = TYPE_WORDS.get(self.type, self.type)
+        if not self.name:
+            return word
+        return self.name if self.name.startswith(word) else f"{word} · {self.name}"
 
 
 def _articles(db: Session, ids: Iterable[int]) -> dict[int, str]:

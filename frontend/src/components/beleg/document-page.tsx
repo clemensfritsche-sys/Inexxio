@@ -98,8 +98,17 @@ export function DocumentPage() {
       {view.html
         ? <Paper html={view.html} label={`${view.art} ${view.name}`} />
         : view.url && (
-          <div className={css.wrap} style={{ textAlign: 'center', marginTop: 32 }}>
-            <a className={`${css.btn} ${css.main}`} href={assetUrl(view.url)} target="_blank" rel="noreferrer">
+          <div className={css.wrap} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, marginTop: 32 }}>
+            {/* Ein PDF oder Bild steht, wie es ist; alles andere öffnet der Knopf. */}
+            {view.mime === 'application/pdf' && (
+              <iframe title={view.name} src={assetUrl(view.url)}
+                style={{ width: '100%', maxWidth: 880, aspectRatio: '210 / 297', border: '1px solid var(--border-1)', background: '#fff' }} />
+            )}
+            {view.mime.startsWith('image/') && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={assetUrl(view.url)} alt={view.name} style={{ maxWidth: '100%', border: '1px solid var(--border-1)' }} />
+            )}
+            <a className={`${css.btn} ${css.quiet}`} href={assetUrl(view.url)} target="_blank" rel="noreferrer">
               {view.filename ?? 'Dokument'} öffnen
             </a>
           </div>
