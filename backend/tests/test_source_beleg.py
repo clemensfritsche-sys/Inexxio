@@ -2895,9 +2895,9 @@ def test_the_way_to_the_money_needs_no_label():
     )
     seg = _body(_code(_read(FRONTEND / "components" / "erp" / "fields.tsx")),
                 "Segmented", kind="export function")
-    assert "{label && <Label" in seg, (
-        "Ohne Beschriftung bleibt die leere Zeile stehen (b) – dieselbe Höhe ohne "
-        "denselben Inhalt."
+    # Kein Aufrufer gibt eine Beschriftung mit – also hat der Baustein keine Zeile dafür.
+    assert "<Label" not in seg, (
+        "Der Umschalter trägt eine Beschriftungszeile (b) – dieselbe Höhe ohne denselben Inhalt."
     )
 
 

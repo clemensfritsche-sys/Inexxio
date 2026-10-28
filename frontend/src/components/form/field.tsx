@@ -85,36 +85,32 @@ interface SelectFieldProps {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
-  hint?: string;
-  disabled?: boolean;
 }
 
-export function SelectField({ label, value, onChange, options, hint, disabled = false }: SelectFieldProps) {
+export function SelectField({ label, value, onChange, options }: SelectFieldProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)' }}>{label}</label>
       <select
         value={value}
-        onChange={disabled ? undefined : (e) => onChange(e.target.value)}
-        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
         style={{
           padding: '8px 12px',
           borderRadius: 8,
           border: '1px solid var(--border-1)',
           fontSize: 14,
-          color: disabled ? 'var(--fg-4)' : 'var(--fg-1)',
-          background: disabled ? 'var(--bg-2)' : 'var(--bg-1)',
+          color: 'var(--fg-1)',
+          background: 'var(--bg-1)',
           outline: 'none',
           width: '100%',
           boxSizing: 'border-box',
-          cursor: disabled ? 'default' : 'pointer',
+          cursor: 'pointer',
         }}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
-      {hint && <p style={{ fontSize: 12, color: 'var(--fg-4)', margin: 0 }}>{hint}</p>}
     </div>
   );
 }

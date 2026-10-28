@@ -73,7 +73,7 @@ import { formatWhen, whenDay, whenTitle } from '@/lib/when';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { DraftSheet } from '@/components/erp/document-draft';
 import type { Mailbox, Message, MessageChannel, MessageIn, VoucherParty } from '@/types';
-import { tell } from '@/lib/notice';
+import { notify, tell } from '@/lib/notice';
 
 type Person = { object_id: number; name: string; company?: string | null; email?: string | null;
   staff?: boolean };
@@ -86,9 +86,6 @@ const DELIVERIES: { key: Delivery; label: string; tip: string }[] = [
   { key: 'newsletter', label: 'Newsletter', tip: 'Werbung, nur an Angemeldete' },
 ];
 
-/** Ein Satz für die Hinweiszeile der ERP-Seite (``detail`` = der Satz) – für das, was
- *  scheitert, nachdem die Ansicht, die es auslöste, schon geschlossen ist. */
-export const ERP_NOTICE = 'inexxio:notice';
 
 const KIND_ICON = { email: Mail, phone: Phone, internal: Lock } as const;
 /** ►►► **EINE Leiste für Art und Versand**: Mail · Rundschreiben · Newsletter | Anruf · Intern. ◄◄◄
@@ -965,12 +962,11 @@ function Composer({ person, me, channels, target, topics, onSent, onSending }: {
     const p = pending.current;
     if (!p) return;
     clearTimeout(p.timer);
-    // Die Ansicht ist weg – scheitert es, sagt es die Hinweiszeile der Seite, samt Text.
+    // Die Ansicht ist weg – scheitert es, bleibt die Meldung stehen, samt Text.
     void api.createMessage(p.payload).then(() => sent.current()).catch((e: unknown) => {
       const why = e instanceof Error ? e.message : 'Unbekannter Fehler';
-      window.dispatchEvent(new CustomEvent(ERP_NOTICE, { detail:
-        `Nachricht «${p.payload.subject ?? ''}» wurde NICHT gespeichert (${why}). ` +
-        `Text: ${p.payload.body}` }));
+      notify(`Nachricht «${p.payload.subject ?? ''}» wurde NICHT gespeichert (${why}). `
+        + `Text: ${p.payload.body}`, Date.now(), { sticky: true });
     });
   }, []);
   // Wer das Fenster schliesst, während «Rückgängig» steht, wird gewarnt; geht er trotzdem,

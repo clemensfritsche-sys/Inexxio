@@ -180,14 +180,13 @@ export function IconBar<T extends string>({ value, options, onChange }: {
 
 /** Ein Symbol-Knopf, der **nicht** ausklappt – der Name steht in der Blase (wie in einer
  *  Zeile, `module-ui.RowActions`), damit nichts unter dem Zeiger springt. */
-export function IconButton({ icon: Icon, label, onClick, height = 26, disabled, tone = 'neutral' }: {
-  icon: ElementType; label: string; onClick: () => void; height?: number; disabled?: boolean;
-  tone?: 'neutral' | 'primary';
+export function IconButton({ icon: Icon, label, onClick, height = 26 }: {
+  icon: ElementType; label: string; onClick: () => void; height?: number;
 }) {
   return (
     <span data-tip={label} className="inline-flex">
-      <button type="button" aria-label={label} disabled={disabled} onClick={onClick}
-        className={`erp-actbtn erp-actbtn-${tone} erp-actbtn-icon`}
+      <button type="button" aria-label={label} onClick={onClick}
+        className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
         style={{ height, '--actbtn-w': `${height}px` } as CSSProperties}>
         <Icon size={13} />
       </button>

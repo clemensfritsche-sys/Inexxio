@@ -72,8 +72,7 @@ export const MIN_PICK = 44;
  * Layoutwirkung, so gross wie das Feld). Ein Pflichtwert ohne Wert trägt sie warnfarben
  * (`missing`); die Regel selbst steht im Dienst (`voucher.ask_problem`).
  */
-export function Editable({ on = true, as: Tag = 'span', style, title, missing, children }: {
-  on?: boolean;
+export function Editable({ as: Tag = 'span', style, title, missing, children }: {
   as?: 'span' | 'div';
   style?: CSSProperties;
   title?: string;
@@ -84,10 +83,9 @@ export function Editable({ on = true, as: Tag = 'span', style, title, missing, c
     ? { display: 'inline-flex', width: 'fit-content', maxWidth: '100%', ...style }
     : { display: 'flex', ...style };
   return (
-    <Tag className={on ? `ix-editable${missing ? ' is-missing' : ''}` : undefined}
+    <Tag className={`ix-editable${missing ? ' is-missing' : ''}`}
       style={box}
-      {...(on ? {} : { 'aria-disabled': true as const })}
-      {...(on && missing ? { 'aria-invalid': true as const } : {})}
+      {...(missing ? { 'aria-invalid': true as const } : {})}
       {...(title ? { 'data-tip': missing ? `${title} – Pflichtangabe` : title } : {})}>
       {children}
     </Tag>
@@ -198,7 +196,7 @@ export function DocRef<T extends { object_id: number; name: string }>({
  * Vorschläge vorab (`options`). Ohne Kamera: eine Rechnung zieht keine Objektnummer.
  */
 export function DocFind({ on, text, value, options, placeholder, emptyOption, face, tip,
-                          missing, search, onChange }: {
+                          search, onChange }: {
   on: boolean;
   text: ReactNode;
   value: string;
@@ -207,8 +205,6 @@ export function DocFind({ on, text, value, options, placeholder, emptyOption, fa
   emptyOption: string;
   face?: CSSProperties;
   tip?: string;
-  /** Pflichtangabe und noch leer – siehe `Editable.missing`. */
-  missing?: boolean;
   search: (query: string) => Promise<{ value: string; label: string }[]>;
   onChange: (value: string) => void;
 }) {
@@ -220,7 +216,7 @@ export function DocFind({ on, text, value, options, placeholder, emptyOption, fa
   if (!on) return <span style={face}>{text}</span>;
   if (!open) {
     return (
-      <Editable title={tip} missing={missing} style={{ minWidth: MIN_PICK }}>
+      <Editable title={tip} style={{ minWidth: MIN_PICK }}>
         <button type="button" onClick={() => setOpen(true)}
           style={{ ...DOC_FIELD, ...face, cursor: 'pointer', textAlign: 'left',
                    maxWidth: '100%' }}>

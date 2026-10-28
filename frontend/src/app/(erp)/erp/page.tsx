@@ -21,14 +21,13 @@ import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
-import { ERP_NOTICE } from '@/components/erp/communication';
 import { MESSAGES_CHANGED, feedKey } from '@/lib/feed';
 import { qk } from '@/lib/queries';
 import { NewCompany, NewPerson } from '@/components/erp/new-record';
 import { DocumentDetail } from '@/components/erp/document-detail';
 import { DocumentDraft } from '@/components/erp/document-draft';
 import { statusCfg } from '@/lib/process-status';
-import { tell } from '@/lib/notice';
+import { notify, tell } from '@/lib/notice';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
 // geteilt – EINE Quelle der Wahrheit für die Typ-Identität: lib/erp-record.ts.
@@ -265,22 +264,17 @@ export default function ErpPage() {
     return () => clearInterval(t);
   }, [staff]);
 
-  // Rückkehr von Google nach «Postfach verbinden»: ein Satz, dann ist der Parameter weg.
-  const [mailNote, setMailNote] = useState<string | null>(null);
+  // Rückkehr von Google nach «Postfach verbinden»: ein Satz in der einen Meldezeile
+  // (`lib/notice`), bis er geschlossen wird; dann ist der Parameter weg.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const note = params.get('mail');
     if (!note) return;
-    setMailNote(note === 'ok' ? 'Postfach verbunden – neue Mails erscheinen ab jetzt im Verlauf.' : note);
+    if (note === 'ok') notify('Postfach verbunden – neue Mails erscheinen ab jetzt im Verlauf.', Date.now(), { sticky: true, tone: 'info' });
+    else notify(note, Date.now(), { sticky: true });
     params.delete('mail');
     const rest = params.toString();
     window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
-  }, []);
-  // Was scheitert, nachdem die auslösende Ansicht geschlossen ist, meldet sich hier.
-  useEffect(() => {
-    const show = (e: Event) => setMailNote(String((e as CustomEvent).detail ?? ''));
-    window.addEventListener(ERP_NOTICE, show);
-    return () => window.removeEventListener(ERP_NOTICE, show);
   }, []);
 
   // «?typ=<Datensatztyp>» aus der Arbeitsleiste: stellt nur den Filter vor, wie ein Klick
@@ -537,20 +531,13 @@ export default function ErpPage() {
     {/* 100dvh statt 100vh: auf Mobile berücksichtigt die dynamische Viewport-Höhe die
         Browser-Leiste – sonst rutscht der «+»-FAB (bottom) unter die Adressleiste (unsichtbar). */}
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--site-header-h))' }}>
-      {mailNote && (
-        <div role="status" className="flex items-center gap-3 px-5 py-2.5 text-sm border-b border-border-1 bg-bg-2 text-fg-2">
-          <span className="flex-1 min-w-0">{mailNote}</span>
-          <button onClick={() => setMailNote(null)} aria-label="Schliessen" title="Schliessen"
-            className="flex-none w-7 h-7 rounded-ds-sm flex items-center justify-center text-fg-3 hover:text-fg-1">
-            <X size={13} />
-          </button>
-        </div>
-      )}
       <div className="flex overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
 
         {/* ── List panel ───────────────────────────────────────────────────── */}
         <div className={cn(
-          'flex-shrink-0 border-r border-border-1 flex flex-col bg-bg-1 relative',
+          // Die Anzeige (`flex` · `hidden`) steht nur in der Bedingung darunter – `cn` mischt
+          // keine Klassen, zwei widersprüchliche gälten nach ihrer Reihenfolge im CSS.
+          'flex-shrink-0 border-r border-border-1 flex-col bg-bg-1 relative',
           'w-full md:w-[300px] lg:w-[336px]',
           showList ? 'flex' : 'hidden md:flex',
         )}>
@@ -679,7 +666,7 @@ export default function ErpPage() {
 
         {/* ── Detail panel ─────────────────────────────────────────────────── */}
         <div className={cn(
-          'flex-1 overflow-hidden flex flex-col',
+          'flex-1 overflow-hidden flex-col',
           !showList ? 'flex' : 'hidden md:flex',
         )}>
           {/* Ein Render-Fehler in EINEM Datensatz darf nie die ganze ERP-Oberfläche
@@ -716,7 +703,7 @@ export default function ErpPage() {
           {!creating && activeRow?.type === 'order' && (
             <OrderDetail
               key={activeRow.key}
-              record={activeRow.data as Order}
+              record={activeRow.data}
               onSaved={handleOrderSaved}
               onDeviate={(seed) => startCreate('order', seed)}
               onBack={() => setMobileView('list')}

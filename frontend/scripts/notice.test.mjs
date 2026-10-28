@@ -45,6 +45,19 @@ test('dieselbe Meldung kommt nur einmal je fünf Minuten', () => {
   assert.equal(count - before, 2);
 });
 
+test('eine Meldung mit sticky bleibt stehen, bis man sie schliesst', () => {
+  const timers = [];
+  globalThis.window = { setTimeout: (fn) => { timers.push(fn); return 0; } };
+  try {
+    notice.notify('Nachricht «X» wurde NICHT gespeichert', 10, { sticky: true });
+    assert.equal(timers.length, 0);
+    notice.notify('Nicht geladen: Y – z', 10);
+    assert.equal(timers.length, 1);
+  } finally {
+    delete globalThis.window;
+  }
+});
+
 /** Stellen, an denen Schweigen richtig ist – mit Grund. */
 const ALLOWED = new Map([
   ['components/scan/use-camera.ts', 'Kamera: Autoplay-Politik, Geräteliste, Lampe – das Bild sagt selbst, was geht'],

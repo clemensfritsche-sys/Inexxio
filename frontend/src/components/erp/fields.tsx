@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Home, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink, type LucideIcon } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Home, Search, Info, Sparkles, ExternalLink, type LucideIcon } from 'lucide-react';
 import type { StatusTone, StatusCfg } from '@/lib/status-tone';
 import { TYPE_META } from '@/lib/erp-record';
 import type { ErpRecordType, Todo, TodoItem } from '@/types';
@@ -52,7 +52,7 @@ export function Card({ icon: Icon, title, right, children, info, extra, unclippe
 
 // ─── Spezifikations-Karte: die Lese-Ansicht eines Datensatzes ────────────────
 //
-// EINE Karte, in der die Angaben eines Datensatzes stehen – warme Fläche, Haarlinie,
+// EINE Karte, in der die Angaben eines Datensatzes stehen – weisse Fläche, Haarlinie,
 // sanfter Schatten, mit dem Schirm wachsende Polsterung. Sie stand bisher nur im
 // Artikel; die Auftragsspezifikation trug stattdessen lose Kacheln nebeneinander
 // (Notiz #267). Jetzt teilen sich beide dieselbe Anatomie – Karte + Werteraster +
@@ -134,17 +134,16 @@ export function SpecHead({ icon: Icon, title, right }: {
  * Unterabschnitt einer Spezifikations-Karte: 32-px-Symbol + Titel über einer Haarlinie,
  * darunter das Werte-Raster. Gliedert eine Karte, ohne eine zweite Karte zu öffnen.
  */
-export function SpecSection({ icon: Icon, title, right, grid = true, children }: {
-  icon: ElementType; title: string; right?: ReactNode; grid?: boolean; children: ReactNode;
+export function SpecSection({ icon: Icon, title, children }: {
+  icon: ElementType; title: string; children: ReactNode;
 }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 11, paddingBottom: 14, margin: '18px 0 20px', borderBottom: '1px solid var(--border-1)' }}>
         <span style={{ ...SPEC_ICO, width: 32, height: 32 }}><Icon size={16} /></span>
         <h3 style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>{title}</h3>
-        {right && <span style={{ flex: 'none' }}>{right}</span>}
       </div>
-      <div style={grid ? SPEC.grid : undefined}>{children}</div>
+      <div style={SPEC.grid}>{children}</div>
     </div>
   );
 }
@@ -175,9 +174,9 @@ export const MICRO_LABEL: React.CSSProperties = {
 /** Read-only-Feld: kleines Symbol + Versalien-Overline + kräftiger Wert. Optional
  *  Einheit/mono, Link (Host + Pfeil – nur ins Web, sonst Text) oder ⓘ-Hinweis bei
  *  abgeleiteten Werten. */
-export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, spread, link }: {
+export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, link }: {
   icon?: ElementType; label: string; value?: ReactNode; unit?: string;
-  mono?: boolean; full?: boolean; autoHint?: string; spread?: string; link?: string;
+  mono?: boolean; full?: boolean; autoHint?: string; link?: string;
 }) {
   const href = webHref(link);
   return (
@@ -200,12 +199,6 @@ export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint
         ) : (
           <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 6, lineHeight: 1.35, overflowWrap: 'anywhere', ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14.5 } : null) }}>
             {value ?? link}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 3 }}>{unit}</span>}
-          </div>
-        )}
-        {/* Spanne: bewusst leiser als der Median – sie ordnet ein, sie ist nicht die Aussage. */}
-        {spread && (
-          <div style={{ marginTop: 4, font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>
-            {spread}
           </div>
         )}
       </div>
@@ -240,9 +233,9 @@ export function Tooltip({ text, children, side = 'top' }: {
 }
 
 /** Dezentes ⓘ-Symbol; die Erklärung erscheint im Hover. Ersetzt Infotext-Blöcke. */
-export function InfoHint({ text, side }: { text: string; side?: 'top' | 'bottom' }) {
+export function InfoHint({ text }: { text: string }) {
   return (
-    <Tooltip text={text} side={side}>
+    <Tooltip text={text}>
       <Info size={13} style={{ color: 'var(--fg-4)', cursor: 'help', flexShrink: 0 }} />
     </Tooltip>
   );
@@ -291,21 +284,18 @@ export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-bg-1 
  * ein Reiter, der zur aktiven Option gleitet. Nebeneinanderstehende Knöpfe lassen offen,
  * dass sie sich ausschliessen – die Bewegung zeigt es ohne ein Wort Erklärung.
  *
- * `symbolOnly` blendet die Beschriftung aus (nur Symbol, Bedeutung im Hover) – für enge
- * Stellen, an denen das Wort ohnehin nur Platz füllt. Gesperrte Optionen bleiben sichtbar
- * und nennen ihren Grund ebenfalls im Hover.
+ * Gesperrte Optionen bleiben sichtbar und nennen ihren Grund im Hover.
  *
  * **Der Hover kommt sofort** (Testnotiz #618): über `data-tip` wie überall sonst im ERP,
  * nicht über `title`. Der native Browser-Tooltip wartet rund eine Sekunde – wo das Symbol
  * die Bedeutung allein nicht trägt, ist das genau die Sekunde, in der man ratlos ist. Weil
  * es hier an EINER Stelle steht, gilt es für jeden Umschalter im Haus.
  */
-export function IconSwitch<T extends string>({ value, onChange, options, symbolOnly, labelActiveOnly }: {
+export function IconSwitch<T extends string>({ value, onChange, options, labelActiveOnly }: {
   value: T; onChange: (v: T) => void;
   /** ``mark`` setzt einen dezenten Punkt an eine (nicht gewählte) Option – z. B. die
    *  abgeleitete Empfehlung: sie markiert sich selbst, statt einen Erklärsatz zu brauchen. */
   options: { value: T; icon: ElementType; label: string; hint?: string; disabled?: boolean; mark?: boolean }[];
-  symbolOnly?: boolean;
   /** Nur die AKTIVE Option zeigt ihr Wort, die übrigen nur ihr Symbol – für Achsen mit
    *  vielen Werten (Mengeneinheit): man sieht auf einen Blick, was gilt, ohne dass sechs
    *  Wörter nebeneinander um Aufmerksamkeit ringen. */
@@ -328,13 +318,13 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
     const ro = new ResizeObserver(measure);
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [index, options.length, labelActiveOnly, symbolOnly]);
+  }, [index, options.length, labelActiveOnly]);
 
   return (
     // ``labelActiveOnly`` hat naturgemäss ungleich breite Optionen – dann soll sich der
     // Regler an seinen Inhalt schmiegen statt die ganze Spalte zu füllen (Notizen #224/#225).
     <div ref={wrapRef} style={{
-      position: 'relative', display: symbolOnly || labelActiveOnly ? 'inline-flex' : 'flex',
+      position: 'relative', display: labelActiveOnly ? 'inline-flex' : 'flex',
       alignSelf: 'flex-start', maxWidth: '100%', flexWrap: 'wrap',
       padding: 3, borderRadius: 999, background: 'var(--bg-2)', border: '1px solid var(--border-1)',
     }}>
@@ -348,7 +338,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
       {options.map((o, i) => {
         const active = o.value === value;
         const Icon = o.icon;
-        const showLabel = !symbolOnly && (!labelActiveOnly || active);
+        const showLabel = !labelActiveOnly || active;
         return (
           <button key={o.value} type="button" role="tab" aria-selected={active} data-ix-idx={i}
             aria-label={o.label}
@@ -358,9 +348,9 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
             className="ix-seg"
             onClick={o.disabled ? undefined : () => onChange(o.value)} disabled={o.disabled}
             style={{
-              position: 'relative', flex: labelActiveOnly ? '0 0 auto' : (symbolOnly ? undefined : 1),
+              position: 'relative', flex: labelActiveOnly ? '0 0 auto' : 1,
               display: 'inline-flex', alignItems: 'center',
-              justifyContent: 'center', gap: 6, padding: symbolOnly ? '6px 16px' : '7px 12px',
+              justifyContent: 'center', gap: 6, padding: '7px 12px',
               border: 'none', background: 'none', borderRadius: 999,
               font: '600 12px var(--font-body)', cursor: o.disabled ? 'not-allowed' : 'pointer',
               opacity: o.disabled ? 0.4 : 1, transition: 'color .18s',
@@ -731,11 +721,9 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
  * einzelnen Symbols (#518). Der Baustein bleibt, damit dieselbe Geste an allen drei
  * Stellen (Module · Erfassungsfelder · Unterdeckung) gleich aussieht.
  */
-export function Palette({ children, style }: {
-  children: React.ReactNode; style?: React.CSSProperties;
-}) {
+export function Palette({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', ...style }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
       {children}
     </div>
   );
@@ -1099,16 +1087,11 @@ const glyph: React.CSSProperties = {
  * **Ohne Symbole bleibt alles wie bisher** – nicht jede Aufzählung hat ein Bild
  * (Bar ↔ Überweisung), und dort ist die gleichmässige Aufteilung richtig.
  */
-export function Segmented({ label, value, onChange, options, required, disabled, tip }: {
-  /**
-   * ►►► **Die Beschriftung ist freiwillig** (Testnotiz #1020). ◄◄◄ Wo die Antworten für
-   * sich sprechen («Bar», «Überweisung», «Karte»), sagt ein Wort darüber nur noch
-   * einmal, was darunter steht – und kostet eine Zeile Höhe. **Kein leerer Platz
-   * dafür**: ohne Beschriftung gibt es die Zeile nicht, statt dass sie leer dasteht.
-   */
-  label?: string; value: string; onChange: (v: string) => void;
+export function Segmented({ value, onChange, options, disabled, tip }: {
+  // **Ohne Beschriftung darüber**: die Antworten sprechen für sich («Bar», «Überweisung»,
+  // «Karte»); ein Wort darüber sagte nur noch einmal, was darunter steht.
+  value: string; onChange: (v: string) => void;
   options: { value: string; label: string; icon?: LucideIcon }[];
-  required?: boolean;
   /** Gesperrt – der Wert bleibt sichtbar, der Grund steht in ``tip`` (Hover). */
   disabled?: boolean;
   tip?: string;
@@ -1116,7 +1099,6 @@ export function Segmented({ label, value, onChange, options, required, disabled,
   const tucked = options.some((o) => o.icon);
   return (
     <div data-tip={tip}>
-      {label && <Label required={required}>{label}</Label>}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {options.map((o) => {
           const active = value === o.value;
@@ -1171,18 +1153,10 @@ export function StatusBadge({ cfg, size = 10 }: { cfg: StatusCfg; size?: number 
   );
 }
 
-// Autosave-Statusanzeige («Speichert… / Gespeichert») – geteilt von allen Detailfenstern
-// (vorher 3 identische Kopien in Artikel-/Auftrag-/Lagerplatz-Detail).
-export function SaveIndicator({ saving, flash }: { saving: boolean; flash: boolean }) {
-  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--fg-4)' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
-  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--success)' }}><CheckCircle2 size={12} /> Gespeichert</span>;
-  return null;
-}
-
 
 /** **Beschriftete Wertzeile** («Kunde · Max Muster») – eine Stelle für alle Zusammenfassungen. */
-export function Row({ k, v, icon: Icon, hint }: {
-  k: string; v: string; icon?: React.ElementType;
+export function Row({ k, v, hint }: {
+  k: string; v: string;
   /** Abgeleitetes Detail zur Zeile – gehört in den **Hover**, nicht in die Fläche. */
   hint?: string;
 }) {
@@ -1192,7 +1166,7 @@ export function Row({ k, v, icon: Icon, hint }: {
         color: 'var(--fg-4)', flexShrink: 0, cursor: hint ? 'help' : undefined,
         display: 'inline-flex', alignItems: 'center', gap: 5,
       }}>
-        {Icon && <Icon size={12} />}{k}
+        {k}
       </span>
       <span style={{ color: 'var(--fg-1)', fontWeight: 600, textAlign: 'right' }}>{v}</span>
     </div>

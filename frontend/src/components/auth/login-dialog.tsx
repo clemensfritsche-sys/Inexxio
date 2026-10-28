@@ -59,14 +59,11 @@ function getGoogleErrorMessage(code: string): string {
   }
 }
 
-export function LoginDialog({ onClose, fallback }: {
+/** Nach der Anmeldung: `?from=` · das gemerkte Ziel · der Startplatz der Rolle
+ *  (`login-target`) – nie «/», dort steht die Website. */
+export function LoginDialog({ onClose }: {
   /** Was «daneben klicken» bedeutet: schliessen (Pop-up) bzw. zur Startseite (Route). */
   onClose: () => void;
-  /**
-   * Wohin nach der Anmeldung, wenn kein `?from=` gemerkt ist. Ohne Angabe: der Startplatz
-   * der Rolle (`login-target.startPage`) – nie «/», dort steht die Website.
-   */
-  fallback?: string;
 }) {
   const [email, setEmail] = useState('');
   const [step, setStep] = useState<Step>('input');
@@ -107,7 +104,6 @@ export function LoginDialog({ onClose, fallback }: {
       }
     })();
     return () => { cancelled = true; cancelPasskeyAutofill(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Gemeinsamer Abschluss für Logins mit sofortiger Sitzung (Google, Passkey): Profil
@@ -126,7 +122,7 @@ export function LoginDialog({ onClose, fallback }: {
       // Rolle unbekannt – dann führt der Startplatz ins Konto; das ERP prüft selbst.
       role = cachedRole();
     }
-    goTo(loginTarget(role, fallback));
+    goTo(loginTarget(role));
   }
 
   async function handlePasskeyLogin() {

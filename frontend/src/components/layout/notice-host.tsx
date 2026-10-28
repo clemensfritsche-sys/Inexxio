@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TriangleAlert, X } from 'lucide-react';
+import { Info, TriangleAlert, X } from 'lucide-react';
 import { type Notice, dismiss, subscribe } from '@/lib/notice';
 
 /** **Die Meldungen von `lib/notice`** – unten rechts, über allem, je eine Zeile mit Schliessen. */
@@ -18,7 +18,9 @@ export function NoticeHost() {
           style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 10,
                    background: 'var(--bg-1)', border: '1px solid var(--border-2)', color: 'var(--fg-1)',
                    fontSize: 13, lineHeight: 1.45 }}>
-          <TriangleAlert size={15} style={{ flex: 'none', marginTop: 2, color: 'var(--warning)' }} />
+          {n.tone === 'info'
+            ? <Info size={15} aria-hidden style={{ flex: 'none', marginTop: 2, color: 'var(--accent)' }} />
+            : <TriangleAlert size={15} aria-hidden style={{ flex: 'none', marginTop: 2, color: 'var(--warning)' }} />}
           <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{n.text}</span>
           <button type="button" onClick={() => dismiss(n.id)} aria-label="Schliessen"
             style={{ flex: 'none', background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'var(--fg-3)' }}>

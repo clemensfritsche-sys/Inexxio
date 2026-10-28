@@ -5,7 +5,7 @@ import type { ErpRecordType } from '@/types';
 /**
  * EINE Quelle der Wahrheit für die visuelle Identität jedes ERP-Datensatztyps:
  * Symbol + getönte Symbolfarbe (Design-System: «Symbole statt Text, Farbe =
- * Bedeutung»). Jeder Typ hat eine eigene warme Farbfamilie → sofortige optische
+ * Bedeutung»). Jeder Typ hat eine eigene Farbfamilie → sofortige optische
  * Unterscheidung im Feed, im Typ-Filter und in Detail-Köpfen.
  * Werte aus dem Inexxio-Design-Mockup (Instanz-Detail Redesign).
  */

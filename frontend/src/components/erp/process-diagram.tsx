@@ -1030,18 +1030,17 @@ interface DragProps {
  * die ein Modul färbt. Die Historie hängt nicht hier, sondern an der Kopfzeile der Karte
  * (`ModuleShell.history`, #790).
  */
-export function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)', size = 34 }: {
+export function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)' }: {
   icon: LucideIcon; tone: string;
   /** Die Fläche unter dem Symbol – die Modulfarbe, denn die Karte selbst ist weiss. */
   bg?: string;
-  size?: number;
 }) {
   return (
     <span
       className="flex items-center justify-center rounded-ds-sm flex-none"
-      style={{ width: size, height: size, background: bg, color: tone }}
+      style={{ width: 34, height: 34, background: bg, color: tone }}
     >
-      <Icon size={Math.round(size * 0.5)} />
+      <Icon size={17} />
     </span>
   );
 }

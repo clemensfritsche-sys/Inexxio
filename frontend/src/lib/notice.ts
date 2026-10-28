@@ -7,9 +7,13 @@
  * Server>», statt dass eine leere Liste «nichts da» vortäuscht. Dieselbe Meldung
  * kommt in einem Fenster von fünf Minuten nur einmal (ein Abgleich im Hintergrund meldet
  * sich sonst alle 30 s). Angezeigt wird sie von `components/layout/notice-host.tsx`.
+ *
+ * **Eine Meldung, die stehen bleiben muss** (`sticky`), verschwindet erst mit «Schliessen» –
+ * etwa eine Nachricht, die nicht gespeichert wurde, samt ihrem Text. Auch eine Auskunft
+ * (`tone: 'info'`, «Postfach verbunden») geht diesen Weg: es gibt EINE Meldezeile.
  */
 
-export interface Notice { id: number; text: string }
+export interface Notice { id: number; text: string; tone: 'warning' | 'info' }
 
 const REPEAT_MS = 5 * 60 * 1000;
 const SHOW_MS = 10_000;
@@ -22,14 +26,15 @@ const listeners = new Set<(list: Notice[]) => void>();
 function publish() { listeners.forEach((fn) => fn(shown)); }
 
 /** Eine Meldung zeigen – dieselbe nur einmal je fünf Minuten. */
-export function notify(text: string, now = Date.now()): void {
+export function notify(text: string, now = Date.now(),
+                       { sticky = false, tone = 'warning' }: { sticky?: boolean; tone?: Notice['tone'] } = {}): void {
   const last = lastAt.get(text);
   if (last !== undefined && now - last < REPEAT_MS) return;
   lastAt.set(text, now);
-  const notice = { id: nextId++, text };
+  const notice: Notice = { id: nextId++, text, tone };
   shown = [...shown, notice].slice(-3);
   publish();
-  if (typeof window !== 'undefined') window.setTimeout(() => dismiss(notice.id), SHOW_MS);
+  if (!sticky && typeof window !== 'undefined') window.setTimeout(() => dismiss(notice.id), SHOW_MS);
 }
 
 export function dismiss(id: number): void {
