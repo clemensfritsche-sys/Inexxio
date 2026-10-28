@@ -60,9 +60,8 @@ jobs:
       # Die Prod-Instanz ist im August 2026 gestoppt worden (~100 CHF/Monat für eine
       # Umgebung, die niemand aufrief – infra/README.md, «Laufende Kosten»). Ein Deploy
       # dagegen läuft grün durch: das Image baut, der Cloud-Run-Dienst entsteht neu, und
-      # erst der erste Request fällt um – ``start.sh`` kommt nicht an die Datenbank, das
-      # Lifespan-Netz auch nicht, und im Log steht ein Verbindungsfehler statt der
-      # Ursache. Der Wächter sagt es VORHER, vor dem Build, mit dem Befehl daneben.
+      # ``start.sh`` kommt nicht an die Datenbank und der neue
+      # Dienst startet nicht – im Log steht ein Verbindungsfehler statt der Ursache. Der Wächter sagt es VORHER, vor dem Build, mit dem Befehl daneben.
       #
       # Er ist bewusst **fail-closed**: kann er den Zustand nicht lesen, bricht er ab,
       # statt durchzuwinken – ein Wächter, der im Zweifel schweigt, ist von einem

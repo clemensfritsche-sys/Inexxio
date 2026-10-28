@@ -88,6 +88,38 @@ gcloud run services update inexxio-backend-dev --region europe-west6 --project i
   --update-labels=rotated=$(date +%s)
 ```
 
+## Anmeldung der Deploys ohne Schlüssel (Workload Identity)
+
+GitHub meldet sich bei Google mit einem kurzlebigen Token an, das nur für dieses Repository
+gilt – kein JSON-Schlüssel, der irgendwo liegt. Prod ist so eingerichtet; für dev einmal
+(idempotent, ein zweiter Lauf schadet nicht):
+
+```bash
+P=inexxio-dev; REPO=clemensfritsche-sys/Inexxio; SA=github-actions@$P.iam.gserviceaccount.com
+gcloud iam service-accounts describe $SA --project $P --format='value(email)' \
+  || gcloud iam service-accounts list --project $P
+NUM=$(gcloud projects describe $P --format='value(projectNumber)')
+gcloud services enable iamcredentials.googleapis.com sts.googleapis.com --project $P
+gcloud iam workload-identity-pools create github --project $P --location global \
+  --display-name GitHub 2>/dev/null || true
+gcloud iam workload-identity-pools providers create-oidc github --project $P --location global \
+  --workload-identity-pool github --display-name GitHub \
+  --issuer-uri https://token.actions.githubusercontent.com \
+  --attribute-mapping 'google.subject=assertion.sub,attribute.repository=assertion.repository' \
+  --attribute-condition "assertion.repository=='$REPO'" 2>/dev/null || true
+gcloud iam service-accounts add-iam-policy-binding $SA --project $P \
+  --role roles/iam.workloadIdentityUser \
+  --member "principalSet://iam.googleapis.com/projects/$NUM/locations/global/workloadIdentityPools/github/attribute.repository/$REPO" \
+  --format='value(etag)'
+echo "PROVIDER=projects/$NUM/locations/global/workloadIdentityPools/github/providers/github"
+```
+
+Der Workflow nennt Provider und Konto offen (`deploy-dev.yml`, `env`) – beides ist kein
+Geheimnis; gelten lässt Google es nur für Anfragen aus genau diesem Repository. Danach den
+alten Schlüssel löschen (`gcloud iam service-accounts keys list --iam-account $SA
+--managed-by=user`, dann `… keys delete <ID> --iam-account $SA`) und in GitHub das Secret
+`GCP_SA_KEY_DEV` entfernen.
+
 ## Werkzeuge
 
 - `scripts/check-schema.sh` – der Schritt nach dem Deploy (oben).
