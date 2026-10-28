@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Scale } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useDocumentsOf } from '@/lib/queries';
-import { Card, Label } from '@/components/erp/fields';
+import { Card } from '@/components/erp/detail-frame';
+import { Label } from '@/components/erp/controls';
 import { DocumentField } from '@/components/erp/document-field';
 
 /** Die zwei Rechtstexte einer Gesellschaft – Art, Pflichtfeld, Wort. */

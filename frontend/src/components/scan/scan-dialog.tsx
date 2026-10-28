@@ -8,7 +8,7 @@ import {
 } from '@/lib/scan';
 import { SCAN_RECORD_TYPE, TYPE_META } from '@/lib/erp-record';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
-import { OptionRow } from '@/components/erp/fields';
+import { OptionRow } from '@/components/erp/search-select';
 import { formatObjectId } from '@/lib/utils';
 import { useSearch } from '@/lib/use-search';
 

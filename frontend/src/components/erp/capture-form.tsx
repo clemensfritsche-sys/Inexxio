@@ -6,7 +6,7 @@ import type { CapturePoint } from '@/types';
 import { CAPTURE_ICON, NEEDS_TARGET } from '@/lib/modules';
 import { PhotoShot } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
-import { inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { inputCls, numericInputProps, numericOnly } from '@/components/erp/controls';
 
 /**
  * **Die Datenerfassung zur Laufzeit** — was das Modul festhält, bevor die Stücke vorrücken.

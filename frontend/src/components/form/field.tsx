@@ -1,4 +1,4 @@
-import { inputClass, inputCls } from '@/components/erp/fields';
+import { inputClass, inputCls } from '@/components/erp/controls';
 
 /**
  * **Weiche Format-Prüfung** (Testnotiz #326) – für Telefon und E-Mail.

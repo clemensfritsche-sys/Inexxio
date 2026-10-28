@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from 'react';
 import { ScanLine } from 'lucide-react';
-import { SearchSelect, type SelectOption } from '@/components/erp/fields';
+import { SearchSelect, type SelectOption } from '@/components/erp/search-select';
 import { useScan } from '@/components/scan/scan-provider';
 import { LOOKUP_HINT, lookupHint, type ScanKind } from '@/lib/scan';
 import { formatObjectId } from '@/lib/utils';

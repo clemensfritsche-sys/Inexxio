@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { tell } from '@/lib/notice';
 import { useAutosaveSignature } from '@/lib/use-autosave';
 import { day } from '@/lib/when';
-import { numericInputProps, numericOnly } from '@/components/erp/fields';
+import { numericInputProps, numericOnly } from '@/components/erp/controls';
 import {
   DOC_FIELD, DocPick, Editable, FixedValue, Section, Stacked, isFixed, may,
 } from './shared';

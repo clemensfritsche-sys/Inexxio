@@ -9,7 +9,7 @@ import { day, when } from '@/lib/when';
 import { VOUCHER_STAGE } from '@/lib/modules';
 import { PayOnline } from '@/components/erp/pay-online';
 import { DocLink, DocumentField, readValue } from '@/components/erp/document-field';
-import { Segmented, inputCls, Label, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { Segmented, inputCls, Label, numericInputProps, numericOnly } from '@/components/erp/controls';
 import { ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, Steady } from '@/components/erp/module-ui';
 import type { TransferInfo } from '@/types';
 import { CASH, TRANSFER, needsIban, startForm, taxed } from './forms';

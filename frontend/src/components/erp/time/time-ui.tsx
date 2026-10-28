@@ -13,7 +13,9 @@ import {
   Activity, AlertTriangle, Baby, CalendarCheck, CalendarX, FileWarning, HelpCircle,
   OctagonAlert, Shield, Sun, Thermometer,
 } from 'lucide-react';
-import { InfoHint, MICRO_LABEL, StatusBadge, inputClass } from '@/components/erp/fields';
+import { InfoHint } from '@/components/erp/hints';
+import { MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
+import { inputClass } from '@/components/erp/controls';
 import { TONE } from '@/lib/status-tone';
 
 /** Lucide-Name (Backend) → Symbol. */

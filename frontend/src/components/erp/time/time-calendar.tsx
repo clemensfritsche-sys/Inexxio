@@ -11,7 +11,8 @@
  */
 import { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { InfoHint, MICRO_LABEL } from '@/components/erp/fields';
+import { InfoHint } from '@/components/erp/hints';
+import { MICRO_LABEL } from '@/components/erp/fields';
 import { dayTitle, monthTitle } from '@/lib/when';
 import type { TimeDay, TimeVocab } from '@/types';
 import { IconButton, WEEKDAYS, hm, timeIcon, weekday } from './time-ui';

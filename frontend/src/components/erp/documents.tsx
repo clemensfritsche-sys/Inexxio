@@ -4,7 +4,7 @@ import { File, FileSpreadsheet, FileText, Film, Image as ImageIcon, Lock, X } fr
 import { assetUrl } from '@/lib/api';
 import { useDocumentsOf } from '@/lib/queries';
 import { formatObjectId } from '@/lib/utils';
-import { SectionSep } from '@/components/erp/fields';
+import { SectionSep } from '@/components/erp/detail-frame';
 import { useErpNav } from '@/components/erp/obj-id';
 import type { DocumentRefOut, DocumentSummary } from '@/types';
 

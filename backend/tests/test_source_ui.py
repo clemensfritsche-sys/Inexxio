@@ -5,6 +5,8 @@ import json
 import re
 
 from tests._source import (
+    ERP_KIT,
+    _kit,
     FRONTEND,
     ROOT,
     _at,
@@ -78,7 +80,7 @@ def test_the_header_is_defined_once_for_every_record_type():
     vorher reichte jede Ansicht sie einzeln herein, drei davon mit hart getippten
     Hex-Werten und einem zweiten Mal ausgeschriebenem Namen.
     """
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     assert "type: ErpRecordType;" in fields, "Der Kopf kennt den Datensatztyp nicht."
     assert "TYPE_META[type]" in fields, "Der Kopf löst die Identität nicht selbst auf."
 
@@ -97,7 +99,7 @@ def test_the_header_is_defined_once_for_every_record_type():
 def test_the_origin_uses_the_shared_switch():
     """**#694 — Neu/Lager ist derselbe Schiebe-Regler wie die Mengeneinheit.**"""
     ui = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
-    assert re.search(r"import \{[^}]*\bIconSwitch\b[^}]*\} from '@/components/erp/fields'", ui), (
+    assert re.search(r"import \{[^}]*\bIconSwitch\b[^}]*\} from '@/components/erp/controls'", ui), (
         "Der Regler wird nicht aus dem gemeinsamen Vokabular geholt."
     )
     # Geprüft wird die **Verdrahtung**, nicht das Vorkommen des Wortes: der Regler muss
@@ -143,7 +145,7 @@ def test_the_header_never_mixes_font_shorthand_with_a_conditional_override():
     benutzt keine `font`-Kurzschreibweise.** Sonst hängt das Ergebnis davon ab, ob die
     Überschreibung je aktiv war – und das ist ein Zustand, kein Entwurf.
     """
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     header = _body(fields, "DetailHeader", kind="function")
 
     # Welche DH-Stile werden im Kopf konditional zusammengeführt?
@@ -346,7 +348,7 @@ def test_a_record_has_exactly_one_width():
     Ansicht – also steht sie einmal (`DETAIL_MAXW`) und wird über ein Bauteil geerbt
     (`DetailBody`), nicht an fünf Stellen abgeschrieben.
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     assert "export const DETAIL_MAXW" in fields, "Die eine Breite fehlt."
     assert "export function DetailBody" in fields, "Das Bauteil dazu fehlt."
     assert "maxWidth: DETAIL_MAXW" in fields, (
@@ -378,7 +380,7 @@ def test_a_section_head_carries_its_own_hairline():
     unterschiedlichem Abstand. Eine Anatomie, die man an der Aufrufstelle zusammensetzt,
     ist an der nächsten Aufrufstelle anders.
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     head = _body(fields, "SpecHead", kind="function")
     assert "borderBottom" in head, (
         "Der Karten-Kopf trägt seine Haarlinie nicht selbst – dann fehlt sie dort, wo "
@@ -606,7 +608,7 @@ def test_the_suggestion_list_hangs_on_the_body_not_in_the_field():
     Klick-daneben-Schliesser fragt nur das Feld – dann verschwindet die Zeile, bevor der
     Klick auf ihr ankommt; (d) sie wird beim Scrollen nicht nachgeführt.
     """
-    src = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    src = _code(_kit())
     block = " ".join(_component(src, "SearchSelect").split())
     assert "createPortal(" in block and "document.body," in block, (
         "Die Liste hängt nicht an <body> (b) – dann schneidet sie der erste Rahmen mit "
@@ -1112,7 +1114,7 @@ def test_autosave_is_one_module_with_one_delay():
 
 
 def test_card_has_one_home():
-    """**`Card` steht EINMAL** (F-41) – in `fields.tsx`.
+    """**`Card` steht EINMAL** (F-41) – in `detail-frame.tsx`.
 
     Konto und ERP-Benutzer bauten beide nach (wortgleich), und ein Kommentar behauptete
     das Gegenteil.
@@ -1120,10 +1122,10 @@ def test_card_has_one_home():
     Bug-Form: eine Datei definiert sie wieder selbst.
     """
     for rel, src in _frontend_sources(".tsx"):
-        if rel == "components/erp/fields.tsx":
+        if rel == "components/erp/detail-frame.tsx":
             continue
         assert not re.search(r"\bfunction Card\s*\(", src), (
-            f"«{rel}» baut `Card` nach – sie steht in `fields.tsx`."
+            f"«{rel}» baut `Card` nach – sie steht in `detail-frame.tsx`."
         )
 
 
@@ -1137,8 +1139,8 @@ def test_the_micro_label_is_written_once():
 
     Bug-Form: eine Datei schreibt die Versalien wieder selbst.
     """
-    allowed = {"components/erp/fields.tsx", "components/erp/module-ui.tsx",
-               "components/erp/pay-online.tsx"}
+    allowed = {f"components/erp/{n}.tsx" for n in ERP_KIT} | {
+        "components/erp/module-ui.tsx", "components/erp/pay-online.tsx"}
     hits = [rel for rel, src in _frontend_sources(".tsx", ".ts")
             if rel not in allowed and "textTransform: 'uppercase'" in _code(src)]
     assert not hits, f"Diese Dateien schreiben das Mikro-Label selbst: {hits}"
@@ -1176,7 +1178,7 @@ def test_a_search_while_typing_is_one_hook():
     hits = [rel for rel, src in _frontend_sources(".ts", ".tsx")
             if rel not in allowed and debounce.search(_code(src))]
     assert not hits, f"Diese Dateien suchen beim Tippen selbst: {hits}"
-    for rel in ("components/erp/fields.tsx", "components/erp/communication.tsx",
+    for rel in ("components/erp/search-select.tsx", "components/erp/communication.tsx",
                 "components/scan/scan-dialog.tsx", "components/erp/article-detail.tsx"):
         assert "useSearch" in _read(FRONTEND / rel), f"«{rel}» nutzt die gemeinsame Suche nicht."
 
@@ -1267,7 +1269,7 @@ def test_dialogs_tabs_and_chips_say_what_they_are():
     Titel, nimmt den Fokus und gibt ihn zurück (Escape schliesst); die Reiter sind eine
     Reiterliste mit gewähltem Reiter; ein Filter-Chip sagt, ob er gedrückt ist; ein Knopf
     nur mit Symbol hat einen Namen."""
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     start = fields.index("export function Dialog(")
     dialog = fields[start: fields.index("\n}\n", start)]
     for need in ('role="dialog"', 'aria-modal="true"', "aria-labelledby={titleId}", "'Escape'",
@@ -1293,7 +1295,8 @@ _HAND_DOT = re.compile(
 _NOT_A_STATE = {
     "components/erp/territory-map.tsx": "die Farbe einer Gesellschaft auf der Karte",
     "components/erp/time/time-calendar.tsx": "eine Markierung in der Ecke eines Kalendertags",
-    "components/erp/fields.tsx": "StatusDot selbst und die Empfehlung am Schieber",
+    "components/erp/fields.tsx": "StatusDot selbst",
+    "components/erp/controls.tsx": "die Empfehlung am Schieber (IconSwitch.mark)",
 }
 
 
@@ -1312,7 +1315,7 @@ def test_every_input_has_the_one_form():
     """Ein Eingabefeld hat EINE Form (`fields.inputClass`): Radius, Rahmen, Polsterung,
     Schrift, Fokus. Die Felder der Konto-Bausteine im ERP, der Zeiterfassung und der
     Spezifikation führen darauf zurück; eine zweite Fassung daneben läuft auseinander."""
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     assert "rounded-ds-md" in re.search(r"const INPUT_FORM = '([^']+)'", fields).group(1)
     for rel in ("components/form/field.tsx", "components/erp/time/time-ui.tsx",
                 "components/erp/article-detail.tsx"):

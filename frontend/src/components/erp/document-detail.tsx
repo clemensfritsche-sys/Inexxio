@@ -7,9 +7,10 @@ import { api, assetUrl } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { statusCfg } from '@/lib/process-status';
 import { when } from '@/lib/when';
-import {
-  DetailBody, DetailHeader, Dialog, ErrorText, MICRO_LABEL, ReadField, inputCls,
-} from '@/components/erp/fields';
+import { DetailBody, DetailHeader, ReadField } from '@/components/erp/detail-frame';
+import { Dialog, inputCls } from '@/components/erp/controls';
+import { ErrorText } from '@/components/erp/hints';
+import { MICRO_LABEL } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { RefChip, RefChips, mimeIcon } from '@/components/erp/documents';
 import type { DocumentDetail as Doc } from '@/types';

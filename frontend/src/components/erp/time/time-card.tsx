@@ -12,7 +12,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Briefcase, ChevronDown, ChevronRight, Clock, Sun, Timer } from 'lucide-react';
-import { Card, ErrorText, InfoHint, MICRO_LABEL } from '@/components/erp/fields';
+import { Card } from '@/components/erp/detail-frame';
+import { ErrorText, InfoHint } from '@/components/erp/hints';
+import { MICRO_LABEL } from '@/components/erp/fields';
 import { ApiError, api } from '@/lib/api';
 import { parseDay } from '@/lib/when';
 import { todoChanged } from '@/lib/todo';

@@ -27,7 +27,10 @@ import type { DiagramStep } from '@/components/erp/process-diagram';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN } from '@/lib/process-status';
 
-import { ErrorText, IconSwitch, inputCls, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, MICRO_LABEL } from '@/components/erp/fields';
+import { ErrorText } from '@/components/erp/hints';
+import { IconSwitch, inputCls } from '@/components/erp/controls';
+import { DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/detail-frame';
+import { MICRO_LABEL } from '@/components/erp/fields';
 import { DocumentTiles } from '@/components/erp/documents';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { ObjId } from '@/components/erp/obj-id';

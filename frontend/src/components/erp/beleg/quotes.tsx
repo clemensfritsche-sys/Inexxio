@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { happened } from '@/lib/when';
 import { QUOTE_STATE, VOUCHER_STAGE } from '@/lib/modules';
 import { ObjId } from '@/components/erp/obj-id';
-import { numericInputProps, numericOnly } from '@/components/erp/fields';
+import { numericInputProps, numericOnly } from '@/components/erp/controls';
 import { ACT_H, ActionButton, Amount, Steady } from '@/components/erp/module-ui';
 import type { VoucherParty, VoucherQuoteOut, VoucherSide } from '@/types';
 import { Term } from './terms';

@@ -15,6 +15,17 @@ def _read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+#: Die Grundbausteine des ERP – eine Familie, auf Dateien verteilt
+#: (`components/erp/fields.tsx` und die Teile daneben).
+ERP_KIT = ("fields", "detail-frame", "controls", "search-select", "hints")
+
+
+def _kit() -> str:
+    """Die Grundbausteine als EIN Text – ein Wächter fragt nach dem Baustein, nicht nach der
+    Datei, in der er gerade steht."""
+    return "\n".join(_read(FRONTEND / "components" / "erp" / f"{n}.tsx") for n in ERP_KIT)
+
+
 def _code(source: str) -> str:
     """Nur der Code — Kommentare und Docstrings raus.
 

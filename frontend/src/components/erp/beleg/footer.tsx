@@ -7,7 +7,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { day } from '@/lib/when';
 import { VOUCHER_STAGE } from '@/lib/modules';
-import { inputCls, Label, Segmented, StatusDot } from '@/components/erp/fields';
+import { inputCls, Label, Segmented } from '@/components/erp/controls';
+import { StatusDot } from '@/components/erp/fields';
 import { ACT_H, ActionButton, Steady } from '@/components/erp/module-ui';
 import { formBody, formProblem, formWord, startForm } from './forms';
 import type { Form } from './forms';

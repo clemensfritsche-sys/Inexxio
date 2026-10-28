@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Loader2, PenLine, ScanLine, Sparkles, TriangleAlert, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
-import {
-  DetailBody, DetailHeader, ErrorText, HeaderAction, MICRO_LABEL, inputCls,
-} from '@/components/erp/fields';
+import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/detail-frame';
+import { ErrorText } from '@/components/erp/hints';
+import { MICRO_LABEL } from '@/components/erp/fields';
+import { inputCls } from '@/components/erp/controls';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { DocScanner } from '@/components/scan/doc-scanner';
 import { ComposeChat } from '@/components/erp/compose-chat';

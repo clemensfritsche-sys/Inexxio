@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { hashKey } from '@tanstack/react-query';
 import { ObjId } from '@/components/erp/obj-id';
-import { numericInputProps, numericOnly } from '@/components/erp/fields';
+import { numericInputProps, numericOnly } from '@/components/erp/controls';
 import { Amount } from '@/components/erp/module-ui';
 import { useAutosaveSignature } from '@/lib/use-autosave';
 import {

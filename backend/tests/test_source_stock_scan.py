@@ -4,6 +4,7 @@
 import re
 
 from tests._source import (
+    _kit,
     BACKEND,
     FRONTEND,
     _body,
@@ -294,7 +295,7 @@ def test_the_stock_wears_the_specification_design():
     zweite Ansicht baute, musste sich einen eigenen Kopf schreiben – und dann sahen die
     Karten nur noch *ähnlich* aus.
     """
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     assert "export function SpecHead" in fields and "export function SpecSection" in fields, (
         "Der Karten-Kopf wohnt nicht im gemeinsamen Vokabular."
     )
@@ -592,7 +593,7 @@ def test_the_scanner_lies_above_the_detail_and_below_the_notes():
     """
     dialog = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
     assert "zIndex: 100" in dialog, "Der Scanner hat seine Ebene verloren."
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     assert "zIndex: 60" in fields, "Der Detail-Dialog liegt nicht mehr unter dem Scanner."
     pin = _read(FRONTEND / "components" / "feedback" / "feedback-pin.tsx")
     assert "z-[2000]" in pin, "Das Notiz-Werkzeug liegt nicht mehr über dem Scanner."
@@ -705,7 +706,7 @@ def test_nothing_is_a_choice_not_three_workarounds():
     für …»), ein Erklärsatz darunter und ein X-Knopf daneben. Keine davon war die Liste,
     und der Knopf war eine Rücknahme, keine Wahl (Testnotizen #734/#735/#736).
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     assert "emptyOption" in fields, (
         "`SearchSelect` muss «nichts» als erste Zeile der Liste anbieten können – sonst "
         "wächst der Notbehelf beim nächsten Feld wieder nach."
@@ -832,7 +833,7 @@ def test_the_camera_lives_in_the_field_not_beside_it():
     Geprüft wird die **Regel**, nicht die Optik: `SearchSelect` muss eine Aktion **im**
     Feld tragen können, und `ObjectSelect` darf keinen Knopf daneben mehr stellen.
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     assert "action?: {" in fields and "erp-fieldaction" in fields, (
         "`SearchSelect` kann keine Aktion am rechten Innenrand tragen – dann wächst der "
         "zweite Knopf daneben wieder nach."
@@ -871,7 +872,7 @@ def test_the_dialog_is_the_same_field_only_big():
     lib = _code(_read(FRONTEND / "lib" / "scan.ts"))
     picker = _code(_read(FRONTEND / "components" / "erp" / "object-select.tsx"))
     dialog = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
 
     # (1) EIN Platzhalter, eine Quelle – und er ist kein Handlungsauftrag mehr: «scannen»
     #     wäre in einem Textfeld falsch, und genau das Verb war das Einzige, was die
@@ -1104,7 +1105,7 @@ def test_the_unit_picker_searches_like_every_other_field():
     Bug-Formen: (a) der eigene Knopf daneben ist zurück; (b) die Aktion wird in
     ``SearchSelect`` wieder ausgeschrieben.
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     ui = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
 
     assert "export function FieldAction" in fields, "Das Bauteil fehlt (b)."

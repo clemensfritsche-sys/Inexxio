@@ -34,7 +34,7 @@ test('alles andere ist Text', () => {
 });
 
 test('der Baustein fragt die Regel, bevor er ein <a> setzt', () => {
-  const fields = readFileSync(resolve(here, '../src/components/erp/fields.tsx'), 'utf8');
+  const fields = readFileSync(resolve(here, '../src/components/erp/detail-frame.tsx'), 'utf8');
   const read = fields.match(/export function ReadField[\s\S]*?\n}\n/);
   assert.ok(read, 'ReadField nicht gefunden');
   assert.match(read[0], /webHref\(link\)/);

@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { instanceName } from '@/lib/record-name';
 import { kindLabel } from '@/lib/record-status';
-import { DetailBody, DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/fields';
+import { DetailBody, DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/detail-frame';
 import { DocumentTiles } from '@/components/erp/documents';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';

@@ -5,6 +5,7 @@ Aussondern, Bewegen, Verbrauch.
 import re
 
 from tests._source import (
+    _kit,
     BACKEND,
     FRONTEND,
     ROOT,
@@ -1652,7 +1653,7 @@ def test_the_deviation_mark_comes_from_one_component():
     **eine** Komponente das Symbol eines Datensatzes, und beide Orte benutzen sie; nur die
     Grösse unterscheidet sie.
     """
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     assert "export function RecordIcon(" in fields
     assert "deviation" in _body(fields, "RecordIcon", kind="function")
 

@@ -4,6 +4,7 @@
 import re
 
 from tests._source import (
+    _kit,
     BACKEND,
     FRONTEND,
     _at,
@@ -1181,7 +1182,7 @@ def test_the_payment_element_is_as_big_as_the_fields_beside_it():
     Bug-Formen: (a) die Schrift ist wieder kleiner als daneben; (b) `condensed` fehlt;
     (c) die Beschriftung weicht von `fields.Label` ab.
     """
-    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    fields = _kit()
     look = " ".join(_code(_read(FRONTEND / "components" / "erp" / "pay-online.tsx")).split())
     cls = re.search(r"const INPUT_FORM = '([^']+)'", fields)
     assert cls, "Die Form von «inputCls» (`INPUT_FORM`) steht nicht mehr in `fields.tsx` – der Spiegel hat kein Original."
@@ -1553,7 +1554,7 @@ def test_a_typed_amount_has_the_decimals_of_its_currency():
     Bug-Formen: (a) `numericOnly` kann gar nicht begrenzen; (b) ein Betragsfeld begrenzt
     nicht; (c) es begrenzt fest auf zwei (JPY hat null, KWD drei).
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     assert "decimals?: boolean | number" in fields, "`numericOnly` kennt keine Stellenzahl (a)."
     assert "slice(0, decimals)" in fields, "`numericOnly` begrenzt nicht (a)."
     src = _beleg()
@@ -2018,7 +2019,7 @@ def test_a_term_is_a_value_on_the_document_not_a_row_of_buttons():
     Bug-Formen: (a) `TermField` ist zurück; (b) ein Schieberegler; (c) die Werte stehen
     als Literal im Browser; (d) die Frist ist kein `DocPick` mehr.
     """
-    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    fields = _code(_kit())
     assert "function TermField" not in fields, (
         "`TermField` ist zurück (a) – eine Frist ist ein Wert, kein Formular."
     )
@@ -2893,7 +2894,7 @@ def test_the_way_to_the_money_needs_no_label():
     assert "label=" not in work[at:work.index("/>", at)], (
         "Die Zahlungsart trägt wieder eine Beschriftung (a)."
     )
-    seg = _body(_code(_read(FRONTEND / "components" / "erp" / "fields.tsx")),
+    seg = _body(_code(_kit()),
                 "Segmented", kind="export function")
     # Kein Aufrufer gibt eine Beschriftung mit – also hat der Baustein keine Zeile dafür.
     assert "<Label" not in seg, (

@@ -10,7 +10,7 @@ import type {
   RelatedOrder, StepWork,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
-import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/fields';
+import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/detail-frame';
 import { DocumentTiles } from '@/components/erp/documents';
 import { LabelButton } from '@/components/scan/object-label';
 import {

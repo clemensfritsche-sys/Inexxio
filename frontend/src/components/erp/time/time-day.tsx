@@ -13,7 +13,9 @@ import { useState } from 'react';
 import {
   Calendar, Check, ChevronDown, Clock, FileCheck, LogIn, LogOut, Pencil, Plus, Undo2, Upload,
 } from 'lucide-react';
-import { ErrorText, IconSwitch, InfoHint, Row, StatusDot } from '@/components/erp/fields';
+import { ErrorText, InfoHint } from '@/components/erp/hints';
+import { IconSwitch } from '@/components/erp/controls';
+import { Row, StatusDot } from '@/components/erp/fields';
 
 /** Der Punkt des Stempels (grün Kommen, rot Gehen) steht vor dem Wort. */
 const STAMP_DOT = { marginRight: 8, verticalAlign: 1 };

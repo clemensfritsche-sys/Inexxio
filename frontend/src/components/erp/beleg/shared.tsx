@@ -3,7 +3,8 @@
 import { useCallback, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { ObjectSelect } from '@/components/erp/object-select';
-import { MICRO_LABEL, SearchSelect } from '@/components/erp/fields';
+import { MICRO_LABEL } from '@/components/erp/fields';
+import { SearchSelect } from '@/components/erp/search-select';
 import type { VoucherEmbed } from '@/types';
 
 /**

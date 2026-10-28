@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { legalForms } from '@/lib/legal-forms';
 import { Field as AField } from '@/components/form/field';
 import { ObjectSelect } from '@/components/erp/object-select';
-import { ErrorText } from '@/components/erp/fields';
+import { ErrorText } from '@/components/erp/hints';
 import { KtField } from '@/components/form/kt-section';
 import type { CompanyRef, NewCompany } from '@/types';
 

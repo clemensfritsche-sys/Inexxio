@@ -27,9 +27,9 @@ import { ProcessColumns } from '@/components/erp/process-columns';
 import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
-import {
-  IconSwitch, InfoHint, Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
-} from '@/components/erp/fields';
+import { IconSwitch, Label, inputCls, numericInputProps, numericOnly } from '@/components/erp/controls';
+import { InfoHint } from '@/components/erp/hints';
+import { MICRO_LABEL } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { PlaceRef } from '@/types';

@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import type { Instance, InstanceSummary, StockState } from '@/types';
 import { statusCfg } from '@/lib/process-status';
-import { SPEC, SpecHead } from '@/components/erp/fields';
+import { SPEC, SpecHead } from '@/components/erp/detail-frame';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockBar } from '@/components/erp/stock-bar';
 import { UnitNumbers } from '@/components/erp/unit-numbers';
