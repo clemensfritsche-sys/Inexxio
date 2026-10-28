@@ -38,7 +38,7 @@ class Read(BaseModel):
 
     art: str = Field(description="Die Art, ein kurzes deutsches Wort, z. B. Lieferantenrechnung")
     name: str = Field(description="Was es von anderen derselben Art unterscheidet")
-    text: str = Field(description="Der ganze lesbare Text, wörtlich")
+    text: str = Field(description="Der lesbare Text, wörtlich, höchstens 6000 Zeichen")
     keywords_de: list[str]
     keywords_en: list[str]
     numbers: list[str] = Field(description="Alle Nummern und Referenzen auf dem Blatt")
@@ -82,11 +82,11 @@ def _prompt(reqs: list[Requirement], arts: list[str]) -> str:
              + (", ".join(arts) if arts else "(noch keine)") + ".",
              "- name: Absender und die Nummer des Dokuments, z. B. «Hydro AG RE-26-4471». Bei einem "
              "Foto: was darauf zu sehen ist.",
-             "- text: der ganze lesbare Text, höchstens 15000 Zeichen.",
+             "- text: der lesbare Text, wörtlich, höchstens 6000 Zeichen (der Anfang, wenn es mehr ist).",
              "- keywords_de / keywords_en: je 5 bis 15 Stichworte für die Suche.",
              "- numbers: jede Nummer und Referenz (Bestellnummer, Rechnungsnummer, neunstellige "
              "Nummern, Chargen).",
-             "- facts: alle Angaben als Bezeichnung und Wert.",
+             "- facts: die wichtigsten Angaben (höchstens 30) als Bezeichnung und Wert.",
              "- requirement und values: Passt das Dokument zu einer dieser offenen Anforderungen, "
              "gib ihre Nummer an und lies ihre Felder genau so ab, wie sie gedruckt sind. Sonst null "
              "und leere values."]

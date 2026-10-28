@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FileText, Loader2, PenLine, ScanLine, Sparkles, Upload } from 'lucide-react';
+import { FileText, Loader2, PenLine, ScanLine, Sparkles, TriangleAlert, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
   DetailBody, DetailHeader, ErrorText, HeaderAction, MICRO_LABEL, inputCls,
@@ -67,6 +67,8 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
     : []);
   const [proposal, setProposal] = useState<DocumentProposal | null>(null);
   const [reading, setReading] = useState(false);
+  /** Warum das Lesen nicht ging – die Anfrage selbst scheiterte (Netz, Zeitgrenze). */
+  const [readError, setReadError] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [existing, setExisting] = useState<DocumentDetail | null>(null);
@@ -83,6 +85,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
     if (!files.length || source === 'compose') return;
     let gone = false;
     setReading(true);
+    setReadError('');
     api.readDraft(files, { sender: seed?.sender ?? null, hint: seed?.hint })
       .then((p) => {
         if (gone) return;
@@ -98,7 +101,8 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
           return [...have, ...fresh.filter((f) => !have.some((h) => h.object_id === f.object_id))];
         });
       })
-      .catch(() => { /* ohne Vorschlag geht es auch */ })
+      // Ohne Vorschlag geht es auch – aber nie stumm: der Mensch soll wissen, dass er tippen muss.
+      .catch((e: Error) => { if (!gone) setReadError(e.message || 'Die KI hat nicht geantwortet.'); })
       .finally(() => { if (!gone) setReading(false); });
     return () => { gone = true; };
   }, [files, source, seed?.sender, seed?.hint]);
@@ -183,6 +187,9 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
                 ? <Pages files={files} />
                 : <DocumentPaper url={preview} mime={mime} filename={(files[0] as File).name} />}>
               {seed?.from && <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{seed.from}</div>}
+              {source !== 'compose' && (
+                <ReadState reading={reading} proposal={proposal} error={readError} />
+              )}
               <label style={{ display: 'flex', flexDirection: 'column' }}>
                 <MicroLabel>Art *</MicroLabel>
                 <input className={inputCls} value={art} maxLength={80} placeholder="z. B. Lieferantenrechnung"
@@ -213,22 +220,11 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
                         setRefs((rs) => [...rs, { object_id: id, label: opt?.name ?? String(id) }]);
                       }
                     }} />
-                  {reading && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--fg-3)' }}>
-                      <Loader2 size={14} className="animate-spin" /> Die KI liest … dann steht hier ihr Vorschlag.
-                    </span>
-                  )}
                   {!reading && proposal?.why && (
                     <span style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, lineHeight: 1.45,
                                    color: 'var(--fg-2)', background: 'var(--warning-bg)', borderRadius: 8, padding: '8px 10px' }}>
                       <Sparkles size={14} style={{ color: 'var(--warning)', flex: 'none', marginTop: 2 }} />
                       <span><b style={{ color: 'var(--fg-1)' }}>Vorschlag{proposal.read ? ' der KI' : ''}.</b> {proposal.why}</span>
-                    </span>
-                  )}
-                  {!reading && proposal && !proposal.read && (
-                    <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
-                      {proposal.ai_problem || (proposal.ai ? 'Die KI konnte diese Datei nicht lesen.' : 'Keine KI verfügbar.')}
-                      {' '}Art und Name selbst eintragen.
                     </span>
                   )}
                 </div>
@@ -373,4 +369,34 @@ function useObjectUrls(files: Blob[]): string[] {
     return () => made.forEach((u) => URL.revokeObjectURL(u));
   }, [files]);
   return urls;
+}
+
+/**
+ * **Was die KI gerade tut** – oben über Art und Name, damit man es sieht: sie liest (Art und
+ * Name füllen sich gleich), sie hat gelesen (nichts zu sagen), oder sie konnte nicht – dann der
+ * Grund in einem Satz und dass man selbst tippt.
+ */
+function ReadState({ reading, proposal, error }: {
+  reading: boolean; proposal: DocumentProposal | null; error: string;
+}) {
+  const box: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5,
+    lineHeight: 1.45, borderRadius: 8, padding: '8px 10px', background: 'var(--bg-3)', color: 'var(--fg-2)' };
+  if (reading) {
+    return (
+      <span style={box}>
+        <Loader2 size={14} className="animate-spin" style={{ flex: 'none', marginTop: 2 }} />
+        Die KI liest das Dokument – Art, Name und Referenz füllen sich gleich von selbst.
+      </span>
+    );
+  }
+  const why = error || (proposal && !proposal.read
+    ? proposal.ai_problem || (proposal.ai ? 'Die KI konnte diese Datei nicht lesen.' : 'Keine KI verfügbar.')
+    : '');
+  if (!why) return null;
+  return (
+    <span style={box}>
+      <TriangleAlert size={14} style={{ flex: 'none', marginTop: 2, color: 'var(--warning)' }} />
+      <span>{why} Art und Name bitte selbst eintragen.</span>
+    </span>
+  );
 }

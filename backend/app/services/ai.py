@@ -75,14 +75,21 @@ class Task:
     max_tokens: int
     #: Wie lange auf die Antwort gewartet wird (Sekunden) – Verfassen schreibt Seiten.
     timeout: float = 90.0
+    #: Wie oft ein Fehler wiederholt wird (die Wartezeit zählt dann doppelt).
+    retries: int = 1
 
 
 #: ►►► **Die Aufgaben – und welches Modell sie macht.** ◄◄◄ Lesen ist Masse (jede Datei),
 #: also das schnelle, günstige Modell; Verfassen schreibt ein Papier von ein paar Seiten –
 #: das mittlere Modell reicht dafür, das grösste kostete ein Vielfaches für denselben Brief.
+#: **Jede Anfrage läuft über Firebase Hosting, und das bricht nach 60 s ab** – darum warten
+#: beide höchstens knapp darunter und versuchen es nicht ein zweites Mal.
 TASKS: dict[str, Task] = {
-    "read": Task(model="claude-haiku-5-5", max_tokens=16000),
-    "compose": Task(model="claude-sonnet-5-5", max_tokens=8000, timeout=240.0),
+    # Lesen muss unter der Grenze von Firebase Hosting bleiben (60 s je Anfrage) – sonst bricht
+    # der Weg ab, bevor die Antwort kommt: 50 s, kein zweiter Versuch, eine kurze Antwort.
+    "read": Task(model="claude-haiku-5-5", max_tokens=6000, timeout=50.0, retries=0),
+    # Ein Papier von zwei, drei Seiten – ebenfalls unter den 60 s des Hostings.
+    "compose": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=55.0, retries=0),
 }
 
 #: Was die KI lesen kann – Bilder und PDF direkt, Text als Text.
@@ -127,9 +134,9 @@ def content_of(raw: bytes, mime: str) -> Optional[dict]:
     return None
 
 
-def _client(timeout: float = 90.0):
+def _client(timeout: float = 90.0, retries: int = 1):
     import anthropic
-    return anthropic.Anthropic(api_key=get_settings().anthropic_api_key, max_retries=1,
+    return anthropic.Anthropic(api_key=get_settings().anthropic_api_key, max_retries=retries,
                                timeout=timeout)
 
 
@@ -149,7 +156,7 @@ def ask(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
     result: Optional[T] = None
     usage: dict = {}
     try:
-        response = _client(spec.timeout).messages.parse(
+        response = _client(spec.timeout, spec.retries).messages.parse(
             model=spec.model, max_tokens=spec.max_tokens, system=system,
             messages=[{"role": "user", "content": content}], output_format=schema)
         usage = {"in": response.usage.input_tokens, "out": response.usage.output_tokens,
