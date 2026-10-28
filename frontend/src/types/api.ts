@@ -1318,6 +1318,243 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/attachments/{token}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serve Preview
+         * @description **Das Vorschaubild** – abgeleitet aus der Datei, bei jedem Abruf neu (der Browser hält
+         *     es fest, die Datei ändert sich nie). Gibt es keins, 404 – die Kachel zeigt die Sorte.
+         */
+        get: operations["serve_preview_api_v1_attachments__token__preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Documents
+         * @description Der Feed «Dokument» – seitenweise, durchsucht auf dem Server (wie die Instanzen).
+         */
+        get: operations["list_documents_api_v1_erp_documents_get"];
+        put?: never;
+        /**
+         * File Document
+         * @description ►►► **Freigeben.** ◄◄◄ ``refs`` ist eine JSON-Liste ``[{"object_id": …}]`` (ganze
+         *     Datensätze); ``target`` ein Pflichtfeld, das in derselben Transaktion gesetzt wird.
+         *     ``text``/``keywords``/``facts`` kommen aus dem Vorschlag – gelesen wird nicht zweimal.
+         */
+        post: operations["file_document_api_v1_erp_documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Targets
+         * @description Ein Datensatz für eine Referenz – Nummer ODER Name.
+         */
+        get: operations["search_targets_api_v1_erp_documents_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/of/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Documents Of
+         * @description Die Kacheln unten an einem Datensatz (Regel 4).
+         */
+        get: operations["documents_of_api_v1_erp_documents_of__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Draft
+         * @description ►►► **Einen Entwurf lesen – ohne ihn zu speichern.** ◄◄◄ Die KI schlägt Art, Name und
+         *     Referenz vor; ohne KI kommt ein leerer Vorschlag (Absender als Referenz, wenn bekannt).
+         */
+        post: operations["read_draft_api_v1_erp_documents_read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/requirements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open Requirements
+         * @description Worauf Module warten (``services/requirements``) – je Anforderung ein Satz.
+         */
+        get: operations["open_requirements_api_v1_erp_documents_requirements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/{object_id}/field": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Field
+         * @description Ein schon freigegebenes Dokument in ein Pflichtfeld – ändern, nie leeren.
+         */
+        post: operations["set_field_api_v1_erp_documents__object_id__field_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/{object_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Later
+         * @description **Das Lesen nachholen** – für ein Dokument, das ohne KI freigegeben wurde. Schreibt nur
+         *     Text, Stichworte und Angaben; Art, Name und Referenz bleiben, wie der Mensch sie setzte.
+         */
+        post: operations["read_later_api_v1_erp_documents__object_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/{object_id}/refs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Ref */
+        post: operations["add_ref_api_v1_erp_documents__object_id__refs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/{object_id}/refs/{ref_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Ref */
+        delete: operations["remove_ref_api_v1_erp_documents__object_id__refs__ref_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/{object_id}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete Document */
+        post: operations["delete_document_api_v1_erp_documents__object_id__delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/documents/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document */
+        get: operations["get_document_api_v1_erp_documents__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/webhook": {
         parameters: {
             query?: never;
@@ -2420,6 +2657,57 @@ export interface components {
             /** Agb */
             agb?: string | null;
         };
+        /** Body_file_document_api_v1_erp_documents_post */
+        Body_file_document_api_v1_erp_documents_post: {
+            /** Files */
+            files: string[];
+            /** Art */
+            art: string;
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @default file
+             */
+            source: string;
+            /**
+             * Refs
+             * @default []
+             */
+            refs: string;
+            /**
+             * Target
+             * @default
+             */
+            target: string;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Keywords
+             * @default
+             */
+            keywords: string;
+            /**
+             * Facts
+             * @default
+             */
+            facts: string;
+        };
+        /** Body_read_draft_api_v1_erp_documents_read_post */
+        Body_read_draft_api_v1_erp_documents_read_post: {
+            /** Files */
+            files: string[];
+            /** Sender */
+            sender?: number | null;
+            /**
+             * Hint
+             * @default
+             */
+            hint: string;
+        };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
             /**
@@ -2856,6 +3144,117 @@ export interface components {
              */
             returns: boolean;
         };
+        /** DeleteIn */
+        DeleteIn: {
+            /** Reason */
+            reason: string;
+        };
+        /** DocumentDetail */
+        DocumentDetail: {
+            /** Object Id */
+            object_id: number;
+            /** Art */
+            art: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Source */
+            source: string;
+            /** Mime */
+            mime: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Preview Url */
+            preview_url?: string | null;
+            /** Snippet */
+            snippet?: string | null;
+            /** File Url */
+            file_url?: string | null;
+            /** Filename */
+            filename?: string | null;
+            /**
+             * Byte Size
+             * @default 0
+             */
+            byte_size: number;
+            /** Pages */
+            pages?: number | null;
+            /**
+             * Refs
+             * @default []
+             */
+            refs: components["schemas"]["DocumentRefOut"][];
+            /** Created By */
+            created_by?: string | null;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /** Deleted By */
+            deleted_by?: string | null;
+            /** Delete Reason */
+            delete_reason?: string | null;
+            /** Delete Problem */
+            delete_problem?: string | null;
+            /**
+             * Signatures
+             * @default []
+             */
+            signatures: components["schemas"]["SignatureOut"][];
+            /** Html */
+            html?: string | null;
+            /**
+             * Read Later
+             * @default false
+             */
+            read_later: boolean;
+        };
+        /** DocumentRefOut */
+        DocumentRefOut: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number;
+            /** Type */
+            type?: string | null;
+            /** Label */
+            label: string;
+            /** Part */
+            part?: string | null;
+            /** Field */
+            field?: string | null;
+            /** Field Label */
+            field_label?: string | null;
+        };
+        /**
+         * DocumentSummary
+         * @description Eine Zeile im Feed bzw. eine Kachel unten im Datensatz.
+         */
+        DocumentSummary: {
+            /** Object Id */
+            object_id: number;
+            /** Art */
+            art: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Source */
+            source: string;
+            /** Mime */
+            mime: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Preview Url */
+            preview_url?: string | null;
+            /** Snippet */
+            snippet?: string | null;
+        };
         /**
          * EmailCheck
          * @description Die neue Anmelde-E-Mail – gefragt, bevor der Bestätigungslink hinausgeht.
@@ -3096,6 +3495,18 @@ export interface components {
             status?: string | null;
             /** Resolution */
             resolution?: string | null;
+        };
+        /**
+         * FiledOut
+         * @description Die Antwort auf «Freigeben»: das Dokument – und ob es dieselbe Datei schon gab.
+         */
+        FiledOut: {
+            document: components["schemas"]["DocumentDetail"];
+            /**
+             * Existed
+             * @default false
+             */
+            existed: boolean;
         };
         /**
          * FlowEdge
@@ -4373,6 +4784,75 @@ export interface components {
              */
             readonly open_actions: boolean;
         };
+        /**
+         * ProposalOut
+         * @description Der Vorschlag für einen Entwurf – nichts davon ist gespeichert.
+         */
+        ProposalOut: {
+            /**
+             * Art
+             * @default
+             */
+            art: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Keywords
+             * @default
+             */
+            keywords: string;
+            /**
+             * Facts
+             * @default {}
+             */
+            facts: Record<string, never>;
+            /**
+             * Refs
+             * @default []
+             */
+            refs: components["schemas"]["ProposedRef"][];
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+            /**
+             * Read
+             * @default false
+             */
+            read: boolean;
+            /**
+             * Ai
+             * @default false
+             */
+            ai: boolean;
+            /**
+             * Values
+             * @default {}
+             */
+            values: Record<string, never>;
+            /** Requirement */
+            requirement?: string | null;
+        };
+        /** ProposedRef */
+        ProposedRef: {
+            /** Object Id */
+            object_id: number;
+            /** Label */
+            label: string;
+            /** Part */
+            part?: string | null;
+            /** Field */
+            field?: string | null;
+        };
         /** PublicContact */
         PublicContact: {
             /** Country */
@@ -4427,6 +4907,18 @@ export interface components {
             values?: components["schemas"]["RecordValue"][];
         };
         /**
+         * RecordOut
+         * @description Ein Datensatz zum Referenzieren – «Typ · Name» mit Nummer.
+         */
+        RecordOut: {
+            /** Object Id */
+            object_id: number;
+            /** Type */
+            type: string;
+            /** Label */
+            label: string;
+        };
+        /**
          * RecordValue
          * @description Ein erfasster Wert — **mit seiner Frage**, nicht nur mit seinem Schlüssel.
          */
@@ -4441,6 +4933,11 @@ export interface components {
             value?: unknown;
             /** Ok */
             ok?: boolean | null;
+        };
+        /** RefIn */
+        RefIn: {
+            /** Object Id */
+            object_id: number;
         };
         /**
          * RelatedOrder
@@ -4476,6 +4973,23 @@ export interface components {
              */
             returns: boolean;
         };
+        /** RequirementOut */
+        RequirementOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Sentence */
+            sentence: string;
+            /** Fields */
+            fields: string[];
+            /** Object Id */
+            object_id: number;
+            /** Part */
+            part?: string | null;
+            /** Field */
+            field: string;
+        };
         /**
          * RetiredInput
          * @description Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels.
@@ -4485,6 +4999,21 @@ export interface components {
             /** Via */
             via?: components["schemas"]["ArticleLink"][];
             replaced_by?: components["schemas"]["ArticleLink"] | null;
+        };
+        /** SignatureOut */
+        SignatureOut: {
+            /** Id */
+            id: number;
+            /** Person Object Id */
+            person_object_id: number;
+            /** Name */
+            name: string;
+            /** Signed At */
+            signed_at?: string | null;
+            /** Declined At */
+            declined_at?: string | null;
+            /** Reason */
+            reason?: string | null;
         };
         /** StampOut */
         StampOut: {
@@ -4686,6 +5215,23 @@ export interface components {
              * @default 0
              */
             sent: number;
+        };
+        /**
+         * TargetIn
+         * @description Ein Pflichtfeld, das die Freigabe gleich mitsetzt (``services/fields``).
+         */
+        TargetIn: {
+            /** Object Id */
+            object_id: number;
+            /** Part */
+            part?: string | null;
+            /** Field */
+            field: string;
+            /**
+             * Extra
+             * @default {}
+             */
+            extra: Record<string, never>;
         };
         /** TaskOut */
         TaskOut: {
@@ -8231,6 +8777,417 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serve_preview_api_v1_attachments__token__preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_documents_api_v1_erp_documents_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    file_document_api_v1_erp_documents_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_file_document_api_v1_erp_documents_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FiledOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_targets_api_v1_erp_documents_targets_get: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    documents_of_api_v1_erp_documents_of__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_draft_api_v1_erp_documents_read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_read_draft_api_v1_erp_documents_read_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_requirements_api_v1_erp_documents_requirements_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequirementOut"][];
+                };
+            };
+        };
+    };
+    set_field_api_v1_erp_documents__object_id__field_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TargetIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_later_api_v1_erp_documents__object_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_ref_api_v1_erp_documents__object_id__refs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_ref_api_v1_erp_documents__object_id__refs__ref_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                ref_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_document_api_v1_erp_documents__object_id__delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_api_v1_erp_documents__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDetail"];
                 };
             };
             /** @description Validation Error */

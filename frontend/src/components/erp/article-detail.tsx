@@ -27,6 +27,7 @@ import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN } from '@/lib/process-status';
 
 import { ErrorText, SaveIndicator, IconSwitch, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, MICRO_LABEL } from '@/components/erp/fields';
+import { DocumentTiles } from '@/components/erp/documents';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
@@ -370,6 +371,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
                 setDraft={setSteps}
               />
             </div>
+            {record?.object_id != null && <DocumentTiles objectId={record.object_id} />}
         </DetailBody>
 
       </div>

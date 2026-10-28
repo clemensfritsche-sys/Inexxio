@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, User } from 'lucide-react';
+import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, User, FileText } from 'lucide-react';
 import { cn, formatObjectId, userDisplayName } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import {userName, articleName, organizationName, orderName } from '@/lib/record-name';
 import { articleStatus, isStaff, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
 import { RecordIcon, StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
-import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order, Todo } from '@/types';
+import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order, Todo, DocumentSummary } from '@/types';
 import type { StatusCfg } from '@/lib/status-tone';
 import { userInitials, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
@@ -23,6 +23,10 @@ import { OrganizationDetail } from '@/components/erp/organization-detail';
 import { ERP_NOTICE, MESSAGES_CHANGED } from '@/components/erp/communication';
 import { TODO_CHANGED } from '@/lib/todo';
 import { NewCompany, NewPerson } from '@/components/erp/new-record';
+import { DocumentDetail } from '@/components/erp/document-detail';
+import { DocumentDraft } from '@/components/erp/document-draft';
+import { ComposeChat } from '@/components/erp/compose-chat';
+import { statusCfg } from '@/lib/process-status';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
 // geteilt – EINE Quelle der Wahrheit für die Typ-Identität: lib/erp-record.ts.
@@ -37,7 +41,8 @@ type Row =
   | { type: 'article'; key: string; objectId: number | null; data: Article }
   | { type: 'order'; key: string; objectId: number | null; data: OrderSummary }
   | { type: 'instance'; key: string; objectId: number | null; data: InstanceSummary }
-  | { type: 'organization'; key: string; objectId: number | null; data: CompanySettings };
+  | { type: 'organization'; key: string; objectId: number | null; data: CompanySettings }
+  | { type: 'document'; key: string; objectId: number | null; data: DocumentSummary };
 
 // Der Name eines Datensatzes kommt aus der EINEN Ableitung (`lib/record-name`) – nie steht
 // hier der Typ (den sagt das Symbol). `null` = noch ohne Namen (Notiz #177).
@@ -46,6 +51,7 @@ function rowTitle(row: Row): string | null {
   if (row.type === 'order') return orderName(row.data);
   if (row.type === 'instance') return row.data.article_name?.trim() || null;
   if (row.type === 'organization') return organizationName(row.data);
+  if (row.type === 'document') return `${row.data.art} · ${row.data.name}`;
   return articleName(row.data);
 }
 
@@ -58,6 +64,7 @@ function rowStatus(row: Row): StatusCfg | null {
   // hier wäre bei einer Charge mit gemischten Stücken eine Behauptung.
   if (row.type === 'instance') return null;
   if (row.type === 'organization') return organizationStatus(row.data);
+  if (row.type === 'document') return statusCfg(row.data.status);
   return articleStatus(row.data);
 }
 
@@ -166,6 +173,9 @@ export default function ErpPage() {
   // Unternehmen: ein ERP-Datensatztyp `organization` – eigene Gesellschaften und fremde
   // Firmen. Geladen für jedes Personal.
   const [companies, setCompanies] = useState<CompanySettings[]>([]);
+  // **Dokumente** – wie die Instanzen auf dem Server durchsucht (Nummer, Name, gelesener Text).
+  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [documentsFor, setDocumentsFor] = useState('');
   const [loading, setLoading] = useState(true);
   // **Kommunikation** (CRM Schritt 2): wer gerade arbeitet, und je Person die offenen
   // Nachrichten im Verlauf – die Zahl am Symbol, nachgeladen, sobald jemand schreibt.
@@ -175,7 +185,7 @@ export default function ErpPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
-  const [creating, setCreating] = useState<'article' | 'order' | 'person' | 'company' | null>(null);
+  const [creating, setCreating] = useState<'article' | 'order' | 'person' | 'company' | 'document' | null>(null);
   /**
    * **Der Entwurf mit einer bereits gewählten Einzelinstanz** (Abweichungsauftrag §3.1).
    *
@@ -303,6 +313,19 @@ export default function ErpPage() {
     return () => { stale = true; clearTimeout(t); };
   }, [search]);
 
+  // Dokument-Feed: auf dem Server durchsucht (auch im gelesenen Text), wie die Instanzen.
+  useEffect(() => {
+    if (!staff) return;
+    const q = search.trim();
+    let stale = false;
+    const load = () => api.getDocuments(q, 200).then((rows) => {
+      if (!stale) { setDocuments(rows); setDocumentsFor(q); }
+    }).catch(() => {});
+    const t = setTimeout(load, q ? 300 : 0);
+    window.addEventListener('inexxio:data-changed', load);
+    return () => { stale = true; clearTimeout(t); window.removeEventListener('inexxio:data-changed', load); };
+  }, [search, staff]);
+
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (plusRef.current && !plusRef.current.contains(e.target as Node)) setPlusOpen(false);
@@ -368,6 +391,7 @@ export default function ErpPage() {
     ...articles.map((a): Row => ({ type: 'article', key: `a${a.id}`, objectId: a.object_id, data: a })),
     ...orders.map((o): Row => ({ type: 'order', key: `o${o.id}`, objectId: o.object_id, data: o })),
     ...instances.map((i): Row => ({ type: 'instance', key: `i${i.id}`, objectId: i.object_id, data: i })),
+    ...documents.map((d): Row => ({ type: 'document', key: `d${d.object_id}`, objectId: d.object_id, data: d })),
     // FIX: Fallback -Infinity ergab NaN, sobald ZWEI Zeilen ohne Objektnummer verglichen
     // wurden (-Infinity − -Infinity = NaN) – ein NaN-Komparator verletzt die Sortier-Ordnung
     // und macht die Reihenfolge undefiniert. 0 sortiert Zeilen ohne Nummer stabil ans Ende
@@ -384,6 +408,7 @@ export default function ErpPage() {
     // Instanzen sind bereits server-seitig durchsucht (kein erneuter Client-Filter) –
     // aber nur, wenn sie zu DIESER Suche gehören.
     if (r.type === 'instance') return instancesFor === search.trim();
+    if (r.type === 'document') return documentsFor === search.trim();
     if (search && !feedMatch(r, search.toLowerCase())) return false;
     return true;
   });
@@ -396,7 +421,7 @@ export default function ErpPage() {
   // Auftrag/Instanz haben bereits ihren eigenen Fetch-Pfad (orderDetail/instanceDetail).
   const [navRecord, setNavRecord] = useState<Row | null>(null);
   useEffect(() => {
-    if (!sel || selectedRow || sel.type === 'instance') { setNavRecord(null); return; }
+    if (!sel || selectedRow || sel.type === 'instance' || sel.type === 'document') { setNavRecord(null); return; }
     let cancelled = false;
     const load: Promise<Row | null> =
       sel.type === 'article'
@@ -469,7 +494,7 @@ export default function ErpPage() {
     const needle = q.trim().toLowerCase();
     if (!needle) return [];
     const local = rows
-      .filter((r) => r.objectId != null && r.type !== 'instance' && feedMatch(r, needle))
+      .filter((r) => r.objectId != null && r.type !== 'instance' && r.type !== 'document' && feedMatch(r, needle))
       .slice(0, SUGGEST_LIMIT)
       .map(toCandidate);
     // Instanzen haben die höchste Kardinalität und werden darum serverseitig gesucht –
@@ -508,7 +533,7 @@ export default function ErpPage() {
     });
   }
 
-  function startCreate(type: 'article' | 'order' | 'person' | 'company', seed?: OrderSeed) {
+  function startCreate(type: 'article' | 'order' | 'person' | 'company' | 'document', seed?: OrderSeed) {
     setPlusOpen(false);
     setSel(null);
     setOrderSeed(seed ?? null);
@@ -564,7 +589,7 @@ export default function ErpPage() {
   }
 
   const showList = mobileView === 'list';
-  const hasDetail = creating !== null || activeRow !== null || sel?.type === 'instance';
+  const hasDetail = creating !== null || activeRow !== null || sel?.type === 'instance' || sel?.type === 'document';
 
   return (
     <ErpNavContext.Provider value={openByObjectId}>
@@ -692,6 +717,10 @@ export default function ErpPage() {
                   <button onClick={() => startCreate('company')} style={menuItemStyle}>
                     <Building2 size={15} style={{ color: 'var(--fg-3)' }} /> Unternehmen
                   </button>
+                  {/* **Ein Anlageweg für jedes Dokument** – Scan, Datei, Verfassen. */}
+                  <button onClick={() => startCreate('document')} style={menuItemStyle}>
+                    <FileText size={15} style={{ color: 'var(--fg-3)' }} /> Dokument
+                  </button>
                 </div>
               )}
               <button
@@ -737,6 +766,12 @@ export default function ErpPage() {
           {creating === 'order' && (
             <OrderDetail key="new-order" record={null} seed={orderSeed} onSaved={handleOrderSaved} onBack={cancelCreate} />
           )}
+          {creating === 'document' && (
+            <DocumentDraft key="new-document" onCancel={cancelCreate}
+              compose={(done) => <ComposeChat onDone={done} />}
+              onFiled={(d) => { setCreating(null); setSel({ type: 'document', objectId: d.object_id }); }}
+              onOpen={(oid) => { setCreating(null); setSel({ type: 'document', objectId: oid }); }} />
+          )}
           </ErpNavContext.Provider>
           {!creating && activeRow?.type === 'order' && (
             <OrderDetail
@@ -760,6 +795,9 @@ export default function ErpPage() {
               // Auftrag gibt es erst mit der Freigabe (#386).
               onCreateOrder={(articleObjectId) => startCreate('order', { articleObjectId })}
               onBack={() => setMobileView('list')} />
+          )}
+          {!creating && sel?.type === 'document' && (
+            <DocumentDetail key={`d-${sel.objectId}`} objectId={sel.objectId} onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'instance' && (
             <InstanceDetail key={`i-${sel.objectId}`} objectId={sel.objectId} onBack={() => setMobileView('list')} />

@@ -10,6 +10,7 @@ import { day, when } from '@/lib/when';
 import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
 import { Card, DetailBody, DetailHeader, SectionSep, TodoChip } from '@/components/erp/fields';
+import { DocumentTiles } from '@/components/erp/documents';
 import { TimeCard } from '@/components/erp/time/time-card';
 import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
 import { sectionItems, todoChanged } from '@/lib/todo';
@@ -336,6 +337,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, todo }: {
           {/* Dezent: hier beginnen die Stammdaten – eine Haarlinie mit dem Mikro-Label. */}
           <SectionSep label="Stammdaten" todo={sectionItems(todo, 'person', 'adressen')} />
           <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} todo={todo} />
+          <DocumentTiles objectId={record.object_id} />
         </DetailBody>
       </div>
     </div>

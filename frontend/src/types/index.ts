@@ -201,7 +201,16 @@ export type AddressInput = components['schemas']['AddressIn'];
 export type CompanyPerson = components['schemas']['CompanyPerson'];
 export type NewCompany = components['schemas']['NewCompany'];
 export type PersonCreate = components['schemas']['PersonCreate'];
-export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization' | 'document';
+
+/** **Ein Dokument** – jede freigegebene Datei (`services/documents`). */
+export type DocumentSummary = components['schemas']['DocumentSummary'];
+export type DocumentDetail = components['schemas']['DocumentDetail'];
+export type DocumentRefOut = components['schemas']['DocumentRefOut'];
+export type DocumentProposal = components['schemas']['ProposalOut'];
+export type DocumentTarget = components['schemas']['TargetIn'];
+export type DocumentRequirement = components['schemas']['RequirementOut'];
+export type RecordRef = components['schemas']['RecordOut'];
 
 export interface CompanySettings {
   object_id?: number | null;   // universelle ERP-Objektnummer des Unternehmens

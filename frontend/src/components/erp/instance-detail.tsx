@@ -7,6 +7,7 @@ import type { Instance } from '@/types';
 import { instanceName } from '@/lib/record-name';
 import { kindLabel } from '@/lib/record-status';
 import { DetailBody, DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/fields';
+import { DocumentTiles } from '@/components/erp/documents';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
@@ -84,6 +85,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
           {/* **Dasselbe Bestandsmodul wie am Artikel** – kein Nachbau, nur der kleinere
               Umfang: die Aufstellung dieser Gruppe und darunter ihre Nummern. */}
           <StockView scope={{ kind: 'instance', record: rec }} />
+          <DocumentTiles objectId={rec.object_id} />
         </DetailBody>
       </div>
     </div>
