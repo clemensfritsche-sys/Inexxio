@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { completeMagicLink } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { goTo, loginTarget } from '@/lib/login-target';
@@ -64,72 +64,64 @@ export default function VerifyPage() {
     }
   }
 
+  // ►►► **Dieselbe Lightbox wie der Anmeldedialog** (`.ix-login-scrim` + `.ix-login-card`,
+  // `components/auth/login-dialog.tsx`) – die Rückkehr vom Link ist derselbe Vorgang. ◄◄◄
   return (
-    <>
-      <div className="ix-login-bg" />
-      <div className="ix-login-lightbox">
-        <div className="ix-login-card" style={{ textAlign: 'center' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/inexxio-ehemals-hs-steiner.svg" alt="INEXXIO (ehemals HS Steiner)" style={{ height: 44, margin: '0 auto 28px', display: 'block' }} />
+    <div className="ix-login-scrim" role="dialog" aria-modal="true" aria-labelledby="ix-verify-title">
+      <div className="ix-login-card">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/inexxio-ehemals-hs-steiner.svg" alt="INEXXIO (ehemals HS Steiner)" className="ix-verify-logo" />
 
-          {status === 'loading' && (
-            <>
-              <Loader2 className="animate-spin" style={{ width: 36, height: 36, color: 'var(--inexxio-red)', margin: '0 auto 16px' }} />
-              <h1 style={vTitle}>Anmeldung wird verarbeitet…</h1>
-              <p style={vMuted}>Bitte einen Moment warten.</p>
-            </>
-          )}
+        {status === 'loading' && (
+          <>
+            <Loader2 className="animate-spin ix-verify-icon" style={{ color: 'var(--inexxio-red)' }} aria-hidden />
+            <h1 id="ix-verify-title">Anmeldung wird verarbeitet …</h1>
+            <p className="ix-login-sub">Bitte einen Moment warten.</p>
+          </>
+        )}
 
-          {status === 'success' && (
-            <>
-              <CheckCircle2 style={{ width: 36, height: 36, color: 'var(--success)', margin: '0 auto 16px' }} />
-              <h1 style={vTitle}>Erfolgreich angemeldet!</h1>
-              <p style={vMuted}>Sie werden weitergeleitet…</p>
-            </>
-          )}
+        {status === 'success' && (
+          <>
+            <CheckCircle2 className="ix-verify-icon" style={{ color: 'var(--success)' }} aria-hidden />
+            <h1 id="ix-verify-title">Angemeldet.</h1>
+            <p className="ix-login-sub">Sie werden weitergeleitet …</p>
+          </>
+        )}
 
-          {status === 'error' && (
-            <>
-              <AlertCircle style={{ width: 36, height: 36, color: 'var(--inexxio-red)', margin: '0 auto 16px' }} />
-              <h1 style={vTitle}>Anmeldung fehlgeschlagen</h1>
-              <p style={{ ...vMuted, color: 'var(--inexxio-red)' }}>{error}</p>
-              <a href="/login" style={{ fontSize: 13, color: 'var(--inexxio-red)', textDecoration: 'none', fontWeight: 500 }}>
-                ← Zurück zur Anmeldung
-              </a>
-            </>
-          )}
+        {status === 'error' && (
+          <>
+            <AlertCircle className="ix-verify-icon" style={{ color: 'var(--inexxio-red)' }} aria-hidden />
+            <h1 id="ix-verify-title">Anmeldung fehlgeschlagen</h1>
+            <p className="ix-login-sub" role="alert">{error}</p>
+            <a href="/login" className="ix-login-link">Zurück zur Anmeldung</a>
+          </>
+        )}
 
-          {status === 'needs-email' && (
-            <>
-              <h1 style={vTitle}>E-Mail bestätigen</h1>
-              <p style={vMuted}>
-                Bitte geben Sie Ihre E-Mail-Adresse ein, um die Anmeldung abzuschliessen.
-              </p>
-              <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left', marginTop: 4 }}>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ihre@email.ch"
-                  autoComplete="email"
-                  autoFocus
-                  className="ix-email-input"
-                />
-                <button type="submit" className="ix-submit-btn">Anmelden</button>
-              </form>
-            </>
-          )}
-        </div>
+        {status === 'needs-email' && (
+          <>
+            <h1 id="ix-verify-title">E-Mail bestätigen</h1>
+            <p className="ix-login-sub">
+              Bitte geben Sie Ihre E-Mail-Adresse ein, um die Anmeldung abzuschliessen.
+            </p>
+            <form onSubmit={handleEmailSubmit} className="ix-login-field">
+              <label htmlFor="verify-email" className="sr-only">E-Mail-Adresse</label>
+              <input
+                id="verify-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="E-Mail-Adresse"
+                autoComplete="email"
+                autoFocus
+              />
+              <button type="submit" className="ix-login-go" disabled={!email.trim()} aria-label="Anmelden">
+                <ArrowRight aria-hidden />
+              </button>
+            </form>
+          </>
+        )}
       </div>
-    </>
+    </div>
   );
 }
-
-const vTitle: React.CSSProperties = {
-  font: '700 18px/1.3 var(--font-display)', letterSpacing: '-0.02em',
-  color: 'var(--fg-1)', margin: '0 0 8px',
-};
-const vMuted: React.CSSProperties = {
-  font: '400 14px/1.6 var(--font-body)', color: 'var(--fg-3)', margin: '0 0 20px',
-};

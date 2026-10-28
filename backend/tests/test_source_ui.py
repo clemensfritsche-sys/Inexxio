@@ -1234,3 +1234,29 @@ def test_a_dialog_closes_only_when_its_action_went_through():
     assert re.search(r"function act\(.*\):\s*Promise<boolean>", detail), (
         "`act` sagt nicht, ob die Handlung ging."
     )
+
+
+#: Eine `ix-`-Klasse im Markup (`className="…"`, `` `…` ``, `'…'`).
+_IX_CLASS = re.compile(r"(?<![\w-])(ix-[\w-]+)")
+_CLASS_ATTR = re.compile(r"className=(?:\"([^\"]*)\"|\{`([^`]*)`\}|\{[^}]*?'([^']*)')")
+
+
+def _ix_classes_without_css(markup: str, css: str) -> set[str]:
+    used = set()
+    for m in _CLASS_ATTR.finditer(markup):
+        used |= set(_IX_CLASS.findall(" ".join(x for x in m.groups() if x)))
+    # `ix-shell` legt der Website-Build als eigenes Stylesheet ab (`scripts/site-shell.mjs`).
+    return {c for c in used - {"ix-shell"} if not re.search(rf"\.{re.escape(c)}(?![\w-])", css)}
+
+
+def test_every_ix_class_in_the_markup_exists():
+    """Eine Klasse, die es nicht gibt, erzeugt still nichts – die Rückkehrseite der Anmeldung
+    trug `.ix-login-bg`/`.ix-login-lightbox` und sah darum nicht aus wie der Dialog. Jede
+    `ix-`-Klasse im Markup steht in einem Stylesheet (Frontend oder Website)."""
+    css = "".join(p.read_text(encoding="utf-8") for p in sorted(FRONTEND.rglob("*.css")))
+    css += "".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "website" / "src").rglob("*"))
+                   if p.suffix in (".css", ".astro"))
+    assert _ix_classes_without_css('<div className="ix-login-lightbox" />', css) == {"ix-login-lightbox"}
+    for rel, src in _frontend_sources(".tsx"):
+        missing = _ix_classes_without_css(src, css)
+        assert not missing, f"«{rel}» trägt Klassen ohne Stil: {sorted(missing)}"
