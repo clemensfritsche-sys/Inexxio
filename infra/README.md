@@ -58,11 +58,14 @@ gcloud billing budgets create --billing-account=KONTO-ID --display-name="Inexxio
   --budget-amount=100 --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 \
   --threshold-rule=percent=1.0
 
-# 2 · Erreichbarkeit: /health jede 5 Minuten aus mehreren Regionen
+# 2 · Erreichbarkeit: /health des Backends jede 5 Minuten (503 auch, wenn die Datenbank
+#     nicht auf dem Stand des Codes ist). /health liegt am Dienst selbst, nicht hinter /api.
 P=inexxio-dev
+HOST=$(gcloud run services describe inexxio-backend-dev --region europe-west6 --project $P \
+  --format='value(status.url)' | sed 's#https://##')
 gcloud monitoring uptime create inexxio-health --project $P \
-  --resource-type=uptime-url --resource-labels=host=$P.web.app,project_id=$P \
-  --path=/api/v1/health --protocol=https --period=5
+  --resource-type=uptime-url --resource-labels=host=$HOST,project_id=$P \
+  --path=/health --protocol=https --period=5
 #   Mail bei Ausfall: Console → Monitoring → Uptime checks → «inexxio-health» →
 #   «Create alert» → Benachrichtigung per E-Mail.
 
@@ -153,4 +156,20 @@ Grössenordnungen in **europe-west6 (Zürich)** — der teuersten EU-Region, ca.
 über europe-west1/west4:
 
 | Posten                                   | grob CHF/Monat |
-|
+|------------------------------------------|----------------|
+| Cloud SQL `db-custom-2-7680` (2 vCPU/7,5 GB) | ~100       |
+| Cloud SQL `db-g1-small`                  | ~35            |
+| Cloud SQL `db-f1-micro`                  | ~10            |
+| Cloud Run, `--min-instances 1`, je Dienst | ~7–9          |
+| Cloud Run, `--min-instances 0`, im Leerlauf | ~0          |
+| Artifact Registry                        | ~0,2 (1,8 GB)  |
+| Firebase Hosting, Secret Manager, GCS    | ~1–2           |
+
+Daraus die drei Regeln:
+
+1. **Eine Umgebung, die nicht gebraucht wird, wird gestoppt oder gelöscht** — nicht
+   «stehen gelassen, kostet ja nichts». Eine gestoppte Cloud-SQL-Instanz
+   (`--activation-policy=NEVER`) spart rund 95 %; nur der Speicher läuft weiter.
+2. **Klein starten.** Eine Tier-Änderung ist ein Befehl und ein Neustart; zu gross
+   zu starten ist ein Dauerauftrag, der niemandem auffällt.
+3. **Ein Budget-Alarm ist die einzige Instanz, die es merkt** (siehe «Betrieb absichern»).
