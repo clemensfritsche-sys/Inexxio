@@ -150,3 +150,35 @@ Gesucht nach demselben Muster wie bei KI und Migration:
   Neuaufbau von dev verloren. Reiter «System», `GET/PATCH /admin/settings` und
   `sites.PLATFORM_FIELDS` sind weg; `/admin/settings/public` liest die Konfiguration. Die
   Spalte fällt im Folge-Deploy (Zwei-Deploy-Regel).
+
+## Nachtrag – Tiefenanalyse umgesetzt: Sicherheit, ein Weg zum Schema, Aufräumen (28.10.2026)
+
+Rollback-Punkte: vor der Runde `80486d0` · nach der Sicherheit `564350e` · nach der Basis
+`346fd8e` · nach dem Frontend-Aufräumen `6728959`.
+
+- **Sicherheit** (`564350e`): `requirements.lock` mit Prüfsummen (Docker und CI
+  `--require-hashes`, `tests/test_lock.py`); FastAPI 0.162 u. a. wegen bekannter Lücken;
+  die Sperre von Kontaktformular und Newsletter zählt nach den letzten drei Proxy-Stationen
+  plus einer globalen Obergrenze – die erste Angabe in `X-Forwarded-For` kann jeder setzen
+  (beide Fälle gegen den alten Code gegengeprüft). `start.sh` bricht bei gescheiterter
+  Migration ab; Docker ohne Root und ohne die ungenutzte Pango-Schicht; Advisory-Lock in
+  `alembic/env.py`; `/health` 503 bei Problem; `timeout-minutes` in allen Jobs; dev 60 s.
+  Header: `payment` für Stripe erlaubt (Apple/Google Pay), `X-XSS-Protection` weg, CSP ohne
+  die Dev-Domain und ungenutzte Hosts. **`'unsafe-eval'` bleibt** – gemessen: OpenCV.js
+  (Scanner) baut Funktionen mit `new Function`; `'wasm-unsafe-eval'` allein genügt nicht.
+- **Ein Weg zum Schema** (`346fd8e`): die 161 Migrationen sind eine Basis
+  (`161_baseline.sql`, aus `pg_dump`; Vergleich mit Migrationen + Netzen: identisch). Gefunden
+  dabei: die Registry `objects` und ihr Fremdschlüssel entstanden **nie** aus einer Migration,
+  nur aus dem Start-Netz. Alle Netze, Reparaturen, `create_all` und der Form-Wächter sind
+  weg; der Start schreibt nur noch die beiden Trigger, den Betreiber und die Rechtstexte.
+  `162` entfernt Vorgaben ohne Bedeutung (`role 'customer'`, «Inexxio AG»). Der Schema-Wächter
+  prüft jetzt auch Indizes (nach Spalten, nicht Namen – drei hiessen anders) und
+  Fremdschlüssel. Tests laufen auf einem Schema aus den Migrationen; Testhelfer, die
+  Zufallsnummern an der Vergabe vorbei erfanden, holen sie jetzt aus `next_object_id` (der
+  Typ ist Pflicht). Altlast-Lesewege weg: Stichprobe alte Form, Stückliste ohne `into`,
+  Newsletter-Quelle `legacy`. **Bewusst behalten:** die Zahl als MWST-Eingabe (`vat_entry`) –
+  sie ist auch ein Eingabeweg, nicht nur Altbestand.
+- **Frontend** (`6728959`, Agent in eigener Arbeitskopie): Token je Anfrage statt Schnappschuss,
+  ein gemeinsamer `getMe`, ein `AuthGate` statt zweier Layouts, generierte Typen statt
+  Mapper, totes Material und 49 unnötige Exporte weg, Hooks in `lib/`, `npm audit fix`
+  (Website 0, Frontend 9 – nur mit Major-Sprüngen lösbar).
