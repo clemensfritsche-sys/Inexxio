@@ -29,6 +29,16 @@ def _diagram() -> str:
     return "\n".join(_read(FRONTEND / rel) for rel in DIAGRAM)
 
 
+#: Der ERP-Feed – die Seite und ihre Teile.
+FEED = ("app/(erp)/erp/page.tsx", "lib/use-feed-lists.ts", "lib/use-mail-sync.ts",
+        "lib/use-url-params.ts", "components/erp/feed-panel.tsx", "components/erp/detail-pane.tsx")
+
+
+def _feed() -> str:
+    """Der ERP-Feed als EIN Text – die Seite, ihre Listen und ihre beiden Hälften."""
+    return "\n".join(_read(FRONTEND / rel) for rel in FEED)
+
+
 def _kit() -> str:
     """Die Grundbausteine als EIN Text – ein Wächter fragt nach dem Baustein, nicht nach der
     Datei, in der er gerade steht."""

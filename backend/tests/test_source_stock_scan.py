@@ -4,6 +4,7 @@
 import re
 
 from tests._source import (
+    _feed,
     _kit,
     BACKEND,
     FRONTEND,
@@ -374,7 +375,7 @@ def test_the_scanner_suggests_with_the_feeds_own_search():
     assert "stale = true" in search, "Eine ältere Antwort kann eine neuere überholen."
 
     # Und der Feed gibt seine EIGENE Suche herein, keine nachgebaute.
-    page = _code(_read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx"))
+    page = _code(_feed())
     assert "suggest: suggestFromFeed" in page, "Der Feed reicht seine Suche nicht durch."
     body = _body(page, "suggestFromFeed", kind="function")
     assert "feedMatch(" in body and "api.getInstances(" in body, (
@@ -468,7 +469,7 @@ def test_a_free_lookup_asks_whether_the_object_exists():
         "Die Deutung fragt nicht nach – dann meldet der Scanner Erfolg für Nummern, "
         "die es nicht gibt."
     )
-    feed = _code(_read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx"))
+    feed = _code(_feed())
     assert "exists: (id) => api.resolveObject(id)" in feed, (
         "Der Feed reicht die Frage nicht herein – dort trifft sie am häufigsten zu."
     )

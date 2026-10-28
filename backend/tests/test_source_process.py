@@ -5,6 +5,7 @@ Aussondern, Bewegen, Verbrauch.
 import re
 
 from tests._source import (
+    _feed,
     _diagram,
     _kit,
     BACKEND,
@@ -1304,7 +1305,7 @@ def test_the_feed_learns_about_every_write_from_one_place():
         "Der Feed hört nicht auf die Meldung – oder lädt ohne Blick auf den Pfad."
     )
     assert "detail: { path }" in api, "Die Meldung nennt den Pfad nicht."
-    feed = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    feed = _feed()
     assert "inexxio:data-changed" not in feed and "DATA_CHANGED" not in feed, (
         "Der Feed hört selbst auf die Meldung – das ist der zweite Weg."
     )
@@ -1523,8 +1524,8 @@ def test_the_trigger_sits_where_the_piece_stands():
     diagram = _diagram()
     assert "onDeviate" in diagram, "Am Stück gibt es keinen Auslöser."
     assert "function StateRow(" in diagram
-    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
-    assert "OrderSeed" in page and "startCreate('order', seed)" in page, (
+    page = _feed()
+    assert "OrderSeed" in page and "onCreate('order', seed)" in page and "onCreate: startCreate" in page, (
         "Der Auslöser führt nicht in den gewöhnlichen Entwurf."
     )
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
@@ -1658,7 +1659,7 @@ def test_the_deviation_mark_comes_from_one_component():
     assert "export function RecordIcon(" in fields
     assert "deviation" in _body(fields, "RecordIcon", kind="function")
 
-    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    page = _feed()
     assert "<RecordIcon" in page, "Der Feed baut das Symbol selbst."
     assert "Abweichung" not in _code(page), "Im Feed steht das Label noch als Text."
 
@@ -1718,8 +1719,8 @@ def test_the_article_shortcut_only_preselects_the_article():
         "Der Shortcut tut nichts."
     )
     assert "api.createOrder" not in art, "Der Artikel legt selbst einen Auftrag an."
-    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
-    assert "startCreate('order', { articleObjectId })" in page
+    page = _feed()
+    assert "onCreate('order', { articleObjectId })" in page and "onCreate: startCreate" in page
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
     # **Optional, nicht abwesend.** Der Auslöser am Stück (§3.1) und die Entscheidung nach
     # einem «nicht bestanden» reichen sehr wohl Stücke herein – nur eben mehrere und nur

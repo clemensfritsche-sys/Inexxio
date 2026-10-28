@@ -5,6 +5,7 @@ import json
 import re
 
 from tests._source import (
+    _feed,
     ERP_KIT,
     _kit,
     FRONTEND,
@@ -326,9 +327,9 @@ def test_a_button_without_effect_is_caught_by_the_linter():
     )
     # Dass die CI sie ausführt, prüft ``test_ci.py``.
 
-    feed = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    feed = _feed()
     assert "feedCapture" not in feed, "Der tote Zustand hinter dem Scan-Knopf ist zurück."
-    assert "onClick={openScanner}" in feed, "Der Scan-Knopf ist wieder ohne Wirkung."
+    assert "onScan={openScanner}" in feed and "onClick={onScan}" in feed, "Der Scan-Knopf ist wieder ohne Wirkung."
 
 
 # ---------------------------------------------------------------------------
@@ -1278,7 +1279,7 @@ def test_dialogs_tabs_and_chips_say_what_they_are():
     tabs = _read(FRONTEND / "components" / "erp" / "detail-tabs.tsx")
     for need in ('role="tablist"', 'role="tab"', "aria-selected="):
         assert need in tabs, f"Die Reiter: «{need}» fehlt."
-    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    page = _feed()
     chip = page[page.index("FILTER_TYPES.filter"):]
     chip = chip[: chip.index("</button>")]
     assert "aria-pressed={active}" in chip and "aria-label=" in chip, "Der Filter-Chip sagt nicht, was er ist."
