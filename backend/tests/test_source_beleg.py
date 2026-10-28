@@ -4,6 +4,7 @@
 import re
 
 from tests._source import (
+    _diagram,
     _kit,
     BACKEND,
     FRONTEND,
@@ -443,7 +444,7 @@ def test_a_card_you_can_still_act_on_is_never_dimmed():
     sys.path.insert(0, str(BACKEND))
     from app.schemas.order import ProcessStepResponse
 
-    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    diagram = _code(_diagram())
     assert "dimmed={running && !isActive}" not in diagram, (
         "Gedämpft wird wieder allein danach, ob das Modul dran ist."
     )

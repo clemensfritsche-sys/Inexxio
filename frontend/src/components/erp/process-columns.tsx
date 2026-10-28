@@ -6,11 +6,8 @@ import {
   BEND, FLOW_GAP, FlowFrame, channelX, channels, gutterFor, polyPath, port,
   type FlowAnchor, type FlowMetrics,
 } from './process-flow';
-import {
-  Axis, EMPTY_GRAPH, FlowColumn, PROCESS_MAXW, Stroke, axisEdges, columnRows, hasJourney,
-  journeyKeys, rowOfNode,
-  type ColumnProps, type ColumnRow, type DiagramStep, type JourneyOrigin,
-} from './process-diagram';
+import { Axis, FlowColumn, PROCESS_MAXW, Stroke, type ColumnProps } from './flow-column';
+import { EMPTY_GRAPH, axisEdges, columnRows, hasJourney, journeyKeys, rowOfNode, type ColumnRow, type DiagramStep, type JourneyOrigin } from '../../lib/process-graph';
 import { useErpNav } from './obj-id';
 import { formatObjectId } from '@/lib/utils';
 import { statusCfg } from '@/lib/process-status';

@@ -30,6 +30,7 @@ SQLite geprüft wäre eine andere Wahrheit geprüft als die, die läuft.
 import pathlib
 import re
 
+from tests._source import _diagram
 from tests.runner import session
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -62,7 +63,7 @@ def test_the_backend_is_master_and_the_frontend_only_draws():
     neben dem Server – und welche von beiden stimmt, sah man erst am Bildschirm.
     """
     cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
 
     for name in ("flowNodes", "walkedEdges", "statePointId", "branchPoints"):
         assert name not in cols and name not in diagram, (
@@ -85,7 +86,7 @@ def test_every_line_comes_from_the_one_generator():
     entstanden die Abweichungen zwischen Achse, Ausscherung und Rückführung.
     """
     flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
     cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
 
     assert flow.count("export function polyPath(") == 1
@@ -642,7 +643,7 @@ def test_a_line_docks_at_a_port_and_the_layer_is_never_clipped():
     """
     flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
     cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    diagram = _diagram()
 
     assert flow.count("export function port(") == 1, "Der Andockpunkt entsteht nicht an einer Stelle."
     # Jedes Ende einer Linie ist ein Port – auch die Achse, damit es nur eine Regel gibt.
@@ -791,7 +792,7 @@ def test_the_planned_return_is_the_line_itself():
     gibt keinen dritten Linientyp. *Wo* er steht – am Anfang der Linie, als letzte Zeile
     der Spalte –, prüft ``test_the_return_switch_sits_where_its_line_starts``.
     """
-    diagram = _code(_read(FRONTEND / "components/erp/process-diagram.tsx"))
+    diagram = _code(_diagram())
     cols = _read(FRONTEND / "components/erp/process-columns.tsx")
     lines = _read(FRONTEND / "components/erp/definition-lines.tsx")
     detail = _read(FRONTEND / "components/erp/order-detail.tsx")
@@ -895,7 +896,7 @@ def test_the_draft_is_named_the_same_on_both_sides():
     verschwindet **still**.
     """
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
-    diagram = _read(FRONTEND / "components/erp/process-diagram.tsx")
+    diagram = _diagram()
     server = re.search(r"DRAFT_OBJECT_ID\s*=\s*(-?\d+)", schema)
     client = re.search(r"DRAFT_OBJECT_ID\s*=\s*(-?\d+)", diagram)
     assert server and client, "Eine der beiden Seiten kennt die Entwurfs-Adresse nicht."
@@ -925,7 +926,7 @@ def test_the_journey_is_a_tree_on_the_same_line():
       höchstens ``JOURNEY_LIMIT``, der Rest gezählt. Bei 5000 Stück sieht man dasselbe
       wie bei drei.
     """
-    diagram = _read(FRONTEND / "components/erp/process-diagram.tsx")
+    diagram = _diagram()
     cols = _read(FRONTEND / "components/erp/process-columns.tsx")
     detail = _read(FRONTEND / "components/erp/order-detail.tsx")
 

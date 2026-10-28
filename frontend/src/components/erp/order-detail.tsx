@@ -13,11 +13,9 @@ import { orderStatus } from '@/lib/record-status';
 import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/detail-frame';
 import { DocumentTiles } from '@/components/erp/documents';
 import { LabelButton } from '@/components/scan/object-label';
-import {
-  DRAFT_OBJECT_ID, EMPTY_GRAPH, PROCESS_MAXW, StepCard, definitionGraph,
-  type DiagramStep,
-  type JourneyOrigin,
-} from '@/components/erp/process-diagram';
+import { DRAFT_OBJECT_ID, EMPTY_GRAPH, definitionGraph, type DiagramStep, type JourneyOrigin } from '@/lib/process-graph';
+import { PROCESS_MAXW } from '@/components/erp/flow-column';
+import { StepCard } from '@/components/erp/module-card';
 import { ProcessColumns, toDiagramSteps } from '@/components/erp/process-columns';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
@@ -739,7 +737,7 @@ function workOf(order: Order, stepId: number): StepWork[] {
 
 /*
  * **Der Ereignis-Log steht am Prozessobjekt**, an dem er passiert ist
- * (`process-diagram.historyTip`) – Start, Module und Ende tragen dieselbe Blase, denn
+ * (`lib/process-graph.historyTip`) – Start, Module und Ende tragen dieselbe Blase, denn
  * `start`/`end` haben kein Modul (`step_id = null`).
  */
 

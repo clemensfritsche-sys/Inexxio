@@ -705,7 +705,7 @@ def test_a_note_names_the_element_not_its_whole_subtree():
     )
     # **Und die Markierungen, aus denen die Herkunft entsteht, müssen es geben.**
     assert "data-fb-module" in _code(
-        _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")), (
+        _read(FRONTEND / "components" / "erp" / "module-card.tsx")), (
         "Die Modul-Karte benennt sich nicht – dann steht in keiner Notiz, aus welchem "
         "Modul sie kommt."
     )

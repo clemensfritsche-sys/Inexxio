@@ -23,7 +23,7 @@ import {
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
 import { articleStatus } from '@/lib/record-status';
-import type { DiagramStep } from '@/components/erp/process-diagram';
+import type { DiagramStep } from '@/lib/process-graph';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN } from '@/lib/process-status';
 

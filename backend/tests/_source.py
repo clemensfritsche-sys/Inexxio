@@ -20,6 +20,15 @@ def _read(path: pathlib.Path) -> str:
 ERP_KIT = ("fields", "detail-frame", "controls", "search-select", "hints")
 
 
+#: Das Prozessbild – reine Funktionen, die Spalte, die Modul-Karte.
+DIAGRAM = ("lib/process-graph.ts", "components/erp/flow-column.tsx", "components/erp/module-card.tsx")
+
+
+def _diagram() -> str:
+    """Das Prozessbild als EIN Text (`lib/process-graph`, `flow-column`, `module-card`)."""
+    return "\n".join(_read(FRONTEND / rel) for rel in DIAGRAM)
+
+
 def _kit() -> str:
     """Die Grundbausteine als EIN Text – ein Wächter fragt nach dem Baustein, nicht nach der
     Datei, in der er gerade steht."""

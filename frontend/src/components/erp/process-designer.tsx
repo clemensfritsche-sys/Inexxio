@@ -20,9 +20,7 @@ import {
 const SAMPLE_ICON: Record<SampleMode, LucideIcon> = {
   all: Layers, half: Columns2, quarter: Grid2x2, free: Percent,
 };
-import {
-  DRAFT_OBJECT_ID, definitionGraph, type DiagramStep,
-} from '@/components/erp/process-diagram';
+import { DRAFT_OBJECT_ID, definitionGraph, type DiagramStep } from '@/lib/process-graph';
 import { ProcessColumns } from '@/components/erp/process-columns';
 import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
