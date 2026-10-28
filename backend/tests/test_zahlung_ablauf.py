@@ -1088,3 +1088,47 @@ def test_a_refund_the_service_did_not_make_is_not_booked(db):
 
     rows = stripe_pay._refunds(_Api, "pi_x", "CHF")
     assert rows == [("pi_x:refund:re_b", Decimal("7.00"), {"voucher_id": "7"})], rows
+
+
+def _queries(db, run) -> int:
+    """Wie viele Abfragen ``run`` an die Datenbank schickt."""
+    from sqlalchemy import event
+    seen = [0]
+
+    def hit(*_a, **_k):
+        seen[0] += 1
+    conn = db.connection()
+    event.listen(conn, "before_cursor_execute", hit)
+    try:
+        run()
+    finally:
+        event.remove(conn, "before_cursor_execute", hit)
+    return seen[0]
+
+
+def test_the_card_reads_each_row_once(db):
+    """Die Antwort an die Karte liest Angebotsspiegel, Geld-Zeilen, Positionen und Kopf
+    einmal (``reading``) – gemessen an einem gestellten Beleg: 68 Abfragen vorher, 21
+    danach. Die Grenze hält den Stand fest, mit etwas Luft."""
+    from app.services import voucher as svc
+    order, step, row, who = _billed(db)
+    staff = _staff(db)
+    db.flush()
+    db.expire_all()
+    n = _queries(db, lambda: svc.embed_data(db, order=order, step=step, viewer=staff))
+    assert n <= 30, f"Die Karte braucht {n} Abfragen."
+
+
+def test_a_read_that_writes_never_sees_an_old_state(db):
+    """Jedes Schreiben verwirft, was der Lesevorgang sich gemerkt hat – auch ein Schreiben
+    mitten in ihm."""
+    from app.domain import voucher as vo
+    from app.models import VoucherQuote
+    from app.services import voucher as svc
+    order, step, row, who = _scene(db, first=True)
+    other = _person(db, "Gamma")
+    with svc.reading(db):
+        before = len(svc.quotes_of(db, row))
+        db.add(VoucherQuote(voucher_id=row.id, party_id=other.object_id, state=vo.ASKED))
+        db.flush()
+        assert len(svc.quotes_of(db, row)) == before + 1

@@ -83,8 +83,13 @@ def of_vouchers(db: Session) -> list[Requirement]:
     """Was die Zahlungsmodule erwarten – Lieferantenrechnung, Ausfuhrnachweis."""
     from . import voucher as vs
     out: list[Requirement] = []
-    rows = (db.query(Voucher).filter(Voucher.is_active.is_(True),
-                                     Voucher.stage.in_((vo.AGREED, vo.BILLED))).all())
+    # **Nur, wo etwas fehlen kann**: eine bestellte Ausgabe (Lieferantenrechnung) oder eine
+    # gestellte Einnahme ohne Ausfuhrnachweis – ob es wirklich fehlt, sagt die Schleife.
+    rows = (db.query(Voucher).filter(
+        Voucher.is_active.is_(True),
+        ((Voucher.direction == vo.OUT) & (Voucher.stage == vo.AGREED))
+        | ((Voucher.direction == vo.IN) & (Voucher.stage == vo.BILLED)
+           & Voucher.export_number.is_(None))).all())
     orders = {o.id: o for o in db.query(Order).filter(
         Order.id.in_({r.order_id for r in rows})).all()} if rows else {}
     for row in rows:
