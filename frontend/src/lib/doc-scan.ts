@@ -2,7 +2,7 @@
  * ►►► **Ein Blatt im Kamerabild finden und gerade ziehen** – die Rechnung des Scanners. ◄◄◄
  *
  * Graustufen → weichzeichnen → drei Karten (hell · Kanten · Kanten fein) → je Kontur die
- * konvexe Hülle → auf vier Ecken vereinfacht → das grösste plausible Viereck. Gerade
+ * konvexe Hülle → auf vier Ecken vereinfacht → das grösste blattartige Viereck. Gerade
  * gezogen wird mit einer Perspektiv-Transformation auf die Seitenlängen des Blatts.
  *
  * Rein: bekommt `cv` (OpenCV.js) und Pixel, gibt Punkte bzw. Pixel zurück – im Browser und
@@ -74,7 +74,7 @@ function areaOf(q: Quad): number {
 }
 
 /** Sieht es aus wie ein Blatt? Jeder Winkel zwischen 45° und 135° (auch schräg fotografiert). */
-function plausible(q: Quad): boolean {
+function sheetLike(q: Quad): boolean {
   for (let i = 0; i < 4; i++) {
     const p = q[(i + 3) % 4], c = q[i], n = q[(i + 1) % 4];
     const ax = p.x - c.x, ay = p.y - c.y, bx = n.x - c.x, by = n.y - c.y;
@@ -129,7 +129,7 @@ export function detect(cv: Cv, px: Pixels): Quad | null {
   }
 }
 
-/** Die plausiblen Vierecke einer Karte, deren Fläche zwischen `min` und `max` liegt. */
+/** Die blattartigen Vierecke einer Karte, deren Fläche zwischen `min` und `max` liegt. */
 function quads(cv: Cv, make: (m: Mat) => void, min: number, max: number): Quad[] {
   const bin = new cv.Mat();
   const contours = new cv.MatVector();
@@ -170,7 +170,7 @@ function quadOf(cv: Cv, contour: Mat): Quad | null {
         q = order(pts);
       }
       approx.delete();
-      if (n === 4) return q && plausible(q) ? q : null;
+      if (n === 4) return q && sheetLike(q) ? q : null;
       if (n < 4) return null;
     }
     return null;
