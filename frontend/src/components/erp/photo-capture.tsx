@@ -8,7 +8,7 @@ import { useCamera } from '@/components/scan/use-camera';
 
 /**
  * **Ein Bild, aufgenommen — nicht hochgeladen** (Testnotizen #718/#720) – **und ein Dokument**:
- * die Aufnahme öffnet denselben Entwurf wie jede Datei (Regel B), das Stück als Referenz mit
+ * die Aufnahme öffnet denselben Entwurf wie jede Datei (eine Ablage), das Stück als Referenz mit
  * Schloss (Feld `capture.photo`); erst die Freigabe macht sie zum Wert des Punkts.
  *
  * **Kein Hochladen**: eine Datei aus der Galerie belegt nichts über *diesen* Vorgang, und

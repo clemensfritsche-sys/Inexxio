@@ -123,6 +123,13 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
+## Offen: Folge-Deploy – `voucher_documents.html` droppen
+
+Seit Migration `158` ist das Papier eines Belegs ein Dokument (`voucher_documents.document_id`);
+die Übernahme beim Start (`services/adopt`) hat die alten Papiere hinübergetragen und `html`
+geleert. Im **nächsten** Deploy: Mapping entfernen (Nullable-Netz bleibt), danach die Spalte
+droppen und den Rückfall in `voucher_docs.paper_of` streichen.
+
 ## Offen: Folge-Deploy – `user_profiles.employment_start_date` und `.weekly_hours` droppen
 
 Seit Migration `154` stehen Eintritt, Pensum und Austritt im **Vertrag** der Zeiterfassung

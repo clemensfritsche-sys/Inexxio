@@ -1,6 +1,6 @@
 """►►► **Das Dokument – jede Datei, die ein Mensch freigegeben hat.** ◄◄◄
 
-Ein Dokument ist **Datei + Art + Name + Referenz(en)** (``docs/dokumente-konzept``). Es
+Ein Dokument ist **Datei + Art + Name + Referenz(en)** (``docs/dokumente.md``). Es
 entsteht erst mit der Freigabe (``services/documents.file``) – vorher lebt der Entwurf im
 Browser, ohne Zeile und ohne Nummer, wie ein neuer Artikel oder Auftrag. Danach sind Datei,
 Art und Name fest. Was sich noch ändert, sind die Referenzen und die Unterschriften.

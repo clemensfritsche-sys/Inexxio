@@ -48,7 +48,8 @@ src/components/
 ├── erp/       ← alle ERP-Bauteile (siehe unten)
 ├── account/   ← account-shell (Kopf mit dem Namen als grossem Wort, Sprungleiste), sections/ (profile, security, passkeys)
 ├── auth/      ← login-dialog, passkey-nudge
-├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label
+├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label,
+│                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)
 ├── form/      ← field, save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
 ├── layout/    ← site-shell, account-sync
 └── feedback/  ← feedback-pin (Testnotizen; als Insel auch auf der Website)
@@ -73,7 +74,8 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |
 | `process-diagram.tsx`, `process-columns.tsx`, `process-flow.tsx` | Prozessbild: `ModuleShell` (die Modul-Karte), drei Spuren, **ein** Liniengenerator (`polyPath`) |
 | `capture-work.tsx`, `capture-form.tsx`, `photo-capture.tsx`, `signature-pad.tsx` | Ausführung von Datenerfassung, Aussondern, Verbrauch, Bewegen |
-| `beleg-work.tsx`, `beleg/`, `pay-online.tsx`, `file-upload.tsx` | Modul «Zahlung»: der Einstieg (gemeinsamer Zustand) · die Abschnitte (`stages`, `parties`, `goods`, `terms`, `quotes`, `invoice`, `documents`, `footer`, `shared`, `forms`) · die eigene Bezahlkarte |
+| `beleg-work.tsx`, `beleg/`, `pay-online.tsx` | Modul «Zahlung»: der Einstieg (gemeinsamer Zustand, Vorschau → Freigeben) · die Abschnitte (`stages`, `parties`, `goods`, `terms`, `quotes`, `invoice`, `documents`, `footer`, `shared`, `forms`, `paper-sheet`) · die eigene Bezahlkarte |
+| `documents.tsx`, `document-detail.tsx`, `document-draft.tsx`, `document-field.tsx`, `compose-chat.tsx`, `legal-texts.tsx` | **Dokumente** (`docs/dokumente.md`): Kacheln unten an jedem Datensatz · die Seite eines Dokuments (Senden, Löschen) · **der eine Entwurf** (Scannen · Datei · Verfassen, auch als `DraftSheet` über einem Modul) · ein Pflichtfeld mit Dokument · Verfassen im Chat · AGB/Datenschutz der Gesellschaft |
 | `payment-list.tsx` | **Zahlungen** einer Person (Abschnitt) oder eigenen Gesellschaft (Reiter) – eine Liste, Zeile öffnet den Auftrag |
 | `step-record.tsx` | Modul-Protokoll (eine Komponente für alle Modultypen) |
 | `stock-view.tsx`, `stock-bar.tsx`, `unit-number(s).tsx` | Bestand (Artikel- und Instanz-Umfang) · Leiste · Stücknummern |
@@ -196,17 +198,26 @@ Versand/Lieferung) → **Positionen** mit Summe → **Konditionen** (+ «Es gelt
   jeder wird sofort geschrieben (eigenes Verb). Feste Vorgaben des Moduls (`fixed`) sind
   punktiert unterstrichen, `fixed_hint` im Hover. Der Steuersatz bietet nur `vat_choices`.
 - **Was man bearbeitet, bleibt stehen**: jede Handlung am Beleg hält den zuletzt bearbeiteten
-  Abschnitt an seiner Stelle (`lib/hold-place.ts`). Der **Ausfuhrnachweis** ist der einzige
-  Datei-Upload (PDF oder Bild, `file-upload.tsx`); jedes andere Bild ist eine Aufnahme.
+  Abschnitt an seiner Stelle (`lib/hold-place.ts`). **Lieferantenrechnung und Ausfuhrnachweis
+  sind Dokumente** (`document-field.tsx`: vorhandenes wählen oder «Neu» über den Entwurf; die
+  abgelesenen Werte füllen die leeren Felder vor). **Vorschau → Freigeben**: was ein Papier
+  hinausgibt (`paper_verbs` vom Server), zeigt `beleg/paper-sheet.tsx` vorher; AB und Quittung
+  stehen an (`paper_due`) und gehen mit «Prüfen und freigeben» (Verb `release`).
 - **Bezahlen** (`pay-online.tsx`): unsere Karte, vom Dienst nur die Eingabefelder; die Karte
   sagt «ausgeführt», gebucht wird vom Webhook.
 - **Kundenseite** (`app/(public)/beleg`, `components/beleg/`): das eingefrorene Dokument in
   einem `iframe srcdoc`, darüber die Stationen und die Handlungen der Partei
   (`api.publicBeleg` · `acceptBeleg` · `declineBeleg` · `prepareBelegPayment`); `/agb` zeigt
   das A4-Dokument vom Server (`api.publicAgb`).
-- API: `updateVoucher` · `prepareVoucherPayment` · `voucherTransfer` ·
-  `refundVoucherPayment` · `uploadAttachment` · `paymentsOf`. Vorgaben des Moduls im Editor:
+- API: `updateVoucher` · `previewVoucher` · `prepareVoucherPayment` · `voucherTransfer` ·
+  `refundVoucherPayment` · `paymentsOf`. Vorgaben des Moduls im Editor:
   `MONEY_FORM` in `lib/modules.ts` (Spiegel getestet).
+- **Seite eines Dokuments** (`app/(public)/dokument`, `components/beleg/document-page.tsx`): das
+  Papier mit Unterschriften, Unterschreiben (dieselbe Fläche wie `signature-pad.tsx`,
+  `onSigned`) oder Ablehnen; gelöscht → ein Satz (410).
+- **Scanner** (`components/scan/doc-scanner.tsx`): OpenCV.js unter `/vendor/opencv-<Version>.js`
+  (`scripts/vendor-opencv.mjs` legt es vor `dev`/`build` ab, nicht im Repo), erst beim Scannen
+  geladen; ohne OpenCV ein Fotoapparat.
 
 ## Referenz-Eingabe und Kamera-Scan
 - **`ObjectSelect`** ist auf `SearchSelect` gebaut: tippen sucht auf dem Server (Nummer ODER
