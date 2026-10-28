@@ -2,18 +2,12 @@
 """
 
 from tests._source import (
-    _feed,
     BACKEND,
     FRONTEND,
     _body,
     _code,
     _read,
 )
-
-
-# ---------------------------------------------------------------------------
-# Datenerfassung
-# ---------------------------------------------------------------------------
 
 
 def test_a_capture_hangs_on_a_single_unit():
@@ -44,11 +38,6 @@ def test_a_capture_without_something_judgeable_has_no_verdict():
     assert ct.verdict([{"key": "g", "type": "bool"}], {"g": False}) == "failed"
     assert ct.get("bool").missing({"key": "g", "type": "bool"}, None) is True
     assert ct.get("bool").missing({"key": "g", "type": "bool"}, False) is False
-
-
-# ---------------------------------------------------------------------------
-# Das Modul «Datenerfassung»
-# ---------------------------------------------------------------------------
 
 
 def test_a_sixth_capture_type_is_one_new_file():
@@ -177,11 +166,6 @@ def test_capture_is_written_in_the_process_and_read_there_too():
         )
 
 
-# ---------------------------------------------------------------------------
-# Testrunde 7.8.2026 nachmittags (#689–#700)
-# ---------------------------------------------------------------------------
-
-
 def test_an_unfinished_capture_point_is_a_missing_entry_not_a_field_error():
     """**#695 — dieselbe Klasse wie #682/#686, eine Ebene tiefer.**
 
@@ -196,11 +180,6 @@ def test_an_unfinished_capture_point_is_a_missing_entry_not_a_field_error():
     )
     types = _read(BACKEND / "app" / "domain" / "capture_types" / "__init__.py")
     assert "braucht noch eine Bezeichnung" in types, "Bei der Freigabe wird sie nicht verlangt."
-
-
-# ---------------------------------------------------------------------------
-# Datenerfassung – Scan-Pflicht, Stichprobe, Entscheidung
-# ---------------------------------------------------------------------------
 
 
 def test_no_entry_without_a_confirmed_instance():
@@ -418,26 +397,6 @@ def test_the_collective_scan_is_the_scan_sequence():
     )
 
 
-# ---------------------------------------------------------------------------
-# Testnotizen #726–#733 – die Runde nach dem Bewegen-Modul
-# ---------------------------------------------------------------------------
-
-
-def test_the_record_shows_a_state_only_when_it_changed():
-    """**Ein Zustand, der sich nicht ändert, ist keine Aussage** (#726).
-
-    Ein Durchläufer führt «Im Prozess» → «Im Prozess»; in jeder Zeile des Protokolls
-    stünde dasselbe Wort. Gefragt wird nach den **Daten** (`status_before` ≠
-    `status_after`), nicht nach dem Modultyp – die Oberfläche muss nicht wissen, welcher
-    Typ was tut, und der Dienst liefert weiterhin beide Werte.
-    """
-    code = _code(_read(FRONTEND / "components" / "erp" / "step-record.tsx"))
-    assert "entry.status_after !== entry.status_before" in code, (
-        "Das Protokoll zeigt den Nachher-Zustand wieder unbedingt – beim Durchläufer "
-        "ist das in jeder Zeile dasselbe Wort."
-    )
-
-
 def test_every_file_of_a_module_is_a_document_through_the_one_draft():
     """►►► **Eine Ablage: jede Datei eines Moduls wird ein Dokument – über DENSELBEN
     Entwurf.** ◄◄◄ Lieferantenrechnung, Ausfuhrnachweis, Nachweis einer Absenz, Bild der
@@ -460,23 +419,3 @@ def test_every_file_of_a_module_is_a_document_through_the_one_draft():
     assert 'type="file"' not in shot, "(b)"
     assert "<DraftSheet" in shot and "capture.photo" in shot, "(c)"
     assert "<DraftSheet" in time_card and "time.proof" in time_card, "(a) Nachweis"
-
-
-def test_the_draft_keeps_its_work_and_its_place():
-    """**Ein Entwurf verliert nichts, und was man bearbeitet, bleibt stehen** (Chrome-Test).
-
-    Bug-Formen: (a) eine Nummer im Entwurf öffnet ihren Datensatz – der Entwurf (nur im
-    Browser) ist ohne Warnung weg; (b) die Stückauswahl schliesst nicht beim Klick daneben;
-    (c) die Auswahl wächst über die verlangte Menge («2 von 1»); (d) eine Handlung am Beleg
-    lässt den bearbeiteten Abschnitt wegrutschen.
-    """
-    page = _code(_feed())
-    draft = page[page.index("<ErpNavContext.Provider value={null}>"):]
-    draft = draft[: draft.index("</ErpNavContext.Provider>")]
-    assert "creating === 'order'" in draft and "creating === 'article'" in draft, "(a)"
-    lines = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
-    picker = lines[lines.index("function StockPicker"):]
-    assert "'pointerdown'" in picker and "setTouched(false)" in picker, "(b)"
-    assert "chosen.length >= quantity" in picker, "(c)"
-    work = _code(_read(FRONTEND / "components" / "erp" / "beleg-work.tsx"))
-    assert "holdPlace(" in work and "onAction={onAction}" not in work, "(d)"

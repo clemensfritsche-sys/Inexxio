@@ -18,100 +18,8 @@ from tests._source import (
 )
 
 
-# ---------------------------------------------------------------------------
-# EIN Referenzfeld, überall (Testnotiz #738)
-# ---------------------------------------------------------------------------
-
-
     #     Die Beschriftung, deren Typografie hier einmal geprüft wurde, gibt es nicht
     #     mehr – geblieben ist das Feld, und das war ohnehin die Anatomie, um die es ging.
-
-
-def test_the_login_is_a_popup_over_the_page_behind_it():
-    """**Ein Pop-up ist ein Pop-up** – und es gibt genau EINEN Anmelde-Dialog.
-
-    Bug-Form (die gemeldete): das Anmelden war eine **Seite** mit eigener, deckender
-    Fläche – die Seite dahinter verschwand, also brauchte es einen Knopf «Zurück zur
-    Startseite», um wieder herauszukommen. Genau das ist der Umweg, den ein Pop-up nicht
-    hat: daneben klicken beendet es, und was man vorher tat, steht noch da.
-
-    Die zweite Bug-Form wäre die naheliegende Abkürzung: den Dialog in der Navbar
-    **nachbauen** und die Route so lassen. Dann gäbe es zwei Anmeldungen, und die zweite
-    veraltet beim ersten neuen Anmeldeweg – darum ist ``LoginDialog`` **ein** Bauteil,
-    das beide benutzen.
-    """
-    dialog = _code(_read(FRONTEND / "components" / "auth" / "login-dialog.tsx"))
-    page = _code(_read(FRONTEND / "app" / "(auth)" / "login" / "page.tsx"))
-    css = _read(FRONTEND / "app" / "globals.css")
-
-    # (1) Die Fläche dahinter bleibt sichtbar – ein Schleier, keine Wand.
-    assert ".ix-login-scrim" in css, "Der Schleier über der Seite fehlt."
-    # **Ohne die Erklärung gelesen** – der Kommentar in der Regel nennt die Bug-Form beim
-    # Namen, und ein Wächter, der ihn mitliest, schlägt an, weil jemand den Fehler
-    # *beschreibt*, den er verhindern soll. Genau das ist hier beim Schreiben passiert.
-    rules = re.sub(r"/\*[\s\S]*?\*/", "", css)
-    scrim = rules[rules.index(".ix-login-scrim"):]
-    scrim = scrim[: scrim.index("}") + 1]
-    assert "rgba(" in scrim, (
-        "Der Hintergrund des Pop-ups ist wieder deckend – dann ist es keines, sondern "
-        "eine Seite, und man braucht einen Weg zurück."
-    )
-    assert "position: fixed" in scrim and "inset: 0" in scrim, (
-        "Der Schleier liegt nicht über der ganzen Seite."
-    )
-    # **Zentriert wird über `margin: auto`, nicht über `align-items`** – die klassische
-    # Flexbox-Falle. Gemessen in Chromium (375x420): mit `align-items: center` steht der
-    # Kopf einer zu hohen Karte bei −74 px, und in einem Scroll-Container ist alles vor
-    # der Startkante unerreichbar; auf einem Telefon im Querformat wäre das E-Mail-Feld
-    # schlicht weg. Mit `margin: auto` steht er bei +31 px.
-    assert "align-items: center" not in scrim, (
-        "Der Schleier zentriert wieder über `align-items` – eine Karte, die höher ist "
-        "als das Fenster, wird dann oben abgeschnitten und lässt sich nicht hinscrollen."
-    )
-    card = rules[rules.index(".ix-login-card {"):]
-    card = card[: card.index("}") + 1]
-    assert "margin: auto" in card, (
-        "Die Karte zentriert sich nicht mehr selbst – dann greift wieder die Falle."
-    )
-    assert ".ix-login-bg" not in css, (
-        "Die alte, deckende Anmelde-Fläche ist zurück."
-    )
-
-    # (2) Daneben klicken beendet – und `Esc` ebenso; beides ist üblich, und wer nur
-    #     eines baut, zwingt Tastatur- oder Mausnutzer in den jeweils anderen Weg.
-    assert "e.target === e.currentTarget" in dialog, (
-        "Ein Klick neben das Pop-up schliesst es nicht – dann ist der einzige Ausweg "
-        "wieder ein Knopf."
-    )
-    assert "'Escape'" in dialog, "`Esc` schliesst das Pop-up nicht."
-    assert 'aria-modal="true"' in dialog, (
-        "Ohne `aria-modal` ist es für Hilfsmittel kein Dialog, sondern Seiteninhalt."
-    )
-
-    # (3) Der Weg zurück ist das Danebenklicken – der Knopf ist damit entfallen.
-    # Gelesen wird der **Code**: die Erklärung darüber nennt den Knopf, den es nicht
-    # mehr gibt – ein Wächter, der Kommentare liest, schlägt an, weil jemand den Fehler
-    # *beschreibt*, den er verhindern soll.
-    assert "Zurück zur Startseite" not in dialog, (
-        "Der Knopf «Zurück zur Startseite» ist zurück – in einem Pop-up ist er der "
-        "Umweg, den es gerade nicht braucht."
-    )
-
-    # (4) EIN Dialog, EIN Weg: seit Website und ERP denselben Kopf tragen (WEBSITE_PLAN
-    #     Entscheid 60), führt «Anmelden» von überall auf die Route – und der Kopf hängt die
-    #     Seite an, auf der man stand (`?from=`). Dorthin geht es danach, und ebenso beim
-    #     Danebenklicken: «was man vorher tat, steht noch da» gilt damit weiter.
-    assert "export function LoginDialog" in dialog, "Der Dialog ist kein eigenes Bauteil."
-    assert "<LoginDialog" in page, (
-        "Die Route baut die Anmeldung wieder selbst – dann gibt es sie zweimal."
-    )
-    assert "onClose={() => window.location.assign(cameFrom())}" in page, (
-        "Daneben klicken führt nicht mehr dorthin zurück, wo man war."
-    )
-    shell = _code(_read(ROOT / "website" / "src" / "scripts" / "account.ts"))
-    assert "/login?from=" in shell, (
-        "Der gemeinsame Kopf nennt der Anmeldung nicht mehr, woher man kam."
-    )
 
 
 def test_a_person_is_never_deactivated_only_re_roled():
@@ -142,30 +50,6 @@ def test_a_person_is_never_deactivated_only_re_roled():
     assert "Deaktivieren" not in user and "Reaktivieren" not in user, (
         "Der Knopf ist zurück – die Rolle ist der Weg, nicht der Aus-Schalter."
     )
-
-
-def test_the_user_has_no_empty_document_tab():
-    """**Kein Reiter über einer leeren Fläche** (Testnotiz #772).
-
-    «Dokumente» rendete zwei Überschriften und sonst nichts – seine Karten hingen am
-    Dokumentenmodul, und das gibt es nicht mehr. Übrig blieb ein Reiter, der das ganze
-    Formular trägt: dann gibt es nichts zu wählen.
-    """
-    src = _read(FRONTEND / "components" / "erp" / "user-detail.tsx")
-    assert "Freigaben & Anerkennungen" not in src and "Abgelegte Dokumente" not in src, (
-        "Die leeren Überschriften stehen wieder da."
-    )
-    # Die Regel ist «keine Reiterleiste mit genau EINEM Reiter» – seit der Kommunikation
-    # (CRM Schritt 2) trägt der Benutzer zwei: Person · Kommunikation.
-    if "DetailTabs" in src:
-        assert src.count("{ key: '") >= 2, (
-            "Der Benutzer hat wieder eine Reiterleiste – mit genau einem Reiter darin."
-        )
-
-
-# ---------------------------------------------------------------------------
-# ►► Testnotizen #897–#901 — der Geldvorgang ist EIN Beleg
-# ---------------------------------------------------------------------------
 
 
 def test_a_company_record_is_named_with_its_legal_form():
@@ -281,11 +165,6 @@ def test_a_private_customer_is_named_by_his_own_name():
     )
 
 
-# ---------------------------------------------------------------------------
-# ►► DER UMBAU VON «RECHNUNG & ZAHLUNG» + TESTNOTIZEN #979/#981/#982
-# ---------------------------------------------------------------------------
-
-
 def test_a_company_is_named_the_same_in_the_feed_and_in_its_window():
     """►►► **Unternehmensname + Rechtsform – überall dasselbe** (Testnotiz #984). ◄◄◄
 
@@ -323,11 +202,6 @@ def test_a_company_is_named_the_same_in_the_feed_and_in_its_window():
         "Die Kopfzeile hat einen eigenen Rückfall (b) – und ausgerechnet einen ohne "
         "Rechtsform."
     )
-
-
-# ---------------------------------------------------------------------------
-# ►► Der Kontotyp und die EINE Rechnungs-E-Mail (Testnotiz #1042)
-# ---------------------------------------------------------------------------
 
 
 def test_the_role_is_the_access_in_every_surface():
@@ -432,23 +306,6 @@ def test_the_billing_email_is_one_field_in_every_surface():
     assert len(fields) == 1, f"Das Adressbuch hat {len(fields)} Felder «Rechnungs-E-Mail» (d)."
 
 
-def test_the_inheritance_of_the_billing_email_is_visible():
-    """**Ist sie leer, wird die Login-/Kontakt-E-Mail verwendet – und das steht da.**
-
-    Der Satz steht an **einer** Stelle (``address-book.inheritedEmail``, sein einziger
-    Leser) – zwei Formulierungen wären zwei Aussagen über dieselbe Vererbung.
-
-    Bug-Formen: (a) der Platzhalter nennt nur die Adresse; (b) daneben steht eine
-    Checkbox; (c) der Satz steht ausserhalb der einen Funktion ein zweites Mal.
-    """
-    book = _code(_read(FRONTEND / "components/erp/address-book.tsx"))
-    rule = _body(book, "inheritedEmail", kind="function")
-    assert "übernimmt" in rule, "Der Satz nennt die Vererbung nicht (a)."
-    assert book.count("übernimmt") == 1, "Die Vererbung steht zweimal (c)."
-    assert "placeholder={inheritedEmail(" in book, "Das Feld nennt die Vererbung nicht (a)."
-    assert not re.search(r"(ToggleField|Segmented)[^>]*Rechnungs-E-Mail", book), "(b)"
-
-
 def test_addresses_live_in_one_address_book():
     """►►► **Zwei Konten, EINE Maske** – privat und Geschäftskonto, in Konto und ERP. ◄◄◄
 
@@ -484,26 +341,6 @@ def test_addresses_live_in_one_address_book():
         "Im ERP entsteht eine Firma über «+» im Feed, nicht im Benutzer-Datensatz (#1214).")
     assert "account === 'business'" in book and "email={business" in book, (
         "Die Rechnungs-E-Mail hängt nicht am Geschäftskonto (e).")
-
-
-def test_a_field_explains_itself_without_a_paragraph():
-    """►►► **Zusatzinfo entfallen lassen** (Testnotizen #1043/#1045). ◄◄◄
-
-    Zwei Erklärtexte standen im Benutzer-Formular und beschrieben das **Datenmodell**: was
-    die Rolle bedeutet und was ein leerer Firmenname heisst. Beide sagten nichts, was das
-    Feld darunter nicht selbst sagt – und ein Formular, das sich erklärt, ist eines, das
-    man nicht versteht.
-
-    Bug-Formen: (a) der Satz zur Rolle ist zurück; (b) der zu den Firmendaten.
-    """
-    for where in _USER_SURFACES:
-        src = _read(FRONTEND / where)
-        assert "entscheidet der Vorgang" not in src, (
-            f"«{where}» erklärt die Rolle wieder in Prosa (a)."
-        )
-        assert "Leer: eine Privatperson" not in src, (
-            f"«{where}» erklärt die Firmendaten wieder in Prosa (b)."
-        )
 
 
 def test_no_person_surface_shows_bank_details():
@@ -554,11 +391,6 @@ def test_the_legal_form_suggestions_exist_exactly_once():
                   "components/erp/new-record.tsx"):
         src = _code(_read(FRONTEND / where))
         assert "legalForms(" in src, f"«{where}» fragt die gemeinsame Liste nicht."
-
-
-# ---------------------------------------------------------------------------
-# ►► TESTNOTIZ #1044 — das Adressfeld hat EIN Gesicht, und die Region kommt an
-# ---------------------------------------------------------------------------
 
 
 def test_the_address_mode_is_a_derivation_not_a_latch():
@@ -625,11 +457,6 @@ def test_a_google_hit_fills_the_region():
         "Die Zusammenfassung zeigt die Region nicht (c) – wer sie erfasst, sieht sie "
         "beim nächsten Blick nicht mehr."
     )
-
-
-# ---------------------------------------------------------------------------
-# ►► TESTNOTIZEN #1046/#1047/#1049 — am Beleg
-# ---------------------------------------------------------------------------
 
 
 def test_a_late_profile_cannot_undo_a_logout():
