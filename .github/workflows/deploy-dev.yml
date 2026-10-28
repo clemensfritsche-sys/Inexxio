@@ -17,6 +17,11 @@ env:
   ARTIFACT_REPO: inexxio-dev
   CLOUD_RUN_SERVICE: inexxio-backend-dev
   FIREBASE_PROJECT: inexxio-dev
+  # Anmeldung ohne Schlüssel (Workload Identity, infra/README.md): GitHub bekommt ein
+  # kurzlebiges Token, das Google nur für dieses Repository annimmt. Beides ist kein
+  # Geheimnis – darum offen hier und nicht als Secret.
+  WORKLOAD_IDENTITY_PROVIDER: projects/395883203074/locations/global/workloadIdentityPools/github/providers/github
+  SERVICE_ACCOUNT: github-actions@inexxio-dev.iam.gserviceaccount.com
 
 jobs:
   # Prüfungen: .github/workflows/quality.yml (dasselbe Gate wie beim Prod-Deploy).
@@ -40,7 +45,8 @@ jobs:
       - name: Authenticate to Google Cloud (deploy SA)
         uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
@@ -161,7 +167,8 @@ jobs:
       - name: Authenticate to Google Cloud (deploy SA)
         uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - name: Install Firebase CLI
         # Fest eingestellt: 15.34.1 (21.10.2026) verlangt beim Deploy zusätzlich das Recht

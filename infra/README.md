@@ -91,7 +91,7 @@ gcloud run services update inexxio-backend-dev --region europe-west6 --project i
 ## Anmeldung der Deploys ohne Schlüssel (Workload Identity)
 
 GitHub meldet sich bei Google mit einem kurzlebigen Token an, das nur für dieses Repository
-gilt – kein JSON-Schlüssel, der irgendwo liegt. Prod ist so eingerichtet; für dev einmal
+gilt – kein JSON-Schlüssel, der irgendwo liegt. Prod und dev sind so eingerichtet (dev: Oktober 2026); für ein neues Projekt einmal
 (idempotent, ein zweiter Lauf schadet nicht):
 
 ```bash
