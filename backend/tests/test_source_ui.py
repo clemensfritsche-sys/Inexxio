@@ -297,8 +297,12 @@ def test_a_button_without_effect_is_caught_by_the_linter():
     Leiche, sondern **46** – darunter zwei API-Abfragen für einen Wert, den niemand liest.
     """
     cfg = json.loads(_read(FRONTEND.parent / ".eslintrc.json"))
-    rule = cfg.get("rules", {}).get("no-unused-vars")
+    # Die TypeScript-Fassung der Regel (sie kennt auch Typen); die Basisregel ist dafür aus.
+    rule = cfg.get("rules", {}).get("@typescript-eslint/no-unused-vars")
     assert rule, "Die Regel gegen ungenutzte Variablen ist nicht eingeschaltet."
+    assert "@typescript-eslint" in cfg.get("plugins", []), (
+        "Die Regel nennt ein Plugin, das die Konfiguration nicht lädt."
+    )
     assert rule[0] == "error", "Die Regel warnt nur – dann fällt nichts auf."
     assert "destructuredArrayIgnorePattern" in rule[1], (
         "Ohne diese Option bleibt die tote `useState`-Destrukturierung unbemerkt – "
