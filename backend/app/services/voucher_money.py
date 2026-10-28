@@ -169,7 +169,10 @@ def refunded_on(db: Session, entry: VoucherEntry) -> Decimal:
                     VoucherEntry.reference.startswith(refund_reference(entry.reference, ""),
                                                       autoescape=True))
             .all())
-    return sum((abs(e.amount) for e in rows), Decimal("0"))
+    # **Eine gescheiterte Erstattung ging nie hinaus** – sie und ihre Gegenbuchung zählen nicht.
+    undone = {e.reverses_id for e in rows if e.reverses_id is not None}
+    return sum((abs(e.amount) for e in rows
+                if e.reverses_id is None and e.id not in undone), Decimal("0"))
 
 
 def refundable_amount(db: Session, entry: VoucherEntry) -> Decimal:
@@ -230,7 +233,8 @@ def of_reference(db: Session, reference: str) -> Optional[Voucher]:
 def record_payment(db: Session, *, row: Voucher, amount: Decimal,
                    reference: Optional[str] = None,
                    note: Optional[str] = None,
-                   method: Optional[str] = None) -> VoucherEntry:
+                   method: Optional[str] = None,
+                   reverses: Optional[VoucherEntry] = None) -> VoucherEntry:
     """**Eine Zeile Geld** – die Tür des Zahlungsdienstes.
 
     Ein Zahlungsdienst ruft nicht ``apply``: er hat keinen angemeldeten Benutzer, keine
@@ -243,7 +247,8 @@ def record_payment(db: Session, *, row: Voucher, amount: Decimal,
     Nicht-Effekt ist schlimmer als ein Fehler.
 
     Gesperrt wird der Beleg zuerst (``hold``): zwei gleichzeitige Zustellungen derselben
-    Meldung buchen eine Zeile, die zweite findet sie.
+    Meldung buchen eine Zeile, die zweite findet sie. ``reverses`` macht die Zeile zur
+    Gegenbuchung einer anderen (die gescheiterte Erstattung).
     """
     hold(db, row)
     seen = booked_as(db, reference) if reference else None
@@ -252,6 +257,7 @@ def record_payment(db: Session, *, row: Voucher, amount: Decimal,
     entry = VoucherEntry(
         voucher_id=row.id, amount=amount,
         booked_on=clock.today(), reference=reference, note=note, method=method,
+        reverses_id=reverses.id if reverses is not None else None,
     )
     book(db, row, entry)
     # **Dasselbe danach wie bei einer erfassten Zahlung** – Quittung, Stücke weiter.

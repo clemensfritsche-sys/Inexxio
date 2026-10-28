@@ -142,9 +142,13 @@ def _speaking(what: str) -> Iterator[None]:
 #: ``payment_intent.succeeded`` ist die Meldung der **eigenen** Kasse. Sie trägt
 #: ``amount_received`` und die ``pi_…``-Id, und genau die nennt später auch eine
 #: Erstattung: darum findet ``voucher.of_reference`` den Vorgang ohne eine zweite Spalte.
+#:
+#: ``refund.updated`` meldet den späteren Ausgang einer Erstattung: eine, die «ausstehend»
+#: gebucht war und dann scheitert, wird gegengebucht (``_note_refund``).
 PAID = "payment_intent.succeeded"
 REFUNDED = "charge.refunded"
-EVENTS = (PAID, REFUNDED)
+REFUND_UPDATED = "refund.updated"
+EVENTS = (PAID, REFUNDED, REFUND_UPDATED)
 
 
 def _api():
@@ -328,7 +332,8 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
     if kind not in EVENTS:
         return "ignored"
     data = (event.get("data") or {}).get("object") or {}
-    handler = {PAID: _note_payment, REFUNDED: _note_refund}[kind]
+    handler = {PAID: _note_payment, REFUNDED: _note_refund,
+               REFUND_UPDATED: _note_refund}[kind]
     return handler(db, stripe, data)
 
 
@@ -362,11 +367,13 @@ def _note_payment(db: Session, api: Any, data: dict[str, Any]) -> str:
 
 
 def _note_refund(db: Session, api: Any, data: dict[str, Any]) -> str:
-    """``charge.refunded`` → **je Erstattung eine Zeile** – nicht die kumulierte Summe.
+    """``charge.refunded`` · ``refund.updated`` → **der Stand der Erstattungen, je eine Zeile.**
 
-    Die Erstattungen liest der Dienst selbst vor (``_refunds``); jede trägt ihre Id und
-    damit ihre Referenz, idempotent je Erstattung. Steht in ihren Metadaten eine Gutschrift,
-    gehört die Zeile dorthin (als ihre Zahlung), sonst negativ an die Rechnung.
+    Beide Meldungen nennen die Zahlungsabsicht (``payment_intent``); die Erstattungen liest
+    der Dienst selbst vor (``_refunds``). Je Erstattung, idempotent über ihre Referenz:
+    unterwegs oder angekommen und noch nicht gebucht → eine Zeile (an der Gutschrift aus
+    ihren Metadaten als deren Zahlung, sonst negativ an der Rechnung); gescheitert oder
+    abgebrochen, aber gebucht → die Gegenbuchung (``_undo_refund``).
     """
     intent = str(data.get("payment_intent") or "")
     # **Gesucht wird über die Referenz** – die Zahlungsabsicht steht an genau einer Zeile.
@@ -374,19 +381,42 @@ def _note_refund(db: Session, api: Any, data: dict[str, Any]) -> str:
     if row is None:
         return "unknown"
     booked = 0
-    for ref, amount, meta in _refunds(api, intent, row.currency):
+    for ref, amount, meta, status in _refunds(api, intent, row.currency):
+        if status not in BOOKED_REFUNDS:
+            booked += _undo_refund(db, ref)
+            continue
         credit = _row_of(db, meta)
         if credit is not None and credit.id != row.id and voucher_svc.minus(credit):
             target, value = credit, amount
         else:
             target, value = row, -amount
+        seen = voucher_money.booked_as(db, ref)
+        if seen is not None and seen.voucher_id == target.id:
+            continue
         voucher_money.record_payment(db, row=target, amount=value, reference=ref,
-                                   note="Erstattung", method=dm.CARD)
+                                     note="Erstattung", method=dm.CARD)
         booked += 1
     if not booked:
         return "ignored"
     db.commit()
     return "refunded"
+
+
+def _undo_refund(db: Session, ref: str) -> int:
+    """**Eine gebuchte Erstattung, die gescheitert ist, wird gegengebucht** – eine Zeile über
+    den Gegenbetrag, Referenz ``<Erstattung>:failed``; die Zahlung ist wieder erstattbar
+    (``voucher_money.refunded_on``). Nie gebucht oder schon gegengebucht → nichts (0)."""
+    seen = voucher_money.booked_as(db, ref)
+    if seen is None:
+        return 0
+    undo = f"{ref}:failed"
+    if voucher_money.booked_as(db, undo) is not None:
+        return 0
+    row = db.query(Voucher).filter(Voucher.id == seen.voucher_id).first()
+    voucher_money.record_payment(db, row=row, amount=-seen.amount, reference=undo,
+                                 note="Erstattung gescheitert", method=dm.CARD,
+                                 reverses=seen)
+    return 1
 
 
 #: Welche Erstattungen gebucht werden – das Geld ist unterwegs oder angekommen. Eine
@@ -395,23 +425,23 @@ BOOKED_REFUNDS = ("succeeded", "pending")
 
 
 def _refunds(api: Any, intent: str,
-             code: Any) -> list[tuple[str, Decimal, dict[str, Any]]]:
+             code: Any) -> list[tuple[str, Decimal, dict[str, Any], str]]:
     """►►► **Die Erstattungen einer Zahlung, wie der Dienst sie führt** – je eine Zeile. ◄◄◄
 
     Gelesen über ``Refund.list(payment_intent=…)``, nicht aus der Meldung: dort ist die
     Liste je nach Version gekürzt oder gar nicht dabei. Je Erstattung die Referenz
-    ``voucher.refund_reference(pi_…, re_…)``, ihr Betrag und ihre Metadaten.
+    ``voucher.refund_reference(pi_…, re_…)``, ihr Betrag, ihre Metadaten und ihr Status.
     """
     with _speaking("Erstattungen lesen"):
         listing = api.Refund.list(payment_intent=intent, limit=100)
         rows = [_plain(r) for r in listing.auto_paging_iter()]
-    out: list[tuple[str, Decimal, dict[str, Any]]] = []
+    out: list[tuple[str, Decimal, dict[str, Any], str]] = []
     for r in rows:
         amount = _amount_of(r.get("amount"), code)
-        if r.get("status") not in BOOKED_REFUNDS or amount <= 0 or not r.get("id"):
+        if amount <= 0 or not r.get("id"):
             continue
         out.append((voucher_money.refund_reference(intent, str(r["id"])), amount,
-                    dict(r.get("metadata") or {})))
+                    dict(r.get("metadata") or {}), str(r.get("status") or "")))
     return out
 
 

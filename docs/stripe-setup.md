@@ -113,9 +113,10 @@ ebenso — sie ist nur nirgends aufgeschrieben, während diese hier stabil und b
 
 1. **Developers → Webhooks → Add endpoint**
 2. **Endpoint URL**: die Adresse oben
-3. **Events** — genau diese zwei, mehr liest der Code nicht:
+3. **Events** — genau diese drei, mehr liest der Code nicht:
    - `payment_intent.succeeded`
    - `charge.refunded`
+   - `refund.updated` (eine Erstattung, die nach «ausstehend» scheitert, wird gegengebucht)
 4. Speichern → **Signing secret** (`whsec_…`) kopieren.
 
 > ⚠ **Wer den Endpoint aus der Zeit des Zahllinks hat, muss ihn umstellen**: dort steht
@@ -123,7 +124,7 @@ ebenso — sie ist nur nirgends aufgeschrieben, während diese hier stabil und b
 > ist weg. Der Beleg bliebe auf «offen» stehen, obwohl das Geld da ist.
 >
 > **Für `inexxio-dev` ist das erledigt** (05.09.2026): der bestehende Endpoint
-> `we_1TnvmEQr3aoUqi8iTHk0Ukj0` hört auf die beiden Ereignisse oben. **Umgestellt, nicht
+> `we_1TnvmEQr3aoUqi8iTHk0Ukj0` hört auf die ersten beiden Ereignisse oben (`refund.updated` fehlt noch). **Umgestellt, nicht
 > neu angelegt** — und das ist der Punkt: das *Signing Secret* eines Endpoints ändert sich
 > beim Umstellen **nicht**, `STRIPE_WEBHOOK_SECRET` bleibt also gültig. Ein neuer Endpoint
 > hätte ein neues Secret gebraucht, und bis es im Secret Manager steht, liefe jede Meldung
@@ -138,6 +139,7 @@ curl -sS https://api.stripe.com/v1/webhook_endpoints \
   -d url="https://inexxio-dev.web.app/api/v1/payments/webhook" \
   -d "enabled_events[]=payment_intent.succeeded" \
   -d "enabled_events[]=charge.refunded" \
+  -d "enabled_events[]=refund.updated" \
   -d description="Inexxio dev" | python3 -m json.tool
 ```
 
@@ -230,6 +232,7 @@ nicht (`VoucherEmbed.can` führt `pay_online` dann gar nicht).
    `stripe_pay.refund`; idempotent, der Knopf verschwindet, sobald nichts mehr erstattbar
    ist) oder im Stripe-Dashboard → `charge.refunded` bucht **je Erstattung** eine
    negative Zahlung mit eigener Referenz. Gebucht wird in beiden Fällen nur vom Webhook.
+   Scheitert sie später, bucht `refund.updated` sie zurück («Erstattung gescheitert»).
 
 ## Was es bewusst NICHT gibt
 

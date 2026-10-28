@@ -2795,6 +2795,51 @@ def test_a_partial_refund_leaves_the_rest_and_only_the_rest(monkeypatch):
         db.close()
 
 
+def test_a_refund_that_fails_after_pending_is_booked_back(monkeypatch):
+    """►►► **Eine Erstattung, die nach «ausstehend» scheitert, ging nie hinaus.** ◄◄◄
+
+    Gebucht wird sie schon «ausstehend» (``BOOKED_REFUNDS``); meldet der Dienst danach
+    ``failed`` (``refund.updated``), steht die Gegenbuchung da und die Zahlung ist wieder
+    erstattbar.
+
+    Bug-Formen: (a) ``refund.updated`` wird ignoriert; (b) die gescheiterte Erstattung bleibt
+    gebucht (der Saldo lügt, nichts lässt sich mehr erstatten); (c) eine zweite Zustellung
+    bucht noch einmal zurück.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import stripe_pay, voucher, voucher_money
+    db = _db()
+    try:
+        _order, _step, row, intent = _card_scene(db)
+        entry = voucher_money.refundable(db, row)[0]
+        owed = voucher.balance_of(db, row).open
+        _webhook_refund(db, row, intent,
+                        refunds=[{"id": "re_1", "amount": 4000, "status": "pending"}])
+        assert voucher_money.refundable_amount(db, entry) == Decimal("60.0000")
+        # (a)
+        assert "refund.updated" in stripe_pay.EVENTS, (
+            "Der Webhook hört den späteren Ausgang einer Erstattung nicht (a)."
+        )
+        for _ in range(2):
+            _webhook_refund(db, row, intent,
+                            refunds=[{"id": "re_1", "amount": 4000, "status": "failed"}])
+        # (b)
+        assert voucher_money.refundable_amount(db, entry) == Decimal("100.0000"), (
+            f"Die gescheiterte Erstattung zählt weiter (b): "
+            f"{voucher_money.refundable_amount(db, entry)}."
+        )
+        assert voucher.balance_of(db, row).open == owed, (
+            "Der Saldo nach der gescheiterten Erstattung stimmt nicht (b)."
+        )
+        # (c)
+        undo = [e for e in voucher.entries_of(db, row) if e.reverses_id is not None]
+        assert len(undo) == 1, f"Zurückgebucht wurde {len(undo)}-mal (c)."
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(monkeypatch):
     """►►► **Der Rohfehler geht ins LOG, der Satz an die Tür** (Testnotiz #1018). ◄◄◄
 

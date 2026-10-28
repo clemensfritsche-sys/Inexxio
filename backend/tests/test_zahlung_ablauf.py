@@ -1071,7 +1071,8 @@ def test_the_party_cannot_accept_what_we_could_not_confirm(db):
 
 
 def test_a_refund_the_service_did_not_make_is_not_booked(db):
-    """Gebucht wird je Erstattung, wie der Dienst sie führt – eine gescheiterte nicht."""
+    """Gelesen wird je Erstattung, wie der Dienst sie führt, mit ihrem Status – gebucht wird
+    nur «unterwegs» oder «angekommen» (``BOOKED_REFUNDS``), eine gescheiterte nie."""
     from app.services import stripe_pay
 
     class _Refund:
@@ -1089,7 +1090,9 @@ def test_a_refund_the_service_did_not_make_is_not_booked(db):
         Refund = _Refund
 
     rows = stripe_pay._refunds(_Api, "pi_x", "CHF")
-    assert rows == [("pi_x:refund:re_b", Decimal("7.00"), {"voucher_id": "7"})], rows
+    assert rows == [("pi_x:refund:re_a", Decimal("5.00"), {}, "failed"),
+                    ("pi_x:refund:re_b", Decimal("7.00"), {"voucher_id": "7"}, "succeeded")], rows
+    assert [r[3] in stripe_pay.BOOKED_REFUNDS for r in rows] == [False, True]
 
 
 def _queries(db, run) -> int:
