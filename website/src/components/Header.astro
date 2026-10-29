@@ -1,0 +1,510 @@
+---
+/**
+ * Kopfzeile v4 (Vorlage: docs/design-system/reference/mockups/Startseite v4.dc.html):
+ *   Logo · Speziallösungen · Krantechnik · Fahrzeugtechnik · Service · Unternehmen ·
+ *   ERP (nur Personal) | Sprache · Konto | Telefon · «Anfrage stellen». Kontakt steht unter
+ *   «Unternehmen» – Telefon und Anfrage rechts sind der Weg zu uns (WEBSITE_PLAN Entscheid 127).
+ * Jeder Punkt öffnet beim Zeigen eine Reihe Kacheln: Name, isometrische Zeichnung, ein leiser
+ * Satz. Die Karte des Kopfs wächst dabei nach unten – auf der Website als Glas
+ * (README §3a), im Konto/ERP deckend weiss (dort gibt es kein Glas).
+ * Schmaler als 1200 px: Logo, Konto, Telefon und das Menü-Symbol – ein Blatt mit EINER Ebene:
+ * jeder Punkt klappt eine Reihe Karten zum Wischen auf (beim Öffnen sind alle zu), unten Telefon,
+ * Anfrage und die Sprache, die genauso aufklappt.
+ *
+ * Ohne JavaScript bedienbar: Kacheln öffnen beim Zeigen und mit dem Fokus, jeder Punkt ist ein
+ * Link auf seine Seite, das Mobil-Menü ist ein natives <details>, dessen Punkte Links sind.
+ * Das Skript (scripts/header.ts) ergänzt Klick, Esc und das Aufklappen der Punkte.
+ * Mit Skript ist `.is-open` der EINE Zustand: ein Punkt öffnet beim Zeigen und bleibt offen,
+ * bis der Zeiger die ganze Karte verlässt – so verliert man ihn auf dem Weg ins Panel nie.
+ *
+ * ►►► Kein `transform`, kein `backdrop-filter`, kein `filter` auf der Kopfzeile. ◄◄◄
+ * Jede dieser Eigenschaften macht sie zum Bezugsrahmen für `position: fixed` – das Mobil-Menü
+ * sässe in ihr fest (WEBSITE_PLAN Entscheid 35). Das Glas liegt darum auf eigenen Flächen
+ * (`.hd__glass`, dem Mobil-Blatt), nie auf `.site-header`.
+ *
+ * ►►► Derselbe Kopf trägt das Konto/ERP ◄◄◄ (scripts/export-shell.mjs, WEBSITE_PLAN Entscheid 60).
+ * Glas und Schleier gelten nur unter `html[data-site]` – das setzt allein die Website.
+ *
+ * Kein Warenkorb: es gibt keinen Shop (docs/attic.md).
+ * Anmeldezustand: `html[data-account]` (scripts/early.js), Regeln für `data-acct` in global.css.
+ */
+import { site, navigation as groups } from '../config/site.mjs';
+import { plain } from '../lib/text.mjs';
+import Icon from './Icon.astro';
+import Lockup from './Lockup.astro';
+import { getImage } from 'astro:assets';
+import { titleImage } from '../lib/titles';
+
+interface Props {
+  /** Der Kopf liegt durchsichtig über einer dunklen Bühne (Startseite). */
+  over?: boolean;
+}
+const { over = false } = Astro.props;
+
+const path = Astro.url.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
+const within = (href: string) => path === href || path.startsWith(`${href}/`);
+const tel = `tel:${site.phone.e164}`;
+const acct = site.account;
+/** Testumgebung: ein Eckband oben rechts (nur `SITE_ENV=dev`, auch in Konto und ERP). */
+const envTag = process.env.SITE_ENV === 'dev' ? 'DEV' : null;
+
+/** Die Zeichnungen der Kacheln – als Datei (einmal geladen, lange im Cache), nicht im HTML. */
+const illos = import.meta.glob<string>('../assets/illustrations/**/*.svg', { eager: true, query: '?url', import: 'default' });
+const illo = (key: string) => {
+  const url = illos[`../assets/illustrations/${key}.svg`];
+  if (!url) throw new Error(`Kopf: Zeichnung «${key}» fehlt in src/assets/illustrations/.`);
+  return url;
+};
+
+/** Bild einer Kachel: das Titelbild der Seite (lib/titles, klein gerechnet), sonst ihre Zeichnung. */
+const imgOf = async (href: string, key: string) => {
+  const t = titleImage(href);
+  return t ? (await getImage({ src: t, width: 480, format: 'webp', quality: 70 })).src : illo(key);
+};
+
+type Tile = { label: string; href: string; img: string; sub: string; deck?: string[] };
+/** Kacheln eines Punkts: er selbst, wenn er keine Unterseiten hat – sonst zuerst seine Übersicht
+    («Alles zu …», dunkel, mit dem Stapel der Bilder seiner Unterseiten; «Über uns» mit eigenem Bild),
+    dann die Unterseiten.
+    Dieselben Kacheln im Kopf und im Mobil-Menü. */
+const tilesOf = async (g: (typeof groups)[number]): Promise<Tile[]> => {
+  const self = { label: g.label, href: g.href, img: await imgOf(g.href, g.illo), sub: plain(g.dd) };
+  const kids = await Promise.all(g.children.map(async (c) => ({ label: plain(c.label), href: c.href, img: await imgOf(c.href, c.illo), sub: plain(c.dd) })));
+  if (!kids.length) return [self];
+  const deck = kids.slice(0, 3).map((t) => t.img);
+  // Eine Übersicht, die selbst eine Seite ist (ddSelf, «Über uns»), zeigt ihr eigenes Bild; sonst der Stapel.
+  const all = g.ddSelf ? { ...self, label: g.selfLabel ?? g.label } : { ...self, label: `Alles zu ${g.label}`, sub: 'Übersicht und alle Leistungen', deck };
+  return [all, ...kids];
+};
+/** Ein Punkt gilt als aktuell, wenn man auf ihm oder einer seiner Unterseiten steht. */
+const menus = await Promise.all(groups.map(async (g) => ({ id: g.id, label: g.label, href: g.href, pages: [g.href, ...g.children.map((c) => c.href)], tiles: await tilesOf(g) })));
+const langs = [
+  { label: 'Deutsch', bubble: 'Hallo', sub: 'Aktuelle Sprache', on: true },
+  { label: 'English', bubble: 'Hello', sub: 'Coming soon', lang: 'en' },
+  { label: 'Français', bubble: 'Bonjour', sub: 'Bientôt disponible', lang: 'fr' },
+  { label: 'Italiano', bubble: 'Ciao', sub: 'Presto disponibile', lang: 'it' },
+];
+const login = { label: acct.login.label, href: acct.login.href, img: illo('menu/anmelden'), sub: 'Mit E-Mail-Link, Google oder Passkey – ohne Passwort.' };
+const profile = { label: 'Mein Profil', href: acct.profile.href, img: illo('menu/profil'), sub: 'Person, Firma und Adressbuch an einem Ort.' };
+const logout = { label: acct.logout.label, href: acct.logout.href, img: illo('menu/abmelden'), sub: 'Auf diesem Gerät abmelden.' };
+const cols = (n: number) => `--cols:${Math.max(3, n)}`;
+/** Mobil-Menü: EINE Ebene. Jeder Punkt klappt eine Reihe Karten auf – dieselben Kacheln wie im Kopf. */
+const mobile: { id: string; label: string; href: string; acct?: string; cards: Tile[] }[] = [
+  ...menus.map((m) => ({ id: m.id, label: m.label, href: m.href, cards: m.tiles })),
+  { id: 'konto', label: 'Mein Konto', href: acct.profile.href, acct: 'user', cards: [profile, logout] },
+];
+---
+<header class:list={['site-header', over && 'site-header--over']} data-header>
+  {envTag && <div class="env-ribbon" title="Testumgebung – nicht die öffentliche Website"><span>{envTag}</span></div>}
+  <div class="hd" data-hd>
+    <span class="hd__glass" aria-hidden="true"></span>
+    <div class="hd__bar">
+      <a href="/" class="hd__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}>
+        <span class="hd__logo hd__logo--ink"><Lockup define /></span>
+        <span class="hd__logo hd__logo--white"><Lockup tone="dark" /></span>
+      </a>
+
+      <nav class="nav" aria-label="Hauptnavigation">
+        <ul role="list" class="nav__list">
+          {menus.map((m) => (
+            <li class="nav__item dd" data-dd>
+              <a href={m.href} class:list={['nav__link', m.pages.some(within) && 'is-current']} aria-current={path === m.href ? 'page' : undefined}>{m.label}</a>
+              <button type="button" class="nav__toggle" aria-expanded="false" aria-controls={`dd-${m.id}`} aria-label={`Untermenü ${m.label}`} data-dd-toggle>
+                <Icon name="chevron-down" size={16} class="nav__chev" />
+              </button>
+              <div class="dd__panel" id={`dd-${m.id}`}>
+                <ul role="list" class="dd__tiles" style={cols(m.tiles.length)}>
+                  {m.tiles.map((t) => (
+                    <li><a class:list={['tile', t.deck && 'tile--all']} href={t.href} aria-current={path === t.href ? 'page' : undefined}>
+                      <span class="tile__label">{t.label}</span>
+                      {t.deck
+                        ? <span class="tile__deck" aria-hidden="true">{t.deck.map((src) => <img src={src} alt="" loading="lazy" decoding="async" width="160" height="140" data-menu-img />)}</span>
+                        : <img class="tile__img" src={t.img} alt="" loading="lazy" decoding="async" width="320" height="160" data-menu-img />}
+                      <span class="tile__sub">{t.sub}</span>
+                    </a></li>
+                  ))}
+                </ul>
+              </div>
+            </li>
+          ))}
+          <li class="nav__item" data-acct="staff">
+            <a href={acct.erp.href} class="nav__link" rel="nofollow">{acct.erp.label}</a>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="hd__tools">
+        <div class="dd dd--tool" data-dd>
+          <button type="button" class="hd__ic hd__lang" aria-expanded="false" aria-controls="dd-sprache" aria-label="Sprache: Deutsch" data-dd-toggle>
+            <Icon name="globe" size={18} /><span>DE</span>
+          </button>
+          <div class="dd__panel" id="dd-sprache">
+            <ul role="list" class="dd__tiles" style={cols(langs.length)}>
+              {langs.map((l) => (
+                <li><span class:list={['tile tile--static', !l.on && 'is-soon']} lang={l.lang}>
+                  <span class="tile__label">{l.label}</span>
+                  <span class="tile__art"><span class:list={['bubble', l.on && 'bubble--on']}>{l.bubble}</span></span>
+                  <span class="tile__sub">{l.sub}</span>
+                </span></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div class="dd dd--tool" data-dd>
+          <button type="button" class="hd__ic hd__acct" aria-expanded="false" aria-controls="dd-konto" aria-label="Mein Konto" data-dd-toggle>
+            <span data-acct="login" class="hd__acct-ico"><Icon name="circle-user" size={22} /></span>
+            <span data-acct="user" class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span>
+          </button>
+          <div class="dd__panel" id="dd-konto">
+            <ul role="list" class="dd__tiles" style={cols(1)} data-acct="login">
+              <li><a class="tile" href={login.href} rel="nofollow">
+                <span class="tile__label">{login.label}</span>
+                <img class="tile__img" src={login.img} alt="" loading="lazy" decoding="async" width="320" height="160" data-menu-img />
+                <span class="tile__sub">{login.sub}</span>
+              </a></li>
+            </ul>
+            <ul role="list" class="dd__tiles" style={cols(3)} data-acct="user">
+              <li><div class="tile tile--me">
+                <span class="tile__label" data-acct-name>Angemeldet</span>
+                <span class="tile__stage"><span class="tile__ring"><span class="tile__avatar" data-acct-initials><Icon name="user" size={36} /></span></span></span>
+                <span class="tile__rows">
+                  <span class="tile__row"><Icon name="mail" size={16} /><span data-acct-email></span></span>
+                  <span class="tile__row"><Icon name="building-2" size={16} /><span data-acct-company></span></span>
+                </span>
+              </div></li>
+              {[profile, logout].map((t) => (
+                <li><a class="tile" href={t.href} rel="nofollow">
+                  <span class="tile__label">{t.label}</span>
+                  <img class="tile__img" src={t.img} alt="" loading="lazy" decoding="async" width="320" height="160" data-menu-img />
+                  <span class="tile__sub">{t.sub}</span>
+                </a></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <a class="hd__tel" href={tel} aria-label={`${site.phone.display} anrufen`}>
+        <Icon name="phone" size={18} /><span class="hd__telnum tnum">{site.phone.display}</span>
+      </a>
+      <a class="btn btn--primary hd__cta" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+
+      <a class="hd__ic hd__m-acct" href={acct.login.href} rel="nofollow" data-acct="login" aria-label={acct.login.label}><Icon name="circle-user" size={22} /></a>
+      <a class="hd__ic hd__m-acct" href={acct.profile.href} rel="nofollow" data-acct="user" data-mnav-open="konto" aria-label="Mein Konto"><span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span></a>
+
+      <details class="mnav" data-mnav>
+        <summary class="mnav__toggle" aria-label="Menü"><span class="mnav__word"><Icon name="menu" size={24} /></span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">Menü schliessen</span></summary>
+        <div class="mnav__sheet">
+          <div class="mnav__top"><a href="/" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup /></a></div>
+          <nav class="mnav__list" aria-label="Hauptnavigation (mobil)">
+            {mobile.map((g) => (
+              <div class="mg" data-mg={g.id} data-acct={g.acct}>
+                <a href={g.href} class="mg__row" data-mg-toggle aria-expanded="false" aria-current={path === g.href ? 'page' : undefined}>{g.label}<Icon name="chevron-down" size={20} class="mg__chev" /></a>
+                <div class="mg__panel"><div class="mg__clip"><ul role="list" class="mg__rail">
+                  {g.cards.map((c) => (
+                    <li><a class:list={['mg__card', c.deck && 'mg__card--all']} href={c.href} rel={g.acct ? 'nofollow' : undefined}>
+                      {c.deck ? (
+                        <span class="mg__deck" aria-hidden="true">{c.deck.map((src) => <img src={src} alt="" loading="lazy" decoding="async" width="64" height="64" data-menu-img />)}<span class="mg__go"><Icon name="arrow-right" size={18} /></span></span>
+                      ) : (
+                        <img class="mg__img" src={c.img} alt="" loading="lazy" decoding="async" width="188" height="84" data-menu-img />
+                      )}
+                      <span class="mg__label">{c.label}</span>
+                      <span class="mg__sub">{c.sub}</span>
+                    </a></li>
+                  ))}
+                </ul></div></div>
+              </div>
+            ))}
+            <a href={acct.erp.href} class="mg__row mg__row--erp" rel="nofollow" data-acct="staff">{acct.erp.label}<Icon name="arrow-right" size={20} /></a>
+          </nav>
+          <div class="mnav__foot">
+            <a class="mnav__btn btn--glass" href={tel}><Icon name="phone" size={18} /> <span class="tnum">{site.phone.display}</span></a>
+            <a class="mnav__btn mnav__btn--red" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} /></a>
+            <div class="mg mg--lang" data-mg="sprache">
+              <button type="button" class="mnav__lang" data-mg-toggle aria-expanded="false"><Icon name="globe" size={18} /> Deutsch <Icon name="chevron-down" size={16} class="mg__chev" /></button>
+              <div class="mg__panel"><div class="mg__clip"><ul role="list" class="mg__rail">
+                {langs.map((l) => (
+                  <li><span class:list={['mg__card mg__card--lang', !l.on && 'is-soon']} lang={l.lang}>
+                    <span class="mg__art"><span class:list={['bubble mg__bubble', l.on && 'bubble--on']}>{l.bubble}</span></span>
+                    <span class="mg__label">{l.label}</span>
+                    <span class="mg__sub">{l.sub}</span>
+                  </span></li>
+                ))}
+              </ul></div></div>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+</header>
+
+<style>
+  /* ---------- Rahmen ---------- */
+  .site-header {
+    position: sticky; top: 0; z-index: 50; padding: 0;
+    --hd-fg: var(--ink); --hd-dd: 336px; --hd-bar: 64px;
+  }
+  @media (min-width: 1200px) { .site-header { padding: 12px 24px 0; } }
+  /* Über der Bühne: fest am Fenster, die Bühne läuft darunter durch. */
+  .site-header--over { position: fixed; left: 0; right: 0; }
+  .hd { position: relative; max-width: 1392px; margin: 0 auto; color: var(--hd-fg); }
+  .hd__glass {
+    position: absolute; left: 0; right: 0; top: 0; height: var(--hd-bar); z-index: 0; pointer-events: none;
+    background: var(--white); border-bottom: 1px solid var(--line);
+    transition: height 420ms var(--ease), background-color 300ms var(--ease), box-shadow 300ms var(--ease), border-color 300ms var(--ease);
+  }
+  @media (min-width: 1200px) { .hd__glass { border: 1px solid var(--line); border-radius: var(--r-xl); } }
+  .hd__bar {
+    position: relative; z-index: 1; height: var(--hd-bar); display: flex; align-items: center; gap: 4px;
+    padding: 0 8px 0 16px; white-space: nowrap;
+  }
+  @media (min-width: 1200px) { .hd__bar { padding: 0 16px 0 24px; gap: 8px; } }
+
+  /* Offen: die Karte wächst um die Kachelreihe. */
+  .hd:has(.dd.is-open) .hd__glass,
+  :global(html:not(.js)) .hd:has(.dd:is(:hover, :focus-within)) .hd__glass {
+    height: calc(var(--hd-bar) + var(--hd-dd)); box-shadow: var(--shadow-lg);
+  }
+
+  /* Website: Glas (README §3a) – das ERP behält die deckende Fläche oben. */
+  :global(html[data-site]) .hd__glass {
+    background: rgba(255, 255, 255, 0.78); border-color: var(--glass-light-rim);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  }
+  :global(html[data-site]) .hd:has(.dd.is-open) .hd__glass,
+  :global(html[data-site]:not(.js)) .hd:has(.dd:is(:hover, :focus-within)) .hd__glass {
+    background: var(--glass-light); box-shadow: var(--glass-shadow);
+  }
+  /* Schleier über der Seite, solange ein Menü offen ist. */
+  :global(html[data-site]) .site-header::after {
+    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0;
+    background: rgba(241, 242, 244, 0.3); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
+    transition: opacity 350ms var(--ease);
+  }
+  :global(html[data-site]) .site-header:has(.dd.is-open)::after { opacity: 1; }
+  /* Über der Bühne und oben: durchsichtig, weisse Schrift. */
+  .site-header--over:not(.is-scrolled):not(:has(.dd.is-open)) { --hd-fg: var(--white); }
+  :global(html[data-site]) .site-header--over:not(.is-scrolled):not(:has(.dd.is-open)) .hd__glass {
+    background: transparent; border-color: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .hd__logo--white { display: none; }
+  .site-header--over:not(.is-scrolled):not(:has(.dd.is-open)) .hd__logo--ink { display: none; }
+  .site-header--over:not(.is-scrolled):not(:has(.dd.is-open)) .hd__logo--white { display: block; }
+
+  .hd__home { flex: none; display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
+  .hd__home :global(.lockup) { height: 36px; }
+  @media (max-width: 1199px) { .hd__home :global(.lockup) { height: 34px; } }
+
+  /* ---------- Hauptpunkte ---------- */
+  .nav { display: none; flex: 1; margin-left: 4px; align-self: stretch; }
+  .nav__list { display: flex; align-items: stretch; height: 100%; list-style: none; padding: 0; }
+  /* Der Punkt ist so hoch wie die Zeile: vom Namen ins Panel ist kein Spalt (Zeigen bleibt). */
+  .nav__item { display: flex; align-items: center; }
+  .nav__link {
+    display: inline-flex; align-items: center; height: 40px; padding: 0 2px 0 10px; border-radius: var(--r-md) 0 0 var(--r-md);
+    font-size: 0.9375rem; font-weight: 500; color: inherit; text-decoration: none; transition: background-color 200ms var(--ease), opacity 200ms var(--ease);
+  }
+  .nav__item:not(.dd) .nav__link { padding-right: 10px; border-radius: var(--r-md); }
+  .nav__toggle {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 40px; margin-right: 2px;
+    color: inherit; border-radius: 0 var(--r-md) var(--r-md) 0; transition: background-color 200ms var(--ease), opacity 200ms var(--ease);
+  }
+  .nav__toggle :global(.nav__chev) { transition: transform 300ms var(--ease); }
+  .dd.is-open .nav__toggle :global(.nav__chev) { transform: rotate(180deg); }
+  .dd.is-open > :is(.nav__link, .nav__toggle) { background: rgba(10, 10, 11, 0.06); }
+  /* Die anderen Punkte treten zurück, solange einer offen ist. */
+  .hd:has(.dd.is-open) .nav__item:not(.is-open) > :is(.nav__link, .nav__toggle),
+  .hd:has(.dd.is-open) .dd--tool:not(.is-open) .hd__ic { opacity: 0.45; }
+  .nav__link.is-current { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.5em; }
+
+  /* ---------- Kachelreihe ---------- */
+  .dd__panel {
+    position: absolute; left: 0; right: 0; top: var(--hd-bar); height: var(--hd-dd); padding: 20px 32px;
+    border-top: 1px solid rgba(10, 10, 11, 0.07); white-space: normal; color: var(--ink);
+    opacity: 0; visibility: hidden; transform: translateX(24px); pointer-events: none;
+    transition: opacity 350ms var(--ease), transform 450ms var(--ease), visibility 0s linear 450ms;
+  }
+  /* Die Bilder der Kacheln (Titelbilder) laden erst, wenn der Kopf berührt wird oder ein Punkt offen ist:
+     vorher ist die Kachelreihe gar nicht im Layout – ein bloss unsichtbares Lazy-Bild lüde der Browser
+     mit jeder Seite. Das Mobil-Menü steckt in einem geschlossenen <details> und lädt ebenso erst offen. */
+  .hd:not(:hover):not(:focus-within):not(:has(.dd.is-open)) .dd__panel { display: none; }
+  /* Wer links vom offenen Punkt steht, gleitet nach links weg (wie Stripe). Nur 24 px – so viel
+     Rand hat die Karte zum Fenster: nichts ragt hinaus, und die Karte braucht keinen Zuschnitt
+     (der schnitt ihren Schatten links und rechts hart ab). */
+  .dd:has(~ .dd.is-open) .dd__panel, .nav:has(~ .hd__tools .dd.is-open) .dd__panel { transform: translateX(-24px); }
+  .dd.is-open .dd__panel,
+  :global(html:not(.js)) .dd:is(:hover, :focus-within) .dd__panel {
+    opacity: 1; visibility: visible; transform: none; pointer-events: auto;
+    transition: opacity 350ms var(--ease), transform 450ms var(--ease), visibility 0s;
+  }
+  .dd__tiles { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 12px; align-items: start; list-style: none; padding: 0; }
+  .tile {
+    display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border-radius: var(--r-xl);
+    color: var(--ink); text-decoration: none; transition: background-color 250ms var(--ease);
+  }
+  a.tile:hover, a.tile:focus-visible { background: rgba(255, 255, 255, 0.55); }
+  .tile__label { font-size: 1.375rem; font-weight: 500; letter-spacing: -0.01em; line-height: 1.2; }
+  .tile__img { display: block; width: 100%; height: 160px; object-fit: contain; transition: transform 500ms var(--ease); }
+  a.tile:hover .tile__img { transform: translateY(-3px); }
+  .tile__sub { font-size: 0.875rem; line-height: 1.45; color: var(--gray-500); }
+  /* Die Übersicht «Alles zu …»: dunkel wie im Mobil-Menü, die Zeichnungen der Unterseiten als Stapel. */
+  a.tile--all { background: radial-gradient(120% 90% at 50% 18%, #3A3B3F 0%, var(--ink) 70%); color: var(--white); box-shadow: 0 8px 24px rgba(10, 10, 11, 0.12); }
+  a.tile--all:hover, a.tile--all:focus-visible { background: radial-gradient(120% 90% at 50% 18%, #46474C 0%, var(--ink) 70%); }
+  .tile--all .tile__sub { color: rgba(255, 255, 255, 0.62); }
+  .tile__deck { position: relative; display: block; height: 160px; }
+  .tile__deck img { position: absolute; top: 10px; width: 54%; height: 140px; object-fit: contain; transition: transform 500ms var(--ease); }
+  .tile__deck img:nth-child(1) { left: -8%; }
+  .tile__deck img:nth-child(2) { left: 23%; top: 22px; z-index: 1; }
+  .tile__deck img:nth-child(3) { left: 54%; }
+  .tile__deck img:first-child:nth-last-child(2) { left: 2%; }
+  .tile__deck img:first-child:nth-last-child(2) + img { left: 44%; top: 18px; }
+  a.tile--all:hover .tile__deck img:first-child { transform: translate(-6px, -2px) rotate(-2deg); }
+  a.tile--all:hover .tile__deck img:last-child { transform: translate(6px, -2px) rotate(2deg); }
+  .tile__sub:empty { display: none; }
+  .tile[aria-current='page'] .tile__label { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.25em; }
+  .is-soon { opacity: 0.5; }
+  .tile__art { display: flex; align-items: center; justify-content: center; height: 160px; }
+  .bubble {
+    position: relative; padding: 14px 28px; border-radius: 999px; background: var(--gray-200); color: var(--gray-500);
+    font-family: var(--font-display); font-weight: 600; font-size: 2.25rem; line-height: 1.1; letter-spacing: -0.02em;
+  }
+  .bubble::after { content: ''; position: absolute; left: 22%; bottom: -9px; width: 18px; height: 18px; border-radius: 2px; background: inherit; transform: rotate(45deg); }
+  .bubble--on { background: var(--red); color: var(--white); }
+  .bubble--sm { padding: 8px 16px; font-size: 1.25rem; }
+  .bubble--sm::after { bottom: -6px; width: 12px; height: 12px; }
+  /* Wer angemeldet ist – eine Auskunft, kein Knopf: gleiche Zeilen wie die Kacheln (Name · Bild · Text). */
+  .tile--me { cursor: default; }
+  .tile__stage { display: flex; align-items: center; justify-content: flex-start; height: 160px; }
+  .tile__ring { display: inline-flex; align-items: center; justify-content: center; width: 132px; height: 132px; border-radius: 50%; background: radial-gradient(closest-side, transparent 82%, rgba(229, 26, 20, 0.14) 83% 100%); }
+  .tile__avatar {
+    display: inline-flex; align-items: center; justify-content: center; width: 104px; height: 104px; border-radius: 50%; overflow: hidden;
+    background: var(--red); color: var(--white); font-family: var(--font-display); font-size: 2.25rem; font-weight: 600; letter-spacing: -0.02em;
+    box-shadow: 0 10px 24px rgba(229, 26, 20, 0.25);
+  }
+  .tile__rows { display: grid; gap: 6px; font-size: 0.875rem; color: var(--gray-500); }
+  .tile__row { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+  .tile__row :global(svg) { flex: none; color: var(--gray-400); }
+  .tile__row:has(> span:empty) { display: none; }
+  .hd__avatar :global(.pm__avatar), .tile__avatar :global(.pm__avatar) { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* ---------- Werkzeuge rechts ---------- */
+  .hd__tools { display: none; align-items: stretch; gap: 2px; padding-right: 10px; margin-right: 6px; border-right: 1px solid rgba(127, 127, 127, 0.3); align-self: stretch; }
+  .dd--tool { display: flex; align-items: center; }
+  .hd__ic {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 40px; padding: 0 8px;
+    border-radius: var(--r-md); color: inherit; text-decoration: none; font-size: 0.875rem; font-weight: 600;
+    transition: background-color 200ms var(--ease), opacity 250ms var(--ease);
+  }
+  .hd__ic:hover, .dd--tool.is-open .hd__ic { background: rgba(127, 127, 127, 0.16); }
+  .hd__avatar {
+    display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; overflow: hidden;
+    background: var(--red); color: var(--white); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .hd__acct-ico { display: inline-flex; }
+  .hd__tel { display: none; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; color: inherit; text-decoration: none; font-size: 0.9375rem; font-weight: 600; }
+  .hd__tel:hover .hd__telnum { text-decoration: underline; text-underline-offset: 0.2em; }
+  .hd__cta { display: none; --btn-h: 44px; padding: 0 18px; font-size: 0.9375rem; font-weight: 600; }
+  /* Schmal: Logo links, rechts Konto · Telefon · Menü (Reihenfolge per order, die Tasten
+     stehen im HTML in der Reihenfolge der breiten Ansicht). */
+  @media (max-width: 1199px) {
+    .hd__home { margin-right: auto; }
+    .hd__m-acct { order: 1; }
+    .hd__tel { display: inline-flex; order: 2; min-width: 44px; justify-content: center; }
+    .hd__telnum { display: none; }
+    .mnav { order: 3; }
+  }
+
+  /* ---------- Mobil: «Menü» und ein Blatt mit zwei Ebenen ---------- */
+  .mnav { display: block; }
+  .mnav__toggle {
+    list-style: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+    border-radius: var(--r-md); color: inherit; cursor: pointer;
+  }
+  .mnav__toggle::-webkit-details-marker { display: none; }
+  .mnav__close { display: none; }
+  .mnav:not([open]) .mnav__x { display: none; }
+  .mnav[open] .mnav__word { display: none; }
+  .mnav[open] .mnav__close { display: inline-flex; }
+  .mnav[open] > .mnav__toggle {
+    position: fixed; top: 10px; right: 8px; z-index: 62; color: var(--ink);
+  }
+  .mnav__sheet {
+    position: fixed; inset: 0; z-index: 61; display: flex; flex-direction: column; white-space: normal; color: var(--ink);
+    background: var(--white); overflow: hidden;
+  }
+  :global(html[data-site]) .mnav__sheet { background: rgba(246, 247, 249, 0.95); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
+  .mnav__top { height: 64px; flex: none; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--gray-200); }
+  .mnav__top :global(.lockup) { height: 34px; }
+  .mnav__list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 0 0; }
+  .mg { border-bottom: 1px solid rgba(10, 10, 11, 0.06); }
+  .mg__row {
+    display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 24px;
+    font-size: 1.375rem; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); text-decoration: none;
+  }
+  .mg__row :global(.icon) { color: var(--gray-500); }
+  .mg__row[aria-current='page'] { text-decoration: underline; text-underline-offset: 0.25em; }
+  .mg.is-open > .mg__row { font-weight: 600; }
+  .mg :global(.mg__chev) { transition: transform 350ms var(--ease); }
+  .mg.is-open :global(.mg__chev) { transform: rotate(180deg); color: var(--ink); }
+  .mg__panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 420ms var(--ease); }
+  .mg.is-open > .mg__panel { grid-template-rows: 1fr; }
+  .mg__clip { overflow: hidden; min-height: 0; }
+  .mg__rail { display: flex; gap: 10px; list-style: none; margin: 0; padding: 4px 24px 18px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 24px; scrollbar-width: none; }
+  .mg__rail::-webkit-scrollbar { display: none; }
+  .mg__rail > li { flex: 0 0 212px; scroll-snap-align: start; }
+  .mg__card {
+    position: relative; display: flex; flex-direction: column; gap: 4px; height: 188px; padding: 12px; box-sizing: border-box; border-radius: 14px;
+    background: rgba(255, 255, 255, 0.62); border: 1px solid rgba(255, 255, 255, 0.95); box-shadow: 0 8px 24px rgba(10, 10, 11, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    color: var(--ink); text-decoration: none;
+  }
+  .mg__img { width: 100%; height: 84px; object-fit: contain; margin-bottom: 6px; }
+  .mg__label { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+  .mg__sub { font-size: 0.8125rem; line-height: 1.4; color: var(--gray-500); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* «Alles zu …»: die Übersicht, dunkel, mit dem Stapel der Zeichnungen und dem roten Pfeil. */
+  .mg__card--all { background: radial-gradient(120% 90% at 50% 18%, #3A3B3F 0%, var(--ink) 70%); border: 0; box-shadow: 0 8px 24px rgba(10, 10, 11, 0.12); color: var(--white); }
+  .mg__card--all .mg__sub { color: rgba(255, 255, 255, 0.62); }
+  .mg__deck { position: relative; height: 84px; margin-bottom: 6px; }
+  /* Die Zeichnungen der Unterseiten nebeneinander, leicht überlappend – ohne eigene Kärtchen. */
+  .mg__deck img { position: absolute; top: 4px; width: 84px; height: 76px; object-fit: contain; }
+  .mg__deck img:nth-child(1) { left: -8px; }
+  .mg__deck img:nth-child(2) { left: 46px; top: 10px; z-index: 1; }
+  .mg__deck img:nth-child(3) { left: 100px; }
+  .mg__go { position: absolute; right: 0; top: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--red); color: var(--white); }
+  .mg__card--lang { align-items: stretch; }
+  .mg__card--lang.is-soon { opacity: 0.6; }
+  .mg__art { display: flex; align-items: center; justify-content: center; height: 96px; margin-bottom: 4px; }
+  .mg__art .mg__bubble { padding: 12px 24px; font-size: 1.875rem; }
+  .mg__art .mg__bubble::after { bottom: -8px; width: 16px; height: 16px; }
+  .mnav__foot { flex: none; display: grid; gap: 10px; padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--gray-200); }
+  .mnav__btn { display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; border-radius: var(--r-md); font-size: 1rem; font-weight: 600; text-decoration: none; }
+  .mnav__btn--red { background: var(--red); color: var(--white); }
+  .mnav__lang { justify-self: center; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 44px; font-size: 0.9375rem; font-weight: 500; color: var(--ink-3); }
+  .mg--lang { border: 0; }
+  .mg--lang.is-open .mnav__lang { color: var(--ink); font-weight: 600; }
+  .mg--lang .mg__rail { padding-inline: 8px; scroll-padding-inline: 8px; }
+
+  /* ---------- Testumgebung ---------- */
+  .env-ribbon { position: fixed; top: 0; right: 0; z-index: 1000; width: 72px; height: 72px; overflow: hidden; pointer-events: none; }
+  .env-ribbon span {
+    position: absolute; top: 14px; right: -30px; width: 116px; padding: 3px 0; transform: rotate(45deg);
+    background: var(--amber); color: var(--white); text-align: center;
+    font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; line-height: 1.4;
+    box-shadow: 0 1px 4px rgba(15, 17, 20, 0.3);
+  }
+  @media (max-width: 767px) {
+    .env-ribbon { width: 52px; height: 52px; }
+    .env-ribbon span { top: 9px; right: -34px; width: 104px; padding: 1px 0; font-size: 0.5625rem; }
+  }
+
+  @media (min-width: 1200px) {
+    .nav, .hd__tools { display: flex; }
+    .hd__tel, .hd__cta { display: inline-flex; }
+    .mnav, .hd__m-acct { display: none; }
+  }
+  /* Schmaler Desktop: die Nummer weicht dem Symbol. */
+  @media (min-width: 1200px) and (max-width: 1379px) { .hd__telnum { display: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .hd__glass, .dd__panel, .mg__panel, .site-header::after, .mg :global(.mg__chev) { transition: none !important; }
+  }
+</style>

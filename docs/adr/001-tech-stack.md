@@ -1,5 +1,16 @@
 # ADR 001: Technology Stack
 
+> ## Kopfstatus (Oktober 2026): **gültig, mit benannten Abweichungen**
+> Die Wahl der Bausteine steht. **Verdrahtet** sind inzwischen **Stripe** (eigene
+> Bezahlkarte im ERP, `services/stripe_pay.py`, optional), die **Gmail API** (je eigener
+> Gesellschaft ein Postfach, `services/mailbox.py`, optional), **Cloud Storage** (je
+> Umgebung ein privater Bucket, eine Stelle `services/attachments`) und die **KI** (Claude
+> API über EINE Tür `services/ai.py`, optional). **Nicht verdrahtet** ist Typesense. Heute
+> gilt Next.js 16 / React 19 statt Next.js 14, dazu die Website in Astro (`website/`); die
+> Versionen stehen in `CLAUDE.md` → Architektur.
+
+
+
 **Status:** Accepted  
 **Date:** 2026-06-03  
 **Deciders:** Inexxio AG

@@ -2,122 +2,53 @@ name: Deploy → Dev
 
 on:
   push:
-    branches:
-      - develop
+    branches: [develop]
   workflow_dispatch:
 
 concurrency:
   group: deploy-dev
   cancel-in-progress: true
 
-env:
-  GCP_PROJECT: inexxio-dev
-  GCP_REGION: europe-west6
-  ARTIFACT_REGISTRY: europe-west6-docker.pkg.dev
-  ARTIFACT_REPO: inexxio-dev
-  CLOUD_RUN_SERVICE: inexxio-backend-dev
-  FIREBASE_PROJECT: inexxio-dev
-
 jobs:
-  deploy-backend:
-    name: Backend → Cloud Run (dev)
-    runs-on: ubuntu-latest
+  quality:
+    name: Quality gates
+    uses: ./.github/workflows/quality.yml
+    with:
+      build: false          # gebaut wird einmal, im Deploy (Job «Build»), vor dem Ausrollen
+
+  deploy:
+    name: Dev
+    needs: quality
+    uses: ./.github/workflows/deploy.yml
     permissions:
       contents: read
       id-token: write
-    outputs:
-      image: ${{ steps.build.outputs.image }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud (deploy SA)
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
-
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
-
-      - name: Build and push backend image
-        id: build
-        working-directory: backend
-        run: |
-          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/backend:${{ github.sha }}"
-          IMAGE_LATEST="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/backend:latest"
-          docker build --tag "$IMAGE" --tag "$IMAGE_LATEST" \
-            --cache-from "$IMAGE_LATEST" --build-arg BUILDKIT_INLINE_CACHE=1 .
-          docker push "$IMAGE"
-          docker push "$IMAGE_LATEST"
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
-            --image "${{ steps.build.outputs.image }}" \
-            --project "${{ env.GCP_PROJECT }}" \
-            --region "${{ env.GCP_REGION }}" \
-            --platform managed \
-            --allow-unauthenticated \
-            --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
-            --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-dev-db" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,INITIAL_ADMIN_EMAIL=INITIAL_ADMIN_EMAIL:latest" \
-            --set-env-vars "APP_ENV=development" \
-            --min-instances 0 \
-            --max-instances 3 \
-            --memory 512Mi \
-            --cpu 1 \
-            --timeout 60s \
-            --concurrency 80 \
-            --quiet
-
-  deploy-frontend:
-    name: Frontend → Firebase Hosting (dev)
-    runs-on: ubuntu-latest
-    needs: deploy-backend
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Authenticate to Google Cloud (deploy SA)
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
-
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm install
-
-      - name: Build frontend
-        working-directory: frontend
-        env:
-          NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyCl0x8TQUWX5XaECVF2luO9i9PNU8L7CWE
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: inexxio-dev.firebaseapp.com
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID: inexxio-dev
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: inexxio-dev.firebasestorage.app
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "395883203074"
-          NEXT_PUBLIC_FIREBASE_APP_ID: 1:395883203074:web:806fcb48ad21b90c88751b
-          NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: G-9D74JS9VN8
-          NEXT_PUBLIC_API_URL: https://inexxio-dev.web.app
-          NEXT_PUBLIC_APP_URL: https://inexxio-dev.web.app
-          NEXT_PUBLIC_ENVIRONMENT: development
-        run: npm run build
-
-      - name: Deploy to Firebase Hosting (dev)
-        run: firebase deploy --only hosting --project inexxio-dev --non-interactive
-
-  notify-failure:
-    name: Notify on failure
-    runs-on: ubuntu-latest
-    needs: [deploy-backend, deploy-frontend]
-    if: failure()
-    steps:
-      - run: echo "::error::Dev deployment failed for ${{ github.sha }} by ${{ github.actor }}"
+    with:
+      env_name: dev
+      gcp_project: inexxio-dev
+      service: inexxio-backend-dev
+      sql_instance: inexxio-dev-db
+      site_url: https://inexxio-dev.web.app
+      app_env: development
+      # Auf null im Leerlauf (~0 CHF); der erste Aufruf danach wartet einen Kaltstart.
+      # Verbindungen: 2 Instanzen × 1 Worker × (5 + 5) = 20 ≤ 25 − 3 (db-f1-micro).
+      min_instances: 0
+      max_instances: 2
+      cpu: '1'
+      memory: 512Mi
+      web_workers: 1
+      # FIREBASE_PROJECT_ID kommt auf dev aus dem Secret Manager (Eingabe leer).
+      stripe_publishable_key: pk_test_51TnjWgQr3aoUqi8iUdnZrLl9X5CvfjtUXwfKHQrXtnUEEYtMKnU74R5gGxGg0otY0GTSZZQLQLBZ1LYse95ICcO700e1hcSnsn
+      site_env: dev
+      site_feedback: 'on'
+      next_environment: development
+      noindex: true
+      firebase_api_key: AIzaSyCl0x8TQUWX5XaECVF2luO9i9PNU8L7CWE
+      firebase_auth_domain: inexxio-dev.firebaseapp.com
+      firebase_storage_bucket: inexxio-dev.firebasestorage.app
+      firebase_messaging_sender_id: '395883203074'
+      firebase_app_id: 1:395883203074:web:806fcb48ad21b90c88751b
+      # Workload Identity (infra/README.md): kein Geheimnis, Google nimmt das Token nur
+      # für dieses Repository an.
+      workload_identity_provider: projects/395883203074/locations/global/workloadIdentityPools/github/providers/github
+      service_account: github-actions@inexxio-dev.iam.gserviceaccount.com

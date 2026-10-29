@@ -10,14 +10,17 @@ import {
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
+  signInWithCustomToken,
   signOut,
-  onAuthStateChanged,
+  onIdTokenChanged,
   verifyBeforeUpdateEmail,
+  reauthenticateWithPopup,
   type Auth,
   type User,
 } from 'firebase/auth';
+import { api } from './api';
+import { clearAccountCache } from './account-cache';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
@@ -44,17 +47,28 @@ if (typeof window !== 'undefined') {
     // initializeAuth throws on hot-reload / multiple calls — fall back
     auth = getAuth(app);
   }
+  // Wechselt die angemeldete Person (Abmelden, anderes Konto), gilt das gehaltene Profil
+  // nicht mehr (`api.getMe`).
+  let uid: string | null | undefined;
+  onIdTokenChanged(auth, (user) => {
+    const next = user?.uid ?? null;
+    if (uid !== undefined && next !== uid) api.forgetMe();
+    uid = next;
+  });
 }
 
 export { auth };
 
-export const googleProvider = new GoogleAuthProvider();
+const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 function getActionCodeSettings() {
+  // Unter welcher Adresse die Oberfläche läuft, weiss das Deployment – nicht eine
+  // fest verdrahtete Domain hier (die stand auf `inexxio.web.app`, also auf keinem
+  // der beiden Ziele). Im Browser gilt ohnehin die Adresse, auf der man steht.
   const baseUrl = typeof window !== 'undefined'
     ? window.location.origin
-    : 'https://inexxio.web.app';
+    : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
   return {
     url: `${baseUrl}/login/verify`,
     handleCodeInApp: true,
@@ -67,7 +81,7 @@ export async function sendMagicLink(email: string): Promise<void> {
   localStorage.setItem('emailForSignIn', email);
 }
 
-export async function completeMagicLink(): Promise<{ token: string; user: User } | null> {
+export async function completeMagicLink(): Promise<User | null> {
   if (!auth) return null;
   if (!isSignInWithEmailLink(auth, window.location.href)) return null;
 
@@ -78,57 +92,110 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
 
   const result = await signInWithEmailLink(auth, email, window.location.href);
   localStorage.removeItem('emailForSignIn');
-  const token = await result.user.getIdToken();
-  return { token, user: result.user };
+  return result.user;
 }
 
-const GOOGLE_REDIRECT_KEY = 'inexxio_google_redirect_pending';
-
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(): Promise<User> {
   if (!auth) throw new Error('Firebase not initialized');
-  // Set flag before navigating so we know to call getRedirectResult on return.
-  // This also prevents calling getRedirectResult on unrelated page loads, which
-  // would corrupt the auth instance via stale IndexedDB pendingRedirect entries.
-  localStorage.setItem(GOOGLE_REDIRECT_KEY, '1');
-  await signInWithRedirect(auth, googleProvider);
+  const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
+  return result.user;
 }
 
-export async function getGoogleRedirectResult(): Promise<{ token: string; user: User } | null> {
-  if (!auth) return null;
-  if (!localStorage.getItem(GOOGLE_REDIRECT_KEY)) return null;
-  localStorage.removeItem(GOOGLE_REDIRECT_KEY);
-  try {
-    const result = await getRedirectResult(auth);
-    if (!result) return null;
-    const token = await result.user.getIdToken();
-    return { token, user: result.user };
-  } catch (err) {
-    if ((err as { code?: string }).code === 'auth/internal-error') return null;
-    throw err;
-  }
+// Passkey-Anmeldung: Das Backend prüft die WebAuthn-Assertion und stellt einen
+// Firebase Custom Token aus. Damit wird hier eine ganz normale Firebase-Session
+// begründet – ab jetzt verhält sich alles wie bei Magic Link / Google.
+export async function signInWithPasskey(firebaseToken: string): Promise<User> {
+  if (!auth) throw new Error('Firebase not initialized');
+  const result = await signInWithCustomToken(auth, firebaseToken);
+  return result.user;
 }
 
 export async function logout(): Promise<void> {
-  if (!auth) return;
-  await signOut(auth);
-  localStorage.removeItem('inexxio_token');
+  // ►►► **Erst die Sitzung beenden, DANN den Anzeige-Cache räumen – und das unbedingt.** ◄◄◄
+  //
+  // Die Website liest den Cache, um «Anmelden» bzw. das Profilmenü zu zeigen
+  // (`lib/account-cache`). Wurde er **vor** `signOut` geräumt, konnte ein noch laufender
+  // Profil-Abruf (`AccountSync`, er läuft auf jeder Seite – auch auf `/abmelden`) ihn in der
+  // Lücke wieder füllen: die Startseite zeigte danach weiter einen Namen, und man musste ein
+  // zweites Mal abmelden. Nach `signOut` gibt es keine Sitzung mehr, auf die ein Schreiber
+  // sich berufen könnte (`AccountSync` prüft `currentUid()` vor jedem Schreiben); das
+  // `finally` räumt auch dann, wenn das Abmelden scheitert.
+  try {
+    if (auth) await signOut(auth);
+  } finally {
+    api.forgetMe();
+    clearAccountCache();
+  }
 }
 
-export async function getIdToken(): Promise<string | null> {
-  if (!auth?.currentUser) return null;
-  return auth.currentUser.getIdToken();
+/** Wer jetzt angemeldet ist – die Frage, die ein Schreiber NACH einem `await` stellt. */
+export function currentUid(): string | null {
+  return auth?.currentUser?.uid ?? null;
 }
+
+// ►►► **Der Token kommt je Anfrage von hier** – kein Aufrufer setzt ihn. ◄◄◄ Der API-Client
+// fragt vor jeder Anfrage (`force = false`: Firebase liefert den vorgehaltenen Token und
+// erneuert ihn selbst kurz vor Ablauf) und nach einem 401 EINMAL erzwungen
+// (`getIdToken(true)`: im Hintergrund-Tab oder im Ruhezustand läuft Firebases
+// Erneuerungs-Timer nicht). `authStateReady` wartet beim Laden der Seite, bis Firebase die
+// gespeicherte Sitzung gelesen hat – sonst ginge die erste Anfrage ohne Token hinaus.
+// Hier registriert, damit `api.ts` nichts von Firebase wissen muss.
+api.setTokenProvider(async (force) => {
+  if (!auth) return null;
+  await auth.authStateReady();
+  return auth.currentUser ? auth.currentUser.getIdToken(force) : null;
+});
 
 export function onAuthChange(callback: (user: User | null) => void) {
   if (!auth) return () => {};
-  return onAuthStateChanged(auth, callback);
+  // `onIdTokenChanged` statt `onAuthStateChanged`: feuert bei Anmelden/Abmelden UND bei
+  // jeder Token-Erneuerung (die Abonnenten – `AuthGate`, `AccountSync`, Testnotizen,
+  // Passkey-Hinweis – prüfen darum selbst, ob sich für sie etwas geändert hat).
+  return onIdTokenChanged(auth, callback);
 }
 
+/**
+ * ►►► **Die Anmelde-E-Mail ändern** – Firebase schickt einen Bestätigungslink an die NEUE
+ * Adresse (`verifyBeforeUpdateEmail`); erst der Klick ändert sie. Die alte Adresse bekommt
+ * von Firebase eine Nachricht mit einem Link zum Rückgängigmachen. ◄◄◄
+ *
+ * Nach dem Klick sind alle Sitzungen abgelaufen (Firebase widerruft sie bei einer neuen
+ * E-Mail); der Link führt zurück nach `/konto?email=neu`, wo `refreshAfterEmailChange` das
+ * prüft. Das Backend übernimmt die Adresse aus dem nächsten Token (`core/auth`).
+ * Verlangt eine frische Anmeldung (`auth/requires-recent-login`) – siehe `reauthenticate`.
+ */
 export async function updateEmailAddress(newEmail: string): Promise<void> {
   if (!auth?.currentUser) throw new Error('Nicht angemeldet');
-  const actionCodeSettings = {
-    url: `${typeof window !== 'undefined' ? window.location.origin : 'https://inexxio-dev.web.app'}/konto`,
+  auth.languageCode = 'de';
+  await verifyBeforeUpdateEmail(auth.currentUser, newEmail, {
+    url: `${window.location.origin}/konto?email=neu`,
     handleCodeInApp: false,
-  };
-  await verifyBeforeUpdateEmail(auth.currentUser, newEmail, actionCodeSettings);
+  });
+}
+
+/**
+ * Frisch anmelden, ohne die Seite zu verlassen – geht nur mit Google (Pop-up). Wer per
+ * E-Mail-Link oder Passkey angemeldet ist, meldet sich neu an (`'login'`).
+ */
+export async function reauthenticate(): Promise<'done' | 'login'> {
+  const user = auth?.currentUser;
+  if (!user?.providerData.some((p) => p.providerId === 'google.com')) return 'login';
+  await reauthenticateWithPopup(user, googleProvider, browserPopupRedirectResolver);
+  return 'done';
+}
+
+/**
+ * Zurück vom Bestätigungslink: Gilt die Sitzung noch, holt sie einen frischen Token mit der
+ * neuen Adresse; ist sie widerrufen, wird abgemeldet (das Konto schickt dann zur Anmeldung).
+ */
+export async function refreshAfterEmailChange(): Promise<string | null> {
+  try {
+    await auth?.currentUser?.reload();
+    const token = await auth?.currentUser?.getIdToken(true);
+    api.forgetMe();   // die neue Adresse steht erst in der nächsten Antwort
+    return token ?? null;
+  } catch {
+    await logout();
+    return null;
+  }
 }

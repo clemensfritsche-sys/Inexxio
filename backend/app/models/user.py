@@ -1,40 +1,107 @@
-import enum
-from datetime import datetime
-from typing import Optional
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Numeric, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
-from app.core.database import Base
-from app.models.base_object import Object
+from datetime import date, datetime
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from ..core.database import Base
+from .base import TimestampMixin
+
+if TYPE_CHECKING:
+    from .address_book import Address
+    from .admin import CompanySettings
 
 
-class UserRole(str, enum.Enum):
-    admin = "admin"
-    employee = "employee"
-    supplier = "supplier"
-    customer = "customer"
+class UserProfile(Base, TimestampMixin):
+    __tablename__ = "user_profiles"
 
-
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(BigInteger, ForeignKey("objects.id"), primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
     firebase_uid: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    first_name: Mapped[str] = mapped_column(String(100), nullable=True)
-    last_name: Mapped[str] = mapped_column(String(100), nullable=True)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.customer, nullable=False)
-    phone: Mapped[str] = mapped_column(String(50), nullable=True)
-    function: Mapped[str] = mapped_column(String(100), nullable=True)
-    department: Mapped[str] = mapped_column(String(100), nullable=True)
-    language: Mapped[str] = mapped_column(String(10), default="de", nullable=False)
-    timezone: Mapped[str] = mapped_column(String(50), default="Europe/Zurich", nullable=False)
-    avatar_url: Mapped[str] = mapped_column(Text, nullable=True)
-    weekly_hours: Mapped[float] = mapped_column(Numeric(4, 1), nullable=True)
-    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    terms_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    terms_version: Mapped[str] = mapped_column(String(20), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    photo_url: Mapped[Optional[str]] = mapped_column(Text)
+    # Wie sich die Person zuletzt angemeldet hat (aus dem Firebase-ID-Token:
+    # google.com | password | emailLink | custom = Passkey). Rein deskriptiv – die
+    # Support-Frage «wie kommt der überhaupt rein?» war sonst nicht beantwortbar.
+    last_sign_in_provider: Mapped[Optional[str]] = mapped_column(String(40))
+    #: ►►► **Die Rolle beantwortet GENAU EINE Frage: darf diese Person ins ERP?** ◄◄◄
+    #:
+    #: ``admin`` · ``employee`` · ``user`` – mehr nicht. *Lieferant ↔ Kunde ist eine
+    #: Eigenschaft des VORGANGS*, nicht der Person. Wer Partner einer Ausgabe ist, ist dort
+    #: Lieferant; bei einer Einnahme Kunde – dieselbe Person kann beides sein, und zwar
+    #: gleichzeitig. Eine Spalte am Datensatz muss sich für eines entscheiden und liegt
+    #: damit in der Hälfte der Fälle falsch. Dieselbe Bauart wie
+    #: ``order_units.return_to_order_id``: die **Verbindung** trägt es, nicht der Datensatz.
+    #:
+    #: Gelesen wird sie ausschliesslich als Zugang (``people.STAFF_ROLES``).
+    role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
 
-    # shadow account = created during guest checkout, not yet activated
-    is_shadow: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    company_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("objects.id"), nullable=True)
+    # Personal identity
+    first_name: Mapped[Optional[str]] = mapped_column(String(100))
+    last_name: Mapped[Optional[str]] = mapped_column(String(100))
+    phone: Mapped[Optional[str]] = mapped_column(String(50))
+
+    # ►►► **Die Anschriften stehen im ADRESSBUCH** (``models/address_book.Address``). ◄◄◄
+    # Eine Person hat beliebig viele Orte (Wohnung, Büro, Lager, Baustelle), und wohin Ware
+    # und Rechnung gehen, entscheidet die Bestellung.
+    #: Das Adressbuch – nur lesend und nur die aktiven, älteste zuerst.
+    addresses: Mapped[list["Address"]] = relationship(
+        "Address",
+        primaryjoin="and_(Address.owner_id == UserProfile.id, Address.is_active == True)",
+        viewonly=True, lazy="select", order_by="Address.id",
+    )
+
+    # Personal extras
+    date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    # ─── Firma ──────────────────────────────────────────────────────────────────
+    # ►►► **Die Firma ist ein eigener DATENSATZ, nicht ein Satz Felder an der Person**
+    # (CRM Schritt 1). ◄◄◄ Name, Rechtsform und UID leben am Unternehmen
+    # (``company_settings``); die Person zeigt darauf: ``company_object_id`` weiter unten,
+    # gelesen über ``company``. Eine Bankverbindung hat die Person nicht – eine IBAN gibt
+    # es nur an einer EIGENEN Gesellschaft (Überweisung, QR-Rechnung).
+
+    #: ►►► **Die Firma dieser Person** – eine eigene Gesellschaft (dann arbeitet sie
+    #: bei uns) oder eine fremde (Kunde, Lieferant, Interessent). EINE Zuordnung für
+    #: beide, die Unterscheidung trägt die Firma (``is_own``). ``NULL`` = Privatperson.
+    #:
+    #: **Keine Fremdschlüssel-Spalte**, sondern die Objektnummer – die Adresse, unter der
+    #: im Haus auf einen Datensatz gezeigt wird. Personal braucht eine **eigene** Firma
+    #: (``people.assert_employment``) – auf einem Beleg steht, wer ihn stellt.
+    company_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    #: Die Firma als Datensatz – nur lesend; geschrieben wird ``company_object_id``.
+    company: Mapped[Optional["CompanySettings"]] = relationship(
+        "CompanySettings",
+        primaryjoin="foreign(UserProfile.company_object_id) == CompanySettings.object_id",
+        viewonly=True, lazy="select", uselist=False,
+    )
+    # Vorlieben – bewusst behalten (Entscheid E7, 18.10.2026), auch ohne Leser.
+    language: Mapped[str] = mapped_column(String(10), default="de")
+    notification_email: Mapped[bool] = mapped_column(Boolean, default=True)
+    notification_inapp: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Eintritt, Pensum und Austritt stehen im **Vertrag** der Zeiterfassung
+    # (``models/timekeeping``), die Einwilligung zum Newsletter als Nachweis
+    # (``models/newsletter``).
+
+    # Auth / compliance
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    @property
+    def missing_fields(self) -> list[dict]:
+        """Was im Profil noch fehlt – die Regel steht in ``people.missing_fields``."""
+        from ..services.people import missing_fields
+        return missing_fields(self)
+
+    @property
+    def required_fields(self) -> list[str]:
+        from ..services.people import required_fields
+        return [key for key, _, _ in required_fields(self)]
+
+    @property
+    def display_name(self) -> str:
+        """Anzeigename – EINE Regel für alle Anzeigen und ALLE Rollen:
+        **«Vorname Nachname» → E-Mail** (Notiz #291). Es wird immer der **Name der
+        Person** gezeigt; die Firma ist ein eigener Datensatz mit eigenem Namen."""
+        name = " ".join(p for p in [self.first_name, self.last_name] if p).strip()
+        return name or self.email

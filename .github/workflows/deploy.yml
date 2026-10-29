@@ -1,0 +1,273 @@
+name: Deploy (eine Umgebung)
+
+# ►►► EIN Ablauf für dev und prod. ◄◄◄ deploy-dev.yml und deploy-prod.yml rufen ihn mit
+# den Werten ihrer Umgebung auf, nachdem das Gate (quality.yml) grün ist. Drei Schritte:
+#
+#   1. Build     Website + Frontend mit den Werten der Umgebung, zusammengeführt zur
+#                Hosting-Ausgabe (Artefakt). Scheitert er, ist noch nichts ausgerollt.
+#   2. Backend   Bild bauen, nach Cloud Run, danach: steht die Datenbank auf dem Stand?
+#   3. Hosting   genau die Ausgabe aus Schritt 1 nach Firebase Hosting.
+
+on:
+  workflow_call:
+    inputs:
+      env_name:          { type: string, required: true }    # dev | prod (Beschriftung)
+      gcp_project:       { type: string, required: true }
+      region:            { type: string, default: europe-west6 }
+      service:           { type: string, required: true }    # Cloud-Run-Dienst
+      sql_instance:      { type: string, required: true }
+      site_url:          { type: string, required: true }    # Hosting-Adresse, auch API (same origin)
+      app_env:           { type: string, required: true }    # development | production
+      min_instances:     { type: number, default: 0 }
+      max_instances:     { type: number, required: true }
+      cpu:               { type: string, default: '1' }
+      memory:            { type: string, default: 512Mi }
+      web_workers:       { type: number, default: 1 }
+      # Leer: FIREBASE_PROJECT_ID kommt aus dem Secret Manager (so ist dev eingerichtet).
+      # Gesetzt: als gewöhnliche Variable (prod). Cloud Run weist es ab, wenn derselbe
+      # Name von «Secret» auf «Wert» wechselt – darum bleibt jede Umgebung bei ihrer Form.
+      firebase_project_id: { type: string, default: '' }
+      # Leer: STRIPE_PUBLISHABLE_KEY als optionales Secret (prod). Gesetzt: als Wert (dev).
+      # Er ist kein Geheimnis – er steht im Browser jedes Zahlenden.
+      stripe_publishable_key: { type: string, default: '' }
+      # Die Website: «DEV»-Kennzeichen und Testnotizen nur auf dev.
+      site_env:          { type: string, default: '' }
+      site_feedback:     { type: string, default: '' }
+      next_environment:  { type: string, default: '' }        # development baut die Testnotiz-Insel
+      noindex:           { type: boolean, default: false }     # X-Robots-Tag auf jeder Antwort
+      api_rewrite:       { type: boolean, default: false }     # /api/** auf diesen Dienst umstellen
+      # Firebase-Web-Konfiguration (kein Geheimnis – steht im Browser).
+      firebase_api_key:             { type: string, required: true }
+      firebase_auth_domain:         { type: string, required: true }
+      firebase_storage_bucket:      { type: string, required: true }
+      firebase_messaging_sender_id: { type: string, required: true }
+      firebase_app_id:              { type: string, required: true }
+      # Anmeldung ohne Schlüssel (Workload Identity): offen als Eingabe oder als Secret.
+      workload_identity_provider: { type: string, default: '' }
+      service_account:            { type: string, default: '' }
+    secrets:
+      workload_identity_provider: { required: false }
+      service_account:            { required: false }
+
+jobs:
+  build:
+    name: Build Website + Frontend (${{ inputs.env_name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            website/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install website deps
+        working-directory: website
+        run: npm ci
+
+      # Modus «preview», bis die Domain verbunden ist und jede Bildstelle ein echtes Foto
+      # hat (website/START.md). Der Build prüft Links, Sitemap, Budget (check-site).
+      - name: Build website
+        working-directory: website
+        env:
+          SITE_MODE: preview
+          SITE_URL: ${{ inputs.site_url }}
+          SITE_API: ${{ inputs.site_url }}            # Telefon und E-Mail ins HTML, aus dem ERP
+          SITE_ENV: ${{ inputs.site_env }}
+          SITE_FEEDBACK: ${{ inputs.site_feedback }}
+        run: npm run build
+
+      - name: OFFENE_PUNKTE.md aktuell
+        run: git diff --exit-code -- website/OFFENE_PUNKTE.md || { echo "::error::website/OFFENE_PUNKTE.md ist veraltet – «npm run build» in website/ ausführen und committen."; exit 1; }
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ inputs.firebase_api_key }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ inputs.firebase_auth_domain }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ inputs.gcp_project }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ inputs.firebase_storage_bucket }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ inputs.firebase_messaging_sender_id }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ inputs.firebase_app_id }}
+          NEXT_PUBLIC_API_URL: ${{ inputs.site_url }}
+          NEXT_PUBLIC_APP_URL: ${{ inputs.site_url }}
+          NEXT_PUBLIC_ENVIRONMENT: ${{ inputs.next_environment }}
+          # Beantwortet bei einer Testnotiz «welchen Stand hast du gesehen?»
+          NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
+          NEXT_TELEMETRY_DISABLED: '1'
+          # Kopf und Fuss sind die der Website (oben gebaut) – ohne sie wird nicht ausgeliefert.
+          SHELL_REQUIRED: '1'
+        run: npm run build
+
+      # Die Website besitzt «/» und ihre Seiten, das ERP behält /erp, /konto, /login …
+      # Der Merge bricht bei jeder Kollision ab.
+      - name: Website in die Hosting-Ausgabe übernehmen
+        working-directory: website
+        run: node scripts/merge-hosting.mjs
+
+      # Nicht indexiert – per HTTP-Kopfzeile auf JEDER Antwort (Website, Konto, ERP,
+      # Bilder, PDFs). Fehlt sie danach, bricht der Schritt ab, statt still zu indexieren.
+      - name: Für Suchmaschinen sperren (X-Robots-Tag)
+        if: ${{ inputs.noindex }}
+        run: |
+          jq '(.hosting.headers[] | select(.source == "**") | .headers) += [{"key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive"}]' firebase.json > firebase.tmp.json
+          mv firebase.tmp.json firebase.json
+          jq -e '[.hosting.headers[] | select(.source == "**") | .headers[] | select(.key == "X-Robots-Tag")] | length == 1' firebase.json
+
+      # firebase.json nennt den Dev-Dienst; ohne diesen Schritt schrieben Formular und
+      # Kontaktdaten ins falsche System. Bleibt ein anderer Dienst stehen, bricht er ab.
+      - name: API-Rewrite auf ${{ inputs.service }} setzen
+        if: ${{ inputs.api_rewrite }}
+        run: |
+          jq --arg svc "${{ inputs.service }}" '(.hosting.rewrites[] | select(.run != null) | .run.serviceId) = $svc' firebase.json > firebase.tmp.json
+          mv firebase.tmp.json firebase.json
+          jq -e --arg svc "${{ inputs.service }}" '[.hosting.rewrites[] | select(.run != null) | .run.serviceId] | length > 0 and all(. == $svc)' firebase.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hosting
+          path: |
+            firebase.json
+            frontend/out
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  backend:
+    name: Backend → Cloud Run (${{ inputs.env_name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      IMAGE_BASE: europe-west6-docker.pkg.dev/${{ inputs.gcp_project }}/${{ inputs.gcp_project }}/backend
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ inputs.workload_identity_provider || secrets.workload_identity_provider }}
+          service_account: ${{ inputs.service_account || secrets.service_account }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker europe-west6-docker.pkg.dev --quiet
+
+      # Die GeoIP-Tabelle hängt am Monat (backend/Dockerfile, vor `COPY . .`): im selben
+      # Monat kommt die Schicht aus dem Cache von `:latest`.
+      - name: Build and push backend image
+        working-directory: backend
+        run: |
+          docker build --tag "$IMAGE_BASE:${{ github.sha }}" --tag "$IMAGE_BASE:latest" \
+            --cache-from "$IMAGE_BASE:latest" --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --build-arg GEOIP_MONTH="$(date -u +%Y-%m)" .
+          docker push "$IMAGE_BASE:${{ github.sha }}"
+          docker push "$IMAGE_BASE:latest"
+
+      # ►►► **Welche Secrets es gibt, sagt EINE Liste** (`gcloud secrets list`, Rolle
+      # «Secret Manager-Betrachter» des Deploy-Kontos: nur Namen, keine Werte). ◄◄◄
+      # Pflicht sind DATABASE_URL und – wo es kein Wert ist – FIREBASE_PROJECT_ID: fehlt
+      # eines, wird der Deploy rot (ohne sie startet das Backend ohne Anmeldung). Kann die
+      # Liste nicht gelesen werden, ebenfalls rot – nie still «gibt es nicht».
+      # **Optional** (docs/gmail-setup.md, docs/dokumente.md, docs/stripe-setup.md,
+      # infra/README.md): eingebunden wird, was es gibt. Ohne Gmail wird eine Mail nur
+      # erfasst, ohne KI geht alles ausser Verfassen, ohne Stripe gibt es keinen Bezahlen-Knopf.
+      - name: Secrets einsammeln
+        id: secrets
+        run: |
+          P="${{ inputs.gcp_project }}"
+          if ! have=$(gcloud secrets list --project "$P" --format='value(name.basename())' 2>&1); then
+            echo "::error::Die Secrets von $P sind nicht lesbar: $have"
+            echo "::error::Einmalig: gcloud projects add-iam-policy-binding $P --member=serviceAccount:${{ inputs.service_account || 'DEPLOY-KONTO' }} --role=roles/secretmanager.viewer"
+            exit 1
+          fi
+          need="DATABASE_URL"
+          [ -z "${{ inputs.firebase_project_id }}" ] && need="$need FIREBASE_PROJECT_ID"
+          opt="GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY GOOGLE_MAPS_API_KEY LINK_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET"
+          [ -z "${{ inputs.stripe_publishable_key }}" ] && opt="$opt STRIPE_PUBLISHABLE_KEY"
+          found=""
+          for s in $need $opt; do
+            if grep -qx "$s" <<< "$have"; then
+              echo "Secret $s – wird eingebunden"
+              found="$found,$s=$s:latest"
+            elif grep -qw "$s" <<< "$need"; then
+              echo "::error::Pflicht-Secret $s fehlt in $P."
+              exit 1
+            else
+              echo "Secret $s fehlt – dieser Dienst bleibt aus"
+            fi
+          done
+          echo "list=${found#,}" >> "$GITHUB_OUTPUT"
+
+      # Kosten und Verbindungen: je Worker hält der Pool bis 5 + 5 Verbindungen
+      # (app/core/database.py), je Instanz also 10 × WEB_WORKERS. Bei max_instances × 10
+      # muss das unter dem Limit von Cloud SQL bleiben (db-f1-micro 25, db-g1-small 50,
+      # je abzüglich 3 Reserve) – während eines Rollouts laufen alte und neue Revision kurz
+      # nebeneinander. `--allow-unauthenticated`: Firebase Hosting leitet `/api/**` nur an
+      # einen öffentlichen Dienst weiter; wer etwas darf, prüft das Backend bei jeder Anfrage.
+      - name: Deploy to Cloud Run
+        run: |
+          vars="APP_ENV=${{ inputs.app_env }},FRONTEND_BASE_URL=${{ inputs.site_url }},FILES_BUCKET=${{ inputs.gcp_project }}-files,WEB_WORKERS=${{ inputs.web_workers }}"
+          [ -n "${{ inputs.firebase_project_id }}" ] && vars="$vars,FIREBASE_PROJECT_ID=${{ inputs.firebase_project_id }}"
+          [ -n "${{ inputs.stripe_publishable_key }}" ] && vars="$vars,STRIPE_PUBLISHABLE_KEY=${{ inputs.stripe_publishable_key }}"
+          gcloud run deploy "${{ inputs.service }}" \
+            --image "$IMAGE_BASE:${{ github.sha }}" \
+            --project "${{ inputs.gcp_project }}" \
+            --region "${{ inputs.region }}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --service-account "cloudrun-backend@${{ inputs.gcp_project }}.iam.gserviceaccount.com" \
+            --add-cloudsql-instances "${{ inputs.gcp_project }}:${{ inputs.region }}:${{ inputs.sql_instance }}" \
+            --set-secrets "${{ steps.secrets.outputs.list }}" \
+            --set-env-vars "$vars" \
+            --min-instances "${{ inputs.min_instances }}" \
+            --max-instances "${{ inputs.max_instances }}" \
+            --cpu "${{ inputs.cpu }}" \
+            --memory "${{ inputs.memory }}" \
+            --timeout 60s \
+            --concurrency 80 \
+            --quiet
+
+      # Startet der Dienst ohne Datenbank oder gegen ein anderes Schema, wird es hier rot.
+      - name: Datenbank auf dem Stand des Codes?
+        run: scripts/check-schema.sh "${{ inputs.gcp_project }}" "${{ inputs.service }}" "${{ inputs.region }}"
+
+  hosting:
+    name: Hosting → Firebase (${{ inputs.env_name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: backend
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # Nur die geprüfte Ausgabe aus «Build» – kein Checkout, kein zweiter Build.
+      - uses: actions/download-artifact@v4
+        with:
+          name: hosting
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ inputs.workload_identity_provider || secrets.workload_identity_provider }}
+          service_account: ${{ inputs.service_account || secrets.service_account }}
+
+      # Fest eingestellt: 15.34.1 verlangt beim Deploy zusätzlich serviceusage.services.get,
+      # das der Deploy-Account nicht hat (403). Erhöhen nur bewusst.
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@15.34.0
+
+      - name: Deploy to Firebase Hosting
+        run: firebase deploy --only hosting --project "${{ inputs.gcp_project }}" --non-interactive

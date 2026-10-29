@@ -1,41 +1,58 @@
 'use client';
 
+/**
+ * **Mein Konto – Person · Adressen · Firma · Newsletter** (Abschnitte der einen Konto-Seite).
+ *
+ *   1. **Person**      – ein Formular, ein Auto-Save («Gespeichert» unter dem Titel); für
+ *                        Personal dazu die Anstellung (nur Anzeige, pflegt der Administrator)
+ *   2. **Adressen**    – das Adressbuch des privaten Kontos, jede Anschrift als graue Karte
+ *   3. **Firma**       – die Firma (genannt, nie gesucht) und ihr Adressbuch
+ *   4. **Newsletter**  – ein Schalter, sofort geschrieben (die Einwilligung ist ein Nachweis)
+ */
+
 import { useState, useEffect, useRef } from 'react';
-import { User, Briefcase } from 'lucide-react';
-import type { UserProfile } from '@/types';
-import { Field, SelectField } from '../field';
-import { useAutosave } from '../use-autosave';
-import { SaveStatusIndicator } from '../save-status';
+import type { NewsletterState, UserProfile, UserProfileUpdate } from '@/types';
+import { api } from '@/lib/api';
+import { day } from '@/lib/when';
+import { useAutosaveValue } from '@/lib/use-autosave';
+import { SaveStatusIndicator } from '@/components/form/save-status';
+import { AddressBook } from '@/components/erp/address-book';
+import { CompanyField } from '@/components/erp/company-field';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMapsApiKey } from '@/lib/use-maps-key';
+import { KtDate, KtField, KtSection } from '@/components/form/kt-section';
+import { tell } from '@/lib/notice';
 
 interface Form {
-  salutation: string;
   first_name: string;
   last_name: string;
-  language: string;
-  is_business: boolean;
+  date_of_birth: string;
+  phone: string;
+  // ►►► **Die Anschriften stehen im Adressbuch** (`AddressBook`) – nicht in diesem
+  // Formular: jede ist ein eigener Eintrag mit eigenem Auto-Save.
 }
 
 function buildForm(p: UserProfile): Form {
   return {
-    salutation: p.salutation ?? '',
     first_name: p.first_name ?? '',
     last_name: p.last_name ?? '',
-    language: p.language ?? 'de',
-    is_business: p.is_business ?? false,
+    date_of_birth: p.date_of_birth ?? '',
+    phone: p.phone ?? '',
   };
 }
 
 interface Props {
   profile: UserProfile;
-  isEmployee: boolean;
-  isCustomer: boolean;
-  onSave: (data: Partial<UserProfile>) => Promise<void>;
+  isStaff: boolean;
+  onSave: (data: UserProfileUpdate) => Promise<void>;
 }
 
-export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Props) {
+export function ProfileSection({ profile, isStaff, onSave }: Props) {
   const [form, setForm] = useState<Form>(() => buildForm(profile));
   const [resetKey, setResetKey] = useState(0);
   const prevId = useRef<number | undefined>(undefined);
+  const mapsKey = useMapsApiKey();
+  const qc = useQueryClient();
 
   useEffect(() => {
     if (profile.id !== prevId.current) {
@@ -45,110 +62,102 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
     }
   }, [profile.id, profile]);
 
-  const { status, errorMsg, saveNow } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
+  // ►►► **Die Telefonnummer schreibt der Server lesbar zurück** («+41 79 505 83 02»,
+  // `people.tidy_phone`). Übernommen wird sie nur, solange im Feld noch steht, was gesendet
+  // wurde – wer schon weitertippt, verliert nichts; der nächste Auto-Save bringt sie wieder. ◄◄◄
+  const sentPhone = useRef<string | null>(null);
+  const formRef = useRef(form);
+  formRef.current = form;
+  const { status, errorMsg, saveNow } = useAutosaveValue(
+    form,
+    (v) => { sentPhone.current = v.phone; return onSave({ ...v }); },
+    resetKey,
+  );
+  useEffect(() => {
+    const server = profile.phone ?? '';
+    if (sentPhone.current !== null && formRef.current.phone === sentPhone.current && server !== sentPhone.current) {
+      sentPhone.current = server;
+      setForm((f) => ({ ...f, phone: server }));
+    }
+  }, [profile.phone]);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
-
-  const objectNumber = profile.object_id != null
-    ? String(profile.object_id).padStart(9, '0')
-    : String(profile.id);
+  // «· fehlt» steht, solange ein Pflichtfeld leer ist. **Was Pflicht ist, sagt der Server**
+  // (`people.required_fields`) – das Konto spiegelt es, es entscheidet nicht.
+  const empty = (k: keyof Form) => (profile.required_fields ?? []).includes(k) && !form[k].trim();
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #F1F5F9' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <User style={{ width: 16, height: 16, color: '#64748b' }} />
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: '#0F172A', margin: 0 }}>Mein Profil</h2>
+    <>
+      <KtSection id="person" title="Person" text="So sprechen wir Sie an und so erreichen wir Sie."
+        aside={<SaveStatusIndicator status={status} errorMsg={errorMsg} />}>
+        <div className="kt-grid2">
+          <KtField id="kt-first" label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)}
+            onEnter={saveNow} missing={empty('first_name')} autoComplete="given-name" />
+          <KtField id="kt-last" label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)}
+            onEnter={saveNow} missing={empty('last_name')} autoComplete="family-name" />
+          <KtField id="kt-phone" label="Telefon" type="tel" value={form.phone} onChange={(v) => set('phone', v)}
+            onEnter={saveNow} missing={empty('phone')} placeholder="+41 44 000 00 00" autoComplete="tel" />
+          <KtDate id="kt-born" label="Geburtsdatum" value={form.date_of_birth}
+            onChange={(v) => set('date_of_birth', v)} onEnter={saveNow} missing={empty('date_of_birth')} />
         </div>
-        <SaveStatusIndicator status={status} errorMsg={errorMsg} />
-      </div>
+      </KtSection>
 
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <Field label="Benutzernummer" value={objectNumber} readOnly hint="Eindeutige Kennnummer Ihres Kontos" />
+      {/* ►►► **Eine Adresse, optional eine abweichende Lieferadresse und weitere
+          Lieferadressen.** ◄◄◄ Privat geht die Rechnung an die E-Mail der Person. */}
+      <KtSection id="adressen" title="Adressen"
+        text="Eine Anschrift für Rechnungen, dazu so viele Lieferadressen, wie Sie brauchen.">
+        <AddressBook owner={null} account="private" addresses={profile.addresses ?? []} cards
+          loginEmail={profile.email} mapsKey={mapsKey}
+          onSaved={(u) => qc.setQueryData(['me'], u)} />
+      </KtSection>
 
-        {isCustomer && (
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 8 }}>Kontotyp</p>
-            <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden', width: 'fit-content' }}>
-              {[
-                { val: false, label: 'Privatkunde' },
-                { val: true, label: 'Geschäftskunde' },
-              ].map(({ val, label }) => (
-                <button
-                  key={String(val)}
-                  onClick={() => set('is_business', val)}
-                  style={{
-                    padding: '8px 18px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500,
-                    background: form.is_business === val ? '#E51A14' : '#fff',
-                    color: form.is_business === val ? '#fff' : '#374151',
-                    transition: 'background 0.15s, color 0.15s',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>
-              Geschäftskunden können Firmendaten und USt-ID hinterlegen.
-            </p>
-          </div>
+      {/* ►►► **Dieselbe Maske noch einmal – für die Firma.** ◄◄◄ Die Firma wird genannt
+          (UID, sonst Name und Rechtsform) und vom Server erkannt oder angelegt; eine Liste
+          fremder Firmen sieht ein Kunde nie. */}
+      <KtSection id="firma" title="Firma"
+        text="Bestellen Sie für einen Betrieb? Dann geht die Rechnung an die Firma.">
+        <CompanyField look="kt" company={profile.company} readOnly={isStaff}
+          country={profile.addresses?.[0]?.country}
+          onLink={(id) => onSave({ company_object_id: id })}
+          onCreate={(nc) => onSave({ new_company: nc })} />
+        {profile.company && (
+          <AddressBook owner={null} account="business" addresses={profile.addresses ?? []} cards
+            loginEmail={profile.email} mapsKey={mapsKey}
+            onSaved={(u) => qc.setQueryData(['me'], u)} />
         )}
+      </KtSection>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <SelectField
-            label="Anrede"
-            value={form.salutation}
-            onChange={(v) => set('salutation', v)}
-            options={[
-              { value: '', label: 'Keine Angabe' },
-              { value: 'Herr', label: 'Herr' },
-              { value: 'Frau', label: 'Frau' },
-              { value: 'Divers', label: 'Divers' },
-            ]}
-          />
-          <SelectField
-            label="Sprache"
-            value={form.language}
-            onChange={(v) => set('language', v)}
-            options={[
-              { value: 'de', label: 'Deutsch' },
-              { value: 'en', label: 'English' },
-            ]}
-          />
-          <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" required={!form.first_name.trim()} onEnter={saveNow} />
-          <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" required={!form.last_name.trim()} onEnter={saveNow} />
-        </div>
+      <KtSection id="newsletter" title="Newsletter"
+        text="«Post von INEXXIO» – selten, und nur, wenn es etwas zu sagen gibt.">
+        <Newsletter />
+      </KtSection>
+    </>
+  );
+}
 
-        {isEmployee && (
-          <div style={{ padding: '16px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-              <Briefcase style={{ width: 13, height: 13, color: '#64748b' }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Anstellungsdaten (nur lesbar)
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Abteilung" value={profile.department ?? ''} readOnly />
-              <Field label="Funktion" value={profile.job_title ?? ''} readOnly />
-              <Field
-                label="Eintrittsdatum"
-                value={profile.employment_start_date ? new Date(profile.employment_start_date).toLocaleDateString('de-CH') : ''}
-                readOnly
-              />
-              <Field
-                label="Pensum"
-                value={profile.weekly_hours ? `${profile.weekly_hours}h / Woche` : ''}
-                readOnly
-              />
-            </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '12px 0 0' }}>
-              Diese Angaben werden durch Ihren Administrator verwaltet.
-            </p>
-          </div>
-        )}
-
+/** ►►► **Der Newsletter – ein Schalter, sofort geschrieben.** ◄◄◄ Die Adresse ist im Konto
+ *  bestätigt, darum ohne zweiten Klick. Neben dem Schalter steht der Satz, dem man
+ *  zustimmt – derselbe, der als Nachweis gespeichert wird (vom Server). */
+function Newsletter() {
+  const [state, setState] = useState<NewsletterState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { api.myNewsletter().then(setState).catch(tell('Newsletter-Stand')); }, []);
+  const flip = (on: boolean) => {
+    setError(null);
+    api.setMyNewsletter(on).then(setState)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht gespeichert werden.'));
+  };
+  const on = !!state?.subscribed;
+  return (
+    <div className="kt-switch">
+      <button type="button" role="switch" aria-checked={on} aria-label="Newsletter"
+        disabled={!state} onClick={() => flip(!on)} />
+      <div>
+        <p>{state?.wording ?? ''}</p>
+        {on && state?.since && <p className="kt-note">Angemeldet seit {day(state.since)}</p>}
+        {error && <p className="kt-note is-error">{error}</p>}
       </div>
     </div>
   );

@@ -1,0 +1,48 @@
+---
+/**
+ * /karriere – eigenes Layout v4 (Oktober 2026): Kopf wie Porsche → Warum hier arbeiten (#warum) → Wer zu
+ * uns passt (drei Karten, jede öffnet die Bewerbung) → So bewerben Sie sich (Weg) → Bewerbung (dunkle
+ * Karte, #bewerbung). Kein Anfrage-Formular: eine Bewerbung ist keine Anfrage. Texte: content/karriere.ts.
+ */
+import Base from '../layouts/Base.astro';
+import StageHero from '../components/StageHero.astro';
+import FactGrid from '../components/FactGrid.astro';
+import FieldCards from '../components/spezial/FieldCards.astro';
+import SolutionPath from '../components/spezial/SolutionPath.astro';
+import CallPanel from '../components/CallPanel.astro';
+import { site, contactEmail } from '../config/site.mjs';
+import { pageTitle } from '../lib/titles';
+import { karriere as c } from '../content/karriere';
+
+const titel = pageTitle('/karriere');
+const mail = `mailto:${contactEmail()}?subject=${encodeURIComponent(c.apply.subject)}`;
+const profiles = c.profiles.items.map((p) => ({ ...p, href: `mailto:${contactEmail()}?subject=${encodeURIComponent(`${c.apply.subject}: ${p.title}`)}` }));
+---
+<Base title={c.title} description={c.description} crumbs={[{ name: 'Karriere', path: '/karriere' }]}>
+  <StageHero
+    word="Karriere"
+    image={titel}
+    alt="Drei Menschen als Zeichnung führen einen roten Stahlträger, der am Kran hängt – gemeinsam bauen sie einen Kran"
+    title={c.hero.h1}
+    lead={c.hero.lead}
+    primary={{ label: 'Jetzt bewerben', href: '#bewerbung' }}
+    secondary={{ label: 'Warum hier arbeiten', href: '#warum' }}
+  />
+
+  <FactGrid id="warum" title={c.why.title} items={c.why.items} columns={4} />
+
+  <FieldCards id="profile" title={c.profiles.title} lead={c.profiles.lead} items={profiles} />
+
+  <SolutionPath id="bewerben" title={c.path.title} start={c.path.start} end={c.path.end} items={c.path.items} />
+
+  <CallPanel
+    id="bewerbung"
+    label={c.contact.label}
+    title={c.contact.title}
+    text={c.contact.text}
+    actions={[
+      { label: 'Bewerbung per E-Mail', href: mail, icon: 'mail', primary: true },
+      { label: site.phone.display, href: `tel:${site.phone.e164}`, icon: 'phone' },
+    ]}
+  />
+</Base>

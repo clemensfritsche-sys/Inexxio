@@ -1,0 +1,117 @@
+---
+/**
+ * Fuss v4 (Vorlage: docs/design-system/reference/mockups/Startseite v4.dc.html), dunkel:
+ *  1. oben links das Logo, der Satz, der das Unternehmen eindeutig beschreibt, die Sprache
+ *  2. je Menüpunkt des Kopfs eine Spalte – aus DERSELBEN Liste (site.navigation, Testnotiz
+ *     #1209): Titel = Menüpunkt, darunter seine Unterpunkte; ohne Unterpunkte sein Satz
+ *  3. Kontakt: Anschrift, Telefon, E-Mail – zur Laufzeit aus dem ERP (scripts/contact.ts)
+ * Darunter: © Jahr · Impressum · Datenschutz · AGB – und der grosse Schriftzug, unten
+ * angeschnitten (Buchstaben fast schwarz, der rote Schwung leuchtet).
+ * Derselbe Fuss trägt das Konto/ERP (scripts/export-shell.mjs, WEBSITE_PLAN Entscheid 60).
+ */
+import { site, navigation, contactEmail } from '../config/site.mjs';
+import { plain, rich } from '../lib/text.mjs';
+import Icon from './Icon.astro';
+import Lockup from './Lockup.astro';
+import wordmark from '../assets/brand/schriftzug-fuss.svg?url';
+
+const year = new Date().getFullYear();
+const a = site.address;
+/** Solange Beispielbilder stehen, führt der Fuss zu ihrem Nachweis (CC BY/BY-SA). */
+---
+<footer class="site-footer on-dark">
+  <div class="wrap">
+    <div class="site-footer__grid">
+      <div class="site-footer__brand">
+        <a href="/" class="site-footer__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup tone="dark" size="footer" /></a>
+        <p class="site-footer__claim" set:html={rich(site.footer.claim)} />
+        <p class="site-footer__lang"><span class="site-footer__langbtn"><Icon name="globe" size={18} /> Deutsch</span></p>
+      </div>
+
+      {navigation.map((g) => (
+        <nav class="site-footer__col" aria-label={g.label}>
+          <h2 class="site-footer__title"><a href={g.href}>{g.label}</a></h2>
+          {g.children.length ? (
+            <ul role="list">
+              {g.ddSelf && <li><a href={g.href}>{g.selfLabel ?? g.label}</a></li>}
+              {g.children.map((c) => <li><a href={c.href}>{plain(c.label)}</a></li>)}
+            </ul>
+          ) : <p class="site-footer__text">{g.text}</p>}
+        </nav>
+      ))}
+
+      <div class="site-footer__col">
+        <h2 class="site-footer__title"><a href="/kontakt">Kontakt</a></h2>
+        <address class="site-footer__contact">
+          <p>
+            <Icon name="map-pin" size={16} />
+            <span data-erp="address">{plain(site.brand.legalName)}<br />{a.street}<br />{a.zip} {a.city}</span>
+          </p>
+          <p>
+            <Icon name="phone" size={16} />
+            <a href={`tel:${site.phone.e164}`} class="tnum">{site.phone.display}</a>
+          </p>
+          <p>
+            <Icon name="mail" size={16} />
+            <a href={`mailto:${contactEmail()}`}>{contactEmail()}</a>
+          </p>
+        </address>
+      </div>
+    </div>
+
+    <div class="site-footer__bottom">
+      <p>© {year} {plain(site.brand.legalName)}</p>
+      <ul role="list">
+        <li><a href="/impressum">Impressum</a></li>
+        <li><a href="/datenschutz">Datenschutz</a></li>
+        <li><a href="/agb">AGB</a></li>
+        <li><a href="/newsletter">Newsletter</a></li>
+      </ul>
+    </div>
+    <div class="site-footer__mark" aria-hidden="true"><img src={wordmark} alt="" width="624" height="167" loading="lazy" decoding="async" /></div>
+  </div>
+</footer>
+
+<style>
+  .site-footer { background: var(--dark); color: var(--ink-4); padding-top: 80px; font-size: 0.875rem; overflow: hidden; }
+  @media (max-width: 767px) { .site-footer { padding-top: 56px; } }
+  .site-footer a { color: var(--ink-4); text-decoration: none; transition: color 200ms var(--ease); }
+  .site-footer a:hover { color: var(--white); }
+  .site-footer__grid {
+    display: grid; gap: 32px 16px; grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-bottom: 48px; border-bottom: 1px solid var(--line-dark);
+  }
+  .site-footer__brand { grid-column: 1 / -1; }
+  @media (min-width: 960px) { .site-footer__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px 28px; } }
+  @media (min-width: 1200px) {
+    .site-footer__grid { grid-template-columns: minmax(0, 3fr) repeat(6, minmax(0, 2fr)); gap: 28px; }
+    .site-footer__brand { grid-column: auto; }
+  }
+  .site-footer__home { display: inline-flex; min-height: 44px; align-items: center; }
+  .site-footer__home :global(.lockup) { height: 40px; }
+  .site-footer__claim { margin-top: 20px; max-width: 36ch; font-size: 0.875rem; line-height: 1.6; color: var(--ink-4); }
+  .site-footer__lang { margin-top: 24px; }
+  .site-footer__langbtn {
+    display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: var(--r-md);
+    border: 1px solid rgba(255, 255, 255, 0.28); color: var(--white); font-size: 0.875rem; font-weight: 500;
+  }
+  .site-footer__title { margin: 0; font-family: var(--font-sans); font-size: 0.9375rem; font-weight: 600; letter-spacing: 0; line-height: 1.4; }
+  .site-footer__title a { color: var(--white); display: inline-flex; min-height: 24px; }
+  .site-footer__col ul { list-style: none; padding: 0; margin-top: 14px; display: grid; gap: 10px; }
+  .site-footer__col li a { font-size: 0.875rem; line-height: 1.4; }
+  .site-footer__text { margin-top: 14px; font-size: 0.875rem; line-height: 1.55; color: var(--ink-4); }
+  .site-footer__contact { margin-top: 14px; font-style: normal; display: grid; gap: 10px; line-height: 1.55; }
+  .site-footer__contact p { display: flex; gap: 8px; max-width: none; }
+  .site-footer__contact :global(.icon) { flex: none; margin-top: 3px; }
+  .site-footer__contact a { overflow-wrap: anywhere; }
+  .site-footer__bottom {
+    display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center;
+    margin-top: 24px; font-size: 0.875rem; color: var(--gray-500);
+  }
+  .site-footer__bottom ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px; }
+  .site-footer__bottom a { color: var(--gray-500); display: inline-flex; min-height: 44px; align-items: center; }
+  /* Der Schriftzug: volle Breite, an der Grundlinie angeschnitten (der untere Schwung bleibt verborgen). */
+  .site-footer__mark { margin-top: 48px; aspect-ratio: 624 / 133.5; overflow: hidden; }
+  .site-footer__mark img { width: 100%; height: auto; }
+  @media (max-width: 767px) { .site-footer__mark { margin-top: 32px; } }
+</style>

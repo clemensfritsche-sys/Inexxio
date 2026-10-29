@@ -1,0 +1,31 @@
+---
+/**
+ * Garantien (v4): versetzte Karten, die Überschrift dazwischen (home/Stagger).
+ *  · Zufriedenheitsgarantie: Schema einer Rechnung, deren Hälfte zurückgeht
+ *  · INEXXIO 365 (die eine dunkle Karte): ein Jahresband, ein Ausfall – den zahlen wir
+ *  · Erste Inspektion gratis: Foto
+ * Texte: content/promises.ts (EINE Stelle).
+ */
+import Stagger from './Stagger.astro';
+import { promises } from '../../content/promises';
+import half from '../../assets/schema/garantie-haelfte.svg?raw';
+import year from '../../assets/schema/inexxio-365-jahr.svg?raw';
+
+interface Props {
+  /** Ziel der Karte Zufriedenheitsgarantie (die Antwort in den Fragen der Seite). */
+  garantieHref?: string;
+  photo?: string;
+}
+const { garantieHref = '#fragen', photo = 'erste-inspektion' } = Astro.props;
+const g = promises.items.garantie;
+const y = promises.items.inexxio365;
+const e = promises.items.erstservice;
+---
+<Stagger
+  id="garantien"
+  title={promises.title}
+  lead={promises.lead}
+  a={{ label: g.label, title: g.title, href: garantieHref, art: half }}
+  b={{ label: y.label, title: y.title, href: y.link?.href ?? '#anfrage', art: year }}
+  c={{ label: e.label, title: e.title, href: e.link?.href ?? '#anfrage', photo }}
+/>

@@ -1,317 +1,204 @@
-# Inexxio – Infrastructure & Deployment
+# Infrastruktur – Ist-Stand
 
-## Overview
+> Was hier steht, ist **so eingerichtet**. Massgeblich sind die Workflows
+> (`.github/workflows/deploy.yml`, aufgerufen von `deploy-dev.yml` und `deploy-prod.yml` mit
+> den Werten ihrer Umgebung) – sie setzen bei jedem Deploy alles, was ein Dienst braucht;
+> diese Seite erklärt es nur. Eingerichtet wird nicht per Skript, sondern einmal
+> von Hand (unten), und jeder Deploy prüft danach, ob es trägt.
 
-Inexxio runs on Google Cloud Platform (europe-west6 / Zurich) with three isolated environments:
+## Zwei Umgebungen
 
-| Environment | Branch    | GCP Project       | Firebase Project   | Domain                  |
-|-------------|-----------|-------------------|--------------------|-------------------------|
-| dev         | develop   | inexxio-dev       | inexxio-dev        | inexxio.web.app         |
-| staging     | staging   | inexxio-staging   | inexxio-staging    | inexxio-staging.web.app |
-| prod        | main      | inexxio-prod      | inexxio-prod       | inexxio.com             |
+| Umgebung | Branch    | GCP-/Firebase-Projekt | Adresse                       | Freigabe |
+|----------|-----------|-----------------------|-------------------------------|----------|
+| dev      | `develop` | `inexxio-dev`         | https://inexxio-dev.web.app   | Push     |
+| prod     | `main`    | `inexxio-prod`        | https://inexxio-prod.web.app  | Push + Freigabe (Environment `production`) |
 
-## Architecture
+Je Umgebung, alles in **europe-west6 (Zürich)**:
 
-```
-GitHub Actions
-      │
-      ├── push develop  →  deploy-dev.yml
-      ├── push staging  →  deploy-staging.yml
-      └── push main     →  deploy-prod.yml (+ manual approval)
-                                │
-                    ┌───────────┴───────────┐
-                    ▼                       ▼
-           Firebase Hosting          Cloud Run (backend)
-           (Next.js SSR)             (FastAPI + uvicorn)
-                    │                       │
-                    │                  Cloud SQL (PostgreSQL 15)
-                    │                  Secret Manager
-                    │                  Cloud Storage
-                    └────── API calls via /api/** rewrite ──────►
-```
+- **Frontend + Website**: Firebase Hosting, statischer Export (`firebase.json`). `/api/**`
+  geht per Rewrite an den Backend-Dienst; **Firebase Hosting bricht jede Anfrage nach 60 s ab**.
+- **Backend**: Cloud Run `inexxio-backend-<env>`, Dienstkonto `cloudrun-backend@<projekt>`.
+  `start.sh` fährt bei jedem Start `alembic upgrade head`, dann uvicorn.
+- **Datenbank**: Cloud SQL PostgreSQL (`inexxio-dev-db`, Datenbank `inexxio_dev`, Benutzer
+  `backend`), angebunden über den Unix-Socket (`--add-cloudsql-instances`).
+- **Dateien**: Bucket `<projekt>-files` (privat, `FILES_BUCKET`, `docs/dokumente.md`).
+- **Secrets**: Secret Manager, als Umgebungsvariablen eingebunden. Pflicht: `DATABASE_URL`;
+  dev ausserdem `FIREBASE_PROJECT_ID` (prod setzt es als Wert). Optional – auf beiden Seiten
+  dieselbe Liste, eingebunden nur, wenn es sie gibt: `GOOGLE_CLIENT_ID`/`_SECRET` (Gmail),
+  `ANTHROPIC_API_KEY` (KI), `GOOGLE_MAPS_API_KEY` (Adress-Suche), `LINK_SECRET` (signierte
+  Links), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; `STRIPE_PUBLISHABLE_KEY` auf prod als
+  Secret, auf dev als Wert im Workflow (kein Geheimnis). Ein Name bleibt bei seiner Form:
+  Cloud Run weist es ab, wenn eine Variable von «Secret» auf «Wert» wechselt. Welche es
+  gibt, liest der Deploy aus **einer** Liste (`gcloud secrets list`); dafür braucht das
+  Deploy-Konto die Rolle `roles/secretmanager.viewer` (nur Namen, keine Werte). Fehlt ein
+  Pflicht-Secret oder ist die Liste nicht lesbar, wird der Deploy rot.
+- **Bilder des Backends**: Artifact Registry `europe-west6-docker.pkg.dev/<projekt>/<repo>`.
 
-### Components per environment
+## Der Ablauf
 
-- **Frontend**: Firebase Hosting with Web Frameworks (Next.js SSR). Region: europe-west6.
-- **Backend**: Cloud Run (managed), no public unauthenticated access. Firebase Hosting rewrites `/api/**` to the Cloud Run service.
-- **Database**: Cloud SQL PostgreSQL 15 via Unix socket (`/cloudsql/PROJECT:REGION:INSTANCE`). No public IP.
-- **Secrets**: All sensitive config lives in Secret Manager. Cloud Run injects them as environment variables at startup.
-- **Storage**: GCS bucket with uniform bucket-level access, no public access.
-- **Auth**: Firebase Authentication (Magic Link + Google SSO). Admin requires TOTP MFA.
+1. **Das Gate** (`quality.yml`) – auch auf jedem Push eines Feature-Branches und jedem Pull
+   Request: Frontend (Typen, Lint, Tests, Build), Backend (ruff, pytest gegen PostgreSQL –
+   das Schema bauen die Migrationen –, generierte Dateien) und Website (Tests, Astro,
+   Abdrucke, Build) laufen parallel. Aus dem Deploy aufgerufen baut es nicht selbst.
+2. Prod: **Freigabe** (Environment `production`).
+3. **Build** (`deploy.yml`): Website und Frontend mit den Werten der Umgebung, zusammengeführt
+   zur Hosting-Ausgabe (Artefakt); dev mit `X-Robots-Tag: noindex`, prod mit dem
+   `/api/**`-Rewrite auf den Prod-Dienst. Scheitert er, ist nichts ausgerollt.
+4. **Backend**: Bild bauen (die GeoIP-Tabelle je Monat aus dem Cache), Cloud Run, danach
+   **steht die Datenbank auf dem Stand des Codes?** (`scripts/check-schema.sh` liest
+   `/health` → `schema`, `revision`, `head`). Sonst rot.
+5. **Hosting**: genau die Ausgabe aus 3 nach Firebase Hosting.
 
----
+Der Dienst ist auf beiden Seiten öffentlich aufrufbar (`--allow-unauthenticated`): Firebase
+Hosting leitet `/api/**` nur an einen öffentlichen Dienst weiter; wer etwas darf, prüft das
+Backend bei jeder Anfrage selbst.
 
-## Initial Setup
-
-### Prerequisites
-
-```bash
-# Install gcloud CLI
-# https://cloud.google.com/sdk/docs/install
-gcloud auth login
-gcloud auth application-default login
-
-# Install Firebase CLI
-npm install -g firebase-tools
-firebase login
-```
-
-### Provision a new environment
+## Einmal von Hand (je Umgebung)
 
 ```bash
-cd infra/
-chmod +x setup.sh
-
-# For development environment
-./setup.sh dev
-
-# For staging
-./setup.sh staging
-
-# For production (prompts for confirmation)
-./setup.sh prod
+P=inexxio-dev   # bzw. inexxio-prod
+# Datei-Ablage
+gcloud storage buckets create gs://$P-files --project $P --location europe-west6 \
+  --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets add-iam-policy-binding gs://$P-files \
+  --member serviceAccount:cloudrun-backend@$P.iam.gserviceaccount.com --role roles/storage.objectAdmin
+# ein optionales Secret (z. B. der KI-Schlüssel) – der nächste Deploy bindet es ein
+printf '%s' 'WERT' | gcloud secrets create ANTHROPIC_API_KEY --data-file=- --project $P
 ```
 
-The script creates (idempotent – safe to re-run):
-1. GCP project with billing
-2. All required APIs enabled
-3. Artifact Registry Docker repository
-4. Cloud SQL PostgreSQL 15 instance
-5. GCS storage bucket
-6. Cloud Run service accounts with least-privilege IAM
-7. Workload Identity Federation pool + provider (no service account keys needed)
-8. Secret Manager secrets (placeholder values – update before first deploy)
-9. Cloud Run service (placeholder image)
+## Betrieb absichern (einmal, in Cloud Shell)
 
-### After running setup.sh
-
-**1. Update secrets with real values:**
+Jeder Block steht für sich; `P` ist das Projekt.
 
 ```bash
-ENV=dev   # or staging / prod
-PROJECT="inexxio-${ENV}"
+# 1 · Budget-Alarm (Mail bei 50 / 90 / 100 % des Monatsbudgets) – das Konto zuerst nachsehen
+gcloud billing accounts list
+gcloud billing budgets create --billing-account=KONTO-ID --display-name="Inexxio" \
+  --budget-amount=100 --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 \
+  --threshold-rule=percent=1.0
 
-# Database URL (automatically set during setup for new instances)
-# If you need to update it:
-echo -n "postgresql+asyncpg://inexxio:PASSWORD@/inexxio?host=/cloudsql/${PROJECT}:europe-west6:inexxio-${ENV}-db" \
-  | gcloud secrets versions add DATABASE_URL --data-file=- --project=$PROJECT
+# 2 · Erreichbarkeit: /health des Backends jede 5 Minuten (503 auch, wenn die Datenbank
+#     nicht auf dem Stand des Codes ist). /health liegt am Dienst selbst, nicht hinter /api.
+P=inexxio-dev
+HOST=$(gcloud run services describe inexxio-backend-dev --region europe-west6 --project $P \
+  --format='value(status.url)' | sed 's#https://##')
+gcloud monitoring uptime create inexxio-health --project $P \
+  --resource-type=uptime-url --resource-labels=host=$HOST,project_id=$P \
+  --path=/health --protocol=https --period=5
+#   Mail bei Ausfall: Console → Monitoring → Uptime checks → «inexxio-health» →
+#   «Create alert» → Benachrichtigung per E-Mail.
 
-# Firebase project ID (auto-set to inexxio-${ENV} by setup.sh)
+# 3 · Prod: tägliche Sicherung + Wiederherstellung auf die Minute (vor dem Go-live)
+gcloud sql instances patch inexxio-prod-db --project inexxio-prod \
+  --backup-start-time=01:00 --enable-point-in-time-recovery --retained-backups-count=14
 
-# Claude API key
-echo -n "sk-ant-..." | gcloud secrets versions add CLAUDE_API_KEY --data-file=- --project=$PROJECT
+# 4 · Alte Backend-Bilder aufräumen: die 10 jüngsten bleiben, der Rest geht nach 30 Tagen
+cat > /tmp/policy.json <<'JSON'
+[{"name":"keep-recent","action":{"type":"Keep"},"mostRecentVersions":{"keepCount":10}},
+ {"name":"delete-old","action":{"type":"Delete"},"condition":{"olderThan":"30d"}}]
+JSON
+gcloud artifacts repositories set-cleanup-policies $P --project $P \
+  --location europe-west6 --policy=/tmp/policy.json
 
-# Stripe (Phase 2)
-echo -n "sk_live_..." | gcloud secrets versions add STRIPE_SECRET_KEY --data-file=- --project=$PROJECT
+# 5 · Neues Datenbank-Passwort (dev) – setzt es, schreibt es ins Secret, startet neu
+NEW=$(openssl rand -hex 24)
+gcloud sql users set-password backend --instance inexxio-dev-db --project inexxio-dev --password "$NEW"
+gcloud secrets versions access latest --secret DATABASE_URL --project inexxio-dev \
+  | sed -E "s#(://backend:)[^@]*@#\1$NEW@#" | tr -d '\n' \
+  | gcloud secrets versions add DATABASE_URL --data-file=- --project inexxio-dev
+gcloud run services update inexxio-backend-dev --region europe-west6 --project inexxio-dev \
+  --update-labels=rotated=$(date +%s)
 ```
 
-**2. Enable Firebase Hosting in the console:**
+## Anmeldung der Deploys ohne Schlüssel (Workload Identity)
 
-1. Open https://console.firebase.google.com/project/inexxio-dev (replace with your env)
-2. Add Firebase to the GCP project if prompted
-3. Enable **Hosting** under Build > Hosting
-4. Enable **Authentication** under Build > Authentication
-   - Enable Email/Link (passwordless) provider
-   - Enable Google provider
-5. For admin accounts, enable MFA (TOTP) in Authentication settings
-
-**3. Configure GitHub repository:**
-
-Go to your GitHub repository → Settings → Environments and create three environments:
-- `development` (no protection rules)
-- `staging` (no protection rules)
-- `production` (add required reviewers – at least 1 person must approve before prod deploy)
-
-Then add these repository-level variables (Settings → Secrets and variables → Actions → Variables):
-
-```
-WORKLOAD_IDENTITY_PROVIDER_DEV=projects/<NUMBER>/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-WORKLOAD_IDENTITY_PROVIDER_STAGING=projects/<NUMBER>/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-WORKLOAD_IDENTITY_PROVIDER_PROD=projects/<NUMBER>/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-```
-
-The project number is printed by `setup.sh` and available via:
-```bash
-gcloud projects describe inexxio-dev --format="value(projectNumber)"
-```
-
-**4. Connect custom domain (prod only):**
+GitHub meldet sich bei Google mit einem kurzlebigen Token an, das nur für dieses Repository
+gilt – kein JSON-Schlüssel, der irgendwo liegt. Prod und dev sind so eingerichtet (dev: Oktober 2026); für ein neues Projekt einmal
+(idempotent, ein zweiter Lauf schadet nicht):
 
 ```bash
-firebase hosting:sites:create inexxio --project inexxio-prod
-firebase target:apply hosting prod inexxio --project inexxio-prod
-# Then add inexxio.com DNS records as shown in Firebase Console
+P=inexxio-dev; REPO=clemensfritsche-sys/Inexxio; SA=github-actions@$P.iam.gserviceaccount.com
+gcloud iam service-accounts describe $SA --project $P --format='value(email)' \
+  || gcloud iam service-accounts list --project $P
+NUM=$(gcloud projects describe $P --format='value(projectNumber)')
+gcloud services enable iamcredentials.googleapis.com sts.googleapis.com --project $P
+gcloud iam workload-identity-pools create github --project $P --location global \
+  --display-name GitHub 2>/dev/null || true
+gcloud iam workload-identity-pools providers create-oidc github --project $P --location global \
+  --workload-identity-pool github --display-name GitHub \
+  --issuer-uri https://token.actions.githubusercontent.com \
+  --attribute-mapping 'google.subject=assertion.sub,attribute.repository=assertion.repository' \
+  --attribute-condition "assertion.repository=='$REPO'" 2>/dev/null || true
+gcloud iam service-accounts add-iam-policy-binding $SA --project $P \
+  --role roles/iam.workloadIdentityUser \
+  --member "principalSet://iam.googleapis.com/projects/$NUM/locations/global/workloadIdentityPools/github/attribute.repository/$REPO" \
+  --format='value(etag)'
+# Der Deploy liest die Namen der Secrets (nicht ihre Werte)
+gcloud projects add-iam-policy-binding $P --member serviceAccount:$SA \
+  --role roles/secretmanager.viewer --condition=None --format='value(etag)'
+echo "PROVIDER=projects/$NUM/locations/global/workloadIdentityPools/github/providers/github"
 ```
 
----
+Dev nennt Provider und Konto offen (`deploy-dev.yml`, Eingaben an `deploy.yml`), prod
+liest sie aus den Repository-Secrets `WIF_PROVIDER_PROD`/`WIF_SA_PROD` – beides ist kein
+Geheimnis; gelten lässt Google es nur für Anfragen aus genau diesem Repository. Danach den
+alten Schlüssel löschen (`gcloud iam service-accounts keys list --iam-account $SA
+--managed-by=user`, dann `… keys delete <ID> --iam-account $SA`) und in GitHub das Secret
+`GCP_SA_KEY_DEV` entfernen.
 
-## CI/CD Workflows
+## Werkzeuge
 
-### deploy-dev.yml (push to `develop`)
+- `scripts/check-schema.sh` – der Schritt nach dem Deploy (oben).
+- `docker-compose.yml` – nur die lokale Datenbank (PostgreSQL 16).
+- `scripts/dump-db.sh` – vollständige Sicherung der dev-Datenbank (Cloud Shell).
+- `scripts/reset-dev-db.sql` – dev leeren, damit sie neu aus den Migrationen entsteht
+  (`backend/CLAUDE.md`). Bricht auf jeder anderen Datenbank ab.
 
-1. Authenticates to GCP via Workload Identity Federation
-2. Builds backend Docker image and pushes to Artifact Registry
-3. Deploys to Cloud Run `inexxio-backend-dev`
-4. Installs frontend dependencies and builds Next.js
-5. Deploys to Firebase Hosting project `inexxio-dev`
-
-### deploy-staging.yml (push to `staging`)
-
-Same as dev, targeting the staging GCP project and Firebase project.
-
-### deploy-prod.yml (push to `main`)
-
-1. **Awaits manual approval** via GitHub Environment `production` protection rules
-2. After approval: same flow as dev/staging targeting prod resources
-3. Cloud Run runs with `--min-instances 1` (always warm) and `--memory 1Gi`
-
----
-
-## Cloud Run Backend
-
-### Connection to Cloud SQL
-
-The backend connects to PostgreSQL via Unix socket (no public IP, no Cloud SQL Auth Proxy sidecar needed on Cloud Run):
-
-```
-/cloudsql/inexxio-{env}:europe-west6:inexxio-{env}-db
-```
-
-The `DATABASE_URL` secret uses this format:
-```
-postgresql+asyncpg://inexxio:PASSWORD@/inexxio?host=/cloudsql/inexxio-dev:europe-west6:inexxio-dev-db
-```
-
-### Startup sequence
-
-The backend Dockerfile runs `/app/start.sh` which:
-1. Executes `alembic upgrade head` (applies pending DB migrations)
-2. Starts `uvicorn app.main:app` on port 8080
-
-This ensures schema is always up-to-date on every deploy.
-
-### Environment-specific resource limits
-
-| Setting          | dev     | staging | prod     |
-|------------------|---------|---------|----------|
-| Min instances    | 0       | 0       | 1        |
-| Max instances    | 3       | 5       | 10       |
-| Memory           | 512Mi   | 512Mi   | 1Gi      |
-| CPU              | 1       | 1       | 2        |
-| Concurrency      | 80      | 80      | 80       |
-
----
-
-## Firebase Hosting
-
-### Configuration (`firebase.json`)
-
-- Next.js SSR served via Firebase Web Frameworks in europe-west6
-- `/api/**` rewrites to the Cloud Run backend service
-- Security headers on all responses:
-  - `X-Frame-Options: SAMEORIGIN`
-  - `X-Content-Type-Options: nosniff`
-  - `Strict-Transport-Security` (HSTS, 1 year, preload)
-  - `Content-Security-Policy` (restricts scripts/styles/fonts/images/connections)
-  - `Permissions-Policy`
-- Static assets (JS/CSS/fonts) cached for 1 year (immutable)
-- ERP/admin routes marked `noindex, nofollow` with `no-store` cache
-
-### Project aliases (`.firebaserc`)
-
-```json
-{
-  "projects": {
-    "dev":     "inexxio-dev",
-    "staging": "inexxio-staging",
-    "prod":    "inexxio-prod"
-  }
-}
-```
-
-Deploy manually: `firebase deploy --only hosting --project inexxio-dev`
-
----
-
-## Docker Images
-
-### Backend (`backend/Dockerfile`)
-
-Multi-stage build:
-- **builder**: python:3.12-slim, compiles dependencies
-- **runtime**: python:3.12-slim, copies compiled packages, runs as non-root `appuser` (uid 1001)
-
-Port: 8080. Entrypoint: `/app/start.sh` (alembic + uvicorn).
+## Logs und Rollback
 
 ```bash
-# Build locally
-docker build -t inexxio-backend:local ./backend
-
-# Run locally (requires a running PostgreSQL and env vars)
-docker run -p 8080:8080 \
-  -e DATABASE_URL="postgresql+asyncpg://..." \
-  -e SECRET_KEY="..." \
-  inexxio-backend:local
+gcloud run services logs read inexxio-backend-dev --region europe-west6 --project inexxio-dev
+gcloud run revisions list --service inexxio-backend-dev --region europe-west6 --project inexxio-dev
+gcloud run services update-traffic inexxio-backend-dev --to-revisions <REVISION>=100 \
+  --region europe-west6 --project inexxio-dev
 ```
+Das Frontend kehrt mit einem Revert auf dem Branch zurück. Rollback-Punkte stehen als
+Commit-Hash in `docs/history/`.
 
-### Frontend (`frontend/Dockerfile`)
+## Laufende Kosten
 
-Multi-stage build (fallback if Firebase Hosting is unavailable):
-- **deps**: node:20-alpine, installs npm dependencies
-- **builder**: builds Next.js with `output: 'standalone'`
-- **runtime**: node:20-alpine, runs as non-root `nextjs` (uid 1001)
+> **Die Regel: was nicht auf null skaliert, kostet rund um die Uhr.** Cloud Run tut es
+> (ausser mit `--min-instances ≥ 1`), Cloud SQL nie.
 
-Port: 8080. Entrypoint: `node server.js`.
+Eine ungenutzte Umgebung ist darum nicht gratis, sondern fast so teuer wie eine
+benutzte — und genau das ist im Sommer 2026 passiert: `inexxio-prod` wurde am
+5. Juni deployt, danach lief die Entwicklung ausschliesslich auf `develop`/dev, und
+die Prod-Umgebung rechnete zweieinhalb Monate lang ~108 CHF/Monat ab, ohne dass
+jemand sie aufrief. Das waren ~85 % der Gesamtrechnung.
 
----
+Grössenordnungen in **europe-west6 (Zürich)** — der teuersten EU-Region, ca. 25–35 %
+über europe-west1/west4:
 
-## Secret Manager Reference
+| Posten                                   | grob CHF/Monat |
+|------------------------------------------|----------------|
+| Cloud SQL `db-custom-2-7680` (2 vCPU/7,5 GB) | ~100       |
+| Cloud SQL `db-g1-small`                  | ~35            |
+| Cloud SQL `db-f1-micro`                  | ~10            |
+| Cloud Run, `--min-instances 1`, je Dienst | ~7–9          |
+| Cloud Run, `--min-instances 0`, im Leerlauf | ~0          |
+| Artifact Registry                        | ~0,2 (1,8 GB)  |
+| Firebase Hosting, Secret Manager, GCS    | ~1–2           |
 
-| Secret Name          | Description                               | Consumed by      |
-|----------------------|-------------------------------------------|------------------|
-| `DATABASE_URL`       | PostgreSQL asyncpg connection string      | Cloud Run        |
-| `FIREBASE_PROJECT_ID`| Firebase project ID                       | Cloud Run        |
-| `SECRET_KEY`         | JWT signing key (hex 32 bytes)            | Cloud Run        |
-| `GCS_BUCKET`         | GCS bucket name for file storage          | Cloud Run        |
-| `CLAUDE_API_KEY`     | Anthropic Claude API key (Phase 1)        | Cloud Run        |
-| `STRIPE_SECRET_KEY`  | Stripe secret key (Phase 2)               | Cloud Run        |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (Phase 2)| Cloud Run        |
+Heute: beide Backends mit `--min-instances 0` (je bis 2 Instanzen, je 1 CPU,
+512 MiB, ein Worker). Prod geht beim Go-live auf `min_instances: 1` (`deploy-prod.yml`).
+Verbindungen: je Worker bis 5 + 5 (`app/core/database.py`), also höchstens
+Instanzen × 10 = 20 – passt ab `db-f1-micro` (25); mehr Instanzen erst ab `db-g1-small` (50).
 
-Update a secret:
-```bash
-echo -n "new-value" | gcloud secrets versions add SECRET_NAME \
-  --data-file=- --project=inexxio-dev
-```
+Daraus die drei Regeln:
 
-List secret versions:
-```bash
-gcloud secrets versions list SECRET_NAME --project=inexxio-dev
-```
-
----
-
-## Monitoring & Logging
-
-- Cloud Run logs: `gcloud run services logs read inexxio-backend-dev --region=europe-west6`
-- Cloud SQL logs: Cloud Console → Logging → Cloud SQL
-- Uptime checks: Configure in Cloud Monitoring → Uptime Checks → `https://inexxio.web.app/api/v1/health`
-
----
-
-## Rollback
-
-```bash
-# List recent Cloud Run revisions
-gcloud run revisions list \
-  --service=inexxio-backend-prod \
-  --region=europe-west6 \
-  --project=inexxio-prod
-
-# Route 100% traffic to a previous revision
-gcloud run services update-traffic inexxio-backend-prod \
-  --to-revisions=inexxio-backend-prod-XXXXX=100 \
-  --region=europe-west6 \
-  --project=inexxio-prod
-```
-
-For frontend, redeploy a previous Git commit by reverting and pushing to the target branch.
+1. **Eine Umgebung, die nicht gebraucht wird, wird gestoppt oder gelöscht** — nicht
+   «stehen gelassen, kostet ja nichts». Eine gestoppte Cloud-SQL-Instanz
+   (`--activation-policy=NEVER`) spart rund 95 %; nur der Speicher läuft weiter.
+2. **Klein starten.** Eine Tier-Änderung ist ein Befehl und ein Neustart; zu gross
+   zu starten ist ein Dauerauftrag, der niemandem auffällt.
+3. **Ein Budget-Alarm ist die einzige Instanz, die es merkt** (siehe «Betrieb absichern»).

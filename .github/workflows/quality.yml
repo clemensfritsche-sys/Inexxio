@@ -1,0 +1,171 @@
+name: Quality gates
+
+# ►►► EIN Gate. ◄◄◄ Es läuft auf jedem Push eines Feature-Branches und jedem Pull Request,
+# und deploy-dev.yml/deploy-prod.yml rufen es auf, bevor etwas ausgerollt wird. Frontend,
+# Backend und Website laufen parallel.
+#
+# ``build: false`` (nur aus dem Deploy): Frontend und Website baut dann der Deploy selbst
+# (.github/workflows/deploy.yml, Job «Build»), mit den Werten seiner Umgebung, und rollt
+# erst danach aus – gebaut wird jede Fassung genau einmal.
+
+on:
+  push:
+    branches-ignore: [develop, main]
+  pull_request:
+  workflow_call:
+    inputs:
+      build:
+        description: Frontend und Website auch bauen (aus dem Deploy false – er baut selbst)
+        type: boolean
+        default: true
+
+jobs:
+  frontend:
+    name: Frontend (Typen, Lint, Tests, Build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: TypeScript check
+        working-directory: frontend
+        run: npm run type-check
+
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Unit-Tests (Frontend)
+        working-directory: frontend
+        run: npm test
+
+      # Ohne Website-Build entsteht eine leere Shell (``scripts/site-shell.mjs``);
+      # ``development`` baut die Testnotiz-Insel mit, die ein Prod-Build auslässt.
+      - name: Build (Frontend)
+        if: ${{ inputs.build != false }}
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_ENVIRONMENT: development
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run build
+
+  backend:
+    name: Backend (ruff, pytest, generierte Dateien)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Die Tests brauchen echtes PostgreSQL; das Schema baut ``tests/runner.session`` selbst
+    # aus den Migrationen (``alembic upgrade head``) – der einzige Weg zum Schema.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.lock
+
+      # Aus der Sperrdatei, jede Abhängigkeit mit Prüfsumme – derselbe Stand wie im
+      # Docker-Build (tests/test_lock.py prüft, dass sie zu requirements.txt passt).
+      - name: Install backend deps
+        working-directory: backend
+        run: pip install --require-hashes -r requirements.lock
+
+      # Nur die F-Regeln (backend/ruff.toml) – Fehler, keine Stilfragen. Gepinnt, damit
+      # eine neue Regel die CI nicht über Nacht rot macht.
+      - name: Ruff (Python, nur F-Regeln)
+        working-directory: backend
+        run: |
+          pip install ruff==0.16.8
+          ruff check .
+
+      # **Die Datenbank ist Pflicht** (``INEXXIO_REQUIRE_DB=1``, tests/conftest.py): ist
+      # sie nicht erreichbar, bricht der Lauf ab, statt Prüfungen still zu überspringen.
+      # ``-rs`` listet jeden verbleibenden Skip mit Grund, ``--durations`` die langsamsten.
+      - name: pytest (Matrix, Invarianten, Wächter)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
+          FIREBASE_PROJECT_ID: test
+          INEXXIO_REQUIRE_DB: '1'
+        run: python -m pytest tests/ -q -rs --durations=15
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Generierte Dateien aktuell (openapi.json, api.ts, status-catalog.ts)
+        run: |
+          (cd backend && python -m scripts.dump_openapi && python -m scripts.dump_statuses)
+          (cd frontend && npm ci && npm run generate:types)
+          git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts || \
+            (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses' und 'npm run generate:types' ausführen und committen" && exit 1)
+
+  # Die öffentliche Website (website/, Astro 7, Node ≥ 22.12). Der Build prüft: offene
+  # Punkte (check-content), Links, JSON-LD, Sitemap, robots.txt, llms.txt, Weiterleitungen
+  # in firebase.json und das Leistungsbudget (check-site).
+  website:
+    name: Website (Tests, Astro, Abdrucke, Build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install website deps
+        working-directory: website
+        run: npm ci
+
+      - name: Unit-Tests (Website)
+        working-directory: website
+        run: npm test
+
+      - name: Astro/TypeScript check
+        working-directory: website
+        run: npm run check
+
+      # Das Backend prüft die Anfrage gegen dieselben Listen und Muster; das Frontend trägt
+      # Name, Satz und Logo – alles aus diesen Abdrucken.
+      - name: Abdrucke fürs ERP aktuell (website_contact.json, site-meta.json, Logo)
+        working-directory: website
+        run: node scripts/export-erp.mjs --check
+
+      - name: Build (Vorschau) inkl. Prüfungen
+        if: ${{ inputs.build != false }}
+        working-directory: website
+        env:
+          SITE_MODE: preview
+          SITE_URL: https://inexxio-dev.web.app
+        run: npm run build
+
+      # Der Build schreibt OFFENE_PUNKTE.md neu – die Datei im Repo muss genau das sein.
+      - name: OFFENE_PUNKTE.md aktuell
+        if: ${{ inputs.build != false }}
+        run: git diff --exit-code -- website/OFFENE_PUNKTE.md || { echo "::error::website/OFFENE_PUNKTE.md ist veraltet – «npm run build» in website/ ausführen und committen."; exit 1; }

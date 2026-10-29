@@ -1,0 +1,3005 @@
+"""**Der Beleg — das neu aufgebaute Zahlungsmodul.**
+
+Die Regeln, die hier geprüft werden, sind die aus ``docs/history/2026-09-neuaufbau-zahlungsmodul.md``.
+Fachlich dieselben wie beim Vorgänger (``domain/deal``); **neu sind die drei Formen**, und
+genau die prüft dieser Wächter:
+
+1. ►►► **Ein Verb hat EINE Deklaration** (``VERBS``). ◄◄◄ Beim Vorgänger stand es an vier
+   Stellen (``ACTIONS`` · ``REQUIRED_FOR``/``_UP_TO`` · ``HANDLERS`` ·
+   ``Direction.party_actions``), und die vierte bekam ein neues Verb nicht mit.
+2. ►►► **Der Angebotsspiegel ist eine Tabelle**, keine Liste an einem Feld.
+3. ►►► **Die Position gibt es in EINER Form** – eingefroren wird durch die **Stufe**.
+
+Dazu drei Spalten, die **Ableitungen** geworden sind (*mit wem · was vereinbart ist ·
+welche Zahlungsfrist*): am Vorgänger standen sie neben der gewählten Angebotszeile, und
+derselbe Beleg konnte damit zwei Dinge sagen.
+
+Und die eine Regel, die alles zusammenhält: **es bewegt keine Stücke.**
+
+Geprüft über die **echten** Dienstpfade gegen echtes PostgreSQL.
+"""
+
+import pathlib
+import uuid
+from decimal import Decimal
+from types import SimpleNamespace
+
+import pytest
+
+from tests.runner import session
+from tests.scenes import voucher as scene
+from tests.scenes.voucher import house as _house
+
+BACKEND = pathlib.Path(__file__).resolve().parents[1]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► DIE SZENE — ein Haus, ein Partner, ein Auftrag mit einem Beleg-Modul
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def db(db):
+    """Die Sitzung aus ``conftest`` – mit dem Haus, das der Beleg braucht."""
+    _house(db)
+    return db
+
+
+
+
+def _party(db, name: str, role: str = "supplier"):
+    """Eine Gegenpartei mit Firma «name» (ohne Rechtsform) und Anschrift Werkweg 3."""
+    return scene.party(db, name, form="", role=role, unique=False, first_name=None,
+                       last_name=None, street="Werkweg 3", zip_code="9000", city="St. Gallen")
+
+
+def _article(db, name: str, *, steps=None):
+    """Ein Artikel **mit** Erzeugungsprozess (Datenerfassung, dann ``steps``)."""
+    return scene.article(db, name=name, steps=steps or [])
+
+
+def _step(*, direction: str = "in", parties=(), task: str = "Härten auf 58 HRC",
+          ref: str = "Art. 4711") -> dict:
+    """Ein Beleg-Modul – **drei** Angaben, mehr gibt es nicht.
+
+    ``task`` ist **was zu tun ist** (am Modul, freiwillig), ``ref`` **wie man bei ihm
+    bestellt** (je Partner, Pflicht – aber nur, wo wir bestellen). Zwei Fragen, zwei
+    Angaben: als eine stellte sie beim Verkauf eine, die niemand beantworten kann.
+    """
+    return {"module_type": "beleg",
+            "config": {"direction": direction,
+                       "instruction": task,
+                       # Eigentum ist Pflicht und hier nicht Gegenstand – im Modul vorgegeben.
+                       "ownership": "party" if direction == "in" else "us",
+                       "parties": [{"party": p.object_id, "ref": ref} for p in parties]}}
+
+
+def _order(db, *, quantity: int, article, steps=None, actor=None):
+    """Ein freigegebener Erzeugungsauftrag über diesen Artikel."""
+    assert not steps, "Der Prozess des Auftrags ist der des Artikels."
+    return scene.release(db, article, quantity=quantity, actor=actor)
+
+
+def _scene(db, *, direction: str = "in", quantity: int = 3, parties=None):
+    """Ein Auftrag mit **einem** Beleg-Modul – die Szene fast jeder Prüfung hier."""
+    from app.services import voucher as svc, voucher_actions
+    who = parties if parties is not None else [_party(db, "Muster AG", "customer")]
+    art = _article(db, f"Welle {uuid.uuid4().hex[:6]}",
+                   steps=[_step(direction=direction, parties=who)])
+    order, steps = _order(db, quantity=quantity, article=art)
+    step = next(s for s in steps if s.module_type == "beleg")
+    row = svc.of_step(db, step.id)
+    assert row is not None, "Die Freigabe hat keinen Beleg angelegt."
+    # **Die Lieferbedingung gehört zum vollständigen Beleg** (#964) – ohne sie geht er
+    # nicht hinaus, und fast jede Prüfung hier will ihn hinausgehen lassen.
+    voucher_actions.apply(db, order=order, step=step, action="incoterm",
+              payload={"incoterm": "FCA"})
+    db.flush()
+    return order, step, row, who, art
+
+
+def _original(db) -> int:
+    """**Die Lieferantenrechnung als Dokument** – Pflicht beim Erfassen (sie ist der Beleg)."""
+    return scene.document(db, name="R-2026-7").object_id
+
+
+def _price(db, order, step, row, *, price: str = "100.00", vat: str = "normal"):
+    """Jede Position bepreisen – das ist ein **eigenes** Verb (`price`), kein `ask`."""
+    from app.services import voucher_actions, voucher_head
+    lines = voucher_head.sync_lines(db, row, order)
+    voucher_actions.apply(db, order=order, step=step, action="price",
+              payload={"lines": [{"id": ln.id, "price": price, "vat": vat}
+                                 for ln in lines]})
+    db.flush()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► §1 – EIN VERB HAT EINE DEKLARATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+#: Der Beleg-Dienst in seinen fünf Dateien (Kern, Kopf, Geld, Handlungen, Ansicht).
+VOUCHER_FILES = ("voucher", "voucher_head", "voucher_money", "voucher_actions", "voucher_view")
+
+
+def _code(path: pathlib.Path) -> str:
+    """Der **Code**, ohne Docstrings und Kommentare.
+
+    Ein Wächter, der die Prosa mitliest, schlägt an, weil jemand den Fehler *beschreibt*,
+    den er verhindern soll – das ist im Haus schon mehrfach passiert.
+    """
+    import ast
+    src = path.read_text()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                             ast.Module)):
+            doc = ast.get_docstring(node, clean=False)
+            if doc:
+                src = src.replace(doc, "")
+    return "\n".join(l.split("#")[0] for l in src.splitlines())
+
+
+def test_a_verb_is_declared_in_exactly_one_place():
+    """►►► **Vier Fragen über ein Verb stehen in EINER Zeile.** ◄◄◄
+
+    *In welcher Stufe · welche Stammdaten · wer darf · welche Funktion* – beim Vorgänger
+    waren das vier Tabellen an vier Stellen, und die hinzugefügte Zeile in der vierten
+    vergass man. Hier ist es ``VERBS``.
+
+    Bug-Formen: (a) eine zweite Tabelle steht daneben; (b) ein Verb fehlt in ``VERBS``,
+    wird aber trotzdem irgendwo geprüft; (c) ``can`` liest etwas anderes als ``VERBS``.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher_actions
+
+    code = "".join(_code(BACKEND / "app" / "services" / f"{m}.py") for m in VOUCHER_FILES)
+    for gone in ("ACTIONS", "HANDLERS", "_UP_TO", "party_actions"):
+        assert f"{gone}:" not in code and f"{gone} =" not in code, (
+            f"«{gone}» steht wieder als eigene Tabelle da (a) – vier Stellen für ein Verb "
+            f"sind genau die Form, in der die vierte ein neues nicht mitbekommt."
+        )
+    # (b) **Jedes Verb, das irgendwo vorkommt, steht in `VERBS`.**
+    for verb in ("ask", "quote", "decline", "agree", "revoke", "bill", "accept",
+                 "correct", "pay", "refund", "writeoff", "tip", "reverse", "remind",
+                 "export", "price", "currency", "issuer", "incoterm", "terms",
+                 "ownership", "pay_online", "refund_online"):
+        assert verb in voucher_actions.VERBS, f"«{verb}» fehlt in VERBS (b)."
+    assert "unbill" not in voucher_actions.VERBS, "«Rechnung zurücknehmen» ist zurück."
+    # (c) **`can` liest genau diese Tabelle** – geprüft an der Stufe, nicht am Namen.
+    for key, verb in voucher_actions.VERBS.items():
+        assert verb.stages, f"«{key}» gilt in keiner Stufe (b)."
+        for stage in verb.stages:
+            # **«Erledigt» ist keine Stufe mehr** – eine Ableitung (Saldo null).
+            assert stage in ("offer", "agreed", "billed", "cancelled"), (
+                f"«{key}» nennt die Stufe «{stage}», die es nicht gibt (b)."
+            )
+
+
+def test_who_may_act_follows_from_who_names_the_price():
+    """►►► **Wer den Preis empfängt, nimmt an oder lehnt ab – er offeriert nicht.** ◄◄◄
+
+    Die Regel steht am **Verb** (``Verb.party``) und wird gegen die Richtung ausgewertet;
+    beim Vorgänger war sie eine eigene Ableitung an der Richtung.
+
+    Bug-Formen: (a) die Gegenpartei darf bei einer Einnahme unseren Preis überschreiben;
+    (b) sie darf bei einer Ausgabe zusagen (der Zuschlag ist unsere Entscheidung);
+    (c) absagen darf sie in einer Richtung nicht.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.services import voucher_actions
+
+    income, expense = vo.of("in"), vo.of("out")
+    assert not voucher_actions.VERBS["quote"].allows(income), (
+        "Die Gegenpartei darf unseren Preis überschreiben (a) – das wäre eine "
+        "Gegenofferte, und die ist ein neuer Beleg."
+    )
+    assert voucher_actions.VERBS["quote"].allows(expense), "Der Lieferant darf nicht offerieren."
+    assert voucher_actions.VERBS["agree"].allows(income), "Der Kunde darf unser Angebot nicht annehmen."
+    assert not voucher_actions.VERBS["agree"].allows(expense), (
+        "Der Lieferant gibt sich selbst den Zuschlag (b)."
+    )
+    for flow in (income, expense):
+        assert voucher_actions.VERBS["decline"].allows(flow), (
+            "Absagen ist die eine Antwort, die in beide Richtungen dasselbe bedeutet (c)."
+        )
+    # ►►► **Und die WÄHRUNG folgt derselben Regel** (Testnotiz #1057). ◄◄◄
+    #
+    # *«Ich denke, die Währung, in der ein Lieferant etwas offeriert, soll er selbst wählen
+    # können – das obliegt nicht mir.»* – Es ist genau die Regel, die ``quote`` schon
+    # trägt: wer den Preis nennt, nennt ihn in seiner Währung. Darum **ein Wert** in der
+    # Tabelle und keine Zeile daneben – die Oberfläche fragt längst ``may(d,'currency')``.
+    #
+    # Bug-Formen: (d) sie bleibt überall unsere; (e) sie wird bei einer Einnahme seine.
+    assert voucher_actions.VERBS["currency"].allows(expense), (
+        "Der Lieferant offeriert in einer Währung, die wir für ihn festlegen (d)."
+    )
+    assert not voucher_actions.VERBS["currency"].allows(income), (
+        "Der Kunde wählt die Währung unserer Offerte (e)."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► §2 – DIE DREI FORMEN, DIE NEU SIND
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_the_offer_mirror_is_a_table_not_a_field(db):
+    """►►► **Eine Angebotszeile ist eine Sache, keine Eigenschaft.** ◄◄◄
+
+    Sie hat Zustand, Datum, Betrag und zwei Fristen. Als JSONB an der Kopfzeile musste die
+    ganze Liste bei jeder Änderung neu gebaut werden (ein mutierter Wert fällt still aus
+    dem ``UPDATE``), und «woran ist dieser Betrachter beteiligt?» war eine
+    Containment-Abfrage.
+
+    Bug-Formen: (a) ``quotes`` ist wieder eine Spalte; (b) eine Änderung an einer Zeile
+    kommt nicht an; (c) ``mine`` findet die Gegenpartei nicht.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.models import Voucher
+    from app.services import voucher as svc, voucher_actions
+
+    assert not hasattr(Voucher, "quotes"), (
+        "Der Angebotsspiegel steht wieder als Feld am Beleg (a)."
+    )
+    order, step, row, who, _art = _scene(db, direction="out",
+                                         parties=[_party(db, "Härterei AG")])
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={})
+    db.flush()
+    rows = svc.quotes_of(db, row)
+    assert len(rows) == 1 and rows[0].party_id == who[0].object_id
+    # (b) **Eine Änderung an EINER Zeile kommt an** – ohne Neubau der ganzen Liste.
+    voucher_actions.apply(db, order=order, step=step, action="quote",
+              payload={"party": who[0].object_id, "amount": "84.00",
+                       "lead_days": 5, "payment_days": 30})
+    db.flush()
+    db.expire_all()
+    again = svc.quotes_of(db, row)[0]
+    assert again.amount == Decimal("84.0000"), f"Die Offerte kam nicht an (b): {again.amount}."
+    assert again.lead_days == 5 and again.payment_days == 30
+    assert again.sent_on is not None, "Das Datum des Hinausgehens fehlt."
+    # (c) **Beteiligt ist, wer angefragt wurde** – eine gewöhnliche JOIN-Bedingung.
+    found = svc.mine(db, who[0])
+    assert found is not None and [r.id for r in found] == [row.id], (
+        "Die Gegenpartei findet ihren Beleg nicht (c)."
+    )
+
+
+def test_a_position_exists_in_exactly_one_form(db):
+    """►►► **Die Position gibt es einmal — und die STUFE friert sie ein.** ◄◄◄
+
+    Beim Vorgänger dreimal: abgeleitet · je Angebot kopiert · eingefroren. Hier ist es
+    eine Tabelle, und ``sync_lines`` läuft nur, solange nichts zugesagt ist.
+
+    Bug-Formen: (a) ``agreed_lines`` ist zurück; (b) ``sync_lines`` zieht auch nach der
+    Zusage nach – dann ändert sich ein zugesagter Beleg, weil der Auftrag Stücke verliert;
+    (c) ein getippter Preis geht beim Nachziehen verloren.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.models import Voucher
+    from app.services import voucher as svc, voucher_actions, voucher_head
+
+    assert not hasattr(Voucher, "agreed_lines"), (
+        "Die eingefrorene Kopie der Positionen ist zurück (a)."
+    )
+    order, step, row, who, _art = _scene(db, quantity=4)
+    lines = voucher_head.sync_lines(db, row, order)
+    assert len(lines) == 1 and lines[0].quantity == 4
+    # (c) **Was ein Mensch eingetragen hat, überlebt das Nachziehen.**
+    _price(db, order, step, row, price="25.00")
+    again = voucher_head.sync_lines(db, row, order)
+    assert again[0].price == Decimal("25.0000"), (
+        f"Der Preis ist beim Nachziehen verloren gegangen (c): {again[0].price}."
+    )
+    # (b) **Ab der Zusage steht es fest** – und das misst man nur, wenn der Prozess
+    #     sich danach wirklich **ändert**: der Auftrag verliert Stücke (genau der
+    #     Fall, um den es geht). Ohne diese Zeilen prüfte der Wächter gar nichts.
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 5, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={"parties": [who[0].object_id]})
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": who[0].object_id})
+    db.flush()
+    from app.models import OrderUnit
+    from datetime import datetime, timezone
+    gone = (db.query(OrderUnit)
+            .filter(OrderUnit.order_id == order.id,
+                    OrderUnit.released_at.is_(None)).all())
+    for u in gone[:3]:
+        u.released_at = datetime.now(timezone.utc)
+    db.flush()
+    assert sum(n for _a, n in svc.process_lines(db, order)) == 1, (
+        "Der Auftrag hat seine Stücke nicht verloren – dann misst der Wächter nichts."
+    )
+    before = [(l.article_id, l.quantity) for l in svc.lines_of(db, row)]
+    voucher_head.sync_lines(db, row, order)
+    db.flush()
+    after = [(l.article_id, l.quantity) for l in svc.lines_of(db, row)]
+    assert before == after == [(_art.id, 4)], (
+        f"Die zugesagten Positionen ziehen weiter nach (b): {before} → {after}."
+    )
+
+
+def test_three_columns_became_derivations(db):
+    """►►► **Mit wem · was vereinbart ist · welche Frist — sie stehen an der ZEILE.** ◄◄◄
+
+    Als Spalten daneben wurden sie beim Zuschlag hineinkopiert, und derselbe Beleg konnte
+    danach zwei Dinge sagen; eine eigene Regel musste den Widerspruch verhindern. Als
+    Ableitung kann er **nicht entstehen**.
+
+    Bug-Formen: (a) eine der drei Spalten ist zurück; (b) die Ableitung liest eine andere
+    Zeile als die gewählte; (c) der Betrag weicht von der Summe der Positionen ab.
+
+    *``vouchers.amount`` gibt es seit dem Umbau wieder – es ist aber **eine andere
+    Sache**: der eingefrorene Betrag der **Rechnung**, nicht der der Zusage. Geprüft wird
+    darum die Ableitung selbst (``agreed_amount`` liest die Zeile), nicht die Abwesenheit
+    eines Namens.*
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.models import Voucher
+    from app.services import voucher as svc, voucher_actions
+
+    for gone in ("party_id", "due_days"):
+        assert not hasattr(Voucher, gone), (
+            f"«{gone}» steht wieder als Spalte am Beleg (a) – dann kann der Beleg "
+            f"etwas anderes sagen als seine gewählte Angebotszeile."
+        )
+    src = _code(BACKEND / "app" / "services" / "voucher.py")
+    body = src[src.index("def agreed_amount("):src.index("def due_days_of(")]
+    assert "row.amount" not in body, (
+        "Der zugesagte Betrag liest die Rechnung (a) – das sind zwei Zahlen zu zwei "
+        "Zeitpunkten, und die Zusage steht an ihrer Angebotszeile."
+    )
+    a, b = _party(db, "Kunde A", "customer"), _party(db, "Kunde B", "customer")
+    order, step, row, _who, _art = _scene(db, quantity=3, parties=[a, b])
+    _price(db, order, step, row, price="10.00")
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 5, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={})
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": b.object_id})
+    db.flush()
+    assert svc.party_of(db, row) == b.object_id, "Die Ableitung liest die falsche Zeile (b)."
+    assert svc.due_days_of(db, row) == 30
+    # (c) **Der Betrag IST die Brutto-Summe** – 3 × 10.00 zu 8.1 %.
+    assert svc.agreed_amount(db, row) == Decimal("32.4300"), (
+        f"Der zugesagte Betrag ist nicht die Summe der Positionen (c): "
+        f"{svc.agreed_amount(db, row)}."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► §3 – DIE REGEL, DIE ALLES ZUSAMMENHÄLT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_the_module_never_touches_a_single_unit():
+    """►►► **Es bewegt keine Stücke** – daraus folgt die ganze Robustheit. ◄◄◄
+
+    Ein Durchläufer (``Im Prozess`` → ``Im Prozess``), kein Ausgang, kein Ortswechsel,
+    kein neuer Status. Genau deshalb muss **keine andere Regel im System** von ihm wissen.
+
+    Bug-Formen: (a) es ist terminal; (b) es setzt einen anderen Nachher-Zustand;
+    (c) es bewegt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import modules, statuses as st
+
+    mod = modules.get("beleg")
+    assert mod.terminal is False, "Der Beleg ist ein Ausgang geworden (a)."
+    assert mod.status_before == st.IM_PROZESS and mod.status_after == st.IM_PROZESS, (
+        "Der Beleg ändert den Zustand eines Stücks (b)."
+    )
+    assert mod.moves is False, "Der Beleg bewegt Stücke (c)."
+    assert mod.requires_verification is False, (
+        "Der Beleg verlangt einen Scan – es gibt nichts zu verifizieren."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► §4 – DER GANZE WEG, ÜBER DIE ECHTEN DIENSTPFADE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def test_an_expense_lets_the_other_side_name_the_price(db):
+    """**Anfragen → seine Offerte → Zuschlag** – die Ausgabe-Seite, und sie ist eine
+    andere **Abfolge**, keine zweite Maschine."""
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc, voucher_actions, voucher_head
+    a, b = _party(db, "Härterei A"), _party(db, "Härterei B")
+    order, step, row, _who, _art = _scene(db, direction="out", parties=[a, b])
+    # ►►► **Auch MIT Preisen an den Positionen geht sie leer hinaus.** ◄◄◄ Die Preise
+    # werden hier direkt an die Zeilen geschrieben, nicht über `price` – das Verb
+    # schreibt bei einer Ausgabe zu Recht nichts. Ohne sie wäre die Bug-Form gar nicht
+    # herstellbar, und der Wächter prüfte nichts: **wer den Preis nennt, sagt die
+    # Richtung**, nicht der Zufall, dass gerade keiner dasteht.
+    for ln in voucher_head.sync_lines(db, row, order):
+        ln.price = Decimal("40.00")
+    db.flush()
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={})
+    db.flush()
+    rows = svc.quotes_of(db, row)
+    assert [q.state for q in rows] == ["angefragt", "angefragt"], (
+        "Bei einer Ausgabe geht die Zeile LEER hinaus – das ist ihr Sinn."
+    )
+    assert all(q.amount is None for q in rows), (
+        "Die Anfrage trägt einen Preis – bei einer Ausgabe nennt ihn die Gegenpartei."
+    )
+    for who, amount in ((a, "120.00"), (b, "99.00")):
+        voucher_actions.apply(db, order=order, step=step, action="quote",
+                  payload={"party": who.object_id, "amount": amount,
+                           "lead_days": 7, "payment_days": 30})
+    db.flush()
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": b.object_id})
+    db.flush()
+    assert svc.party_of(db, row) == b.object_id
+    assert svc.agreed_amount(db, row) == Decimal("99.0000")
+    assert [q.state for q in svc.quotes_of(db, row)] == ["offeriert", "gewaehlt"]
+
+
+def test_can_is_the_gate_and_not_only_a_hint(db):
+    """►►► **Dieselbe Liste rendert die Knöpfe und weist ab.** ◄◄◄
+
+    Bug-Formen: (a) ``assert_allowed`` lässt etwas durch, das ``can`` nicht führt;
+    (b) die Ablehnung kommt ohne Grund; (c) sie nennt bei einer fehlenden Angabe die
+    Stufe statt der Angabe.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher_actions
+    order, step, row, _who, _art = _scene(db)
+    allowed = voucher_actions.can(db, row, None)
+    assert "revoke" not in allowed, "Stornieren geht vor der Zusage (a)."
+    with pytest.raises(HTTPException) as e:
+        voucher_actions.assert_allowed(db, row, "revoke", None)
+    assert e.value.status_code == 409, "Die falsche Stufe ist ein 409 (c)."
+    assert str(e.value.detail).strip(), "Ablehnung ohne Grund (b)."
+    assert "Offerte" in str(e.value.detail), (
+        "Der Satz nennt die Stufe nicht – «geht nicht» ohne «woran es liegt» ist "
+        "eine Sackgasse mit Ausrufezeichen."
+    )
+
+
+def test_a_missing_master_record_is_a_line_not_a_state(db):
+    """►►► **Fehlende Stammdaten sind `StepNeed` für Stammdaten.** ◄◄◄
+
+    Die Freigabe geht, das Modul bewegt nichts, und die Zeile sagt **wo · was · warum**.
+    Durchgesetzt über ``can``: der Knopf ist gar nicht da.
+
+    Bug-Formen: (a) das Verb steht trotz Lücke in ``can``; (b) die Zeile nennt den
+    Datensatz nicht; (c) eine Absage oder ein Storno wird mitgesperrt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import sites, voucher_actions
+    order, step, row, _who, _art = _scene(db)
+    house = sites.find_operator(db)
+    # **Ohne Kontaktweg landet jede Rückfrage im Telefonbuch** – eine der drei
+    # Angaben, die eine Anfrage verlangt.
+    house.email = ""
+    house.phone = ""
+    db.flush()
+    rows = voucher_actions.gaps(db, row, action="ask")
+    assert rows, "Ohne Kontaktweg meldet das Modul keine Lücke."
+    assert rows[0]["record_object_id"], "Die Lücke nennt ihren Datensatz nicht (b)."
+    assert rows[0]["why"].strip(), "Die Lücke sagt nicht, warum."
+    # **Eine Absage braucht eine Angebotszeile** – sie steht da, bevor die Lücke kam.
+    from app.models import VoucherQuote
+    db.add(VoucherQuote(voucher_id=row.id, party_id=_who[0].object_id, state="offeriert"))
+    db.flush()
+    allowed = voucher_actions.can(db, row, None)
+    assert "ask" not in allowed, "Anfragen geht trotz fehlender Anschrift (a)."
+    assert "decline" in allowed and "revoke" in allowed, (
+        "Absagen oder Stornieren ist mitgesperrt (c) – dann wäre eine halbe Anschrift "
+        "eine Sackgasse."
+    )
+
+
+def _agreed(db, *, direction: str = "in", quantity: int = 2, price: str = "100.00",
+            parties=None):
+    """Eine Szene bis zur **Zusage** – bepreist, angeboten, angenommen."""
+    from app.services import voucher_actions
+    order, step, row, who, art = _scene(db, direction=direction, quantity=quantity,
+                                        parties=parties)
+    if direction == "in":
+        _price(db, order, step, row, price=price)
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={})
+    if direction != "in":
+        voucher_actions.apply(db, order=order, step=step, action="quote",
+                  payload={"party": who[0].object_id, "amount": price,
+                           "lead_days": 7, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": who[0].object_id})
+    db.flush()
+    return order, step, row, who, art
+
+
+def _credit(db, *, target, who, price: str = "40.00"):
+    """Eine **Gutschrift** zu ``target`` – in einem **eigenen** Auftrag.
+
+    Die Reihenfolge ist die des Belegs: erst zuordnen (das Verb ``correct`` gilt in der
+    Stufe «Angebot»), dann bepreisen, anbieten und annehmen.
+    """
+    from app.services import voucher_actions
+    order, step, row, _w, _a = _scene(db, quantity=1, parties=[who])
+    voucher_actions.apply(db, order=order, step=step, action="correct",
+              payload={"corrects": target.id})
+    _price(db, order, step, row, price=price)
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={})
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": who.object_id})
+    db.flush()
+    return order, step, row
+
+
+def test_a_module_carries_exactly_one_invoice(db):
+    """►►► **Eine Rechnung je Modul — nicht als Regel, sondern als STRUKTUR.** ◄◄◄
+
+    *«Nur eine Rechnung pro Zahlungsmodul. Habe ich Teilrechnungen, dann erstelle ich
+    einfach 2 Zahlungsmodule.»*
+
+    Bis hierher musste eine Funktion **zählen**, was eine «Forderung nach aussen» ist
+    (nicht die Gegenbuchung, nicht die stornierte, nicht die negative) – eine Regel, die
+    jemand durchsetzt und die man vergessen kann. Jetzt **ist** der Beleg die Rechnung:
+    ``bill`` ist eine Schwelle von ``agreed`` nach ``billed``, und danach steht das Verb
+    gar nicht mehr in ``can``.
+
+    Bug-Form: ein zweites ``bill`` am selben Beleg geht durch.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher_actions
+    order, step, row, _who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    db.flush()
+    assert row.stage == "billed" and row.amount == Decimal("216.2000")
+    assert "bill" not in voucher_actions.can(db, row, None), (
+        "«Rechnung stellen» steht nach der Rechnung noch da – dann ist die Regel "
+        "wieder eine Zählung statt der Struktur."
+    )
+    with pytest.raises(HTTPException) as e:
+        voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    assert e.value.status_code == 409, "Eine zweite Rechnung geht durch."
+
+
+
+def test_falsch_erfasst_undoes_exactly_one_money_row(db):
+    """►►► **«Falsch erfasst?» ist die Gegenbuchung GENAU einer Zeile – kein Rückbuchen.** ◄◄◄
+
+    Entschieden: kein «Rückbuchung»-Knopf. Geld zurück an den Kunden ist eine Gutschrift in
+    einem eigenen Modul bzw. «Erstatten», wenn zu viel kam. An einer von Hand erfassten
+    Zeile steht nur leise «falsch erfasst?» – für einen Tippfehler.
+
+    Bug-Formen: (a) eine Karten-Zeile (vom Zahlungsdienst gemeldet) lässt sich gegenbuchen;
+    (b) eine Gegenbuchung lässt sich noch einmal gegenbuchen; (c) die alte Zeile
+    verschwindet statt stehen zu bleiben.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc, voucher_actions, voucher_money
+    order, step, row, _who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    voucher_actions.apply(db, order=order, step=step, action="pay",
+              payload={"method": "cash", "amount": "10.00"})
+    voucher_money.record_payment(db, row=row, amount=Decimal("5.00"),
+                       reference=f"pi_{row.id}", method="card")
+    cash, card = svc.entries_of(db, row)
+    assert card.id not in {e.id for e in voucher_actions.reversible(db, row)}, "(a)"
+    voucher_actions.apply(db, order=order, step=step, action="reverse", payload={"entry": cash.id})
+    rows = svc.entries_of(db, row)
+    assert len(rows) == 3, "Die alte Zeile ist verschwunden (c)."
+    assert rows[2].reverses_id == cash.id, "Die Gegenbuchung nennt ihre Zeile nicht."
+    assert svc.balance_of(db, row).paid == Decimal("5.00"), "Gegengebucht zählt nicht mehr."
+    assert not voucher_actions.reversible(db, row), "Eine Gegenbuchung lässt sich gegenbuchen (b)."
+
+
+def test_a_payment_needs_no_allocation():
+    """►►► **Welche Rechnung diese Zahlung meint, fragt niemand mehr.** ◄◄◄
+
+    Je Modul gibt es **eine**, und sie *ist* der Beleg – die Frage hat genau eine Antwort,
+    und eine Frage mit genau einer Antwort stellt man nicht. *Die Aufteilung über mehrere
+    Rechnungen bleibt real; sie liegt jetzt zwingend über Modulgrenzen und gehört damit
+    zur offenen-Posten-Liste (``docs/backlog.md``).*
+
+    Bug-Form: eine Zuordnungs-Tabelle wird wieder gelesen.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    import app.models as models
+    from app.models import VoucherEntry
+    from app.domain import voucher as vo
+    assert not hasattr(models, "VoucherAllocation"), "Die Zuordnungs-Tabelle ist zurück."
+    assert not hasattr(VoucherEntry, "charge_id"), (
+        "«charge_id» steht wieder an der Geld-Zeile – dann gibt es die Rechnung zweimal.")
+    # **Die Art einer Geld-Zeile ist Zahlung · Ausbuchung · Trinkgeld – nie die Rechnung.**
+    assert set(vo.ENTRY_KINDS) == {"payment", "writeoff", "tip"}, (
+        "Eine Geld-Zeile trägt wieder eine Rechnungs-Art – dann gibt es die Rechnung zweimal.")
+    code = "".join(_code(BACKEND / "app" / "services" / f"{m}.py") for m in VOUCHER_FILES)
+    for gone in ("paid_map", "allocate(", "live_charge", "open_charges"):
+        assert gone not in code, f"«{gone}» wird wieder gelesen."
+    for gone in ("allocate", "paid_map", "live_charge", "open_charges", "open_of"):
+        assert f"def {gone}(" not in code, f"«{gone}» ist zurück."
+
+
+def test_a_correction_carries_the_reference_to_what_it_corrects(db):
+    """►►► **Der Verweis steht auf dem PAPIER** (MWSTG Art. 26). ◄◄◄
+
+    Eine **Ableitung** über ``corrects_id``, kein zweites Feld, das jemand abtippt: ohne
+    ihn wäre eine Gutschrift eine zweite Rechnung mit negativem Vorzeichen, und niemand
+    könnte sagen, was sie mindert.
+
+    Bug-Formen: (a) ``corrects_id`` kommt nicht an; (b) der Verweis steht nicht in der
+    Antwort; (c) ein Beleg korrigiert sich selbst; (d) eine Gutschrift wird gemindert.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher_actions, voucher_view
+    order, step, row, who, art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    back_order, back_step, back, _w, _a = _scene(db, quantity=1, parties=[who[0]])
+    voucher_actions.apply(db, order=back_order, step=back_step, action="correct",
+              payload={"corrects": row.id})
+    db.flush()
+    assert back.corrects_id == row.id, "Der Verweis kommt nicht an (a)."
+    seen = voucher_view.embed_data(db, order=back_order, step=back_step, viewer=None)
+    assert seen is not None and seen["corrects"] is not None, (
+        "Der Verweis steht nicht in der Antwort (b) – dann kann er nicht auf dem "
+        "Papier stehen."
+    )
+    assert seen["corrects"]["number"] == row.number
+    with pytest.raises(HTTPException) as e:
+        voucher_actions.apply(db, order=back_order, step=back_step, action="correct",
+                  payload={"corrects": back.id})
+    assert e.value.status_code == 400, "Ein Beleg korrigiert sich selbst (c)."
+    # (d) **Keine Kette** – gemindert wird eine Rechnung, nie eine Gutschrift; damit
+    # kann kein Kreis entstehen. Die Gutschrift zu ``row`` ist gestellt und zeigt auf
+    # ``row``; ein dritter Beleg, der SIE mindern will, wird abgewiesen.
+    credit_order, credit_step, credit = _credit(db, target=row, who=who[0])
+    voucher_actions.apply(db, order=credit_order, step=credit_step, action="bill", payload={})
+    db.flush()
+    third_order, third_step, third, _w2, _a2 = _scene(db, quantity=1, parties=[who[0]])
+    with pytest.raises(HTTPException) as e:
+        voucher_actions.apply(db, order=third_order, step=third_step, action="correct",
+                  payload={"corrects": credit.id})
+    assert e.value.status_code == 400 and "Gutschrift" in str(e.value.detail), (
+        "Eine Gutschrift lässt sich mindern (d) – dann gibt es Ketten und Kreise.")
+    assert e.value.detail == voucher_actions.correction_problem(db, third, credit), (
+        "Tor und Auskunft sagen Verschiedenes (d).")
+    assert credit.id not in [r["id"] for r in voucher_view.correctable(db, third, third_step)], (
+        "Die Suche bietet an, was das Tor abweist (d).")
+
+
+def test_a_correction_may_live_in_another_order(db):
+    """►►► **Die Gutschrift gehört dorthin, wo die Ware zurückkommt.** ◄◄◄
+
+    *«Gerade bei Retouren wäre der Warenverkehr getrennt von der monetären Abwicklung –
+    aber dort, wo das Geschehen ist, soll ich es auch abwickeln können.»*
+
+    Und das Modell wird dadurch **kleiner**: die Positionen der Gutschrift entstehen von
+    selbst aus den Stücken, die zurückkommen (``sync_lines``). Die **Warenlogik ist die
+    Mengenkontrolle des Geldes** – man kann nicht mehr zurücknehmen, als geliefert wurde.
+
+    Bug-Form: der Dienst weist einen Beleg aus einem fremden Auftrag ab.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher_actions, voucher_view
+    order, step, row, who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    back_order, back_step, back, _w, _a = _scene(db, quantity=1, parties=[who[0]])
+    assert back_order.id != order.id, "Die Szene liegt im selben Auftrag."
+    voucher_actions.apply(db, order=back_order, step=back_step, action="correct",
+              payload={"corrects": row.id})
+    db.flush()
+    assert back.corrects_id == row.id
+    # **Und die Auswahl findet ihn** – gesucht wird über alle Aufträge desselben
+    # Partners, nicht in dem einen, in dem man gerade steht.
+    voucher_actions.apply(db, order=back_order, step=back_step, action="correct",
+              payload={"corrects": None})
+    db.flush()
+    found = voucher_view.correctable(db, back, back_step)
+    assert row.id in [r["id"] for r in found], (
+        "Die Auswahl findet die Rechnung des anderen Auftrags nicht – dann müsste "
+        "man die Gutschrift dort stellen, wo die Ware nicht ist."
+    )
+    assert found[0]["order_object_id"] == order.object_id
+    # ►►► **Und sie wird GESUCHT, nicht mitgeliefert** (Testnotiz #1050). ◄◄◄
+    #
+    # *«Hier haben wir ja eine global gültige Logik – etablieren mit Suchfeld.»* Eine
+    # fertige Liste war bei einer Handvoll Belegen richtig und ist es beim hundertsten
+    # nicht mehr. Gesucht wird in der **Datenbank**: nachträglich im Python gefiltert
+    # wäre es die Seite, die ohnehin schon gekappt ist – und der gesuchte Beleg genau
+    # der, der nicht mehr darin steht.
+    #
+    # Bug-Formen: die Suche wird verworfen · sie trifft die Nummer nicht.
+    assert row.number, "Die Rechnung trägt keine Nummer."
+    hit = voucher_view.correctable(db, back, back_step, search=row.number[-4:])
+    assert [r["id"] for r in hit] == [row.id], (
+        f"Die Suche nach «{row.number[-4:]}» findet {len(hit)} Belege statt genau den "
+        f"gesuchten."
+    )
+    assert voucher_view.correctable(db, back, back_step, search="zzz-gibt-es-nicht") == [], (
+        "Die Suche wird verworfen – die Liste kommt unverändert zurück."
+    )
+
+
+def test_a_correction_is_a_magnitude_like_every_other_number(db):
+    """►►► **Jede Zahl auf dem Beleg ist eine MENGE** (Testnotizen #1054–#1056). ◄◄◄
+
+    *«Im Begleichen-Teil möchte ich keine Minus-Beträge eingeben – denn am Anfang sage ich
+    ja, ob es eine Ein- oder Ausgabe ist.»*
+
+    Hier stand das Gegenteil (*«das Vorzeichen setzt ``bill``»*), und genau daraus kamen
+    **drei** Meldungen: drei Leser fragen «grösser null?», und bei einer Gutschrift ist der
+    Betrag das nie – ``pay_online`` fiel weg, ``next_payment`` blieb leer, und ``settled``
+    war strukturell unerreichbar.
+
+    Geprüft wird darum die **ganze Kette**, nicht nur die Spalte: Betrag, Steuer, der
+    Vorschlag, die Erstattung ohne Minus und der Abschluss danach.
+
+    Bug-Formen: ``bill`` dreht wieder · die Steuer wird gespiegelt · ``next_payment``
+    schlägt nichts vor · ``settled`` bleibt falsch, obwohl der Saldo aufgeht.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc, voucher_actions, voucher_head
+    order, step, row, who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    back_order, back_step, back = _credit(db, target=row, who=who[0])
+    voucher_actions.apply(db, order=back_order, step=back_step, action="bill", payload={})
+    db.flush()
+    assert back.amount is not None and back.amount > 0, (
+        f"Die Gutschrift steht mit {back.amount} da – ein Minus im Beleg, und drei "
+        f"Leser fragen «grösser null?»."
+    )
+    # **Die Steuer steht als Menge da** – so, wie sie auf dem Papier steht; und der
+    # **Rechtsgrund** bleibt derselbe wie an der Rechnung, die sie mindert.
+    assert back.vat, "Die Gutschrift trägt keine Steuer-Aufteilung."
+    one = back.vat[0]
+    assert Decimal(one["net"]) > 0 and Decimal(one["tax"]) > 0, (
+        f"Die Steuer ist gespiegelt: {one}."
+    )
+    assert one["vat"] == row.vat[0]["vat"] and one["label"] == row.vat[0]["label"], (
+        "Der Rechtsgrund ist verlorengegangen."
+    )
+    # ►►► **Niemand tippt ein Minus**: der Vorschlag ist der offene Betrag. ◄◄◄
+    money = svc.balance_of(db, back)
+    assert money.open > 0 and money.next_payment == money.open, (
+        f"Die Erstattung wird nicht vorgeschlagen (offen {money.open}, "
+        f"Vorschlag {money.next_payment})."
+    )
+    # **Zurück per Überweisung braucht das Konto, wohin** – von Hand eingetragen.
+    voucher_actions.apply(db, order=back_order, step=back_step, action="pay",
+              payload={"amount": str(money.open), "method": "transfer",
+                       "iban": "CH93 0076 2011 6238 5295 7"})
+    db.flush()
+    after = svc.balance_of(db, back)
+    assert after.open == 0 and after.settled, (
+        f"Saldo {after.open}, bezahlt {after.paid} von {after.agreed} – und das Modul "
+        f"liesse sich nicht abschliessen (#1056)."
+    )
+    assert voucher_head.is_done(db, back), "Der Saldo geht auf, und die Gutschrift ist nicht erledigt."
+
+
+def test_a_credit_note_says_so_on_its_buttons(db):
+    """►►► **Der Belegkopf nennt keine Belegart – also sagen es die WÖRTER** (#974/#977).◄◄◄
+
+    *«Irgendwie hat sich die Funktion voll verändert.»* (#1054) – Und das stimmte: wer
+    «Korrektur zu …» setzt, macht aus dem Beleg eine Gutschrift, und nichts sagte es. Die
+    Stelle dafür ist der **Knopf**, denn dort handelt man: «Gutschrift stellen» statt
+    «Rechnung stellen», «Erstattung erfassen» statt «Zahlung erfassen».
+
+    **Und ``inbound`` ist nicht ``collects``**: an einer Gutschrift zahlen *wir* zurück –
+    also gibt es dort keinen Zahlungsdienst und keinen Einzahlungsschein. Bis hierher fiel
+    beides ebenfalls weg, aber aus dem falschen Grund (der Betrag war negativ); ein
+    Zufall, der stimmt, ist keine Regel.
+
+    Bug-Formen: ein Wort für beide Belegarten · ``collects`` statt ``inbound``.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.services import voucher as svc, voucher_actions, voucher_view
+    order, step, row, who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    back_order, back_step, back = _credit(db, target=row, who=who[0])
+    db.flush()
+    plain = voucher_view.embed_data(db, order=order, step=step)
+    credit = voucher_view.embed_data(db, order=back_order, step=back_step)
+    assert plain is not None and credit is not None
+    assert vo.INVOICE_NOUN in plain["charge_word"], plain["charge_word"]
+    assert vo.CREDIT_NOUN in credit["charge_word"], (
+        f"Eine Gutschrift nennt sich «{credit['charge_word']}» – damit sagt nichts "
+        f"auf der Karte, dass dieser Beleg mindert."
+    )
+    assert vo.PAYMENT_NOUN in plain["payment_word"]
+    assert vo.REFUND_NOUN in credit["payment_word"], credit["payment_word"]
+    # **Beide Richtungen, beide Belegarten** – vier Fälle, zwei Bits.
+    assert vo.charge_word(collects=False, minus=True).startswith(vo.CREDIT_NOUN)
+    assert vo.charge_word(collects=False, minus=False).endswith(vo.RECORD_VERB)
+    # ►►► **Das Geld fliesst andersherum – und nur das hängt an ``inbound``.** ◄◄◄
+    assert svc.inbound(row) is True and svc.inbound(back) is False, (
+        "Eine Gutschrift auf eine Einnahme zieht Geld ein."
+    )
+    assert vo.inbound(collects=False, minus=True) is True, (
+        "Eine Gutschrift des Lieferanten bringt Geld zu uns."
+    )
+
+
+def test_the_frozen_tax_survives_a_price_change(db):
+    """►►► **Ein Beleg behält, was auf ihm stand.** ◄◄◄
+
+    Nachgerechnet wäre die Vergangenheit eine Funktion der Gegenwart, und eine Abrechnung
+    über ein abgeschlossenes Quartal ergäbe beim zweiten Lauf andere Zahlen.
+
+    Bug-Form: die Steuer wird beim Lesen nachgerechnet.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc, voucher_actions, voucher_view
+    order, step, row, _who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    db.flush()
+    before = [dict(r) for r in row.vat]
+    amount = row.amount
+    # Die Positionen **hinter** dem Beleg verändern – so, wie es eine geänderte
+    # Rechenregel täte.
+    for line in svc.lines_of(db, row):
+        line.price = Decimal("1.00")
+    db.flush()
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=None)
+    assert seen is not None and seen["invoice"] is not None
+    assert seen["invoice"]["vat"] == before, (
+        "Die Steuer der gestellten Rechnung wurde nachgerechnet."
+    )
+    assert row.amount == amount
+
+
+def test_a_counterparty_sees_its_own_line_and_no_foreign_price(db):
+    """►►► **Wer nicht den Zuschlag hat, sieht ihn auch nicht.** ◄◄◄
+
+    Gefiltert wird beim **Aufbau der Antwort**, nicht in der Oberfläche.
+
+    Bug-Formen: (a) fremde Angebotszeilen; (b) der Name des Gewählten im Belegkopf;
+    (c) Zahlen über Forderung und Geld; (d) die Freigabe-Liste (die Konkurrenzliste).
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher_actions, voucher_view
+    a, b = _party(db, "Härterei A"), _party(db, "Härterei B")
+    order, step, row, _who, _art = _scene(db, direction="out", parties=[a, b])
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={})
+    for who, amount in ((a, "120.00"), (b, "99.00")):
+        voucher_actions.apply(db, order=order, step=step, action="quote",
+                  payload={"party": who.object_id, "amount": amount,
+                           "lead_days": 7, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": b.object_id})
+    voucher_actions.apply(db, order=order, step=step, action="bill",
+              payload={"amount": "99.00", "vat": "normal",
+                       "reference": "R-2026-7", "original": _original(db),
+                       "party_uid": "CHE-111.222.333 MWST"})
+    db.flush()
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=a)
+    assert seen is not None
+    assert [q["party_object_id"] for q in seen["quotes"]] == [a.object_id], (
+        "Der unterlegene Bieter sieht fremde Angebotszeilen (a)."
+    )
+    # **Bei einer Ausgabe ist die Gegenpartei der Leistungserbringer** – welche Seite
+    # welche Rolle trägt, sagt die Richtung; geprüft wird darum die Seite, auf der der
+    # Partner steht, nicht ein festes Wort.
+    assert seen["supplier"]["name"] == "" and seen["supplier"]["object_id"] is None, (
+        "Er liest den Namen des Gewählten im Belegkopf (b)."
+    )
+    assert seen["customer"]["name"], "Uns sieht jeder – ein Beleg ohne Aussteller ist keiner."
+    assert (seen["charged"] is None and seen["paid"] is None
+            and seen["entries"] == [] and seen["invoice"] is None), (
+        "Er liest Zahlen über Forderung und Geld (c)."
+    )
+    assert seen["allowed"] == [], "Er liest die Konkurrenzliste (d)."
+    # **Und der Gewählte sieht seine Zahlen** – wer bezahlen soll, muss sehen, was er
+    # schuldet; eine Aufforderung ohne Betrag ist keine.
+    his = voucher_view.embed_data(db, order=order, step=step, viewer=b)
+    assert his is not None and his["charged"] == "99.00", (
+        "Der Gewählte sieht seine eigene Rechnung nicht."
+    )
+
+
+def test_prepayment_is_the_payment_term_not_a_switch(db):
+    """►►► **«Zahlbar in null Tagen ab Zusage» IST die Vorauszahlung.** ◄◄◄
+
+    Kein Schalter in der Definition – die Frist sagt es, und ``passable`` liest sie: die
+    Stücke ziehen von selbst weiter, bei einer Vorauszahlung erst mit dem Geld. **Ohne Frist keine Sperre**: dann hat niemand über den Zeitpunkt gesprochen.
+
+    Bug-Formen: (a) das Modul lässt sich trotz offener Vorauszahlung abschliessen;
+    (b) eine Frist von 30 Tagen sperrt ebenfalls.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher as svc, voucher_actions
+    order, step, row, who, _art = _scene(db, quantity=1)
+    _price(db, order, step, row, price="10.00")
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 0})
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={})
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": who[0].object_id})
+    db.flush()
+    with pytest.raises(HTTPException) as e:
+        svc.assert_completable(db, step=step, auto=True)
+    assert e.value.status_code == 409, "Die Vorauszahlung hält nicht an (a)."
+    assert not svc.passable(db, row), "Die Stücke dürfen trotz offener Vorauszahlung weiter."
+    # (b) **Dieselbe Szene mit 30 Tagen läuft durch.**
+    order2, step2, row2, who2, _a2 = _scene(db, quantity=1)
+    _price(db, order2, step2, row2, price="10.00")
+    voucher_actions.apply(db, order=order2, step=step2, action="terms",
+              payload={"lead_days": 0, "payment_days": 30})
+    voucher_actions.apply(db, order=order2, step=step2, action="ask",
+              payload={})
+    voucher_actions.apply(db, order=order2, step=step2, action="agree",
+              payload={"party": who2[0].object_id})
+    db.flush()
+    svc.assert_completable(db, step=step2, auto=True)   # kein Fehler = keine Sperre
+
+
+def test_the_door_knows_every_field_it_accepts():
+    """►►► **Pydantic verwirft Unbekanntes stillschweigend.** ◄◄◄
+
+    Ein Feld, das die Tür nicht kennt, kommt **nie** an – und kein Dienst-Test findet das
+    (die rufen den Dienst direkt). Dieselbe Falle wie damals bei ``ModuleConfigInput`` und
+    ``DealUpdate``.
+
+    Bug-Form: ein Verb erwartet ein Feld, das ``VoucherUpdate`` nicht führt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.schemas.voucher import VoucherUpdate
+    known = set(VoucherUpdate.model_fields)
+    for field in ("party", "parties", "lead_days", "payment_days", "amount",
+                  "reference", "note", "booked_on", "billed_on",
+                  "corrects", "entry",
+                  "lines", "vat", "currency", "method", "incoterm",
+                  "issuer"):
+        assert field in known, (
+            f"«{field}» fehlt an der Tür – es käme nie an, und niemand würde es merken."
+        )
+    # **Der Ort der Lieferbedingung ist kein Feld** – er folgt aus Klausel und Anschriften;
+    # an der Tür nähme ihn der Dienst an und verwürfe ihn still.
+    assert "incoterm_place" not in known, "Die Tür nimmt einen Ort an, den niemand liest."
+
+
+def test_a_price_leaves_the_service_in_the_scale_of_its_currency(db):
+    """►►► **Ein Betrag hat die Nachkommastellen SEINER Währung** (Testnotiz #931). ◄◄◄
+
+    *«Warum hat das vier Stellen? Eine Währung hat doch immer zwei nachkommastellen.
+    Bitte robuste Lösung hierfür finden.»*
+
+    Fast – aber nicht ganz: **JPY hat null, KWD drei**, und genau darum ist «immer zwei»
+    keine robuste Lösung, sondern dieselbe Falle eine Ebene weiter. Die Zahl steht im
+    Vorgang, und ein Betrag verlässt den Dienst mit ihr.
+
+    Die vier kamen aus der Spalte (`NUMERIC(18, 4)` – gross genug für jede Währung) und
+    aus `str()`, das ihre volle Skala ausschreibt. Behoben wird es **am Dienst**, nicht in
+    der Anzeige: dieselbe Zeichenkette steht gleich im Eingabefeld, und wer sie dort
+    liest, tippt vier Nachkommastellen weiter.
+
+    Bug-Formen: (a) der rohe Spaltenwert geht hinaus; (b) fest auf zwei Stellen gerundet.
+    """
+    from app.services import voucher_head
+    _house(db)
+    order, step, row, _who, _art = _scene(db)
+    _price(db, order, step, row, price="30")
+
+    lines = voucher_head.embed_lines(db, row)
+    assert lines, "Die Szene hat keine Position."
+    assert lines[0]["price"] == "30.00", (
+        f"«{lines[0]['price']}» statt «30.00» (a) – die Skala der Spalte ist nicht "
+        f"die Stelligkeit der Währung."
+    )
+
+    # (b) **Dieselbe Position in einer nullstelligen Währung.** Wer fest auf zwei
+    # rundet, schreibt hier «30.00» – einen Yen-Betrag, den es nicht gibt.
+    # **Eine Fremdwährung gibt es bei einer Einnahme nur ins Ausland** – hier geht es um
+    # die Stelligkeit, also steht die Währung direkt am Beleg.
+    row.currency = "JPY"
+    db.flush()
+    yen = voucher_head.embed_lines(db, row)
+    assert yen[0]["price"] == "30", (
+        f"«{yen[0]['price']}» statt «30» (b) – JPY hat keine Nachkommastellen."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► §5 – WAS EINE ANSICHT SCHREIBT, BLEIBT (Testnotizen #937 · #939 · #945)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_a_view_that_writes_its_lines_also_keeps_them(db):
+    """►►► **Der getippte Preis kam nicht an – und der Grund lag im Lesepfad.** ◄◄◄
+
+    Gemeldet (#937): *«Wenn ich 30 eingebe und warte, wird Auto-Save ausgelöst, aber der
+    Wert wird nicht übernommen – nur mit Enter funktioniert es.»*
+
+    Die Oberfläche war unschuldig. ``sync_lines`` legt die Positionszeilen beim **Anzeigen**
+    an; ``get_db`` committet aber nie, und ein blosses ``flush`` fällt beim Schliessen der
+    Sitzung zurück. Der Browser bekam damit Ids, **die es nicht gibt** – und ``_price``
+    findet seine Zeile nicht und schreibt nichts. Dass es «mit Enter ging», war schlicht
+    der **zweite** Versuch: der erste ``POST`` legt die Zeilen an und committet sie.
+
+    Bug-Formen: (a) die Ansicht behält ihre Zeilen nicht; (b) sie vergibt bei jedem Aufruf
+    neue Ids; (c) ein Preis auf die eben gezeigte Id kommt nicht an.
+    """
+    from app.models import VoucherLine
+    from app.routers import orders as router
+    from app.services import voucher_actions, voucher_head
+    _house(db)
+    order, step, row, _who, _art = _scene(db)
+
+    shown = router._steps(db, order)
+    paper = next((s.voucher for s in shown if s.voucher is not None), None)
+    assert paper is not None, "Die Ansicht zeigt keinen Beleg."
+    ids = [ln.id for ln in paper.lines]
+    assert ids, "Die Ansicht zeigt keine Position."
+
+    # ►►► **Die Sitzung endet, ohne dass jemand committet** – genau wie ``get_db``.
+    db.rollback()
+    kept = db.query(VoucherLine).filter(VoucherLine.id.in_(ids)).count()
+    assert kept == len(ids), (
+        f"{kept} von {len(ids)} Positionen haben die Anzeige überlebt (a) – der "
+        f"Browser hält damit Ids, die es in der Datenbank nicht gibt."
+    )
+
+    # (b) **Dieselbe Ansicht noch einmal: dieselben Ids.** Neue wären dasselbe
+    # Problem mit einem Schritt Verzögerung.
+    again = next(s.voucher for s in router._steps(db, order) if s.voucher is not None)
+    assert [ln.id for ln in again.lines] == ids, (
+        "Die zweite Anzeige vergibt andere Ids (b) – dann zeigt jede Ansicht auf "
+        "Zeilen, die die nächste nicht mehr kennt."
+    )
+
+    # (c) **Und der Preis kommt an** – auf die Id, die dastand.
+    voucher_actions.apply(db, order=order, step=step, action="price",
+              payload={"lines": [{"id": ids[0], "price": "30", "vat": "normal"}]})
+    db.flush()
+    assert voucher_head.embed_lines(db, row)[0]["price"] == "30.00", (
+        "Der Preis auf die eben gezeigte Id kommt nicht an (c) – genau die gemeldete "
+        "Form: der Auto-Save läuft, und es passiert nichts."
+    )
+
+
+def test_the_addressee_is_the_one_we_asked(db):
+    """►►► **«Anschrift fehlt», obwohl oben ein Empfänger steht** (Testnotiz #939). ◄◄◄
+
+    Der Belegkopf las ``party_of`` – «mit wem wurde **abgeschlossen**», und das ist vor der
+    Zusage ``None``. Eine **Offerte** ist aber adressiert, sobald sie an genau einen
+    hinausgeht; dort stand niemand, und die Zeile darunter meldete eine fehlende Anschrift
+    zu einer leeren Stelle.
+
+    Bug-Formen: (a) der Kopf bleibt leer, obwohl genau einer angefragt ist; (b) bei
+    mehreren wird einer geraten; (c) die Vollständigkeitsprüfung hält den Angefragten
+    schon für gebunden.
+    """
+    from app.services import voucher as svc, voucher_actions, voucher_head
+    _house(db)
+    one = _party(db, "Muster AG", "customer")
+    two = _party(db, "Zweit AG", "customer")
+    order, step, row, _who, _art = _scene(db, parties=[one, two])
+    _price(db, order, step, row)
+
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 5, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={"parties": [one.object_id]})
+    db.flush()
+    head = voucher_head.document_head(db, row, won=True)
+    them = head["customer"]
+    assert them["object_id"] == one.object_id, (
+        f"Der Kopf nennt «{them['object_id']}» statt des einen Angefragten (a) – und "
+        f"meldet darunter eine Anschrift, die zu niemandem gehört."
+    )
+    assert them["address"], "Der Angefragte hat eine Anschrift, der Kopf zeigt keine."
+
+    # (c) **Gebunden ist er damit nicht.** Die Lücken fragen weiter nach der Zusage –
+    # sonst verlangte eine blosse Anfrage bereits die Angaben eines Vertrags.
+    assert voucher_actions.gaps(db, row, action="ask") == [], (
+        "Eine Anfrage verlangt die Angaben der Gegenseite (c) – die steht erst mit "
+        "der Zusage fest, und genau dafür gibt es die Stufe."
+    )
+
+    # (b) **Zwei Angefragte sind ein Rundschreiben** – dann gibt es keinen Adressaten.
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 5, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={"parties": [two.object_id]})
+    db.flush()
+    assert svc.addressee_of(db, row) is None, (
+        "Bei zwei Angefragten wird einer geraten (b) – eine erfundene Adresse ist "
+        "schlimmer als eine leere Zeile."
+    )
+
+
+def test_a_module_says_why_it_cannot_be_finished_yet(db):
+    """►►► **«Vorgang abschliessen» über einer Offerte** (Testnotiz #945). ◄◄◄
+
+    *«Ich weiss nicht, warum hier ‹Vorgang abschliessen› kommt – passt das schon in die
+    bestehende Lösung?»* Der Knopf gehört dorthin (jedes Modul endet mit ihm), aber er
+    stand als vollflächige Einladung über einem Beleg, den der Dienst gleich darauf mit
+    409 abwies. **Zwei Formen einer Regel**: ``completion_problem`` nennt den Grund,
+    ``assert_completable`` ist die Tür – und die Ansicht reicht ihn als ``step.blocked``
+    durch.
+
+    Bug-Formen: (a) es gibt keinen Grund, nur die Ablehnung; (b) der Grund kommt nicht am
+    Schritt an; (c) die beiden Formen sagen Verschiedenes.
+    """
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.routers import orders as router
+    from app.services import voucher as svc
+    _house(db)
+    order, step, row, _who, _art = _scene(db)
+
+    why = svc.completion_problem(db, step=step)
+    assert why, "Eine Offerte lässt sich abschliessen? (a)"
+    shown = next(s for s in router._steps(db, order) if s.id == step.id)
+    assert shown.blocked == why, (
+        f"Der Grund erreicht den Schritt nicht (b): «{shown.blocked}»."
+    )
+
+    # (c) **Dieselbe Regel, zwei Formen** – die Tür sagt wörtlich denselben Satz.
+    with _pytest.raises(HTTPException) as err:
+        svc.assert_completable(db, step=step)
+    assert err.value.detail == why, (
+        f"Tür und Auskunft sagen Verschiedenes (c): «{err.value.detail}» ≠ «{why}»."
+    )
+
+    # **Und ein Modul ohne Beleg ist nie gesperrt** – der Rahmen erbt nichts.
+    plain = next(s for s in router._steps(db, order) if s.module_type != "beleg")
+    assert plain.blocked is None, (
+        "Ein Modul ohne Geldvorgang meldet eine Sperre – die Regel ist die des "
+        "Belegs, nicht die des Rahmens."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► §12 – JEDE ZUSAGE NACH AUSSEN HAT IHRE GEGENHANDLUNG
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_an_ask_can_be_taken_back(db):
+    """►►► **Eine Anfrage zurückziehen** (Testnotiz #951). ◄◄◄
+
+    *«Ich kann zwar mehrere User aufführen, jedoch kann ich sie nicht wie zuvor auch
+    abwählen.»* – Und es gab dafür **nichts**: ``ask`` war das einzige Verb ohne
+    Gegenhandlung, eine falsch gewählte Gegenpartei blieb für immer am Beleg. Die Hausregel
+    steht seit dem Beschaffen-Modul: *jede Zusage nach aussen hat ihre Gegenhandlung an
+    derselben Stelle.*
+
+    **Soft-Delete wie überall** – was hinausging, wird nicht geleugnet; die Zeile ist nur
+    nicht mehr Teil dieses Belegs. **Die zugesagte nicht**: dort hängt die Zusage, und ihre
+    Gegenhandlung ist der Storno des ganzen Vorgangs.
+
+    Bug-Formen, jede gegengeprüft: (a) es gibt das Verb nicht; (b) die Zeile wird
+    **gelöscht** statt stillgelegt; (c) auch die zugesagte lässt sich abwählen; (d) das Verb
+    steht schon da, bevor überhaupt etwas hinausgegangen ist.
+    """
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.models import VoucherQuote
+    from app.services import voucher as svc, voucher_actions
+    _house(db)
+    one = _party(db, "Muster AG", "customer")
+    two = _party(db, "Zweit AG", "customer")
+    order, step, row, _who, _art = _scene(db, parties=[one, two])
+    _price(db, order, step, row)
+    staff = _party(db, "Personal", "admin")
+
+    # (d) Vor der ersten Anfrage gibt es nichts abzuwählen – und nichts abzubrechen.
+    assert "unask" not in voucher_actions.can(db, row, staff), (
+        "Abwählen steht da, bevor etwas hinausgegangen ist (d)."
+    )
+    assert "revoke" not in voucher_actions.can(db, row, staff), (
+        "Abbrechen steht da, bevor etwas hinausgegangen ist (d) – es gibt dann nichts, "
+        "was man zurücknehmen könnte."
+    )
+
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 5, "payment_days": 30}, actor=staff)
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={"parties": [one.object_id, two.object_id]}, actor=staff)
+    db.flush()
+    assert len(svc.quotes_of(db, row)) == 2
+    assert "unask" in voucher_actions.can(db, row, staff), "Das Verb fehlt (a)."
+
+    voucher_actions.apply(db, order=order, step=step, action="unask",
+              payload={"party": two.object_id}, actor=staff)
+    db.flush()
+    assert [q.party_id for q in svc.quotes_of(db, row)] == [one.object_id], (
+        "Die abgewählte Zeile steht weiter am Beleg (a)."
+    )
+    # (b) **Stillgelegt, nicht gelöscht** – die Historie ist nicht verhandelbar.
+    gone = (db.query(VoucherQuote)
+            .filter(VoucherQuote.voucher_id == row.id,
+                    VoucherQuote.party_id == two.object_id).first())
+    assert gone is not None and gone.is_active is False, (
+        "Die Zeile ist weg statt stillgelegt (b) – ein Hard-Delete gibt es im Haus "
+        "nirgends."
+    )
+
+    # (c) **Ab der Zusage gar nicht mehr** – und zwar ohne eine zweite Regel: die
+    # unterlegenen Zeilen sind dann der Nachweis, warum so entschieden wurde, und die
+    # gewählte nimmt man mit dem Storno zurück. Eine Sperre «die gewählte nicht» stand
+    # hier einen Anlauf lang und war **unerreichbar**, weil `_agree` Zustand und Stufe
+    # in einem Zug setzt: gemessen, entfernt, und die Stufe ist das Tor.
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": one.object_id}, actor=staff)
+    db.flush()
+    assert "unask" not in voucher_actions.can(db, row, staff), (
+        "Nach dem Zuschlag lässt sich noch abwählen (c) – dann verschwindet der "
+        "Nachweis, warum so entschieden wurde."
+    )
+    with _pytest.raises(HTTPException) as err:
+        voucher_actions.apply(db, order=order, step=step, action="unask",
+                  payload={"party": two.object_id}, actor=staff)
+    assert err.value.status_code == 409, (
+        f"Die Tür lässt es trotzdem durch (c): «{err.value.detail}»."
+    )
+
+
+def test_a_cancel_is_reachable_at_every_step_that_happened(db):
+    """►►► **Abbrechen geht, sobald etwas hinausgegangen ist** (Testnotiz #957). ◄◄◄
+
+    *«Kannst du nochmals evaluieren, ob eigentlich immer ein Abbruch sauber und logisch
+    korrekt etabliert ist zu jedem Schritt im Modul? Solange nicht angefangen wurde
+    natürlich nicht, aber sobald der erste Schritt getriggert wurde.»*
+
+    Der Beleg hat **zwei** Stufen, und beide führen jetzt ``revoke`` – vorher erst die
+    Zusage: im Angebot stand ein hinausgeschickter Beleg **ohne jeden Ausweg** da. Die
+    Bedingung «es ist etwas hinausgegangen» ist keine Stufe, sondern eine Frage an die
+    Daten, und sie steht in ``can``.
+
+    **Und ein Wort für alle Stufen**: «Stornieren» – was er bewirkt, folgt aus der Stufe.
+
+    Bug-Formen: (a) im Angebot gibt es keinen Abbruch; (b) er steht schon vor der ersten
+    Anfrage da; (c) je Stufe ein anderes Wort.
+    """
+    from app.domain import voucher as vo
+    from app.services import voucher as svc, voucher_actions, voucher_view
+    _house(db)
+    order, step, row, who, _art = _scene(db)
+    _price(db, order, step, row)
+    staff = _party(db, "Personal", "admin")
+
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 5, "payment_days": 30}, actor=staff)
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={"parties": [who[0].object_id]}, actor=staff)
+    db.flush()
+    assert row.stage == vo.OFFER
+    assert "revoke" in voucher_actions.can(db, row, staff), (
+        "Im Angebot gibt es keinen Abbruch (a) – ein hinausgeschickter Beleg ohne "
+        "Ausweg ist eine Sackgasse."
+    )
+    # (c) **Ein Wort in jeder Stufe** (Umbau Oktober 2026) – was der Storno bewirkt,
+    # folgt aus der Stufe, nicht aus dem Wort.
+    assert vo.UNDO == "Stornieren", "Der Storno heisst anders (c)."
+    assert voucher_view.embed_data(db, order=order, step=step,
+                          viewer=staff)["undo"] == vo.UNDO, (
+        "Der Beleg nennt ein anderes Wort als die Auflösung (c)."
+    )
+
+    voucher_actions.apply(db, order=order, step=step, action="revoke", payload={}, actor=staff)
+    db.flush()
+    assert row.stage == vo.CANCELLED
+    # **Der Beleg behält seinen Weg** – das Datum der Anfrage bleibt stehen.
+    assert svc.quotes_of(db, row)[0].sent_on is not None
+
+
+def test_a_recipient_carries_its_own_address(db):
+    """►►► **Je Angefragtem eine ganze Seite** (Testnotizen #951/#952). ◄◄◄
+
+    *«Was mich noch stört: die jeweilige Anschrift ist nicht sichtbar … es müssen nicht alle
+    auf einmal sein, aber immer mindestens eine geladen und ggf. auf Wunsch die anderen
+    auch.»* – Ein **Beleg** hat einen Adressaten, also steht einer vollständig da; die
+    übrigen reisen als ``recipients`` mit, und die Oberfläche schaltet um. Ein Endpunkt
+    «Anschrift zu Nummer» wäre ein zweiter Weg zu einer Angabe, die der Beleg ohnehin
+    liefert.
+
+    ►►► **Und jede Seite nennt BEIDE Anschriften – immer** (#952/#975). ◄◄◄ *«Ich möchte,
+    dass du das auch auf dem Leistungserbringer machst – standardmässig immer bei
+    Informationen ausweisen, global etablieren, auch wenn sie zweimal das Gleiche anzeigt.
+    Eine Logik für alles, Komplexität und If/Else verringern.»*
+
+    Ein Beleg stellt zwei Fragen – *wohin die Rechnung, wohin die Ware* – und stellt sie auf
+    jeder Seite gleich. Steht nur eine Anschrift da, trägt sie beide Beschriftungen: das ist
+    die Auskunft «an dieselbe», nicht eine Doppelung. **Wo gar keine dasteht**, gibt es auch
+    keine Beschriftung – dort sagt die Seite, dass sie fehlt.
+
+    Bug-Formen: (a) die Seiten fehlen; (b) sie tragen keine Anschrift; (c) eine Gegenpartei
+    bekommt die Konkurrenzliste; (d) die abweichende Lieferadresse fehlt; (e) die zweite
+    Anschrift fällt weg, weil sie gleich ist; (f) die Beschriftungen fehlen bei einer
+    einzigen Anschrift; (g) **unsere** Seite nennt sie nicht; (h) sie stehen auch da, wo es
+    gar keine Anschrift gibt.
+    """
+    from app.domain import voucher as vo
+    from app.services import voucher_actions, voucher_head, voucher_view
+    _house(db)
+    one = _party(db, "Muster AG", "customer")
+    two = _party(db, "Zweit AG", "customer")
+    order, step, row, _who, _art = _scene(db, parties=[one, two])
+    _price(db, order, step, row)
+    staff = _party(db, "Personal", "admin")
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 5, "payment_days": 30}, actor=staff)
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={"parties": [one.object_id, two.object_id]}, actor=staff)
+    db.flush()
+
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    got = [r["object_id"] for r in seen["recipients"]]
+    assert got == [one.object_id, two.object_id], f"Die Seiten fehlen (a): {got}."
+    assert all(r["address"] for r in seen["recipients"]), (
+        "Eine Seite ohne Anschrift (b) – genau die Angabe, um die es ging."
+    )
+    # **Jede Seite sagt selbst, ob sie unsere ist** – daran unterscheidet die
+    # Oberfläche die Blöcke, ohne ein Rollen-Wort zu vergleichen.
+    assert all(r["ours"] is False for r in seen["recipients"])
+    assert seen["supplier"]["ours"] != seen["customer"]["ours"]
+
+    # (c) Die Liste der Angefragten ist die Konkurrenzliste.
+    mine = voucher_view.embed_data(db, order=order, step=step, viewer=two)
+    assert mine["recipients"] == [], (
+        "Eine Gegenpartei sieht die übrigen Angefragten (c)."
+    )
+
+    # (f) Eine einzige Anschrift steht unter **beiden** Beschriftungen – das ist die
+    # Auskunft «an dieselbe» (#975).
+    plain = next(r for r in seen["recipients"] if r["object_id"] == one.object_id)
+    assert plain["shipping"] == plain["address"] and plain["address"], (
+        "Die zweite Anschrift fehlt, wo es nur eine gibt (f)."
+    )
+    assert plain["address_label"] == vo.BILLING_LABEL
+    assert plain["shipping_label"] == vo.SHIPPING_LABEL, (
+        "Beschriftungen fehlen bei einer einzigen Anschrift (f)."
+    )
+    # (g) **Unsere** Seite beantwortet dieselben zwei Fragen.
+    ours = seen["supplier"] if seen["supplier"]["ours"] else seen["customer"]
+    assert ours["address"] and ours["shipping"] == ours["address"], (
+        "Der Leistungserbringer nennt seine Anschriften nicht (g)."
+    )
+    # ►►► **Und die zweite Beschriftung sagt die RICHTUNG** (Testnotiz #979). ◄◄◄
+    #
+    # *«Beim Leistungserbringer wäre es evtl. besser/richtiger zu sagen Absendeadresse
+    # oder so?»* – Ja: «Lieferadresse» heisst *wohin geliefert wird*, und an der
+    # eigenen Anschrift des Leistungserbringers stand damit, man möge **ihm** dorthin
+    # liefern. Hier ist es eine **Einnahme**, wir sind also der Leistungserbringer –
+    # bei uns geht die Ware ab (*Versandadresse*), beim Empfänger kommt sie an.
+    #
+    # *Der Wächter verlangte hier zweimal `SHIPPING_LABEL` – also die Form der
+    # damaligen Lösung, in der beide Seiten dasselbe sagten.*
+    assert (ours["address_label"], ours["shipping_label"]) == (
+        vo.BILLING_LABEL, vo.SHIPPING_FROM_LABEL), (
+        "Unsere Seite trägt die falschen Beschriftungen (g/#979) – wer liefert, "
+        "versendet, und «Lieferadresse» bittet ihn, an sich selbst zu liefern."
+    )
+    assert seen["supplier"]["shipping_label"] != seen["customer"]["shipping_label"], (
+        "Beide Seiten sagen dasselbe (#979)."
+    )
+
+    # (d) Eine abweichende Rechnungsadresse macht zwei daraus – aus dem **Adressbuch**
+    # der Person (Migration 143), gleich ob mit Firma oder privat.
+    from app.services import address_book
+    first = address_book.default(db, one.id, "delivery", "business")
+    other = address_book.add(db, one, {"account": "business",
+                                       "street1": "Rechnungsweg 9", "zip": "9000",
+                                       "city": "St. Gallen", "country": "CH",
+                                       "is_default_billing": True}, None)
+    db.flush()
+    both = next(r for r in voucher_view.embed_data(db, order=order, step=step,
+                                         viewer=staff)["recipients"]
+                if r["object_id"] == one.object_id)
+    assert any("Rechnungsweg 9" in x for x in both["address"]), (
+        "Die Rechnungsadresse steht nicht auf dem Beleg – dafür ist sie da."
+    )
+    assert both["shipping"] and both["shipping"] != both["address"], (
+        "Die Lieferadresse fehlt, obwohl sie abweicht (d).")
+    assert both["address_label"] == vo.BILLING_LABEL
+    assert both["shipping_label"] == vo.SHIPPING_LABEL
+
+    # (e) Und ist sie gleich, steht sie trotzdem unter beiden Beschriftungen – die
+    # Frage «wohin die Ware» hat dann eben dieselbe Antwort (#975).
+    address_book.change(db, one, first.id, {"is_default_billing": True}, None)
+    assert other.is_default_billing is False
+    db.flush()
+    same = next(r for r in voucher_view.embed_data(db, order=order, step=step,
+                                         viewer=staff)["recipients"]
+                if r["object_id"] == one.object_id)
+    assert same["shipping"] == same["address"], (
+        "Die zweite Anschrift fällt weg, weil sie gleich ist (e)."
+    )
+
+    # (h) **Wo gar keine dasteht, wird auch nichts beschriftet** – dort sagt die Seite,
+    # dass sie fehlt; eine Beschriftung über einer Lücke wäre eine leere Behauptung.
+    empty = voucher_head.their_side(db, row, None)
+    assert empty["address"] == [] and empty["shipping"] == []
+    assert empty["address_label"] is None and empty["shipping_label"] is None, (
+        "Beschriftungen über einer Seite ohne jede Anschrift (h)."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZEN #960–#974 – was hinausgeht, ist vollständig
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_an_incomplete_document_does_not_go_out(db):
+    """►►► **Was auf dem Beleg steht, ist PFLICHT** (Testnotiz #964). ◄◄◄
+
+    *«Alle Eingabefelder hier in diesem Modul – also alles, was so leicht blau hinterlegt
+    ist – sollen Muss-Felder sein.»*
+
+    «Leicht blau hinterlegt» ist die Auszeichnung **änderbarer Werte** (`.ix-editable`,
+    #922) – die Regel gilt also jedem Wert, den der Beleg trägt. Geprüft wird an der
+    **einen** Stelle, an der er nach aussen geht (``_ask``); die rote Tönung im Browser
+    ist die freundliche Hälfte derselben Regel, nie ein zweiter Massstab.
+
+    **Gelesen wird der Wert, der auf dem Beleg STEHT** – die Zeile, wo sie etwas trägt,
+    sonst der Artikel (``embed_lines``). Die rohe Spalte zu prüfen hiesse, eine Angabe zu
+    verlangen, die sichtbar längst dasteht.
+
+    Bug-Formen: (a) ohne Zolltarifnummer geht es trotzdem hinaus; (b) ohne Ursprungsland;
+    (c) ohne Lieferbedingung; (d) der Satz nennt die Position nicht.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher as svc, voucher_actions
+
+    order, step, row, who, art = _scene(db)
+    _price(db, order, step, row)
+
+    # (c) Ohne Lieferbedingung – die Szene setzt sie, also wieder wegnehmen.
+    row.incoterm, row.incoterm_place = None, None
+    db.flush()
+    with pytest.raises(HTTPException) as no_clause:
+        voucher_actions.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 10, "payment_days": 30})
+        voucher_actions.apply(db, order=order, step=step, action="ask",
+                  payload={})
+    assert "Lieferbedingung" in no_clause.value.detail, (
+        "Ohne Lieferbedingung geht der Beleg hinaus (c)."
+    )
+    voucher_actions.apply(db, order=order, step=step, action="incoterm",
+              payload={"incoterm": "FCA"})
+
+    # (a)/(b) Ohne Zoll-Angaben – **Pflicht nur bei einer Ausfuhr**: die Lieferadresse
+    # liegt im Ausland. Sie stehen am Artikel und reisen von dort mit.
+    from app.models import Address
+    for a in db.query(Address).filter(Address.owner_id == who[0].id).all():
+        a.country = "DE"
+    art.weight_kg = Decimal("2.5")
+    db.flush()
+    for field, word in (("hs_code", "Zolltarifnummer"),
+                        ("origin_country", "Ursprungsland"),
+                        ("weight_kg", "Gewicht")):
+        keep = getattr(art, field)
+        setattr(art, field, None)
+        db.flush()
+        with pytest.raises(HTTPException) as gone:
+            voucher_actions.apply(db, order=order, step=step, action="terms",
+                      payload={"lead_days": 10, "payment_days": 30})
+            voucher_actions.apply(db, order=order, step=step, action="ask",
+                      payload={})
+        assert word in gone.value.detail, f"«{word}» ist keine Pflichtangabe (a/b)."
+        # (d) **Der Satz nennt die Position** – «Ohne Zolltarifnummer …» über einem
+        # Beleg mit zwölf Zeilen ist eine Sackgasse mit Ausrufezeichen.
+        assert art.name in gone.value.detail, (
+            "Der Satz nennt die betroffene Position nicht (d)."
+        )
+        setattr(art, field, keep)
+        db.flush()
+
+    # Und vollständig geht er hinaus.
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 10, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={})
+    assert svc.quotes_of(db, row), "Der vollständige Beleg geht nicht hinaus."
+
+
+def test_the_document_head_names_no_kind_at_all():
+    """►►► **Der Belegkopf nennt die Belegart gar nicht** (Testnotizen #974/#977). ◄◄◄
+
+    *«Ich habe eigentlich gesagt, dass dies nicht angezeigt werden soll hier oben.»* – #974
+    hiess «diese Anzeige verschwindet», und daraus die **Belegart** zu machen war die
+    Auslegung einer Ablehnung, keine Umsetzung. Sie sagt oben auch nichts, was die Karte
+    nicht schon sagt: wie weit der Beleg ist, steht als Punkt an jedem Abschnitt, und was
+    als Nächstes zu tun ist, auf dem Knopf, der es tut.
+
+    Damit hat ``document_label`` keinen Leser mehr – und eine Auflösung ohne Leser ist die
+    zweite Wahrheit, die beim nächsten Umbau abweicht. **``label_of`` bleibt**: eine
+    Fehlermeldung über die Stufe muss die Stufe nennen dürfen.
+
+    Bug-Formen: (a) die Belegart ist als Feld zurück (Dienst oder Schema); (b) ``label_of``
+    ist mitgezogen worden und kann die Stufe nicht mehr benennen.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.schemas.voucher import VoucherEmbed
+
+    # (a) Weder die Auflösung noch das Feld gibt es noch.
+    assert not hasattr(vo.DIRECTIONS[vo.IN], "document_label"), (
+        "«document_label» ist zurück – die Belegart hat keinen Leser mehr (a)."
+    )
+    assert "stage_label" not in VoucherEmbed.model_fields, (
+        "«stage_label» reist wieder mit, obwohl der Belegkopf sie nicht nennt (a)."
+    )
+    # (b) Die Stufe hat weiterhin ihr eigenes Wort – für den Fehlersatz.
+    for flow in vo.DIRECTIONS.values():
+        assert flow.label_of(vo.DONE) == "Erledigt"
+        assert flow.label_of(vo.CANCELLED) == "Storniert"
+        assert flow.label_of(vo.OFFER) == flow.stage_labels[vo.OFFER]
+
+
+def test_every_possible_party_carries_its_address(db):
+    """►►► **Die Anschrift will man sehen, BEVOR man anbietet** (Testnotiz #962). ◄◄◄
+
+    *«Zudem, und das stört mich immer noch: ich sehe die Anschrift(en) nicht. Ich bin im
+    Offertenschritt, also der allerersten Stufe.»* – Genau dort ist noch **niemand**
+    angefragt, und ``recipients`` trug nur die Angefragten: die Liste war leer, und die
+    Anschrift, die man braucht, gab es gar nicht.
+
+    Sie kommt jetzt aus der **Vereinigung** – zugelassen ∪ angefragt, Definition zuerst –,
+    und die Oberfläche braucht dafür keine zweite Abfrage.
+
+    Bug-Formen: (a) eine zugelassene, noch nicht angefragte Partei fehlt; (b) eine frei
+    hinzugefügte fehlt; (c) eine steht doppelt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher_actions, voucher_view
+
+    staff = _party(db, "Wir AG", "employee")
+    one = _party(db, "Erste AG", "customer")
+    two = _party(db, "Zweite AG", "customer")
+    order, step, row, _who, _art = _scene(db, parties=[one, two])
+
+    seen = [r["object_id"] for r in
+            voucher_view.embed_data(db, order=order, step=step, viewer=staff)["recipients"]]
+    assert seen == [one.object_id, two.object_id], (
+        f"Die zugelassenen Parteien tragen vor der Anfrage keine Seite (a): {seen}."
+    )
+    for r in voucher_view.embed_data(db, order=order, step=step,
+                            viewer=staff)["recipients"]:
+        assert r["address"], "Eine Seite ohne Anschrift (a)."
+
+    # (b)/(c) Angefragt ändert nichts an der Liste – sie ist eine Vereinigung.
+    _price(db, order, step, row)
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 10, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={"parties": [one.object_id]})
+    again = [r["object_id"] for r in
+             voucher_view.embed_data(db, order=order, step=step, viewer=staff)["recipients"]]
+    assert again == [one.object_id, two.object_id], (
+        f"Die Liste ändert sich mit der Anfrage (b/c): {again}."
+    )
+
+
+def test_a_quote_says_when_it_went_out_and_when_it_was_taken(db):
+    """►►► **Der Moment steht schon da – er brauchte keine Spalte** (#968/#969). ◄◄◄
+
+    *«… im Format ‹vor xx Tagen offeriert›, und beim Hovern das genaue Datum und
+    Uhrzeit.»* – ``created_at`` einer Angebotszeile **ist** der Moment, in dem sie
+    hinausging (``_ask`` legt sie genau dort an und nirgends sonst), und ``updated_at``
+    der **gewählten** Zeile ist der Moment des Zuschlags (``_agree`` setzt ``CHOSEN`` in
+    einem Zug mit der Stufe, und danach fasst kein Verb sie mehr an).
+
+    ``sent_on`` bleibt daneben: das ist das **Datum auf dem Papier**.
+
+    Bug-Formen: (a) der Moment fehlt; (b) er steht auch an einer Zeile ohne Zuschlag –
+    dann behauptet sie einen, den es dort nie gab.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher_actions, voucher_view
+
+    staff = _party(db, "Wir AG", "employee")
+    one = _party(db, "Erste AG", "customer")
+    two = _party(db, "Zweite AG", "customer")
+    order, step, row, _who, _art = _scene(db, parties=[one, two])
+    _price(db, order, step, row)
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 10, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={})
+
+    rows = voucher_view.embed_data(db, order=order, step=step, viewer=staff)["quotes"]
+    assert all(q["sent_at"] for q in rows), "Der Moment des Hinausgehens fehlt (a)."
+    assert all(q["agreed_at"] is None for q in rows), (
+        "Eine Zeile ohne Zuschlag behauptet einen (b)."
+    )
+
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": one.object_id})
+    after = voucher_view.embed_data(db, order=order, step=step, viewer=staff)["quotes"]
+    taken = [q for q in after if q["agreed_at"] is not None]
+    assert [q["party_object_id"] for q in taken] == [one.object_id], (
+        "Der Moment des Zuschlags steht nicht an genau der gewählten Zeile (b)."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZEN #975–#978 – zwei Fragen, zwei Angaben
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_what_to_do_becomes_the_service_line_of_each_position(db):
+    """►►► **«Was ist zu tun?» wird die Leistung jeder Position – vorbelegt, änderbar.** ◄◄◄
+
+    Entschieden im Umbau (Oktober 2026): die Zeile «Was ist zu tun?» entfällt am Beleg. Der
+    Satz am **Modul** belegt den **Untertitel jeder Position** vor (die Leistung unter dem
+    Artikel); bis zum Hinausgehen lässt er sich je Position ändern. **Leer bleibt leer** –
+    die Positionen sagen längst, *was* es ist.
+
+    Bug-Formen: (a) der Satz erreicht die Positionen nicht; (b) er lässt sich nicht ändern;
+    (c) ein leerer Satz wird zu einem Wert.
+    """
+    from app.services import voucher as svc, voucher_actions, voucher_head
+    _house(db)
+    who = _party(db, "Muster AG", "customer")
+    order, step, row, _who, _art = _scene(db, parties=[who])
+    lines = voucher_head.sync_lines(db, row, order, step)
+    assert lines and all(ln.text == "Härten auf 58 HRC" for ln in lines), (
+        "Der Auftrag erreicht die Positionen nicht (a).")
+    voucher_actions.apply(db, order=order, step=step, action="price",
+              payload={"lines": [{"id": lines[0].id, "text": "Härten auf 60 HRC"}]})
+    assert voucher_head.embed_lines(db, row)[0]["text"] == "Härten auf 60 HRC", "(b)"
+    # (c) **Leer bleibt leer** – ein Modul ohne Satz.
+    art = _article(db, f"Welle {uuid.uuid4().hex[:6]}",
+                   steps=[_step(direction="in", parties=[who], task="")])
+    order2, steps2 = _order(db, quantity=1, article=art)
+    step2 = next(x for x in steps2 if x.module_type == "beleg")
+    row2 = svc.of_step(db, step2.id)
+    assert all(ln.text in (None, "") for ln in voucher_head.sync_lines(db, row2, order2, step2)), (
+        "Ein leerer Auftrag wird zu einem Wert (c).")
+
+
+def test_how_to_order_exists_only_where_we_order(db):
+    """►►► **Die Bestellangabe ist eine Frage der RICHTUNG** (``Direction.party_ref``). ◄◄◄
+
+    *«Bei der Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll.
+    Es ist ein Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»*
+
+    Sie beantwortet «wie bestelle ich bei ihm» – seine Artikelnummer, sein Shop-Link. Beim
+    **Verkauf** liefern wir; dort gibt es sie nicht, und ein trotzdem gesendeter Wert wird
+    **verworfen** statt gespeichert.
+
+    Bug-Formen: (a) sie steht am Verkaufs-Beleg; (b) sie fehlt am Einkaufs-Beleg.
+    """
+    from app.services import voucher_actions, voucher_view
+    _house(db)
+    for direction, expected in (("in", ""), ("out", "Art. 4711")):
+        who = _party(db, f"Partner {direction}", "customer")
+        order, step, row, _who, _art = _scene(db, direction=direction, parties=[who])
+        _price(db, order, step, row)
+        staff = _party(db, f"Personal {direction}", "admin")
+        voucher_actions.apply(db, order=order, step=step, action="terms",
+                  payload={"lead_days": 5, "payment_days": 30}, actor=staff)
+        voucher_actions.apply(db, order=order, step=step, action="ask",
+                  payload={"parties": [who.object_id]}, actor=staff)
+        db.flush()
+        got = voucher_view.embed_data(db, order=order, step=step,
+                             viewer=staff)["quotes"][0]["ref"]
+        assert got == expected, (
+            f"«{direction}»: die Bestellangabe ist {got!r} statt {expected!r} "
+            f"({'a' if direction == 'in' else 'b'})."
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► DER UMBAU VON «RECHNUNG & ZAHLUNG» — zwei Fächer, eine Handlung, eine Wahl
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_an_invoice_is_issued_here_and_recorded_there():
+    """►►► **«Rechnung stellen» ↔ «Rechnung erfassen»** – zwei Vorgänge, zwei Wörter.◄◄◄
+
+    Bei einer **Einnahme** entsteht der Beleg hier, bekommt unsere Nummer und geht hinaus;
+    bei einer **Ausgabe** schreiben wir ab, was der Lieferant geschickt hat. Beides hiess
+    «Rechnung erfassen» – und ausgerechnet der Fall, in dem eine Rechnungsnummer vergeben
+    wird, klang nach Abtippen. **Die Zahlung wird weiterhin in beiden Richtungen
+    erfasst**: das System bucht eine Zeile, es überweist nichts.
+
+    ►►► **Und es sind ZWEI Bits, keine vier Sätze** (Testnotizen #1054–#1056). ◄◄◄ Mit der
+    **Gutschrift** kam eine zweite Frage dazu (*mindert der Beleg?*), und vier fertige
+    Sätze wären vier Stellen, an denen einer stehenbleibt. Zusammengesetzt wird aus Nomen
+    und Infinitiv – in allen vier Fällen richtiges Deutsch, anders als eine gerechnete
+    Beugung («Kundeen», #787).
+
+    Bug-Formen: (a) beide Richtungen sagen dasselbe; (b) das Wort steht wieder als eine
+    Konstante für beide da; (c) auch die Zahlung bekommt zwei Wörter je Richtung.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+
+    issued = vo.charge_word(collects=True, minus=False)
+    recorded = vo.charge_word(collects=False, minus=False)
+    assert issued.endswith(vo.ISSUE_VERB), (
+        "Bei einer Einnahme entsteht der Beleg hier – dann wird er gestellt (a)."
+    )
+    assert recorded.endswith(vo.RECORD_VERB), (
+        "Eine fremde Rechnung wird abgeschrieben, nicht gestellt (a)."
+    )
+    assert issued != recorded, "Beide Richtungen sagen dasselbe (a)."
+    assert issued == "Rechnung stellen", (
+        "Bei einer Einnahme entsteht der Beleg hier – dann wird er gestellt (a)."
+    )
+    assert vo.charge_word(collects=True, minus=True) == "Gutschrift stellen", (
+        "Eine Gutschrift nennt sich nicht – dann sagt nichts auf der Karte, dass dieser "
+        "Beleg mindert (a)."
+    )
+    assert not hasattr(vo, "CHARGE_WORD"), (
+        "Das Wort steht wieder als eine Konstante für beide Richtungen da (b)."
+    )
+    # **Die Richtung trägt das Verb nicht mehr selbst** – sonst gäbe es es zweimal, und
+    # die Gutschrift bekäme die zweite Fassung nicht mit.
+    assert "charge_verb" not in vo.Direction.__dataclass_fields__, (
+        "Die Richtung trägt wieder einen fertigen Satz (b)."
+    )
+    # (c) **Nur die Forderung ist verschieden** – ein zweites Feld für die Zahlung wäre
+    # ein Wert, den jemand einzeln falsch setzen kann.
+    assert not any("payment" in f for f in vo.Direction.__dataclass_fields__), (
+        "Auch die Zahlung hat ein Wort je Richtung bekommen (c)."
+    )
+
+
+def test_the_ways_to_the_money_come_from_can_and_say_what_they_do(db):
+    """►►► **Der Weg zum Geld ist eine Wahl – und jeder Weg sagt, was er auslöst.** ◄◄◄
+
+    Bar · Überweisung · Karte sind drei Antworten auf **eine** Frage; was dahinter
+    passiert, ist verschieden (buchen ↔ Angaben zeigen ↔ Zahlformular öffnen). Angeboten
+    wird nur, was dieser Betrachter darf – gelesen aus ``can``, der Liste, die ohnehin
+    Auskunft **und** Tor ist.
+
+    **Und die Gegenpartei bucht nicht**: für sie ist die Überweisung eine reine
+    *Auskunft* – ``action`` und ``verb`` bleiben leer, und damit steht bei ihr kein Knopf,
+    der nach Buchung aussieht.
+
+    Bug-Formen: (a) es gibt Wege, obwohl nichts offen ist; (b) die Gegenpartei bekommt
+    einen Buchungs-Weg; (c) ein Weg sagt nicht, ob er eine Auskunft mitbringt; (d) die
+    Liste kommt nicht aus ``can``.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.services import voucher_actions, voucher_view
+    order, step, row, who, _art = _scene(db, quantity=2)
+    staff = _party(db, "Personal", "admin")
+    _price(db, order, step, row, price="100.00")
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 30}, actor=staff)
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={}, actor=staff)
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": who[0].object_id}, actor=staff)
+    db.flush()
+
+    # (a) **Ohne gestellte Rechnung gibt es nichts zu begleichen.**
+    empty = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert empty["ways"] == [], (
+        "Es gibt Wege, obwohl nichts gefordert ist (a) – dann zeigt die Karte eine "
+        "Wahl, die ins Leere führt."
+    )
+
+    # ►►► **Und mit der gestellten Rechnung gibt es sie** (Testnotiz #1047). ◄◄◄
+    # Hier stand eine zweite Bedingung – «sie muss **versendet** sein» –, und sie hing
+    # an einem Knopf, dessen ganze Wirkung ein Datum war. **Gestellt ist draussen.**
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={}, actor=staff)
+    db.flush()
+
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert seen["invoice"] is not None, (
+        "Der Beleg trägt keine Rechnung – sie IST er."
+    )
+    ours = {w["key"]: w for w in seen["ways"]}
+    assert vo.CASH in ours and vo.TRANSFER in ours, (
+        f"Das Personal kann nicht bar und nicht per Überweisung buchen: {list(ours)}."
+    )
+    assert ours[vo.CASH]["action"] == "pay" and ours[vo.CASH]["verb"], (
+        "Ein Weg sagt nicht, was er auslöst."
+    )
+    # (c) **Die Auskunft ist eine Eigenschaft des Weges** – die Oberfläche vergleicht
+    # sonst den Schlüssel «transfer», und das ist der Spiegel über die API-Grenze.
+    assert ours[vo.TRANSFER]["info"] is True, (
+        "Die Überweisung bringt keine Auskunft mit (c)."
+    )
+    assert ours[vo.CASH]["info"] is False, "Bar bringt eine Auskunft mit (c)."
+
+    # (b) **Die Gegenpartei sieht die Überweisung – und bucht nicht.**
+    theirs = {w["key"]: w for w in
+              voucher_view.embed_data(db, order=order, step=step,
+                             viewer=who[0])["ways"]}
+    assert vo.CASH not in theirs, (
+        "Die Gegenpartei bekommt einen Buchungs-Weg (b) – eine Buchung ist unsere "
+        "Aussage über unser Konto."
+    )
+    assert theirs[vo.TRANSFER]["action"] is None, (
+        "Die Überweisung ist für sie eine Buchung (b) statt einer Auskunft."
+    )
+    assert theirs[vo.TRANSFER]["info"] is True, (
+        "Sie sieht die Bankverbindung nicht – dann kann sie gar nicht überweisen."
+    )
+    # (d) **Die Liste kommt aus `can`** – zwei Massstäbe wären ein Knopf, der
+    # bereitsteht und dann scheitert.
+    for key, way in ours.items():
+        if way["action"]:
+            assert way["action"] in seen["can"], (
+                f"«{key}» bietet «{way['action']}» an, was `can` nicht führt (d)."
+            )
+
+
+def test_nobody_asks_which_invoice_is_meant(db):
+    """►►► **Die Frage hat genau eine Antwort — also stellt man sie nicht.** ◄◄◄
+
+    Hier stand ``settle_charge``: *welche Rechnung meint das Fach «Begleichen»?* Sie war
+    nötig, solange ein Beleg mehrere Forderungszeilen tragen konnte – und genau daraus kam
+    #859 («kassiert wurde immer die älteste offene, egal an welchem Knopf jemand geklickt
+    hat»). Seit der Beleg **die** Rechnung ist, gibt es nichts mehr zu benennen.
+
+    Bug-Formen: (a) die Angabe ist zurück; (b) eine bezahlte Rechnung bietet weiter Wege
+    an; (c) ein unterlegener Angefragter liest sie.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher_actions, voucher_view
+    one = _party(db, "Muster AG", "customer")
+    two = _party(db, "Zweit AG", "customer")
+    order, step, row, _who, _art = _scene(db, quantity=2, parties=[one, two])
+    staff = _party(db, "Personal", "admin")
+    _price(db, order, step, row, price="100.00")
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 30}, actor=staff)
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={"parties": [one.object_id, two.object_id]}, actor=staff)
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": one.object_id}, actor=staff)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={}, actor=staff)
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert "settle_charge" not in seen, "Die Angabe ist zurück (a)."
+    assert seen["ways"], "Nach dem Versenden gibt es keinen Weg zum Geld."
+
+    # (c) **Wer den Zuschlag nicht hat, sieht die Rechnung gar nicht.**
+    assert voucher_view.embed_data(db, order=order, step=step,
+                          viewer=two)["invoice"] is None, (
+        "Ein unterlegener Angefragter liest die Rechnung (c)."
+    )
+
+    # (b) **Bezahlt heisst: nichts mehr zu begleichen.**
+    voucher_actions.apply(db, order=order, step=step, action="pay",
+              payload={"amount": seen["open"], "method": "cash"}, actor=staff)
+    db.flush()
+    done = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert done["open"] == "0.00" and done["invoice"]["state"] == "settled", (
+        "Eine vollständig bezahlte Rechnung steht nicht auf «beglichen» (b)."
+    )
+
+
+def test_a_term_typed_on_the_voucher_survives_a_reload(db):
+    """►►► **Was auf dem Beleg steht, wird sofort geschrieben** (Testnotiz #985). ◄◄◄
+
+    *«Eingaben in ‹Zahlungsfrist› und ‹Lieferfrist› werden nicht persistiert – nach einem
+    Reload sind sie wieder weg.»*
+
+    Und die Ursache war **keine Eigenheit dieser zwei Felder**: sie existierten
+    ausschliesslich an der Angebotszeile, und die entsteht erst mit dem Anfragen. Sie
+    waren damit die einzige Angabe des Belegs **ohne eigenes Verb** – getippt lebten sie
+    nur im Browser und reisten allein in der Nutzlast von ``ask`` mit.
+
+    Geprüft wird darum die **Regel**, nicht die zwei Felder: jede Angabe des Belegs hat
+    ihr Verb, sie wird sofort geschrieben, und ``ask`` **kopiert** sie – wie den Betrag
+    aus den Positionen.
+
+    Bug-Formen: (a) ``terms`` fehlt, es gibt kein Verb dafür; (b) der Wert überlebt das
+    erneute Lesen nicht; (c) die Ableitung liefert vor der Zusage nichts, also kommt er im
+    Browser nie an; (d) ``ask`` nimmt eine Frist aus der Nutzlast (die zweite Aussage über
+    dieselbe Sache – und die getippte gewänne); (e) «nur gesendete Felder wirken» gilt
+    nicht: wer eine Frist ändert, verliert die andere; (f) die Null geht verloren.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher as svc, voucher_actions, voucher_view
+    from app.models import Voucher
+
+    order, step, row, who, _art = _scene(db, quantity=2)
+    _price(db, order, step, row, price="10.00")
+
+    # (a)/(b) **Geschrieben, und zwar wirklich** – neu gelesen, nicht aus dem Objekt.
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 7, "payment_days": 0})
+    db.flush()
+    db.expire_all()
+    again = db.query(Voucher).filter(Voucher.id == row.id).one()
+    assert (again.lead_days, again.payment_days) == (7, 0), (
+        f"Die Fristen überleben das Speichern nicht (a/b/f): "
+        f"{again.lead_days}/{again.payment_days}."
+    )
+
+    # (c) **Und sie kommen im Browser an** – vor der Zusage gibt es keine gewählte
+    #     Zeile, also muss die Ableitung auf den Entwurf zurückfallen.
+    staff = _party(db, "Personal", "admin")
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert (seen["lead_days"], seen["due_days"]) == (7, 0), (
+        f"Der Entwurf erreicht die Oberfläche nicht (c): "
+        f"{seen['lead_days']}/{seen['due_days']} – das Feld steht nach jedem Reload "
+        f"wieder leer."
+    )
+    assert seen["prepaid"] is True, (
+        "«Zahlbar in 0 Tagen» ist die Vorauszahlung – auch als Entwurf (c)."
+    )
+
+    # (e) **Nur gesendete Felder wirken.**
+    voucher_actions.apply(db, order=order, step=step, action="terms", payload={"lead_days": 3})
+    db.flush()
+    db.expire_all()
+    again = db.query(Voucher).filter(Voucher.id == row.id).one()
+    assert (again.lead_days, again.payment_days) == (3, 0), (
+        f"Eine Änderung an EINER Frist nimmt die andere mit (e): "
+        f"{again.lead_days}/{again.payment_days}."
+    )
+
+    # (d) **`ask` liest den Beleg, nicht die Nutzlast.**
+    voucher_actions.apply(db, order=order, step=step, action="ask",
+              payload={"lead_days": 99, "payment_days": 99})
+    db.flush()
+    quote = svc.quotes_of(db, row)[0]
+    assert (quote.lead_days, quote.payment_days) == (3, 0), (
+        f"Eine Frist aus der Nutzlast gewinnt gegen den Beleg (d): "
+        f"{quote.lead_days}/{quote.payment_days} – dann sagt derselbe Beleg zwei "
+        f"Dinge, und die getippte Zahl schlägt die sichtbare."
+    )
+
+    # Und ab der Zusage gilt die **Vereinbarung**, nicht mehr der Entwurf.
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": who[0].object_id})
+    db.flush()
+    quote.payment_days = 14
+    db.flush()
+    assert svc.due_days_of(db, row) == 14, (
+        "Nach der Zusage gilt die Frist der gewählten Angebotszeile."
+    )
+
+
+def test_an_invoice_says_how_it_stands(db):
+    """►►► **Der Zustand einer Rechnung – abgeleitet, mit Toleranz** (Testnotiz #991).◄◄◄
+
+    *Offen · Teilweise bezahlt · Beglichen · Überfällig · Überzahlt* – aus zwei Zahlen
+    (Betrag und Rest), **null Spalten**. Und in den **drei** Ampeltönen des Hauses: eine
+    vierte Farbe für Geld wäre eine zweite Farbsprache.
+
+    ►►► **EINE Funktion, nicht zwei.** ◄◄◄ Hier standen ``charge_state`` (je
+    Forderungs-Zeile) und ``balance_state`` (über den Saldo) nebeneinander – zwei
+    Ableitungen mit geteilten Wörtern und geteilter Toleranz, weil ein Beleg mehrere
+    Forderungen tragen konnte. Seit der Beleg **die** Rechnung ist, sind Betrag und Saldo
+    dieselben zwei Zahlen: eine Frage, eine Antwort.
+
+    Bug-Formen: (a) «teilweise bezahlt» gibt es nicht – eine angezahlte Rechnung sieht aus
+    wie eine unberührte; (b) drei Rappen Restdifferenz halten sie für immer offen;
+    (c) eine unbeglichene **Gutschrift** (negative Rechnung) heisst «Überzahlt»;
+    (d) der Ton kommt aus einer eigenen Farbliste statt aus den drei des Hauses;
+    (e) der Zustand erreicht die Oberfläche nicht; (f) die beiden Ableitungen sind wieder
+    zwei.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from decimal import Decimal
+    from app.domain import voucher as vo
+    from app.services import voucher_actions, voucher_view
+
+    d = Decimal
+    # (f) **Eine Ableitung, nicht zwei.**
+    for gone in ("charge_state", "balance_state", "CHARGE_STATES", "BALANCE_STATES"):
+        assert not hasattr(vo, gone), f"«{gone}» ist zurück (f)."
+    # (a) **Angezahlt ist ein eigener Zustand.**
+    assert vo.invoice_state(d("100"), d("40"))["state"] == "partial", (
+        "Eine angezahlte Rechnung sieht aus wie eine unberührte (a)."
+    )
+    assert vo.invoice_state(d("100"), d("100"))["state"] == "open"
+    # (b) **Rundungstoleranz** – sonst mahnt man wegen drei Rappen.
+    assert vo.invoice_state(d("100"), d("0.03"))["state"] == "settled", (
+        "Drei Rappen halten die Rechnung offen (b)."
+    )
+    assert vo.invoice_state(d("100"), d("0.00"))["state"] == "settled"
+    # (c) ►►► **Der Vorzeichen-Fall ist GEGENSTANDSLOS** (Testnotizen #1054–#1056). ◄◄◄
+    #     Hier stand «eine Gutschrift ist eine negative Rechnung», und die Funktion musste
+    #     Rest und Betrag auf **verschiedene** Vorzeichen prüfen. Seit jede Zahl auf dem
+    #     Beleg eine Menge ist, kann der Betrag nicht negativ sein – und ein negativer Rest
+    #     heisst genau eine Sache: es ist mehr geflossen als gefordert.
+    assert vo.invoice_state(d("100"), d("-20"))["state"] == "overpaid"
+    assert vo.invoice_state(d("100"), d("40"))["state"] == "partial", (
+        "Eine angezahlte Rechnung sieht aus wie eine unberührte (c)."
+    )
+    # Überfällig schlägt «offen».
+    assert vo.invoice_state(d("100"), d("100"), overdue=True)["state"] == "overdue"
+    # (d) **Drei Töne, keine vierte Farbe.**
+    tones = {tone for _, tone in vo.INVOICE_STATES.values()}
+    assert tones <= {"done", "pending", "danger"}, (
+        f"Ein Ton ausserhalb der drei des Hauses (d): {tones}."
+    )
+
+    # (e) **Und er reist mit** – gemessen über den echten Dienstpfad.
+    order, step, row, _who, _art = _agreed(db, price="100.00")
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    staff = _party(db, "Personal", "admin")
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert seen["invoice"]["state_label"] and seen["invoice"]["state_tone"], (
+        "Der Zustand erreicht die Oberfläche nicht (e) – dann rechnet sie ihn "
+        "wieder selbst."
+    )
+    # ►►► **Und der Saldo sagt DASSELBE** – es ist dieselbe Zahl. ◄◄◄
+    assert seen["open_state"] == seen["invoice"]["state"], (
+        "Rechnung und Saldo geben zwei Antworten auf dieselbe Frage (f)."
+    )
+    # Eine Anzahlung macht daraus «teilweise bezahlt».
+    voucher_actions.apply(db, order=order, step=step, action="pay",
+              payload={"amount": "50.00", "method": "cash"})
+    db.flush()
+    again = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert again["invoice"]["state"] == "partial", (
+        f"Die angezahlte Rechnung sagt «{again['invoice']['state']}» (a/e)."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► Testnotizen #995–#1003 — wählen ist nicht anfragen, und der Saldo ist eine Farbe
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_the_party_is_chosen_before_it_is_asked(db):
+    """►►► **Wählen und anfragen sind zwei Dinge** (Testnotiz #1000). ◄◄◄
+
+    *«Wurde beim Anlegen kein Partner vorgewählt, lässt er sich nachträglich nicht mehr
+    setzen. Die Auswahl wird korrekt angezeigt, aber nicht übernommen/persistiert.»*
+
+    **Nachgestellt, nicht vermutet.** Die Wahl im freien Feld löste sofort ``ask`` aus –
+    und das ist die Handlung, mit der der Beleg **nach aussen** geht: sie verlangt Preis,
+    beide Fristen und die Lieferbedingung (#964/#985). An einem frischen Modul fehlt
+    davon naturgemäss alles, der Dienst wies mit einem Satz ab, und die Wahl war weg.
+
+    Damit war *«wen meine ich»* die letzte Angabe des Belegs **ohne eigenes Verb** –
+    dieselbe Lücke wie bei den Fristen, nur eine Runde später. Die Regel gilt unverändert:
+    *jeder änderbare Wert des Belegs wird sofort persistiert.*
+
+    Bug-Formen: (a) das Verb ``party`` gibt es nicht; (b) die Wahl setzt einen
+    unvollständigen Beleg voraus (also wieder ``ask``); (c) sie überlebt das erneute Lesen
+    nicht; (d) sie erreicht den Belegkopf nicht – dann steht «Anschrift fehlt» über
+    jemandem, den man eine Zeile höher ausgewählt hat; (e) ``ask`` findet sie nicht und
+    verlangt die Nummer ein zweites Mal; (f) es gibt keinen Weg zurück; (g) irgendeine
+    Nummer geht durch.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.services import voucher as svc, voucher_actions, voucher_view
+    from app.models import Voucher
+
+    # **Ein Modul ohne vorgewählten Partner** – «leer heisst frei».
+    order, step, row, _who, _art = _scene(db, parties=[])
+    assert not step.config.get("parties"), "Die Szene hat doch einen Partner."
+    them = _party(db, "Muster AG", "customer")
+
+    # (a)/(b) **Die Wahl geht am frischen Beleg** – ohne Preis, ohne Fristen.
+    assert "party" in voucher_actions.can(db, row, None), (
+        "Es gibt kein Verb, mit dem man die Gegenpartei wählt (a)."
+    )
+    voucher_actions.apply(db, order=order, step=step, action="party",
+              payload={"party": them.object_id})
+    db.flush()
+
+    # (c) **Und sie überlebt** – neu gelesen, nicht aus dem Objekt.
+    db.expire_all()
+    again = db.query(Voucher).filter(Voucher.id == row.id).one()
+    assert svc.parties_on(again) == [them.object_id], (
+        f"Die Wahl überlebt das Speichern nicht (c): {svc.parties_on(again)}."
+    )
+
+    # (d) **Sie steht im Belegkopf** – der Adressat ist, wer gewählt ist.
+    staff = _party(db, "Personal", "admin")
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert [r["object_id"] for r in seen["recipients"]] == [them.object_id], (
+        "Die Wahl erreicht die Auswahl-Zeile nicht (d)."
+    )
+    assert seen["customer"]["object_id"] == them.object_id, (
+        "Der Belegkopf kennt den Gewählten nicht (d) – dann meldet er «Anschrift "
+        "fehlt» über jemanden, den man ausgewählt hat."
+    )
+
+    # (e) **`ask` findet sie von selbst** – ohne die Nummer ein zweites Mal zu nennen.
+    _price(db, order, step, row, price="10.00")
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 5, "payment_days": 30})
+    db.flush()
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={})
+    db.flush()
+    assert [q.party_id for q in svc.quotes_of(db, row)] == [them.object_id], (
+        "«Anfragen» findet den gewählten Partner nicht (e)."
+    )
+
+    # (f) **Und es gibt den Weg zurück** – eine Handlung, ein Klick: die Zeile und die
+    #     Wahl verschwinden zusammen.
+    assert "unask" in voucher_actions.can(db, row, None), "Die Wahl lässt sich nicht zurücknehmen (f)."
+    voucher_actions.apply(db, order=order, step=step, action="unask",
+              payload={"party": them.object_id})
+    db.flush()
+    assert not svc.quotes_of(db, row) and not svc.parties_on(row), (
+        f"Zurückgenommen ist nur die Hälfte (f): {svc.parties_on(row)} / "
+        f"{[q.party_id for q in svc.quotes_of(db, row)]}."
+    )
+
+    # (g) **Geprüft wird die Wahl selbst** – eine Auswahl, die der Dienst später
+    #     abwiese, wäre keine.
+    with _pytest.raises(HTTPException) as bad:
+        voucher_actions.apply(db, order=order, step=step, action="party",
+                  payload={"party": 999_999_999})
+    assert bad.value.status_code == 400, (
+        f"Irgendeine Nummer geht durch (g): {bad.value.status_code}."
+    )
+
+
+def test_the_balance_says_how_it_stands_in_one_number(db):
+    """►►► **Der Saldo — eine Zahl, und ihre Farbe ist die Aussage** (Testnotiz #997).◄◄◄
+
+    *«Das Wort ‹Offen› entfällt, der Status wird ausschliesslich über die Farbe des
+    Betrags getragen: offen orange · überfällig rot · beglichen grün · überzahlt grün mit
+    ausgewiesenem Guthaben.»*
+
+    ►►► **Und es ist DIESELBE Ableitung wie an der Rechnung.** ◄◄◄ Es waren einmal zwei
+    (``charge_state`` je Zeile, ``balance_state`` über den Saldo), weil ein Beleg mehrere
+    Forderungen tragen konnte. Seit er **die** Rechnung ist, sind Betrag und Saldo
+    dieselben zwei Zahlen – zwei Funktionen dafür wären zwei Massstäbe.
+
+    Bug-Formen: (a) der Zustand wird gar nicht geliefert, also rechnet ihn die Oberfläche
+    wieder selbst; (b) Rechnung und Saldo geben zwei Antworten; (c) eine Gegenpartei ohne
+    Zuschlag liest die Zahl mit.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher_actions, voucher_view
+    # Zwei Angefragte, einer bekommt den Zuschlag – (c) braucht einen Unterlegenen.
+    winner = _party(db, "Muster AG", "customer")
+    loser = _party(db, "Zweiter", "customer")
+    order, step, row, who, _art = _agreed(db, quantity=1, price="100.00",
+                                          parties=[winner, loser])
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    staff = _party(db, "Personal", "admin")
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert seen["open_state"] == "open" and seen["open_state_tone"] == "pending", (
+        f"Der Saldo sagt seinen Zustand nicht (a): {seen['open_state']}."
+    )
+    # Überzahlt: mehr geflossen, als gefordert war.
+    voucher_actions.apply(db, order=order, step=step, action="pay",
+              payload={"amount": "150.00", "method": "cash"})
+    db.flush()
+    over = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert over["open_state"] == "overpaid", (
+        f"Die Überzahlung wird nicht erkannt: {over['open_state']}."
+    )
+    # (b) **Eine Frage, eine Antwort.**
+    assert over["open_state"] == over["invoice"]["state"], (
+        "Rechnung und Saldo geben zwei Antworten auf dieselbe Frage (b)."
+    )
+    # (c) **Wer keinen Zuschlag hat, liest keine Zahl** – und damit auch keinen
+    #     Zustand über sie.
+    blind = voucher_view.embed_data(db, order=order, step=step, viewer=loser)
+    # *Gefragt sind **alle** Angaben: der erste Anlauf prüfte nur den Schlüssel und
+    # liess Wort und Ton durch – gemessen, nachgeschärft.*
+    leaked = {k: blind[k] for k in
+              ("open", "open_state", "open_state_label", "open_state_tone")
+              if blind[k] is not None}
+    assert not leaked, f"Ein Unterlegener liest den Saldo mit (c): {leaked}."
+    assert blind["invoice"] is None, "Er liest die Rechnung mit (c)."
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► ZWEI ENTITÄTEN, KEIN BELEGTYP — Rechnung · Zahlung · Kleinbetragstoleranz
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_there_is_no_document_type_only_a_sign_and_a_reference():
+    """►►► **Es gibt KEINEN Belegtyp im Code – und einen Grund nur beim Ausbuchen.** ◄◄◄
+
+    Das Datenmodell trägt genau **zwei** Dinge: den Beleg (der *ist* die Rechnung) und
+    seine Geld-Zeilen. Eine Gutschrift ist ein Beleg mit **Referenz** auf den, den sie
+    mindert (``corrects_id``) – kein Typ.
+
+    ►►► **Der Grund ist zurück – aber nur an einer Stelle und aus einer festen Liste**
+    (Umbau Oktober 2026): «Ausbuchen» mit Grund (Rundung · Bankspesen · Skonto · Kulanz ·
+    Uneinbringlich) ist rechtlich eine Entgeltsminderung, und die Buchhaltung braucht das
+    Wort. Ein Freitext-Grund an einer Rechnung oder Zahlung bleibt verboten.
+
+    Bug-Formen: (a) eine Belegart-Aufzählung steht wieder da; (b) der Grund ist frei
+    tippbar oder gilt für etwas anderes als die Ausbuchung; (c) eine Geld-Zeile trägt die
+    Art «Rechnung».
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    import pytest as _pt
+    from app.domain import voucher as vo
+
+    for name in ("KINDS", "CHARGE", "assert_kind"):
+        assert not hasattr(vo, name), f"«{name}» ist zurück (a)."
+    assert "charge" not in vo.ENTRY_KINDS, "Eine Geld-Zeile trägt die Rechnung (c)."
+    assert [k for k, _ in vo.WRITE_OFF_REASONS] == [
+        "rounding", "bank", "discount", "goodwill", "loss"], "Die Liste der Gründe (b)."
+    with _pt.raises(ValueError):
+        vo.assert_reason("Retoure")          # (b) kein Freitext
+    import app.services.voucher_actions as voucher_actions
+    assert "reason" not in voucher_actions.VERBS["pay"].__dict__, "(b)"
+
+
+
+def test_a_money_line_carries_the_moment_it_was_booked(db):
+    """►►► **Eine Auskunft braucht einen ZEITPUNKT, kein Datum** (Testnotiz #1014). ◄◄◄
+
+    *«Ein Ereignis von vor wenigen Minuten wird als ‹Heute› angezeigt.»* – Dreimal
+    gemeldet, und es lag nie an der Anzeige-Funktion: sie bekam ``booked_on``, einen
+    **reinen Tag**, und aus einem Tag ohne Uhrzeit lässt sich «vor 5 Minuten» nicht
+    ableiten. Ihn zu erfinden wäre schlimmer – gefehlt hat der Zeitpunkt.
+
+    Bug-Form: die Zeile reist ohne ``booked_at``, und der Browser muss wieder raten.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import voucher_actions, voucher_view
+    order, step, row, _who, _art = _agreed(db, quantity=1, price="10.00")
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    voucher_actions.apply(db, order=order, step=step, action="pay",
+              payload={"amount": "1.00", "method": "cash"})
+    db.flush()
+    staff = _party(db, "Personal", "admin")
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    line = seen["entries"][0]
+    assert line.get("booked_at") is not None, (
+        "Die Geld-Zeile reist ohne Zeitpunkt – dann heisst alles von heute «Heute»."
+    )
+    assert line["booked_at"] != line["booked_on"], (
+        "Der Zeitpunkt ist der Belegtag – dann sagt er dasselbe und nichts mehr."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► EINE ERSTATTUNG GEHT GENAU EINMAL HINAUS (Testnotiz #1018)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class _Refused(Exception):
+    """Ein Fehler des Zahlungsdienstes – mit ``code``, wie er wirklich einen trägt."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def _fake_stripe(monkey, *, raises=None):
+    """Der Zahlungsdienst als **Attrappe** – hier wird unsere Logik geprüft, nicht seine.
+
+    Sie merkt sich jeden Aufruf mitsamt dem Idempotenz-Schlüssel: genau der ist die
+    Aussage, um die es geht.
+    """
+    from app.services import stripe_pay
+
+    calls: list[dict] = []
+
+    class _Refund:
+        @staticmethod
+        def create(**kw):
+            calls.append(kw)
+            if raises is not None:
+                raise raises
+            return {"id": "re_test"}
+
+    class _Api:
+        Refund = _Refund
+
+    monkey.setattr(stripe_pay, "_api", lambda: _Api)
+    # **Eingerichtet** – sonst führt ``can`` das Verb gar nicht (dasselbe Tor wie im Router).
+    from app.core.config import get_settings
+    for key, value in (("stripe_secret_key", "sk_test_x"),
+                       ("stripe_publishable_key", "pk_test_x")):
+        monkey.setattr(get_settings(), key, value)
+    return calls
+
+
+def _card_scene(db):
+    """Ein zugesagter Beleg mit **einer gebuchten Karten-Zahlung** über 100.00.
+
+    Die Zahlungsabsicht trägt je Szene eine eigene Nummer – eine Referenz gehört zu genau
+    **einer** Zahlung im Haus, und das ist eine Regel des Dienstes, kein Fixture-Detail.
+    """
+    from app.services import voucher_actions, voucher_money
+    order, step, row, _who, _art = _agreed(db, quantity=1, price="100.00")
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    from app.domain import voucher as vo
+    intent = f"pi_{uuid.uuid4().hex[:12]}"
+    voucher_money.record_payment(db, row=row, amount=Decimal("100.00"),
+                       reference=intent, method=vo.CARD)
+    # ►►► **Zurück auf die Karte geht nur, was geschuldet ist** (Umbau Oktober 2026): nach
+    # einem Storno gehören die 100.00 dem Kunden. Ein «Rückbuchen» einer bezahlten
+    # Rechnung gibt es nicht mehr. ◄◄◄
+    voucher_actions.apply(db, order=order, step=step, action="revoke", payload={})
+    db.flush()
+    return order, step, row, intent
+
+
+class _Listing:
+    """Eine Liste des Dienstes – ``auto_paging_iter`` wie beim echten SDK."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def auto_paging_iter(self):
+        return iter(self.rows)
+
+
+def _refund_api(refunds: list[dict]):
+    """Der Dienst, der die Erstattungen einer Zahlung vorliest (``Refund.list``)."""
+
+    class _Refund:
+        @staticmethod
+        def list(**kw):
+            return _Listing([{"status": "succeeded", **r} for r in refunds])
+
+    class _Api:
+        Refund = _Refund
+
+    return _Api
+
+
+def _webhook_refund(db, row, intent, *, refunds: list[dict]):
+    """**Was der Webhook bucht** – ``charge.refunded`` über ``_note_refund``, sein Commit
+    als ``flush`` (sonst risse er die Szene aus dem Rollback). Die Meldung trägt KEINE
+    Liste: die Erstattungen liest der Dienst selbst vor."""
+    from app.services import stripe_pay
+    commit = db.commit
+    db.commit = db.flush
+    try:
+        stripe_pay._note_refund(db, _refund_api(refunds), {"payment_intent": intent})
+    finally:
+        db.commit = commit
+    db.flush()
+
+
+def test_a_refund_never_goes_out_twice(db, monkeypatch):
+    """►►► **Zweimal geklickt ist EINE Erstattung** (Testnotiz #1018). ◄◄◄
+
+    *«Der Button lässt sich mehrfach drücken, dann erscheint ein technischer Fehlertext
+    des Zahlungsdienstes.»*
+
+    Drei Ebenen, und jede schliesst eine andere Lücke: der **Rest** (die fachliche
+    Wahrheit, sobald gebucht ist), der **Idempotenz-Schlüssel** (das Fenster zwischen
+    Klick und Meldung des Webhooks) und die **deutsche Meldung** (alles, was dem Dienst
+    sonst noch missfällt).
+
+    Bug-Formen: (a) der Aufruf geht ohne Schlüssel hinaus; (b) nach der gebuchten
+    Erstattung ist die Zahlung weiter erstattbar; (c) der zweite Aufruf geht trotzdem
+    hinaus; (d) mehr als der Rest lässt sich erstatten.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import stripe_pay, voucher_money
+    _order, _step, row, intent = _card_scene(db)
+    entry = voucher_money.refundable(db, row)[0]
+    assert voucher_money.refundable_amount(db, entry) == Decimal("100.0000")
+
+    # (a) **Der Aufruf trägt einen Schlüssel** – und er nennt den Stand VOR ihm.
+    calls = _fake_stripe(monkeypatch)
+    stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
+    assert len(calls) == 1 and calls[0].get("idempotency_key"), (
+        f"Die Erstattung geht ohne Idempotenz-Schlüssel hinaus (a): {calls}."
+    )
+    first_key = calls[0]["idempotency_key"]
+    # **Ein zweiter Klick im selben Fenster trägt denselben Schlüssel** – beim Dienst
+    # entsteht damit genau eine Erstattung, obwohl hier noch nichts gebucht ist.
+    stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
+    assert calls[1]["idempotency_key"] == first_key, (
+        "Zwei Klicks im Wartefenster tragen verschiedene Schlüssel – dann erstattet "
+        "der Dienst zweimal."
+    )
+
+    # (b) **Sobald der Webhook gemeldet hat, gibt es nichts mehr zu erstatten.**
+    _webhook_refund(db, row, intent, refunds=[{"id": "re_1", "amount": 10000}])
+    assert voucher_money.refundable_amount(db, entry) == Decimal("0"), (
+        "Die vollständig erstattete Zahlung hat wieder einen Rest (b)."
+    )
+    assert entry.id not in [e.id for e in voucher_money.refundable(db, row)], (
+        "Sie steht weiter in der Liste (b) – dann bleibt der Knopf stehen."
+    )
+    # (c) **Und der Weg dorthin ist zu** – mit einem Satz, nicht mit einem Rohfehler.
+    with pytest.raises(HTTPException) as err:
+        stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
+    assert err.value.status_code == 409 and "erstatten" in err.value.detail, (
+        f"Der zweite Aufruf geht hinaus oder sagt nichts (c): {err.value.detail}."
+    )
+
+
+def test_a_partial_refund_leaves_the_rest_and_only_the_rest(db, monkeypatch):
+    """**Teilerstattung: der Rest ist die Grenze – und er stimmt.**
+
+    ►►► **Und zweimal 30 nacheinander sind zwei Erstattungen.** ◄◄◄ Genau darum nennt der
+    Idempotenz-Schlüssel den **Stand vor dem Aufruf**: ohne ihn trügen beide denselben,
+    und die zweite würde beim Dienst still verschluckt – ein Nicht-Effekt, den niemand
+    sieht.
+
+    Bug-Formen: (a) nach 30 von 100 stehen wieder 100 zur Verfügung; (b) 80 gehen durch,
+    obwohl nur 70 übrig sind; (c) die zweite Meldung des Dienstes bucht nichts (die
+    kumulierte Summe fällt auf die Referenz der ersten); (d) die zweite Erstattung über
+    denselben Betrag trägt denselben Schlüssel.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import stripe_pay, voucher_money
+    _order, _step, row, intent = _card_scene(db)
+    entry = voucher_money.refundable(db, row)[0]
+    calls = _fake_stripe(monkeypatch)
+    stripe_pay.refund(db, row=row, entry_id=entry.id, amount="30.00", viewer=None)
+    _webhook_refund(db, row, intent, refunds=[{"id": "re_1", "amount": 3000}])
+    # (a)
+    assert voucher_money.refundable_amount(db, entry) == Decimal("70.0000"), (
+        f"Der Rest stimmt nicht (a): {voucher_money.refundable_amount(db, entry)}."
+    )
+    # (b) **Mehr als der Rest geht nicht** – und der Satz nennt beide Zahlen.
+    with pytest.raises(HTTPException) as err:
+        stripe_pay.refund(db, row=row, entry_id=entry.id, amount="80.00", viewer=None)
+    assert err.value.status_code == 409 and "70" in err.value.detail, (
+        f"Mehr als der Rest geht durch (b): {err.value.detail}."
+    )
+    # (c) **Die zweite Erstattung wird gebucht** – je Erstattung eine Referenz, nicht
+    #     je Belastung: die kumulierte Summe fiel sonst auf die Zeile der ersten und
+    #     verschwand still.
+    # (d) **Zweimal derselbe Betrag, zwei Vorhaben** – der Stand dazwischen ist
+    #     gewachsen, also ist es auch der Schlüssel.
+    stripe_pay.refund(db, row=row, entry_id=entry.id, amount="30.00", viewer=None)
+    assert calls[-1]["idempotency_key"] != calls[0]["idempotency_key"], (
+        "Eine zweite Teilerstattung über denselben Betrag trägt denselben Schlüssel "
+        "(d) – der Dienst verschluckt sie still."
+    )
+    stripe_pay.refund(db, row=row, entry_id=entry.id, amount="20.00", viewer=None)
+    _webhook_refund(db, row, intent, refunds=[{"id": "re_2", "amount": 2000},
+                                              {"id": "re_1", "amount": 3000}])
+    # **Dieselbe Meldung noch einmal** bucht nichts – idempotent je Erstattung.
+    _webhook_refund(db, row, intent, refunds=[{"id": "re_2", "amount": 2000},
+                                              {"id": "re_1", "amount": 3000}])
+    assert voucher_money.refunded_on(db, entry) == Decimal("50.0000"), (
+        f"Die zweite Erstattung ist nicht angekommen (c): "
+        f"{voucher_money.refunded_on(db, entry)}."
+    )
+
+
+def test_a_refund_that_fails_after_pending_is_booked_back(db, monkeypatch):
+    """►►► **Eine Erstattung, die nach «ausstehend» scheitert, ging nie hinaus.** ◄◄◄
+
+    Gebucht wird sie schon «ausstehend» (``BOOKED_REFUNDS``); meldet der Dienst danach
+    ``failed`` (``refund.updated``), steht die Gegenbuchung da und die Zahlung ist wieder
+    erstattbar.
+
+    Bug-Formen: (a) ``refund.updated`` wird ignoriert; (b) die gescheiterte Erstattung bleibt
+    gebucht (der Saldo lügt, nichts lässt sich mehr erstatten); (c) eine zweite Zustellung
+    bucht noch einmal zurück.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import stripe_pay, voucher, voucher_money
+    _order, _step, row, intent = _card_scene(db)
+    entry = voucher_money.refundable(db, row)[0]
+    owed = voucher.balance_of(db, row).open
+    _webhook_refund(db, row, intent,
+                    refunds=[{"id": "re_1", "amount": 4000, "status": "pending"}])
+    assert voucher_money.refundable_amount(db, entry) == Decimal("60.0000")
+    # (a)
+    assert "refund.updated" in stripe_pay.EVENTS, (
+        "Der Webhook hört den späteren Ausgang einer Erstattung nicht (a)."
+    )
+    for _ in range(2):
+        _webhook_refund(db, row, intent,
+                        refunds=[{"id": "re_1", "amount": 4000, "status": "failed"}])
+    # (b)
+    assert voucher_money.refundable_amount(db, entry) == Decimal("100.0000"), (
+        f"Die gescheiterte Erstattung zählt weiter (b): "
+        f"{voucher_money.refundable_amount(db, entry)}."
+    )
+    assert voucher.balance_of(db, row).open == owed, (
+        "Der Saldo nach der gescheiterten Erstattung stimmt nicht (b)."
+    )
+    # (c)
+    undo = [e for e in voucher.entries_of(db, row) if e.reverses_id is not None]
+    assert len(undo) == 1, f"Zurückgebucht wurde {len(undo)}-mal (c)."
+
+
+def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(db, monkeypatch):
+    """►►► **Der Rohfehler geht ins LOG, der Satz an die Tür** (Testnotiz #1018). ◄◄◄
+
+    *«Charge has already been refunded»* stand in der Oberfläche – englisch, technisch,
+    und über eine Lage, die wir selbst kennen. Übersetzt wird über den **Code** des
+    Fehlers, nicht über seinen Wortlaut: der ist stabil, der Text nicht.
+
+    Bug-Formen: (a) der englische Rohtext steht in der Antwort; (b) ein unbekannter Code
+    bringt trotzdem Technisches durch.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import stripe_pay, voucher_money
+    _order, _step, row, _intent = _card_scene(db)
+    entry = voucher_money.refundable(db, row)[0]
+    raw = "Charge ch_123 has already been refunded."
+    _fake_stripe(monkeypatch, raises=_Refused("charge_already_refunded", raw))
+    with pytest.raises(HTTPException) as err:
+        stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
+    # (a)
+    assert raw not in err.value.detail and "refund" not in err.value.detail.lower(), (
+        f"Der Rohtext des Dienstes steht in der Antwort (a): {err.value.detail}."
+    )
+    assert "bereits" in err.value.detail, (
+        f"Der Satz sagt nicht, was los ist: {err.value.detail}."
+    )
+    # (b) **Was wir nicht übersetzen können, bleibt allgemein** – eine geratene
+    #     Ursache schickt jemanden in die falsche Richtung.
+    _fake_stripe(monkeypatch, raises=_Refused("something_new", "Internal oops at 0x1"))
+    with pytest.raises(HTTPException) as err:
+        stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
+    assert err.value.detail == stripe_pay.STRIPE_TROUBLE, (
+        f"Ein unbekannter Fehler bringt Technisches durch (b): {err.value.detail}."
+    )
+
+
+def _signed(secret: str, event: dict) -> tuple[bytes, str]:
+    """Eine Meldung, **signiert wie vom Dienst** (``t=…,v1=HMAC-SHA256``)."""
+    import hashlib
+    import hmac
+    import json
+    import time
+    raw = json.dumps(event).encode()
+    t = int(time.time())
+    mac = hmac.new(secret.encode(), f"{t}.".encode() + raw, hashlib.sha256).hexdigest()
+    return raw, f"t={t},v1={mac}"
+
+
+def test_the_webhook_reads_a_real_signed_event(db, monkeypatch):
+    """►►► **Der Webhook liest eine echte Meldung – durch das echte SDK.** ◄◄◄
+
+    Die Attrappe oben ersetzt nur das Erstatten; die Signaturprüfung und das Lesen der
+    Meldung laufen hier durch ``stripe.Webhook.construct_event`` selbst. Seit dem SDK 15
+    ist ein ``StripeObject`` kein ``dict`` mehr: ein ``event.get(…)`` bräche erst bei der
+    ersten echten Zahlung – mit einem 500 an den Dienst, der dann endlos neu zustellt.
+
+    Bug-Formen: (a) eine gültig signierte Meldung bricht beim Lesen ab; (b) eine falsche
+    Signatur wird angenommen; (c) eine Zahlung zu einem unbekannten Beleg bucht etwas.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.core.config import get_settings
+    from app.services import stripe_pay
+    secret = "whsec_test"
+    for key, value in (("stripe_secret_key", "sk_test_x"),
+                       ("stripe_publishable_key", "pk_test_x"),
+                       ("stripe_webhook_secret", secret)):
+        monkeypatch.setattr(get_settings(), key, value)
+    # (a) Ein Ereignis, das niemand liest: quittiert, nicht abgewiesen.
+    other = {"id": "evt_1", "object": "event", "type": "customer.created",
+             "data": {"object": {"id": "cus_1", "object": "customer"}}}
+    raw, sig = _signed(secret, other)
+    assert stripe_pay.handle_webhook(db, raw=raw, signature=sig) == "ignored"
+    # (c) Eine Zahlung, deren Metadaten auf keinen Beleg zeigen.
+    paid = {"id": "evt_2", "object": "event", "type": stripe_pay.PAID,
+            "data": {"object": {"id": "pi_x", "object": "payment_intent",
+                                "amount_received": 100,
+                                "metadata": {stripe_pay.META_KEY: "0"}}}}
+    raw, sig = _signed(secret, paid)
+    assert stripe_pay.handle_webhook(db, raw=raw, signature=sig) == "unknown"
+    # (b)
+    raw, _sig = _signed(secret, paid)
+    _raw, forged = _signed("whsec_fremd", paid)
+    with pytest.raises(HTTPException) as err:
+        stripe_pay.handle_webhook(db, raw=raw, signature=forged)
+    assert err.value.status_code == 400
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► TESTNOTIZEN #1046/#1047 — der Grund am Knopf, und «versendet» ist weg
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_a_billed_invoice_is_out_there(db):
+    """►►► **Gestellt IST draussen — es gibt kein «ist versendet» mehr** (#1047). ◄◄◄
+
+    *«Ich sehe nicht wirklich, wozu es diesen extra Button braucht und wofür man
+    mitprotokollieren muss, dass die Rechnung versendet wurde.»*
+
+    Der Knopf setzte ein Datum (``issued_on``) und sonst nichts – eine Handlung, die ein
+    Mensch **für das System** ausführte, damit das System sie protokolliert. **Kassiert**
+    wird auf eine *gestellte* Rechnung; zurückgenommen wird sie nie (nur storniert).
+
+    Bug-Formen: (a) das Verb ist wieder da; (b) die Spalte ist wieder am Modell; (c) das
+    Kassieren hängt an einer zweiten Bedingung – dann steht der Weg zum Geld nicht da,
+    obwohl die Rechnung existiert.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import voucher as vo
+    from app.models import Voucher
+    from app.services import voucher as svc, voucher_actions, voucher_view
+
+    # (a) + (b) – und beides zusammen: ein Verb ohne Spalte wäre so halb wie umgekehrt.
+    assert "issue" not in voucher_actions.VERBS, (
+        "«issue» steht wieder in VERBS (a) – ein Knopf, dessen ganze Wirkung ein Datum "
+        "ist, das niemand liest."
+    )
+    assert not hasattr(vo, "ISSUE_WORD"), "Das Wort ist wieder da (a)."
+    assert not any(hasattr(m, "is_issued") for m in (svc, voucher_actions, voucher_view)), (
+        "Die Frage ist wieder da (a).")
+    assert "issued_on" not in Voucher.__mapper__.columns, (
+        "Die Spalte ist wieder am Modell (b) – und damit die zweite Aussage darüber, ob "
+        "ein Beleg draussen ist."
+    )
+
+    order, step, row, who, _art = _agreed(db)
+    staff = _party(db, "Personal", "admin")
+    assert "pay" not in voucher_actions.can(db, row, None), (
+        "Ohne Rechnung lässt sich kassieren – man kassiert nicht, was niemand "
+        "gefordert hat."
+    )
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    db.flush()
+    # (c) **Mit der gestellten Rechnung steht der Weg zum Geld da** – ohne einen
+    # zweiten Klick, der nur ein Datum setzt.
+    allowed = voucher_actions.can(db, row, None)
+    assert "pay" in allowed, (
+        f"Eine gestellte Rechnung lässt sich nicht kassieren (c): {allowed}."
+    )
+    ways = voucher_view.embed_data(db, order=order, step=step, viewer=staff)["ways"]
+    assert ways, "Es gibt keinen Weg zum Geld (c), obwohl die Rechnung steht."
+    # **Und zurückgenommen wird sie nie** – der einzige Weg zurück ist «Stornieren».
+    assert "unbill" not in allowed and "revoke" in allowed
+
+
+def test_the_reason_stands_at_the_button_not_after_the_click(db):
+    """►►► **Warum der Anfrage-Knopf gesperrt ist — am Knopf** (Testnotiz #1046). ◄◄◄
+
+    *«Diese Meldung erscheint nicht an der Stelle des Geschehens. Besser wäre, der
+    Submit-Button ist deaktiviert/ausgegraut, bis alles vollständig ist, und beim Hover
+    erklärt er, warum.»*
+
+    Die Prüfung gab es längst, nur **erst beim Klick**: ``_ask`` wies ab, und der Satz
+    landete als rote Zeile am Kopf des Auftrags – weit weg von der Position, die er
+    nennt. Jetzt ist er eine **Ableitung** (``ask_problem``), die mitreist, und derselbe
+    Satz ist das Tor. **Zwei Formen einer Regel, ein Namensstamm.**
+
+    Bug-Formen: (a) die Ableitung schweigt, obwohl der Beleg unvollständig ist; (b) sie
+    nennt einen Grund, den die Tür nicht kennt (oder umgekehrt); (c) sie steht nicht in
+    der Antwort; (d) sie bleibt stehen, obwohl alles da ist.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
+    from app.services import voucher as svc, voucher_actions, voucher_view
+    order, step, row, _who, art = _scene(db, quantity=2)
+    staff = _party(db, "Personal", "admin")
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 30})
+    db.flush()
+    # (a) + (c) **Die Antwort trägt den Grund** – nur dort, wo es den Knopf
+    #     überhaupt gibt, und die Oberfläche liest ohnehin, bevor jemand klickt.
+    seen = voucher_view.embed_data(db, order=order, step=step, viewer=staff)
+    assert "ask" in (seen["can"] or []), "Ohne das Verb gibt es nichts zu erklären."
+    problem = seen["ask_problem"]
+    # **Und er nennt die Position**, nicht nur das Feld: über einem Beleg mit zwölf
+    # Zeilen wäre «ohne Preis» eine Sackgasse mit Ausrufezeichen.
+    assert problem and "Preis" in problem and art.name in problem, (
+        f"Der Grund fehlt oder nennt die Position nicht (a/c): {problem!r}."
+    )
+    assert problem == voucher_actions.ask_problem(db, row, step), (
+        "Die Antwort baut den Satz selbst – dann ist er die zweite Fassung."
+    )
+    # (b) **Derselbe Satz ist das Tor** – ein zweiter, milderer Massstab wäre ein
+    #     Knopf, der bereitsteht und dann scheitert.
+    with pytest.raises(HTTPException) as err:
+        voucher_actions.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
+    assert err.value.detail == problem, (
+        f"Tür und Knopf sagen Verschiedenes (b): {err.value.detail!r} ≠ {problem!r}."
+    )
+    # **Dasselbe für die Zoll-Angabe** – Pflicht bei einer Ausfuhr (Lieferadresse im
+    # Ausland); sie steht am Artikel und reist von dort auf jeden Beleg; fehlt sie,
+    # nennt der Satz die Zeile, um die es geht.
+    from app.models import Address
+    for a in db.query(Address).filter(Address.owner_id == _who[0].id).all():
+        a.country = "DE"
+    art.weight_kg = Decimal("1.0")
+    art.hs_code = None
+    db.flush()
+    _price(db, order, step, row, vat="export")     # im Ausland gilt nur der Export
+    gone = voucher_actions.ask_problem(db, row, step)
+    assert gone and art.name in gone, (
+        f"Der Satz nennt die Position nicht: {gone!r}."
+    )
+    # (d) **Steht alles da, schweigt er** – sonst wäre der Knopf für immer gesperrt.
+    art.hs_code = "848210"
+    db.flush()
+    assert voucher_actions.ask_problem(db, row, step) is None, (
+        "Der Grund bleibt stehen, obwohl der Beleg vollständig ist (d)."
+    )
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
+    db.flush()
+    assert svc.quotes_of(db, row), "Der vollständige Beleg geht nicht hinaus (d)."
+
+
+def test_a_firm_is_the_invoice_recipient(db):
+    """►►► **Mit Firma ist die FIRMA Rechnungsempfänger – an eine Anschrift der PERSON.** ◄◄◄
+
+    Es bestellt immer eine Person; die Firma steht «im Namen von» mit Rechtsform und UID
+    darüber, die Person als «z. H.» darunter. **Die Anschriften kommen aus dem Adressbuch
+    der Person** – eine Firma trägt bei uns keine. Und der Beleg darf «an die Person»
+    sagen (``bill_to_company = False``): dann verschwinden Firma und UID, die Anschrift
+    bleibt.
+
+    Bug-Formen: (a) die Firma fehlt; (b) die Anschrift kommt nicht aus dem Adressbuch;
+    (c) die Rechnungs-E-Mail der Anschrift gilt nicht; (d) «an die Person» trägt die Firma;
+    (e) «an die Person» nimmt die Anschrift des Geschäftskontos; (f) privat gilt eine
+    Rechnungs-E-Mail.
+    """
+    from app.services import voucher_head
+    u = _party(db, "Muster")
+    u.first_name, u.last_name = "Hans", "Muster"
+    u.company.legal_form = "AG"
+    u.company.uid_number = "CHE-123.456.788"
+    from app.services import address_book
+    address_book.add(db, u, {"account": "business", "street1": "Rechnungsweg 9",
+                             "zip": "3000", "city": "Bern",
+                             "email": "Buchhaltung@Muster.test",
+                             "is_default_billing": True}, None)
+    address_book.add(db, u, {"street1": "Wohnweg 1", "zip": "8000", "city": "Zürich",
+                             "email": "privat@muster.test"}, None)
+    db.flush()
+    b = voucher_head.billing_of(db, SimpleNamespace(head=None, bill_to_company=None,
+                                           billing_address_id=None,
+                                           delivery_address_id=None), u.object_id)
+    assert b["lines"][0] == "Muster AG" and b["lines"][1].startswith("z. H.")
+    assert b["address"]["city"] == "Bern", "Die Rechnungsadresse kommt aus dem Adressbuch."
+    assert b["email"] == "buchhaltung@muster.test"
+    assert b["uid"] == "CHE-123.456.788"
+    assert any("Werkweg 3" in line for line in b["shipping"]), (
+        "Die Ware geht an die Standard-Lieferadresse der Person.")
+
+    # «An die Person» – dieselbe Person, ohne Firma auf dem Beleg.
+    b = voucher_head.billing_of(db, SimpleNamespace(head=None, bill_to_company=False,
+                                           billing_address_id=None,
+                                           delivery_address_id=None), u.object_id)
+    assert b["lines"] == ["Hans Muster"] and b["uid"] is None, (
+        "«An die Person» trägt noch die Firma (d).")
+    assert b["address"]["city"] == "Zürich", (
+        "«An die Person» nimmt die Anschrift des Privatkontos (e).")
+    assert b["email"] == u.email, (
+        "Privat geht die Rechnung an die E-Mail der Person (f).")
+
+
+def test_a_closed_company_can_be_reopened(db):
+    """**Schliessen ist umkehrbar** – ``reopen`` ist die Gegenhandlung, ohne Sperre."""
+    from app.services import sites
+    firm = _party(db, "Zuliefer").company
+    db.commit = db.flush  # die Szene wird am Ende verworfen
+    sites.deactivate(db, firm, None)
+    assert firm.is_active is False
+    sites.reopen(db, firm, None)
+    assert firm.is_active is True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► AN WEN UND WOHIN – UND WAS DIE ZUSAGE EINFRIERT (Migration 143)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_the_head_is_frozen_by_the_agreement(db):
+    """►►► **Sobald bestätigt, ist der Beleg eingefroren – ganz wichtig.** ◄◄◄
+
+    Nach der Zusage ändert **nichts** ausserhalb des Belegs, was auf ihm steht: kein Umzug
+    der Person (Anschrift entfernt, neuer Standard), kein Umfirmieren der Kundenfirma,
+    keine neue Anschrift unserer Gesellschaft, kein umbenannter Artikel, keine
+    nachgetragene Zolltarifnummer – auch nicht auf dem Einzahlungsschein und nicht in der
+    Vorbelegung der Bezahlkarte.
+
+    Bug-Formen: (a) der Kopf liest die Person live; (b) die Firma live; (c) unsere Seite
+    live; (d) der Artikelname live; (e) die Zoll-Angaben live; (f) der Einzahlungsschein
+    live; (g) vor der Zusage friert schon etwas ein (dann wäre die Offerte nicht mehr
+    änderbar).
+    """
+    from app.services import address_book, voucher as svc, voucher_actions, voucher_head, voucher_money, voucher_view
+    house = _house(db)
+    who = _party(db, "Kunde", "customer")
+    who.first_name, who.last_name = "Hans", "Kunde"
+    who.company.legal_form = "AG"
+    order, step, row, _w, art = _scene(db, parties=[who])
+    art.hs_code = None
+    db.flush()
+    _price(db, order, step, row)
+    voucher_actions.apply(db, order=order, step=step, action="price",
+              payload={"lines": [{"id": ln.id, "hs_code": "848210"}
+                                 for ln in svc.lines_of(db, row)]})
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={})
+    assert row.head is None, "Vor der Zusage friert nichts ein (g)."
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": who.object_id})
+    db.flush()
+    before = voucher_view.embed_data(db, order=order, step=step)
+    name_before = before["lines"][0]["article_name"]
+
+    # Alles ändert sich – ausser dem Beleg.
+    old = address_book.default(db, who.id, "billing", "business")
+    address_book.add(db, who, {"account": "business", "street1": "Neuweg 1",
+                               "zip": "3000", "city": "Bern",
+                               "is_default_billing": True,
+                               "is_default_delivery": True}, None)
+    address_book.remove(db, who, old.id, None)
+    who.company.company_name = "Umbenannt"
+    street_before = house.street
+    house.street = "Andere Strasse"
+    art.name = "Neuer Name"
+    db.flush()
+    db.expire_all()
+    after = voucher_view.embed_data(db, order=order, step=step)
+    side = after["customer"]
+    assert any("Werkweg 3" in x for x in side["address"]), "(a)"
+    assert side["name"] == "Kunde AG", "(b)"
+    assert any(street_before in x for x in after["supplier"]["address"]), "(c)"
+    assert after["lines"][0]["article_name"] == name_before, "(d)"
+    assert svc.lines_of(db, row)[0].hs_code == "848210", "(e)"
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    info = voucher_money.transfer_info(db, row)
+    assert info["creditor"] and "Werkweg" not in str(info), "(f)"
+    assert voucher_head.billing_of(db, row)["address"]["city"] == "St. Gallen", "(f)"
+
+
+def test_the_document_chooses_firm_and_addresses_before_the_agreement(db):
+    """►►► **Rechnung an Privat oder Firma, und welche Anschriften – am Beleg.** ◄◄◄
+
+    Gewählt wird aus dem Adressbuch **des Adressaten**, vorbelegt mit seinen Standards; nur
+    das Personal und nur vor der Zusage.
+
+    Bug-Formen: (a) die Vorgabe ist nicht die Firma; (b) «an die Person» trägt noch die
+    Firma; (c) eine fremde Anschrift lässt sich wählen; (d) nach der Zusage geht es noch;
+    (e) die Gegenpartei sieht die Auswahl; (f) die gewählte Anschrift steht nicht drauf;
+    (g) eine Anschrift aus dem anderen Konto lässt sich wählen.
+    """
+    from fastapi import HTTPException
+    from app.services import address_book, voucher_actions, voucher_view
+    _house(db)
+    who = _party(db, "Firma", "customer")
+    who.company.legal_form = "GmbH"
+    stranger = _party(db, "Fremd", "customer")
+    order, step, row, _w, _a = _scene(db, parties=[who])
+    _price(db, order, step, row)
+    voucher_actions.apply(db, order=order, step=step, action="terms",
+              payload={"lead_days": 0, "payment_days": 30})
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={})
+    site = address_book.add(db, who, {"street1": "Baustelle 5", "zip": "6000",
+                                      "city": "Luzern"}, None)
+    seen = voucher_view.embed_data(db, order=order, step=step)
+    choice = seen["customer"]["choice"]
+    assert choice and choice["company"] == "Firma GmbH" and choice["bill_to_company"], "(a)"
+    assert site.id not in {o["id"] for o in choice["options"]}, (
+        "Das Geschäftskonto bietet eine private Anschrift an (g).")
+    with pytest.raises(HTTPException):
+        voucher_actions.apply(db, order=order, step=step, action="address",
+                  payload={"delivery_address": site.id})                       # (g)
+    voucher_actions.apply(db, order=order, step=step, action="address",
+              payload={"bill_to_company": False, "delivery_address": site.id})
+    seen = voucher_view.embed_data(db, order=order, step=step)
+    assert site.id in {o["id"] for o in seen["customer"]["choice"]["options"]}
+    assert "Firma" not in seen["customer"]["name"], "(b)"
+    assert any("Baustelle 5" in x for x in seen["customer"]["shipping"]), "(f)"
+    foreign = address_book.default(db, stranger.id, "billing", "business")
+    with pytest.raises(HTTPException):
+        voucher_actions.apply(db, order=order, step=step, action="address",
+                  payload={"billing_address": foreign.id})                     # (c)
+    assert voucher_view.embed_data(db, order=order, step=step, viewer=who)["customer"].get(
+        "choice") is None, "(e)"
+    # **Eine geänderte Offerte geht erneut hinaus** – angenommen wird nur die aktuelle.
+    assert "agree" not in voucher_actions.can(db, row, None), "Die überholte Offerte lässt sich annehmen."
+    voucher_actions.apply(db, order=order, step=step, action="ask", payload={})
+    voucher_actions.apply(db, order=order, step=step, action="agree",
+              payload={"party": who.object_id})
+    assert "address" not in voucher_actions.can(db, row, None), "(d)"
+    with pytest.raises(HTTPException):
+        voucher_actions.apply(db, order=order, step=step, action="address",
+                  payload={"bill_to_company": True})                            # (d)
+    assert voucher_view.embed_data(db, order=order, step=step)["customer"]["choice"] is None
+
+
+def test_a_firm_number_and_the_creditor_address_have_one_form(db):
+    """►►► **Dieselbe Angabe, dieselbe Schreibweise – auf beiden Seiten** (B-42/B-43). ◄◄◄
+
+    Die UID unserer Seite stand **roh** auf dem Beleg, die des Partners gegliedert und
+    ohne MWST-Zusatz; und der Einzahlungsschein baute die Firmenanschrift Feld für Feld
+    nach, die ``address.of_company`` schon kennt.
+
+    Bug-Formen: (a) unsere Seite zeigt die UID wieder roh; (b) die Partnerseite formatiert
+    selbst; (c) ``_creditor`` liest die Anschrift wieder Feld für Feld.
+    """
+    import inspect
+    from app.services import voucher_head
+    house = _house(db)
+    house.vat_number = "che100200300 mwst"          # so getippt
+    db.flush()
+    row = SimpleNamespace(issuer_company_id=house.object_id, direction="in", head=None)
+    assert voucher_head._ours(db, row)["uid"] == "CHE-100.200.300 MWST", "(a)"
+    assert voucher_head.uid_of(SimpleNamespace(vat_number=None, uid_number="CHE123456788")) == (
+        "CHE-123.456.788")
+    assert voucher_head.uid_of(None) is None
+    assert "uid_of(firm)" in inspect.getsource(voucher_head.billing_of), "(b)"
+    cred = voucher_head.creditor_of(db, row)
+    assert cred["street"] == f"{house.street} {house.street_nr}".strip()
+    assert cred["zip"] == house.zip_code and cred["country"] == "CH"
+    body = inspect.getsource(voucher_head.creditor_of)
+    assert "of_company" in body and "getattr" not in body, "(c)"
+
+
+def test_two_simultaneous_views_do_not_collide_on_a_new_line():
+    """►►► **Zwei gleichzeitige Anzeigen legen dieselbe Position nicht zweimal an**
+    (Cleanup B-37). ◄◄◄ ``sync_lines`` schreibt auf dem Lesepfad (#937). Sieht der Beleg
+    eine neue Position und laufen zwei Anzeigen gleichzeitig, wartet die zweite am
+    Eindeutigkeits-Index auf die erste – und lief danach mit einem ``IntegrityError`` auf
+    (gemessen: ``UniqueViolation`` auf ``uq_voucher_lines_article``, an der Tür ein 409
+    auf einem **GET**).
+
+    Gefahren mit zwei echten Sitzungen: die erste legt die Zeile an und hält ihre
+    Transaktion offen, die zweite läuft in einem eigenen Faden dagegen. Bug-Form: ein
+    gewöhnliches ``add`` statt ``ON CONFLICT DO NOTHING`` → die zweite scheitert."""
+    import threading
+    import time
+    from app.core.database import SessionLocal
+    from app.models import Order, Voucher, VoucherLine
+    from app.services import voucher_head
+
+    db = session()                # festgeschrieben: zwei Sitzungen müssen die Szene sehen
+    _house(db)
+    order, _step, row, _who, _art = _scene(db)
+    db.query(VoucherLine).filter(VoucherLine.voucher_id == row.id).delete()
+    db.commit()           # beide Sitzungen müssen die Szene sehen
+    vid, oid = row.id, order.id
+    db.close()
+
+    first, second = SessionLocal(), SessionLocal()
+    failed: list[str] = []
+
+    def other():
+        try:
+            voucher_head.sync_lines(second, second.get(Voucher, vid), second.get(Order, oid))
+            second.commit()
+        except Exception as exc:                      # noqa: BLE001 – genau das prüfen wir
+            failed.append(f"{type(exc).__name__}: {str(exc).splitlines()[0]}")
+            second.rollback()
+
+    try:
+        voucher_head.sync_lines(first, first.get(Voucher, vid), first.get(Order, oid))
+        runner = threading.Thread(target=other)
+        runner.start()
+        time.sleep(0.5)                               # die zweite wartet jetzt am Index
+        first.commit()
+        runner.join(timeout=30)
+        lines = first.query(VoucherLine).filter(
+            VoucherLine.voucher_id == vid, VoucherLine.is_active.is_(True)).count()
+    finally:
+        first.close()
+        second.close()
+    assert not failed, f"Die zweite Anzeige ist gescheitert: {failed[0]}"
+    assert lines == 1, f"Eine Position steht {lines}-mal auf dem Beleg."

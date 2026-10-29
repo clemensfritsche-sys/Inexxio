@@ -1,4 +1,3 @@
-import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -11,39 +10,23 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override sqlalchemy.url from environment variable if set
-database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+# Dieselbe Adresse wie die App – aus den Settings (``DATABASE_URL``, Treiber festgelegt).
+# ``%`` verdoppelt: die ini-Datei liest es sonst als Platzhalter (etwa in einem Passwort).
+from app.core.config import get_settings  # noqa: E402
+
+config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
 
 # Import all models so Alembic can detect them for autogenerate
 from app.core.database import Base  # noqa: E402 — must come after path setup
 from app.models import (  # noqa: F401
+    Article,
     AuditLog,
-    BOM,
-    BOMLine,
-    Attachment,
-    Company,
+    Capture,
     CompanySettings,
-    CompanyType,
-    Contact,
-    Document,
-    DocumentStatus,
-    Item,
-    ItemCategory,
-    ItemName,
-    ItemSignature,
-    ItemStatus,
-    ItemSurface,
-    Notification,
-    ObjectType,
-    Signature,
-    StepType,
+    Instance,
+    InstanceUnit,
     TimestampMixin,
-    UniversalObject,
     UserProfile,
-    WorkPlan,
-    WorkPlanStep,
 )
 
 target_metadata = Base.metadata
@@ -82,6 +65,12 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # **Eine Instanz migriert, die anderen warten** – startet ein Rollout mehrere
+        # Instanzen zugleich, liefe ``upgrade head`` sonst parallel. Der Lock hängt an der
+        # Verbindung und fällt mit ihr; die Wartenden finden danach nichts mehr zu tun.
+        if connection.dialect.name == "postgresql":
+            connection.exec_driver_sql("SELECT pg_advisory_lock(778899002)")
+            connection.commit()
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
