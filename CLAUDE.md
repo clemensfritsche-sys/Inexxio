@@ -410,14 +410,18 @@ CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
   und nichts, was kein Modell kennt (Ausnahmen in `PENDING_DROP`).
 
 ## Tests und CI
-- Das Gate steht **einmal** in `.github/workflows/quality.yml` und läuft vor Dev- **und**
-  Prod-Deploy: Frontend `type-check` · `lint` · `npm test` · **Build**; Backend `ruff check`
-  (nur F-Regeln, `backend/ruff.toml`);
-  `alembic upgrade head` gegen ein leeres Schema, dann `pytest tests/ -rs` mit
-  `INEXXIO_REQUIRE_DB=1` (ohne DB ein Fehler, kein stiller Skip); generierte
-  Dateien (`openapi.json`, `api.ts`, `status-catalog.ts`) müssen aktuell sein. Website:
-  `npm test`, `astro check`, `export-erp.mjs --check`, Build mit `check-site`,
-  `OFFENE_PUNKTE.md` aktuell.
+- Das Gate steht **einmal** in `.github/workflows/quality.yml`: auf jedem Push eines
+  Feature-Branches, jedem Pull Request und vor Dev- **und** Prod-Deploy; drei Jobs parallel
+  (mit pip-/npm-Cache). Frontend `type-check` · `lint` (ESLint trägt die Hausregeln: Datum
+  nur über `lib/when`, Rollen nur über `isStaff`, kein `disabled={busy}` an Feldern) ·
+  `npm test` · Build; Backend `ruff check` (nur F-Regeln, `backend/ruff.toml`), `pytest
+  tests/ -rs` mit `INEXXIO_REQUIRE_DB=1` (ohne DB ein Fehler, kein stiller Skip; das Schema
+  baut der Testlauf aus den Migrationen), generierte Dateien (`openapi.json`, `api.ts`,
+  `status-catalog.ts`) aktuell; Website `npm test`, `astro check`, `export-erp.mjs
+  --check`, Build mit `check-site`. Aus dem Deploy baut das Gate nicht (`build: false`).
+- **Tests prüfen Verhalten, nicht Quelltext**; Personen und Firmen kommen aus
+  `tests/factories.py` (Fixtures `make_person`, `make_firm`, `own_company`), die
+  Beleg-Szene aus `tests/scenes/voucher.py`.
 - **Lokal testen wie die CI**: gegen ein Schema, das nur aus den Migrationen kommt
   (`tests/test_schema_is_built_by_the_migrations.py` baut es selbst).
 - Die Matrix (`tests/matrix.py`, Soll vorher notiert) und die Invarianten
@@ -550,11 +554,14 @@ cd backend && alembic upgrade head
 ```
 
 ## Deployment
-- **Dev**: Push auf `develop` → `.github/workflows/deploy-dev.yml` (Quality → Backend →
-  Frontend+Website). Backend Cloud Run `inexxio-backend-dev` (europe-west6), Frontend
-  Firebase Hosting `inexxio-dev` → https://inexxio-dev.web.app.
-- **Prod**: Push auf `main` → `deploy-prod.yml` mit manueller Freigabe (Environment
-  `production`); setzt den `/api/**`-Rewrite per `jq` auf den Prod-Dienst und bricht sonst ab.
+- **Ein Ablauf** `.github/workflows/deploy.yml` (Gate → Build von Website + Frontend als
+  Artefakt → Backend nach Cloud Run + `check-schema.sh` → Hosting genau dieses Artefakts);
+  `deploy-dev.yml` und `deploy-prod.yml` rufen ihn nur mit den Werten ihrer Umgebung auf.
+- **Dev**: Push auf `develop`. Cloud Run `inexxio-backend-dev` (europe-west6, min 0 / max 2),
+  Firebase Hosting `inexxio-dev` → https://inexxio-dev.web.app; nie indexiert (X-Robots-Tag).
+- **Prod**: Push auf `main`, mit manueller Freigabe (Environment `production`); setzt den
+  `/api/**`-Rewrite per `jq` auf den Prod-Dienst und bricht sonst ab (min 0 / max 2 bis zum
+  Go-live; mehr Instanzen erst ab Cloud SQL `db-g1-small`).
 - Erster Besuch nach einem Deploy: einmal Hard-Refresh (Ctrl+Shift+R).
 
 ## Status (Stand Oktober 2026) – aktuell halten

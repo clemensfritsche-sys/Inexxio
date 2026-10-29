@@ -76,7 +76,7 @@ def test_operator_is_chosen_with_an_age_fallback():
     assert "is_operator" in cols and "is_primary" not in cols
 
 
-def test_operator_is_editable_and_exactly_one():
+def test_operator_is_editable_and_exactly_one(db):
     """Den Betreiber setzen nimmt ihn allen anderen ab – genau EINE trägt den Titel.
 
     Doppelt abgesichert: ``set_operator`` löscht die übrigen explizit UND der partielle
@@ -86,9 +86,11 @@ def test_operator_is_editable_and_exactly_one():
     code = _code(sites.set_operator)
     assert "id != company.id" in code, "die übrigen Gesellschaften werden angefasst"
     assert "is_operator" in code and "False" in code, "…und entmarkiert"
-    schema = (APP.parent / "alembic/versions/161_baseline.sql").read_text(encoding="utf-8")
-    assert "uq_company_settings_operator ON public.company_settings USING btree " \
-           "(is_operator) WHERE is_operator" in schema
+    from sqlalchemy import text
+
+    index = db.execute(text("SELECT indexdef FROM pg_indexes "
+                            "WHERE indexname = 'uq_company_settings_operator'")).scalar()
+    assert index and "UNIQUE" in index and "WHERE is_operator" in index, index
 
 
 def test_currency_is_a_per_company_field_derived_from_country():

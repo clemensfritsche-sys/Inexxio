@@ -14,9 +14,10 @@ from sqlalchemy import text
 
 from app.core.clock import ZONE
 from app.domain import timekeeping as tk
-from app.models import CompanySettings, Holiday, TimeEntry, UserProfile
+from app.models import Holiday, TimeEntry, UserProfile
 from app.schemas.timekeeping import ContractIn, EntryIn
 from app.services import people, time_view, timekeeping as t, todo
+from tests.factories import new_firm, new_person
 
 NOW = datetime(2026, 10, 23, 12, 33, tzinfo=ZONE)
 TODAY = NOW.date()
@@ -30,23 +31,11 @@ def clock(monkeypatch):
 
 
 def _company(db) -> int:
-    from app.services.objects import next_object_id
-    oid = next_object_id(db, "organization")
-    db.add(CompanySettings(object_id=oid, company_name=f"Test {oid}", legal_form="AG",
-                           is_own=True, email=""))
-    db.flush()
-    return oid
+    return new_firm(db, own=True).object_id
 
 
-def _person(db, company, role="employee", born=date(1990, 6, 11)) -> UserProfile:
-    from app.services.objects import next_object_id
-    oid = next_object_id(db, "user")
-    u = UserProfile(firebase_uid=f"uid-{oid}", email=f"p{oid}@x.ch", role=role, object_id=oid,
-                    first_name="P", last_name=str(oid), company_object_id=company,
-                    date_of_birth=born, phone="+41 79 000 00 00")
-    db.add(u)
-    db.flush()
-    return u
+def _person(db, company, role="employee", born=date(1990, 6, 11)):
+    return new_person(db, role, company=company, date_of_birth=born, phone="+41 79 000 00 00")
 
 
 def _admin(db, company) -> UserProfile:

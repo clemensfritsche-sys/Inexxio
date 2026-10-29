@@ -15,15 +15,11 @@ from app.models import UserProfile
 from app.schemas.communication import MessageIn
 from app.services import communication as svc
 from tests.runner import BACKEND
+from tests.factories import new_person
 
 
 def _person(db, role="user", company=None) -> int:
-    oid = random.randint(900_000_000, 999_999_999)
-    db.add(UserProfile(firebase_uid=f"uid-{oid}", email=f"p{oid}@x.ch", role=role,
-                       object_id=oid, first_name="P", last_name=str(oid),
-                       company_object_id=company))
-    db.flush()
-    return oid
+    return new_person(db, role, company=company).object_id
 
 
 def _send(db, actor, sender=None, **kw):

@@ -8,7 +8,6 @@ Nachweis, Dienstleistung ins Ausland, Lieferantenrechnung mit Abweichung, Voraus
 Teilbetrag, Gutschrift, die Seite der Partei – und die Regel, dass es keine Sackgasse gibt.
 """
 
-import uuid
 from datetime import timedelta
 from decimal import Decimal
 
@@ -18,6 +17,9 @@ from tests.runner import session
 from app.core import clock
 from app.services import voucher_docs
 from app.services import release as release_svc
+from tests.factories import new_person
+from tests.scenes import voucher as scene
+from tests.scenes.voucher import do as _do, house as _house, document as _file
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -35,93 +37,18 @@ def db():
         s.close()
 
 
-def _house(db):
-    from app.models import CompanySettings
-    from app.services import objects as obj, sites
-    house = sites.find_operator(db)
-    if house is None:
-        house = CompanySettings(is_operator=True, is_own=True,
-                                object_id=obj.next_object_id(db, "organization"))
-        db.add(house)
-    house.company_name = house.company_name or "Inexxio"
-    house.legal_form = house.legal_form or "AG"
-    house.street = house.street or "Industriestrasse"
-    house.street_nr = house.street_nr or "12"
-    house.zip_code = house.zip_code or "9430"
-    house.city = house.city or "St. Margrethen"
-    house.country = house.country or "CH"
-    house.vat_number = house.vat_number or "CHE-100.200.300 MWST"
-    house.email = house.email or "rechnung@inexxio.test"
-    house.phone = house.phone or "+41 71 744 00 00"
-    house.iban = house.iban or "CH9300762011623852957"
-    db.flush()
-    _legal_documents(db, house)
-    return house
 
 
-def _legal_documents(db, company):
-    """AGB und Datenschutz sind Dokumente der Gesellschaft (``services/legal``) – aus der
-    Vorlage, wie die Übernahme beim Start sie anlegt."""
-    from app.services import documents, legal
-    for kind, field in legal.FIELD_OF.items():
-        if legal.document_of(db, company, kind) is None:
-            found = legal.template(kind)
-            doc = legal._file_template(db, company, kind, found, found[0], None)
-            documents.set_field(db, document_object_id=doc.object_id,
-                                object_id=company.object_id, part=None, field=field, actor=None)
 
 
-def _file(db, raw=b"x", mime="image/webp", filename="r.webp"):
-    """Ein freigegebenes Dokument – wie es ein Feld des Moduls verlangt."""
-    import uuid as _uuid
-    from app.services import documents
-    doc, _ = documents.file(db, raw=raw + _uuid.uuid4().hex.encode(), filename=filename,
-                            mime=mime, art="Rechnung", name="Test", source="file", refs=[],
-                            actor=None)
-    return doc
 
 
-def _person(db, name="Muster AG", *, country="CH", firm=True, own=False):
-    from app.models import CompanySettings, UserProfile
-    from app.services import address_book, objects as obj, sites
-    company = None
-    if own:
-        company = sites.find_operator(db)
-    elif firm:
-        company = CompanySettings(object_id=obj.next_object_id(db, "organization"),
-                                  company_name=f"{name} {uuid.uuid4().hex[:4]}",
-                                  legal_form="AG", email="", country=country)
-        db.add(company)
-        db.flush()
-    user = UserProfile(firebase_uid=f"t-{uuid.uuid4()}",
-                       email=f"{uuid.uuid4().hex[:8]}@example.test",
-                       first_name="Anna", last_name="Keller",
-                       company_object_id=company.object_id if company else None,
-                       role="user", object_id=obj.next_object_id(db, "user"))
-    db.add(user)
-    db.flush()
-    account = "business" if (company is not None and not own) else "private"
-    city = "Altstätten" if country == "CH" else "München"
-    address_book.add(db, user, {"account": account, "street1": "Feldstrasse 8",
-                                "zip": "9450", "city": city, "country": country}, None)
-    db.flush()
-    return user
+def _person(db, name="Muster AG", **kw):
+    return scene.party(db, name, **kw)
 
 
-def _article(db, *, service=False, steps=(), capture=True):
-    """Ein Artikel – sein Erzeugungsprozess IST der Prozess des Auftrags."""
-    from app.models import Article
-    from app.services import article_process as tpl, objects as obj
-    art = Article(object_id=obj.next_object_id(db, "article"), name=f"Kranhaken {uuid.uuid4().hex[:4]}",
-                  unit="stk", serialization="batch", hs_code="848210", origin_country="CH",
-                  weight_kg=Decimal("2.5"), is_service=service)
-    db.add(art)
-    db.flush()
-    lead = [{"module_type": "datenerfassung",
-             "config": {"points": [{"label": "Sichtprüfung", "type": "bool"}]}}] if capture else []
-    tpl.create_steps(db, art, [*lead, *steps])
-    db.flush()
-    return art
+def _article(db, **kw):
+    return scene.article(db, **kw)
 
 
 def _scene(db, *, direction="in", party=None, quantity=3, service=False, config=None,
@@ -151,11 +78,6 @@ def _scene(db, *, direction="in", party=None, quantity=3, service=False, config=
     return order, step, row, who
 
 
-def _do(db, order, step, action, actor=None, **payload):
-    from app.services import voucher_actions
-    row = voucher_actions.apply(db, order=order, step=step, action=action, payload=payload, actor=actor)
-    db.flush()
-    return row
 
 
 def _ready(db, order, step, row, *, price="320.00", incoterm="FCA", payment_days=30,
@@ -185,14 +107,7 @@ def _billed(db, **kw):
 
 
 def _staff(db):
-    from app.models import UserProfile
-    from app.services import objects as obj
-    u = UserProfile(firebase_uid=f"s-{uuid.uuid4()}", email=f"{uuid.uuid4().hex[:6]}@x.test",
-                    first_name="Clemens", last_name="Fritsche", role="admin",
-                    object_id=obj.next_object_id(db, "user"))
-    db.add(u)
-    db.flush()
-    return u
+    return new_person(db, "admin", first_name="Clemens", last_name="Fritsche")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -365,17 +280,6 @@ def test_overpaid_refund_or_tip(db):
     tip = svc.entries_of(db, row)[-1]
     assert tip.kind == vo.TIP and tip.amount == Decimal("54.08")
 
-
-def test_wrongly_recorded_payment_is_reversed_not_deleted(db):
-    from app.services import voucher as svc, voucher_actions
-    order, step, row, who = _billed(db)
-    _do(db, order, step, "pay", amount="100.00", method="cash")
-    first = svc.entries_of(db, row)[0]
-    _do(db, order, step, "reverse", entry=first.id)
-    rows = svc.entries_of(db, row)
-    assert len(rows) == 2 and rows[1].reverses_id == first.id
-    assert svc.balance_of(db, row).paid == 0
-    assert "reverse" not in voucher_actions.can(db, row, None), "Eine Gegenbuchung bucht man nicht gegen."
 
 
 def test_the_same_reference_is_booked_only_once(db):

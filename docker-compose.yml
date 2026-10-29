@@ -1,9 +1,7 @@
-version: "3.9"
-
+# Nur die Datenbank für die lokale Entwicklung – Backend und Frontend laufen direkt
+# (CLAUDE.md, «Lokale Entwicklung»). Dieselbe Hauptversion wie CI und Cloud SQL.
 services:
   db:
-    # Dieselbe Hauptversion wie CI und Cloud SQL – eine lokale 15 gegen eine 16 in der
-    # CI heisst, dass ein Versionsunterschied erst im Deploy auffällt.
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: inexxio_local
@@ -18,43 +16,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8080"
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/inexxio_local
-      DEBUG: "true"
-      CORS_ORIGINS: "http://localhost:3000"
-    env_file:
-      - .env.local
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-    env_file:
-      - .env.local
-    depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    command: npm run dev
 
 volumes:
   postgres_data:

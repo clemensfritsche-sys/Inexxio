@@ -50,19 +50,17 @@ def _start_code() -> str:
     return "\n".join(line.split("#")[0] for line in src.splitlines())
 
 
-def test_the_start_drops_no_column_and_writes_no_unmapped_one():
-    """►►► **Der Start doppelt keine Migration, die längst gelaufen ist** (Cleanup B-20,
-    B-22, B-23). ◄◄◄ Das Drop-Netz lief bei jedem Start ``DROP COLUMN IF EXISTS`` über
-    28 Spalten (je ein ACCESS-EXCLUSIVE-Lock), die Übernahme der Firmentexte dropte acht
-    weitere, und der Artikel-Status wurde nachgeführt, obwohl ihn seit Migration 121 kein
-    Modell mehr kennt. Gedroppt wird in einer Migration, nicht beim Start.
+def test_the_start_builds_no_schema():
+    """**Das Schema baut allein die Migration** – der Start legt nichts an, ändert keine
+    Spalte und löscht nichts (gedroppt wird in einer Migration, nicht beim Start).
 
-    Bug-Formen: (a) ein ``DROP COLUMN`` steht wieder im Start-Code; (b) der Start schreibt
-    ``articles.status``; (c) die Firmentext-Übernahme läuft wieder im Netz."""
+    Bug-Formen: ein ``create_all``, ``ALTER TABLE``, ``ADD``/``DROP COLUMN`` oder
+    ``DROP TABLE`` steht wieder im Start-Code; der Start schreibt eine Spalte, die kein
+    Modell kennt (``articles.status``)."""
     code = _start_code()
-    assert "DROP COLUMN" not in code, "Der Start droppt wieder Spalten (a)."
-    assert "UPDATE articles SET status" not in code, "Der Start schreibt articles.status (b)."
-    assert "move_company_texts" not in code, "Die Firmentext-Übernahme ist zurück im Netz (c)."
+    for word in ("create_all", "ALTER TABLE", "ADD COLUMN", "DROP COLUMN", "DROP TABLE",
+                 "UPDATE articles SET status"):
+        assert word not in code, f"Der Start baut wieder am Schema («{word}»)."
 
 
 def test_the_start_runs_twice_without_harm():

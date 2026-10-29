@@ -27,6 +27,7 @@ import pytest
 from tests.runner import session
 from app.services import order_state
 from app.services import release as release_svc
+from tests.factories import new_firm
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -78,12 +79,7 @@ def _holder_instance(db, *, name="Regal"):
 
 
 def _company(db, *, name="Werk Nord"):
-    from app.models import CompanySettings
-    from app.services import objects as obj
-    co = CompanySettings(object_id=obj.next_object_id(db, "organization"), company_name=name)
-    db.add(co)
-    db.flush()
-    return co
+    return new_firm(db, name)
 
 
 def _units(db, order):

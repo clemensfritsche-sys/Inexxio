@@ -1,9 +1,8 @@
 -- ►►► Die dev-Datenbank leeren, damit sie neu aus den Migrationen entsteht. ◄◄◄
 --
--- Wofür: dev stand auf Migration 077, alles danach hatten nur die Start-Netze nachgebaut
--- (docs/history/2026-10-28-dokumente.md). Eine Datenbank, die nicht aus den Migrationen kommt,
--- ist nicht die, die prod bekommt. Nach diesem Lauf baut der nächste Start `alembic upgrade
--- head` von 001 an – genau wie die CI.
+-- Wofür: eine Datenbank, die nicht aus den Migrationen kommt, ist nicht die, die prod
+-- bekommt. Nach diesem Lauf baut der nächste Start `alembic upgrade head` von der Basis an
+-- (`161_baseline.sql`, dann jede Migration ab 162) – genau wie die CI.
 --
 -- Was es tut: löscht in `public` alle Tabellen, Sequenzen, eigenen Funktionen und Typen.
 -- Der Benutzer, seine Rechte und Erweiterungen bleiben. **Alle Daten sind danach weg** –

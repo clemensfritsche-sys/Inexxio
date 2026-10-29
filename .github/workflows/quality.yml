@@ -1,32 +1,29 @@
 name: Quality gates
 
-# ►►► EIN Quality-Gate für beide Deploys. ◄◄◄ deploy-dev.yml und deploy-prod.yml rufen
-# diesen Workflow auf (``uses: ./.github/workflows/quality.yml``), bevor irgendetwas
-# ausgerollt wird. Vorher hatte der Prod-Deploy gar keine Prüfung – sicher nur, solange
-# ``main`` ausschliesslich aus grünem ``develop`` kam – und der Frontend-Build lief erst
-# NACH dem Backend-Deploy, ein Build-Fehler zeigte sich also als Teil-Deploy.
+# ►►► EIN Gate. ◄◄◄ Es läuft auf jedem Push eines Feature-Branches und jedem Pull Request,
+# und deploy-dev.yml/deploy-prod.yml rufen es auf, bevor etwas ausgerollt wird. Frontend,
+# Backend und Website laufen parallel.
+#
+# ``build: false`` (nur aus dem Deploy): Frontend und Website baut dann der Deploy selbst
+# (.github/workflows/deploy.yml, Job «Build»), mit den Werten seiner Umgebung, und rollt
+# erst danach aus – gebaut wird jede Fassung genau einmal.
 
 on:
+  push:
+    branches-ignore: [develop, main]
+  pull_request:
   workflow_call:
+    inputs:
+      build:
+        description: Frontend und Website auch bauen (aus dem Deploy false – er baut selbst)
+        type: boolean
+        default: true
 
 jobs:
-  quality:
-    name: Quality gates
+  frontend:
+    name: Frontend (Typen, Lint, Tests, Build)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # Postgres nur für den Schema-Aufbau: die Migrationen sind laut Leitbild die EINE
-    # Schema-Wahrheit – geprüft wird das erst, wenn sie auch wirklich von null durchlaufen.
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
 
@@ -48,90 +45,89 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
-      # ``node --test scripts/*.test.mjs``: die Datums-Ausgabe (``when.test.mjs`` – die
-      # eine Stelle, an der jede Zeitangabe des Hauses entsteht, #1014) und das Ziel nach
-      # dem Anmelden (``login-target.test.mjs``), gefahren gegen die echte Quelle.
       - name: Unit-Tests (Frontend)
         working-directory: frontend
         run: npm test
 
-      # Der Build gehört ins Gate, nicht erst in den Deploy: dort lief er NACH dem
-      # Backend-Deploy, ein Build-Fehler war also ein Teil-Deploy. Ohne Website-Build
-      # entsteht eine leere Shell (``scripts/site-shell.mjs``); ``development`` baut die
-      # Testnotiz-Insel mit, die ein Prod-Build auslässt – geprüft ist damit beides.
+      # Ohne Website-Build entsteht eine leere Shell (``scripts/site-shell.mjs``);
+      # ``development`` baut die Testnotiz-Insel mit, die ein Prod-Build auslässt.
       - name: Build (Frontend)
+        if: ${{ inputs.build != false }}
         working-directory: frontend
         env:
           NEXT_PUBLIC_ENVIRONMENT: development
           NEXT_TELEMETRY_DISABLED: '1'
         run: npm run build
 
+  backend:
+    name: Backend (ruff, pytest, generierte Dateien)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Die Tests brauchen echtes PostgreSQL; das Schema baut ``tests/runner.session`` selbst
+    # aus den Migrationen (``alembic upgrade head``) – der einzige Weg zum Schema.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.lock
 
-      # Aus der Sperrdatei, jede Abhängigkeit mit Prüfsumme – derselbe Stand wie im Docker-Build
-      # (tests/test_lock.py prüft, dass sie zu requirements.txt passt).
+      # Aus der Sperrdatei, jede Abhängigkeit mit Prüfsumme – derselbe Stand wie im
+      # Docker-Build (tests/test_lock.py prüft, dass sie zu requirements.txt passt).
       - name: Install backend deps
         working-directory: backend
         run: pip install --require-hashes -r requirements.lock
 
-      # Nur die F-Regeln (Pyflakes: undefinierte Namen, ungenutzte Importe und Variablen,
-      # f-Strings ohne Platzhalter) – Fehler, keine Stilfragen. Konfiguration:
-      # backend/ruff.toml. Die Version ist gepinnt, damit eine neue Regel die CI nicht
-      # über Nacht rot macht.
+      # Nur die F-Regeln (backend/ruff.toml) – Fehler, keine Stilfragen. Gepinnt, damit
+      # eine neue Regel die CI nicht über Nacht rot macht.
       - name: Ruff (Python, nur F-Regeln)
         working-directory: backend
         run: |
           pip install ruff==0.16.8
           ruff check .
 
-      # Baut das Schema von NULL aus den Migrationen auf – der einzige Weg zum Schema, auch
-      # im Betrieb (kein create_all, keine Start-Netze). Die laufende Umgebung merkte einen
-      # Bruch hier nie, eine Wiederherstellung aus dem Nichts schon.
-      - name: Schema aus den Migrationen aufbauen (Alembic ist die Wahrheit)
+      # **Die Datenbank ist Pflicht** (``INEXXIO_REQUIRE_DB=1``, tests/conftest.py): ist
+      # sie nicht erreichbar, bricht der Lauf ab, statt Prüfungen still zu überspringen.
+      # ``-rs`` listet jeden verbleibenden Skip mit Grund, ``--durations`` die langsamsten.
+      - name: pytest (Matrix, Invarianten, Wächter)
         working-directory: backend
         env:
           DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
-        run: alembic upgrade head
-
-      # ERST das Schema, DANN die Tests: die Invarianten des Prozessbildes
-      # (tests/test_flow_graph.py) brauchen echtes PostgreSQL – JSONB-Payloads und der
-      # partielle Unique-Index auf ``order_units`` sind genau das, was sie prüfen.
-      # **Die Datenbank ist hier Pflicht** (``INEXXIO_REQUIRE_DB=1``, tests/conftest.py):
-      # ist sie nicht erreichbar, bricht der Lauf ab, statt ~300 Prüfungen still zu
-      # überspringen – ein Wächter, der nie anschlägt, ist von einem kaputten nicht zu
-      # unterscheiden. ``-rs`` listet jeden verbleibenden Skip mit Grund.
-      #
-      # Mitgefahren werden dabei die **Szenariomatrix** (tests/test_scenarios.py, Soll je
-      # Fall in tests/matrix.py) und die **systemweiten Invarianten**
-      # (tests/test_invariants.py → app/services/invariants.py). Sie sind das Ergebnis
-      # der Testkampagne (docs/history/2026-08-test-report.md) und ersetzen die mit dem Basis-Neuaufbau
-      # entfallene Regel-Tabelle – als geschriebene, überprüfbare Regel statt als Prosa.
-      - name: pytest (Matrix + Invarianten + Wächter)
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
+          FIREBASE_PROJECT_ID: test
           INEXXIO_REQUIRE_DB: '1'
-        run: python -m pytest tests/ -v --tb=short -rs
+        run: python -m pytest tests/ -q -rs --durations=15
 
-      # Der Schema-Aufbau von null darüber bleibt: er hat schon einmal einen Fehler
-      # gefunden, den die laufende Umgebung nicht zeigt.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Check generated types are up to date
+      - name: Generierte Dateien aktuell (openapi.json, api.ts, status-catalog.ts)
         run: |
-          (cd backend && python -m scripts.dump_openapi)
-          (cd backend && python -m scripts.dump_statuses)
-          (cd frontend && npm run generate:types)
+          (cd backend && python -m scripts.dump_openapi && python -m scripts.dump_statuses)
+          (cd frontend && npm ci && npm run generate:types)
           git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts || \
             (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses' und 'npm run generate:types' ausführen und committen" && exit 1)
 
-  # Die öffentliche Website (website/, Astro) – eigenständig, eigener Build, Node 22
-  # (Astro 7 verlangt ≥ 22.12; das ERP baut unverändert mit Node 20). Der Build selbst
-  # prüft: offene Punkte (check-content), Links, JSON-LD, Sitemap, robots.txt, llms.txt,
-  # Weiterleitungen in firebase.json und das Leistungsbudget (check-site).
+  # Die öffentliche Website (website/, Astro 7, Node ≥ 22.12). Der Build prüft: offene
+  # Punkte (check-content), Links, JSON-LD, Sitemap, robots.txt, llms.txt, Weiterleitungen
+  # in firebase.json und das Leistungsbudget (check-site).
   website:
-    name: Quality gates (Website)
+    name: Website (Tests, Astro, Abdrucke, Build)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -155,14 +151,14 @@ jobs:
         working-directory: website
         run: npm run check
 
-      # Das Backend prüft die Anfrage gegen dieselben Listen und Muster und schreibt die
-      # Bestätigung mit den Wörtern der Website; das Frontend trägt Name, Satz und Logo –
-      # alles aus diesen Abdrucken.
+      # Das Backend prüft die Anfrage gegen dieselben Listen und Muster; das Frontend trägt
+      # Name, Satz und Logo – alles aus diesen Abdrucken.
       - name: Abdrucke fürs ERP aktuell (website_contact.json, site-meta.json, Logo)
         working-directory: website
         run: node scripts/export-erp.mjs --check
 
       - name: Build (Vorschau) inkl. Prüfungen
+        if: ${{ inputs.build != false }}
         working-directory: website
         env:
           SITE_MODE: preview
@@ -170,6 +166,6 @@ jobs:
         run: npm run build
 
       # Der Build schreibt OFFENE_PUNKTE.md neu – die Datei im Repo muss genau das sein.
-      # Wer photos.mjs ändert, ohne lokal zu bauen, hinterliesse sonst einen veralteten Bericht.
       - name: OFFENE_PUNKTE.md aktuell
+        if: ${{ inputs.build != false }}
         run: git diff --exit-code -- website/OFFENE_PUNKTE.md || { echo "::error::website/OFFENE_PUNKTE.md ist veraltet – «npm run build» in website/ ausführen und committen."; exit 1; }

@@ -115,25 +115,6 @@ def _component(source: str, name: str) -> str:
     return rest[: end.start()] if end else rest
 
 
-def _expr(window: str) -> str:
-    """Der **Wert** einer `label:`-Zuweisung – bis zum Komma auf gleicher Klammerebene.
-
-    Ohne diese Abgrenzung liest ein Wächter das Nachbarfeld mit und meldet
-    `label: 'Zielort', expected: target.object_id` als Fehler, obwohl das Label sauber ist.
-    """
-    body = window[window.index(":") + 1:]
-    depth = 0
-    for i, ch in enumerate(body):
-        if ch in "([{`":
-            depth += 1
-        elif ch in ")]}`":
-            depth -= 1
-            if depth < 0:
-                return body[:i]
-        elif ch == "," and depth == 0:
-            return body[:i]
-    return body
-
 
 DEAL_WORK = FRONTEND / "components" / "erp" / "beleg-work.tsx"
 
@@ -149,9 +130,6 @@ def _beleg() -> str:
     parts = sorted(BELEG_PARTS.glob("*.ts*")) if BELEG_PARTS.exists() else []
     return "\n".join([_read(DEAL_WORK), *(_read(f) for f in parts)])
 
-
-def _module_ui() -> str:
-    return _read(FRONTEND / "components" / "erp" / "module-ui.tsx")
 
 
 _USER_SURFACES = ("components/erp/user-detail.tsx",

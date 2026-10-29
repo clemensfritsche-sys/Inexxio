@@ -240,7 +240,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 - **Ein Auftrag entsteht als GANZES** (ein `POST`); es gibt kein `PATCH /orders/{id}`.
 - **Bewegt wird er über zwei Befehle**: `confirm` (ein Modul bestätigen) und `voucher` (eine
   Handlung am Beleg). Beide sind POST; ein Wächter verbietet `PATCH` und `DELETE` im
-  Auftrags-Router (`test_source_process.test_a_status_change_always_writes_the_log`),
+  Auftrags-Router (`test_pieces_and_log.test_orders_and_instances_have_no_path_to_change_or_delete`),
   damit jede Zustandsänderung durch die Stelle geht, die den Log schreibt.
 - **Der Beleg** (`services/voucher.py`): jedes Verb steht EINMAL in `VERBS` – Stufen
   (`offer` · `agreed` · `billed`), nötige Stammdaten (`needs` → `DataGap`), wer darf

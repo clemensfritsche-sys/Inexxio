@@ -35,7 +35,8 @@ def _run_check(tmp_path, body: str):
     bin_.mkdir(exist_ok=True)
     (bin_ / "gcloud").write_text('#!/bin/bash\n[ "$2" = "services" ] && echo https://svc.example\n'
                                  '[ "$1" = "logging" ] && echo "!!! Alembic migration failed"\nexit 0\n')
-    (bin_ / "curl").write_text(f"#!/bin/bash\ncat <<'X'\n{body}\nX\n")
+    (bin_ / "curl").write_text(f"#!/bin/bash\necho \"$*\" >> {tmp_path}/curl.args\n"
+                               f"cat <<'X'\n{body}\nX\n")
     (bin_ / "sleep").write_text("#!/bin/bash\nexit 0\n")
     for f in bin_.iterdir():
         f.chmod(0o755)
@@ -47,6 +48,9 @@ def _run_check(tmp_path, body: str):
 def test_the_deploy_turns_red_when_the_schema_is_behind(tmp_path):
     ok = _run_check(tmp_path, '{"schema": "current", "revision": "160", "head": "160"}')
     assert ok.returncode == 0, ok.stdout + ok.stderr
+    asked = (tmp_path / "curl.args").read_text()
+    assert "https://svc.example/health" in asked and "Authorization" not in asked, (
+        "Der Dienst ist öffentlich – /health wird ohne Anmeldung gelesen.")
     behind = _run_check(tmp_path, '{"schema": "behind", "revision": "156", "head": "160"}')
     assert behind.returncode == 1 and "156 statt 160" in behind.stdout
     assert "Alembic migration failed" in behind.stdout, "die Zeilen des Starts stehen im Log"

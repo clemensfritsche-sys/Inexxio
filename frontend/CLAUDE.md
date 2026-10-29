@@ -48,9 +48,8 @@ npm run build      # build-islands + next build
 npm test           # node --test scripts/*.test.mjs
 npm run lint       # eslint .
 ```
-`Dockerfile` ist nur das Entwicklungsbild für `docker-compose.yml` (`npm run dev`);
-ausgeliefert wird der statische Export (`out/`) über Firebase Hosting – `next start` gibt es
-nicht.
+Ausgeliefert wird der statische Export (`out/`) über Firebase Hosting – `next start` gibt es
+nicht, ein Frontend-Bild auch nicht.
 
 ## Struktur
 ```

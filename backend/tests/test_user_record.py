@@ -24,15 +24,18 @@ from sqlalchemy import text
 
 from app.models import CompanySettings, UserProfile
 from app.schemas.admin import ErpAdminUpdate, UserProfileResponse, UserProfileUpdate
-from app.services import objects as obj, people, voucher
+from app.services import people, voucher
 from tests.runner import BACKEND, session
+from tests.factories import new_firm, new_person
 
 
-def _user(db, **kw) -> UserProfile:
-    u = UserProfile(firebase_uid=kw.pop("uid", "uid-1"),
-                    email=kw.pop("email", "a@b.ch"), role=kw.pop("role", "user"),
-                    object_id=kw.pop("object_id", None) or obj.next_object_id(db, "user"), **kw)
-    db.add(u)
+def _user(db, **kw):
+    """Eine Person ohne Namen, sofern keiner genannt ist (``missing_fields`` fragt danach)."""
+    last = kw.pop("last_name", None)
+    u = new_person(db, kw.pop("role", "user"), uid=kw.pop("uid", "uid-1"),
+                   email=kw.pop("email", "a@b.ch"), first_name=kw.pop("first_name", None),
+                   company=kw.pop("company_object_id", None), **kw)
+    u.last_name = last
     db.flush()
     return u
 
@@ -205,13 +208,8 @@ def _uid() -> str:
             return u.display(f"CHE{digits}{check}")
 
 
-def _firm(db, name="Muster", form="AG", *, own=False, uid=None) -> CompanySettings:
-    from app.services import objects as obj
-    c = CompanySettings(object_id=obj.next_object_id(db, "organization"), company_name=name,
-                        legal_form=form, is_own=own, uid_number=uid, email="", country="CH")
-    db.add(c)
-    db.flush()
-    return c
+def _firm(db, name="Muster", form="AG", *, own=False, uid=None):
+    return new_firm(db, name, form, own=own, uid=uid, country="CH")
 
 
 def test_a_person_is_a_firm_through_its_link():
@@ -488,13 +486,12 @@ def test_there_is_one_person_search_and_it_knows_the_firm():
     (e) das Frontend ruft den alten Pfad.
     """
     from app.main import app
-    from app.services import objects as obj, places
+    from app.services import places
     db = session()
     try:
         firm = _firm(db, name=f"Kranbau{_uid()[-3:]}Zeta")
         u = _user(db, uid="uid-search", email="lea@zeta.test", first_name="Lea",
-                  last_name="Muster", object_id=obj.next_object_id(db, "user"),
-                  company_object_id=firm.object_id)
+                  last_name="Muster", company_object_id=firm.object_id)
         found = {s.object_id for s in places.search(db, firm.company_name)}
         assert u.object_id in found, (
             "Das Halter-Feld findet die Person nicht über ihre Firma (a).")

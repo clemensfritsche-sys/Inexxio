@@ -9,8 +9,6 @@ Warum ein Test je Fall statt einer Schleife: bricht die Matrix, will man den **N
 des gebrochenen Falls sehen und nicht «1 von 67 fehlgeschlagen».
 """
 
-import os
-
 import pytest
 
 from tests.matrix import CASES
@@ -20,8 +18,6 @@ from tests.runner import run_case
 @pytest.mark.parametrize("case", CASES, ids=[c.id for c in CASES])
 def test_scenario(case):
     """Ein Fall der Matrix – Soll steht in ``matrix.py``, nicht hier."""
-    if os.environ.get("INEXXIO_SKIP_MATRIX"):
-        pytest.skip("Matrix übersprungen (INEXXIO_SKIP_MATRIX gesetzt).")
     result = run_case(case)
     if result.verdict == "unmöglich":
         pytest.skip(f"{case.id}: {case.impossible}")

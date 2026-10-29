@@ -1,8 +1,9 @@
 # Infrastruktur – Ist-Stand
 
 > Was hier steht, ist **so eingerichtet**. Massgeblich sind die Workflows
-> (`.github/workflows/deploy-*.yml`) – sie setzen bei jedem Deploy alles, was ein Dienst
-> braucht; diese Seite erklärt es nur. Eingerichtet wird nicht per Skript, sondern einmal
+> (`.github/workflows/deploy.yml`, aufgerufen von `deploy-dev.yml` und `deploy-prod.yml` mit
+> den Werten ihrer Umgebung) – sie setzen bei jedem Deploy alles, was ein Dienst braucht;
+> diese Seite erklärt es nur. Eingerichtet wird nicht per Skript, sondern einmal
 > von Hand (unten), und jeder Deploy prüft danach, ob es trägt.
 
 ## Zwei Umgebungen
@@ -22,17 +23,32 @@ Je Umgebung, alles in **europe-west6 (Zürich)**:
   `backend`), angebunden über den Unix-Socket (`--add-cloudsql-instances`).
 - **Dateien**: Bucket `<projekt>-files` (privat, `FILES_BUCKET`, `docs/dokumente.md`).
 - **Secrets**: Secret Manager, als Umgebungsvariablen eingebunden. Pflicht: `DATABASE_URL`;
-  dev ausserdem `FIREBASE_PROJECT_ID`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
-  Optional – eingebunden nur, wenn es sie gibt: `GOOGLE_CLIENT_ID`/`_SECRET` (Gmail),
-  `ANTHROPIC_API_KEY` (KI), `GOOGLE_MAPS_API_KEY` (Adress-Suche), auf prod auch die drei
-  Stripe-Werte (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY`).
+  dev ausserdem `FIREBASE_PROJECT_ID` (prod setzt es als Wert). Optional – auf beiden Seiten
+  dieselbe Liste, eingebunden nur, wenn es sie gibt: `GOOGLE_CLIENT_ID`/`_SECRET` (Gmail),
+  `ANTHROPIC_API_KEY` (KI), `GOOGLE_MAPS_API_KEY` (Adress-Suche), `LINK_SECRET` (signierte
+  Links), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; `STRIPE_PUBLISHABLE_KEY` auf prod als
+  Secret, auf dev als Wert im Workflow (kein Geheimnis). Ein Name bleibt bei seiner Form:
+  Cloud Run weist es ab, wenn eine Variable von «Secret» auf «Wert» wechselt.
 - **Bilder des Backends**: Artifact Registry `europe-west6-docker.pkg.dev/<projekt>/<repo>`.
 
-## Was jeder Deploy prüft
+## Der Ablauf
 
-1. Das Gate (`quality.yml`): Typen, Lint, Tests, Build, Schema aus den Migrationen.
-2. Nach dem Ausrollen: **steht die Datenbank auf dem Stand des Codes?**
-   (`scripts/check-schema.sh` liest `/health` → `schema`, `revision`, `head`). Sonst rot.
+1. **Das Gate** (`quality.yml`) – auch auf jedem Push eines Feature-Branches und jedem Pull
+   Request: Frontend (Typen, Lint, Tests, Build), Backend (ruff, pytest gegen PostgreSQL –
+   das Schema bauen die Migrationen –, generierte Dateien) und Website (Tests, Astro,
+   Abdrucke, Build) laufen parallel. Aus dem Deploy aufgerufen baut es nicht selbst.
+2. Prod: **Freigabe** (Environment `production`).
+3. **Build** (`deploy.yml`): Website und Frontend mit den Werten der Umgebung, zusammengeführt
+   zur Hosting-Ausgabe (Artefakt); dev mit `X-Robots-Tag: noindex`, prod mit dem
+   `/api/**`-Rewrite auf den Prod-Dienst. Scheitert er, ist nichts ausgerollt.
+4. **Backend**: Bild bauen (die GeoIP-Tabelle je Monat aus dem Cache), Cloud Run, danach
+   **steht die Datenbank auf dem Stand des Codes?** (`scripts/check-schema.sh` liest
+   `/health` → `schema`, `revision`, `head`). Sonst rot.
+5. **Hosting**: genau die Ausgabe aus 3 nach Firebase Hosting.
+
+Der Dienst ist auf beiden Seiten öffentlich aufrufbar (`--allow-unauthenticated`): Firebase
+Hosting leitet `/api/**` nur an einen öffentlichen Dienst weiter; wer etwas darf, prüft das
+Backend bei jeder Anfrage selbst.
 
 ## Einmal von Hand (je Umgebung)
 
@@ -117,7 +133,8 @@ gcloud iam service-accounts add-iam-policy-binding $SA --project $P \
 echo "PROVIDER=projects/$NUM/locations/global/workloadIdentityPools/github/providers/github"
 ```
 
-Der Workflow nennt Provider und Konto offen (`deploy-dev.yml`, `env`) – beides ist kein
+Dev nennt Provider und Konto offen (`deploy-dev.yml`, Eingaben an `deploy.yml`), prod
+liest sie aus den Repository-Secrets `WIF_PROVIDER_PROD`/`WIF_SA_PROD` – beides ist kein
 Geheimnis; gelten lässt Google es nur für Anfragen aus genau diesem Repository. Danach den
 alten Schlüssel löschen (`gcloud iam service-accounts keys list --iam-account $SA
 --managed-by=user`, dann `… keys delete <ID> --iam-account $SA`) und in GitHub das Secret
@@ -126,6 +143,7 @@ alten Schlüssel löschen (`gcloud iam service-accounts keys list --iam-account 
 ## Werkzeuge
 
 - `scripts/check-schema.sh` – der Schritt nach dem Deploy (oben).
+- `docker-compose.yml` – nur die lokale Datenbank (PostgreSQL 16).
 - `scripts/dump-db.sh` – vollständige Sicherung der dev-Datenbank (Cloud Shell).
 - `scripts/reset-dev-db.sql` – dev leeren, damit sie neu aus den Migrationen entsteht
   (`backend/CLAUDE.md`). Bricht auf jeder anderen Datenbank ab.
@@ -164,6 +182,11 @@ Grössenordnungen in **europe-west6 (Zürich)** — der teuersten EU-Region, ca.
 | Cloud Run, `--min-instances 0`, im Leerlauf | ~0          |
 | Artifact Registry                        | ~0,2 (1,8 GB)  |
 | Firebase Hosting, Secret Manager, GCS    | ~1–2           |
+
+Heute: beide Backends mit `--min-instances 0` (je bis 2 Instanzen, je 1 CPU,
+512 MiB, ein Worker). Prod geht beim Go-live auf `min_instances: 1` (`deploy-prod.yml`).
+Verbindungen: je Worker bis 5 + 5 (`app/core/database.py`), also höchstens
+Instanzen × 10 = 20 – passt ab `db-f1-micro` (25); mehr Instanzen erst ab `db-g1-small` (50).
 
 Daraus die drei Regeln:
 

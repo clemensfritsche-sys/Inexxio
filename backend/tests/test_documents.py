@@ -17,7 +17,7 @@ from app.core.auth import require_employee
 from app.core.database import get_db
 from app.domain import documents as dd
 from app.domain import statuses as st
-from app.models import Attachment, AuditLog, Document, UserProfile
+from app.models import Attachment, AuditLog, Document
 from app.routers import attachments as att_router
 from app.routers import documents as router
 from app.services import access, documents as docs, objects
@@ -25,14 +25,8 @@ from app.services import access, documents as docs, objects
 PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"
 
 
-def _person(db, role="employee") -> UserProfile:
-    from app.services.objects import next_object_id
-    oid = next_object_id(db, "user")
-    u = UserProfile(firebase_uid=f"uid-{oid}", email=f"p{oid}@x.ch", role=role,
-                    object_id=oid, first_name="Lea", last_name=f"M{oid}")
-    db.add(u)
-    db.flush()
-    return u
+def _person(db, role="employee"):
+    return new_person(db, role)
 
 
 def _png(color=(200, 10, 10)) -> bytes:
@@ -244,6 +238,7 @@ def test_part_and_field_vocabulary_is_closed():
 # ─── Das KI-Tor und der Vorschlag ──────────────────────────────────────────────
 
 from app.services import ai, reading  # noqa: E402
+from tests.factories import new_person
 
 
 class _FakeClient:

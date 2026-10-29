@@ -18,19 +18,15 @@ from app.services import communication as comm
 from app.services import mailbox as mb
 from app.services import objects
 from tests.runner import session
+from tests.factories import new_person
 
 COMPANY = "info.test@example.com"
 #: Das Postfach einer (gedachten) eigenen Gesellschaft – die Form ``c<Objektnummer>``.
 CH = "c999999990"
 
 
-def _person(db, role="user", email=None) -> UserProfile:
-    oid = random.randint(900_000_000, 999_999_999)
-    u = UserProfile(firebase_uid=f"uid-{oid}", email=email or f"p{oid}@x.ch", role=role,
-                    object_id=oid, first_name="P", last_name=str(oid))
-    db.add(u)
-    db.flush()
-    return u
+def _person(db, role="user", email=None):
+    return new_person(db, role, email=email)
 
 
 def _gmail(frm, to="", cc="", subject="Hallo", body="Text", labels=("INBOX",), **head):

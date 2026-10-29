@@ -58,9 +58,21 @@ Migrationen 163/164 auf den dev-Daten durchgelaufen).
   nach history, Design-Referenz entrümpelt; Website-Build 65 → 43 MB (WebP-Rückfall), Video
   nur ab 768 px, Pause-Knopf, Logo als Symbol, Budget zählt das Video.
 
+- **Tests/CI (Phase 2):** 178 Quelltext-Tests, die nur die Form prüften, entfernt oder durch
+  Verhalten ersetzt (`test_pieces_and_log`), Hausregeln nach ESLint; eine Fabrik für Personen
+  und Firmen, eine Beleg-Szene; Gate in drei parallelen Jobs mit Cache, auch auf
+  Feature-Branches; ein Deploy-Ablauf `deploy.yml` für dev und prod (einmal bauen, dann
+  ausrollen); dev und prod min 0 / max 2 Instanzen (max 2 passt auf jede Cloud-SQL-Stufe);
+  GeoIP-Schicht im Docker-Cache; Frontend-Dockerfile weg, docker-compose nur noch die DB.
+- **Stripe:** eine Erstattung, die nach «ausstehend» scheitert, wird gegengebucht
+  (`refund.updated`).
+
 ## Gemessen
-- Backend-Tests 856 → 919 (neue Fehler-, Sicherheits- und Nebenläufigkeitstests, jeder
-  gegen seine Bug-Form geprüft); Frontend-Tests 45 → 63.
+- Backend-Tests 856 → 920 nach Phase 1 (neue Fehler-, Sicherheits- und
+  Nebenläufigkeitstests, jeder gegen seine Bug-Form geprüft), 744 nach Phase 2 (Testcode
+  29'099 → 23'304 Zeilen, Laufzeit 88 → 48 s); Frontend-Tests 45 → 63; Gate 3:05 → 2:13 min.
+- Der Kanton-Wähler der Zeiterfassung (`company-time.tsx`) steht als einzige Ausnahme der
+  ESLint-Regel `disabled={busy}` – er gehört an den Speicherweg der Zeiterfassung.
 - Abfragen je Beleg-Karte, `find_units`, Gegenpartei-Antwort: siehe oben.
 
 ## Bewusst nicht
