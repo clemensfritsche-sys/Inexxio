@@ -434,7 +434,7 @@ def test_a_later_good_capture_clears_the_hold():
 # Die Aussenkante – die Regeln müssen auch über HTTP gelten
 # ---------------------------------------------------------------------------
 
-def test_the_endpoints_carry_the_rules_to_the_outside():
+def test_the_endpoints_carry_the_rules_to_the_outside(db, monkeypatch):
     """**Was der Dienst verlangt, verlangt auch der Endpunkt.**
 
     Die Regeln stehen in ``process``; hier wird die Verdrahtung geprüft – dass die
@@ -443,26 +443,20 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
     ein falscher Query-Name oder ein vergessenes Feld auf, und **nur** hier: die
     Dienst-Tests rufen die Funktion direkt.
     """
-    db = session()
     from fastapi.testclient import TestClient
     from app.core.auth import get_current_user
+    from app.core.database import get_db
     from app.main import app
-    from app.models import UserProfile
-    from app.services import objects as obj
+    from tests.factories import new_person
 
     order, step = _order(db, serialization="batch", quantity=10,
                          sample={"percent": 30})
-    # **Wiederverwendbar, nicht neu angelegt.** Der Test muss committen (der TestClient
-    # öffnet seine eigene Sitzung und sähe sonst nichts) – ein zweiter Lauf kollidierte
-    # sonst mit der eindeutigen E-Mail.
-    staff = db.query(UserProfile).filter(UserProfile.firebase_uid == "probe").first()
-    if staff is None:
-        staff = UserProfile(object_id=obj.next_object_id(db, "user"), firebase_uid="probe",
-                            email="probe@example.com", role="employee")
-        db.add(staff)
-    db.commit()
-
+    staff = new_person(db, "employee")
+    # **Dieselbe Sitzung für den Endpunkt** – sie rollt danach zurück; was der Router
+    # festschreiben will, bleibt ein ``flush``.
+    monkeypatch.setattr(db, "commit", db.flush)
     app.dependency_overrides[get_current_user] = lambda: staff
+    app.dependency_overrides[get_db] = lambda: db
     try:
         client = TestClient(app)
         base = f"/api/v1/erp/orders/{order.object_id}/steps/{step.id}"
@@ -524,7 +518,7 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
                           params={"instance": instance, "group": "alles"}).status_code == 400
     finally:
         app.dependency_overrides.pop(get_current_user, None)
-        db.close()
+        app.dependency_overrides.pop(get_db, None)
 
 
 # ---------------------------------------------------------------------------

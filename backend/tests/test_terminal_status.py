@@ -129,11 +129,13 @@ def test_the_one_write_path_refuses_to_leave_a_terminal_state():
     unit = _scrapped_unit(db)
     try:
         from app.domain import statuses as st
-        from app.models import Order
         from app.services import process as proc
+        from tests.scenarios import World
 
+        w = World(db)
+        order = w.produce(w.article(), 1)
         with pytest.raises(HTTPException) as err:
-            proc._pass(db, order=db.query(Order).first(), units=[unit],
+            proc._pass(db, order=order, units=[unit],
                        membership_ids=[], kind="end", step=None,
                        status_after=st.FREIGEGEBEN, next_step_id=None, actor_id=None)
         assert err.value.status_code == 409
