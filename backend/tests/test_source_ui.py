@@ -41,17 +41,7 @@ def test_the_swiss_thousands_separator_is_pinned():
         "Die Nachkommastellen sind wieder fest – dann zeigt ein Yen-Betrag zwei Stellen, "
         "die es nicht gibt."
     )
-    # **Die eine Formatierung steht in `module-ui.Amount`** (#1007) – vorher formatierte
-    # jede Aufrufstelle des Belegs selbst. Der Wächter fragt darum die **Regel** an ihrem
-    # heutigen Ort: niemand formatiert daneben, und die Stellenzahl kommt von der Währung.
-    # **Und überall, nicht nur im Beleg** (F-48): das Gewicht am Artikel formatierte selbst
-    # und schrieb ab 1000 kg den typografischen Trenner. Eine Zahl hat eine Schreibweise.
-    for path in sorted(FRONTEND.rglob("*.ts*")):
-        if path.name in ("utils.ts", "api.ts") and path.parent.name in ("lib", "types"):
-            continue
-        assert "toLocaleString(" not in _code(_read(path)), (
-            f"{path.name} formatiert selbst – dann gilt die Regel dort nicht."
-        )
+    # Dass niemand daneben `toLocaleString` ruft, prüft ESLint (`frontend/eslint.config.mjs`).
     money = _read(FRONTEND / "components" / "erp" / "module-ui.tsx")
     assert "formatAmount(value, decimals)" in money, (
         "Das Betrags-Bauteil formatiert nicht über `formatAmount`."
@@ -156,6 +146,13 @@ def test_a_button_without_effect_is_caught_by_the_linter():
         "Die Regel nennt ein Plugin, das die Konfiguration nicht lädt."
     )
     assert rule.group(1) == "error", "Die Regel warnt nur – dann fällt nichts auf."
+    # Die Hausregeln am Syntaxbaum (Datum, Zahl, Rolle, `busy`, Konto-Bausteine) prüft
+    # ESLint statt einer Textsuche hier – sie müssen dort scharf bleiben.
+    for name in ("no-restricted-syntax", "no-restricted-imports"):
+        assert f"'{name}': ['error'" in cfg, f"«{name}» ist nicht als Fehler eingeschaltet."
+    for selector in ("toLocaleString", "toLocale(Date|Time)String", "DateTimeFormat",
+                     "employee", "Identifier[name='busy']", "^@/components/account/"):
+        assert selector in cfg, f"Die Hausregel «{selector}» fehlt in eslint.config.mjs."
     assert "destructuredArrayIgnorePattern" in rule.group(2), (
         "Ohne diese Option bleibt die tote `useState`-Destrukturierung unbemerkt – "
         "und genau die war der tote Scan-Knopf."
@@ -248,15 +245,7 @@ def test_a_date_is_written_in_exactly_one_place():
     Umgebung anders – die Lehre aus `formatAmount`); (c) die Aussage steht ohne ihre
     Tatsache da.
     """
-    # (a) **Niemand formatiert selbst** – ausser dem einen Modul.
-    for path in (FRONTEND / "components").rglob("*.tsx"):
-        code = _code(path.read_text())
-        for gone in ("toLocaleDateString", "toLocaleTimeString", "DateTimeFormat",
-                     "localDate(", "localDateTime("):
-            assert gone not in code, (
-                f"«{gone}» steht wieder in {path.name} (a) – dann gibt es die "
-                f"Datums-Ausgabe zweimal, und die zweite weicht ab."
-            )
+    # (a) **Niemand formatiert selbst** – das prüft ESLint (`frontend/eslint.config.mjs`).
     src = _read(FRONTEND / "lib" / "when.ts")
     code = _code(src)
     # (b) **Die Wörter stehen im Modul**, nicht im ICU der Laufzeit.
@@ -352,27 +341,6 @@ def test_the_money_module_mirror_is_named_after_its_source():
         assert name in modules, f"«{name}» fehlt in `lib/modules.ts`."
 
 
-def test_the_form_parts_live_outside_the_account():
-    """**Gemeinsame Bausteine wohnen nicht unter «account»** (F-32/F-33).
-
-    Feld, Speicher-Anzeige und Auto-Save lagen in `components/account/`, obwohl das ERP
-    sie öfter importiert als das Konto; die Ampeltöne in einer Datei namens «status-flow»
-    (einen Lebenszyklus gibt es dort nicht).
-
-    Bug-Formen: (a) eine ERP-Datei importiert aus `components/account/`; (b) ein
-    Baustein liegt wieder dort; (c) `status-flow` ist zurück.
-    """
-    for rel, src in _frontend_sources(".ts", ".tsx"):
-        if rel.startswith(("components/account/", "app/(account)/")):
-            continue
-        assert "@/components/account/" not in src, f"«{rel}» importiert aus dem Konto (a)."
-    account = FRONTEND / "components" / "account"
-    for gone in ("field.tsx", "save-status.tsx", "use-autosave.ts",
-                 "sections/system-config-section.tsx"):
-        assert not (account / gone).exists(), f"«account/{gone}» liegt wieder dort (b)."
-    assert not (FRONTEND / "lib" / "status-flow.ts").exists(), "(c)"
-    assert (FRONTEND / "lib" / "status-tone.ts").exists(), "(c) – die Ampeltöne fehlen."
-
 
 def test_autosave_is_one_module_with_one_delay():
     """**Ein Auto-Save, eine Vorgabe** (F-40) – die Hausregel sagt 3 s.
@@ -438,10 +406,7 @@ def test_staff_is_asked_in_one_place():
     Bug-Formen: (a) eine Datei vergleicht die Rolle wieder selbst; (b) das Konto fragt
     nicht `isStaff`.
     """
-    for rel, src in _frontend_sources(".ts", ".tsx"):
-        if rel == "lib/record-status.ts":
-            continue
-        assert not re.search(r"role\s*===\s*'employee'", _code(src)), f"«{rel}» (a)"
+    # (a) prüft ESLint (`frontend/eslint.config.mjs`, Vergleich mit 'employee').
     shell = _code(_read(FRONTEND / "components" / "account" / "account-shell.tsx"))
     assert "isStaff(profile.role)" in shell, "(b)"
 

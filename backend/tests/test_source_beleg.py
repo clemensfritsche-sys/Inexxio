@@ -777,12 +777,7 @@ def test_an_autosave_never_moves_the_page():
     assert "sumLines(d" in sums and "for (const ln of d.lines)" in _code(_component(src, "sumLines")), (
         "Die Steuerzeilen kommen allein aus der Server-Aufteilung (a)."
     )
-    for tag in ("<input", "<select"):
-        for chunk in _code(src).split(tag)[1:]:
-            head = chunk.split(">")[0]
-            assert "disabled={busy}" not in head, (
-                f"Ein Eingabefeld wird beim Speichern gesperrt (b): {tag}{head[:70]}"
-            )
+    # (b) prüft ESLint im ganzen Frontend (`frontend/eslint.config.mjs`).
 
 
 def test_a_save_never_hides_a_control_in_the_party_block():
