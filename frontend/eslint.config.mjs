@@ -95,12 +95,6 @@ const config = [
     files: ['src/lib/record-status.ts'],
     rules: { 'no-restricted-syntax': ['error', ...without(HOUSE_SYNTAX, ...STAFF_ROLE)] },
   },
-  // Offener Befund: der Kanton-Wähler sperrt sich, solange die Regeln gespeichert werden
-  // (zwei schnelle Wechsel liefen sonst ungeordnet) – zu lösen am Speicherweg, nicht hier.
-  {
-    files: ['src/components/erp/time/company-time.tsx'],
-    rules: { 'no-restricted-syntax': ['error', ...without(HOUSE_SYNTAX, BUSY_INPUT)] },
-  },
   {
     files: ['src/components/account/**', 'src/app/(account)/**'],
     rules: { 'no-restricted-imports': 'off' },

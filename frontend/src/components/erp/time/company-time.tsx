@@ -7,7 +7,7 @@
  * Ortsfeiertag von Hand), die Absenzarten mit ihrem Nachweis und die Regeln des Landes. Es
  * zählt nur, was übernommen ist. Fehlen die Feiertage, steht die Zahl am Symbol.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarDays, CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Download, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
 import { Card, TodoChip } from '@/components/erp/detail-frame';
 import { ErrorText } from '@/components/erp/hints';
@@ -16,6 +16,7 @@ import { StageAction } from '@/components/erp/module-ui';
 import { ApiError, api } from '@/lib/api';
 import { dayShort, parseDay } from '@/lib/when';
 import { todoChanged } from '@/lib/todo';
+import { useAutosaveValue } from '@/lib/use-autosave';
 import type { CompanyTimeView, HolidayOut, TodoItem } from '@/types';
 import { HR, IconButton, Note, QuietButton, ROW_FORM, Sect, TimeField, timeIcon } from './time-ui';
 
@@ -23,6 +24,32 @@ const GRID = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(m
 
 function err(e: unknown): string {
   return e instanceof ApiError ? e.message : 'Keine Verbindung – nicht gespeichert.';
+}
+
+/**
+ * **Der Kanton – ein Auto-Save wie jedes Feld** (`useAutosaveValue`): die Wahl steht sofort,
+ * gespeichert wird hintereinander mit dem neuesten Wert (zwei schnelle Wechsel überholen sich
+ * nie), ohne zu warten – eine Auswahl ist fertig, sobald sie getroffen ist. Gesperrt wird
+ * nichts; ein Fehler meldet sich wie jeder Auto-Save (`tell`). Je Gesellschaft ein Stand (`key`).
+ */
+function CantonSelect({ v, company, onView }: {
+  v: CompanyTimeView; company: number; onView: (v: CompanyTimeView) => void;
+}) {
+  const [canton, setCanton] = useState(v.canton ?? '');
+  const year = useRef(v.year);
+  year.current = v.year;
+  const save = useCallback((c: string) => api.setTimeRules(company, { canton: c || null }, year.current)
+    .then((x) => { onView(x); todoChanged(); }), [company, onView]);
+  const { saveNow } = useAutosaveValue(canton, save);
+  // Nach dem Auto-Save-Effekt (der den Stand eben vorgemerkt hat): sofort hinaus.
+  useEffect(() => { void saveNow(); }, [canton, saveNow]);
+  return (
+    <select value={canton} onChange={(e) => setCanton(e.target.value)}
+      style={{ padding: '4px 8px', borderRadius: 8, border: '1px solid var(--border-1)', background: 'var(--bg-1)', fontSize: 13 }}>
+      <option value="">–</option>
+      {v.cantons.map(([c, name]) => <option key={c} value={c}>{c} · {name}</option>)}
+    </select>
+  );
 }
 
 function Holidays({ v, company, onView, todo }: {
@@ -57,12 +84,7 @@ function Holidays({ v, company, onView, todo }: {
       {v.can_edit && (
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--fg-2)' }}>
           Kanton
-          <select value={v.canton ?? ''} disabled={busy}
-            onChange={(e) => run(api.setTimeRules(company, { canton: e.target.value || null }, v.year))}
-            style={{ padding: '4px 8px', borderRadius: 8, border: '1px solid var(--border-1)', background: 'var(--bg-1)', fontSize: 13 }}>
-            <option value="">–</option>
-            {v.cantons.map(([c, name]) => <option key={c} value={c}>{c} · {name}</option>)}
-          </select>
+          <CantonSelect key={company} v={v} company={company} onView={onView} />
         </label>
       )}
       {v.holidays.length > 0 && (

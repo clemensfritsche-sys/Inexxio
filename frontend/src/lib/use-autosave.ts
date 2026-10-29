@@ -69,19 +69,21 @@ export function useAutosaveValue<T>(
   );
   useEffect(() => () => { if (idle.current) clearTimeout(idle.current); }, []);
 
-  // Der geladene Stand – er ist nicht getippt und geht nicht hinaus. Gesetzt nur beim
-  // Wechsel des Datensatzes, nicht bei jedem neuen Wert.
+  // Der zuletzt bekannte Stand – beim Wechsel des Datensatzes der geladene (nicht getippt,
+  // geht nicht hinaus), danach der zuletzt vorgemerkte. Verglichen wird mit ihm, nicht mit
+  // dem geladenen: wer ändert und dann zum Anfangswert zurückkehrt, hat wieder geändert.
   const latest = useRef({ value, save });
   latest.current = { value, save };
-  const loaded = useRef(value);
+  const known = useRef(value);
   useEffect(() => {
     void saver.flush();
-    loaded.current = latest.current.value;
+    known.current = latest.current.value;
   }, [resetKey, saver]);
 
   // `save` reist mit dem Wert (Saver) – er gehört zu dem Stand, den er speichert.
   useEffect(() => {
-    if (Object.is(value, loaded.current)) return;
+    if (Object.is(value, known.current)) return;
+    known.current = value;
     saver.change(value, latest.current.save);
   }, [value, saver]);
 

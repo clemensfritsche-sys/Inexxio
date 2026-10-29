@@ -71,8 +71,7 @@ Migrationen 163/164 auf den dev-Daten durchgelaufen).
 - Backend-Tests 856 → 920 nach Phase 1 (neue Fehler-, Sicherheits- und
   Nebenläufigkeitstests, jeder gegen seine Bug-Form geprüft), 744 nach Phase 2 (Testcode
   29'099 → 23'304 Zeilen, Laufzeit 88 → 48 s); Frontend-Tests 45 → 63; Gate 3:05 → 2:13 min.
-- Der Kanton-Wähler der Zeiterfassung (`company-time.tsx`) steht als einzige Ausnahme der
-  ESLint-Regel `disabled={busy}` – er gehört an den Speicherweg der Zeiterfassung.
+
 - Abfragen je Beleg-Karte, `find_units`, Gegenpartei-Antwort: siehe oben.
 
 ## Bewusst nicht
@@ -89,6 +88,12 @@ eine Uhr für den Mail-Abgleich (Option), Firebase 13 (Node 24), Tailwind 4, TS 
   `DATABASE_URL` (und das eben freigegebene `LINK_SECRET`) ein – grün, aber ohne
   Firebase, Stripe, Gmail, KI und Karten. Jetzt: eine Liste (`gcloud secrets list`, Rolle
   `secretmanager.viewer`), Pflicht-Secrets fehlen → rot, Liste unlesbar → rot.
+
+- **Kanton-Wähler** (`company-time.tsx`) speichert über `useAutosaveValue` (sofort,
+  hintereinander, der neueste Wert gewinnt) statt sich zu sperren; die ESLint-Ausnahme ist
+  weg. Dabei gefunden: `useAutosaveValue` verglich mit dem **geladenen** Wert – wer änderte
+  und zum Anfangswert zurückkehrte, verlor den Rückwechsel. Jetzt mit dem zuletzt
+  vorgemerkten (im Browser gegengeprüft: ohne die Korrektur fehlt der zweite Speichervorgang).
 
 ## Offen danach
 - `LINK_SECRET` auf prod anlegen (vor dem Go-live).
