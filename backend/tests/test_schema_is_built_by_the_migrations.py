@@ -133,10 +133,7 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    für **einen** Deploy noch da – ihr Drop würde die noch laufende Vorgänger-Revision
 #:    treffen (Migration 090). Sie gehört dann **hierher** (``"tabelle.spalte"``) und in
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop.
-PENDING_DROP: set[str] = {
-    # Mapping weg (Runde 28.10.2026), Drop im Folge-Deploy – docs/backlog.md.
-    "user_profiles.department", "user_profiles.job_title", "orders.end_status",
-}
+PENDING_DROP: set[str] = set()
 
 
 def leftovers(insp) -> list[str]:

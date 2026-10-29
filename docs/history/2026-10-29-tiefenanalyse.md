@@ -82,7 +82,8 @@ eine Uhr für den Mail-Abgleich (Option), Firebase 13 (Node 24), Tailwind 4, TS 
 
 ## Danach erledigt (29.10.)
 - `LINK_SECRET` auf dev angelegt, DB-Passwort dev neu, Uptime-Check auf `/health`,
-  Stripe-Webhook hört `refund.updated`, alter JSON-Schlüssel gelöscht.
+  Stripe-Webhook hört `refund.updated`, alter JSON-Schlüssel gelöscht; Drops
+  `orders.end_status`, `user_profiles.department`, `job_title` (Migration 165).
 - **Befund beim Nachprüfen:** das WIF-Deploy-Konto durfte die Secrets nicht lesen; die
   Prüfung «gibt es das Secret?» hielt darum alle für fehlend, und der Deploy band nur
   `DATABASE_URL` (und das eben freigegebene `LINK_SECRET`) ein – grün, aber ohne
@@ -91,4 +92,3 @@ eine Uhr für den Mail-Abgleich (Option), Firebase 13 (Node 24), Tailwind 4, TS 
 
 ## Offen danach
 - `LINK_SECRET` auf prod anlegen (vor dem Go-live).
-- Folge-Deploy: Drops `orders.end_status`, `user_profiles.department`, `job_title`.

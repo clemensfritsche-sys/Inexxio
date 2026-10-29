@@ -8,9 +8,10 @@ steht nicht hier, sondern in `docs/history/` (zuletzt `2026-10-backlog-erledigt.
 
 ## Zwei-Deploy-Regel: vorgemerkte Drops
 
-`orders.end_status`, `user_profiles.department`, `user_profiles.job_title` – Mapping entfernt (28.10.2026), stehen in
-`PENDING_DROP` (`backend/tests/test_schema_is_built_by_the_migrations.py`); der Folge-Deploy droppt
-sie. Wer eine Spalte entmappt, trägt sie dort **und** hier ein; der Eintrag geht mit dem Drop.
+Heute keiner (zuletzt `orders.end_status`, `user_profiles.department`, `job_title`, Migration 165).
+Wer eine Spalte entmappt, trägt sie in `PENDING_DROP`
+(`backend/tests/test_schema_is_built_by_the_migrations.py`) **und** hier ein; der Eintrag geht mit
+dem Drop.
 Bewusst gemappt geblieben (Entscheid E7): `articles.safety_stock`, `min_order_qty`,
 `supplier_article_number`, `user_profiles.language`, `notification_email`,
 `notification_inapp`.
