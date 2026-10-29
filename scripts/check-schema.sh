@@ -12,15 +12,11 @@ set -u
 PROJECT=$1 SERVICE=$2 REGION=$3
 URL=$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" \
       --format 'value(status.url)')
-# Ein Identitäts-Token schadet einem öffentlichen Dienst nicht und trägt einen privaten.
-TOKEN=$(gcloud auth print-identity-token --audiences="$URL" 2>/dev/null || true)
+# Der Dienst ist öffentlich (`--allow-unauthenticated`, .github/workflows/deploy.yml) –
+# `/health` braucht keine Anmeldung.
 BODY=""
 for _ in 1 2 3 4 5 6; do
-  if [ -n "$TOKEN" ]; then
-    BODY=$(curl -sS --max-time 20 -H "Authorization: Bearer $TOKEN" "$URL/health" || true)
-  else
-    BODY=$(curl -sS --max-time 20 "$URL/health" || true)
-  fi
+  BODY=$(curl -sS --max-time 20 "$URL/health" || true)
   echo "$BODY" | jq -e '.schema' >/dev/null 2>&1 && break
   sleep 10
 done

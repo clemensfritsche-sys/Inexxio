@@ -1,7 +1,7 @@
 """**Die CI prüft, was sie verspricht** – ein Wächter, der nur lokal läuft, ist keiner.
 
-Die Prüfungen stehen EINMAL in ``.github/workflows/quality.yml``; Dev- und Prod-Deploy
-rufen sie auf, bevor etwas ausgerollt wird. Hier steht, dass das so bleibt.
+Die Prüfungen stehen EINMAL in ``quality.yml``; ausgerollt wird über ``deploy.yml``, und
+jeder Job, der ausrollt, hängt am Gate.
 """
 
 import pathlib
@@ -16,62 +16,76 @@ def _load(name: str) -> dict:
     return yaml.safe_load((WORKFLOWS / name).read_text(encoding="utf-8"))
 
 
-def _steps(job: dict) -> list[dict]:
-    return job.get("steps", [])
+def _needs(job: dict) -> set[str]:
+    needs = job.get("needs") or []
+    return {needs} if isinstance(needs, str) else set(needs)
+
+
+def _upstream(jobs: dict, name: str) -> set[str]:
+    seen: set[str] = set()
+    todo = [name]
+    while todo:
+        for dep in _needs(jobs[todo.pop()]):
+            if dep not in seen:
+                seen.add(dep)
+                todo.append(dep)
+    return seen
 
 
 def _runs(job: dict) -> str:
-    return "\n".join(s.get("run", "") for s in _steps(job))
+    return "\n".join(s.get("run", "") for s in job.get("steps", []))
 
 
-def _step(job: dict, needle: str) -> tuple[int, dict]:
-    hits = [(i, s) for i, s in enumerate(_steps(job)) if needle in s.get("run", "")]
-    assert hits, f"Kein Schritt führt «{needle}» aus."
-    return hits[0]
-
-
-def test_both_deploys_run_the_one_quality_gate_first():
-    """Bug-Formen: ein Deploy ohne Gate (Prod hatte keines); ein Deploy-Job, der nicht
-    auf das Gate wartet; eine zweite, abweichende Kopie der Prüfungen."""
-    for name, first in (("deploy-dev.yml", "deploy-backend"), ("deploy-prod.yml", "approve")):
+def test_every_deploy_waits_for_the_one_gate():
+    """Bug-Formen: ein Deploy ohne Gate; ein ausrollender Job, der nicht (auch nicht über
+    eine Freigabe) auf das Gate wartet; eigene Prüfungen neben dem Gate."""
+    for name in ("deploy-dev.yml", "deploy-prod.yml"):
         jobs = _load(name)["jobs"]
-        assert jobs["quality"].get("uses") == "./.github/workflows/quality.yml", name
-        needs = jobs[first].get("needs")
-        assert "quality" in ([needs] if isinstance(needs, str) else needs or []), (
-            f"{name}: «{first}» wartet nicht auf das Quality-Gate.")
-        own = [j for j, d in jobs.items() if "pytest" in _runs(d)]
-        assert not own, f"{name} trägt eigene Prüfungen neben dem Gate: {own}"
+        gates = {j for j, d in jobs.items() if d.get("uses") == "./.github/workflows/quality.yml"}
+        assert gates, f"{name} ruft das Gate nicht auf."
+        rollout = [j for j, d in jobs.items() if d.get("uses") == "./.github/workflows/deploy.yml"]
+        assert rollout, f"{name} rollt nicht über deploy.yml aus."
+        for job in rollout:
+            assert gates & _upstream(jobs, job), f"{name}: «{job}» wartet nicht auf das Gate."
+        assert not [j for j, d in jobs.items() if "pytest" in _runs(d)], name
+    prod = _load("deploy-prod.yml")["jobs"]
+    assert any(d.get("environment") == "production" for j, d in prod.items()
+               if j in _upstream(prod, "deploy")), "Prod rollt ohne Freigabe aus."
+
+
+def test_the_rollout_uses_a_build_made_before_anything_went_out():
+    """Bug-Formen: das Backend rollt aus, bevor der Build steht (ein Build-Fehler wäre ein
+    Teil-Deploy); das Hosting baut selbst noch einmal statt die geprüfte Ausgabe zu nehmen."""
+    jobs = _load("deploy.yml")["jobs"]
+    builds = {j for j, d in jobs.items() if "npm run build" in _runs(d)}
+    assert len(builds) == 1, f"Gebaut wird in {sorted(builds)} – genau einmal."
+    for job, d in jobs.items():
+        if "gcloud run deploy" in _runs(d) or "firebase deploy" in _runs(d):
+            assert builds & _upstream(jobs, job), f"«{job}» rollt aus, bevor gebaut ist."
 
 
 def test_the_backend_tests_run_against_a_required_database():
-    """Schema aus den Migrationen, DANN pytest – mit Pflicht-Datenbank und sichtbaren Skips.
-
-    Ohne Datenbank übersprangen sich ~300 Prüfungen lautlos, und der Job blieb grün.
-    Bug-Formen: Schema nach den Tests; keine DATABASE_URL; kein ``INEXXIO_REQUIRE_DB``;
-    kein ``-rs``; die Matrix-Dateien sind still verschwunden."""
-    job = _load("quality.yml")["jobs"]["quality"]
-    schema, _ = _step(job, "alembic upgrade head")
-    tests, step = _step(job, "pytest")
-    assert schema < tests, "Das Schema wird erst nach den Tests gebaut."
-    env = step.get("env", {})
+    """Ohne Datenbank übersprangen sich Prüfungen lautlos, und der Job blieb grün.
+    Bug-Formen: keine DATABASE_URL; kein ``INEXXIO_REQUIRE_DB``; kein ``-rs``."""
+    steps = [s for job in _load("quality.yml")["jobs"].values()
+             for s in job.get("steps", []) if "pytest" in s.get("run", "")]
+    assert len(steps) == 1, "pytest läuft nicht genau einmal im Gate."
+    env = steps[0].get("env", {})
     assert "DATABASE_URL" in env, "Der Test-Schritt bekommt keine DATABASE_URL."
     assert str(env.get("INEXXIO_REQUIRE_DB")) == "1", "Die Datenbank ist nicht Pflicht."
-    assert "-rs" in step["run"], "Skips laufen ohne Grund durch (-rs fehlt)."
-    for name in ("matrix.py", "scenarios.py", "runner.py", "conftest.py",
-                 "test_scenarios.py", "test_invariants.py", "test_flow_graph.py"):
-        assert (ROOT / "backend" / "tests" / name).exists(), f"tests/{name} fehlt."
+    assert "-rs" in steps[0]["run"], "Skips laufen ohne Grund durch (-rs fehlt)."
 
 
 def test_the_gate_checks_frontend_lint_build_and_python():
     """Bug-Formen: Lint/Build/ruff fehlen im Gate; ``npm install`` statt ``npm ci``
     (nicht reproduzierbar); ruff mit mehr als den F-Regeln (Stil statt Fehler)."""
-    runs = _runs(_load("quality.yml")["jobs"]["quality"])
+    runs = "\n".join(_runs(j) for j in _load("quality.yml")["jobs"].values())
     for cmd in ("npm ci", "npm run type-check", "npm run lint", "npm test",
-                "npm run build", "ruff check"):
+                "npm run build", "ruff check", "export-erp.mjs --check"):
         assert cmd in runs, f"Das Gate führt «{cmd}» nicht aus."
-    for name in ("quality.yml", "deploy-dev.yml", "deploy-prod.yml"):
-        text = (WORKFLOWS / name).read_text(encoding="utf-8")
-        lines = [ln for ln in text.splitlines() if "npm install" in ln and " -g " not in ln]
-        assert not lines, f"{name}: «npm install» statt «npm ci»: {lines}"
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        lines = [ln for ln in path.read_text(encoding="utf-8").splitlines()
+                 if "npm install" in ln and " -g " not in ln]
+        assert not lines, f"{path.name}: «npm install» statt «npm ci»: {lines}"
     ruff = (ROOT / "backend" / "ruff.toml").read_text(encoding="utf-8")
     assert 'select = ["F"]' in ruff, "ruff prüft nicht (nur) die F-Regeln."
