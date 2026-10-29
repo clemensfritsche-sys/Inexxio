@@ -173,27 +173,40 @@ jobs:
           docker push "$IMAGE_BASE:${{ github.sha }}"
           docker push "$IMAGE_BASE:latest"
 
+      # ►►► **Welche Secrets es gibt, sagt EINE Liste** (`gcloud secrets list`, Rolle
+      # «Secret Manager-Betrachter» des Deploy-Kontos: nur Namen, keine Werte). ◄◄◄
+      # Pflicht sind DATABASE_URL und – wo es kein Wert ist – FIREBASE_PROJECT_ID: fehlt
+      # eines, wird der Deploy rot (ohne sie startet das Backend ohne Anmeldung). Kann die
+      # Liste nicht gelesen werden, ebenfalls rot – nie still «gibt es nicht».
       # **Optional** (docs/gmail-setup.md, docs/dokumente.md, docs/stripe-setup.md,
-      # infra/README.md): eingebunden wird nur, was es im Secret Manager gibt – sonst bräche
-      # `--set-secrets` den Deploy ab. Ohne Gmail wird eine Mail nur erfasst, ohne KI geht
-      # alles ausser Verfassen, ohne Stripe gibt es den Bezahlen-Knopf nicht.
-      # `versions access` statt `describe`: die Rolle des Deploy-Kontos erlaubt genau das.
+      # infra/README.md): eingebunden wird, was es gibt. Ohne Gmail wird eine Mail nur
+      # erfasst, ohne KI geht alles ausser Verfassen, ohne Stripe gibt es keinen Bezahlen-Knopf.
       - name: Secrets einsammeln
         id: secrets
         run: |
-          list="GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY GOOGLE_MAPS_API_KEY LINK_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET"
-          [ -z "${{ inputs.stripe_publishable_key }}" ] && list="$list STRIPE_PUBLISHABLE_KEY"
-          [ -z "${{ inputs.firebase_project_id }}" ] && list="$list FIREBASE_PROJECT_ID"
-          found="DATABASE_URL=DATABASE_URL:latest"
-          for s in $list; do
-            if gcloud secrets versions access latest --secret "$s" --project "${{ inputs.gcp_project }}" >/dev/null 2>&1; then
-              echo "Secret $s gefunden – wird eingebunden"
+          P="${{ inputs.gcp_project }}"
+          if ! have=$(gcloud secrets list --project "$P" --format='value(name.basename())' 2>&1); then
+            echo "::error::Die Secrets von $P sind nicht lesbar: $have"
+            echo "::error::Einmalig: gcloud projects add-iam-policy-binding $P --member=serviceAccount:${{ inputs.service_account || 'DEPLOY-KONTO' }} --role=roles/secretmanager.viewer"
+            exit 1
+          fi
+          need="DATABASE_URL"
+          [ -z "${{ inputs.firebase_project_id }}" ] && need="$need FIREBASE_PROJECT_ID"
+          opt="GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET ANTHROPIC_API_KEY GOOGLE_MAPS_API_KEY LINK_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET"
+          [ -z "${{ inputs.stripe_publishable_key }}" ] && opt="$opt STRIPE_PUBLISHABLE_KEY"
+          found=""
+          for s in $need $opt; do
+            if grep -qx "$s" <<< "$have"; then
+              echo "Secret $s – wird eingebunden"
               found="$found,$s=$s:latest"
+            elif grep -qw "$s" <<< "$need"; then
+              echo "::error::Pflicht-Secret $s fehlt in $P."
+              exit 1
             else
-              echo "Secret $s fehlt oder ist nicht lesbar – dieser Dienst bleibt aus"
+              echo "Secret $s fehlt – dieser Dienst bleibt aus"
             fi
           done
-          echo "list=$found" >> "$GITHUB_OUTPUT"
+          echo "list=${found#,}" >> "$GITHUB_OUTPUT"
 
       # Kosten und Verbindungen: je Worker hält der Pool bis 5 + 5 Verbindungen
       # (app/core/database.py), je Instanz also 10 × WEB_WORKERS. Bei max_instances × 10

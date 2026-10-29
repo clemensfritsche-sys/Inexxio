@@ -28,7 +28,10 @@ Je Umgebung, alles in **europe-west6 (Zürich)**:
   `ANTHROPIC_API_KEY` (KI), `GOOGLE_MAPS_API_KEY` (Adress-Suche), `LINK_SECRET` (signierte
   Links), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; `STRIPE_PUBLISHABLE_KEY` auf prod als
   Secret, auf dev als Wert im Workflow (kein Geheimnis). Ein Name bleibt bei seiner Form:
-  Cloud Run weist es ab, wenn eine Variable von «Secret» auf «Wert» wechselt.
+  Cloud Run weist es ab, wenn eine Variable von «Secret» auf «Wert» wechselt. Welche es
+  gibt, liest der Deploy aus **einer** Liste (`gcloud secrets list`); dafür braucht das
+  Deploy-Konto die Rolle `roles/secretmanager.viewer` (nur Namen, keine Werte). Fehlt ein
+  Pflicht-Secret oder ist die Liste nicht lesbar, wird der Deploy rot.
 - **Bilder des Backends**: Artifact Registry `europe-west6-docker.pkg.dev/<projekt>/<repo>`.
 
 ## Der Ablauf
@@ -130,6 +133,9 @@ gcloud iam service-accounts add-iam-policy-binding $SA --project $P \
   --role roles/iam.workloadIdentityUser \
   --member "principalSet://iam.googleapis.com/projects/$NUM/locations/global/workloadIdentityPools/github/attribute.repository/$REPO" \
   --format='value(etag)'
+# Der Deploy liest die Namen der Secrets (nicht ihre Werte)
+gcloud projects add-iam-policy-binding $P --member serviceAccount:$SA \
+  --role roles/secretmanager.viewer --condition=None --format='value(etag)'
 echo "PROVIDER=projects/$NUM/locations/global/workloadIdentityPools/github/providers/github"
 ```
 

@@ -124,7 +124,7 @@ ebenso — sie ist nur nirgends aufgeschrieben, während diese hier stabil und b
 > ist weg. Der Beleg bliebe auf «offen» stehen, obwohl das Geld da ist.
 >
 > **Für `inexxio-dev` ist das erledigt** (05.09.2026): der bestehende Endpoint
-> `we_1TnvmEQr3aoUqi8iTHk0Ukj0` hört auf die ersten beiden Ereignisse oben (`refund.updated` fehlt noch). **Umgestellt, nicht
+> `we_1TnvmEQr3aoUqi8iTHk0Ukj0` hört auf die drei Ereignisse oben (`refund.updated` seit 29.10.2026). **Umgestellt, nicht
 > neu angelegt** — und das ist der Punkt: das *Signing Secret* eines Endpoints ändert sich
 > beim Umstellen **nicht**, `STRIPE_WEBHOOK_SECRET` bleibt also gültig. Ein neuer Endpoint
 > hätte ein neues Secret gebraucht, und bis es im Secret Manager steht, liefe jede Meldung
