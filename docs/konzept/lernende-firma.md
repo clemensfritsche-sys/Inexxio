@@ -51,12 +51,16 @@ Woran wir es messen (nach rund 3 Monaten im Alltag):
 - **Ein Wissenswerkzeug, kein Management-Werkzeug.** Kein Rückblick, kein Dashboard, keine
   Termine, kein «zu tun». Wer was tut, regeln Aufträge.
 - **Die KI zuerst:** sie legt ab, auch aufgeteilt auf mehrere Dinge (je Teil eine Heimat), und
-  beurteilt jede Notiz beim Erfassen: wichtig ja/nein, mit Grund. Der Mensch kontrolliert im selben
+  beurteilt jede Notiz beim Erfassen: wichtig ja/nein, mit Grund in einem freien Satz (keine Liste,
+  keine Kategorien). Der Mensch kontrolliert im selben
   Moment («Stimmt so» oder «ändern») – auch im Datensatz entscheidet nicht er, wohin es gehört.
 - **Wichtiges bleibt oben** in «Relevant hier», bis es erledigt oder überholt ist. Kein Zählen
   («ab dem dritten Mal» ist verworfen: eine einzelne Meldung kann hochrelevant sein).
 - **Ein Einstieg:** der rote «+» – halten = sprechen, tippen = Menü (Kamera, Galerie, Scannen,
-  Schreiben, Neuer Datensatz).
+  Schreiben, Neuer Datensatz). **Der Verlauf hat kein eigenes Eingabefeld**; alles läuft über diesen
+  Einstieg.
+- **Eine Regel für alles, keine Ausnahmen** (auch nicht für Sicherheit). Dass etwas getan werden
+  muss, gehört ins Aufgabenmanagement («wer macht was»), nicht ins Wissen.
 - **Mail:** keine eigene Notiz-Adresse; was an die Postfächer der Gesellschaften kommt, ordnet das
   System zu.
 - Kultur (Fehler melden ist sicher, wer meldet, hört, was daraus wurde) ist Teil des Ziels, kann
@@ -81,9 +85,12 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 - 03.11.2026 – Kein Zählen, keine Termine, kein «zu tun»: Wichtigkeit beurteilt die KI je Notiz mit
   Grund; Wichtiges bleibt oben am Ding. Das Werkzeug bewahrt Wissen, es führt keine Aufgaben.
 - 03.11.2026 – Die KI legt ab (auch aufgeteilt), der Mensch kontrolliert; «+» halten = sprechen.
+- 03.11.2026 – Keine Ausnahme für Sicherheit; kein Eingabefeld im Verlauf; Wichtigkeit ohne feste
+  Gründe (freier Satz).
 
 ## Offene Fragen
 
-- Gibt es Gründe, bei denen Wichtiges nicht warten darf, bis jemand vorbeikommt (z. B. Sicherheit)?
-- Braucht der Verlauf noch ein eigenes Eingabefeld, oder nur noch für Nachrichten an Menschen?
+- Name des Einstiegs: «Erfassen» oder «Assistent» (erfassen, nachfragen, später Fragen beantworten)?
+- Antworten auf eine Mail ohne Eingabefeld im Verlauf: über den Einstieg, mit Empfänger vorbelegt?
+- Aufgabenmanagement («wer macht was»): eigenes Folgeprojekt; Mindestlösung bis dahin?
 - Welcher Sprachdienst (Mundart)?
