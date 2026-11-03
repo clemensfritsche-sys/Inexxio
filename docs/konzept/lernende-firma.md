@@ -22,7 +22,7 @@ Woran wir es messen (nach rund 3 Monaten im Alltag):
 
 1. **Erfassen unter 30 Sekunden** – jede Montage, jedes Kundengespräch hinterlässt eine Notiz.
 2. **In 30 Sekunden gefunden** – was über ein Ding bekannt ist, steht dort, mit Quelle.
-3. **Wiederholtes meldet sich selbst** – das dritte gleiche Problem landet ungefragt bei jemandem.
+3. **Wichtiges ist nicht zu übersehen** – es steht oben am Ding, bis es erledigt oder überholt ist.
 4. **Keine neue Insel** – bestehende Funktionen werden zusammengeführt, keine kommt dazu.
 
 ## Regeln (entschieden)
@@ -48,8 +48,15 @@ Woran wir es messen (nach rund 3 Monaten im Alltag):
 - **Ein zentrales Log** für jede Änderung an jedem Ding, sichtbar im Verlauf (vorher → nachher,
   wer, woher). Heute lückenlos nur Prozess, Zeiterfassung und Geld; sonst nur «wer rief welche
   Adresse auf». Vorgesehen, noch nicht gebaut.
-- **Kein Rückblick, kein Dashboard.** Was zu tun ist, meldet sich am Ding und im «zu tun». Ob
-  etwas gewirkt hat, zeigt die Stille; kommt es wieder, meldet es sich erneut.
+- **Ein Wissenswerkzeug, kein Management-Werkzeug.** Kein Rückblick, kein Dashboard, keine
+  Termine, kein «zu tun». Wer was tut, regeln Aufträge.
+- **Die KI zuerst:** sie legt ab, auch aufgeteilt auf mehrere Dinge (je Teil eine Heimat), und
+  beurteilt jede Notiz beim Erfassen: wichtig ja/nein, mit Grund. Der Mensch kontrolliert im selben
+  Moment («Stimmt so» oder «ändern») – auch im Datensatz entscheidet nicht er, wohin es gehört.
+- **Wichtiges bleibt oben** in «Relevant hier», bis es erledigt oder überholt ist. Kein Zählen
+  («ab dem dritten Mal» ist verworfen: eine einzelne Meldung kann hochrelevant sein).
+- **Ein Einstieg:** der rote «+» – halten = sprechen, tippen = Menü (Kamera, Galerie, Scannen,
+  Schreiben, Neuer Datensatz).
 - **Mail:** keine eigene Notiz-Adresse; was an die Postfächer der Gesellschaften kommt, ordnet das
   System zu.
 - Kultur (Fehler melden ist sicher, wer meldet, hört, was daraus wurde) ist Teil des Ziels, kann
@@ -63,7 +70,7 @@ Woran wir es messen (nach rund 3 Monaten im Alltag):
 | 1 | Verlauf an jeder Nummer · «Erfassen» (Sprechen, Kamera, Galerie, Scannen, Schreiben) · KI-Fassung · eine Rückfrage | offen |
 | 2 | Zentrales Log im Verlauf | offen |
 | 3 | «Relevant hier» | offen |
-| 4 | «Meldet sich selbst» (Häufung, Termin) | offen |
+
 
 Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 
@@ -71,12 +78,12 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 
 - 03.11.2026 – Arbeitsweise: Claude führt, stellt Fragen mit Empfehlung; Clemens entscheidet.
 - 03.11.2026 – Spracherfassung kommt in Phase 1, nicht später.
-- 03.11.2026 – «Meldet sich selbst» landet zu Beginn bei Clemens; ein Feld «verantwortlich» erst,
-  wenn eine zweite Person mitarbeitet.
+- 03.11.2026 – Kein Zählen, keine Termine, kein «zu tun»: Wichtigkeit beurteilt die KI je Notiz mit
+  Grund; Wichtiges bleibt oben am Ding. Das Werkzeug bewahrt Wissen, es führt keine Aufgaben.
+- 03.11.2026 – Die KI legt ab (auch aufgeteilt), der Mensch kontrolliert; «+» halten = sprechen.
 
 ## Offene Fragen
 
-- Wie sieht der eine Einstieg zum Erfassen aus (der rote «+» oder ein eigener Knopf)?
-- Wie entscheidet das System, was jetzt und was später wichtig ist? → Vorschlag «Drei Auslöser»,
-  im Gespräch vom 03.11.2026.
+- Gibt es Gründe, bei denen Wichtiges nicht warten darf, bis jemand vorbeikommt (z. B. Sicherheit)?
+- Braucht der Verlauf noch ein eigenes Eingabefeld, oder nur noch für Nachrichten an Menschen?
 - Welcher Sprachdienst (Mundart)?
