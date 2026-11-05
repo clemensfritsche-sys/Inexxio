@@ -131,7 +131,7 @@ Lieferschein). Die Entscheidungen:
 ## KI
 
 > **Wieder gebaut (Oktober 2026)** – neu, nicht aus dieser Datei: EINE Tür `services/ai.py`
-> (Lesen, Verfassen, Tagesdeckel, jeder Aufruf im `audit_log`), `docs/dokumente.md`. Hier
+> (Lesen, Verfassen, Tagesdeckel, jeder Aufruf im Log als `ai.call`), `docs/dokumente.md`. Hier
 > steht nur noch, was der alte Anlauf entschieden hatte; der Assistent mit Werkzeugen ist
 > nicht zurückgekommen.
 
@@ -161,7 +161,7 @@ Angebotszeile, die eine Anbindung füllt statt ein Mensch.
 Eine append-only Outbox (`events`) als «ökonomische Wahrheit» für KI und Automatisierung.
 Sie ist mitgegangen, weil sie nach dem Neuaufbau **kein einziger Schreiber mehr füllte** –
 der Endpunkt lieferte einen Strom aus, in den nichts mehr floss. Die Wahrheit über das
-Material steht seither im **Material-Journal** (`process_events`, ADR 007); ein zweiter
+Material steht seither im **Material-Journal** (heute `process.*` im Log, ADR 007); ein zweiter
 Strom daneben wäre genau die zweite Wahrheit, die dieses Projekt nicht will. Die Tabelle
 `events` ist mit Migration `152` gefallen.
 
@@ -229,3 +229,25 @@ ihr Fremdschlüssel entstanden **nie** aus einer Migration, nur aus dem Start. D
 **Die Entscheidung darin:** ein Weg zum Schema, und der bricht laut. Wer eine Lücke findet,
 schreibt eine Migration – der Wächter `test_schema_is_built_by_the_migrations` meldet sie
 vorher in beide Richtungen.
+
+
+## `audit_log`, `process_events` und das Protokollieren in den Diensten (November 2026)
+
+`models/audit.py` (`AuditLog`) · `services/admin.py` (`log_audit`, rund 40 Aufrufe in Diensten
+und Routern) · `main.audit_writes` (eine Zeile je schreibender Anfrage) · `models/process_event.py`
+als Tabelle · `domain/process_log.py` (ihr append-only-Trigger).
+
+**Was sie konnten.** `audit_log` hielt fest, was eine Stelle von Hand meldete (Feld, alt, neu,
+`on_behalf`), dazu jede schreibende Anfrage als Pfad. `process_events` war das Journal des
+Prozesses mit Fremdschlüsseln.
+
+**Warum sie weg sind.** Zwei Logs, und das eine nur so vollständig wie die Disziplin jeder
+Schreibstelle: was eine Stelle nicht meldete, stand nirgends. Ersetzt durch **das Log**
+(Migration `166`, Projektakte `docs/konzept/lernende-firma.md` §1): die Datenbank schreibt jede
+Zeilen-Änderung selbst, mit Handelndem und Vorgang, und scheitert ohne Handelnden. Die
+Prozess-Ereignisse zogen als `process.*` ins Log um (gelesen über die Sicht `process_log`);
+`audit_log` wurde nicht übernommen (keine Rückwärtskompatibilität). Die beiden Tabellen fallen
+mit Migration `167` (Zwei-Deploy-Regel).
+
+**Die Entscheidung darin:** protokolliert wird unter der Anwendung, nicht in ihr – eine neue
+Tabelle, ein neuer Dienst, ein neues Feature hinterlassen ihre Spur von selbst.

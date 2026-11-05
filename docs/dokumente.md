@@ -63,7 +63,7 @@ Absenz, Bild der Datenerfassung, Anhang einer Mail, Foto aus dem Kontaktformular
 
 Eine Tür (`services/ai.ask`), Aufgaben und Modelle in `TASKS` (Lesen: Haiku 5.5, Verfassen:
 Sonnet 5.5), feste Antwortform (structured outputs), Tagesdeckel `AI_DAILY_CAP` (300), jeder
-Aufruf eine Zeile im `audit_log` (`on_behalf = ai`). Ohne `ANTHROPIC_API_KEY` geht alles
+Aufruf ein Ereignis im Log (`ai.call`, Handelnder `ai` im Namen der Person). Ohne `ANTHROPIC_API_KEY` geht alles
 ausser Verfassen; ein ohne KI freigegebenes Dokument wird beim Öffnen nachgelesen, sobald es
 sie gibt. **Suchen** ist reine Datenbank (Nummer, Art, Name, Volltext über Gelesenes).
 

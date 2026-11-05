@@ -75,7 +75,7 @@ Abschnittstitel mit. Eine Notiz am Bewegungs-Panel liest sich dann als
 `feedback_notes` (Migration `082`) – bewusst **ohne Objektnummer**. Eine Notiz ist ein
 Meta-Artefakt *über* dem System, kein Geschäftsobjekt; sie gehört weder in den 9-stelligen
 Nummernkreis noch in den ERP-Feed, den Event-Strom oder das Audit-Log. Gleiche Einordnung
-wie `ai_actions`, `attachments`, `audit_log`. Deshalb heisst die Referenz auf den offenen
+wie `ai_actions`, `attachments`, `log`. Deshalb heisst die Referenz auf den offenen
 Datensatz `target_object_id` (wie bei `AiAction`) und nicht `object_id` – `object_id` ist
 im System immer die *eigene* Nummer eines Datensatzes.
 
