@@ -165,6 +165,14 @@ gcloud run services update-traffic inexxio-backend-dev --to-revisions <REVISION>
 Das Frontend kehrt mit einem Revert auf dem Branch zurück. Rollback-Punkte stehen als
 Commit-Hash in `docs/history/`.
 
+**Zurück vor das Log (vor Migration 166) – nur mit Downgrade.** Ab 166 schreibt die Datenbank
+jede Änderung selbst ins Log und **weist jede Änderung ohne Handelnden ab**; eine ältere
+Revision setzt keinen Handelnden und könnte danach nichts mehr schreiben. Vor dem Umschalten auf
+eine Revision vor 166 darum zuerst **mit dem neuen Code** `alembic downgrade 165` fahren (Cloud
+SQL Proxy oder ein einmaliger Cloud-Run-Job mit dem neuen Image): das entfernt Sicht,
+Funktionen und Trigger des Logs. Nach Migration 167 (die alten Tabellen sind weg) ist dieser
+Weg nur noch mit leeren Tabellen möglich.
+
 ## Laufende Kosten
 
 > **Die Regel: was nicht auf null skaliert, kostet rund um die Uhr.** Cloud Run tut es

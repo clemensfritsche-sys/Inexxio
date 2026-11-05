@@ -47,13 +47,15 @@ alembic revision --autogenerate -m "description"     # neue Migration
 - **Basis `161`**: `alembic/versions/161_baseline.py` führt `161_baseline.sql` aus (das Schema
   bis 161, eingefroren aus `pg_dump --schema-only`, nie von Hand ändern). Eine DB, die schon
   auf 161 steht, bekommt nichts; die nächste Migration ist `162`.
-- **Der Start** (`main.lifespan`, unter einem Advisory-Lock): die drei Trigger aus der
+- **Der Start** (`main.lifespan`, unter einem Advisory-Lock): die Trigger aus der
   Fachschicht neu schreiben – `statuses.terminal_guard_sql` (Endzustand),
   `timekeeping.append_only_sql` (`time_entries`/`time_contracts` append-only) und
-  `process_log.append_only_sql` (`process_events` append-only); scheitert das,
-  startet er nicht. Danach, je in eigener Sitzung und nur mit Warnung bei Fehlschlag: der
-  Betreiber als nummerierter Datensatz (`sites.operator`) und die Rechtstexte als Dokumente
-  (`legal.adopt_templates`, nur solange es noch keine gibt). Admin wird nur `initial_admin_email`,
+  `log.triggers_sql` (die Funktionen des Logs, `log`/`log_seal` unveränderlich, je Tabelle
+  der Zeilen-Trigger `trg_log_row`); scheitert das, startet er nicht. Danach, je in eigener
+  Sitzung (Handelnder: das System, `start`) und nur mit Warnung bei Fehlschlag: der Betreiber
+  als nummerierter Datensatz (`sites.operator`), die Rechtstexte als Dokumente
+  (`legal.adopt_templates`, nur solange es noch keine gibt) und das Siegel des Logs für jeden
+  abgeschlossenen Tag (`log.seal_due`). Admin wird nur `initial_admin_email`,
   beim Login (`core/auth`).
 - **dev neu aufbauen** (nur dev, alle Daten weg): `scripts/reset-dev-db.sql` auf `inexxio_dev`
   (bricht auf jeder anderen Datenbank ab), dann ein Deploy – der Start baut alles aus den
@@ -77,6 +79,7 @@ alembic revision --autogenerate -m "description"     # neue Migration
 app/
 ├── main.py           ← App, Router-Registrierung, CORS, Start (Trigger, Betreiber, Rechtstexte)
 ├── core/             ← config.py (Settings – nur, was der Code liest) · database.py ·
+│                       actor.py (WER handelt: act, public(…), system_session) ·
 │                       auth.py (Firebase-JWT, get_current_user, require_employee, require_admin;
 │                       nur bestätigte Adressen) · clock.py (jetzt/heute in Europe/Zurich) ·
 │                       signed.py (signierte Links, LINK_SECRET)
@@ -86,7 +89,8 @@ app/
 │   ├── capture_types/← Erfassungspunkt-Typen (text · yes_no · photo · signature · measure)
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)
-│   ├── process_log.py← der Ereignis-Log append-only (Trigger)
+│   ├── log.py        ← das Log: Funktionen und Trigger (wer handelt, Zeilen, Ereignisse,
+│   │                   unveränderlich, Schwärzen, Siegel), OBJECT (Tabelle → Ding)
 │   ├── voucher.py    ← der Beleg: Direction, Stufen, Steuer (VAT_RATES, vat_split,
 │   │                   vat_choices nach Anschrift), Saldo (balance), Mahnstufen, Wörter
 │   ├── currency.py   ← Währungen (ISO 4217) mit ihren Nachkommastellen
@@ -121,7 +125,7 @@ scripts/
 | Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen) |
-| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `admin.py` (das eine Log) |
+| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
 Nach jeder Änderung an einem Request/Response-Schema oder am Statuskatalog:
@@ -274,8 +278,13 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 - UTC-Timestamps; Pydantic v2 (`model_validate`, `model_dump`,
   `ConfigDict(from_attributes=True)`); SQLAlchemy 2.1 (`Mapped[T]`, `mapped_column`).
 - Fehler: `HTTPException(status_code=…, detail="…")` mit einem Satz, der die Sache nennt.
-- Audit-Log bei jedem Update (`people.apply_profile_update` ist der eine Pfad für den
-  Benutzer).
+- **Das Log schreibt die Datenbank** (`domain/log`, `docs/konzept/lernende-firma.md` §1): kein
+  Dienst protokolliert Zeilen-Änderungen selbst. Ein Dienst schreibt nur **Ereignisse**, die
+  keine Zeile ändern (`services/log.event`). **Jede Route mit Datenbank setzt einen
+  Handelnden** – `get_current_user` (die Person) oder `dependencies=[public("web" | "link" |
+  "webhook" | "login" | "probe")]`; eine eigene Sitzung (Start, Job, Skript) bekommt ihn über
+  `core/actor.system_session` bzw. `act`. Ohne Handelnden scheitert jedes Schreiben
+  (`tests/test_log.py` prüft jede Route).
 - **Pydantic verwirft unbekannte Felder still** – ein neues Feld gehört in Request-Schema
   **und** Dienst; ein Feld, das die Oberfläche nicht anbietet, verwirft der Dienst
   ausdrücklich.

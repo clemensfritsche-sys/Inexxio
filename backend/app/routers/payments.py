@@ -13,13 +13,14 @@ from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from ..core.actor import public
 from ..core.database import get_db
 from ..services import stripe_pay, voucher_docs
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
 
-@router.post("/webhook")
+@router.post("/webhook", dependencies=[public("webhook")])
 async def webhook(
     request: Request,
     stripe_signature: str = Header("", alias="Stripe-Signature"),

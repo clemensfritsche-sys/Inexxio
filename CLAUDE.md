@@ -87,9 +87,22 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   passieren sie. **Artikel und Auftrag entstehen erst mit ihrer Freigabe** (ein `POST`,
   Anlegen = Freigeben); bis dahin lebt der Entwurf im Browser, ohne Zeile und ohne Nummer.
   Ein Artikel wird danach nicht mehr geändert.
-- **Ereignis-Log** (`process_events`), append-only: jeder Statuswechsel schreibt genau dort
-  (`process._pass` ist die eine Schreibstelle). Bild, Protokoll, Stückliste und Journey sind
-  **Ableitungen aus dem Log**, nie aus dem heutigen Zustand.
+- **Das Log** (`log`, Projektakte `docs/konzept/lernende-firma.md` §1): **eine** Tabelle,
+  append-only, für alles, was geschieht. **Die Datenbank schreibt es selbst**: ein Trigger
+  (`domain/log.log_row`) an jeder Tabelle hält jede Änderung fest – wer (`actor_kind`
+  person · ai · system · external, `actor_id` = Objektnummer), woher (`source`, `request_id`
+  je Anfrage), an welchem Ding (`object_id`, `domain/log.OBJECT`), nur das Geänderte
+  (`changes`); Geheimes und Binäres nie im Klartext. **Wer handelt**, setzt `core/actor.act`
+  an einer Stelle (Anmeldung, `public(…)` an öffentlichen Routen, Start, Migration) – **ohne
+  Handelnden scheitert jedes Schreiben**. Fachliche Ereignisse ohne Zeilen-Änderung schreibt
+  `services/log.event` (z. B. `ai.call`, `mail.send_failed`, `document.read`,
+  `voucher.action`). Unveränderlich per Trigger (auch `TRUNCATE`); einzige Ausnahme die
+  Schwärzung `log.redact`, die sich selbst einträgt. Je abgeschlossenem Tag ein verkettetes
+  Siegel (`log_seal`, `log.seal_due` beim Start und im Abgleich, `log.verify`).
+- **Ereignisse des Prozesses** stehen im Log als `process.<art>` (`process._pass` ist die
+  eine Schreibstelle, über `log.process_events`); gelesen über die Sicht `process_log`
+  (`models.ProcessEvent`). Bild, Protokoll, Stückliste und Journey sind **Ableitungen aus dem
+  Log**, nie aus dem heutigen Zustand.
 - **Exklusivität**: ein Stück ist in genau einem Auftrag aktiv – als partieller
   Unique-Index auf der offenen Zugehörigkeit (`order_units`).
 - **Dokument** (`docs/dokumente.md`): Datei + Art + Name + Referenz(en), eigene
@@ -397,9 +410,10 @@ CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
 - **Eine gescheiterte Migration bleibt nie unbemerkt**: `/health` sagt `schema` (`current` ·
   `behind`), `revision` und `head` (503, wenn etwas nicht stimmt); nach jedem Deploy liest
   `scripts/check-schema.sh` das und macht den Lauf rot.
-- **Der Start schreibt nur, was aus dem Code folgt**: die drei Trigger aus der Fachschicht
-  (`statuses.terminal_guard_sql`, `timekeeping.append_only_sql`,
-  `process_log.append_only_sql`), den Betreiber als Datensatz
+- **Der Start schreibt nur, was aus dem Code folgt**: die Trigger aus der Fachschicht
+  (`statuses.terminal_guard_sql`, `timekeeping.append_only_sql`, `log.triggers_sql` – die
+  Funktionen des Logs und je Tabelle ihr Zeilen-Trigger; eine Tabelle, die `domain/log.OBJECT`
+  nicht kennt, hält den Start an), den Betreiber als Datensatz
   und die Rechtstexte als Dokumente (`main.lifespan`). Er löscht nichts und ernennt niemanden
   – Admin wird nur `initial_admin_email`, beim Login (`core/auth`).
 - **Neue Tabelle** = voller Spaltensatz in der Migration (inkl. geerbter `is_active`,
@@ -506,8 +520,10 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
 ## Sicherheit und Datenschutz
 **Gebaut:** HTTPS/HSTS, CSP und Security-Header (`firebase.json`); Firebase-Anmeldung,
 Passkeys serverseitig (`services/passkey.py`); Secrets nur im Google Secret Manager. **Jede
-schreibende Anfrage** ans ERP steht im `audit_log` (`main.audit_writes`), jeder KI-Aufruf auch
-(`on_behalf = ai`). Hochgeladene Dateien, die nicht Bild oder PDF sind, kommen mit
+Änderung** steht im Log (`log`, von der Datenbank selbst geschrieben, mit Handelndem und
+Vorgang), jeder KI-Aufruf auch (`ai.call`, Handelnder `ai` im Namen der Person); geöffnete
+Dokumente (`document.read`, `document.viewed`, `voucher.viewed`) ebenso. Das Log ist
+unveränderlich und je Tag versiegelt; Schwärzen (Datenschutz) nur über `log.redact`. Hochgeladene Dateien, die nicht Bild oder PDF sind, kommen mit
 `Content-Security-Policy: sandbox`.
 **Vorgemerkt, nicht gebaut:** TOTP-MFA für Admins, Session-Timeout, Brute-Force-Sperre.
 CH DSG + DSGVO: **keine Statistik, keine Cookies, kein Einwilligungs-Dialog** (Plausible

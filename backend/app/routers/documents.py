@@ -19,6 +19,7 @@ from ..schemas.documents import (
     ProposedRef, RecordOut, RefIn, RequirementOut, SendIn, SignatureOut, SignerOut, TargetIn,
     TemplateIn, ComposeIn, ComposeOut,
 )
+from ..services import log
 from ..services import (access, ai, composing, document, documents as docs, fields, legal,
                         people, reading, records, signing, sites)
 from ..services import requirements as reqs
@@ -306,4 +307,10 @@ def delete_document(object_id: int, data: DeleteIn, db: Session = Depends(get_db
 @router.get("/{object_id}", response_model=DocumentDetail)
 def get_document(object_id: int, db: Session = Depends(get_db),
                  user: UserProfile = Depends(require_employee)):
-    return detail(db, docs.readable(db, object_id, user))
+    """Ein Dokument lesen – **wer welches Dokument geöffnet hat, steht im Log**
+    (``document.read``)."""
+    doc = docs.readable(db, object_id, user)
+    out = detail(db, doc)
+    log.event(db, "document.read", doc.object_id)
+    db.commit()
+    return out

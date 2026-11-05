@@ -2,7 +2,7 @@ import json
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from .config import get_settings
 
@@ -51,6 +51,20 @@ engine = create_engine(
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+#: Wer handelt – an der Sitzung gemerkt (``core/actor.act``) und in jede Transaktion getragen.
+ACTOR_KEY = "log_actor"
+SET_ACTOR = text("SELECT set_config('inexxio.actor', :a, true)")
+
+
+@event.listens_for(SessionLocal, "after_begin")
+def _carry_actor(session, _transaction, connection) -> None:
+    """``SET LOCAL`` gilt nur bis zum Commit – jede neue Transaktion der Sitzung bekommt den
+    Handelnden wieder (``core/actor``)."""
+    actor = session.info.get(ACTOR_KEY)
+    if actor:
+        connection.execute(SET_ACTOR, {"a": json.dumps(actor)})
 
 
 class Base(DeclarativeBase):

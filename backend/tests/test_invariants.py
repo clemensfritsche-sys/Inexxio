@@ -79,7 +79,8 @@ def test_every_invariant_would_actually_notice_something():
     (Bruch von G2) und ein Log-Eintrag aus einem Endzustand heraus (Bruch von G4). Beide
     müssen gemeldet werden – täte es keiner, wäre das grüne Ergebnis oben wertlos.
     """
-    from app.models import InstanceUnit, OrderUnit, ProcessEvent
+    from app.models import InstanceUnit, OrderUnit
+    from app.services import log
     from tests import invariants
 
     db = session()
@@ -99,8 +100,9 @@ def test_every_invariant_would_actually_notice_something():
         db.add(OrderUnit(order_id=order.id, instance_unit_id=unit.id,
                          current_step_id=w.steps(order)[0].id))
         # Bug-Form 2: ein Wechsel aus einem Endzustand heraus.
-        db.add(ProcessEvent(order_id=order.id, instance_unit_id=unit.id, kind="step",
-                            status_before="verschrottet", status_after="freigegeben"))
+        log.process_events(db, [dict(order_id=order.id, step_id=None, instance_unit_id=unit.id,
+                                     kind="step", status_before="verschrottet",
+                                     status_after="freigegeben", payload=None, actor_id=None)])
         # Bug-Form 3: ein Zustand, den der Katalog nicht kennt.
         db.add(InstanceUnit(instance_id=unit.instance_id, suffix=99, status="phantasie"))
         db.flush()

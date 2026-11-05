@@ -22,7 +22,6 @@ from sqlalchemy.orm import Session
 
 from ..models import Address, UserProfile
 from . import address as fmt
-from .admin import log_audit
 
 #: Die beiden Konten einer Person.
 PRIVATE, BUSINESS = "private", "business"
@@ -132,7 +131,6 @@ def _set_default(db: Session, a: Address, kind: str, actor_id: Optional[int],
             setattr(other, col, False)
     db.flush()
     setattr(a, col, True)
-    log_audit(db, "addresses", col, str(a.id), actor_id, object_id=object_id)
 
 
 def _owner(db: Session, owner_id: int) -> UserProfile:
@@ -155,8 +153,6 @@ def add(db: Session, owner: UserProfile, data: dict[str, Any],
     _assert_complete(a)
     db.add(a)
     db.flush()
-    log_audit(db, "addresses", None, f"Anschrift «{label(a)}» hinzugefügt", actor_id,
-              object_id=owner.object_id)
     for kind, col in KINDS.items():
         if data.get(col) or default(db, owner.id, kind, account) is None:
             _set_default(db, a, kind, actor_id, owner.object_id)
@@ -183,7 +179,6 @@ def change(db: Session, owner: UserProfile, address_id: int, data: dict[str, Any
     for key, value in _clean(data, a.account).items():
         if getattr(a, key) != value:
             setattr(a, key, value)
-            log_audit(db, "addresses", key, str(value), actor_id, object_id=owner.object_id)
     _assert_complete(a)
     for kind, col in KINDS.items():
         if data.get(col) and not getattr(a, col):
@@ -206,8 +201,6 @@ def remove(db: Session, owner: UserProfile, address_id: int,
     a.is_default_delivery = False
     a.is_default_billing = False
     db.flush()
-    log_audit(db, "addresses", None, f"Anschrift «{label(a)}» entfernt", actor_id,
-              object_id=owner.object_id)
     rest = of(db, owner, a.account)
     for kind, held in was.items():
         if held and rest:

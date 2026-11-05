@@ -709,7 +709,7 @@ def test_a_component_does_not_become_a_preceding_order():
         supply_id = w.db.execute(
             __import__("sqlalchemy").text(
                 "SELECT DISTINCT o.object_id FROM orders o "
-                "JOIN process_events e ON e.order_id = o.id "
+                "JOIN process_log e ON e.order_id = o.id "
                 "JOIN instance_units u ON u.id = e.instance_unit_id "
                 "JOIN instances i ON i.id = u.instance_id "
                 "WHERE i.article_id = :art"

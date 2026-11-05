@@ -9,7 +9,7 @@ class Order(Base, TimestampMixin):
 
     **Der Auftrag ist der Ort, an dem Prozesse ausgeführt werden** (PROCESS_CORE.md §8).
     Seine Struktur – die Schrittliste – hängt an ``process_steps``, seine Stücke an
-    ``order_units``, seine Historie an ``process_events``.
+    ``order_units``, seine Historie im Log (``process.*``, Sicht ``process_log``).
 
     **Er existiert erst ab der Freigabe.** Ein Auftragsentwurf lebt ausschliesslich im
     Browser: keine Entwurfs-Zeile, keine vorreservierte Nummer, kein Autosave. Wer den

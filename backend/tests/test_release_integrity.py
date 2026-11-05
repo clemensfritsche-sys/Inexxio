@@ -67,15 +67,16 @@ def test_the_log_refuses_every_change_and_every_delete():
     w = World(session())
     try:
         order = w.produce(w.article(), 1)
-        event_id = w.db.execute(text("SELECT id FROM process_events WHERE order_id=:o LIMIT 1"),
+        event_id = w.db.execute(text("SELECT id FROM process_log WHERE order_id=:o LIMIT 1"),
                                 {"o": order.id}).scalar()
-        for sql in ("UPDATE process_events SET status_after='verschrottet' WHERE id=:i",
-                    "DELETE FROM process_events WHERE id=:i"):
+        for sql in ("UPDATE log SET payload = payload || '{\"after\": \"verschrottet\"}' "
+                    "WHERE id=:i",
+                    "DELETE FROM log WHERE id=:i"):
             attempt = w.db.begin_nested()
             with pytest.raises(Exception) as err:  # noqa: PT011 - DBAPI-Fehlerklasse
                 w.db.execute(text(sql), {"i": event_id})
             attempt.rollback()
-            assert "Ereignis-Log" in str(err.value), f"Durchgelassen: {sql}"
+            assert "wird nie geändert oder gelöscht" in str(err.value), f"Durchgelassen: {sql}"
     finally:
         w.db.rollback()
         w.db.close()

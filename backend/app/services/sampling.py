@@ -33,10 +33,11 @@ den vollen Bestand des Auftrags.
 import random
 from typing import Any, Iterable, Optional
 
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..domain import modules, sampling as rule_of
+from . import log
 from ..models import InstanceUnit, Order, OrderUnit, ProcessEvent, ProcessStep
 from ..models.process_event import KIND_SAMPLE
 
@@ -82,7 +83,7 @@ def ensure(db: Session, *, order: Order, step: Optional[ProcessStep],
         }
         for u in sorted(picked, key=lambda u: u.id)
     ]
-    db.execute(insert(ProcessEvent), rows)
+    log.process_events(db, rows)
     return len(rows)
 
 

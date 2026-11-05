@@ -15,11 +15,11 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
+from .actor import act
 from .config import get_settings
 from .database import get_db
 from ..models import UserProfile
 from ..services import people
-from ..services.admin import log_audit
 from ..services.people import STAFF_ROLES
 
 settings = get_settings()
@@ -118,8 +118,6 @@ def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict
     email = people.normalize_email(email)
     if (verified and email and user.email != email
             and people.email_problem(db, user, email) is None):
-        log_audit(db, "user_profiles", "email", email, user.id,
-                  object_id=user.object_id, old_value=user.email)
         user.email = email
         changed = True
     new_photo = decoded.get("picture")
@@ -156,10 +154,17 @@ def get_current_user(
 
     uid = decoded["uid"]
     email = decoded.get("email", "")
+    # Wer handelt (``core/actor``): beim Finden/Anlegen das System, beim Abgleich aus dem
+    # Token die Person selbst, danach die Person in der Oberfläche.
+    act(db, "system", None, "login")
     user = _resolve_user(db, uid, email, decoded)
+    act(db, "person", user.object_id, "login")
     _sync_user_profile(db, user, email, decoded)
-    request.state.user_id = user.id     # für das Log jeder schreibenden Anfrage
+    act(db, "person", user.object_id, "ui")
     return user
+
+
+get_current_user.log_actor = True       # der Wächter: diese Abhängigkeit setzt den Handelnden
 
 
 def require_role(*roles: str):

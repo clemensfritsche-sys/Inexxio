@@ -714,7 +714,7 @@ einzelnen Nummern will, öffnet den genannten Auftrag.
 **Kein Nachbar heisst: nichts.** Kein Platzhalter, keine Zeile «kein Vorgänger». Ein
 Erzeugungsauftrag hat keinen — seine Stücke sind hier entstanden.
 
-**Ein Index ist kein zweiter Datenbestand.** `process_events (instance_unit_id, id)`
+**Ein Index ist kein zweiter Datenbestand.** Der Index über Stück und `id` im Log
 macht «welcher Auftrag war vor bzw. nach diesem?» zu einem Sprung an die Nachbar-Zeile.
 Er beschleunigt eine Frage; er beantwortet sie nicht. Zwei Abfragen je Auftrag,
 unabhängig von der Stückzahl.
@@ -1257,8 +1257,8 @@ nicht.
 nirgends, bis ein Modul es irgendwohin bringt.
 
 **Eine Spalte, keine append-only Tabelle** — weil die Vergangenheit schon woanders steht:
-jede Bewegung läuft über `confirm_step` und schreibt dort ihren Eintrag in
-`process_events`, mit Herkunft, Ziel und Transportart. Eine zweite Tabelle daneben wäre
+jede Bewegung läuft über `confirm_step` und schreibt dort ihren Eintrag ins Log
+(`process.step`), mit Herkunft, Ziel und Transportart. Eine zweite Tabelle daneben wäre
 eine zweite Wahrheit über denselben Vorgang. *Die Grenze ist benannt:* käme später ein
 Ablegen **ausserhalb** eines Auftrags dazu, hätte genau dieser Weg keine Historie — dann
 kommt sie dort dazu, und diese Spalte bleibt richtig.
@@ -1656,22 +1656,25 @@ gleichzeitige Freigaben beide «ist frei» und schreiben beide.
 ### 11.3 Ebene 3 — Ereignis-Log (die eingefrorene Historie)
 
 ```
-process_events
-  id · order_id · step_id · instance_unit_id
+log  (event = process.<art>, die Sicht process_log stellt es so dar:)
+  id · order_id · step_id · instance_unit_id · kind
   status_before · status_after
   payload(JSONB)  actor_id  created_at
 ```
 
-Append-only. Kein Update, kein Delete, kein `is_active`. Die Reihenfolge ist die `id` —
-sie ist die Zeitachse.
+Die Ereignisse des Prozesses stehen im **einen Log** des Systems (`log`, CLAUDE.md «Das
+Log»), geschrieben nur von `process._pass` und seinen Geschwistern über
+`services/log.process_events`; gelesen über die Sicht `process_log`. Append-only – die
+Datenbank weist jedes Update, Delete und Truncate ab. Die Reihenfolge ist die `id` — sie
+ist die Zeitachse.
 
 Der Log trägt damit **zwei** Fragen, nicht eine: was ist mit diesem Auftrag passiert
 (§7.2) und **wo war dieses Stück vorher bzw. nachher** (§7.4). Für die zweite steht ein
-Index `(instance_unit_id, id)` daneben — dieselbe Tabelle, nur eine zweite Leserichtung.
+Index über das Stück und die `id` daneben — dieselbe Tabelle, nur eine zweite Leserichtung.
 
-**Eine eigene Tabelle, und zwar die EINZIGE.** Einen zweiten, allgemeinen Ereignis-Strom
-gibt es nicht (`docs/attic.md`): wer Analytik braucht, liest **diesen** Log — er ist die
-Wahrheit über das Material.
+**Ein Log, und zwar das EINZIGE.** Einen zweiten Ereignis-Strom gibt es nicht
+(`docs/attic.md`): wer Analytik braucht, liest **dieses** Log — es ist die Wahrheit über das
+Material und über alles andere.
 
 ---
 

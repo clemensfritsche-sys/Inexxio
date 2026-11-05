@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
+from ..core.actor import public
 from ..core.database import get_db
 
 router = APIRouter(tags=["health"])
@@ -39,7 +40,7 @@ def schema_state(db: Session) -> dict:
             "revision": revision, "head": head}
 
 
-@router.get("/health")
+@router.get("/health", dependencies=[public("probe")])
 def health_check(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))

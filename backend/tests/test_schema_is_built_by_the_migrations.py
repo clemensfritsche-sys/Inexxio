@@ -92,8 +92,17 @@ def gaps(insp) -> list[str]:
     import app.models  # noqa: F401 – füllt die Metadaten
 
     tables = set(insp.get_table_names())
+    views = set(insp.get_view_names())
     found: list[str] = []
     for name, table in sorted(Base.metadata.tables.items()):
+        if table.info.get("view"):
+            # Eine Sicht (``process_log``): sie muss stehen und jede Spalte des Modells tragen.
+            if name not in views:
+                found.append(f"Sicht {name}")
+            else:
+                have = {c["name"] for c in insp.get_columns(name)}
+                found += [f"{name}.{c}" for c in sorted({c.name for c in table.columns} - have)]
+            continue
         if name not in tables:
             found.append(f"Tabelle {name}")
             continue
@@ -135,6 +144,10 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop.
 PENDING_DROP: set[str] = set()
 
+#: Dasselbe für ganze **Tabellen**: ``audit_log`` und ``process_events`` sind seit Migration
+#: 166 durch das Log ersetzt und ungemappt; Migration 167 droppt sie im Folge-Deploy.
+PENDING_DROP_TABLES: set[str] = {"audit_log", "process_events"}
+
 
 def leftovers(insp) -> list[str]:
     """Tabellen und Spalten, die **kein Modell** kennt – die Rückrichtung des Wächters
@@ -145,7 +158,8 @@ def leftovers(insp) -> list[str]:
     pending = PENDING_DROP
     tables = Base.metadata.tables
     found: list[str] = []
-    for name in sorted(set(insp.get_table_names()) - set(tables) - _TABLES_WITHOUT_MODEL):
+    for name in sorted(set(insp.get_table_names()) - set(tables) - _TABLES_WITHOUT_MODEL
+                       - PENDING_DROP_TABLES):
         found.append(name)
     for name in sorted(set(insp.get_table_names()) & set(tables)):
         mapped = {c.name for c in tables[name].columns}

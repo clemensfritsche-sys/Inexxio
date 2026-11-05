@@ -19,9 +19,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..domain import modules, statuses as st
+from . import log
 from ..models import (
-    Instance, InstanceUnit, Order, OrderUnit, ProcessEvent,
-    ProcessStep,
+    Instance, InstanceUnit, Order, OrderUnit, ProcessStep,
 )
 from ..models.process_event import (
     KIND_CAPTURE, KIND_END, KIND_RETURN, KIND_START, KIND_STEP,
@@ -114,8 +114,8 @@ def _pass(
 
     # Der Vorher-Status wird gelesen, **bevor** geschrieben wird – sonst stünde im Log
     # zweimal derselbe Wert und der Übergang wäre nicht mehr ablesbar.
-    db.execute(
-        insert(ProcessEvent),
+    log.process_events(
+        db,
         [
             {
                 "order_id": order.id,
@@ -433,7 +433,7 @@ def _record(db: Session, *, order: Order, step: ProcessStep, units: list[Instanc
         db, order=order, step=step, units=drawn, captures=by_unit, actor_id=actor_id,
     )
     if captures:
-        db.execute(insert(ProcessEvent), [
+        log.process_events(db, [
             {
                 "order_id": order.id, "step_id": step.id, "instance_unit_id": u.id,
                 "kind": KIND_CAPTURE,
@@ -766,7 +766,7 @@ def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, Insta
             "payload": {"from_order": order.object_id},
             "actor_id": actor_id,
         })
-    db.execute(insert(ProcessEvent), events)
+    log.process_events(db, events)
     for part in _chunks(reopen):
         db.execute(
             update(OrderUnit)

@@ -33,7 +33,6 @@ from ..services import articles as articles_svc
 from ..services import bom as bom_svc
 from ..services import instances as inst_svc
 from ..services import lookup
-from ..services.admin import log_audit
 
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["articles"])
 
@@ -147,13 +146,8 @@ def create_article(
     """
     article = articles_svc.create_article(
         db, data.model_dump(exclude_unset=True), actor_id=user.id)
-    log_audit(db, "articles", "release", article.name,
-              user_id=user.id, object_id=article.object_id)
-    # Die Ersetzung wird beim **Vorgänger** protokolliert: dort ist sie die Änderung, und
+    # Die Ersetzung steht im Log beim **Vorgänger** (seine Zeile bekommt ``replaced_by_id``):
     # dort sucht sie jemand, der wissen will, warum ein Artikel ausser Betrieb ging.
-    if data.replaces_object_id:
-        log_audit(db, "articles", "replaced_by", str(article.object_id),
-                  user_id=user.id, object_id=data.replaces_object_id)
     db.commit()
     db.refresh(article)
     return _out(article)

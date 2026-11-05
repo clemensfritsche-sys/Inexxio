@@ -31,7 +31,6 @@ from ..domain import communication as dc
 from ..domain import documents as dd
 from ..models import Document, DocumentLink, DocumentSignature, Message, UserProfile
 from . import document, documents, mail_layout, sites
-from .admin import log_audit
 
 #: So gross darf ein Unterschriftszug sein (PNG).
 MAX_SIGNATURE_BYTES = 400 * 1024
@@ -82,8 +81,6 @@ def send(db: Session, doc: Document, person_ids: list[int], note: str,
         documents.add_refs(db, doc, [documents.RefIn(object_id=oid)], actor)
         out.append(link)
     db.flush()
-    log_audit(db, "documents", "gesendet", ", ".join(str(i) for i in person_ids), actor.id,
-              object_id=doc.object_id)
     return out
 
 
@@ -188,8 +185,6 @@ def sign(db: Session, link: DocumentLink, image_data_url: str) -> None:
     image = _png(image_data_url)
     sig.image, sig.signed_at, sig.sha256 = image, datetime.now(timezone.utc), doc.sha256
     db.flush()
-    log_audit(db, "documents", "unterschrieben", sig.name, None, object_id=doc.object_id,
-              on_behalf="extern")
 
 
 def decline(db: Session, link: DocumentLink, reason: str) -> None:
@@ -200,8 +195,6 @@ def decline(db: Session, link: DocumentLink, reason: str) -> None:
     doc, sig = _mine(db, link)
     sig.declined_at, sig.reason = datetime.now(timezone.utc), reason
     db.flush()
-    log_audit(db, "documents", "abgelehnt", f"{sig.name}: {reason}", None,
-              object_id=doc.object_id, on_behalf="extern")
 
 
 def _png(data_url: str) -> bytes:

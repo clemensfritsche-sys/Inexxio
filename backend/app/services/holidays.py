@@ -18,7 +18,6 @@ from ..domain import timekeeping as tk
 from ..models import CompanySettings, Holiday, TimeContract, UserProfile
 from ..schemas.timekeeping import CompanyTimeView, HolidayOut, TaskOut
 from . import sites
-from .admin import log_audit
 from .time_view import vocab
 from .timekeeping import local, now_utc
 
@@ -89,8 +88,6 @@ def add(db: Session, actor: UserProfile, object_id: int, items) -> None:
         db.add(Holiday(company_object_id=c.object_id, day=it.day, name=it.name.strip(),
                        created_by=actor.id))
         taken.add(it.day)
-        log_audit(db, "holidays", "day", f"{tk.dmy(it.day)} {it.name}", actor.id,
-                  object_id=c.object_id)
     db.flush()
 
 
@@ -104,8 +101,6 @@ def remove(db: Session, actor: UserProfile, object_id: int, holiday_id: int) -> 
     if h is None:
         raise HTTPException(404, detail=f"Den Feiertag «{holiday_id}» gibt es nicht (mehr).")
     h.is_active = False
-    log_audit(db, "holidays", "is_active", "false", actor.id, object_id=c.object_id,
-              old_value=f"{tk.dmy(h.day)} {h.name}")
 
 
 def set_rules(db: Session, actor: UserProfile, object_id: int, data) -> None:
@@ -127,8 +122,6 @@ def set_rules(db: Session, actor: UserProfile, object_id: int, data) -> None:
                 raise HTTPException(400, detail="Nachweis ab Tag 1 bis 30 (leer = nie).")
             proof[key] = n or 0
         rules["proof"] = proof
-    log_audit(db, "company_settings", "time_rules", str(rules), actor.id,
-              object_id=c.object_id, old_value=str(c.time_rules))
     c.time_rules = rules
 
 

@@ -44,6 +44,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..core.actor import act
 from ..core import signed
 from ..core.config import get_settings
 from ..domain import communication as dc
@@ -196,6 +197,7 @@ def callback(db: Session, code: str, state: str) -> str:
     actor = db.query(UserProfile).filter(UserProfile.object_id == actor_oid).first()
     if actor is None or not may_connect(actor, channel):
         return "Dieses Postfach darfst du nicht verbinden."
+    act(db, "person", actor.object_id, "link")      # der signierte Link nennt, wer verbindet
     with httpx.Client(timeout=20) as http:
         r = http.post(TOKEN_URL, data={
             "code": code, "client_id": get_settings().google_client_id,
@@ -243,11 +245,8 @@ def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh:
 
 def _contact(db: Session, firm: Any, address: str, actor: UserProfile) -> None:
     """Die Kontakt-E-Mail einer eigenen Gesellschaft – geschrieben NUR von hier."""
-    from .admin import log_audit
     if normalize_email(firm.email) != address:
         firm.email = address
-        log_audit(db, "company_settings", "email", address or "[entfernt]", actor.id,
-                  object_id=firm.object_id)
 
 
 def disconnect(db: Session, channel: str, actor: UserProfile) -> None:
@@ -669,14 +668,15 @@ def _failed_after_error(db: Session, mid: int, exc: Exception) -> None:
 
 
 def _failed(db: Session, msg: Message, reason: str) -> None:
-    """Ein Fehlversuch – gezählt im Log (``audit_log``, eine Zeile je Versuch). Nach
-    ``MAX_ATTEMPTS`` gibt der Versand auf (``_give_up``)."""
-    from .admin import log_audit
-    from ..models import AuditLog
-    log_audit(db, "messages", "send_failed", reason[:500], None, old_value=str(msg.id))
-    tries = db.query(AuditLog.id).filter(AuditLog.table_name == "messages",
-                                         AuditLog.field_name == "send_failed",
-                                         AuditLog.old_value == str(msg.id)).count()
+    """Ein Fehlversuch – gezählt im Log (Ereignis ``mail.send_failed``, eines je Versuch).
+    Nach ``MAX_ATTEMPTS`` gibt der Versand auf (``_give_up``)."""
+    from ..models import Log
+    from . import log
+    log.event(db, "mail.send_failed", msg.sender_object_id, {"reason": reason[:500]},
+              table="messages", row=msg.id)
+    tries = db.query(Log.id).filter(Log.event == "mail.send_failed",
+                                    Log.table_name == "messages",
+                                    Log.row_key == str(msg.id)).count()
     if tries >= MAX_ATTEMPTS:
         _give_up(db, msg, reason)
 

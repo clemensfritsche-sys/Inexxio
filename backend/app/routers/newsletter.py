@@ -22,6 +22,7 @@ from html import escape
 from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
+from ..core.actor import public
 from ..core.database import get_db
 from ..domain import newsletter as dn
 from ..models import UserProfile
@@ -62,7 +63,7 @@ def _answer(wants_json: bool, msg: str, status: int, html_body: str = "") -> Res
             else page(msg, html_body, status))
 
 
-@router.post("", summary="Anmeldung von der Website (E-Mail → Bitte um Bestätigung)")
+@router.post("", summary="Anmeldung von der Website (E-Mail → Bitte um Bestätigung)", dependencies=[public("web")])
 def subscribe(request: Request, email: str = Form(""), hp: str = Form(""),
               db: Session = Depends(get_db)) -> Response:
     """Wie das Anfrage-Formular: Honigtopf und Begrenzung je Absender vor der Datenbank. Dann
@@ -96,7 +97,7 @@ def subscribe(request: Request, email: str = Form(""), hp: str = Form(""),
     return done
 
 
-@router.get("/confirm", include_in_schema=False)
+@router.get("/confirm", include_in_schema=False, dependencies=[public("link")])
 def confirm_page(t: str = "") -> Response:
     """Ein Knopf statt sofortiger Bestätigung – ein Link-Scanner drückt keinen Knopf."""
     try:
@@ -109,7 +110,7 @@ def confirm_page(t: str = "") -> Response:
     return page(W["inviteTitle"], body, 200)
 
 
-@router.post("/confirm", include_in_schema=False)
+@router.post("/confirm", include_in_schema=False, dependencies=[public("link")])
 def confirm(t: str = "", db: Session = Depends(get_db)) -> Response:
     """Der Klick auf den Knopf – angemeldet, mit Quelle und Wortlaut (``newsletter.confirm``)."""
     try:
@@ -121,7 +122,7 @@ def confirm(t: str = "", db: Session = Depends(get_db)) -> Response:
     return RedirectResponse(PAGES["confirmed"], status_code=303)
 
 
-@router.get("/unsubscribe", include_in_schema=False)
+@router.get("/unsubscribe", include_in_schema=False, dependencies=[public("link")])
 def unsubscribe_page(t: str = "") -> Response:
     """Ein Knopf statt sofortiger Abmeldung – ein Link-Scanner drückt keinen Knopf."""
     try:
@@ -134,7 +135,7 @@ def unsubscribe_page(t: str = "") -> Response:
     return page(W["unsubscribeTitle"], body, 200)
 
 
-@router.post("/unsubscribe", include_in_schema=False)
+@router.post("/unsubscribe", include_in_schema=False, dependencies=[public("link")])
 def unsubscribe(t: str = "", one_click: str = Form("", alias="List-Unsubscribe"),
                 db: Session = Depends(get_db)) -> Response:
     """Abmelden – vom Knopf der Seite oder mit einem Klick im Mailprogramm (RFC 8058: der

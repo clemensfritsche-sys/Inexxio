@@ -7,7 +7,7 @@
 * ``delete`` löscht, was nirgends hängt (Regel 8): Datei und Text sind weg, der Datensatz
   bleibt mit Art, Name, wer, wann, Grund.
 
-Jede schreibt ins ``audit_log``. Sonst schreibt niemand in diese Tabellen. Wer was sieht,
+Was sie ändern, schreibt die Datenbank selbst ins Log (``domain/log``). Sonst schreibt niemand in diese Tabellen. Wer was sieht,
 entscheidet ``services/access`` – hier wird nur gefragt.
 """
 
@@ -26,7 +26,6 @@ from sqlalchemy.orm import Session
 from ..domain import documents as dd
 from ..models import Attachment, Document, DocumentRef, DocumentSignature, UserProfile
 from . import access, attachments, objects, records
-from .admin import log_audit
 
 
 @dataclass(frozen=True)
@@ -188,7 +187,7 @@ def _check_refs(db: Session, refs: list[RefIn]) -> list[RefIn]:
 
 def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: str, name: str,
          source: str, refs: list[RefIn], actor: Optional[UserProfile],
-         on_behalf: Optional[str] = None, text: Optional[str] = None,
+         text: Optional[str] = None,
          keywords: Optional[str] = None, facts: Optional[dict] = None,
          stored: Optional[Attachment] = None) -> tuple[Document, bool]:
     """►►► **Freigeben – die einzige Stelle, an der ein Dokument entsteht.** ◄◄◄
@@ -225,8 +224,6 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
         db.add(DocumentRef(document_id=doc.id, object_id=r.object_id, part=r.part,
                            field=r.field, created_by=by))
     db.flush()
-    log_audit(db, "documents", "freigegeben", dd.title(art, name), by,
-              object_id=doc.object_id, on_behalf=on_behalf or (None if actor else "system"))
     return doc, False
 
 
@@ -264,8 +261,6 @@ def attach(db: Session, doc: Document, object_id: int, actor: UserProfile) -> Do
     ref = DocumentRef(document_id=doc.id, object_id=object_id, created_by=actor.id)
     db.add(ref)
     db.flush()
-    log_audit(db, "documents", "referenz", objects.obj_nr(object_id), actor.id,
-              object_id=doc.object_id)
     return ref
 
 
@@ -281,13 +276,10 @@ def detach(db: Session, doc: Document, ref_id: int, actor: UserProfile) -> None:
             f"dort, nie leer."))
     ref.is_active = False
     db.flush()
-    log_audit(db, "documents", "referenz", None, actor.id, object_id=doc.object_id,
-              old_value=objects.obj_nr(ref.object_id))
 
 
 def set_field(db: Session, *, document_object_id: int, object_id: int, part: Optional[str],
-              field: str, actor: Optional[UserProfile], on_behalf: Optional[str] = None
-              ) -> Document:
+              field: str, actor: Optional[UserProfile]) -> Document:
     """►►► **Ein Pflichtfeld setzen oder ändern – nie leeren.** ◄◄◄ Das Feld zeigt danach auf
     dieses Dokument; ein vorheriges verliert die Referenz (und lässt sich dann löschen)."""
     doc = by_object_id(db, document_object_id)
@@ -306,8 +298,6 @@ def set_field(db: Session, *, document_object_id: int, object_id: int, part: Opt
     db.add(DocumentRef(document_id=doc.id, object_id=object_id, part=part, field=field,
                        created_by=actor.id if actor else None))
     db.flush()
-    log_audit(db, "documents", field, objects.obj_nr(doc.object_id),
-              actor.id if actor else None, object_id=object_id, on_behalf=on_behalf)
     return doc
 
 
@@ -350,7 +340,6 @@ def delete(db: Session, doc: Document, reason: str, actor: UserProfile) -> None:
         db.flush()
         attachments.discard(db, att)
     db.flush()
-    log_audit(db, "documents", "gelöscht", reason, actor.id, object_id=doc.object_id)
 
 
 # ---------------------------------------------------------------------------

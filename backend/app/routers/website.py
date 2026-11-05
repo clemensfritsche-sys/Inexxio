@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..core.actor import public
 from ..core.database import get_db
 from ..services import phone as tel, sites, visitor
 from ..services import address as addr
@@ -34,7 +35,7 @@ class PublicContact(BaseModel):
     address_lines: list[str]     # Strasse, PLZ Ort, Land
 
 
-@router.get("/contact", response_model=PublicContact)
+@router.get("/contact", response_model=PublicContact, dependencies=[public("web")])
 def public_contact(request: Request, response: Response, country: str | None = None,
                    db: Session = Depends(get_db)):
     if country is None:

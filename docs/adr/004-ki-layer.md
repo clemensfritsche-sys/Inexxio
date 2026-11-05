@@ -4,7 +4,7 @@
 > Der KI-Layer dieses ADR (`services/ai/`, `routers/ai.py`, Assistent mit Werkzeugen) ist
 > gelöscht (`docs/attic.md`, Commit `676a68c`). **Heute** gibt es EINE Tür
 > `services/ai.py`: Lesen und Verfassen für Dokumente, Antwortform als Schema, Tagesdeckel,
-> jeder Aufruf im `audit_log` (`on_behalf = ai`), die KI schreibt nie selbst
+> jeder Aufruf im Log (Ereignis `ai.call`, Handelnder `ai` im Namen der Person; bis November 2026 im `audit_log`), die KI schreibt nie selbst
 > (`docs/dokumente.md`). Die Grundsätze hier gelten darin weiter: Gateway statt Anbieter im
 > Fachcode, **Scoping = Authz, nicht Prompt**, «Vorschlag ja, schreiben nur nach dem Klick
 > eines Menschen». Was unten über Phasen, Werkzeuge und Tabellen steht, beschreibt den

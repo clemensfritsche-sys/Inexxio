@@ -44,6 +44,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
+from ..core.actor import public
 from ..core.database import get_db
 from ..services import inquiry as svc, people, visitor
 
@@ -253,7 +254,7 @@ def _done(inq: Inquiry, wants_json: bool) -> Response:
 
 # ------------------------------------------------------------------ Endpunkt
 
-@router.post("", summary="Anfrage der Website (Formular, multipart)")
+@router.post("", summary="Anfrage der Website (Formular, multipart)", dependencies=[public("web")])
 async def submit_inquiry(request: Request, db: Session = Depends(get_db)) -> Response:
     wants_json = "application/json" in request.headers.get("accept", "")
     length = request.headers.get("content-length", "")

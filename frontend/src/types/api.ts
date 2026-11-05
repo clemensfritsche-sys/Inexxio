@@ -1601,7 +1601,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Document */
+        /**
+         * Get Document
+         * @description Ein Dokument lesen – **wer welches Dokument geöffnet hat, steht im Log**
+         *     (``document.read``).
+         */
         get: operations["get_document_api_v1_erp_documents__object_id__get"];
         put?: never;
         post?: never;
@@ -1618,7 +1622,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** View */
+        /**
+         * View
+         * @description Die Seite eines gesendeten Dokuments – **geöffnet** steht im Log (``document.viewed``,
+         *     mit dem Empfänger des Links).
+         */
         get: operations["view_api_v1_public_document__token__get"];
         put?: never;
         post?: never;
@@ -1707,6 +1715,7 @@ export interface paths {
         /**
          * View
          * @description Ein Dokument ansehen – das Papier, wie es hinausging, und was jetzt möglich ist.
+         *     **Geöffnet** steht im Log (``voucher.viewed``) – die Partei hat es gesehen.
          */
         get: operations["view_api_v1_public_beleg__token__get"];
         put?: never;
@@ -1953,6 +1962,9 @@ export interface paths {
          * @description Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein
          *     Rundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je
          *     Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.
+         *
+         *     Derselbe Herzschlag versiegelt abgeschlossene Tage des Logs (``log.seal_due``, sonst
+         *     nur beim Start) – einer zur Zeit, meist nichts zu tun.
          */
         post: operations["sync_api_v1_erp_messages_sync_post"];
         delete?: never;

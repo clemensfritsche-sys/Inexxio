@@ -34,6 +34,7 @@ from ..schemas.process import (
     RecordEntry, RecordValue, StepConfirm, StepRecord, TransferInfo,
 )
 from ..domain import capture_types, modules
+from ..services import log
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
@@ -49,7 +50,6 @@ from ..services import orders as orders_svc
 from ..services import order_state
 from ..services import process as process_svc
 from ..services import stripe_pay
-from ..services.admin import log_audit
 from ..services import people
 from ..services.instances import find_units, unit_number, unit_number_matches, unit_numbers
 
@@ -650,8 +650,6 @@ def create_order(
 ):
     """Anlegen **ist** Freigeben – ein Aufruf, eine Transaktion (§6.3)."""
     order = orders_svc.create_order(db, data.model_dump(), actor_id=user.id)
-    log_audit(db, "orders", "release", str(order.object_id),
-              user_id=user.id, object_id=order.object_id)
     db.commit()
     db.refresh(order)
     return _to_response(db, order)
@@ -722,14 +720,11 @@ def confirm_step(
     zweite Stelle, an der ein Statuswechsel geschrieben wird.
     """
     order = orders_svc.get(db, object_id)
-    outcome = process_svc.confirm_step(
+    process_svc.confirm_step(
         db, order=order, step_id=step_id, values=data.values,
         instance_object_id=data.instance_object_id, verification=data.verification,
         sources=data.sources, place=data.place,
         actor_id=user.id)
-    log_audit(db, "process_steps", "confirm",
-              f"{outcome['moved']} bewegt, {outcome['held']} angehalten",
-              user_id=user.id, object_id=order.object_id)
     db.commit()
     db.refresh(order)
     return _to_response(db, order)
@@ -853,9 +848,10 @@ def update_voucher(
     step, _row = _voucher_step(db, order, step_id, user)
     row = voucher_actions.apply(db, order=order, step=step, action=data.action,
                             payload=data.changes(), actor=user)
-    log_audit(db, "vouchers", data.action,
-              f"Beleg zu Modul {step.id} → {row.stage}",
-              user_id=user.id, object_id=order.object_id)
+    # Die Handlung selbst (das Verb) – was sie an Zeilen änderte, schreibt die Datenbank.
+    log.event(db, "voucher.action", order.object_id,
+              {"action": data.action, "step": step.id, "stage": row.stage},
+              table="vouchers", row=row.id)
     db.commit()
     # **Was gerade an Dokumenten entstand, geht gleich hinaus** – nach dem Festschreiben.
     voucher_docs.send_pending(db)
@@ -926,6 +922,11 @@ def refund_voucher_payment(
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
     stripe_pay.refund(db, row=row, entry_id=body.entry, amount=body.amount, viewer=user)
+    # Gebucht wird erst vom Webhook – **wer** die Erstattung ausgelöst hat, steht nur hier.
+    log.event(db, "voucher.refund_requested", order.object_id,
+              {"entry": body.entry, "amount": body.amount, "step": step_id},
+              table="vouchers", row=row.id)
+    db.commit()
     return _to_response(db, order, viewer=user)
 
 

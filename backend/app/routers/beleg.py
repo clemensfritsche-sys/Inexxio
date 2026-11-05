@@ -12,11 +12,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from ..core.actor import public
 from ..core.database import get_db
 from ..models import Order, Voucher
 from ..schemas.process import PaymentSetup
 from ..services import document, geoip, legal, stripe_pay
-from ..services import voucher_docs
+from ..services import log, voucher_docs
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
@@ -72,10 +73,18 @@ def _doc(db: Session, token: str):
     return rec
 
 
-@router.get("/beleg/{token}", response_model=BelegView)
+@router.get("/beleg/{token}", response_model=BelegView, dependencies=[public("link")])
 def view(token: str, db: Session = Depends(get_db)) -> Any:
-    """Ein Dokument ansehen – das Papier, wie es hinausging, und was jetzt möglich ist."""
-    return voucher_docs.public_view(db, _doc(db, token))
+    """Ein Dokument ansehen – das Papier, wie es hinausging, und was jetzt möglich ist.
+    **Geöffnet** steht im Log (``voucher.viewed``) – die Partei hat es gesehen."""
+    rec = _doc(db, token)
+    out = voucher_docs.public_view(db, rec)
+    order_no = (db.query(Order.object_id).join(Voucher, Voucher.order_id == Order.id)
+                .filter(Voucher.id == rec.voucher_id).scalar())
+    log.event(db, "voucher.viewed", order_no, {"kind": rec.kind},
+              table="voucher_documents", row=rec.id)
+    db.commit()
+    return out
 
 
 def _act(db: Session, token: str, action: str) -> Any:
@@ -86,19 +95,19 @@ def _act(db: Session, token: str, action: str) -> Any:
     return voucher_docs.public_view(db, _doc(db, token))
 
 
-@router.post("/beleg/{token}/accept", response_model=BelegView)
+@router.post("/beleg/{token}/accept", response_model=BelegView, dependencies=[public("link")])
 def accept(token: str, db: Session = Depends(get_db)) -> Any:
     """**Die Offerte annehmen** – als die Partei; die Auftragsbestätigung geht hinaus."""
     return _act(db, token, "agree")
 
 
-@router.post("/beleg/{token}/decline", response_model=BelegView)
+@router.post("/beleg/{token}/decline", response_model=BelegView, dependencies=[public("link")])
 def decline(token: str, db: Session = Depends(get_db)) -> Any:
     """**Die Offerte ablehnen** – als die Partei."""
     return _act(db, token, "decline")
 
 
-@router.post("/beleg/{token}/payment", response_model=PaymentSetup)
+@router.post("/beleg/{token}/payment", response_model=PaymentSetup, dependencies=[public("link")])
 def payment(token: str, db: Session = Depends(get_db)) -> Any:
     """**Mit Karte bezahlen** – die Zahlungsabsicht über den offenen Betrag. Gebucht wird
     erst, wenn der Zahlungsdienst es meldet."""
@@ -111,7 +120,7 @@ def payment(token: str, db: Session = Depends(get_db)) -> Any:
                                              viewer=voucher_docs.party_user(db, rec)))
 
 
-@router.get("/legal/{kind}", response_model=LegalOut)
+@router.get("/legal/{kind}", response_model=LegalOut, dependencies=[public("web")])
 def legal_text(kind: str, request: Request, country: Optional[str] = None,
                db: Session = Depends(get_db)) -> Any:
     """**AGB, Datenschutz oder Impressum, wie sie heute gelten** – als A4-Dokument in der
