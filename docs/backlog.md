@@ -8,10 +8,9 @@ steht nicht hier, sondern in `docs/history/` (zuletzt `2026-10-backlog-erledigt.
 
 ## Zwei-Deploy-Regel: vorgemerkte Drops
 
-- **Tabellen `audit_log` und `process_events`** – ungemappt seit Migration 166 (durch das Log
-  ersetzt), in `PENDING_DROP_TABLES`; fallen mit Migration 167 im Folge-Deploy.
-
-Zuletzt gefallen: `orders.end_status`, `user_profiles.department`, `job_title` (Migration 165).
+Heute keiner. Zuletzt gefallen: die Tabellen `audit_log` und `process_events` (Migration 167,
+durch das Log ersetzt); davor `orders.end_status`, `user_profiles.department`, `job_title`
+(Migration 165). Ganze Tabellen stehen dazwischen in `PENDING_DROP_TABLES`.
 Wer eine Spalte entmappt, trägt sie in `PENDING_DROP`
 (`backend/tests/test_schema_is_built_by_the_migrations.py`) **und** hier ein; der Eintrag geht mit
 dem Drop.

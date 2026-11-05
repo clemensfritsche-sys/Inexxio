@@ -108,14 +108,17 @@ SELECT e.created_at,
 def downgrade() -> None:
     # **Die Historie geht mit zurück**: was seit 166 im Log entstand, kommt in
     # ``process_events`` – sonst fehlten der älteren Fassung die Übergänge, die die Stücke
-    # inzwischen gemacht haben. (Übernommene Einträge tragen ``pe`` und stehen schon dort.)
+    # inzwischen gemacht haben. Übernommene Einträge tragen ``pe`` (ihre alte ``id``) und
+    # kommen nur dann zurück, wenn ``process_events`` sie nicht mehr hat (nach 167).
     op.execute("""
 INSERT INTO process_events (order_id, step_id, instance_unit_id, kind, status_before,
                             status_after, payload, actor_id, created_at)
-SELECT order_id, step_id, instance_unit_id, kind, status_before, status_after, payload,
-       actor_id, created_at
+SELECT p.order_id, p.step_id, p.instance_unit_id, p.kind, p.status_before, p.status_after,
+       p.payload, p.actor_id, p.created_at
   FROM process_log p
- WHERE NOT EXISTS (SELECT 1 FROM log l WHERE l.id = p.id AND l.payload ? 'pe')
+  JOIN log l ON l.id = p.id
+ WHERE NOT EXISTS (SELECT 1 FROM process_events e
+                    WHERE e.id = (l.payload ->> 'pe')::bigint)
  ORDER BY p.id
 """)
     op.execute("DROP VIEW IF EXISTS process_log")

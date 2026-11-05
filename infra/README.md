@@ -170,8 +170,9 @@ jede Änderung selbst ins Log und **weist jede Änderung ohne Handelnden ab**; e
 Revision setzt keinen Handelnden und könnte danach nichts mehr schreiben. Vor dem Umschalten auf
 eine Revision vor 166 darum zuerst **mit dem neuen Code** `alembic downgrade 165` fahren (Cloud
 SQL Proxy oder ein einmaliger Cloud-Run-Job mit dem neuen Image): das entfernt Sicht,
-Funktionen und Trigger des Logs. Nach Migration 167 (die alten Tabellen sind weg) ist dieser
-Weg nur noch mit leeren Tabellen möglich.
+Funktionen und Trigger des Logs. Nach Migration 167 (die alten Tabellen sind weg) braucht es
+`alembic downgrade 165` über beide: 167 legt sie leer an, 166 schreibt die Prozess-Ereignisse
+aus dem Log hinein.
 
 ## Laufende Kosten
 

@@ -144,9 +144,8 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop.
 PENDING_DROP: set[str] = set()
 
-#: Dasselbe für ganze **Tabellen**: ``audit_log`` und ``process_events`` sind seit Migration
-#: 166 durch das Log ersetzt und ungemappt; Migration 167 droppt sie im Folge-Deploy.
-PENDING_DROP_TABLES: set[str] = {"audit_log", "process_events"}
+#: Dasselbe für ganze **Tabellen** (zuletzt ``audit_log``, ``process_events``: Migration 167).
+PENDING_DROP_TABLES: set[str] = set()
 
 
 def leftovers(insp) -> list[str]:

@@ -140,8 +140,9 @@ dafür zurückgesetzt werden.
 - **Lesen sensibler Daten:** `document.read` (ERP), `document.viewed` und `voucher.viewed` (Link
   der Partei), `ai.call` (KI). Dateien hinter einem Token (`/attachments/…`) tragen keinen
   Menschen – ihr Abruf steht nicht im Log.
-- **`audit_log` und `process_events`** bleiben einen Deploy lang ungemappt stehen und fallen mit
-  Migration 167 (Zwei-Deploy-Regel).
+- **`audit_log` und `process_events`** standen einen Deploy lang ungemappt da und sind mit
+  Migration 167 gefallen (Zwei-Deploy-Regel; vorher holte sie nach, was die alte Fassung beim
+  Ausrollen noch schrieb).
 
 **Website-Messung ist ein eigener Strom, nicht das Log.** Klicks und Wege von anonymen Besuchern
 sind Messdaten, keine Handlungen im System – viel mehr, kurzlebiger, anonym. Sie gehen in
