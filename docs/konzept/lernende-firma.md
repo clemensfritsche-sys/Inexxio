@@ -1,6 +1,6 @@
 # Projektakte «Die lernende Firma»
 
-> **Kopfstatus:** Konzept, in Arbeit · Lead: Claude · Entscheid: Clemens Fritsche · seit 03.11.2026
+> **Kopfstatus:** Konzept, in Arbeit; **Phase 1 (das Log) gebaut** (06.11.2026) · Lead: Claude · Entscheid: Clemens Fritsche · seit 03.11.2026
 > Mockup (1:1 im ERP): https://claude.ai/artifact/8jAy56JQ1jEESPwgRHPSSK
 > Diese Akte ist die eine Quelle für Ziel, Regeln, Entscheide und offene Fragen. Was hier nicht
 > steht, ist nicht entschieden.
@@ -79,9 +79,9 @@ geschieht das über eine einzige, selbst protokollierte Schwärzungsfunktion –
 **Grösse und Ort:** Das Log bleibt in der Datenbank (Cloud SQL). Für das ERP reicht das auf
 Jahre; es wird nach Monaten aufgeteilt, damit es schnell bleibt.
 
-### Technische Spezifikation (Entwurf zur Freigabe)
+### Technische Spezifikation (gebaut, Migration 166)
 
-**Tabelle `log`** (nach Monat partitioniert):
+**Tabelle `log`** (nicht partitioniert, siehe «Abweichungen vom Entwurf»):
 
 | Spalte | Typ | Inhalt |
 |---|---|---|
@@ -89,7 +89,7 @@ Jahre; es wird nach Monaten aufgeteilt, damit es schnell bleibt.
 | `at` | timestamptz | `now()` der Datenbank |
 | `actor_kind` | text | `person` · `ai` · `system` · `external` |
 | `actor_id` | bigint | Objektnummer der handelnden Person (bei `ai`: die Person, in deren Namen) |
-| `source` | text | `ui` · `capture` · `webhook` · `job` · `migration` · `link` · `mcp` |
+| `source` | text | `ui` · `capture` · `web` · `link` · `webhook` · `login` · `probe` · `job` · `start` · `migration` · `mcp` · `test` |
 | `request_id` | uuid | verbindet alle Einträge einer Handlung |
 | `object_id` | bigint | Objektnummer des Dings, falls die Zeile eine hat oder an einem hängt |
 | `table_name`, `row_key` | text | welche Zeile |
@@ -122,6 +122,26 @@ einen Eintrag · die Bug-Form jedes Wächters wird gegengeprüft.
 Ableitungen aus dem Prozess-Log (Bild, Protokoll, Stückliste, Journey) lesen die Ereignisse
 `process.*` aus `log`. `time_entries` bleibt – das sind Eingaben, kein Log. Die Daten auf dev dürfen
 dafür zurückgesetzt werden.
+
+**Abweichungen vom Entwurf (beim Bauen entschieden):**
+- **Keine Partitionierung.** Bei unseren Mengen (einige hunderttausend Einträge im Jahr) trägt
+  ein Index auf `(object_id, at)` auf Jahre; Monats-Partitionen bräuchten einen Job, der sie
+  rechtzeitig anlegt – eine Stelle mehr, die vergessen werden kann. Nachrüstbar, wenn das Log
+  in die zig Millionen geht.
+- **Versiegelt wird beim Start und im Abgleich** (`POST /erp/messages/sync`, läuft, solange das
+  ERP offen ist) statt «nachts per Job» – es gibt keinen Zeitplaner, und ein Tag wird erst eine
+  Stunde nach Mitternacht (UTC) versiegelt, damit keine laufende Transaktion fehlt.
+- **Wer handelt, sagt jede Route ausdrücklich** (`get_current_user` oder `public(…)`); der
+  Wächter prüft das **für jede Route** statt «jede schreibende Route hinterlässt einen Eintrag»
+  – eine Anfrage, die nichts ändert, braucht keinen.
+- **Die Ereignisse des Prozesses** stehen als `process.<art>` im Log; Bild, Protokoll, Stückliste
+  und Journey lesen sie unverändert über die Sicht `process_log`. Die bisherigen Einträge sind
+  übernommen (der Invarianten-Bericht ist vor und nach der Umstellung Zeichen für Zeichen gleich).
+- **Lesen sensibler Daten:** `document.read` (ERP), `document.viewed` und `voucher.viewed` (Link
+  der Partei), `ai.call` (KI). Dateien hinter einem Token (`/attachments/…`) tragen keinen
+  Menschen – ihr Abruf steht nicht im Log.
+- **`audit_log` und `process_events`** bleiben einen Deploy lang ungemappt stehen und fallen mit
+  Migration 167 (Zwei-Deploy-Regel).
 
 **Website-Messung ist ein eigener Strom, nicht das Log.** Klicks und Wege von anonymen Besuchern
 sind Messdaten, keine Handlungen im System – viel mehr, kurzlebiger, anonym. Sie gehen in
@@ -252,7 +272,7 @@ günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
 | Phase | Inhalt | Stand |
 |---|---|---|
 | 0 | Projektakte, Mockup | in Arbeit |
-| 1 | **Das Log** – neu, ersetzt alle heutigen Logs | offen |
+| 1 | **Das Log** – neu, ersetzt alle heutigen Logs | gebaut (06.11.2026) |
 | 2 | Verlauf an jeder Nummer (Wissen am Ding) | offen |
 | 3 | KI-Werkzeuge: Vorschläge, Auftrag an die KI, Lernen aus Korrekturen | offen |
 | 4 | «Erfassen» mit Spracherfassung | offen |
@@ -282,6 +302,9 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
   Abruf neu gebildet. Verlauf mit der Logik der Kommunikation. Dokumente behalten ihre Nummer.
   Auftrag an die KI: grobes Ziel, keine Regeln, sie lernt aus Korrekturen. Sprachdienst: Vorzug
   Google, Vergleich mit echten Aufnahmen.
+
+- 06.11.2026 – Phase 1 bauen und auf dev ausrollen (das Log); Spielraum für Verbesserungen beim
+  Bauen.
 
 ## Offene Fragen
 
