@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, String, func
+from sqlalchemy import BigInteger, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -52,41 +52,28 @@ KIND_CAPTURE = "capture"
 
 
 class ProcessEvent(Base):
-    """Ebene 3 – der **Ereignis-Log**. Die Quelle der Wahrheit (PROCESS_CORE.md §10.3).
+    """Ebene 3 – der **Ereignis-Log des Prozesses**: eine **Sicht** auf das eine Log.
 
-    **Append-only – durchgesetzt in der Datenbank** (``domain/process_log``: ein Trigger
-    weist jedes ``UPDATE`` und ``DELETE`` ab). Es gibt kein ``is_active`` und kein
-    ``updated_at`` – darum erbt diese Klasse **nicht** von ``TimestampMixin``. Eine
-    Korrektur ist ein **neuer Eintrag**, nie eine Änderung des alten. Jeder Verweis
-    (Auftrag, Modul, Stück, Person) ist ein Fremdschlüssel.
+    Geschrieben wird nur über ``services/log.process_events`` (Ereignisse ``process.<art>``
+    im Log); diese Sicht ``process_log`` stellt sie so dar, wie Bild, Protokoll, Stückliste
+    und Journey sie lesen (PROCESS_CORE.md §10.3). **Nur lesen** – unveränderlich ist das
+    Log selbst (``domain/log``: ``log_immutable``).
 
-    Die Reihenfolge ist die ``id`` – sie ist die Zeitachse. ``created_at`` sagt, *wann*
-    es war; *in welcher Reihenfolge* sagt die ``id``, weil zwei Einträge dieselbe
-    Sekunde tragen können.
+    Die Reihenfolge ist die ``id`` des Log-Eintrags – sie ist die Zeitachse. ``actor_id``
+    ist die ``user_profiles.id`` der handelnden Person (``NULL``: das System).
     """
 
-    __tablename__ = "process_events"
-    __table_args__ = (
-        # Die Geschichte eines Stücks (Journey, Bild) und «was ist an diesem Modul
-        # passiert» (Stichprobe, Protokoll) – je eine Frage, je ein Index.
-        Index("ix_process_events_unit_timeline", "instance_unit_id", "id"),
-        Index("ix_process_events_order_step_kind", "order_id", "step_id", "kind"),
-    )
+    __tablename__ = "process_log"
+    __table_args__ = {"info": {"view": True}}
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    order_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("orders.id", ondelete="RESTRICT"), index=True, nullable=False)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    order_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     #: ``NULL`` bei Start und Ende – die sind keine Schritt-Zeilen.
-    step_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, ForeignKey("process_steps.id", ondelete="RESTRICT"), nullable=True)
-    instance_unit_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("instance_units.id", ondelete="RESTRICT"), nullable=False)
+    step_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    instance_unit_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     kind: Mapped[str] = mapped_column(String(10), nullable=False)
     status_before: Mapped[str] = mapped_column(String(30), nullable=False)
     status_after: Mapped[str] = mapped_column(String(30), nullable=False)
     payload: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
-    actor_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, ForeignKey("user_profiles.id", ondelete="RESTRICT"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False,
-    )
+    actor_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

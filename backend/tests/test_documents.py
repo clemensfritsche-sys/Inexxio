@@ -17,7 +17,7 @@ from app.core.auth import require_employee
 from app.core.database import get_db
 from app.domain import documents as dd
 from app.domain import statuses as st
-from app.models import Attachment, AuditLog, Document
+from app.models import Attachment, Document, Log
 from app.routers import attachments as att_router
 from app.routers import documents as router
 from app.services import access, documents as docs, objects
@@ -64,8 +64,8 @@ def test_release_creates_number_file_refs_and_log(world):
     assert not existed and doc.object_id and doc.file_id
     assert objects.resolve_object_type(db, doc.object_id) == "document"
     assert [r.object_id for r in docs.refs_of(db, [doc.id])[doc.id]] == [person.object_id]
-    assert db.query(AuditLog).filter(AuditLog.object_id == doc.object_id,
-                                     AuditLog.field_name == "freigegeben").count() == 1
+    assert db.query(Log).filter(Log.object_id == doc.object_id, Log.table_name == "documents",
+                                Log.action == "insert").count() == 1
     assert docs.status_of(doc, []) == st.FREIGEGEBEN
 
 
@@ -271,9 +271,9 @@ def test_the_gate_logs_every_call_and_respects_the_cap(world, monkeypatch):
     monkeypatch.setattr(ai, "used_today", lambda db: 0)
     p = reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
     assert p.read and p.art == "Lieferschein" and "pump" in p.keywords
-    rows = world.db.query(AuditLog).filter(AuditLog.table_name == "ai",
-                                           AuditLog.user_id == world.staff.id).all()
-    assert rows and rows[-1].on_behalf == "ai"
+    rows = world.db.query(Log).filter(Log.event == "ai.call",
+                                      Log.actor_id == world.staff.object_id).all()
+    assert rows and rows[-1].actor_kind == "ai" and rows[-1].payload["task"]
     monkeypatch.setattr(ai, "used_today", lambda db: 10_000)
     assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
 

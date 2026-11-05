@@ -26,7 +26,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.runner import session
+from tests.runner import acting, session
 from tests.scenes import voucher as scene
 from tests.scenes.voucher import house as _house
 
@@ -2978,7 +2978,7 @@ def test_two_simultaneous_views_do_not_collide_on_a_new_line():
     vid, oid = row.id, order.id
     db.close()
 
-    first, second = SessionLocal(), SessionLocal()
+    first, second = acting(SessionLocal()), acting(SessionLocal())
     failed: list[str] = []
 
     def other():

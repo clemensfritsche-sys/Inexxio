@@ -238,14 +238,15 @@ def test_the_invariant_reports_a_piece_that_left_a_terminal_state():
     unit = _scrapped_unit(db)
     try:
         from app.domain import statuses as st
-        from app.models import ProcessEvent
+        from app.services import log
         from tests import invariants
         from tests.scenarios import World
 
         w = World(db)
         order = w.produce(w.article(), 1)
-        db.add(ProcessEvent(order_id=order.id, instance_unit_id=unit.id, kind="step",
-                            status_before=st.IM_PROZESS, status_after=st.VERSCHROTTET))
+        log.process_events(db, [dict(order_id=order.id, step_id=None, instance_unit_id=unit.id,
+                                     kind="step", status_before=st.IM_PROZESS,
+                                     status_after=st.VERSCHROTTET, payload=None, actor_id=None)])
         db.flush()
 
         def reported() -> bool:

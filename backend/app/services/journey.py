@@ -9,7 +9,7 @@ zusammengesetzt wird.
 ``naechster_auftrag``, die bei jeder Freigabe mitgeschrieben werden müssten. Solche
 Zeiger laufen irgendwann auseinander – und dann ist die Journey unbrauchbar für genau
 das, was sie beweisen soll. Die Quelle ist stattdessen die, die es ohnehin gibt: der
-**Ereignis-Log** (``process_events``, PROCESS_CORE.md §10.3). Er ist append-only, hält
+**Ereignis-Log** (``process.*`` im Log, Sicht ``process_log``, PROCESS_CORE.md §10.3). Er ist append-only, hält
 je Statuswechsel fest, welches Stück in welchem Auftrag war, und seine ``id`` ist die
 Zeitachse.
 

@@ -20,7 +20,6 @@ from sqlalchemy.orm import Session
 
 from ..models import CompanySettings, UserProfile
 from . import lookup, sites
-from .admin import log_audit
 
 #: Wer im Haus arbeitet – und damit für **eine** unserer Gesellschaften.
 #:
@@ -179,12 +178,6 @@ def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int, *,
     if fields.get("phone"):
         fields["phone"] = tidy_phone(user, fields["phone"])
     for key, value in fields.items():
-        old_val = getattr(user, key, None)
-        old_str = str(old_val) if old_val is not None else None
-        new_str = str(value) if value is not None else None
-        if old_str != new_str:
-            log_audit(db, "user_profiles", key, new_str, actor_id,
-                      object_id=user.object_id, old_value=old_str)
         setattr(user, key, value)
     return user
 
@@ -378,6 +371,4 @@ def ensure(db: Session, email: str, name: str = "", phone: str = "", *,
                        object_id=next_object_id(db, "user"))
     db.add(user)
     db.flush()
-    log_audit(db, "user_profiles", None, f"Person «{user.display_name}» angelegt", actor_id,
-              object_id=user.object_id)
     return user

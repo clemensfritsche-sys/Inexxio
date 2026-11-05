@@ -12,13 +12,13 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import insert, update
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from ..domain import chain, modules, statuses as st
+from . import log
 from ..models import (
-    Article, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent,
-    ProcessStep,
+    Article, InstanceUnit, Order, OrderLine, OrderUnit, ProcessStep,
 )
 from ..models.order_line import LAGER, NEU, ORIGINS
 from ..models.process_event import (
@@ -582,8 +582,8 @@ def _hand_over(db: Session, *, order: Order, lines: list[_Line],
     ]
     if not taken:
         return
-    db.execute(
-        insert(ProcessEvent),
+    log.process_events(
+        db,
         [
             {
                 "order_id": m.order_id,

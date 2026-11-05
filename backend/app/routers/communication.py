@@ -9,10 +9,12 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.config import get_settings
+from ..core.actor import public
 from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.communication import (ChannelOut, MailboxOut, MessageIn, MessageOut,
                                      SyncOut)
+from ..services import log
 from ..services import communication as svc
 from ..services import mailbox
 
@@ -53,12 +55,17 @@ def disconnect(channel: str, db: Session = Depends(get_db),
 def sync(db: Session = Depends(get_db), _: UserProfile = Depends(require_employee)):
     """Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein
     Rundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je
-    Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op."""
+    Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.
+
+    Derselbe Herzschlag versiegelt abgeschlossene Tage des Logs (``log.seal_due``, sonst
+    nur beim Start) – einer zur Zeit, meist nichts zu tun."""
     new, sent = mailbox.sync_all(db)
+    if log.seal_due(db):
+        db.commit()
     return SyncOut(new=new, sent=sent)
 
 
-@callback_router.get("/callback", include_in_schema=False)
+@callback_router.get("/callback", include_in_schema=False, dependencies=[public("link")])
 def callback(code: str = "", state: str = "", error: str = "",
              db: Session = Depends(get_db)) -> RedirectResponse:
     problem = ("Die Verbindung wurde bei Google abgebrochen." if error or not code

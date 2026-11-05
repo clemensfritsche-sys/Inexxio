@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
+from ..core.actor import public
 from ..core.database import get_db
 from ..models import UserProfile
 from ..services import attachments as attachments_svc
@@ -35,7 +36,7 @@ def upload_attachment(
     return UploadResult(id=att.id, url=attachments_svc.public_url(att), width=att.width, height=att.height)
 
 
-@router.get("/api/v1/attachments/{token}")
+@router.get("/api/v1/attachments/{token}", dependencies=[public("link")])
 def serve_attachment(token: str, db: Session = Depends(get_db)):
     from ..services import documents as docs
     att = attachments_svc.get_by_token(db, token)
@@ -44,7 +45,7 @@ def serve_attachment(token: str, db: Session = Depends(get_db)):
                         att, public=docs.is_public_file(db, att.id)))
 
 
-@router.get("/api/v1/attachments/{token}/preview")
+@router.get("/api/v1/attachments/{token}/preview", dependencies=[public("link")])
 def serve_preview(token: str, db: Session = Depends(get_db)):
     """**Das Vorschaubild** – abgeleitet aus der Datei, bei jedem Abruf neu (der Browser hält
     es fest, die Datei ändert sich nie). Gibt es keins, 404 – die Kachel zeigt die Sorte.

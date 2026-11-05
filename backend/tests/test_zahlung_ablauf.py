@@ -13,7 +13,7 @@ from decimal import Decimal
 
 import pytest
 
-from tests.runner import session
+from tests.runner import acting, session
 from app.core import clock
 from app.services import voucher_docs
 from app.services import release as release_svc
@@ -844,7 +844,7 @@ def test_a_second_bill_waits_for_the_first_and_is_refused():
     oid, sid, vid = order.id, step.id, row.id
     s.close()
 
-    first, second = SessionLocal(), SessionLocal()
+    first, second = acting(SessionLocal()), acting(SessionLocal())
     seen: list[object] = []
 
     def bill(db):

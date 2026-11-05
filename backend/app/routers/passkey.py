@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user
+from ..core.actor import public
 from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.passkey import (
@@ -72,7 +73,7 @@ def delete_passkey(
 
 # ── Anmeldung (passwortlos, unauthentifiziert) ────────────────────────────────
 
-@router.post("/login/options")
+@router.post("/login/options", dependencies=[public("login")])
 def login_options(request: Request, db: Session = Depends(get_db)) -> dict:
     """Anmelde-Optionen (Challenge) für ``navigator.credentials.get`` – usernamelos. Jede
     Challenge ist eine Zeile: begrenzt je Absender wie jede öffentliche Tür
@@ -83,7 +84,7 @@ def login_options(request: Request, db: Session = Depends(get_db)) -> dict:
     return passkey.begin_authentication(db, request)
 
 
-@router.post("/login/verify", response_model=PasskeyLoginResult)
+@router.post("/login/verify", response_model=PasskeyLoginResult, dependencies=[public("login")])
 def login_verify(
     data: PasskeyLoginVerify,
     request: Request,

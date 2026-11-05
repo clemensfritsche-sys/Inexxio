@@ -73,11 +73,20 @@ def session():
         run = subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=BACKEND,
                              env=env, capture_output=True, text=True)
         assert run.returncode == 0, f"alembic upgrade head scheiterte:\n{run.stderr[-3000:]}"
-        with SessionLocal() as db:
+        from app.core.actor import system_session
+        with system_session("start") as db:
             main._sync_database_rules(db)
             db.commit()
         _SCHEMA_READY = True
-    return SessionLocal()
+    return acting(SessionLocal())
+
+
+def acting(db):
+    """Im Test handelt das System (``core/actor``) – wie im Betrieb braucht jede Änderung
+    einen Handelnden; wer ihn **nicht** setzt, prüft ``tests/test_log.py``."""
+    from app.core.actor import act
+    act(db, "system", None, "test")
+    return db
 
 
 def run_case(case: Case, *, keep: bool = False) -> Result:

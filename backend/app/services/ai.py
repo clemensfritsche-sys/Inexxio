@@ -8,8 +8,8 @@
    geprüft (structured outputs). Was nicht passt, gilt als Ausfall.
 4. **Die KI schreibt nie selbst.** Sie liefert Vorschläge; geschrieben wird über die
    Fachdienste, nach dem Klick eines Menschen.
-5. **Deckel und Log:** jeder Aufruf ist eine Zeile im ``audit_log`` (``on_behalf = ai``) mit
-   Modell und Tokens; der Tagesdeckel zählt genau diese Zeilen.
+5. **Deckel und Log:** jeder Aufruf ist ein Ereignis ``ai.call`` im Log (Handelnder ``ai`` im
+   Namen der Person) mit Aufgabe, Modell und Tokens; der Tagesdeckel zählt genau diese.
 
 **Ohne Schlüssel, am Deckel oder bei einem Fehler gibt es keinen Vorschlag – sonst nichts.**
 Alles geht auch ohne KI: Art und Name tippt der Mensch, gesucht wird in der Datenbank.
@@ -20,7 +20,6 @@ Deckel …) – die Oberfläche zeigt ihn, damit ein Ausfall nie stumm bleibt.
 from __future__ import annotations
 
 import base64
-import json
 import re
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -32,8 +31,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
-from ..models import AuditLog, UserProfile
-from .admin import log_audit
+from ..models import Log, UserProfile
+from . import log
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -102,8 +101,7 @@ def ready() -> bool:
 
 def used_today(db: Session) -> int:
     start = datetime.combine(datetime.now(timezone.utc).date(), time.min, tzinfo=timezone.utc)
-    return (db.query(AuditLog).filter(AuditLog.table_name == "ai",
-                                      AuditLog.changed_at_utc >= start).count())
+    return (db.query(Log.id).filter(Log.event == "ai.call", Log.at >= start).count())
 
 
 def available(db: Session) -> bool:
@@ -170,6 +168,6 @@ def ask(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
         usage = {"error": type(exc).__name__, "status": getattr(exc, "status_code", None)}
         _PROBLEM.set(problem_of(exc))
         print(f"WARNING: ai.{task} failed: {exc!r}", flush=True)
-    log_audit(db, "ai", task, json.dumps({"model": spec.model, **usage}),
-              actor.id if actor else None, on_behalf="ai")
+    log.event(db, "ai.call", None, {"task": task, "model": spec.model, **usage},
+              kind="ai", actor=actor.object_id if actor else None)
     return result

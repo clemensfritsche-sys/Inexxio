@@ -15,7 +15,7 @@ class FeedbackNote(Base, TimestampMixin):
     Bewusst **KEINE Objektnummer**: eine Testnotiz ist ein Meta-Artefakt *über* dem
     System – kein Geschäftsobjekt. Sie gehört damit weder in den 9-stelligen
     Nummernkreis noch in den ERP-Feed (gleiche Einordnung wie ``AiAction``,
-    ``Attachment``, ``AuditLog``).
+    ``Attachment``, ``Log``).
 
     Der Wert steckt nicht im Kommentar, sondern im **automatisch mitgeschnittenen
     Kontext**: Route, geöffneter Datensatz, Anker am geklickten Element und Umgebung.

@@ -9,11 +9,11 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from starlette.concurrency import run_in_threadpool
 
 from .core.config import get_settings
-from .core.database import SessionLocal
-from .domain import process_log
+from .core.actor import system_session
+from .core.database import Base
+from .domain import log as log_domain
 from .domain import statuses as st
 from .domain import timekeeping as timekeeping_domain
 from .routers import (
@@ -31,23 +31,36 @@ settings = get_settings()
 _STARTUP_LOCK_KEY = 778_899_001
 
 
+def _log_secrets() -> dict[str, list[str]]:
+    """Jede Tabelle des Modells → die Spalten, die nie im Klartext ins Log gehen: Geheimes
+    (``domain/log.SECRET_COLUMNS``) und Binäres (Dateien, Schlüssel)."""
+    from sqlalchemy import LargeBinary
+
+    import app.models  # noqa: F401 – füllt die Metadaten
+    return {name: sorted(c.name for c in table.columns
+                         if c.name in log_domain.SECRET_COLUMNS
+                         or isinstance(c.type, LargeBinary))
+            for name, table in Base.metadata.tables.items()}
+
+
 def _sync_database_rules(db) -> None:
-    """**Endzustände sind terminal, Zeiteinträge und der Ereignis-Log append-only – und das
-    steht in der Datenbank.** Die Trigger werden bei jedem Start aus der Fachschicht neu
+    """**Endzustände sind terminal, Zeiteinträge append-only, und jede Änderung steht im Log
+    – das steht in der Datenbank.** Die Trigger werden bei jedem Start aus der Fachschicht neu
     geschrieben (``statuses.terminal_guard_sql`` · ``timekeeping.append_only_sql`` ·
-    ``process_log.append_only_sql``): kommt ein zweiter
-    Endzustand in den Katalog, gilt er ab dem nächsten Start auch unten, ohne dass jemand
-    an eine Migration denken muss. Scheitert das, startet der Dienst nicht."""
+    ``log.triggers_sql``): kommt ein zweiter Endzustand in den Katalog oder eine neue Tabelle
+    ins Modell, gilt es ab dem nächsten Start auch unten, ohne dass jemand an eine Migration
+    denken muss. Scheitert das (auch: eine Tabelle, von der das Log nicht weiss, an welchem
+    Ding sie hängt), startet der Dienst nicht."""
     db.execute(text(st.terminal_guard_sql()))
     db.execute(text(timekeeping_domain.append_only_sql()))
-    db.execute(text(process_log.append_only_sql()))
+    db.execute(text(log_domain.triggers_sql(_log_secrets())))
 
 
 def _seed(name: str, fn) -> None:
     """Ein Start-Schritt mit Daten (nicht Schema) in eigener Sitzung: scheitert er, steht
     es im Log, und der Dienst läuft – die Daten fehlen dann, sichtbar, statt alles
     anzuhalten."""
-    db = SessionLocal()
+    db = system_session("start")
     try:
         fn(db)
         db.commit()
@@ -73,9 +86,17 @@ def _ensure_operator(db) -> None:
     operator(db)
 
 
+def _seal(db) -> None:
+    """Abgeschlossene Tage des Logs versiegeln (``services/log.seal_due``)."""
+    from .services import log
+    done = log.seal_due(db)
+    if done:
+        print(f"INFO: Log versiegelt: {done} Tag(e)", flush=True)
+
+
 def _startup() -> None:
     """Was aus dem Code folgt – das Schema baut allein die Migration (``start.sh``)."""
-    db = SessionLocal()
+    db = system_session("start")
     try:
         db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _STARTUP_LOCK_KEY})
         _sync_database_rules(db)
@@ -84,6 +105,7 @@ def _startup() -> None:
         db.close()
     _seed("Betreiber", _ensure_operator)
     _seed("Rechtstexte", _adopt_documents)
+    _seed("Siegel des Logs", _seal)
 
 
 @asynccontextmanager
@@ -108,40 +130,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-#: Was keine Spur im Log hinterlassen muss: reine Lese-Anfragen.
-_READS = ("GET", "HEAD", "OPTIONS")
-
-
-def _log_write(method: str, path: str, user_id: int) -> None:
-    """Eine Zeile im ``audit_log`` – in eigener Sitzung; scheitert sie, bleibt die Antwort."""
-    from .services.admin import log_audit
-    db = SessionLocal()
-    try:
-        log_audit(db, "request", method, path[:500], user_id)
-        db.commit()
-    except Exception as exc:                                   # noqa: BLE001
-        print(f"WARNING: audit_writes failed: {exc!r}", flush=True)
-        db.rollback()
-    finally:
-        db.close()
-
-
-@app.middleware("http")
-async def audit_writes(request: Request, call_next):
-    """►►► **Jede schreibende Anfrage ans ERP steht im Log** (``audit_log``, ``services/admin``). ◄◄◄
-
-    Eine Zeile je erfolgreichem Schreiben: wer, welche Handlung (Methode + Pfad), wann. Was
-    eine Stelle genauer protokolliert (vorher/nachher, «im Namen von»), steht daneben. Die
-    Datenbank-Arbeit läuft im Threadpool, nie in der Event-Loop."""
-    response = await call_next(request)
-    user_id = getattr(request.state, "user_id", None)
-    if (request.method in _READS or response.status_code >= 400 or user_id is None
-            or not request.url.path.startswith("/api/v1/")):
-        return response
-    await run_in_threadpool(_log_write, request.method, request.url.path, user_id)
-    return response
 
 
 @app.exception_handler(IntegrityError)

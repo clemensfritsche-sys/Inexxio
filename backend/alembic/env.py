@@ -20,7 +20,6 @@ config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%"
 from app.core.database import Base  # noqa: E402 — must come after path setup
 from app.models import (  # noqa: F401
     Article,
-    AuditLog,
     Capture,
     CompanySettings,
     Instance,
@@ -70,6 +69,17 @@ def run_migrations_online() -> None:
         # Verbindung und fällt mit ihr; die Wartenden finden danach nichts mehr zu tun.
         if connection.dialect.name == "postgresql":
             connection.exec_driver_sql("SELECT pg_advisory_lock(778899002)")
+            connection.commit()
+            # **Wer handelt: die Migration** – jede Datenänderung einer Migration steht im
+            # Log wie jede andere (``domain/log``); für die ganze Verbindung, nicht je
+            # Transaktion, denn eine Migration kann mehrere haben.
+            import json
+            import uuid
+
+            from sqlalchemy import text
+            connection.execute(text("SELECT set_config('inexxio.actor', :a, false)"), {
+                "a": json.dumps({"kind": "system", "id": None, "source": "migration",
+                                 "request": str(uuid.uuid4())})})
             connection.commit()
         context.configure(
             connection=connection,

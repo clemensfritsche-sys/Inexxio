@@ -83,7 +83,7 @@ def test_every_status_change_stands_in_the_log(db):
     assert {u.status for u in units} != {"Freigegeben"}, "Der Fall ändert keinen Zustand."
     for u in units:
         last = db.execute(text(
-            "SELECT status_after FROM process_events WHERE instance_unit_id = :u "
+            "SELECT status_after FROM process_log WHERE instance_unit_id = :u "
             "ORDER BY id DESC LIMIT 1"), {"u": u.id}).scalar()
         assert last == u.status, (
             f"Einzelinstanz #{u.id} steht auf «{u.status}», der Log sagt «{last}» – der "

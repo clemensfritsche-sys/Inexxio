@@ -138,7 +138,7 @@ def i05(db: Session) -> list[str]:
         SELECT u.id, u.status, e.status_after
         FROM instance_units u
         JOIN LATERAL (
-            SELECT status_after FROM process_events
+            SELECT status_after FROM process_log
             WHERE instance_unit_id = u.id ORDER BY id DESC LIMIT 1
         ) e ON TRUE
         WHERE e.status_after = ANY(:terminal) AND u.status <> e.status_after

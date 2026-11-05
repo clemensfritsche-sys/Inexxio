@@ -38,7 +38,6 @@ from sqlalchemy.orm import Session
 
 from ..models import CompanySettings, CompanyTerritory
 from . import geography
-from .admin import log_audit
 from .objects import next_object_id
 
 # Was JEDE Gesellschaft selbst trägt (eine juristische Einheit, vollständig). Editierbar
@@ -252,7 +251,6 @@ def set_operator(db: Session, company: CompanySettings, actor_id: int | None) ->
     db.query(CompanySettings).filter(CompanySettings.id != company.id).update(
         {CompanySettings.is_operator: False})
     company.is_operator = True
-    log_audit(db, "company_settings", "is_operator", "true", actor_id, object_id=company.object_id)
     db.commit()
     db.refresh(company)
     return company
@@ -289,7 +287,6 @@ def deactivate(db: Session, company: CompanySettings, actor_id: int | None) -> C
         raise HTTPException(409, detail="Das letzte Unternehmen kann nicht geschlossen werden")
     db.query(CompanyTerritory).filter(CompanyTerritory.company_id == company.id).delete()
     company.is_active = False
-    log_audit(db, "company_settings", "is_active", "false", actor_id, object_id=company.object_id)
     db.commit()
     db.refresh(company)
     return company
@@ -304,7 +301,6 @@ def reopen(db: Session, company: CompanySettings, actor_id: int | None) -> Compa
     _rekey(company)
     _assert_unique(db, company)
     company.is_active = True
-    log_audit(db, "company_settings", "is_active", "true", actor_id, object_id=company.object_id)
     db.commit()
     db.refresh(company)
     return company
@@ -410,15 +406,12 @@ def set_territory(db: Session, area: str, company_object_id: int | None,
     if company is None or company.id == _default_owner_id(db, code):
         if row is not None:
             db.delete(row)
-            log_audit(db, "company_territories", code, "Standard", actor_id)
         db.commit()
         return
     if row is None:
         db.add(CompanyTerritory(region=code, company_id=company.id))
     else:
         row.company_id = company.id
-    log_audit(db, "company_territories", code, str(company.object_id),
-              actor_id, object_id=company.object_id)
     db.commit()
 
 
@@ -450,14 +443,12 @@ def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
             value = uid.display(value) or None
         if key == "iban":
             company.iban = value
-            log_audit(db, "company_settings", key, "[UPDATED]", actor_id, object_id=company.object_id)
         elif key in ENTITY_FIELDS:
             if value is None and key in _KEEP_IF_NONE:
                 continue
             if value is None and key in _NOT_NULL_TEXT:
                 value = ""
             setattr(company, key, value)
-            log_audit(db, "company_settings", key, str(value), actor_id, object_id=company.object_id)
     _rekey(company)
 
 
@@ -617,8 +608,6 @@ def _new(db: Session, data: dict, actor_id: int | None, *, own: bool) -> Company
     company.object_id = next_object_id(db, "organization")
     db.add(company)
     db.flush()
-    log_audit(db, "company_settings", None, f"Unternehmen «{legal_name(company)}» angelegt",
-              actor_id, object_id=company.object_id)
     return company
 
 
@@ -703,8 +692,6 @@ def _recognize(db: Session, raw_uid: str | None, name: str, form: str,
         if same is not None and same.uid_key is None:
             same.uid_number = uid.display(raw_uid)
             _rekey(same)
-            log_audit(db, "company_settings", "uid_number", same.uid_number, actor_id,
-                      object_id=same.object_id)
             db.flush()
             return same
         return None
@@ -746,8 +733,6 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
     _assert_unique(db, company, data)
     if own != company.is_own:
         company.is_own = own
-        log_audit(db, "company_settings", "is_own", str(own).lower(), actor_id,
-                  object_id=company.object_id)
     _apply_entity_fields(company, data, db, actor_id)
     db.commit()
     db.refresh(company)
