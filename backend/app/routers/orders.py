@@ -922,6 +922,11 @@ def refund_voucher_payment(
     order = orders_svc.get(db, object_id)
     _step, row = _voucher_step(db, order, step_id, user)
     stripe_pay.refund(db, row=row, entry_id=body.entry, amount=body.amount, viewer=user)
+    # Gebucht wird erst vom Webhook – **wer** die Erstattung ausgelöst hat, steht nur hier.
+    log.event(db, "voucher.refund_requested", order.object_id,
+              {"entry": body.entry, "amount": body.amount, "step": step_id},
+              table="vouchers", row=row.id)
+    db.commit()
     return _to_response(db, order, viewer=user)
 
 

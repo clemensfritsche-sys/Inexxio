@@ -14,7 +14,10 @@ dieselbe Bauart wie ``statuses.terminal_guard_sql`` und ``timekeeping.append_onl
   Transaktion.
 * ``log_immutable()`` – ``UPDATE``, ``DELETE`` und ``TRUNCATE`` auf ``log`` und ``log_seal``
   werden abgewiesen; einzige Ausnahme ist ``log_redact`` (Datenschutz), die sich selbst
-  einträgt und die betroffenen Tage nennt.
+  einträgt und die betroffenen Tage nennt. Sie schwärzt nie Prozess-Ereignisse (``process.*``
+  tragen keine Personendaten, nur Nummern und Zustände – Bild, Protokoll und Journey lesen
+  daraus). Die Sperre ist eine Regel gegen Versehen, keine gegen jemanden mit Zugang zur
+  Datenbank (derselbe Benutzer): dagegen steht das Siegel.
 * ``log_seal_due()`` / ``log_verify()`` – je abgeschlossenem Tag eine Prüfsumme, verkettet
   mit der des Vortags.
 """
@@ -237,12 +240,14 @@ DECLARE
 BEGIN
   PERFORM log_actor();
   SELECT coalesce(jsonb_agg(DISTINCT (at AT TIME ZONE 'UTC')::date), '[]'::jsonb) INTO days
-    FROM log WHERE object_id = p_object AND event IS DISTINCT FROM 'log.redacted';
+    FROM log WHERE object_id = p_object AND coalesce(event, '') NOT LIKE 'process.%'
+     AND event IS DISTINCT FROM 'log.redacted';
   PERFORM set_config('inexxio.redacting', 'on', true);
   UPDATE log
      SET changes = CASE WHEN changes IS NULL THEN NULL ELSE '{"geschwärzt": true}'::jsonb END,
          payload = CASE WHEN payload IS NULL THEN NULL ELSE '{"geschwärzt": true}'::jsonb END
-   WHERE object_id = p_object AND event IS DISTINCT FROM 'log.redacted';
+   WHERE object_id = p_object AND coalesce(event, '') NOT LIKE 'process.%'
+     AND event IS DISTINCT FROM 'log.redacted';
   GET DIAGNOSTICS n = ROW_COUNT;
   PERFORM set_config('inexxio.redacting', 'off', true);
   PERFORM log_event('log.redacted', p_object,
@@ -255,10 +260,10 @@ CREATE OR REPLACE FUNCTION log_digest(p_day date) RETURNS TABLE(n bigint, first_
                                                                last_id bigint, digest text)
 LANGUAGE sql STABLE AS $fn$
   SELECT count(*), min(id), max(id),
-         encode(sha256(convert_to(coalesce(string_agg(concat_ws('|', id,
+         encode(sha256(convert_to(coalesce(string_agg(jsonb_build_array(id,
            (extract(epoch FROM at) * 1000000)::bigint, actor_kind, actor_id, source,
-           request_id, object_id, table_name, row_key, action, event, changes::text,
-           payload::text), E'\n' ORDER BY id), ''), 'UTF8')), 'hex')
+           request_id, object_id, table_name, row_key, action, event, changes,
+           payload)::text, E'\n' ORDER BY id), ''), 'UTF8')), 'hex')
     FROM log
    WHERE at >= p_day::timestamp AT TIME ZONE 'UTC'
      AND at < (p_day + 1)::timestamp AT TIME ZONE 'UTC';
@@ -267,7 +272,7 @@ $fn$;
 CREATE OR REPLACE FUNCTION log_seal_due() RETURNS integer LANGUAGE plpgsql AS $fn$
 DECLARE
   last_day date;
-  upto date := ((now() AT TIME ZONE 'UTC') - interval '1 hour')::date - 1;
+  upto date := ((now() AT TIME ZONE 'UTC') - interval '6 hours')::date - 1;
   d date;
   prev text;
   rec record;

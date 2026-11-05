@@ -287,3 +287,18 @@ def test_redaction_is_the_only_change_and_logs_itself(db):
     assert note.payload["reason"] == "Löschbegehren"
     assert log.tampered(db) == [], "eine Schwärzung ist erklärt, nicht verdächtig"
     assert any(not r["ok"] and r["redacted"] for r in log.verify(db))
+
+
+def test_redaction_never_blanks_process_history(db):
+    """Prozess-Ereignisse tragen die Auftragsnummer als Ding – geschwärzt fielen die Stücke
+    aus Bild, Journey und Stückliste. Bug-Form (gegengeprüft): ohne den Ausschluss in
+    ``log_redact`` stünde ``order_id`` der Sicht danach leer."""
+    from app.models import ProcessEvent
+    from app.services import log
+    from tests.scenarios import World
+
+    w = World(db)
+    order = w.produce(w.article(), 1)
+    before = db.query(ProcessEvent).filter(ProcessEvent.order_id == order.id).count()
+    log.redact(db, order.object_id, "Test")
+    assert db.query(ProcessEvent).filter(ProcessEvent.order_id == order.id).count() == before

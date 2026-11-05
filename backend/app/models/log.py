@@ -29,6 +29,7 @@ class Log(Base):
         Index("ix_log_request", "request_id"),               # alles einer Handlung
         Index("ix_log_actor_at", "actor_id", "at"),          # was hat jemand getan
         Index("ix_log_event_at", "event", "at"),             # Ereignisse einer Art
+        Index("ix_log_at", "at"),                            # die Siegel je Tag
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
