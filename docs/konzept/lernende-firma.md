@@ -25,71 +25,119 @@ Woran wir es messen (nach rund 3 Monaten im Alltag):
 3. **Wichtiges ist nicht zu übersehen** – es steht oben am Ding, bis es erledigt oder überholt ist.
 4. **Keine neue Insel** – bestehende Funktionen werden zusammengeführt, keine kommt dazu.
 
-## Aufbau in vier Schichten (Gesamtbild, 05.11.2026)
+## Grundsatz
 
-1. **Das Log** – was geschehen ist. Eine Stelle, jede Handlung, von Mensch, KI oder System.
-   Fundament für alles Weitere (Verlauf, Lernen aus Korrekturen, «Relevant hier»).
-2. **Das Wissen am Ding** – Verlauf, Dokumente, Notizen, an der Objektnummer.
-3. **Die KI-Werkzeuge** – die KI darf, was die Person darf, in ihrem Namen (Grundsatz aus den
-   Dokumenten). Ihre Handlungen sind die Handlungen des ERP selbst – keine eigene, feste Liste;
-   sie wachsen mit jedem neuen Feature von selbst mit.
-4. **Die Oberflächen** – «Erfassen» im ERP (schnell, unterwegs); Claude (App) über einen
-   MCP-Connector für Gespräche, Meetings, Fragen; später weitere.
+**Die KI arbeitet nach dem Ziel, ein Mensch kontrolliert.** Sie bekommt keine Wenn-dann-Regeln,
+sondern einen Auftrag (wer wir sind, was wir erreichen wollen) und darf, was die Person darf.
+Gearbeitet wird **nur im ERP** – Mitarbeitende erfassen dort, die KI verarbeitet im Hintergrund.
 
-## Das Log (Leitlinie, Umsetzung eigenes Teilprojekt)
+## Aufbau in vier Schichten
 
-- **Ein Log für alles**, append-only: wer (Person, KI in ihrem Namen, System), was (Handlung),
-  woran (Objektnummer), vorher → nachher, wann, aus welcher Quelle (Anfrage, Erfassen, Webhook …).
-- **Nicht vergessbar:** geschrieben von der Datenbank selbst (Trigger an jeder Tabelle, der
-  Handelnde wird je Anfrage mitgegeben), nicht von jedem Programmierer einzeln. Ein Wächter-Test
-  verlangt den Trigger an jeder neuen Tabelle – so ist es bei jedem neuen Feature erzwungen.
-- Die heutigen Teil-Logs (Prozess-Log, Audit-Log, Zeiterfassung) werden schrittweise Teile davon.
-- Auswertung grosser Mengen (z. B. BigQuery) erst, wenn die Datenbank nicht mehr reicht.
+| Schicht | Inhalt | Reihenfolge |
+|---|---|---|
+| 1 · **Das Log** | was geschehen ist – jede Handlung, eine Stelle | zuerst |
+| 2 · **Wissen am Ding** | Verlauf, Kommunikation, Dokumente, Dateien, Bilder, Notizen an der Objektnummer | danach |
+| 3 · **KI-Werkzeuge** | die KI darf, was die Person darf, in ihrem Namen | danach |
+| 4 · **Oberflächen** | «Erfassen» im ERP; optional ein MCP-Zugang für Claude (nur Clemens) | zuletzt |
 
-## Regeln (entschieden)
+## 1 · Das Log
 
-- **Jedes Ding hat eine Nummer, jede Nummer einen Verlauf.** Der Verlauf ist die heutige
-  Kommunikation, verallgemeinert von der Person auf jede Objektnummer.
-- **Eine Heimat:** jeder Eintrag (Notiz, Dokument, Änderung) gehört genau einem Ding. Der Verlauf
-  zeigt nur Eigenes; nichts wird doppelt abgelegt oder verknüpft.
-- **«Relevant hier»** holt Wichtiges aus verbundenen Dingen – jedes Mal neu berechnet, nie
-  gespeichert, immer mit Quelle, höchstens 3 bis 5 Punkte. Keine Bewertungsknöpfe.
+**Zweck:** die eine, vollständige, unveränderliche Wahrheit darüber, was im System geschehen
+ist – Grundlage für den Verlauf am Ding, für das Lernen der KI aus Korrekturen, für «Relevant
+hier», für Nachvollziehbarkeit (Buchungsbelege 10 Jahre) und für die Fehlersuche.
+
+**Keine Rückwärtskompatibilität.** Die heutigen Logs (`audit_log`, `process_events`, das
+Protokoll einzelner Stellen) werden ersetzt, nicht übernommen. Was heute aus `process_events`
+abgeleitet wird (Prozessbild, Protokoll, Stückliste, Journey), liest danach aus dem neuen Log.
+
+**Was ein Eintrag festhält** (eine Tabelle, append-only):
+
+| Feld | Bedeutung |
+|---|---|
+| Zeitpunkt | von der Datenbank gesetzt, nicht vom Aufrufer |
+| Wer | Person (Objektnummer) · Art: Mensch · KI im Namen von · System · von aussen (Webhook, Kunde über Link) |
+| Woher | Oberfläche, Erfassen, Webhook, Job, Migration, MCP – und eine Vorgangs-Id, die alle Einträge einer Handlung verbindet |
+| Woran | Objektnummer des Dings (und die Zeile, falls es keine Nummer hat) |
+| Was | Handlung: angelegt · geändert · gelöscht (weich) · fachliches Ereignis (z. B. Status passiert, Mail gesendet, Vorschlag verworfen) |
+| Vorher → nachher | nur die geänderten Felder |
+| Prüfsumme | Kette über die Einträge: jede nachträgliche Änderung wird erkennbar |
+
+**Wie es nicht vergessen werden kann:**
+- **Die Datenbank schreibt es selbst** – ein Trigger an jeder Tabelle hält jede Änderung fest.
+  Wer handelt, gibt die Anwendung je Anfrage in der Transaktion mit; fehlt diese Angabe, **scheitert
+  das Schreiben** (lieber laut als ohne Spur).
+- **Fachliche Ereignisse** (die keine Zeile ändern) schreibt eine einzige Funktion in dieselbe
+  Tabelle, in derselben Transaktion – entweder beides oder nichts.
+- **Wächter-Tests:** jede Tabelle hat den Trigger (Ausnahmen namentlich begründet); das Log ist
+  weder änder- noch löschbar (auch nicht für die Anwendung selbst).
+- **Lesen sensibler Daten** (Download, Export, Zugriff der KI) wird ebenfalls festgehalten.
+
+**Datenschutz:** Das Log nennt Personen über ihre Objektnummer. Muss eine Person gelöscht werden,
+geschieht das über eine einzige, selbst protokollierte Schwärzungsfunktion – die einzige erlaubte
+Änderung.
+
+**Grösse und Ort:** Das Log bleibt in der Datenbank (Cloud SQL). Für das ERP reicht das auf
+Jahre; es wird nach Monaten aufgeteilt, damit es schnell bleibt.
+
+**Website-Messung ist ein eigener Strom, nicht das Log.** Klicks und Wege von anonymen Besuchern
+sind Messdaten, keine Handlungen im System – viel mehr, kurzlebiger, anonym. Sie gehen in
+**BigQuery** (gebaut für genau solche Mengen und Auswertungen, günstig bei unseren Zahlen); das ERP
+liest daraus verdichtete Zahlen, nicht jede Zeile. Wird aus einem Besucher ein Kunde (Anfrage),
+beginnt seine Spur im Log.
+
+## 2 · Wissen am Ding
+
+- **Jedes Ding hat eine Nummer, jede Nummer einen Verlauf.** Der Verlauf zeigt, was zum Ding
+  gehört: Kommunikation, Dokumente, Dateien, Bilder, Notizen und Änderungen (aus dem Log).
+- **Eine Heimat:** jeder Eintrag gehört genau einem Ding; nichts wird doppelt abgelegt. Eine
+  Aufnahme mit mehreren Themen (z. B. ein Meeting) teilt die KI in Teile, jeder mit seiner Heimat.
 - **Datensatz oder Eintrag:** Ein Datensatz (mit Nummer) hat einen eigenen Zustand oder wird von
-  anderswo angesprochen. Notiz und Änderung → Eintrag. Foto, Scan, Datei, Video → Dokument. Etwas
-  zu tun → Auftrag.
-- **Aufträge immer mit Stücken.** Kein Auftrag ohne Stück; Arbeit an etwas Immateriellem läuft
-  über einen Artikel (z. B. «Website»).
-- **Die KI fasst zusammen und füllt vor, ein Mensch legt an.** «Auftrag daraus» und «Angabe
-  ändern» sind Knöpfe, keine automatischen Aktionen. Zu Beginn wird jedes einzeln bestätigt.
-- **Höchstens eine Rückfrage** beim Erfassen, nur wenn Wichtiges fehlt (meist das «Warum»),
-  jederzeit überspringbar.
-- **Audio wird nicht gespeichert**, das wörtliche Transkript und die KI-Fassung bleiben. **Video
-  bleibt im Original** (als Dokument).
-- **Spracherfassung** von Anfang an, mit einem professionellen, robusten Dienst.
-- **Ein zentrales Log** für jede Änderung an jedem Ding, sichtbar im Verlauf (vorher → nachher,
-  wer, woher). Heute lückenlos nur Prozess, Zeiterfassung und Geld; sonst nur «wer rief welche
-  Adresse auf». Vorgesehen, noch nicht gebaut.
-- **Ein Wissenswerkzeug, kein Management-Werkzeug.** Kein Rückblick, kein Dashboard, keine
-  Termine, kein «zu tun». Wer was tut, regeln Aufträge.
-- **Ziel statt Regeln.** Die KI bekommt keine Wenn-dann-Regeln (kein «frag immer nach dem
-  Warum», kein «ab dem dritten Mal», kein Pflicht-Grund), sondern **einen Auftrag**: unser Ziel,
-  unsere Firma und was sie tun *kann*. Daraus leitet sie selbst ab, was sie mit einem Input macht –
-  zusammenfassen, aufteilen, ablegen, wichtig finden, nachfragen oder nichts. Fest ist nur die Liste
-  der möglichen Handlungen; was sie wann tut, entscheidet sie aus dem Ziel. Für Wichtigkeit liest sie
-  echte Daten nach (Neukunde? Warenwert? schon öfter?), statt zu zählen.
-- **Die KI zuerst:** sie legt ab, auch aufgeteilt auf mehrere Dinge (je Teil eine Heimat – wichtig
-  für Meetings mit vielen Themen). Der Mensch kontrolliert («Stimmt so» oder «ändern») – auch im
-  Datensatz entscheidet nicht er, wohin es gehört.
-- **Sie lernt aus Korrekturen:** jedes «ändern» und «verwerfen» wird als Beispiel aufbewahrt und
-  geht in künftige Entscheide ein. Kein Training, kein Regelwerk – eigene Beispiele.
-- **Wichtiges bleibt oben** in «Relevant hier», bis es erledigt oder überholt ist. Kein Zählen
-  («ab dem dritten Mal» ist verworfen: eine einzelne Meldung kann hochrelevant sein).
-- **Ein Einstieg «Erfassen»:** der rote «+» öffnet das Menü (Aufnehmen, Kamera, Galerie, Scannen,
-  Schreiben, Neuer Datensatz). Kein Halten – Aufnehmen läuft mit Start und Stopp, auch für ein
-  ganzes Meeting. **Der Verlauf hat kein eigenes Eingabefeld**; alles läuft über diesen
-  Einstieg.
-- **Eine Regel für alles, keine Ausnahmen** (auch nicht für Sicherheit). Dass etwas getan werden
-  muss, gehört ins Aufgabenmanagement («wer macht was»), nicht ins Wissen.
+  anderswo angesprochen. Notiz, Änderung → Eintrag. Foto, Scan, Datei, Video → Dokument. Etwas zu
+  tun → Auftrag (immer mit Stücken; Immaterielles über einen Artikel, z. B. «Website»).
+- **«Relevant hier»** holt Wichtiges aus verbundenen Dingen – jedes Mal neu berechnet, nie
+  gespeichert, immer mit Quelle. So viele Punkte, wie wirklich helfen – auch keiner.
+- **Wichtiges bleibt oben**, bis es erledigt oder überholt ist. Wichtigkeit beurteilt die KI aus
+  dem Ziel und echten Daten (Neukunde? Warenwert? schon vorgekommen?), nicht durch Zählen.
+- **Audio wird nicht gespeichert** (wörtliches Transkript und KI-Fassung bleiben), **Video
+  bleibt im Original**.
+- **Kommunikation bleibt, wie sie ist:** Mails an Personen und Firmen schreibt man dort wie
+  heute. Andere Dinge (Artikel, Auftrag …) haben kein eigenes Eingabefeld – Wissen kommt über
+  «Erfassen».
+
+## 3 · KI-Werkzeuge
+
+- **Die KI darf, was die Person darf, in ihrem Namen** – über dieselben Wege und Prüfungen wie die
+  Oberfläche, kein zweiter Code. Ihre Handlungen sind die Handlungen des ERP selbst; mit jedem
+  neuen Feature kann sie es von selbst auch. Keine eigene, feste Liste.
+- **Lesen frei (im Rahmen der Rechte), Schreiben als Vorschlag.** Was die KI ändern oder anlegen
+  will, wird ein Vorschlag; ein Mensch bestätigt oder verwirft. (Ob einzelne Handlungen später
+  ohne Bestätigung laufen dürfen, entscheiden wir mit Erfahrung.)
+- **Offene Vorschläge warten am Ding**, an dem erfasst wurde, und zählen in dessen «zu tun»-Zahl
+  am Symbol (gibt es schon). Nichts muss sofort nach dem Erfassen erledigt werden.
+- **Der Auftrag an die KI** ist ein einziger, versionierter Text im Repository: wer wir sind,
+  unser Ziel, worauf es ankommt. Er gilt für Erfassen und «Relevant hier». Keine Regeln wie «frag
+  immer nach dem Warum» – Rückfragen stellt sie, wenn das Ziel es verlangt.
+- **Sie lernt aus Korrekturen:** jedes Bestätigen, Ändern und Verwerfen steht im Log und geht als
+  Beispiel in künftige Entscheide ein. Weniger Korrekturen = bessere KI; das ist zugleich der
+  Massstab für ihre Qualität.
+- **Eine Tür:** jeder KI-Aufruf läuft über `services/ai.py` (Tageslimit, jeder Aufruf im Log).
+- **MCP-Zugang (optional, später):** dieselben Werkzeuge, angeboten an Claude (App) – nur für
+  Clemens, aus Interesse. Richtung: Claude ruft das ERP auf, nicht umgekehrt. Das ERP selbst
+  braucht dafür nichts: «Erfassen» spricht die KI direkt über `services/ai.py` an.
+
+## 4 · Oberflächen
+
+- **Ein Einstieg «Erfassen»:** der rote «+» öffnet das Menü – Aufnehmen (Start/Stopp, auch für
+  ein ganzes Meeting), Kamera, Galerie, Scannen, Schreiben, Neuer Datensatz.
+- **Die KI legt ab, der Mensch kontrolliert** («Stimmt so» oder «ändern»), auch im Datensatz.
+- **Spracherfassung** von Anfang an, mit einem professionellen, robusten Dienst (Mundart).
+
+## Weitere Regeln
+
+- **Eine Regel für alles, keine Ausnahmen** (auch nicht für Sicherheit).
+- **Ein Wissenswerkzeug, kein Management-Werkzeug:** kein Rückblick, kein Dashboard, keine
+  Termine. Wer was tut, regeln Aufträge; Zuständigkeit künftig je Prozessschritt (Kompetenz
+  statt Abteilung) – Folgeprojekt «Aufgaben».
 - **Mail:** keine eigene Notiz-Adresse; was an die Postfächer der Gesellschaften kommt, ordnet das
   System zu.
 - Kultur (Fehler melden ist sicher, wer meldet, hört, was daraus wurde) ist Teil des Ziels, kann
@@ -100,32 +148,31 @@ Woran wir es messen (nach rund 3 Monaten im Alltag):
 | Phase | Inhalt | Stand |
 |---|---|---|
 | 0 | Projektakte, Mockup | in Arbeit |
-| 0b | **Das Log** (Fundament) | offen |
-| 0c | KI-Werkzeuge («darf, was die Person darf») + MCP-Connector | offen |
-| 1 | Verlauf an jeder Nummer · «Erfassen» (Sprechen, Kamera, Galerie, Scannen, Schreiben) · KI-Fassung · eine Rückfrage | offen |
-| 2 | Zentrales Log im Verlauf | offen |
-| 3 | «Relevant hier» | offen |
-
+| 1 | **Das Log** – neu, ersetzt alle heutigen Logs | offen |
+| 2 | Verlauf an jeder Nummer (Wissen am Ding) | offen |
+| 3 | KI-Werkzeuge: Vorschläge, Auftrag an die KI, Lernen aus Korrekturen | offen |
+| 4 | «Erfassen» mit Spracherfassung | offen |
+| 5 | «Relevant hier» | offen |
+| später | Website-Messung (BigQuery) · MCP-Zugang · Folgeprojekt «Aufgaben» | offen |
 
 Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 
 ## Entscheide (mit Datum)
 
 - 03.11.2026 – Arbeitsweise: Claude führt, stellt Fragen mit Empfehlung; Clemens entscheidet.
-- 03.11.2026 – Spracherfassung kommt in Phase 1, nicht später.
-- 03.11.2026 – Kein Zählen, keine Termine, kein «zu tun»: Wichtigkeit beurteilt die KI je Notiz mit
-  Grund; Wichtiges bleibt oben am Ding. Das Werkzeug bewahrt Wissen, es führt keine Aufgaben.
-- 03.11.2026 – Die KI legt ab (auch aufgeteilt), der Mensch kontrolliert; «+» halten = sprechen.
-- 04.11.2026 – Ziel statt Regeln für die KI; Name bleibt «Erfassen»; kein Halten, Aufnehmen mit
-  Start/Stopp. Zuständigkeit künftig je Prozessschritt (Kompetenz statt Abteilung) – Folgeprojekt.
-- 03.11.2026 – Keine Ausnahme für Sicherheit; kein Eingabefeld im Verlauf; Wichtigkeit ohne feste
-  Gründe (freier Satz).
+- 03.11.2026 – Kein Zählen, keine Termine; Wichtiges bleibt oben am Ding. Das Werkzeug bewahrt
+  Wissen, es führt keine Aufgaben. Keine Ausnahme für Sicherheit.
+- 03.11.2026 – Die KI legt ab (auch aufgeteilt), der Mensch kontrolliert.
+- 04.11.2026 – Ziel statt Regeln; Name «Erfassen»; Aufnehmen mit Start/Stopp; Wichtigkeit ohne
+  feste Gründe.
+- 05.11.2026 – Vier Schichten, das Log zuerst; **keine Rückwärtskompatibilität** für die heutigen
+  Logs; Website-Messung als eigener Strom (BigQuery).
+- 05.11.2026 – Gearbeitet wird nur im ERP; MCP höchstens als persönlicher Zugang für Clemens.
+- 05.11.2026 – Kommunikation (Mails an Personen und Firmen) bleibt, wie sie ist.
 
 ## Offene Fragen
 
-- Der Auftrag an die KI (der eine Prompt): Entwurf, Prüfung an echten Beispielen.
-- Offene Vorschläge warten am Ding, wo sie erfasst wurden («zu tun»-Zahl am Symbol, gibt es schon)?
-- Eigenen Assistenten bauen oder Claude (App) über MCP anschliessen?
-- Antworten auf eine Mail ohne Eingabefeld im Verlauf: über den Einstieg, mit Empfänger vorbelegt?
-- Aufgabenmanagement («wer macht was»): eigenes Folgeprojekt; Mindestlösung bis dahin?
-- Welcher Sprachdienst (Mundart)?
+- Der Auftrag an die KI: Entwurf und Prüfung an drei echten Beispielen (Montage-Notiz,
+  Meeting-Notiz, Kunden-Mail).
+- Welcher Sprachdienst versteht Mundart zuverlässig?
+- Folgeprojekt «Aufgaben» (wer macht was, Zuständigkeit je Prozessschritt).
