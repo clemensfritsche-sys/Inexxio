@@ -79,6 +79,50 @@ geschieht das über eine einzige, selbst protokollierte Schwärzungsfunktion –
 **Grösse und Ort:** Das Log bleibt in der Datenbank (Cloud SQL). Für das ERP reicht das auf
 Jahre; es wird nach Monaten aufgeteilt, damit es schnell bleibt.
 
+### Technische Spezifikation (Entwurf zur Freigabe)
+
+**Tabelle `log`** (nach Monat partitioniert):
+
+| Spalte | Typ | Inhalt |
+|---|---|---|
+| `id` | bigint | fortlaufend |
+| `at` | timestamptz | `now()` der Datenbank |
+| `actor_kind` | text | `person` · `ai` · `system` · `external` |
+| `actor_id` | bigint | Objektnummer der handelnden Person (bei `ai`: die Person, in deren Namen) |
+| `source` | text | `ui` · `capture` · `webhook` · `job` · `migration` · `link` · `mcp` |
+| `request_id` | uuid | verbindet alle Einträge einer Handlung |
+| `object_id` | bigint | Objektnummer des Dings, falls die Zeile eine hat oder an einem hängt |
+| `table_name`, `row_key` | text | welche Zeile |
+| `action` | text | `insert` · `update` · `delete` · `event` |
+| `event` | text | Name des fachlichen Ereignisses (z. B. `process.pass`, `mail.sent`, `proposal.rejected`) |
+| `changes` | jsonb | nur geänderte Felder: `{"feld": [alt, neu]}` (bei `insert` nur neu) |
+| `payload` | jsonb | Inhalt eines fachlichen Ereignisses |
+
+Indizes: `(object_id, at)` für den Verlauf, `(request_id)`, `(actor_id, at)`, `(event, at)`.
+
+**Wie geschrieben wird:**
+1. **Wer handelt**, setzt die Anwendung an **einer** Stelle je Transaktion (`SET LOCAL
+   inexxio.actor …`, in der Datenbank-Sitzung der Anfrage, im Job, im Webhook).
+2. **Eine Trigger-Funktion** `log_row()` (AFTER INSERT/UPDATE/DELETE, je Zeile) an **jeder**
+   Tabelle schreibt die Änderung. Reine Zeitstempel-Änderungen (`updated_at`) zählen nicht. Fehlt
+   der Handelnde, **bricht die Transaktion ab**.
+3. **Fachliche Ereignisse** schreibt eine einzige Funktion `log.event(name, object_id, payload)` in
+   derselben Transaktion.
+4. **Unveränderlich:** ein Trigger weist `UPDATE`/`DELETE` auf `log` ab (Bauart wie heute beim
+   Prozess-Log); einzige Ausnahme ist die Schwärzungsfunktion, die selbst einen Eintrag schreibt.
+5. **Versiegelung:** einmal je Nacht bildet ein Job eine Prüfsumme über die Einträge des Tages und
+   die Prüfsumme des Vortags (Kette in `log_seal`). Jede nachträgliche Änderung wird erkennbar, ohne
+   dass das Schreiben tagsüber auf eine Kette warten muss.
+
+**Wächter (Tests):** jede Tabelle hat den Trigger (Ausnahmen namentlich begründet) · eine Änderung
+ohne Handelnden scheitert · `log` ist nicht änderbar · jede schreibende Route hinterlässt mindestens
+einen Eintrag · die Bug-Form jedes Wächters wird gegengeprüft.
+
+**Ersetzt (keine Rückwärtskompatibilität):** `audit_log` und `process_events` entfallen; die
+Ableitungen aus dem Prozess-Log (Bild, Protokoll, Stückliste, Journey) lesen die Ereignisse
+`process.*` aus `log`. `time_entries` bleibt – das sind Eingaben, kein Log. Die Daten auf dev dürfen
+dafür zurückgesetzt werden.
+
 **Website-Messung ist ein eigener Strom, nicht das Log.** Klicks und Wege von anonymen Besuchern
 sind Messdaten, keine Handlungen im System – viel mehr, kurzlebiger, anonym. Sie gehen in
 **BigQuery** (gebaut für genau solche Mengen und Auswertungen, günstig bei unseren Zahlen); das ERP
@@ -153,7 +197,7 @@ beginnt seine Spur im Log.
 | 3 | KI-Werkzeuge: Vorschläge, Auftrag an die KI, Lernen aus Korrekturen | offen |
 | 4 | «Erfassen» mit Spracherfassung | offen |
 | 5 | «Relevant hier» | offen |
-| später | Website-Messung (BigQuery) · MCP-Zugang · Folgeprojekt «Aufgaben» | offen |
+| eigene Projekte | Website-Messung (BigQuery) · Aufgaben («wer macht was») · MCP-Zugang (hier nur die Grundzüge) | offen |
 
 Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 
@@ -169,6 +213,8 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
   Logs; Website-Messung als eigener Strom (BigQuery).
 - 05.11.2026 – Gearbeitet wird nur im ERP; MCP höchstens als persönlicher Zugang für Clemens.
 - 05.11.2026 – Kommunikation (Mails an Personen und Firmen) bleibt, wie sie ist.
+- 05.11.2026 – «Offenes wartet am Ding» wird gebaut (Teil von Phase 3). Aufgaben, Website-Messung
+  und MCP sind eigene Projekte; MCP hier nur in Grundzügen. Alles bleibt in dieser einen Akte.
 
 ## Offene Fragen
 
