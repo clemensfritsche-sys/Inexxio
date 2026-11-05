@@ -138,8 +138,12 @@ beginnt seine Spur im Log.
 - **Datensatz oder Eintrag:** Ein Datensatz (mit Nummer) hat einen eigenen Zustand oder wird von
   anderswo angesprochen. Notiz, Änderung → Eintrag. Foto, Scan, Datei, Video → Dokument. Etwas zu
   tun → Auftrag (immer mit Stücken; Immaterielles über einen Artikel, z. B. «Website»).
-- **«Relevant hier»** holt Wichtiges aus verbundenen Dingen – jedes Mal neu berechnet, nie
-  gespeichert, immer mit Quelle. So viele Punkte, wie wirklich helfen – auch keiner.
+- **«Auf einen Blick» an jedem Ding** (ersetzt «Relevant hier» und «Offen aus Erfassen»): oben
+  «Zu entscheiden» (offene Vorschläge der KI), darunter «Gut zu wissen» (Wichtiges aus dem Ding und
+  Verbundenem, mit Quelle). So viele Punkte, wie wirklich helfen – auch keiner.
+- **Berechnet bei Änderung, nicht bei jedem Öffnen:** der Stand wird neu gebildet, sobald sich am
+  Ding oder an Verbundenem etwas ändert (das Log sagt es), und bis dahin wiederverwendet. Er ist
+  eine Ableitung mit Stand, keine zweite Wahrheit. In der Erprobung darf er auch auf Abruf laufen.
 - **Wichtiges bleibt oben**, bis es erledigt oder überholt ist. Wichtigkeit beurteilt die KI aus
   dem Ziel und echten Daten (Neukunde? Warenwert? schon vorgekommen?), nicht durch Zählen.
 - **Audio wird nicht gespeichert** (wörtliches Transkript und KI-Fassung bleiben), **Video
@@ -156,8 +160,13 @@ beginnt seine Spur im Log.
 - **Lesen frei (im Rahmen der Rechte), Schreiben als Vorschlag.** Was die KI ändern oder anlegen
   will, wird ein Vorschlag; ein Mensch bestätigt oder verwirft. (Ob einzelne Handlungen später
   ohne Bestätigung laufen dürfen, entscheiden wir mit Erfahrung.)
-- **Offene Vorschläge warten am Ding**, an dem erfasst wurde, und zählen in dessen «zu tun»-Zahl
-  am Symbol (gibt es schon). Nichts muss sofort nach dem Erfassen erledigt werden.
+- **Offene Vorschläge warten am Ding**, an dem erfasst wurde («Zu entscheiden»), und zählen in
+  dessen «zu tun»-Zahl am Symbol (gibt es schon). Nichts muss sofort erledigt werden.
+- **Robustheit der Vorschläge:** entscheiden darf, wer die Handlung selbst ausführen dürfte; ist sie
+  inzwischen von Hand geschehen (Angabe schon geändert, Ding gelöscht), erledigt sich der Vorschlag
+  von selbst mit Vermerk; zwei Personen gleichzeitig → der zweite sieht «schon entschieden»; jeder
+  Vorschlag lässt sich vor dem Bestätigen bearbeiten; Bestätigen, Ändern, Verwerfen stehen im Log.
+  Fällt die KI aus, bleibt die Notiz unverarbeitet am Ding und wird nachgeholt – nichts geht verloren.
 - **Der Auftrag an die KI** ist ein einziger, versionierter Text im Repository: wer wir sind,
   unser Ziel, worauf es ankommt. Er gilt für Erfassen und «Relevant hier». Keine Regeln wie «frag
   immer nach dem Warum» – Rückfragen stellt sie, wenn das Ziel es verlangt.
@@ -171,8 +180,13 @@ beginnt seine Spur im Log.
 
 ## 4 · Oberflächen
 
-- **Ein Einstieg «Erfassen»:** der rote «+» öffnet das Menü – Aufnehmen (Start/Stopp, auch für
-  ein ganzes Meeting), Kamera, Galerie, Scannen, Schreiben, Neuer Datensatz.
+- **Ein Einstieg «Erfassen», schlicht:** oben rund «festhalten» (Aufnehmen · Foto mit Galerie ·
+  Datei mit Scannen · Schreiben), unten eckig in den Farben des Feeds «neu anlegen» (Person, Firma,
+  Artikel, Auftrag …). Aufnehmen mit Start/Stopp, auch für ein ganzes Meeting; die Aufnahme zeigt nur
+  Zeit, Pegel, Stopp.
+- **Dokumente bleiben, wie sie sind** (Entwurf → Freigeben, Pflichtfelder, Senden, Unterschreiben).
+  Neu nur: Foto und Datei aus «Erfassen» öffnen den bestehenden Entwurf, die KI schlägt den Bezug vor
+  (gibt es schon), und ein Dokument erscheint als Eintrag im Verlauf seines Dings.
 - **Die KI legt ab, der Mensch kontrolliert** («Stimmt so» oder «ändern»), auch im Datensatz.
 - **Spracherfassung** von Anfang an, mit einem professionellen, robusten Dienst (Mundart).
 
@@ -213,6 +227,8 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
   Logs; Website-Messung als eigener Strom (BigQuery).
 - 05.11.2026 – Gearbeitet wird nur im ERP; MCP höchstens als persönlicher Zugang für Clemens.
 - 05.11.2026 – Kommunikation (Mails an Personen und Firmen) bleibt, wie sie ist.
+- 05.11.2026 – «Auf einen Blick» an jedem Ding (Offenes + Wissen); Erfassen schlicht mit «neu
+  anlegen» unten; Dokumente bleiben; berechnet bei Änderung. Noch nichts bauen – erst alles definieren.
 - 05.11.2026 – «Offenes wartet am Ding» wird gebaut (Teil von Phase 3). Aufgaben, Website-Messung
   und MCP sind eigene Projekte; MCP hier nur in Grundzügen. Alles bleibt in dieser einen Akte.
 
