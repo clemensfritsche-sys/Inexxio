@@ -138,12 +138,24 @@ beginnt seine Spur im Log.
 - **Datensatz oder Eintrag:** Ein Datensatz (mit Nummer) hat einen eigenen Zustand oder wird von
   anderswo angesprochen. Notiz, Änderung → Eintrag. Foto, Scan, Datei, Video → Dokument. Etwas zu
   tun → Auftrag (immer mit Stücken; Immaterielles über einen Artikel, z. B. «Website»).
-- **«Auf einen Blick» an jedem Ding** (ersetzt «Relevant hier» und «Offen aus Erfassen»): oben
-  «Zu entscheiden» (offene Vorschläge der KI), darunter «Gut zu wissen» (Wichtiges aus dem Ding und
-  Verbundenem, mit Quelle). So viele Punkte, wie wirklich helfen – auch keiner.
-- **Berechnet bei Änderung, nicht bei jedem Öffnen:** der Stand wird neu gebildet, sobald sich am
-  Ding oder an Verbundenem etwas ändert (das Log sagt es), und bis dahin wiederverwendet. Er ist
-  eine Ableitung mit Stand, keine zweite Wahrheit. In der Erprobung darf er auch auf Abruf laufen.
+- **«Auf einen Blick» an jedem Ding** (ersetzt «Relevant hier» und «Offen aus Erfassen»): **eine
+  Liste**, Wichtiges zuerst, jeder Punkt mit Quelle. Ein Vorschlag der KI trägt Bestätigen/✕, ein
+  Hinweis nicht – das ist der ganze Unterschied, keine Abschnitte, keine Kategorien. So viele
+  Punkte, wie wirklich helfen – auch keiner.
+- **Auf Abruf, nicht bei jedem Öffnen:** die KI bildet die Liste neu, wenn jemand «neu ansehen»
+  drückt; bis dahin steht der letzte Stand mit Zeit da (eine Ableitung mit Stand, keine zweite
+  Wahrheit). Offene Vorschläge stehen immer da, ohne KI-Aufruf. Grund: eine feste Logik «hat sich
+  am Verbundenen etwas geändert?» müsste selbst wissen, was verbunden ist und was zählt – zu eng
+  verpasst sie Wichtiges, zu weit kostet sie wie jedes Öffnen. Kosten so nur, wenn es jemand
+  braucht. Nach der Erprobung entscheiden wir mit echten Zahlen, ob mehr nötig ist.
+- **Der Verlauf ist eine Liste für alle Dinge**, mit derselben Logik wie heute die Kommunikation:
+  die neuesten Einträge zuerst, ältere laden beim Scrollen. Eine Komponente, kein zweiter Weg.
+- **Dokumente behalten ihre Nummer.** Geprüft: ein Dokument hat einen eigenen Zustand
+  (Freigegeben, Unterschrift angefragt, Abgelehnt), wird von anderswo angesprochen (Pflichtfelder in
+  Zahlung, Zeiterfassung, Gesellschaft; ein Link beim Senden) und muss als Nachweis bestehen bleiben
+  – genau die Regel für einen Datensatz. Dazu: eine Stelle für jede Datei ist einfacher als zwei
+  (Datei am Eintrag *und* Dokument). Kosten: eine Nummer je Datei, sonst nichts. Im Verlauf
+  erscheint das Dokument als Eintrag; man muss es nicht als eigenen Datensatz bemerken.
 - **Wichtiges bleibt oben**, bis es erledigt oder überholt ist. Wichtigkeit beurteilt die KI aus
   dem Ziel und echten Daten (Neukunde? Warenwert? schon vorgekommen?), nicht durch Zählen.
 - **Audio wird nicht gespeichert** (wörtliches Transkript und KI-Fassung bleiben), **Video
@@ -167,12 +179,31 @@ beginnt seine Spur im Log.
   von selbst mit Vermerk; zwei Personen gleichzeitig → der zweite sieht «schon entschieden»; jeder
   Vorschlag lässt sich vor dem Bestätigen bearbeiten; Bestätigen, Ändern, Verwerfen stehen im Log.
   Fällt die KI aus, bleibt die Notiz unverarbeitet am Ding und wird nachgeholt – nichts geht verloren.
-- **Der Auftrag an die KI** ist ein einziger, versionierter Text im Repository: wer wir sind,
-  unser Ziel, worauf es ankommt. Er gilt für Erfassen und «Relevant hier». Keine Regeln wie «frag
-  immer nach dem Warum» – Rückfragen stellt sie, wenn das Ziel es verlangt.
-- **Sie lernt aus Korrekturen:** jedes Bestätigen, Ändern und Verwerfen steht im Log und geht als
-  Beispiel in künftige Entscheide ein. Weniger Korrekturen = bessere KI; das ist zugleich der
-  Massstab für ihre Qualität.
+- **Der Auftrag an die KI** ist ein einziger, versionierter Text im Repository (Entwurf unten). Er
+  gibt ein grobes Ziel, keine Regeln und keine Kategorien. Alles Weitere holt sich die KI selbst:
+  sie liest, was im ERP steht (im Rahmen der Rechte), und lernt aus dem, was Menschen mit ihren
+  Vorschlägen getan haben.
+- **Sie lernt ständig, ohne Training:** jedes Bestätigen, Ändern und Verwerfen steht im Log. Vor
+  einem Entscheid liest die KI die passenden früheren Korrekturen nach (wie jede andere Angabe) und
+  richtet sich danach. Weniger Korrekturen = bessere KI; das ist zugleich der Massstab.
+
+### Entwurf: Auftrag an die KI
+
+> Du arbeitest für INEXXIO, einen kleinen Schweizer Maschinenbaubetrieb. Unser Ziel: Wissen geht
+> nicht verloren, derselbe Fehler passiert nicht zweimal, und jeder findet, was er braucht, dort,
+> wo er es braucht – ohne Mehraufwand.
+>
+> Du bekommst, was jemand festgehalten hat. Lege es dort ab, wo es später gesucht wird, und
+> schlage vor, was daraus folgt. Ändern oder anlegen tust du nie selbst; du schlägst vor, ein
+> Mensch entscheidet. Lies im ERP nach, was du brauchst – auch, wie wir früher deine Vorschläge
+> bestätigt, geändert oder verworfen haben, und richte dich danach.
+>
+> Wenn jemand ein Ding öffnet, zeig, was für ihn jetzt wichtig ist, mit Quelle – so wenig wie
+> möglich, auch nichts. Frag nur zurück, wenn ohne Antwort etwas Wichtiges verloren ginge.
+> Schreib kurz und schlicht, wie man im Betrieb redet.
+
+Bewusst nicht drin: Listen von Gründen, Beispiele für Wichtigkeit, Kategorien. Wird der Text
+länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Ziel.
 - **Eine Tür:** jeder KI-Aufruf läuft über `services/ai.py` (Tageslimit, jeder Aufruf im Log).
 - **MCP-Zugang (optional, später):** dieselben Werkzeuge, angeboten an Claude (App) – nur für
   Clemens, aus Interesse. Richtung: Claude ruft das ERP auf, nicht umgekehrt. Das ERP selbst
@@ -189,6 +220,21 @@ beginnt seine Spur im Log.
   (gibt es schon), und ein Dokument erscheint als Eintrag im Verlauf seines Dings.
 - **Die KI legt ab, der Mensch kontrolliert** («Stimmt so» oder «ändern»), auch im Datensatz.
 - **Spracherfassung** von Anfang an, mit einem professionellen, robusten Dienst (Mundart).
+  Vorzug für Google (unser Cloud-Projekt, Daten in Europa). Das Hören ist ein eigener Dienst; das
+  Verstehen und Ablegen bleibt bei Claude über `services/ai.py`.
+
+### Vergleich der Sprachdienste (Test, vor Phase 4)
+
+| Kandidat | Was er ist |
+|---|---|
+| Google Speech-to-Text v2, Modell Chirp | reiner Transkriptionsdienst, Sprache «Deutsch (Schweiz)» |
+| Gemini auf Vertex AI (Flash) | hört die Aufnahme und schreibt sie wörtlich auf (Audio als Eingabe) |
+| ein Nicht-Google-Dienst als Massstab | nur zum Vergleich, falls beide Google-Dienste schwächeln |
+
+Getestet mit **drei echten Aufnahmen** von uns: eine Notiz (1 Min., Halle mit Lärm), ein Telefonat
+mit Lautsprecher, ein Meeting (10 Min., mehrere Stimmen). Gemessen: stimmen Namen, Zahlen und
+Fachwörter? Trennt er die Sprecher? Dauer und Kosten je Minute. Gewinner ist der einfachste und
+günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
 
 ## Weitere Regeln
 
@@ -210,7 +256,7 @@ beginnt seine Spur im Log.
 | 2 | Verlauf an jeder Nummer (Wissen am Ding) | offen |
 | 3 | KI-Werkzeuge: Vorschläge, Auftrag an die KI, Lernen aus Korrekturen | offen |
 | 4 | «Erfassen» mit Spracherfassung | offen |
-| 5 | «Relevant hier» | offen |
+| 5 | «Auf einen Blick» (auf Abruf) | offen |
 | eigene Projekte | Website-Messung (BigQuery) · Aufgaben («wer macht was») · MCP-Zugang (hier nur die Grundzüge) | offen |
 
 Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
@@ -232,9 +278,14 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 - 05.11.2026 – «Offenes wartet am Ding» wird gebaut (Teil von Phase 3). Aufgaben, Website-Messung
   und MCP sind eigene Projekte; MCP hier nur in Grundzügen. Alles bleibt in dieser einen Akte.
 
+- 05.11.2026 – «Auf einen Blick» ist eine Liste (Vorschläge mit Bestätigen/✕, Hinweise ohne), auf
+  Abruf neu gebildet. Verlauf mit der Logik der Kommunikation. Dokumente behalten ihre Nummer.
+  Auftrag an die KI: grobes Ziel, keine Regeln, sie lernt aus Korrekturen. Sprachdienst: Vorzug
+  Google, Vergleich mit echten Aufnahmen.
+
 ## Offene Fragen
 
-- Der Auftrag an die KI: Entwurf und Prüfung an drei echten Beispielen (Montage-Notiz,
-  Meeting-Notiz, Kunden-Mail).
-- Welcher Sprachdienst versteht Mundart zuverlässig?
+- Der Auftrag an die KI: Prüfung des Entwurfs an den drei Beispielen (Montage-Notiz,
+  Meeting-Notiz, Kunden-Mail), sobald Phase 3 steht.
+- Sprachtest: drei echte Aufnahmen (Notiz, Telefonat, Meeting) von Clemens.
 - Folgeprojekt «Aufgaben» (wer macht was, Zuständigkeit je Prozessschritt).
