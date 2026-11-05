@@ -129,8 +129,8 @@ dafür zurückgesetzt werden.
   rechtzeitig anlegt – eine Stelle mehr, die vergessen werden kann. Nachrüstbar, wenn das Log
   in die zig Millionen geht.
 - **Versiegelt wird beim Start und im Abgleich** (`POST /erp/messages/sync`, läuft, solange das
-  ERP offen ist) statt «nachts per Job» – es gibt keinen Zeitplaner, und ein Tag wird erst eine
-  Stunde nach Mitternacht (UTC) versiegelt, damit keine laufende Transaktion fehlt.
+  ERP offen ist) statt «nachts per Job» – es gibt keinen Zeitplaner, und ein Tag wird erst sechs
+  Stunden nach Mitternacht (UTC) versiegelt, damit keine laufende Transaktion fehlt.
 - **Wer handelt, sagt jede Route ausdrücklich** (`get_current_user` oder `public(…)`); der
   Wächter prüft das **für jede Route** statt «jede schreibende Route hinterlässt einen Eintrag»
   – eine Anfrage, die nichts ändert, braucht keinen.
