@@ -25,6 +25,27 @@ Woran wir es messen (nach rund 3 Monaten im Alltag):
 3. **Wichtiges ist nicht zu übersehen** – es steht oben am Ding, bis es erledigt oder überholt ist.
 4. **Keine neue Insel** – bestehende Funktionen werden zusammengeführt, keine kommt dazu.
 
+## Aufbau in vier Schichten (Gesamtbild, 05.11.2026)
+
+1. **Das Log** – was geschehen ist. Eine Stelle, jede Handlung, von Mensch, KI oder System.
+   Fundament für alles Weitere (Verlauf, Lernen aus Korrekturen, «Relevant hier»).
+2. **Das Wissen am Ding** – Verlauf, Dokumente, Notizen, an der Objektnummer.
+3. **Die KI-Werkzeuge** – die KI darf, was die Person darf, in ihrem Namen (Grundsatz aus den
+   Dokumenten). Ihre Handlungen sind die Handlungen des ERP selbst – keine eigene, feste Liste;
+   sie wachsen mit jedem neuen Feature von selbst mit.
+4. **Die Oberflächen** – «Erfassen» im ERP (schnell, unterwegs); Claude (App) über einen
+   MCP-Connector für Gespräche, Meetings, Fragen; später weitere.
+
+## Das Log (Leitlinie, Umsetzung eigenes Teilprojekt)
+
+- **Ein Log für alles**, append-only: wer (Person, KI in ihrem Namen, System), was (Handlung),
+  woran (Objektnummer), vorher → nachher, wann, aus welcher Quelle (Anfrage, Erfassen, Webhook …).
+- **Nicht vergessbar:** geschrieben von der Datenbank selbst (Trigger an jeder Tabelle, der
+  Handelnde wird je Anfrage mitgegeben), nicht von jedem Programmierer einzeln. Ein Wächter-Test
+  verlangt den Trigger an jeder neuen Tabelle – so ist es bei jedem neuen Feature erzwungen.
+- Die heutigen Teil-Logs (Prozess-Log, Audit-Log, Zeiterfassung) werden schrittweise Teile davon.
+- Auswertung grosser Mengen (z. B. BigQuery) erst, wenn die Datenbank nicht mehr reicht.
+
 ## Regeln (entschieden)
 
 - **Jedes Ding hat eine Nummer, jede Nummer einen Verlauf.** Der Verlauf ist die heutige
@@ -79,6 +100,8 @@ Woran wir es messen (nach rund 3 Monaten im Alltag):
 | Phase | Inhalt | Stand |
 |---|---|---|
 | 0 | Projektakte, Mockup | in Arbeit |
+| 0b | **Das Log** (Fundament) | offen |
+| 0c | KI-Werkzeuge («darf, was die Person darf») + MCP-Connector | offen |
 | 1 | Verlauf an jeder Nummer · «Erfassen» (Sprechen, Kamera, Galerie, Scannen, Schreiben) · KI-Fassung · eine Rückfrage | offen |
 | 2 | Zentrales Log im Verlauf | offen |
 | 3 | «Relevant hier» | offen |
@@ -101,7 +124,8 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 ## Offene Fragen
 
 - Der Auftrag an die KI (der eine Prompt): Entwurf, Prüfung an echten Beispielen.
-- Wo offene Vorschläge warten, bis sie bestätigt oder verworfen sind.
+- Offene Vorschläge warten am Ding, wo sie erfasst wurden («zu tun»-Zahl am Symbol, gibt es schon)?
+- Eigenen Assistenten bauen oder Claude (App) über MCP anschliessen?
 - Antworten auf eine Mail ohne Eingabefeld im Verlauf: über den Einstieg, mit Empfänger vorbelegt?
 - Aufgabenmanagement («wer macht was»): eigenes Folgeprojekt; Mindestlösung bis dahin?
 - Welcher Sprachdienst (Mundart)?
