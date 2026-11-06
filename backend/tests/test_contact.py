@@ -117,7 +117,7 @@ def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
     assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
     (inq,) = inquiries(world.db, data["email"])
     conf = world.db.query(Message).join(MessageParty, MessageParty.message_id == Message.id).filter(
-        MessageParty.person_object_id == inq.sender_object_id, Message.id != inq.id).one()
+        MessageParty.object_id == inq.sender_object_id, Message.id != inq.id).one()
     assert world.sent == [conf.id]
     assert conf.sender_object_id == world.staff.object_id and conf.channel == CHANNEL
     assert conf.subject == contact.VOCAB["mail"]["confirmSubject"]
@@ -378,7 +378,7 @@ def test_the_confirmation_carries_nothing_a_stranger_typed(world):
     assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
     (inq,) = inquiries(world.db, data["email"])
     conf = world.db.query(Message).join(MessageParty, MessageParty.message_id == Message.id).filter(
-        MessageParty.person_object_id == inq.sender_object_id, Message.id != inq.id).one()
+        MessageParty.object_id == inq.sender_object_id, Message.id != inq.id).one()
     for foreign in ("spam.example", "Gratis", "Klick Hier", data["phone"]):
         assert foreign not in conf.body and foreign not in conf.html, foreign
     assert "spam.example" in inq.body, "die Anfrage selbst bleibt vollständig"

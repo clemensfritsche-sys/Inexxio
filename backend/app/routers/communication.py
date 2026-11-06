@@ -1,4 +1,4 @@
-"""Kommunikation – Verlauf lesen, Nachricht anlegen, offene zählen (nur Personal)."""
+"""Kommunikation – Nachricht anlegen, Postfächer, Abgleich (nur Personal)."""
 
 from typing import Optional
 from urllib.parse import urlencode
@@ -96,17 +96,8 @@ def attachment(message_id: int, index: int, db: Session = Depends(get_db),
         "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
 
-@router.get("", response_model=list[MessageOut])
-def history(
-    person: Optional[int] = Query(None),
-    company: Optional[int] = Query(None),
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
-):
-    """Der Verlauf einer Person oder aller Personen einer Firma – chronologisch."""
-    if not person and not company:
-        raise HTTPException(400, detail="Person oder Firma angeben.")
-    return svc.history(db, person=person, company=company)
+# Den Verlauf liest ``GET /erp/history/{object_id}`` (``services/history``) – EIN Verlauf
+# für jeden Datensatz, in Seiten; Nachrichten sind ein Teil davon.
 
 
 @router.post("", response_model=MessageOut)

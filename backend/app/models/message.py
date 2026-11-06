@@ -5,11 +5,16 @@ kein Status, kein Typ. Was sie ist, sagen ihre Angaben; ob sie offen ist, ist ei
 **Ableitung** (``services/communication``). Nach dem Speichern wird nichts mehr geändert
 – die Geschichte bleibt, wie sie war; weg kommt eine Nachricht nur per Soft-Delete.
 
-* ``message_parties`` – An · Cc · Bcc · Betrifft, je Person eine Zeile.
+* ``message_parties`` – An · Cc · Bcc · Betrifft, je Datensatz eine Zeile (``object_id``:
+  An/Cc/Bcc sind immer Personen, «Betrifft» darf **jeder Datensatz** sein – die Notiz am
+  Auftrag, am Artikel, am Dokument).
 * ``group_id`` · ``newsletter`` – die Versandart (Mail · Rundschreiben · Newsletter).
 
 Was zusammengehört, sagt der **Betreff** (``domain.topic``) – ein «Antwort auf» gibt es
-nicht.
+nicht. Das **Anliegen** steht als Spalte ``topic`` da (mit Index), damit «offen» eine
+Abfrage ist und nicht ein Lauf über alles. Keine zweite Wahrheit: es folgt aus dem Betreff,
+gesetzt an EINER Stelle (``_topic``, bei jeder Zuweisung des Betreffs), und ein Betreff
+ändert sich nach dem Speichern nie.
 """
 
 from datetime import datetime
@@ -19,9 +24,10 @@ from typing import Any
 
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from ..core.database import Base
+from ..domain.communication import topic as _topic_of
 from .base import TimestampMixin, utcnow
 
 
@@ -35,6 +41,9 @@ class Message(Base, TimestampMixin):
     #: Schlüssel im Katalog (``domain/communication.CHANNELS``).
     channel: Mapped[str] = mapped_column(String(20), nullable=False)
     subject: Mapped[Optional[str]] = mapped_column(String(255))
+    #: **Das Anliegen** – der Betreff in Normalform (``domain.topic``). Nie von Hand gesetzt:
+    #: ``_topic`` schreibt es mit dem Betreff. Ohne Betreff ``""`` (auch das ist ein Anliegen).
+    topic: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     body: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     #: Der Zeitpunkt der Nachricht – darf in der Zukunft liegen (Erinnerung, später senden).
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False,
@@ -77,7 +86,15 @@ class Message(Base, TimestampMixin):
               postgresql_where=text("rfc_id IS NOT NULL")),
         Index("uq_messages_gmail", "channel", "gmail_id", unique=True,
               postgresql_where=text("gmail_id IS NOT NULL")),
+        # «offen» fragt je Anliegen nach späteren Nachrichten (``communication.answered``).
+        Index("ix_messages_topic_at", "topic", "at"),
     )
+
+    @validates("subject")
+    def _topic(self, _key: str, subject: Optional[str]) -> Optional[str]:
+        """**Die eine Stelle, die das Anliegen setzt** – mit dem Betreff, jedes Mal."""
+        self.topic = _topic_of(subject)
+        return subject
 
 
 class MessageParty(Base):
@@ -86,7 +103,8 @@ class MessageParty(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     message_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("messages.id"), nullable=False, index=True)
-    person_object_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    #: Der Datensatz (Objektnummer). An/Cc/Bcc: eine Person; «Betrifft»: jeder Datensatz.
+    object_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     #: ``to`` · ``cc`` · ``bcc`` · ``about``.
     role: Mapped[str] = mapped_column(String(5), nullable=False)
 
