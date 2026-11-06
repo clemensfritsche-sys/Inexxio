@@ -22,7 +22,7 @@ Woran wir es messen (nach rund 3 Monaten im Alltag):
 
 1. **Erfassen unter 30 Sekunden** – jede Montage, jedes Kundengespräch hinterlässt eine Notiz.
 2. **In 30 Sekunden gefunden** – was über einen Datensatz bekannt ist, steht dort, mit Quelle.
-3. **Wichtiges ist nicht zu übersehen** – es steht oben am Datensatz, bis es erledigt oder überholt ist.
+3. **Wichtiges ist nicht zu übersehen** – es ist am Datensatz angeheftet, bis es erledigt oder überholt ist.
 4. **Keine neue Insel** – bestehende Funktionen werden zusammengeführt, keine kommt dazu.
 
 ## Grundsatz
@@ -77,7 +77,7 @@ geschieht das über eine einzige, selbst protokollierte Schwärzungsfunktion –
 Änderung.
 
 **Grösse und Ort:** Das Log bleibt in der Datenbank (Cloud SQL). Für das ERP reicht das auf
-Jahre; es wird nach Monaten aufgeteilt, damit es schnell bleibt.
+Jahre (ein Index auf Datensatz und Zeit hält es schnell).
 
 ### Technische Spezifikation (gebaut, Migration 166)
 
@@ -110,13 +110,13 @@ Indizes: `(object_id, at)` für den Verlauf, `(request_id)`, `(actor_id, at)`, `
    derselben Transaktion.
 4. **Unveränderlich:** ein Trigger weist `UPDATE`/`DELETE` auf `log` ab (Bauart wie heute beim
    Prozess-Log); einzige Ausnahme ist die Schwärzungsfunktion, die selbst einen Eintrag schreibt.
-5. **Versiegelung:** einmal je Nacht bildet ein Job eine Prüfsumme über die Einträge des Tages und
-   die Prüfsumme des Vortags (Kette in `log_seal`). Jede nachträgliche Änderung wird erkennbar, ohne
+5. **Versiegelung:** einmal je Tag bildet der Takt eine Prüfsumme über die Einträge des Vortags und
+   die Prüfsumme davor (Kette in `log_seal`). Jede nachträgliche Änderung wird erkennbar, ohne
    dass das Schreiben tagsüber auf eine Kette warten muss.
 
 **Wächter (Tests):** jede Tabelle hat den Trigger (Ausnahmen namentlich begründet) · eine Änderung
-ohne Handelnden scheitert · `log` ist nicht änderbar · jede schreibende Route hinterlässt mindestens
-einen Eintrag · die Bug-Form jedes Wächters wird gegengeprüft.
+ohne Handelnden scheitert · `log` ist nicht änderbar · jede Route mit Datenbank nennt einen
+Handelnden · die Bug-Form jedes Wächters wird gegengeprüft.
 
 **Ersetzt (keine Rückwärtskompatibilität):** `audit_log` und `process_events` entfallen; die
 Ableitungen aus dem Prozess-Log (Bild, Protokoll, Stückliste, Journey) lesen die Ereignisse
@@ -128,9 +128,9 @@ dafür zurückgesetzt werden.
   ein Index auf `(object_id, at)` auf Jahre; Monats-Partitionen bräuchten einen Job, der sie
   rechtzeitig anlegt – eine Stelle mehr, die vergessen werden kann. Nachrüstbar, wenn das Log
   in die zig Millionen geht.
-- **Versiegelt wird beim Start und im Abgleich** (`POST /erp/messages/sync`, läuft, solange das
-  ERP offen ist) statt «nachts per Job» – es gibt keinen Zeitplaner, und ein Tag wird erst sechs
-  Stunden nach Mitternacht (UTC) versiegelt, damit keine laufende Transaktion fehlt.
+- **Versiegelt wird heute beim Start und im Abgleich** (`POST /erp/messages/sync`), bis der Takt
+  steht (Phase 2) – dann vom Takt. Ein Tag wird erst sechs Stunden nach Mitternacht (UTC)
+  versiegelt, damit keine laufende Transaktion fehlt.
 - **Wer handelt, sagt jede Route ausdrücklich** (`get_current_user` oder `public(…)`); der
   Wächter prüft das **für jede Route** statt «jede schreibende Route hinterlässt einen Eintrag»
   – eine Anfrage, die nichts ändert, braucht keinen.
@@ -144,11 +144,7 @@ dafür zurückgesetzt werden.
   Migration 167 gefallen (Zwei-Deploy-Regel; vorher holte sie nach, was die alte Fassung beim
   Ausrollen noch schrieb).
 
-**Website-Messung ist ein eigener Strom, nicht das Log.** Klicks und Wege von anonymen Besuchern
-sind Messdaten, keine Handlungen im System – viel mehr, kurzlebiger, anonym. Sie gehen in
-**BigQuery** (gebaut für genau solche Mengen und Auswertungen, günstig bei unseren Zahlen); das ERP
-liest daraus verdichtete Zahlen, nicht jede Zeile. Wird aus einem Besucher ein Kunde (Anfrage),
-beginnt seine Spur im Log.
+**Website-Messung** ist ein eigener Strom (BigQuery), nicht das Log – eigenes Projekt, später.
 
 ## 2 · Wissen am Datensatz
 
@@ -189,8 +185,8 @@ beginnt seine Spur im Log.
   da, ohne KI-Aufruf.
 - **Dokumente behalten ihre Nummer** (eigener Zustand, von anderswo angesprochen, Nachweis); im
   Verlauf erscheinen sie als Eintrag.
-- **Wichtiges bleibt oben**, bis es erledigt oder überholt ist. Wichtigkeit beurteilt die KI aus
-  dem Ziel und echten Daten, nicht durch Zählen.
+- **Wichtiges bleibt angeheftet**, bis es erledigt oder überholt ist. Wichtigkeit beurteilt die KI
+  aus dem Ziel und echten Daten, nicht durch Zählen.
 - **Audio wird nicht aufbewahrt** (wörtliches Transkript und KI-Fassung bleiben): die Stücke
   liegen nur bis zur fertigen Abschrift im Speicher und werden danach gelöscht (spätestens nach
   einem Tag, Regel im Speicher selbst). **Video bleibt im Original**.
@@ -310,10 +306,6 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
   Neu nur: Foto und Datei aus «Erfassen» öffnen den bestehenden Entwurf, die KI schlägt den Bezug vor
   (gibt es schon), und ein Dokument erscheint als Eintrag im Verlauf seines Datensatzes.
 - **Die KI legt ab, der Mensch kontrolliert** («Stimmt so» oder «ändern»), auch im Datensatz.
-- **Spracherfassung** von Anfang an, mit einem professionellen, robusten Dienst (Mundart).
-  Vorzug für Google (unser Cloud-Projekt, Daten in Europa). Das Hören ist ein eigener Dienst; das
-  Verstehen und Ablegen bleibt bei Claude über `services/ai.py`.
-
 - **Aufnehmen im Browser:** der Bildschirm bleibt während der Aufnahme an (Wake Lock – sonst hält
   vor allem das iPhone die Aufnahme an); die Aufnahme geht **in Stücken** (alle 30 Sekunden) hoch –
   bricht sie ab (Anruf, Akku, gesperrt), ist alles bis dahin da. Eine eigene App erst, wenn das
@@ -325,9 +317,9 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
   werden Eingaben nicht zum Training verwendet. Eine Aufgabe: «wörtlich aufschreiben, mit
   Sprechern»; verstehen und ablegen bleibt bei Claude (eine Tür, `services/ai.py`, auch für
   Gemini – derselbe Deckel, dasselbe Log).
-- **Lange Aufnahmen laufen im Hintergrund:** hochladen → Google schreibt ab (Minuten) → der
-  **Takt** sieht nach, ob die Abschrift fertig ist, und gibt sie der KI → der Vorschlag erscheint
-  am Datensatz. Verarbeitet wird **im Namen der Person, die aufgenommen hat** (dieselben Rechte),
+- **Lange Aufnahmen laufen im Hintergrund:** die Stücke sind hochgeladen → nach «Stopp» gibt der
+  **Takt** die ganze Aufnahme Gemini (das Abschreiben dauert Minuten – zu lang für eine Anfrage)
+  → Claude legt ab → «Abgelegt» erscheint bei der Person, die aufgenommen hat. Verarbeitet wird **im Namen der Person, die aufgenommen hat** (dieselben Rechte),
   auch wenn der Takt es anstösst. Ohne Netz wird nichts vorgesehen.
 
 ### Der Takt (Infrastruktur)
@@ -337,7 +329,7 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
 Er erledigt, was nicht an einem offenen Browser hängen darf:
 - **neue Mails holen und Fälliges senden** – auch, wenn niemand das ERP offen hat (heute nur,
   solange ein Browser offen ist);
-- **fertige Abschriften abholen** (siehe oben);
+- **Aufnahmen abschreiben lassen und ablegen** (siehe oben);
 - **das Siegel des Logs** (einmal je Tag, die Prüfsumme aus Phase 1).
 Jede Aufgabe ist wiederholbar und einzeln gesperrt; scheitert eine, läuft sie beim nächsten Takt.
 Professionell umgesetzt heisst: eigenes Dienstkonto nur mit dem Recht, diese eine Adresse
@@ -351,22 +343,10 @@ Tagen ab. Push wäre nur ein Beschleuniger – erst, wenn 5 Minuten stören.
 **Kosten:** Cloud Scheduler 3 Aufträge gratis; 288 kurze Aufrufe je Tag bleiben im
 Gratis-Kontingent von Cloud Run (bezahlt wird nur Rechenzeit während einer Anfrage). ≈ 0 CHF.
 
-### Vergleich der Sprachdienste (erledigt 06.11.2026 – Ergebnis: Gemini, siehe oben)
+### Sprachdienst – Test erledigt (06.11.2026)
 
-| Kandidat | Was er ist |
-|---|---|
-| Google Speech-to-Text v2, Modell Chirp | reiner Transkriptionsdienst, Sprache «Deutsch (Schweiz)» |
-| Gemini auf Vertex AI (Flash) | hört die Aufnahme und schreibt sie wörtlich auf (Audio als Eingabe) |
-| ein Nicht-Google-Dienst als Massstab | nur zum Vergleich, falls beide Google-Dienste schwächeln |
-
-**Clemens testet selbst, ohne Code** (nur eigene Test-Aufnahmen ohne Kundendaten – im kostenlosen
-AI Studio darf Google Eingaben zur Verbesserung nutzen): Google Cloud Console (Projekt `inexxio-dev`) →
-«Speech-to-Text» → «Transkriptionen» → Datei hochladen, Modell Chirp 3, Deutsch (Schweiz), Region
-Europa; und aistudio.google.com → Audio hochladen → «Schreibe diese Aufnahme wörtlich auf, mit
-Sprechern». Getestet mit **drei echten Aufnahmen** von uns: eine Notiz (1 Min., Halle mit Lärm), ein Telefonat
-mit Lautsprecher, ein Meeting (10 Min., mehrere Stimmen). Gemessen: stimmen Namen, Zahlen und
-Fachwörter? Trennt er die Sprecher? Dauer und Kosten je Minute. Gewinner ist der einfachste und
-günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
+Verglichen wurden Google Speech-to-Text (Chirp) und Gemini; Clemens hat Gemini mit eigenen
+Aufnahmen getestet (Mundart, Namen, Zahlen): hervorragend. Entscheid: Gemini über Vertex AI.
 
 ## Weitere Regeln
 
@@ -437,6 +417,9 @@ Abschrift); in wessen Namen der Takt eine Aufnahme verarbeitet (jetzt: im Namen 
 Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 
 ## Entscheide (mit Datum)
+
+Chronologisch; **ein späterer Entscheid geht einem früheren vor.** Der gültige Stand steht in den
+Abschnitten oben.
 
 - 03.11.2026 – Arbeitsweise: Claude führt, stellt Fragen mit Empfehlung; Clemens entscheidet.
 - 03.11.2026 – Kein Zählen, keine Termine; Wichtiges bleibt oben am Ding. Das Werkzeug bewahrt
