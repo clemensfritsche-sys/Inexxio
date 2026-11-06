@@ -7,9 +7,9 @@ dieselbe Bauart wie ``statuses.terminal_guard_sql`` und ``timekeeping.append_onl
 * ``log_actor()`` – **wer handelt**, aus der Transaktion (``SET LOCAL inexxio.actor``, gesetzt
   an EINER Stelle: ``services/log.act``). Fehlt er, scheitert das Schreiben – lieber laut als
   ohne Spur.
-* ``log_row()`` – der Trigger an **jeder** Tabelle (``OBJECT`` sagt, an welchem Ding eine
+* ``log_row()`` – der Trigger an **jeder** Tabelle (``OBJECT`` sagt, an welchem Datensatz eine
   Zeile hängt). Nur Geändertes, ``updated_at`` zählt nicht; Geheimes und Binäres steht nie
-  im Klartext da.
+  im Klartext da; ein langer Wert (``LONG_VALUE``) nur als Prüfsumme (``log_shorten``).
 * ``log_event(…)`` – ein fachliches Ereignis, das keine Zeile ändert, in derselben
   Transaktion.
 * ``log_immutable()`` – ``UPDATE``, ``DELETE`` und ``TRUNCATE`` auf ``log`` und ``log_seal``
@@ -98,6 +98,9 @@ OBJECT: dict[str, str | None] = {
 ROW_TRIGGER = "trg_log_row"
 IMMUTABLE_TRIGGER = "trg_log_immutable"
 IMMUTABLE_TRUNCATE = "trg_log_no_truncate"
+#: Ab dieser Länge (Zeichen) steht ein Wert im Log als Prüfsumme ``{"sha256", "len"}`` statt als
+#: Inhalt – er liegt unveränderlich in seiner Zeile; doppelt wüchse das Log mit jeder Mail.
+LONG_VALUE = 2000
 #: Der Siegel-Lauf: einer zur Zeit, die anderen gehen weiter, statt zu warten.
 SEAL_LOCK = 778_899_003
 
@@ -121,6 +124,19 @@ BEGIN
   END IF;
   RETURN a::jsonb;
 END;
+$fn$;
+
+CREATE OR REPLACE FUNCTION log_shorten(v jsonb) RETURNS jsonb LANGUAGE sql IMMUTABLE AS $fn$
+  SELECT CASE
+    WHEN v IS NULL OR jsonb_typeof(v) = 'null' THEN v
+    WHEN jsonb_typeof(v) = 'string' AND length(v #>> '{}') > __LONG__ THEN
+      jsonb_build_object('sha256', encode(sha256(convert_to(v #>> '{}', 'UTF8')), 'hex'),
+                         'len', length(v #>> '{}'))
+    WHEN jsonb_typeof(v) IN ('object', 'array') AND length(v::text) > __LONG__ THEN
+      jsonb_build_object('sha256', encode(sha256(convert_to(v::text, 'UTF8')), 'hex'),
+                         'len', length(v::text))
+    ELSE v
+  END;
 $fn$;
 
 CREATE OR REPLACE FUNCTION log_row() RETURNS trigger LANGUAGE plpgsql AS $fn$
@@ -158,6 +174,13 @@ BEGIN
       END IF;
     END LOOP;
   END IF;
+  -- Ein langer Wert (Mail-HTML, Dokumenttext …) steht nur als Prüfsumme da: er liegt schon
+  -- unveränderlich in seiner Zeile, und doppelt gespeichert wüchse das Log mit jeder Mail.
+  SELECT jsonb_object_agg(e.key, CASE WHEN TG_OP = 'UPDATE'
+                                      THEN jsonb_build_array(log_shorten(e.value -> 0),
+                                                             log_shorten(e.value -> 1))
+                                      ELSE log_shorten(e.value) END)
+    INTO ch FROM jsonb_each(ch) e;
   IF TG_ARGV[0] <> '' THEN
     EXECUTE TG_ARGV[0] INTO oid USING r;
   END IF;
@@ -320,7 +343,7 @@ BEGIN
   END LOOP;
 END;
 $fn$;
-""".replace("__SEAL_LOCK__", str(SEAL_LOCK))
+""".replace("__SEAL_LOCK__", str(SEAL_LOCK)).replace("__LONG__", str(LONG_VALUE))
 
 
 def _immutable_sql(table: str) -> str:

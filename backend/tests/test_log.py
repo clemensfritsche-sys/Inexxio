@@ -302,3 +302,30 @@ def test_redaction_never_blanks_process_history(db):
     before = db.query(ProcessEvent).filter(ProcessEvent.order_id == order.id).count()
     log.redact(db, order.object_id, "Test")
     assert db.query(ProcessEvent).filter(ProcessEvent.order_id == order.id).count() == before
+
+
+def test_a_long_value_stands_in_the_log_as_its_checksum(db, make_person):
+    """Ein langer Wert (Mail-HTML …) steht im Log als Prüfsumme statt doppelt – und die Prüfsumme
+    passt zum Wert in seiner Zeile. Bug-Form (gegengeprüft): ohne ``log_shorten`` stünde der
+    ganze Text im Log."""
+    import hashlib
+
+    from app.domain.log import LONG_VALUE
+    from app.models import Message
+
+    person = make_person("user")
+    db.flush()
+    long_html = "<p>" + "Dichtung tauschen. " * 200 + "</p>"
+    assert len(long_html) > LONG_VALUE
+    msg = Message(sender_object_id=person.object_id, channel="intern", subject="Test",
+                  body="kurz", html=long_html)
+    db.add(msg)
+    db.flush()
+    (row,) = _entries(db, "messages", msg.id)
+    assert row.changes["html"] == {"sha256": hashlib.sha256(long_html.encode()).hexdigest(),
+                                   "len": len(long_html)}
+    assert row.changes["body"] == "kurz", "kurze Werte bleiben, wie sie sind"
+    msg.html = long_html + "x"
+    db.flush()
+    old, new = _entries(db, "messages", msg.id)[-1].changes["html"]
+    assert old["len"] == len(long_html) and new["len"] == len(long_html) + 1

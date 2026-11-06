@@ -124,7 +124,8 @@ SELECT p.order_id, p.step_id, p.instance_unit_id, p.kind, p.status_before, p.sta
     op.execute("DROP VIEW IF EXISTS process_log")
     for fn in ("log_row()", "log_immutable()", "log_event(text, bigint, jsonb, text, text, "
                "text, bigint)", "log_process(jsonb)", "log_redact(bigint, text)",
-               "log_seal_due()", "log_verify()", "log_digest(date)", "log_actor()"):
+               "log_seal_due()", "log_verify()", "log_digest(date)", "log_shorten(jsonb)",
+               "log_actor()"):
         op.execute(f"DROP FUNCTION IF EXISTS {fn} CASCADE")
     op.execute("DROP TABLE IF EXISTS log_seal")
     op.execute("DROP TABLE IF EXISTS log")
