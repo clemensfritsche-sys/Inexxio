@@ -175,8 +175,8 @@ beginnt seine Spur im Log.
 - **Sichtbarkeit:** wer einen Datensatz öffnen darf, sieht seinen ganzen Verlauf. Zugriff wird nur
   auf Ebene des Datensatzes geregelt, nicht innerhalb.
 - **«Auf einen Blick» an jedem Datensatz** (ersetzt «Relevant hier» und «Offen aus Erfassen»):
-  **eine Liste**, Wichtiges zuerst, jeder Punkt mit Quelle. Ein Vorschlag der KI trägt
-  Bestätigen/✕, ein Hinweis nicht – keine Abschnitte, keine Kategorien. So viele Punkte, wie
+  **eine Liste**, Wichtiges zuerst, jeder Punkt mit Quelle. Ein Vorschlag führt zu seinem Feld
+  bzw. öffnet den Entwurf (siehe 3), ein Hinweis nicht – keine Abschnitte, keine Kategorien. So viele Punkte, wie
   wirklich helfen – auch keiner.
 - **Auf Abruf, nicht bei jedem Öffnen:** die KI bildet die Liste neu, wenn jemand «neu ansehen»
   drückt; bis dahin steht der letzte Stand mit Zeit da. Offene Vorschläge stehen immer da, ohne
@@ -218,36 +218,38 @@ speichert doppelt:
 - **Lesen frei (im Rahmen der Rechte), Schreiben als Vorschlag.** Was die KI ändern oder anlegen
   will, wird ein Vorschlag; ein Mensch bestätigt oder verwirft. (Ob einzelne Handlungen später
   ohne Bestätigung laufen dürfen, entscheiden wir mit Erfahrung.)
-- **Ein Vorschlag ist ein gespeicherter Aufruf des ERP** – genau die Anfrage, die der Bildschirm
-  schicken würde, wenn man es von Hand täte («ändere bei Person 100000020 das Feld `phone` auf
-  …»). Die KI kennt die Aufrufe aus der Beschreibung der Schnittstelle (`openapi.json`, gibt es
-  schon). **Bestätigen schickt diesen Aufruf als die bestätigende Person** – mit denselben
-  Prüfungen und demselben Log, als hätte sie getippt. Kein zweiter Code für die KI; was das ERP
-  neu kann, kann die KI sofort vorschlagen.
-- **Eine Darstellung für jeden Vorschlag** (Mockup «Vorschlag bestätigen»): was (ein Satz der KI),
-  woher (Quelle), welcher Aufruf, dann `Feld · jetzt · neu`. Knöpfe: Bestätigen · Bearbeiten (die
-  neuen Werte werden Felder) · ✕. Nichts je Art von Vorschlag.
-- **Gespeichert im Log, keine eigene Tabelle:** zwei Einträge – `proposal` (der Aufruf) und
-  `proposal.decided` (bestätigt mit dem ausgeführten Aufruf · verworfen · geschlossen mit Grund).
-  Offen = Vorschlag ohne Entscheid (Ableitung).
-- **Offene Vorschläge warten am Datensatz** und zählen in dessen «zu tun»-Zahl am Symbol (gibt es
-  schon). Nichts muss sofort erledigt werden.
-- **Robustheit der Vorschläge – drei Sicherungen, eine Regel für alles:**
-  1. *Gleichzeitig:* beim Entscheiden wird der Vorschlag kurz gesperrt; wer zu spät kommt, sieht
-     «schon entschieden».
-  2. *Inzwischen von Hand erledigt oder nicht mehr möglich:* beim Bestätigen prüft das ERP wie
-     immer. Weist es ab, schliesst sich der Vorschlag mit genau diesem Grund – keine Sonderlogik
-     je Fall.
-  3. *Bearbeitet:* ausgeführt wird, was man zuletzt sieht; genau das steht im Log.
-  Entscheiden darf, wer den Aufruf selbst schicken dürfte (das prüft der Aufruf selbst). Fällt die
-  KI aus, bleibt die Notiz unverarbeitet am Datensatz und wird nachgeholt.
+- **Ein Vorschlag öffnet nie ein eigenes Formular – er steht dort, wo man es von Hand täte.**
+  Die eine Wahrheit bleibt das bestehende Feld mit seiner Prüfung und seinem Auto-Save; nichts
+  wird nachgebaut (Mockup «Vorschlag am Feld»):
+  - **Etwas ändern** (ein Wert an einem Datensatz): das Zeichen wie bei «zu tun» steht am
+    Datensatz im Feed, am Abschnitt und **am Feld selbst**. Darüberfahren oder Tippen zeigt den
+    Vorschlag (jetzt → neu, Quelle). «Übernehmen» schreibt den Wert ins Feld – das Feld speichert
+    wie immer. Wer selbst tippt, erledigt den Vorschlag damit auch.
+  - **Etwas anlegen** (Auftrag, Notiz an einem anderen Datensatz …): «Entwurf öffnen» öffnet den
+    **bestehenden** Entwurf vorausgefüllt; freigegeben wird wie immer.
+  Dafür braucht es genau zwei Bausteine: das Zeichen mit Fenster an einem Feld (einmal im
+  gemeinsamen Feld-Baustein) und «Entwurf vorausgefüllt öffnen». Jedes heutige und künftige Feld
+  kann es dann von selbst.
+- **Was gespeichert wird:** je Vorschlag ein Log-Eintrag `proposal` – bei einer Änderung
+  Datensatz, Feld (derselbe Name wie im Auto-Save) und neuer Wert; bei einer Anlage die Art des
+  Entwurfs und seine Werte. Dazu die Quelle. Entschieden: `proposal.decided` (übernommen ·
+  selbst geändert · verworfen). Offen = ohne Entscheid (Ableitung); «selbst geändert» erkennt das
+  System daran, dass das Log eine spätere Änderung genau dieses Felds kennt.
+- **Offene Vorschläge** zählen in der «zu tun»-Zahl des Datensatzes (gibt es schon) und führen per
+  Sprung zum Feld (gibt es schon: `jumpToTodo`). Nichts muss sofort erledigt werden.
+- **Robustheit:** Übernehmen ist dasselbe wie Tippen – dieselbe Prüfung, dasselbe Log; weist das
+  Feld den Wert ab, steht die Meldung des Felds da. Zwei Personen gleichzeitig: wie heute beim
+  Auto-Save, die spätere Änderung gilt, beide stehen im Log. Ist der Datensatz inzwischen gelöscht
+  oder das Feld schon geändert, erledigt sich der Vorschlag von selbst. Fällt die KI aus, bleibt die
+  Notiz unverarbeitet am Datensatz und wird nachgeholt.
 - **Der Auftrag an die KI** ist ein einziger, versionierter Text im Repository (Entwurf unten). Er
   gibt ein grobes Ziel, keine Regeln und keine Kategorien. Alles Weitere holt sich die KI selbst:
   sie liest, was im ERP steht (im Rahmen der Rechte), und lernt aus dem, was Menschen mit ihren
   Vorschlägen getan haben.
 - **Sie lernt ständig, ohne Training:** vor einem neuen Vorschlag bekommt sie die **letzten rund 20
-  Entscheide zur selben Art von Datensatz** (Aufträge, Personen …) als Beispiele mit: was sie
-  vorschlug, was der Mensch daraus machte. Keine Kategorien, keine Regeln, keine Suchmaschine –
+  Entscheide** als Beispiele mit: was sie vorschlug, was der Mensch daraus machte (übernommen,
+  anders getippt, verworfen). Wie ein neuer Mitarbeiter, der vor der Arbeit die letzten
+  Korrekturen des Chefs liest. Ändert sich, wie wir es wollen, ändern sich die Beispiele von selbst. Keine Kategorien, keine Regeln, keine Suchmaschine –
   die Beispiele stehen schon im Log. Weniger Korrekturen = bessere KI; das ist zugleich der
   Massstab.
 
@@ -287,22 +289,25 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
   Vorzug für Google (unser Cloud-Projekt, Daten in Europa). Das Hören ist ein eigener Dienst; das
   Verstehen und Ablegen bleibt bei Claude über `services/ai.py`.
 
-- **Lange Aufnahmen laufen im Hintergrund:** ein Meeting von einer Stunde abzuschreiben dauert
-  Minuten – länger, als eine Anfrage dauern darf (5 Min.), und das Handy soll nicht warten.
-  Ablauf: hochladen → Google schreibt ab → der **Takt** holt das Ergebnis → die KI legt ab → der
-  Vorschlag erscheint am Datensatz. Ohne Netz wird nichts vorgesehen (Verbindung vorausgesetzt).
+- **Lange Aufnahmen laufen im Hintergrund, Google meldet sich selbst:** hochladen → Google
+  schreibt ab → **Google meldet «fertig»** → die KI legt ab → der Vorschlag erscheint am
+  Datensatz. Ohne Netz wird nichts vorgesehen (Verbindung vorausgesetzt).
 
-### Der Takt (Infrastruktur)
+### Google meldet sich selbst (Infrastruktur)
 
-**Cloud Scheduler ruft alle 5 Minuten eine geschützte Adresse des ERP** (`POST /internal/tick`,
-angemeldet mit einem Google-Dienstkonto per OIDC, kein Geheimnis im Code). Der Takt erledigt, was
-nicht an einem offenen Browser hängen darf: fertige Abschriften abholen, das Siegel des Logs, den
-Mail-Abgleich. Jede Aufgabe ist wiederholbar (zweimal laufen schadet nicht) und einzeln gesperrt.
+**Push statt Nachfragen** – der Stand der Technik bei Google: Ereignisse laufen über **Pub/Sub**,
+das sie an eine geschützte Adresse des ERP schickt (angemeldet mit einem Google-Dienstkonto per
+OIDC, kein Geheimnis im Code). Pub/Sub wiederholt, bis das ERP «erhalten» sagt (bis 7 Tage) –
+nichts geht verloren, und jede Verarbeitung ist wiederholbar (zweimal schadet nicht).
 
-Geprüft: das ist der von Google empfohlene Weg für wiederkehrende Arbeit auf Cloud Run (einfach,
-überwacht, Wiederholung bei Fehler, 3 Aufträge gratis). Ereignisgesteuert (Pub/Sub) wäre schneller,
-braucht aber mehr Teile – erst, wenn 5 Minuten Wartezeit stören. Heute hängen Siegel und
-Mail-Abgleich am offenen ERP; der Takt macht das robuster und nimmt dort nichts weg.
+- **Abschrift fertig:** Google legt das Ergebnis in unseren Speicher (Cloud Storage); der Speicher
+  meldet die neue Datei über Pub/Sub.
+- **Neue Mail:** Gmail meldet neue Post über Pub/Sub (`watch`) – Mails kommen damit auch an, wenn
+  niemand das ERP offen hat. Der Abgleich im offenen ERP entfällt; die Anmeldung beim Postfach
+  erneuert sich täglich von selbst.
+- **Siegel des Logs:** beim Start und bei jeder dieser Meldungen (einer zur Zeit).
+
+Kosten: im Gratis-Kontingent (Pub/Sub 10 GB je Monat). Einen Takt (Cloud Scheduler) gibt es nicht.
 
 ### Vergleich der Sprachdienste (Test, vor Phase 4)
 
@@ -338,7 +343,7 @@ günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
 | 0 | Projektakte, Mockup | in Arbeit |
 | 1 | **Das Log** – neu, ersetzt alle heutigen Logs | gebaut (06.11.2026) |
 | 2 | Kommunikation skalierbar (Seiten, Anliegen-Spalte, Prüfsumme im Log) · Notiz an jedem Datensatz · Verlauf an jeder Nummer | offen |
-| 3+4 | **ein Durchstich:** «Erfassen» (zuerst Schreiben) → KI legt ab → Vorschläge → Lernen; danach Sprache (nach dem Test) und der Takt | offen |
+| 3+4 | **ein Durchstich:** «Erfassen» (zuerst Schreiben) → KI legt ab → Vorschläge am Feld → Lernen; danach Sprache (nach dem Test) mit Pub/Sub | offen |
 | 5 | «Auf einen Blick» (auf Abruf) | offen |
 | eigene Projekte | Website-Messung (BigQuery) · Aufgaben («wer macht was») · MCP-Zugang (hier nur die Grundzüge) | offen |
 
@@ -373,8 +378,11 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
   in Seiten, Änderungen technisch, schlankes Wörterbuch nur für Tabellennamen. Wer den Datensatz
   öffnen darf, sieht den ganzen Verlauf. Kommunikation skalierbar machen (zuerst). Langer Wert im
   Log als Prüfsumme. Vorschlag = gespeicherter ERP-Aufruf, im Log, eine Darstellung für alle.
-  Lernen: letzte ~20 Entscheide derselben Art. Phase 3 und 4 als ein Durchstich. Takt per Cloud
-  Scheduler. Ohne Netz und Ziel-Messung werden nicht vorgesehen. Wort: «Datensatz» statt «Ding».
+  Lernen: letzte ~20 Entscheide als Beispiele. Phase 3 und 4 als ein Durchstich. Ohne Netz und Ziel-Messung werden nicht vorgesehen. Wort: «Datensatz» statt «Ding».
+
+- 06.11.2026 – Vorschläge stehen am Feld (Zeichen wie «zu tun», Fenster beim Darüberfahren,
+  «Übernehmen» schreibt ins bestehende Feld) bzw. öffnen den bestehenden Entwurf vorausgefüllt –
+  kein eigenes Formular. Google meldet sich selbst (Pub/Sub, auch für Gmail) statt eines Takts.
 
 ## Offene Fragen
 
