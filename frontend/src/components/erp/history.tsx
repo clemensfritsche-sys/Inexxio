@@ -39,6 +39,13 @@ export function useHistory(objectId: number) {
   });
 }
 
+/** Alle geladenen Einträge, die neuesten zuerst – **jeder einmal**: überlappen zwei Seiten
+ *  (Neues kam beim Nachladen dazu), zählt die erste Fundstelle. */
+export function entriesOf(pages: { entries?: HistoryEntry[] | null }[]): HistoryEntry[] {
+  const seen = new Set<string>();
+  return pages.flatMap((p) => p.entries ?? []).filter((e) => !seen.has(e.key) && !!seen.add(e.key));
+}
+
 /** Die geladenen Nachrichten – chronologisch (die Eingabe liest daraus Offenes und Anliegen). */
 export function loadedMessages(entries: HistoryEntry[]): Message[] {
   return entries.filter((e) => e.message).map((e) => e.message as Message).reverse();
@@ -77,7 +84,7 @@ function ChangeRow({ c, at }: { c: ChangeBlock; at: string }) {
       </div>
       {c.rows.map((r, i) => (
         <div key={i} style={{ ...MONO, marginTop: 2 }}>
-          {(c.rows.length > 1 || r.event) && (
+          {c.rows.length > 1 && (
             <div style={{ color: 'var(--fg-3)' }}>
               {r.event ?? `${r.word ?? r.table} · ${r.action}`}{r.row && !r.event ? ` #${r.row}` : ''}
             </div>
@@ -143,7 +150,7 @@ export function History({ objectId, mirror = true, personId, meId, onReply, onDo
     return <p style={{ color: 'var(--danger)', fontSize: 13 }}>{q.error.message || 'Konnte nicht geladen werden.'}</p>;
   }
   if (!q.data) return <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Lädt …</p>;
-  const entries = q.data.pages.flatMap((p) => p.entries ?? []).slice().reverse();
+  const entries = entriesOf(q.data.pages).reverse();
   if (!entries.length && !sending) {
     return <p style={{ color: 'var(--fg-3)', fontSize: 13, padding: '24px 0' }}>Noch nichts im Verlauf.</p>;
   }

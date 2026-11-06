@@ -74,7 +74,10 @@ OBJECT: dict[str, str | None] = {
     "holidays": _own("company_object_id"),
     "instance_units": _via("instance_id", "instances"),
     "instances": _own("object_id"),
-    "mailboxes": _own("owner_object_id"),
+    # Das Postfach gehört der Gesellschaft (Kanal ``c<Objektnummer>``), nicht der Person,
+    # die es verbunden hat – sonst stünde jeder Abgleich im Verlauf dieser Person.
+    "mailboxes": ("SELECT CASE WHEN $1->>'channel' ~ '^c[0-9]+$' "
+                  "THEN substr($1->>'channel', 2)::bigint END"),
     "message_parties": _own("object_id"),
     "messages": _own("sender_object_id"),
     "newsletter_consents": _own("person_object_id"),

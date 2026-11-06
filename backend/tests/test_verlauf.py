@@ -6,6 +6,7 @@ dass er anschlägt (Gegenprobe).
 """
 
 import importlib.util
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -116,6 +117,32 @@ def test_pages_are_stable_with_equal_timestamps(world):
     assert kinds == {"message", "document", "change"}
     notes = [e for e in whole.entries if e.kind == "message"]
     assert len(notes) == 7 and len({e.at for e in notes}) == 1
+
+
+def test_a_handling_over_several_transactions_stands_once(world):
+    """Eine Handlung (``request_id``) kann Zeilen zu verschiedenen Zeiten tragen – der
+    Mail-Abgleich speichert je Postfach. Sie steht EINMAL da, bei ihrer jüngsten Zeile.
+    Bug-Form: die ältere Zeile allein wird auf der nächsten Seite ein zweiter Block."""
+    db, staff = world
+    lea = new_person(db)
+    now = datetime.now(timezone.utc)
+    long_one, other = uuid.uuid4(), uuid.uuid4()
+    for at, req, field in ((now - timedelta(hours=2), long_one, "a"),
+                           (now - timedelta(hours=1), other, "b"),
+                           (now, long_one, "c")):
+        db.execute(text(
+            "INSERT INTO log (at, actor_kind, source, request_id, object_id, table_name, row_key,"
+            " action, changes) VALUES (:at, 'system', 'job', :r, :o, 'user_profiles', '1',"
+            " 'update', CAST(:ch AS jsonb))"),
+            {"at": at, "r": req, "o": lea.object_id, "ch": f'{{"{field}": [1, 2]}}'})
+    whole = history.page(db, lea.object_id, staff, limit=100).entries
+    for limit in (1, 2):
+        paged = _all(db, lea.object_id, staff, limit)
+        assert [e.key for e in paged] == [e.key for e in whole], limit
+    mine = [sorted(c.field for r in e.change.rows for c in r.changes) for e in whole
+            if e.kind == "change" and e.change.rows[0].changes
+            and e.change.rows[0].changes[0].field in "abc"]
+    assert mine == [["a", "c"], ["b"]]
 
 
 def test_a_message_page_never_loads_everything(world):
@@ -361,3 +388,18 @@ def test_a_planned_message_keeps_its_place(world):
                         staff)
     first = history.page(db, staff.object_id, staff, limit=1)
     assert first.entries[0].message.id == later.id and first.entries[0].message.planned
+
+
+def test_a_mailbox_belongs_to_its_company_not_to_who_connected_it(world):
+    """Der Abgleich ändert das Postfach – das steht im Verlauf der Gesellschaft, nicht in dem
+    der Person, die es verbunden hat. Bug-Form: ``owner_object_id`` als Ding der Zeile."""
+    from app.models import Log, Mailbox
+    db, staff = world
+    box = Mailbox(channel="c999999955", address=f"v{staff.object_id}@x.ch",
+                  owner_object_id=staff.object_id, token="x")
+    db.add(box)
+    db.flush()
+    box.synced_at = datetime.now(timezone.utc)
+    db.flush()
+    rows = db.query(Log).filter(Log.table_name == "mailboxes", Log.row_key == str(box.id)).all()
+    assert len(rows) == 2 and {r.object_id for r in rows} == {999999955}

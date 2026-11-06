@@ -87,7 +87,7 @@ def detail(db: Session, doc: Document) -> DocumentDetail:
                                  reason=s.reason) for s in sigs],
         html=(signing.signed_html(raw.decode("utf-8", "replace"), sigs)
               if raw and doc.mime == "text/html" else _legal_html(db, doc)),
-        read_later=(doc.file_id is not None and not doc.text and ai.ready()
+        read_later=(docs.unread(doc) and ai.ready()
                     and (doc.mime in ai.IMAGE_TYPES or doc.mime == "application/pdf")),
     )
 
@@ -266,12 +266,13 @@ def read_later(object_id: int, db: Session = Depends(get_db),
     """**Das Lesen nachholen** – für ein Dokument, das ohne KI freigegeben wurde. Schreibt nur
     Text, Stichworte und Angaben; Art, Name und Referenz bleiben, wie der Mensch sie setzte."""
     doc = docs.readable(db, object_id, user)
-    if doc.text or doc.file_id is None:
+    if not docs.unread(doc):
         return detail(db, doc)
     raw = docs.raw_of(db, doc)
     p = reading.propose(db, raw=raw, mime=doc.mime, actor=user)
     if p.read:
-        doc.text, doc.keywords, doc.facts = p.text or None, p.keywords or None, p.facts or None
+        # ``""`` statt ``None``: auch ein Lesen ohne Text ist ein Lesen (``docs.unread``).
+        doc.text, doc.keywords, doc.facts = p.text, p.keywords or None, p.facts or None
     db.commit()
     return detail(db, doc)
 

@@ -346,3 +346,20 @@ def test_a_failed_reading_names_its_reason(world, monkeypatch):
     monkeypatch.setattr(ai, "used_today", lambda db: 10_000)
     reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
     assert "Tagesdeckel" in ai.problem()
+
+
+def test_a_drawing_without_text_is_read_once(world, monkeypatch):
+    """Eine Zeichnung trägt keinen Text – gelesen ist sie trotzdem: das zweite Öffnen ruft die
+    KI nicht noch einmal (Fehlerform: «kein Text» hiess «noch nicht gelesen»)."""
+    calls = []
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "_client", lambda *a: calls.append(1) or _FakeClient(_reading(text="")))
+    doc, _ = _file(world.db, world.staff)
+    oid = doc.object_id
+    assert world.client.get(f"/api/v1/erp/documents/{oid}").json()["read_later"]
+    r = world.client.post(f"/api/v1/erp/documents/{oid}/read")
+    assert r.status_code == 200 and not r.json()["read_later"] and len(calls) == 1
+    assert "pump" in (doc.keywords or "")
+    world.client.post(f"/api/v1/erp/documents/{oid}/read")
+    assert len(calls) == 1 and not world.client.get(f"/api/v1/erp/documents/{oid}").json()["read_later"]

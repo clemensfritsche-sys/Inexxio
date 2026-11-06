@@ -138,6 +138,12 @@ SELECT request_id, max(at) AS at, max(id) AS id FROM (
    ORDER BY at DESC, id DESC LIMIT :scan) w
  GROUP BY request_id
 HAVING (max(at), max(id)) < (:bat, :bid)
+   -- Eine Handlung über mehrere Transaktionen (der Mail-Abgleich) steht dort, wo ihre
+   -- jüngste Zeile steht – liegt die schon vor dem Cursor, war sie auf einer früheren Seite.
+   AND NOT EXISTS (SELECT 1 FROM log l
+                    WHERE l.request_id = w.request_id AND l.object_id = :o
+                      AND (l.action = 'event' OR l.table_name <> ALL(:hidden))
+                      AND (l.at, l.id) >= (:bat, :bid))
  ORDER BY 2 DESC, 3 DESC LIMIT :n""")
 
 _ROWS = text("""

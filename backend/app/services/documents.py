@@ -238,6 +238,14 @@ def add_refs(db: Session, doc: Document, refs: list[RefIn], actor: Optional[User
     db.flush()
 
 
+def unread(doc: Document) -> bool:
+    """**Noch nie gelesen** – die eine Regel, ob das Lesen aussteht. Gelesen ist, was Text,
+    Stichworte oder Angaben trägt; ein Lesen ohne Text (eine Zeichnung) hinterlässt ``""``.
+    Nicht «kein Text»: sonst liest die KI eine Zeichnung bei jedem Öffnen neu."""
+    return (doc.file_id is not None and doc.text is None and not doc.keywords
+            and not doc.facts)
+
+
 def raw_of(db: Session, doc: Optional[Document]) -> Optional[bytes]:
     """Die Datei eines Dokuments – oder ``None`` (gelöscht)."""
     if doc is None or doc.file_id is None:

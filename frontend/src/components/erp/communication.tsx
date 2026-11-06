@@ -69,7 +69,7 @@ import { api } from '@/lib/api';
 import { MESSAGES_CHANGED } from '@/lib/feed';
 import { qk } from '@/lib/queries';
 import type { Mailbox, Message, MessageChannel } from '@/types';
-import { History, loadedMessages, useHistory } from '@/components/erp/history';
+import { History, entriesOf, loadedMessages, useHistory } from '@/components/erp/history';
 import { Person } from '@/components/erp/communication/shared';
 import { Sending } from '@/components/erp/communication/timeline';
 import { Composer, Target } from '@/components/erp/communication/composer';
@@ -94,7 +94,7 @@ export function Communication({ person, company, ownCompany, me }: {
   const objectId = (personId ?? company)!;
   const history = useHistory(objectId);
   const messages: Message[] | null = history.data
-    ? loadedMessages(history.data.pages.flatMap((p) => p.entries ?? [])) : null;
+    ? loadedMessages(entriesOf(history.data.pages)) : null;
   // Ein Postfach hat nur eine eigene Gesellschaft – es steht an ihrem Datensatz.
   // Persönliche gibt es nicht: im Kommunikationstool ist jeder Benutzer gleich.
   const channels: MessageChannel[] = useQuery({
