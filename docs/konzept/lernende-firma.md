@@ -413,7 +413,7 @@ Abschrift); in wessen Namen der Takt eine Aufnahme verarbeitet (jetzt: im Namen 
 **Bewusst offen (Schwächen, die wir kennen):**
 - Inhaltssuche – zurückgestellt; Messpunkt 2 nur teilweise.
 - Zuständigkeit (Projekt «Aufgaben») – bis dahin wartet Wichtiges am Datensatz statt bei einer Person;
-  Messpunkt 3 nur teilweise. **Empfehlung:** als Nächstes nach Phase 5.
+  Messpunkt 3 nur teilweise. **Empfehlung:** als Nächstes nach Phase 4.
 - Die Messpunkte werden nach drei Monaten einmal von Hand aus dem Log ausgewertet (kein Dashboard).
 - Schwärzen einer Person – wird nicht gemacht (Entscheid 06.11.2026); die Funktion `log.redact`
   steht bereit, falls es je nötig wird.
