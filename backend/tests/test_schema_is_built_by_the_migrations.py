@@ -142,7 +142,7 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    für **einen** Deploy noch da – ihr Drop würde die noch laufende Vorgänger-Revision
 #:    treffen (Migration 090). Sie gehört dann **hierher** (``"tabelle.spalte"``) und in
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop.
-PENDING_DROP: set[str] = {"message_parties.person_object_id"}   # Migration 168
+PENDING_DROP: set[str] = set()
 
 #: Dasselbe für ganze **Tabellen** (zuletzt ``audit_log``, ``process_events``: Migration 167).
 PENDING_DROP_TABLES: set[str] = set()
