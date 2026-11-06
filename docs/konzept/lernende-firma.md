@@ -21,8 +21,8 @@ oder überwacht.**
 Woran wir es messen (nach rund 3 Monaten im Alltag):
 
 1. **Erfassen unter 30 Sekunden** – jede Montage, jedes Kundengespräch hinterlässt eine Notiz.
-2. **In 30 Sekunden gefunden** – was über ein Ding bekannt ist, steht dort, mit Quelle.
-3. **Wichtiges ist nicht zu übersehen** – es steht oben am Ding, bis es erledigt oder überholt ist.
+2. **In 30 Sekunden gefunden** – was über einen Datensatz bekannt ist, steht dort, mit Quelle.
+3. **Wichtiges ist nicht zu übersehen** – es steht oben am Datensatz, bis es erledigt oder überholt ist.
 4. **Keine neue Insel** – bestehende Funktionen werden zusammengeführt, keine kommt dazu.
 
 ## Grundsatz
@@ -36,14 +36,14 @@ Gearbeitet wird **nur im ERP** – Mitarbeitende erfassen dort, die KI verarbeit
 | Schicht | Inhalt | Reihenfolge |
 |---|---|---|
 | 1 · **Das Log** | was geschehen ist – jede Handlung, eine Stelle | zuerst |
-| 2 · **Wissen am Ding** | Verlauf, Kommunikation, Dokumente, Dateien, Bilder, Notizen an der Objektnummer | danach |
+| 2 · **Wissen am Datensatz** | der Verlauf: Nachrichten, Notizen, Dokumente und Änderungen an der Objektnummer | danach |
 | 3 · **KI-Werkzeuge** | die KI darf, was die Person darf, in ihrem Namen | danach |
 | 4 · **Oberflächen** | «Erfassen» im ERP; optional ein MCP-Zugang für Claude (nur Clemens) | zuletzt |
 
 ## 1 · Das Log
 
 **Zweck:** die eine, vollständige, unveränderliche Wahrheit darüber, was im System geschehen
-ist – Grundlage für den Verlauf am Ding, für das Lernen der KI aus Korrekturen, für «Relevant
+ist – Grundlage für den Verlauf am Datensatz, für das Lernen der KI aus Korrekturen, für «Relevant
 hier», für Nachvollziehbarkeit (Buchungsbelege 10 Jahre) und für die Fehlersuche.
 
 **Keine Rückwärtskompatibilität.** Die heutigen Logs (`audit_log`, `process_events`, das
@@ -57,7 +57,7 @@ abgeleitet wird (Prozessbild, Protokoll, Stückliste, Journey), liest danach aus
 | Zeitpunkt | von der Datenbank gesetzt, nicht vom Aufrufer |
 | Wer | Person (Objektnummer) · Art: Mensch · KI im Namen von · System · von aussen (Webhook, Kunde über Link) |
 | Woher | Oberfläche, Erfassen, Webhook, Job, Migration, MCP – und eine Vorgangs-Id, die alle Einträge einer Handlung verbindet |
-| Woran | Objektnummer des Dings (und die Zeile, falls es keine Nummer hat) |
+| Woran | Objektnummer des Datensatzes (und die Zeile, falls es keine Nummer hat) |
 | Was | Handlung: angelegt · geändert · gelöscht (weich) · fachliches Ereignis (z. B. Status passiert, Mail gesendet, Vorschlag verworfen) |
 | Vorher → nachher | nur die geänderten Felder |
 | Prüfsumme | Kette über die Einträge: jede nachträgliche Änderung wird erkennbar |
@@ -91,7 +91,7 @@ Jahre; es wird nach Monaten aufgeteilt, damit es schnell bleibt.
 | `actor_id` | bigint | Objektnummer der handelnden Person (bei `ai`: die Person, in deren Namen) |
 | `source` | text | `ui` · `capture` · `web` · `link` · `webhook` · `login` · `probe` · `job` · `start` · `migration` · `mcp` · `test` |
 | `request_id` | uuid | verbindet alle Einträge einer Handlung |
-| `object_id` | bigint | Objektnummer des Dings, falls die Zeile eine hat oder an einem hängt |
+| `object_id` | bigint | Objektnummer des Datensatzes, falls die Zeile eine hat oder an einem hängt |
 | `table_name`, `row_key` | text | welche Zeile |
 | `action` | text | `insert` · `update` · `delete` · `event` |
 | `event` | text | Name des fachlichen Ereignisses (z. B. `process.pass`, `mail.sent`, `proposal.rejected`) |
@@ -150,40 +150,65 @@ sind Messdaten, keine Handlungen im System – viel mehr, kurzlebiger, anonym. S
 liest daraus verdichtete Zahlen, nicht jede Zeile. Wird aus einem Besucher ein Kunde (Anfrage),
 beginnt seine Spur im Log.
 
-## 2 · Wissen am Ding
+## 2 · Wissen am Datensatz
 
-- **Jedes Ding hat eine Nummer, jede Nummer einen Verlauf.** Der Verlauf zeigt, was zum Ding
-  gehört: Kommunikation, Dokumente, Dateien, Bilder, Notizen und Änderungen (aus dem Log).
-- **Eine Heimat:** jeder Eintrag gehört genau einem Ding; nichts wird doppelt abgelegt. Eine
+- **Jeder Datensatz hat eine Nummer, jede Nummer einen Verlauf.** Der Verlauf zeigt, was zu ihm
+  gehört, gemischt nach Zeit: **Nachrichten** (Mail, Anruf, intern, **Notiz**), **Dokumente** und
+  **Änderungen** (aus dem Log).
+- **Eine Notiz ist eine Nachricht.** Sie hat Betreff, Text, Zeitpunkt, kann eine Erinnerung sein,
+  beantwortet werden und – wenn sie falsch ist – gelöscht werden (weich). «Betrifft» darf **jeder
+  Datensatz** sein: Person, Firma, Auftrag, Artikel, Instanz, Dokument … (in `message_parties`
+  heisst die Spalte künftig `object_id` statt `person_object_id`). Das Log bleibt reines
+  Protokoll dessen, was geschah – kein Inhaltsspeicher.
+- **Eine Heimat:** jeder Eintrag gehört genau einem Datensatz; nichts wird doppelt abgelegt. Eine
   Aufnahme mit mehreren Themen (z. B. ein Meeting) teilt die KI in Teile, jeder mit seiner Heimat.
 - **Datensatz oder Eintrag:** Ein Datensatz (mit Nummer) hat einen eigenen Zustand oder wird von
-  anderswo angesprochen. Notiz, Änderung → Eintrag. Foto, Scan, Datei, Video → Dokument. Etwas zu
-  tun → Auftrag (immer mit Stücken; Immaterielles über einen Artikel, z. B. «Website»).
-- **«Auf einen Blick» an jedem Ding** (ersetzt «Relevant hier» und «Offen aus Erfassen»): **eine
-  Liste**, Wichtiges zuerst, jeder Punkt mit Quelle. Ein Vorschlag der KI trägt Bestätigen/✕, ein
-  Hinweis nicht – das ist der ganze Unterschied, keine Abschnitte, keine Kategorien. So viele
-  Punkte, wie wirklich helfen – auch keiner.
+  anderswo angesprochen. Notiz → Nachricht (Eintrag). Änderung → Log. Foto, Scan, Datei, Video →
+  Dokument. Etwas zu tun → Auftrag (immer mit Stücken; Immaterielles über einen Artikel, z. B.
+  «Website»).
+- **Der Verlauf lädt in Seiten** (wie WhatsApp): die neuesten 30, ältere beim Scrollen, über einen
+  Index auf (Datensatz, Zeit). Er wächst nie mit. Eine Komponente für jeden Datensatz.
+- **Änderungen erscheinen technisch, nicht als Sätze:** eine Handlung (dieselbe `request_id`) ist
+  ein Block – wer · wann · Tabelle · `feld: alt → neu`. Übersetzt werden nur die Tabellennamen
+  (ein schlankes Wörterbuch, ein Wort je Tabelle); Feldnamen bleiben, wie sie sind. Keine
+  Sonderfälle je Ereignis.
+- **Sichtbarkeit:** wer einen Datensatz öffnen darf, sieht seinen ganzen Verlauf. Zugriff wird nur
+  auf Ebene des Datensatzes geregelt, nicht innerhalb.
+- **«Auf einen Blick» an jedem Datensatz** (ersetzt «Relevant hier» und «Offen aus Erfassen»):
+  **eine Liste**, Wichtiges zuerst, jeder Punkt mit Quelle. Ein Vorschlag der KI trägt
+  Bestätigen/✕, ein Hinweis nicht – keine Abschnitte, keine Kategorien. So viele Punkte, wie
+  wirklich helfen – auch keiner.
 - **Auf Abruf, nicht bei jedem Öffnen:** die KI bildet die Liste neu, wenn jemand «neu ansehen»
-  drückt; bis dahin steht der letzte Stand mit Zeit da (eine Ableitung mit Stand, keine zweite
-  Wahrheit). Offene Vorschläge stehen immer da, ohne KI-Aufruf. Grund: eine feste Logik «hat sich
-  am Verbundenen etwas geändert?» müsste selbst wissen, was verbunden ist und was zählt – zu eng
-  verpasst sie Wichtiges, zu weit kostet sie wie jedes Öffnen. Kosten so nur, wenn es jemand
-  braucht. Nach der Erprobung entscheiden wir mit echten Zahlen, ob mehr nötig ist.
-- **Der Verlauf ist eine Liste für alle Dinge**, mit derselben Logik wie heute die Kommunikation:
-  die neuesten Einträge zuerst, ältere laden beim Scrollen. Eine Komponente, kein zweiter Weg.
-- **Dokumente behalten ihre Nummer.** Geprüft: ein Dokument hat einen eigenen Zustand
-  (Freigegeben, Unterschrift angefragt, Abgelehnt), wird von anderswo angesprochen (Pflichtfelder in
-  Zahlung, Zeiterfassung, Gesellschaft; ein Link beim Senden) und muss als Nachweis bestehen bleiben
-  – genau die Regel für einen Datensatz. Dazu: eine Stelle für jede Datei ist einfacher als zwei
-  (Datei am Eintrag *und* Dokument). Kosten: eine Nummer je Datei, sonst nichts. Im Verlauf
-  erscheint das Dokument als Eintrag; man muss es nicht als eigenen Datensatz bemerken.
+  drückt; bis dahin steht der letzte Stand mit Zeit da. Offene Vorschläge stehen immer da, ohne
+  KI-Aufruf. Kosten nur, wenn es jemand braucht; nach der Erprobung entscheiden wir mit Zahlen.
+- **Dokumente behalten ihre Nummer** (eigener Zustand, von anderswo angesprochen, Nachweis); im
+  Verlauf erscheinen sie als Eintrag.
 - **Wichtiges bleibt oben**, bis es erledigt oder überholt ist. Wichtigkeit beurteilt die KI aus
-  dem Ziel und echten Daten (Neukunde? Warenwert? schon vorgekommen?), nicht durch Zählen.
+  dem Ziel und echten Daten, nicht durch Zählen.
 - **Audio wird nicht gespeichert** (wörtliches Transkript und KI-Fassung bleiben), **Video
   bleibt im Original**.
-- **Kommunikation bleibt, wie sie ist:** Mails an Personen und Firmen schreibt man dort wie
-  heute. Andere Dinge (Artikel, Auftrag …) haben kein eigenes Eingabefeld – Wissen kommt über
-  «Erfassen».
+- **Kommunikation bleibt in der Bedienung, wie sie ist:** Mails an Personen und Firmen schreibt
+  man dort. Andere Datensätze haben kein eigenes Eingabefeld – Wissen kommt über «Erfassen».
+
+### Die Kommunikation wird skalierbar (zuerst, Teil von Phase 2)
+
+Geprüft am 06.11.2026: die Datenstruktur (`messages` + `message_parties`, unveränderlich,
+Dubletten per Index) ist richtig. Zwei Abfragen wachsen aber mit der Zeit unbegrenzt, eine Stelle
+speichert doppelt:
+
+1. **Der Verlauf lädt heute alles** (jede Nachricht seit Beginn) → Seiten wie oben.
+2. **Die «zu tun»-Zahl rechnet über alle Nachrichten seit Beginn**, bei jedem Abruf → das
+   **Anliegen** (Betreff in Normalform, `domain/communication.topic`) wird eine eigene Spalte mit
+   Index. Die Regel «offen» bleibt Wort für Wort dieselbe, läuft aber als Datenbank-Abfrage nur
+   über Anliegen, die noch offen sein können. Keine zweite Wahrheit: eine Nachricht ändert sich nie,
+   also ändert sich ihr Anliegen nie.
+3. **Grosse Werte stehen im Log doppelt** (das Mail-HTML beim Anlegen) – ein Fehler aus Phase 1.
+   Lösung nach Stand der Technik: ein langer Wert (über 2'000 Zeichen) steht im Log als
+   **Prüfsumme** (`{"sha256": …, "len": …}`) statt als Inhalt. Eine Regel für alle Spalten, keine
+   Liste; die Unveränderlichkeit bleibt beweisbar (der Wert in seiner Zeile muss zur Prüfsumme
+   passen).
+4. Rundschreiben bleiben je Empfänger eine eigene Nachricht (bewusst: im Verlauf steht, was
+   hinausging).
 
 ## 3 · KI-Werkzeuge
 
@@ -193,20 +218,38 @@ beginnt seine Spur im Log.
 - **Lesen frei (im Rahmen der Rechte), Schreiben als Vorschlag.** Was die KI ändern oder anlegen
   will, wird ein Vorschlag; ein Mensch bestätigt oder verwirft. (Ob einzelne Handlungen später
   ohne Bestätigung laufen dürfen, entscheiden wir mit Erfahrung.)
-- **Offene Vorschläge warten am Ding**, an dem erfasst wurde («Zu entscheiden»), und zählen in
-  dessen «zu tun»-Zahl am Symbol (gibt es schon). Nichts muss sofort erledigt werden.
-- **Robustheit der Vorschläge:** entscheiden darf, wer die Handlung selbst ausführen dürfte; ist sie
-  inzwischen von Hand geschehen (Angabe schon geändert, Ding gelöscht), erledigt sich der Vorschlag
-  von selbst mit Vermerk; zwei Personen gleichzeitig → der zweite sieht «schon entschieden»; jeder
-  Vorschlag lässt sich vor dem Bestätigen bearbeiten; Bestätigen, Ändern, Verwerfen stehen im Log.
-  Fällt die KI aus, bleibt die Notiz unverarbeitet am Ding und wird nachgeholt – nichts geht verloren.
+- **Ein Vorschlag ist ein gespeicherter Aufruf des ERP** – genau die Anfrage, die der Bildschirm
+  schicken würde, wenn man es von Hand täte («ändere bei Person 100000020 das Feld `phone` auf
+  …»). Die KI kennt die Aufrufe aus der Beschreibung der Schnittstelle (`openapi.json`, gibt es
+  schon). **Bestätigen schickt diesen Aufruf als die bestätigende Person** – mit denselben
+  Prüfungen und demselben Log, als hätte sie getippt. Kein zweiter Code für die KI; was das ERP
+  neu kann, kann die KI sofort vorschlagen.
+- **Eine Darstellung für jeden Vorschlag** (Mockup «Vorschlag bestätigen»): was (ein Satz der KI),
+  woher (Quelle), welcher Aufruf, dann `Feld · jetzt · neu`. Knöpfe: Bestätigen · Bearbeiten (die
+  neuen Werte werden Felder) · ✕. Nichts je Art von Vorschlag.
+- **Gespeichert im Log, keine eigene Tabelle:** zwei Einträge – `proposal` (der Aufruf) und
+  `proposal.decided` (bestätigt mit dem ausgeführten Aufruf · verworfen · geschlossen mit Grund).
+  Offen = Vorschlag ohne Entscheid (Ableitung).
+- **Offene Vorschläge warten am Datensatz** und zählen in dessen «zu tun»-Zahl am Symbol (gibt es
+  schon). Nichts muss sofort erledigt werden.
+- **Robustheit der Vorschläge – drei Sicherungen, eine Regel für alles:**
+  1. *Gleichzeitig:* beim Entscheiden wird der Vorschlag kurz gesperrt; wer zu spät kommt, sieht
+     «schon entschieden».
+  2. *Inzwischen von Hand erledigt oder nicht mehr möglich:* beim Bestätigen prüft das ERP wie
+     immer. Weist es ab, schliesst sich der Vorschlag mit genau diesem Grund – keine Sonderlogik
+     je Fall.
+  3. *Bearbeitet:* ausgeführt wird, was man zuletzt sieht; genau das steht im Log.
+  Entscheiden darf, wer den Aufruf selbst schicken dürfte (das prüft der Aufruf selbst). Fällt die
+  KI aus, bleibt die Notiz unverarbeitet am Datensatz und wird nachgeholt.
 - **Der Auftrag an die KI** ist ein einziger, versionierter Text im Repository (Entwurf unten). Er
   gibt ein grobes Ziel, keine Regeln und keine Kategorien. Alles Weitere holt sich die KI selbst:
   sie liest, was im ERP steht (im Rahmen der Rechte), und lernt aus dem, was Menschen mit ihren
   Vorschlägen getan haben.
-- **Sie lernt ständig, ohne Training:** jedes Bestätigen, Ändern und Verwerfen steht im Log. Vor
-  einem Entscheid liest die KI die passenden früheren Korrekturen nach (wie jede andere Angabe) und
-  richtet sich danach. Weniger Korrekturen = bessere KI; das ist zugleich der Massstab.
+- **Sie lernt ständig, ohne Training:** vor einem neuen Vorschlag bekommt sie die **letzten rund 20
+  Entscheide zur selben Art von Datensatz** (Aufträge, Personen …) als Beispiele mit: was sie
+  vorschlug, was der Mensch daraus machte. Keine Kategorien, keine Regeln, keine Suchmaschine –
+  die Beispiele stehen schon im Log. Weniger Korrekturen = bessere KI; das ist zugleich der
+  Massstab.
 
 ### Entwurf: Auftrag an die KI
 
@@ -219,7 +262,7 @@ beginnt seine Spur im Log.
 > Mensch entscheidet. Lies im ERP nach, was du brauchst – auch, wie wir früher deine Vorschläge
 > bestätigt, geändert oder verworfen haben, und richte dich danach.
 >
-> Wenn jemand ein Ding öffnet, zeig, was für ihn jetzt wichtig ist, mit Quelle – so wenig wie
+> Wenn jemand einen Datensatz öffnet, zeig, was für ihn jetzt wichtig ist, mit Quelle – so wenig wie
 > möglich, auch nichts. Frag nur zurück, wenn ohne Antwort etwas Wichtiges verloren ginge.
 > Schreib kurz und schlicht, wie man im Betrieb redet.
 
@@ -238,11 +281,28 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
   Zeit, Pegel, Stopp.
 - **Dokumente bleiben, wie sie sind** (Entwurf → Freigeben, Pflichtfelder, Senden, Unterschreiben).
   Neu nur: Foto und Datei aus «Erfassen» öffnen den bestehenden Entwurf, die KI schlägt den Bezug vor
-  (gibt es schon), und ein Dokument erscheint als Eintrag im Verlauf seines Dings.
+  (gibt es schon), und ein Dokument erscheint als Eintrag im Verlauf seines Datensatzes.
 - **Die KI legt ab, der Mensch kontrolliert** («Stimmt so» oder «ändern»), auch im Datensatz.
 - **Spracherfassung** von Anfang an, mit einem professionellen, robusten Dienst (Mundart).
   Vorzug für Google (unser Cloud-Projekt, Daten in Europa). Das Hören ist ein eigener Dienst; das
   Verstehen und Ablegen bleibt bei Claude über `services/ai.py`.
+
+- **Lange Aufnahmen laufen im Hintergrund:** ein Meeting von einer Stunde abzuschreiben dauert
+  Minuten – länger, als eine Anfrage dauern darf (5 Min.), und das Handy soll nicht warten.
+  Ablauf: hochladen → Google schreibt ab → der **Takt** holt das Ergebnis → die KI legt ab → der
+  Vorschlag erscheint am Datensatz. Ohne Netz wird nichts vorgesehen (Verbindung vorausgesetzt).
+
+### Der Takt (Infrastruktur)
+
+**Cloud Scheduler ruft alle 5 Minuten eine geschützte Adresse des ERP** (`POST /internal/tick`,
+angemeldet mit einem Google-Dienstkonto per OIDC, kein Geheimnis im Code). Der Takt erledigt, was
+nicht an einem offenen Browser hängen darf: fertige Abschriften abholen, das Siegel des Logs, den
+Mail-Abgleich. Jede Aufgabe ist wiederholbar (zweimal laufen schadet nicht) und einzeln gesperrt.
+
+Geprüft: das ist der von Google empfohlene Weg für wiederkehrende Arbeit auf Cloud Run (einfach,
+überwacht, Wiederholung bei Fehler, 3 Aufträge gratis). Ereignisgesteuert (Pub/Sub) wäre schneller,
+braucht aber mehr Teile – erst, wenn 5 Minuten Wartezeit stören. Heute hängen Siegel und
+Mail-Abgleich am offenen ERP; der Takt macht das robuster und nimmt dort nichts weg.
 
 ### Vergleich der Sprachdienste (Test, vor Phase 4)
 
@@ -252,7 +312,10 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
 | Gemini auf Vertex AI (Flash) | hört die Aufnahme und schreibt sie wörtlich auf (Audio als Eingabe) |
 | ein Nicht-Google-Dienst als Massstab | nur zum Vergleich, falls beide Google-Dienste schwächeln |
 
-Getestet mit **drei echten Aufnahmen** von uns: eine Notiz (1 Min., Halle mit Lärm), ein Telefonat
+**Clemens testet selbst, ohne Code:** Google Cloud Console (Projekt `inexxio-dev`) →
+«Speech-to-Text» → «Transkriptionen» → Datei hochladen, Modell Chirp 3, Deutsch (Schweiz), Region
+Europa; und aistudio.google.com → Audio hochladen → «Schreibe diese Aufnahme wörtlich auf, mit
+Sprechern». Getestet mit **drei echten Aufnahmen** von uns: eine Notiz (1 Min., Halle mit Lärm), ein Telefonat
 mit Lautsprecher, ein Meeting (10 Min., mehrere Stimmen). Gemessen: stimmen Namen, Zahlen und
 Fachwörter? Trennt er die Sprecher? Dauer und Kosten je Minute. Gewinner ist der einfachste und
 günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
@@ -274,9 +337,8 @@ günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
 |---|---|---|
 | 0 | Projektakte, Mockup | in Arbeit |
 | 1 | **Das Log** – neu, ersetzt alle heutigen Logs | gebaut (06.11.2026) |
-| 2 | Verlauf an jeder Nummer (Wissen am Ding) | offen |
-| 3 | KI-Werkzeuge: Vorschläge, Auftrag an die KI, Lernen aus Korrekturen | offen |
-| 4 | «Erfassen» mit Spracherfassung | offen |
+| 2 | Kommunikation skalierbar (Seiten, Anliegen-Spalte, Prüfsumme im Log) · Notiz an jedem Datensatz · Verlauf an jeder Nummer | offen |
+| 3+4 | **ein Durchstich:** «Erfassen» (zuerst Schreiben) → KI legt ab → Vorschläge → Lernen; danach Sprache (nach dem Test) und der Takt | offen |
 | 5 | «Auf einen Blick» (auf Abruf) | offen |
 | eigene Projekte | Website-Messung (BigQuery) · Aufgaben («wer macht was») · MCP-Zugang (hier nur die Grundzüge) | offen |
 
@@ -307,9 +369,18 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 - 06.11.2026 – Phase 1 bauen und auf dev ausrollen (das Log); Spielraum für Verbesserungen beim
   Bauen.
 
+- 06.11.2026 – Notiz = Nachricht, «Betrifft» jeder Datensatz; das Log bleibt Protokoll. Verlauf
+  in Seiten, Änderungen technisch, schlankes Wörterbuch nur für Tabellennamen. Wer den Datensatz
+  öffnen darf, sieht den ganzen Verlauf. Kommunikation skalierbar machen (zuerst). Langer Wert im
+  Log als Prüfsumme. Vorschlag = gespeicherter ERP-Aufruf, im Log, eine Darstellung für alle.
+  Lernen: letzte ~20 Entscheide derselben Art. Phase 3 und 4 als ein Durchstich. Takt per Cloud
+  Scheduler. Ohne Netz und Ziel-Messung werden nicht vorgesehen. Wort: «Datensatz» statt «Ding».
+
 ## Offene Fragen
 
 - Der Auftrag an die KI: Prüfung des Entwurfs an den drei Beispielen (Montage-Notiz,
   Meeting-Notiz, Kunden-Mail), sobald Phase 3 steht.
-- Sprachtest: drei echte Aufnahmen (Notiz, Telefonat, Meeting) von Clemens.
+- Sprachtest: Clemens testet selbst (Anleitung oben) und meldet, was Namen, Zahlen, Fachwörter
+  trafen.
+- Schwärzen einer Person: welche Einträge gehören alle zu ihr (bewusst offen).
 - Folgeprojekt «Aufgaben» (wer macht was, Zuständigkeit je Prozessschritt).
