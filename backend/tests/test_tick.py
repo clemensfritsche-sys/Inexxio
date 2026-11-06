@@ -263,7 +263,7 @@ def test_the_tick_sends_a_due_mail_signed_by_its_writer(monkeypatch):
                   outgoing=True, created_by=staff.id)
     a.add_all([box, msg])
     a.flush()
-    a.add(MessageParty(message_id=msg.id, person_object_id=lea.object_id, role="to"))
+    a.add(MessageParty(message_id=msg.id, object_id=lea.object_id, role="to"))
     a.commit()
     posted: dict[str, str] = {}
 

@@ -99,7 +99,7 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   `services/log.event` (z. B. `ai.call`, `mail.send_failed`, `document.read`,
   `voucher.action`). Unveränderlich per Trigger (auch `TRUNCATE`); einzige Ausnahme die
   Schwärzung `log.redact`, die sich selbst einträgt. Je abgeschlossenem Tag ein verkettetes
-  Siegel (`log_seal`, `log.seal_due` beim Start, im Abgleich und im Takt, `log.verify`).
+  Siegel (`log_seal`, `log.seal_due` beim Start und im Takt, `log.verify`).
 - **Ereignisse des Prozesses** stehen im Log als `process.<art>` (`process._pass` ist die
   eine Schreibstelle, über `log.process_events`); gelesen über die Sicht `process_log`
   (`models.ProcessEvent`). Bild, Protokoll, Stückliste und Journey sind **Ableitungen aus dem

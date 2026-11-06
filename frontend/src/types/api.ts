@@ -1961,10 +1961,8 @@ export interface paths {
          * Sync
          * @description Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein
          *     Rundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je
-         *     Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.
-         *
-         *     Derselbe Herzschlag versiegelt abgeschlossene Tage des Logs (``log.seal_due``, sonst
-         *     nur beim Start) – einer zur Zeit, meist nichts zu tun.
+         *     Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ohne offenen
+         *     Browser tut dasselbe der Takt (``services/tick``).
          */
         post: operations["sync_api_v1_erp_messages_sync_post"];
         delete?: never;

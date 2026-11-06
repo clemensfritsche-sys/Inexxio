@@ -5304,7 +5304,7 @@
           "communication"
         ],
         "summary": "Sync",
-        "description": "Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein\nRundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je\nPostfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.\n\nDerselbe Herzschlag versiegelt abgeschlossene Tage des Logs (``log.seal_due``, sonst\nnur beim Start) – einer zur Zeit, meist nichts zu tun.",
+        "description": "Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein\nRundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je\nPostfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ohne offenen\nBrowser tut dasselbe der Takt (``services/tick``).",
         "operationId": "sync_api_v1_erp_messages_sync_post",
         "responses": {
           "200": {

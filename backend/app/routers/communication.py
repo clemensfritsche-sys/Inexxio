@@ -14,7 +14,6 @@ from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.communication import (ChannelOut, MailboxOut, MessageIn, MessageOut,
                                      SyncOut)
-from ..services import log
 from ..services import communication as svc
 from ..services import mailbox
 
@@ -55,13 +54,9 @@ def disconnect(channel: str, db: Session = Depends(get_db),
 def sync(db: Session = Depends(get_db), _: UserProfile = Depends(require_employee)):
     """Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein
     Rundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je
-    Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.
-
-    Derselbe Herzschlag versiegelt abgeschlossene Tage des Logs (``log.seal_due``, sonst
-    nur beim Start) – einer zur Zeit, meist nichts zu tun."""
+    Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ohne offenen
+    Browser tut dasselbe der Takt (``services/tick``)."""
     new, sent = mailbox.sync_all(db)
-    if log.seal_due(db):
-        db.commit()
     return SyncOut(new=new, sent=sent)
 
 
