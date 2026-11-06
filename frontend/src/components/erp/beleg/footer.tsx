@@ -8,6 +8,7 @@ import type { LucideIcon } from 'lucide-react';
 import { day } from '@/lib/when';
 import { VOUCHER_STAGE } from '@/lib/modules';
 import { inputCls, Label, Segmented } from '@/components/erp/controls';
+import { Input } from '@/components/form/field';
 import { StatusDot } from '@/components/erp/fields';
 import { ACT_H, ActionButton, Steady } from '@/components/erp/module-ui';
 import { formBody, formProblem, formWord, startForm } from './forms';
@@ -263,9 +264,9 @@ function InlineForm(p: FooterProps & { form: Form }) {
     body = (
       <div>
         <Label>Grund (freiwillig)</Label>
-        <input className={inputCls} value={form.f.note ?? ''} autoFocus aria-label="Grund"
+        <Input name="note" className={inputCls} value={form.f.note ?? ''} autoFocus aria-label="Grund"
           placeholder="z. B. Kulanz, zurückgezogen"
-          onChange={(e) => set({ note: e.target.value })} />
+          onChange={(note) => set({ note })} />
       </div>
     );
   }

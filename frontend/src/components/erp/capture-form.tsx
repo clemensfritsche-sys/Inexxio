@@ -7,6 +7,7 @@ import { CAPTURE_ICON, NEEDS_TARGET } from '@/lib/modules';
 import { PhotoShot } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { inputCls, numericInputProps, numericOnly } from '@/components/erp/controls';
+import { Input } from '@/components/form/field';
 
 /**
  * **Die Datenerfassung zur Laufzeit** — was das Modul festhält, bevor die Stücke vorrücken.
@@ -167,15 +168,14 @@ function PointInput({ point, unit, value, disabled, onChange }: {
           disabled={disabled} onChange={(url) => onChange(url ?? '')} />
       ) : (
         <span className="flex items-center gap-1.5">
-          <input
+          <Input
+            name={point.key}
             className={inputCls}
             disabled={disabled}
             {...(point.type === NEEDS_TARGET ? numericInputProps : {})}
             value={value == null ? '' : String(value)}
-            onChange={(e) => onChange(
-              point.type === NEEDS_TARGET
-                ? numericOnly(e.target.value, { decimals: true })
-                : e.target.value,
+            onChange={(v) => onChange(
+              point.type === NEEDS_TARGET ? numericOnly(v, { decimals: true }) : v,
             )}
           />
           {/* **Die Einheit klebt am Feld, nicht daneben** – sie ist keine Eingabe,

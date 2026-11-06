@@ -110,12 +110,12 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
         <div className="kt-card">
           <span className="kt-card-ic"><Building2 aria-hidden /></span>
           <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 12 }}>
-            <KtField id="kt-uid" label="UID" value={draft.uid_number ?? ''} placeholder="CHE-123.456.788"
+            <KtField id="kt-uid" name="uid_number" label="UID" value={draft.uid_number ?? ''} placeholder="CHE-123.456.788"
               onChange={(v) => setDraft((d) => ({ ...d, uid_number: v }))} />
             <div className="kt-grid2">
-              <KtField id="kt-firm" label="Firmenname" value={draft.company_name ?? ''} placeholder="Muster"
+              <KtField id="kt-firm" name="company_name" label="Firmenname" value={draft.company_name ?? ''} placeholder="Muster"
                 onChange={(v) => setDraft((d) => ({ ...d, company_name: v }))} />
-              <KtField id="kt-form" label="Rechtsform" value={draft.legal_form ?? ''} list="company-field-forms"
+              <KtField id="kt-form" name="legal_form" label="Rechtsform" value={draft.legal_form ?? ''} list="company-field-forms"
                 placeholder={forms[0] ?? 'AG'} onChange={(v) => setDraft((d) => ({ ...d, legal_form: v }))} />
               <datalist id="company-field-forms">
                 {forms.map((f) => <option key={f} value={f} />)}
@@ -141,14 +141,14 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-fg-2">
             <Building2 size={13} /> Firma
           </span>
-          <AField label="UID" value={draft.uid_number ?? ''}
+          <AField name="uid_number" label="UID" value={draft.uid_number ?? ''}
             onChange={(v) => setDraft((d) => ({ ...d, uid_number: v }))}
             placeholder="CHE-123.456.788" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <AField label="Firmenname" value={draft.company_name ?? ''}
+            <AField name="company_name" label="Firmenname" value={draft.company_name ?? ''}
               onChange={(v) => setDraft((d) => ({ ...d, company_name: v }))} placeholder="Muster" />
             <div>
-              <AField label="Rechtsform" value={draft.legal_form ?? ''} list="company-field-forms"
+              <AField name="legal_form" label="Rechtsform" value={draft.legal_form ?? ''} list="company-field-forms"
                 onChange={(v) => setDraft((d) => ({ ...d, legal_form: v }))} placeholder={forms[0] ?? 'AG'} />
               <datalist id="company-field-forms">
                 {forms.map((f) => <option key={f} value={f} />)}

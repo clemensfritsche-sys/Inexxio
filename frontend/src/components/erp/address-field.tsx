@@ -27,6 +27,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Pencil, Search, CheckCircle2, LocateFixed, Loader2 } from 'lucide-react';
 import { useGoogleMaps } from '@/lib/use-google-maps';
+import { Input, Select } from '@/components/form/field';
 
 export type Address = {
   /** Strasse inkl. Hausnummer – genau so, wie Google sie liefert (eine Zeile). */
@@ -257,12 +258,12 @@ export function AddressField({
           <p style={S.note}>Adress-Suche nicht verfügbar (Google «Places API» nicht freigeschaltet) – bitte manuell erfassen.</p>
         )}
         <div style={S.grid}>
-          <Input kt={kt} label="Strasse und Hausnummer" value={value.street} onChange={set('street')} wide />
-          {showStreet2 && <Input kt={kt} label="Adresszusatz" value={value.street2 ?? ''} onChange={set('street2')} wide />}
-          <Input kt={kt} label="PLZ" value={value.zip} onChange={set('zip')} />
-          <Input kt={kt} label="Ort" value={value.city} onChange={set('city')} />
-          {showRegion && <Input kt={kt} label="Region" value={value.region ?? ''} onChange={set('region')} />}
-          <Select kt={kt} label="Land" value={value.country} onChange={set('country')} options={countryOptions} />
+          <Line name="street" kt={kt} label="Strasse und Hausnummer" value={value.street} onChange={set('street')} wide />
+          {showStreet2 && <Line name="street2" kt={kt} label="Adresszusatz" value={value.street2 ?? ''} onChange={set('street2')} wide />}
+          <Line name="zip" kt={kt} label="PLZ" value={value.zip} onChange={set('zip')} />
+          <Line name="city" kt={kt} label="Ort" value={value.city} onChange={set('city')} />
+          {showRegion && <Line name="region" kt={kt} label="Region" value={value.region ?? ''} onChange={set('region')} />}
+          <Pick name="country" kt={kt} label="Land" value={value.country} onChange={set('country')} options={countryOptions} />
         </div>
       </div>
     );
@@ -281,6 +282,7 @@ export function AddressField({
         </div>
         <div style={{ position: 'relative' }}>
           <Search size={kt ? 18 : 14} style={S.searchIcon} />
+          {/* eslint-disable-next-line no-restricted-syntax -- Suchfeld (Google Places): der Text sucht eine Anschrift, er ist nicht ihr Wert. */}
           <input
             ref={inputRef}
             value={query}
@@ -349,7 +351,7 @@ export function AddressField({
           real für Lieferetiketten gebraucht, soll aber nicht als leeres Dauerfeld Fläche kosten.
           Darum: nur zeigen, wenn befüllt oder ausdrücklich gewünscht. */}
       {showStreet2 && (value.street2 || street2Open ? (
-        <Input kt={kt} label="Adresszusatz (c/o, Postfach)" value={value.street2 ?? ''} onChange={set('street2')} wide />
+        <Line name="street2" kt={kt} label="Adresszusatz (c/o, Postfach)" value={value.street2 ?? ''} onChange={set('street2')} wide />
       ) : (
         <button type="button" onClick={() => setStreet2Open(true)} style={S.escape}>
           + Adresszusatz
@@ -361,28 +363,28 @@ export function AddressField({
 
 // ─── Bausteine ────────────────────────────────────────────────────────────────────
 
-function Input({ label, value, onChange, wide, kt }: {
-  label: string; value: string; onChange: (v: string) => void; wide?: boolean; kt?: boolean;
+function Line({ name, label, value, onChange, wide, kt }: {
+  name: keyof Address; label: string; value: string; onChange: (v: string) => void; wide?: boolean; kt?: boolean;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: kt ? 6 : 4, gridColumn: wide ? '1 / -1' : undefined }}>
       <label style={(kt ? KT : ST).fieldLabel}>{label}</label>
-      <input value={value} onChange={(e) => onChange(e.target.value)}
+      <Input name={name} value={value} onChange={onChange}
         className={kt ? 'kt-input' : undefined} style={kt ? undefined : ST.input} />
     </div>
   );
 }
 
-function Select({ label, value, onChange, options, kt }: {
-  label: string; value: string; onChange: (v: string) => void; options: [string, string][]; kt?: boolean;
+function Pick({ name, label, value, onChange, options, kt }: {
+  name: keyof Address; label: string; value: string; onChange: (v: string) => void; options: [string, string][]; kt?: boolean;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: kt ? 6 : 4 }}>
       <label style={(kt ? KT : ST).fieldLabel}>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)}
+      <Select name={name} value={value} onChange={onChange}
         className={kt ? 'kt-input kt-select' : undefined} style={kt ? undefined : ST.input}>
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
+      </Select>
     </div>
   );
 }

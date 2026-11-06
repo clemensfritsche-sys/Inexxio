@@ -68,7 +68,7 @@ function StampRow({ s, editable, onSave, onVoid }: {
     return (
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={ROW_FORM}>
-          <TimeField id={`st-${s.id}`} label={label} value={edit} onChange={(v) => { setEdit(v); setErr(null); }}
+          <TimeField id={`st-${s.id}`} name="time" label={label} value={edit} onChange={(v) => { setEdit(v); setErr(null); }}
             info="Bleibt die Zeit gleich, ändert sich nichts." bad={!ok} placeholder="HH:MM" width={120}
             onEnter={ok ? save : undefined} />
           <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!ok} onClick={save}>
@@ -151,7 +151,7 @@ function CaptureTool({ view, d, cap, setCap, onSubmit, preview }: {
         : <Note>An diesem Tag lässt sich nichts erfassen.</Note>}
       {isStamp && (
         <div style={ROW_FORM}>
-          <TimeField id="cap-time" label="Uhrzeit" value={cap.time} onChange={(v) => set({ time: v })}
+          <TimeField id="cap-time" name="time" label="Uhrzeit" value={cap.time} onChange={(v) => set({ time: v })}
             bad={parseClock(cap.time) == null} placeholder="HH:MM" width={120}
             onEnter={!problem && parseClock(cap.time) != null ? submit : undefined} />
           <button type="button" className="erp-actbtn erp-actbtn-primary" onClick={submit}
@@ -169,10 +169,10 @@ function CaptureTool({ view, d, cap, setCap, onSubmit, preview }: {
               ]} />
             </div>
             {cap.scope === 'hours' && (
-              <TimeField id="cap-dur" label="Dauer pro Tag" value={cap.dur} onChange={(v) => set({ dur: v })}
+              <TimeField id="cap-dur" name="minutes" label="Dauer pro Tag" value={cap.dur} onChange={(v) => set({ dur: v })}
                 bad={parseHm(cap.dur) == null} placeholder="H:MM" width={110} />
             )}
-            <TimeField id="cap-until" label="Bis" value={cap.until} onChange={(v) => set({ until: v })}
+            <TimeField id="cap-until" name="until" label="Bis" value={cap.until} onChange={(v) => set({ until: v })}
               info={view.vocab.texts.until} bad={!parseDay(cap.until)} placeholder="TT.MM.JJJJ" width={140} />
           </div>
           {problem && <ErrorText msg={problem} />}

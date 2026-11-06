@@ -110,7 +110,7 @@ function SideName({ side, d, onAction }: { side: VoucherSide | null; d: Filled; 
   const c = side.choice;
   if (c?.company) {
     return (
-      <DocPick on value={c.bill_to_company ? FIRM : PERSON}
+      <DocPick name="bill_to_company" on value={c.bill_to_company ? FIRM : PERSON}
         text={side.name || c.person} aria="Rechnung an"
         tip="Geschäftlich oder privat – der gedruckte Name ist die Wahl" face={NAME_FACE}
         options={[{ value: FIRM, label: `${c.company} – geschäftlich` },
@@ -174,7 +174,7 @@ function Anschrift({ label, lines, side, pick, onPick }: {
     <span className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
       {label && <span style={{ ...LABEL, fontSize: 10.5 }}>{label}</span>}
       {options.length > 1 ? (
-        <DocPick on value={String(pick ?? '')} text={lines.join('\n')} face={face}
+        <DocPick name="address" on value={String(pick ?? '')} text={lines.join('\n')} face={face}
           aria={label ?? 'Anschrift'} tip="Andere Anschrift aus dem Adressbuch wählen"
           options={[...(pick == null ? [{ value: '', label: '—' }] : []),
                     ...options.map((o) => ({ value: String(o.id), label: o.label }))]}

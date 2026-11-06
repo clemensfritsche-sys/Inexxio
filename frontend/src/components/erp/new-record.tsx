@@ -69,11 +69,11 @@ export function NewPerson({ isAdmin, onSaved, onBack }: {
       <DetailBody>
         <Card icon={User} title="Person">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <AField label="Vorname" value={first} onChange={setFirst} required placeholder="Max" />
-            <AField label="Nachname" value={last} onChange={setLast} required placeholder="Muster" />
-            <AField label="E-Mail" value={email} onChange={setEmail} required type="email"
+            <AField name="first_name" label="Vorname" value={first} onChange={setFirst} required placeholder="Max" />
+            <AField name="last_name" label="Nachname" value={last} onChange={setLast} required placeholder="Muster" />
+            <AField name="email" label="E-Mail" value={email} onChange={setEmail} required type="email"
               placeholder="max.muster@firma.ch" />
-            <SelectField label="Rolle" value={role} onChange={(v) => setRole(v as UserRole)}
+            <SelectField name="role" label="Rolle" value={role} onChange={(v) => setRole(v as UserRole)}
               options={roles} />
             <div className="sm:col-span-2">
               <ObjectSelect<{ object_id: number; name: string }>
@@ -138,15 +138,15 @@ export function NewCompany({ isAdmin, onSaved, onBack }: {
       <DetailBody>
         <Card icon={Building2} title="Firma">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <AField label="Firmenname" value={name} onChange={setName} required placeholder="Muster" />
+            <AField name="company_name" label="Firmenname" value={name} onChange={setName} required placeholder="Muster" />
             <div>
-              <AField label="Rechtsform" value={form} onChange={setForm} required list="new-company-forms"
+              <AField name="legal_form" label="Rechtsform" value={form} onChange={setForm} required list="new-company-forms"
                 placeholder={forms[0] ?? 'AG'} />
               <datalist id="new-company-forms">
                 {forms.map((f) => <option key={f} value={f} />)}
               </datalist>
             </div>
-            <AField label="UID-Nummer" value={uid} onChange={setUid} placeholder="CHE-123.456.789" />
+            <AField name="uid_number" label="UID-Nummer" value={uid} onChange={setUid} placeholder="CHE-123.456.789" />
             {/* Vorgewählt: extern. «Eigen» setzt nur ein Admin. */}
             <Segmented value={own ? 'own' : 'foreign'} disabled={!isAdmin}
               tip={isAdmin ? undefined : 'Eine eigene Gesellschaft legt nur ein Admin an.'}

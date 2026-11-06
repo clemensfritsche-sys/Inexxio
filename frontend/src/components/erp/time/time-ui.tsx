@@ -16,6 +16,7 @@ import {
 import { InfoHint } from '@/components/erp/hints';
 import { MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
 import { inputClass } from '@/components/erp/controls';
+import { Input } from '@/components/form/field';
 import { TONE } from '@/lib/status-tone';
 
 /** Lucide-Name (Backend) → Symbol. */
@@ -122,7 +123,9 @@ export const ROW_FORM: CSSProperties = {
 };
 
 /** Ein kleines beschriftetes Feld – Beschriftung mit ⓘ, Warnfarbe, solange es nicht stimmt. */
-export function TimeField({ id, label, value, onChange, info, bad, placeholder, width, onEnter }: {
+export function TimeField({ id, name, label, value, onChange, info, bad, placeholder, width, onEnter }: {
+  /** API-Schlüssel des Feldes (`useField`). */
+  name: string;
   id: string; label: string; value: string; onChange: (v: string) => void; info?: string;
   bad?: boolean; placeholder?: string; width?: number; onEnter?: () => void;
 }) {
@@ -132,10 +135,9 @@ export function TimeField({ id, label, value, onChange, info, bad, placeholder, 
         display: 'inline-flex', alignItems: 'center', gap: 5 }}>
         {label}{info && <InfoHint text={info} />}
       </label>
-      <input id={id} value={value} placeholder={placeholder} autoComplete="off"
+      <Input id={id} name={name} value={value} placeholder={placeholder} autoComplete="off"
         className={`${inputClass(bad ? 'warn' : 'normal')} tabular-nums`}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') onEnter?.(); }} />
+        onChange={onChange} onEnter={onEnter} />
     </div>
   );
 }

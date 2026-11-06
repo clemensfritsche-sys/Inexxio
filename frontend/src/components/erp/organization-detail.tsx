@@ -19,7 +19,7 @@ import { organizationName } from '@/lib/record-name';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { legalForms } from '@/lib/legal-forms';
 import { useMapsApiKey } from '@/lib/use-maps-key';
-import { Field as AField } from '@/components/form/field';
+import { Field as AField, Select } from '@/components/form/field';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
 import { TerritoryMap } from '@/components/erp/territory-map';
@@ -376,12 +376,12 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
               tip={isAdmin ? undefined : 'Ob eine Firma eine unserer Gesellschaften ist, legt ein Admin fest.'}
               onChange={(v) => void setOwn(v === 'own')}
               options={OWN_OPTIONS} />
-            <AField label="Unternehmensname" value={form.company_name} onChange={str('company_name')}
+            <AField name="company_name" objectId={record.object_id} label="Unternehmensname" value={form.company_name} onChange={str('company_name')}
               placeholder="Inexxio AG" required onEnter={saveNow} />
 
             {/* Rechtsform: Freitext mit Vorschlägen aus dem Land (#303). */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <AField label="Rechtsform" value={form.legal_form} onChange={str('legal_form')}
+              <AField name="legal_form" objectId={record.object_id} label="Rechtsform" value={form.legal_form} onChange={str('legal_form')}
                 placeholder={forms[0] ?? 'AG'} required onEnter={saveNow} list="legal-forms" />
               <datalist id="legal-forms">
                 {forms.map((f) => <option key={f} value={f} />)}
@@ -392,10 +392,10 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
                 Karte. Gefragt wird, was es im Land gibt (#346): eine US-Gesellschaft hat
                 eine EIN und keine MWST-Nummer. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label={ids.uid.label} value={form.uid_number} onChange={str('uid_number')}
+              <AField name="uid_number" objectId={record.object_id} label={ids.uid.label} value={form.uid_number} onChange={str('uid_number')}
                 placeholder={ids.uid.ph} required={own} onEnter={saveNow} />
               {own && ids.vat && (
-                <AField label={ids.vat.label} value={form.vat_number} onChange={str('vat_number')}
+                <AField name="vat_number" objectId={record.object_id} label={ids.vat.label} value={form.vat_number} onChange={str('vat_number')}
                   placeholder={ids.vat.ph} required onEnter={saveNow} />
               )}
             </div>
@@ -420,12 +420,12 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
             {own && (currencyOpen ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)' }}>Währung</label>
-                <select value={form.currency} onChange={(e) => str('currency')(e.target.value)}
+                <Select name="currency" objectId={record.object_id} value={form.currency} onChange={str('currency')}
                   style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-1)',
                            fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg-1)', outline: 'none',
                            width: '100%', boxSizing: 'border-box', cursor: 'pointer' }}>
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                </Select>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -463,12 +463,12 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
               {/* Die Kontakt-E-Mail IST das Postfach der Gesellschaft: gesetzt durch
                   «Verbinden», geleert durch «Trennen» (Reiter Kommunikation) – ein
                   Eingabefeld wäre die Adresse, über die nichts hinausgeht. */}
-              <AField label="E-Mail" value={base.email ?? ''} readOnly
+              <AField name="email" objectId={record.object_id} label="E-Mail" value={base.email ?? ''} readOnly
                 placeholder="Postfach unter «Kommunikation» verbinden" />
               {/* Telefon nur bei einer **eigenen** Gesellschaft (Impressum, Website); an
                   einer fremden Firma liest es niemand – gefragt wird die Person. */}
               {own && (
-                <AField label="Telefon" value={form.phone} onChange={str('phone')} type="tel"
+                <AField name="phone" objectId={record.object_id} label="Telefon" value={form.phone} onChange={str('phone')} type="tel"
                   placeholder="+41 44 000 00 00" required onEnter={saveNow} />
               )}
             </div>
@@ -478,7 +478,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
                 Domain-Wechsel still falsch würde. */}
             {/* Ohne Hinweistext (#337): dass hier nichts einzugeben ist, sagt das Feld selbst
                 (grau, nicht fokussierbar). */}
-            {own && <AField label="Website" value={base.website ?? ''} readOnly />}
+            {own && <AField name="website" objectId={record.object_id} label="Website" value={base.website ?? ''} readOnly />}
           </Card>}
 
           {/* ── 4. Bankverbindung ────────────────────────────────────────────── */}
@@ -487,7 +487,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
               liest genau dieses Feld (`services/qrbill`). */}
           {own && (<>
           <Card title="Bankverbindung">
-            <AField label="IBAN" value={form.iban} onChange={str('iban')}
+            <AField name="iban" objectId={record.object_id} label="IBAN" value={form.iban} onChange={str('iban')}
               placeholder="CH00 0000 0000 0000 0000 0"
               required onEnter={saveNow} />
           </Card>

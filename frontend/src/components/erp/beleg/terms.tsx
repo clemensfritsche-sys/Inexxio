@@ -7,6 +7,7 @@ import { tell } from '@/lib/notice';
 import { useAutosaveSignature } from '@/lib/use-autosave';
 import { day } from '@/lib/when';
 import { numericInputProps, numericOnly } from '@/components/erp/controls';
+import { Input } from '@/components/form/field';
 import {
   DOC_FIELD, DocPick, Editable, FixedValue, Section, Stacked, isFixed, may,
 } from './shared';
@@ -76,7 +77,7 @@ function SavedTerm({ d, label, field, busy, on, days, terms, hint, onAction }: {
     );
   }
   return (
-    <Term label={label} on={on} value={on ? draft : remote} terms={terms} hint={hint}
+    <Term name={field} label={label} on={on} value={on ? draft : remote} terms={terms} hint={hint}
       freeMin={d.term_free_min} freeLabel={d.term_free_label} onChange={setDraft} />
   );
 }
@@ -96,8 +97,9 @@ const TERM_FREE = 'frei';
  * Wähler; die freie Eingabe steht an derselben Stelle. Auch an der Angebotszeile eines
  * Lieferanten – dieselbe Form für dieselbe Frage.
  */
-export function Term({ label, on, value, terms, hint, freeMin, freeLabel, onChange }: {
-  label: string; on: boolean;
+export function Term({ name, label, on, value, terms, hint, freeMin, freeLabel, onChange }: {
+  /** API-Schlüssel der Frist (`useField`). */
+  name: string; label: string; on: boolean;
   /** Der Wert (leer = noch nichts gewählt). */
   value: string;
   terms: { days: number; label: string }[];
@@ -112,19 +114,19 @@ export function Term({ label, on, value, terms, hint, freeMin, freeLabel, onChan
     <Stacked label={label}>
       {on && (free || typing) ? (
         <Editable title={label} missing={value === ''}>
-          <input {...numericInputProps} autoFocus={typing} value={value} aria-label={label}
-            onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
+          <Input name={name} {...numericInputProps} autoFocus={typing} value={value} aria-label={label}
+            onChange={(v) => onChange(numericOnly(v, { decimals: false }))}
             onBlur={() => {
               setTyping(false);
               const n = Number(value);
               onChange(String(Number.isFinite(n) && n >= freeMin ? n : freeMin));
             }}
-            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            onEnter={(el) => el.blur()}
             style={{ ...DOC_FIELD, width: 28, fontSize: 13, fontVariantNumeric: 'tabular-nums' }} />
           <span style={{ fontSize: 13, paddingRight: 4 }}>Tage</span>
         </Editable>
       ) : (
-        <DocPick on={on} value={named ? value : ''} text={termWord(value, terms)} aria={label}
+        <DocPick name={name} on={on} value={named ? value : ''} text={termWord(value, terms)} aria={label}
           missing={value === ''} face={VALUE} tip={hint}
           options={[
             ...(value === '' ? [{ value: '', label: '—' }] : []),
@@ -170,7 +172,7 @@ function Delivery({ d, onAction }: { d: Filled; onAction: Send }) {
   return (
     <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
       <Stacked label={label}>
-        <DocPick on value={d.incoterm ?? ''} text={chosen ? chosen.key : '—'} aria={label}
+        <DocPick name="incoterm" on value={d.incoterm ?? ''} text={chosen ? chosen.key : '—'} aria={label}
           face={VALUE} missing={!chosen}
           options={[{ value: '', label: '—' },
                     ...(d.incoterms ?? []).map((t) => ({ value: t.key,
@@ -209,7 +211,7 @@ function Ownership({ d, onAction }: { d: Filled; onAction: Send }) {
   }
   return (
     <Stacked label={d.ownership_label}>
-      <DocPick on={may(d, 'ownership')} value={d.ownership ?? ''} text={text}
+      <DocPick name="ownership" on={may(d, 'ownership')} value={d.ownership ?? ''} text={text}
         aria={d.ownership_label} tip={tip} face={VALUE} missing={!chosen}
         options={[...(chosen ? [] : [{ value: '', label: '—' }]),
                   ...options.map((o) => ({ value: o.key, label: o.label }))]}

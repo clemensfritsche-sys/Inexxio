@@ -10,6 +10,7 @@ import { VOUCHER_STAGE } from '@/lib/modules';
 import { PayOnline } from '@/components/erp/pay-online';
 import { DocLink, DocumentField, readValue } from '@/components/erp/document-field';
 import { Segmented, inputCls, Label, numericInputProps, numericOnly } from '@/components/erp/controls';
+import { Input, Select } from '@/components/form/field';
 import { ACT_H, ActionButton, Amount, FIELD_GAP, LedgerRow, Steady } from '@/components/erp/module-ui';
 import type { TransferInfo } from '@/types';
 import { CASH, TRANSFER, needsIban, startForm, taxed } from './forms';
@@ -164,9 +165,9 @@ function Deviation({ d, busy, form, setForm }: {
         {open ? (
           <div className="flex items-end" style={{ gap: FIELD_GAP }}>
             <FormField label="Grund" required grow>
-              <input className={inputCls} value={form.f.note ?? ''} autoFocus aria-label="Grund"
+              <Input name="note" className={inputCls} value={form.f.note ?? ''} autoFocus aria-label="Grund"
                 placeholder="z. B. Materialzuschlag"
-                onChange={(e) => setForm({ ...form, f: { ...form.f, note: e.target.value } })} />
+                onChange={(note) => setForm({ ...form, f: { ...form.f, note } })} />
             </FormField>
             <Cancel onClick={() => setForm(null)} />
           </div>
@@ -257,9 +258,9 @@ function ExportProof({ d, busy, form, setForm, orderObjectId, stepId }: {
       {open ? (
         <div className="flex flex-wrap items-start" style={{ gap: FIELD_GAP }}>
           <FormField label="Nr. der Veranlagungsverfügung" required>
-            <input className={inputCls} value={form.f.reference ?? ''} autoFocus
+            <Input name="reference" className={inputCls} value={form.f.reference ?? ''} autoFocus
               aria-label="Nr. der Veranlagungsverfügung"
-              onChange={(e) => set({ reference: e.target.value })} />
+              onChange={(reference) => set({ reference })} />
           </FormField>
           <FormField label="Veranlagungsverfügung" required>
             <DocumentField value={form.f.original ? Number(form.f.original) : null} label="Veranlagungsverfügung"
@@ -390,9 +391,9 @@ function EntryForm({ d, form, setForm, orderObjectId, stepId }: {
     <FieldBox>
       <div className="flex flex-wrap items-end" style={{ gap: FIELD_GAP, minWidth: 0 }}>
         <FormField label={title}>
-          <input {...numericInputProps} className={inputCls} value={form.f.amount ?? ''} autoFocus
+          <Input name="amount" {...numericInputProps} className={inputCls} value={form.f.amount ?? ''} autoFocus
             aria-label="Betrag" style={{ width: 130, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
-            onChange={(e) => set({ amount: numericOnly(e.target.value, { decimals: d.currency_decimals }) })} />
+            onChange={(v) => set({ amount: numericOnly(v, { decimals: d.currency_decimals }) })} />
         </FormField>
         {form.kind === 'refund' && (
           <Segmented value={form.f.method} onChange={(method) => set({ method })}
@@ -410,8 +411,8 @@ function EntryForm({ d, form, setForm, orderObjectId, stepId }: {
       )}
       {needsIban(form, d) && (
         <FormField label="IBAN" required grow>
-          <input className={inputCls} value={form.f.iban ?? ''} aria-label="IBAN"
-            placeholder="CH00 0000 0000 0000 0000 0" onChange={(e) => set({ iban: e.target.value })} />
+          <Input name="iban" className={inputCls} value={form.f.iban ?? ''} aria-label="IBAN"
+            placeholder="CH00 0000 0000 0000 0000 0" onChange={(iban) => set({ iban })} />
           <span style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 4 }}>
             Das Geld geht dorthin zurück, woher es kam – kennt das System kein Konto, wird die
             IBAN von Hand eingetragen.
@@ -429,16 +430,16 @@ function BillFields({ d, form, set }: {
   return (
     <>
       <FormField label={d.vat_label}>
-        <select className={inputCls} value={form.f.vat} aria-label={d.vat_label}
-          onChange={(e) => set({ vat: e.target.value })}>
+        <Select name="vat" className={inputCls} value={form.f.vat} aria-label={d.vat_label}
+          onChange={(vat) => set({ vat })}>
           {(d.vat_rates ?? []).map((v) => (
             <option key={v.key} value={v.key}>{v.label} ({v.rate} %)</option>
           ))}
-        </select>
+        </Select>
       </FormField>
       <FormField label={d.ref_label ?? 'Rechnungsnummer'} required grow>
-        <input className={inputCls} value={form.f.reference ?? ''} aria-label={d.ref_label ?? 'Rechnungsnummer'}
-          onChange={(e) => set({ reference: e.target.value })} />
+        <Input name="reference" className={inputCls} value={form.f.reference ?? ''} aria-label={d.ref_label ?? 'Rechnungsnummer'}
+          onChange={(reference) => set({ reference })} />
       </FormField>
     </>
   );
@@ -458,12 +459,12 @@ function BillPaper({ d, form, set, orderObjectId, stepId }: {
     <>
       <div className="flex flex-wrap items-end" style={{ gap: FIELD_GAP, minWidth: 0 }}>
         <FormField label="Rechnungsdatum" required grow>
-          <input className={inputCls} value={form.f.billed_on ?? ''} placeholder="TT.MM.JJJJ"
-            aria-label="Rechnungsdatum" onChange={(e) => set({ billed_on: e.target.value })} />
+          <Input name="billed_on" className={inputCls} value={form.f.billed_on ?? ''} placeholder="TT.MM.JJJJ"
+            aria-label="Rechnungsdatum" onChange={(billed_on) => set({ billed_on })} />
         </FormField>
         <FormField label="MWST-Nr. auf der Rechnung" required={taxed(form, d)} grow>
-          <input className={inputCls} value={form.f.party_uid ?? ''} placeholder="CHE-123.456.789 MWST"
-            aria-label="MWST-Nr. auf der Rechnung" onChange={(e) => set({ party_uid: e.target.value })} />
+          <Input name="party_uid" className={inputCls} value={form.f.party_uid ?? ''} placeholder="CHE-123.456.789 MWST"
+            aria-label="MWST-Nr. auf der Rechnung" onChange={(party_uid) => set({ party_uid })} />
         </FormField>
       </div>
       <FormField label="Originalbeleg" required>

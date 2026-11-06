@@ -211,7 +211,7 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
           showStreet2 showRegion label={label} look={cards ? 'kt' : 'erp'}
           onChange={(a) => setForm((p) => ({ ...p, address: a }))} />
         {email && (
-          <BillField label="Rechnungs-E-Mail" type="email" value={form.email} readOnly={readOnly}
+          <BillField name="email" objectId={owner} label="Rechnungs-E-Mail" type="email" value={form.email} readOnly={readOnly}
             placeholder={inheritedEmail(loginEmail)} onEnter={saveNow}
             onChange={(v) => setForm((p) => ({ ...p, email: v }))} />
         )}

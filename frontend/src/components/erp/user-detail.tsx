@@ -181,19 +181,19 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
             Person kann beides sein. Übrig bleibt die eine Frage, die das Haus wirklich
             stellt (`people.STAFF_ROLES`). */}
         {canEdit ? (
-          <SelectField label="Rolle" value={role} onChange={(x) => set('role', x as UserRole)} options={[
+          <SelectField name="role" objectId={objectId} label="Rolle" value={role} onChange={(x) => set('role', x as UserRole)} options={[
             { value: 'admin', label: 'Admin' }, { value: 'employee', label: 'Mitarbeiter' },
             { value: 'user', label: 'Benutzer' },
           ]} />
         ) : (
-          <AField label="Rolle" value={ROLE_CFG[role]?.label ?? role} readOnly />
+          <AField name="role" objectId={objectId} label="Rolle" value={ROLE_CFG[role]?.label ?? role} readOnly />
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <AField label="Vorname" value={form.first_name} onChange={str('first_name')} readOnly={ro} placeholder="Max" onEnter={saveNow} required={required('first_name')} />
-          <AField label="Nachname" value={form.last_name} onChange={str('last_name')} readOnly={ro} placeholder="Muster" onEnter={saveNow} required={required('last_name')} />
-          <AField label="Telefon" value={form.phone} onChange={str('phone')} readOnly={ro} type="tel" placeholder="+41 44 000 00 00" onEnter={saveNow} required={required('phone')} />
-          <AField label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} required={required('date_of_birth')} />
+          <AField name="first_name" objectId={objectId} label="Vorname" value={form.first_name} onChange={str('first_name')} readOnly={ro} placeholder="Max" onEnter={saveNow} required={required('first_name')} />
+          <AField name="last_name" objectId={objectId} label="Nachname" value={form.last_name} onChange={str('last_name')} readOnly={ro} placeholder="Muster" onEnter={saveNow} required={required('last_name')} />
+          <AField name="phone" objectId={objectId} label="Telefon" value={form.phone} onChange={str('phone')} readOnly={ro} type="tel" placeholder="+41 44 000 00 00" onEnter={saveNow} required={required('phone')} />
+          <AField name="date_of_birth" objectId={objectId} label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} required={required('date_of_birth')} />
         </div>
 
       </Card>
@@ -231,15 +231,15 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
       {/* ── 5. System (ERP-Extra, read-only – Notiz #295) ───────────────────── */}
       <Card icon={Cog} title="System">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <AField label="E-Mail" value={record.email} readOnly />
-          <AField label="Anmeldung" value={signInLabel(record.last_sign_in_provider)} readOnly />
-          <AField label="Passkeys" value={passkeyLabel(record.passkey_count)} readOnly />
-          <AField label="Letzter Login" value={when(record.last_login_at)} readOnly />
-          <AField label="Erstellt" value={when(record.created_at)} readOnly />
-          <AField label="Zuletzt geändert" value={when(record.updated_at)} readOnly />
+          <AField name="email" objectId={objectId} label="E-Mail" value={record.email} readOnly />
+          <AField name="last_sign_in_provider" objectId={objectId} label="Anmeldung" value={signInLabel(record.last_sign_in_provider)} readOnly />
+          <AField name="passkey_count" objectId={objectId} label="Passkeys" value={passkeyLabel(record.passkey_count)} readOnly />
+          <AField name="last_login_at" objectId={objectId} label="Letzter Login" value={when(record.last_login_at)} readOnly />
+          <AField name="created_at" objectId={objectId} label="Erstellt" value={when(record.created_at)} readOnly />
+          <AField name="updated_at" objectId={objectId} label="Zuletzt geändert" value={when(record.updated_at)} readOnly />
           {isAdmin && (
             <div className="sm:col-span-2">
-              <AField label="Firebase UID" value={record.firebase_uid} readOnly />
+              <AField name="firebase_uid" objectId={objectId} label="Firebase UID" value={record.firebase_uid} readOnly />
             </div>
           )}
         </div>
