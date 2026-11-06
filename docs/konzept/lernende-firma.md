@@ -320,6 +320,11 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
   nicht reicht. Gespräche aufnehmen: Clemens trägt die Verantwortung (Entscheid 06.11.2026).
 - **Warum Google hört und nicht Claude:** die Claude-API nimmt heute Text, Bilder und PDF an, keine
   Audiodateien. Darum: Google schreibt ab, Claude versteht und legt ab.
+- **Der Sprachdienst ist Gemini** (Test Clemens 06.11.2026 in AI Studio: «hervorragend, inklusive
+  Mundart»). Im Betrieb über **Vertex AI** in unserem Google-Cloud-Projekt, Region Europa – dort
+  werden Eingaben nicht zum Training verwendet. Eine Aufgabe: «wörtlich aufschreiben, mit
+  Sprechern»; verstehen und ablegen bleibt bei Claude (eine Tür, `services/ai.py`, auch für
+  Gemini – derselbe Deckel, dasselbe Log).
 - **Lange Aufnahmen laufen im Hintergrund:** hochladen → Google schreibt ab (Minuten) → der
   **Takt** sieht nach, ob die Abschrift fertig ist, und gibt sie der KI → der Vorschlag erscheint
   am Datensatz. Verarbeitet wird **im Namen der Person, die aufgenommen hat** (dieselben Rechte),
@@ -478,12 +483,12 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 - 06.11.2026 – Suche in Inhalten zurückgestellt. Review gegen das Ziel: Weg bestätigt, Korrekturen
   eingetragen; Projekt «Aufgaben» als Nächstes nach Phase 5 empfohlen.
 
+- 06.11.2026 – Sprachdienst: Gemini über Vertex AI (Region Europa), nach dem Test von Clemens.
+
 ## Offene Fragen
 
 - Der Auftrag an die KI: Prüfung des Entwurfs an den drei Beispielen (Montage-Notiz,
   Meeting-Notiz, Kunden-Mail), sobald Phase 3 steht.
-- Sprachtest: Clemens testet selbst (Anleitung oben) und meldet, was Namen, Zahlen, Fachwörter
-  trafen.
 - Schwärzen einer Person: welche Einträge gehören alle zu ihr (bewusst offen).
 - **Suchen in Inhalten** (Notizen, Mails, Dokumente) – zurückgestellt (06.11.2026). Bis dahin
   findet man über den Datensatz (Nummer, Name, Scan) und liest seinen Verlauf.
