@@ -75,7 +75,7 @@ OBJECT: dict[str, str | None] = {
     "instance_units": _via("instance_id", "instances"),
     "instances": _own("object_id"),
     "mailboxes": _own("owner_object_id"),
-    "message_parties": _own("person_object_id"),
+    "message_parties": _own("object_id"),
     "messages": _own("sender_object_id"),
     "newsletter_consents": _own("person_object_id"),
     "objects": _own("object_id"),
@@ -93,6 +93,47 @@ OBJECT: dict[str, str | None] = {
     "vouchers": _via("order_id", "orders"),
     "webauthn_challenges": _via("user_id", "user_profiles"),
     "webauthn_credentials": _via("user_id", "user_profiles"),
+}
+
+#: ►► **Ein Wort je Tabelle** – so steht eine Änderung im Verlauf (``services/history``):
+#:    «Person», nicht ``user_profiles``. Nur die Tabellennamen werden übersetzt; die Feldnamen
+#:    bleiben roh (``feld: alt → neu``). Jede Tabelle aus ``OBJECT`` hat hier ein Wort
+#:    (``tests/test_verlauf.py``).
+TABLE_WORDS: dict[str, str] = {
+    "addresses": "Adresse",
+    "article_process_steps": "Prozessschritt",
+    "articles": "Artikel",
+    "attachments": "Datei",
+    "captures": "Erfassung",
+    "company_settings": "Unternehmen",
+    "company_territories": "Gebiet",
+    "document_links": "Link",
+    "document_refs": "Referenz",
+    "document_signatures": "Unterschrift",
+    "documents": "Dokument",
+    "feedback_notes": "Testnotiz",
+    "holidays": "Feiertag",
+    "instance_units": "Stück",
+    "instances": "Instanz",
+    "mailboxes": "Postfach",
+    "message_parties": "Beteiligte",
+    "messages": "Nachricht",
+    "newsletter_consents": "Einwilligung",
+    "objects": "Nummer",
+    "order_lines": "Position",
+    "order_units": "Zugehörigkeit",
+    "orders": "Auftrag",
+    "process_steps": "Modul",
+    "time_contracts": "Vertrag",
+    "time_entries": "Zeiteintrag",
+    "user_profiles": "Person",
+    "voucher_documents": "Papier",
+    "voucher_entries": "Geld-Zeile",
+    "voucher_lines": "Beleg-Position",
+    "voucher_quotes": "Angebot",
+    "vouchers": "Beleg",
+    "webauthn_challenges": "Passkey-Anfrage",
+    "webauthn_credentials": "Passkey",
 }
 
 ROW_TRIGGER = "trg_log_row"

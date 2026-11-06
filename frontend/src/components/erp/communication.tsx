@@ -50,6 +50,10 @@
  * An einer **Firma** ist der Verlauf ein Spiegel: dieselbe Liste, keine Eingabe und kein
  * offen/überfällig – geschrieben wird immer von Person zu Person.
  *
+ * ►►► **Die Liste IST der Verlauf des Datensatzes** (`components/erp/history.tsx`): Nachrichten,
+ * Dokumente und Änderungen in Seiten. Hier kommen nur die Eingabe, das Postfach und die
+ * Handlungen an einer Nachricht dazu. ◄◄◄
+ *
  * ►►► **Drei Versandarten einer E-Mail: Mail · Rundschreiben · Newsletter.** ◄◄◄ Bcc bleibt
  * Bcc. Alle fünf Arten stehen in EINER Leiste (`KindBar`): Mail · Rundschreiben · Newsletter |
  * Anruf · Intern. Ein **Rundschreiben** geht an jede Person einzeln, mit ihrer Anrede – Information,
@@ -65,8 +69,9 @@ import { api } from '@/lib/api';
 import { MESSAGES_CHANGED } from '@/lib/feed';
 import { qk } from '@/lib/queries';
 import type { Mailbox, Message, MessageChannel } from '@/types';
+import { History, loadedMessages, useHistory } from '@/components/erp/history';
 import { Person } from '@/components/erp/communication/shared';
-import { Sending, Timeline } from '@/components/erp/communication/timeline';
+import { Sending } from '@/components/erp/communication/timeline';
 import { Composer, Target } from '@/components/erp/communication/composer';
 import { Mailboxes } from '@/components/erp/communication/mailboxes';
 
@@ -81,17 +86,15 @@ export function Communication({ person, company, ownCompany, me }: {
   ownCompany?: boolean;
   me?: Person | null;
 }) {
-  // ►►► **Der Verlauf ist eine Query** – geschlüsselt nach der Nummer, nicht nach dem Objekt
-  // `person` (ein neues Objekt je Render lud sonst bei jeder Taste neu). Neues aus dem
-  // Abgleich und Gesendetes laden über `MESSAGES_CHANGED` nach (`lib/use-feed.ts`). ◄◄◄
+  // ►►► **Der Verlauf ist eine Query** – geschlüsselt nach der Nummer (`useHistory`, dieselbe,
+  // die `History` liest). Neues aus dem Abgleich und Gesendetes laden über `MESSAGES_CHANGED`
+  // nach (`lib/use-feed.ts`). Was die Eingabe braucht (Offenes, Anliegen), liest sie aus den
+  // geladenen Seiten. ◄◄◄
   const personId = person?.object_id;
-  const scope = personId ? { person: personId } : { company };
-  const history = useQuery({
-    queryKey: qk.messages(scope),
-    queryFn: ({ signal }) => api.getMessages(scope, { signal }),
-    meta: { what: 'Verlauf' },
-  });
-  const messages: Message[] | null = history.data ?? null;
+  const objectId = (personId ?? company)!;
+  const history = useHistory(objectId);
+  const messages: Message[] | null = history.data
+    ? loadedMessages(history.data.pages.flatMap((p) => p.entries ?? [])) : null;
   // Ein Postfach hat nur eine eigene Gesellschaft – es steht an ihrem Datensatz.
   // Persönliche gibt es nicht: im Kommunikationstool ist jeder Benutzer gleich.
   const channels: MessageChannel[] = useQuery({
@@ -127,29 +130,14 @@ export function Communication({ person, company, ownCompany, me }: {
   // Die Anliegen dieser Person – zur Auswahl im Betreff, das jüngste zuerst.
   const topics = [...new Set((messages ?? []).map((m) => m.topic).filter(Boolean).reverse())];
 
-  if (!messages && history.error) {
-    return <p style={{ color: 'var(--danger)', fontSize: 13 }}>{history.error.message || 'Konnte nicht geladen werden.'}</p>;
-  }
-  if (!messages) return <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Lädt …</p>;
   return (
     <div>
       {error && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</p>}
       <Mailboxes boxes={mailboxes} />
-      {/* ►►► Der Verlauf steht bei der JÜNGSTEN Nachricht. ◄◄◄ `column-reverse` verankert das
-          Rollen am unteren Ende: ohne Skript beim Öffnen unten, eine neue Nachricht bleibt im
-          Blick, und «ältere laden» schiebt nichts weg. Höhe begrenzt, damit die Stammdaten
-          darunter erreichbar bleiben; oben läuft der Verlauf weich aus. */}
-      <div style={{ maxHeight: 'min(60vh, 560px)', overflowY: 'auto', display: 'flex',
-        flexDirection: 'column-reverse',
-        maskImage: 'linear-gradient(to bottom, transparent 0, #000 32px)',
-        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, #000 32px)' }}>
-      <div>
-      <Timeline key={person?.object_id ?? company} messages={messages} mirror={!person} personId={person?.object_id} meId={me?.object_id}
+      <History key={objectId} objectId={objectId} mirror={!person} personId={personId} meId={me?.object_id}
         onReply={writable ? (m) => setTarget({ m, n: Date.now() }) : undefined}
         onDone={writable ? done : undefined} sending={sending} />
-      </div>
-      </div>
-      {writable && person && me && (
+      {writable && person && me && messages && (
         <Composer key={person.object_id} person={person} me={me} channels={channels}
           target={target} topics={topics} onSent={changed} onSending={setSending} />
       )}

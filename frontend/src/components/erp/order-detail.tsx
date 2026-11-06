@@ -10,7 +10,8 @@ import type {
   RelatedOrder, StepWork,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
-import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/detail-frame';
+import { DetailBody, DetailHeader, HeaderAction, SectionSep } from '@/components/erp/detail-frame';
+import { History } from '@/components/erp/history';
 import { DocumentTiles } from '@/components/erp/documents';
 import { LabelButton } from '@/components/scan/object-label';
 import { DRAFT_OBJECT_ID, EMPTY_GRAPH, definitionGraph, type DiagramStep, type JourneyOrigin } from '@/lib/process-graph';
@@ -286,7 +287,11 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
           </p>
         )}
         {!isDraft && live?.object_id != null && (
-          <DetailBody style={{ paddingBottom: 40 }}><DocumentTiles objectId={live.object_id} /></DetailBody>
+          <DetailBody gap={22} style={{ paddingBottom: 40 }}>
+            <DocumentTiles objectId={live.object_id} />
+            <SectionSep label="Verlauf" />
+            <History objectId={live.object_id} />
+          </DetailBody>
         )}
 
       </div>

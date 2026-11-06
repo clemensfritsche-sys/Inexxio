@@ -6,7 +6,8 @@ import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { instanceName } from '@/lib/record-name';
 import { kindLabel } from '@/lib/record-status';
-import { DetailBody, DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/detail-frame';
+import { DetailBody, DetailHeader, ReadField, SectionSep, SPEC, SpecHead } from '@/components/erp/detail-frame';
+import { History } from '@/components/erp/history';
 import { DocumentTiles } from '@/components/erp/documents';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
@@ -83,6 +84,8 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
               Umfang: die Aufstellung dieser Gruppe und darunter ihre Nummern. */}
           <StockView scope={{ kind: 'instance', record: rec }} />
           <DocumentTiles objectId={rec.object_id} />
+          <SectionSep label="Verlauf" />
+          <History objectId={rec.object_id} />
         </DetailBody>
       </div>
     </div>

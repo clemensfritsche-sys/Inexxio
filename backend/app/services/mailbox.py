@@ -404,7 +404,6 @@ def _mark_read(db: Session, mb: Mailbox,
     verliert in Gmail sein «UNREAD», genau einmal (``read_marked``). Umgekehrt nicht:
     gelesen heisst nicht erledigt. Fehlt dem Postfach die Freigabe (vor dem Umstellen
     verbunden), bleibt alles, wie es ist – bis es neu verbunden wird."""
-    from collections import defaultdict
     from .communication import answered
     since = _now() - MARK_WITHIN
     msgs = db.query(Message).filter(
@@ -413,11 +412,7 @@ def _mark_read(db: Session, mb: Mailbox,
         Message.at >= since).all()
     if not msgs:
         return
-    roles: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
-    for p in db.query(MessageParty).filter(
-            MessageParty.message_id.in_([m.id for m in msgs])).all():
-        roles[p.message_id][p.role].append(p.person_object_id)
-    replied = answered(db, msgs, roles)     # einmal gefragt, nicht je Nachricht
+    replied = answered(db, [m.id for m in msgs])     # einmal gefragt, nicht je Nachricht
     done = [m for m in msgs if m.id in replied]
     token = _token(mb, tokens) if done else None
     if not token:
@@ -711,7 +706,7 @@ def _give_up(db: Session, msg: Message, reason: str) -> None:
     writer = db.query(UserProfile.object_id).filter(
         UserProfile.id == msg.created_by).scalar() if msg.created_by else None
     to = writer or (mb.owner_object_id if mb is not None else msg.sender_object_id)
-    about = [p.person_object_id for p in db.query(MessageParty).filter(
+    about = [p.object_id for p in db.query(MessageParty).filter(
         MessageParty.message_id == msg.id, MessageParty.role.in_(("to", "cc", "bcc"))).all()]
     note = Message(sender_object_id=to, channel="intern", subject=msg.subject,
                    body=(f"Diese Mail ging nach {MAX_ATTEMPTS} Versuchen nicht hinaus: {reason} "
@@ -799,7 +794,7 @@ def send_direct(db: Session, channel: str, to: str, subject: str, mail: Any) -> 
 
 def _consents(db: Session, msg: Message) -> bool:
     from .newsletter import subscribed
-    to = [p.person_object_id for p in db.query(MessageParty).filter(
+    to = [p.object_id for p in db.query(MessageParty).filter(
         MessageParty.message_id == msg.id, MessageParty.role == "to").all()]
     return bool(to) and subscribed(db, to) == set(to)
 
@@ -830,17 +825,16 @@ def _parent(db: Session, msg: Message) -> Optional[Message]:
     key = dc.topic(msg.subject)
     if not key:
         return None
-    people = {p.person_object_id for p in db.query(MessageParty).filter(
+    people = {p.object_id for p in db.query(MessageParty).filter(
         MessageParty.message_id == msg.id, MessageParty.role.in_(("to", "cc"))).all()}
     if not people:
         return None
-    involved = select(MessageParty.message_id).where(MessageParty.person_object_id.in_(people))
-    rows = (db.query(Message).filter(
+    involved = select(MessageParty.message_id).where(MessageParty.object_id.in_(people))
+    return (db.query(Message).filter(
         Message.id != msg.id, Message.is_active.is_(True), Message.rfc_id.isnot(None),
-        Message.at <= msg.at,
+        Message.at <= msg.at, Message.topic == key,
         or_(Message.sender_object_id.in_(people), Message.id.in_(involved)))
-        .order_by(Message.at.desc()).limit(200).all())
-    return next((m for m in rows if dc.topic(m.subject) == key), None)
+        .order_by(Message.at.desc()).first())
 
 
 def signer_of(sender: Optional[UserProfile], msg: Message):
@@ -859,7 +853,7 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
     HTML, unterschrieben mit dem Menschen im Namen der Gesellschaft."""
     from . import mail_layout as layout
     parties = db.query(MessageParty).filter(MessageParty.message_id == msg.id).all()
-    ids = {p.person_object_id for p in parties} | {msg.sender_object_id}
+    ids = {p.object_id for p in parties} | {msg.sender_object_id}
     people = {u.object_id: u for u in
               db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all()}
     signer = signer_of(people.get(msg.sender_object_id), msg)
@@ -867,9 +861,9 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
     mime = EmailMessage()
     mime["From"] = formataddr((layout.sender_name(signer), mb.address))
     for role, header in (("to", "To"), ("cc", "Cc"), ("bcc", "Bcc")):
-        addrs = [formataddr((people[p.person_object_id].display_name,
-                             people[p.person_object_id].email))
-                 for p in parties if p.role == role and p.person_object_id in people]
+        addrs = [formataddr((people[p.object_id].display_name,
+                             people[p.object_id].email))
+                 for p in parties if p.role == role and p.object_id in people]
         if addrs:
             mime[header] = ", ".join(addrs)
     mime["Subject"] = msg.subject or ""
@@ -894,7 +888,7 @@ def _unsubscribe(mime: EmailMessage, parties: list[MessageParty]):
     """Der Abmeldelink eines Newsletters: im Fuss **und** als Kopf, damit das Mailprogramm
     selbst «Abbestellen» anbietet (RFC 2369/8058, von Gmail und Yahoo verlangt)."""
     from .newsletter import footer
-    to = next(p.person_object_id for p in parties if p.role == "to")
+    to = next(p.object_id for p in parties if p.role == "to")
     off = footer(to)
     mime["List-Unsubscribe"] = f"<{off.url}>"
     mime["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"

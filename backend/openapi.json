@@ -5381,63 +5381,29 @@
       }
     },
     "/api/v1/erp/messages": {
-      "get": {
+      "post": {
         "tags": [
           "communication"
         ],
-        "summary": "History",
-        "description": "Der Verlauf einer Person oder aller Personen einer Firma – chronologisch.",
-        "operationId": "history_api_v1_erp_messages_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "person",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Person"
+        "summary": "Create",
+        "operationId": "create_api_v1_erp_messages_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageIn"
+              }
             }
           },
-          {
-            "name": "company",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Company"
-            }
-          }
-        ],
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MessageOut"
-                  },
-                  "title": "Response History Api V1 Erp Messages Get"
+                  "$ref": "#/components/schemas/MessageOut"
                 }
               }
             }
@@ -5452,36 +5418,73 @@
               }
             }
           }
-        }
-      },
-      "post": {
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/history/{object_id}": {
+      "get": {
         "tags": [
-          "communication"
+          "history"
         ],
-        "summary": "Create",
-        "operationId": "create_api_v1_erp_messages_post",
+        "summary": "History",
+        "description": "Eine Seite des Verlaufs – Nachrichten, Dokumente und Änderungen, die neuesten zuerst;\n``before`` ist der Cursor der vorigen Seite.",
+        "operationId": "history_api_v1_erp_history__object_id__get",
         "security": [
           {
             "HTTPBearer": []
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MessageIn"
-              }
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MessageOut"
+                  "$ref": "#/components/schemas/HistoryPage"
                 }
               }
             }
@@ -7917,6 +7920,55 @@
         "title": "CaptureTypeInfo",
         "description": "Ein wählbarer Erfassungspunkt-Typ."
       },
+      "ChangeBlock": {
+        "properties": {
+          "actor_kind": {
+            "type": "string",
+            "title": "Actor Kind"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/LogRow"
+            },
+            "type": "array",
+            "title": "Rows",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "actor_kind",
+          "source"
+        ],
+        "title": "ChangeBlock",
+        "description": "**Eine Handlung** (``request_id``) – wer, woher, und was sich änderte."
+      },
       "ChannelOut": {
         "properties": {
           "key": {
@@ -9202,6 +9254,57 @@
         ],
         "title": "DocumentDetail"
       },
+      "DocumentEntry": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "art": {
+            "type": "string",
+            "title": "Art"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "art",
+          "name"
+        ],
+        "title": "DocumentEntry",
+        "description": "Ein Dokument, das an diesem Datensatz hängt (seine Referenz)."
+      },
       "DocumentRefOut": {
         "properties": {
           "id": {
@@ -9953,6 +10056,42 @@
         "title": "FeedbackUpdate",
         "description": "Rückkopplung: erledigt/verworfen setzen (oder wieder öffnen) + Begründung."
       },
+      "FieldChange": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "old": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old"
+          },
+          "new": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field"
+        ],
+        "title": "FieldChange",
+        "description": "``feld: alt → neu`` – roh, der Feldname bleibt, wie er in der Tabelle heisst. Bei einer\nneuen Zeile fehlt ``old``, bei einer gelöschten ``new``."
+      },
       "FiledOut": {
         "properties": {
           "document": {
@@ -10262,6 +10401,90 @@
           "icon"
         ],
         "title": "HintOut"
+      },
+      "HistoryEntry": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "message",
+              "document",
+              "change"
+            ],
+            "title": "Kind"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MessageOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentEntry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeBlock"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "at"
+        ],
+        "title": "HistoryEntry"
+      },
+      "HistoryPage": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryEntry"
+            },
+            "type": "array",
+            "title": "Entries",
+            "default": []
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          }
+        },
+        "type": "object",
+        "title": "HistoryPage"
       },
       "HoldNumbers": {
         "properties": {
@@ -10705,6 +10928,80 @@
         ],
         "title": "LegalOut",
         "description": "Ein Rechtstext, wie er heute gilt – Art, Wort, Titel, Datum und das A4-Dokument; ist\ner eine andere Datei (PDF), steht statt des Papiers ihr Link da."
+      },
+      "LogRow": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table"
+          },
+          "word": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Word"
+          },
+          "row": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row"
+          },
+          "event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/FieldChange"
+            },
+            "type": "array",
+            "title": "Changes",
+            "default": []
+          },
+          "payload": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Payload",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "LogRow",
+        "description": "Eine Zeile des Logs: eine geänderte Tabellenzeile oder ein Ereignis."
       },
       "MailboxOut": {
         "properties": {

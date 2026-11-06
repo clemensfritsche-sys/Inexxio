@@ -30,7 +30,8 @@ import { FREIGEGEBEN } from '@/lib/process-status';
 import { ErrorText } from '@/components/erp/hints';
 import { IconSwitch, inputCls } from '@/components/erp/controls';
 import { Input, Select } from '@/components/form/field';
-import { DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/detail-frame';
+import { DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, SectionSep } from '@/components/erp/detail-frame';
+import { History } from '@/components/erp/history';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { DocumentTiles } from '@/components/erp/documents';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -360,6 +361,12 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
               />
             </div>
             {record?.object_id != null && <DocumentTiles objectId={record.object_id} />}
+            {record?.object_id != null && (
+              <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <SectionSep label="Verlauf" />
+                <History objectId={record.object_id} />
+              </div>
+            )}
         </DetailBody>
 
       </div>
