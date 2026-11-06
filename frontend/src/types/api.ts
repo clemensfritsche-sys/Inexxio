@@ -2325,6 +2325,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/tick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Tick
+         * @description **Der Takt** (Cloud Scheduler, alle 5 Minuten): jede Aufgabe aus ``tick.TASKS`` einmal
+         *     – je ``ok`` · ``skipped`` (läuft anderswo, keine Zeit mehr) · ``failed``. Scheitert eine,
+         *     antwortet er mit 500, damit Cloud Scheduler den Fehlschlag zählt (Alarm nach mehreren
+         *     hintereinander, ``infra/setup-takt.sh``); die übrigen sind trotzdem gelaufen.
+         */
+        post: operations["run_tick_api_v1_internal_tick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -5673,6 +5696,33 @@ export interface components {
             pos: number[];
             /** Company Object Id */
             company_object_id?: number | null;
+        };
+        /** TickOut */
+        TickOut: {
+            /** Tasks */
+            tasks: components["schemas"]["TickTaskOut"][];
+        };
+        /**
+         * TickTaskOut
+         * @description Eine Aufgabe des Takts (``services/tick.TASKS``) in diesem Lauf.
+         */
+        TickTaskOut: {
+            /** Name */
+            name: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "skipped" | "failed";
+            /** Detail */
+            detail?: string | null;
+            /**
+             * Done
+             * @default {}
+             */
+            done: {
+                [key: string]: number;
+            };
         };
         /**
          * TimeRulesIn
@@ -10917,6 +10967,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TodoOut"][];
+                };
+            };
+        };
+    };
+    run_tick_api_v1_internal_tick_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TickOut"];
+                };
+            };
+            /** @description Eine Aufgabe scheiterte */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TickOut"];
                 };
             };
         };

@@ -34,7 +34,8 @@ Dateien:   Cloud Storage, je Umgebung ein Bucket (inexxio-dev-files · inexxio-p
            services/attachments, ausgeliefert über einen unerratbaren Token
 Karten:    Google Places (Adress-Suche in jedem Adressfeld); Schlüssel je Umgebung aus dem
            Secret Manager (GOOGLE_MAPS_API_KEY), nicht aus der Datenbank
-Infra:     Google Cloud Run (europe-west6) + Firebase Hosting
+Infra:     Google Cloud Run (europe-west6) + Firebase Hosting; Cloud Scheduler ruft alle
+           5 Minuten den Takt (POST /api/v1/internal/tick, Google-Token, infra/README.md)
 Zahlung:   Stripe – eigene Bezahlkarte im ERP (Payment Element + Webhook). OPTIONAL:
            ohne Schlüssel gibt es den Dienst nicht (docs/stripe-setup.md)
 E-Mail:    Gmail API – je eigener Gesellschaft ein Postfach, Abgleich + Versand.
@@ -98,7 +99,7 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   `services/log.event` (z. B. `ai.call`, `mail.send_failed`, `document.read`,
   `voucher.action`). Unveränderlich per Trigger (auch `TRUNCATE`); einzige Ausnahme die
   Schwärzung `log.redact`, die sich selbst einträgt. Je abgeschlossenem Tag ein verkettetes
-  Siegel (`log_seal`, `log.seal_due` beim Start und im Abgleich, `log.verify`).
+  Siegel (`log_seal`, `log.seal_due` beim Start, im Abgleich und im Takt, `log.verify`).
 - **Ereignisse des Prozesses** stehen im Log als `process.<art>` (`process._pass` ist die
   eine Schreibstelle, über `log.process_events`); gelesen über die Sicht `process_log`
   (`models.ProcessEvent`). Bild, Protokoll, Stückliste und Journey sind **Ableitungen aus dem
@@ -258,7 +259,8 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Gmail-Postfach je eigener Gesellschaft** (`services/mailbox.py`, Kanal `c<Objektnummer>`,
   verbindet nur ein Admin; persönliche Postfächer gibt es nicht). Die Kontakt-E-Mail der
   Gesellschaft **ist** das Postfach (gesetzt durch Verbinden, geleert durch Trennen). Abgleich
-  solange das ERP offen ist (`POST /erp/messages/sync`, 30 s je Postfach); ein unbekannter
+  solange das ERP offen ist (`POST /erp/messages/sync`, 30 s je Postfach) und ohne Browser
+  alle 5 Minuten im **Takt** (siehe «Der Takt»); ein unbekannter
   Absender wird Person (`people.ensure`), Massenpost nicht; eine eigene Adresse ist nie eine
   Person; eine Mail, die sich nicht verarbeiten lässt, wird übersprungen (Log). Senden: jede
   Mail genau einmal (einzeln gesperrt, sofort festgeschrieben), nur über ein verbundenes
@@ -294,6 +296,17 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Seite `/newsletter` (Link im Fuss), Konto. Wörter: `website/src/config/newsletter.mjs`.
 - **Kontaktformular der Website** → offene Nachricht im ERP (`services/inquiry`), siehe
   «Website».
+
+## Der Takt
+
+Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, `POST /api/v1/internal/tick` – was nicht
+von einem offenen Browser abhängen darf. **Die Aufgaben stehen an einer Stelle**
+(`services/tick.TASKS`): Siegel des Logs · Mails holen und senden. Je Aufgabe eigene Sitzung
+(das System, `job`), Advisory-Lock (läuft sie anderswo: übersprungen), Zeitgrenze, ein
+Fehlschlag hält die übrigen nicht auf (Antwort 500 → Alarm). Getanes steht im Log
+(`tick.<name>`), Leerlauf nicht. Anmeldung: Google-Token (OIDC) des Dienstkontos `tick@`, geprüft
+in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingerichtet im Deploy
+(Job «Takt»), einmal je Projekt `infra/setup-takt.sh` (Dienstkonto, Rechte, Alarm per Mail).
 
 ## Zeiterfassung
 
