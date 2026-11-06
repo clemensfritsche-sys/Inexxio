@@ -223,13 +223,16 @@ speichert doppelt:
   wird nachgebaut (Mockup «Vorschlag am Feld»):
   - **Etwas ändern** (ein Wert an einem Datensatz): das Zeichen wie bei «zu tun» steht am
     Datensatz im Feed, am Abschnitt und **am Feld selbst**. Darüberfahren oder Tippen zeigt den
-    Vorschlag (jetzt → neu, Quelle). «Übernehmen» schreibt den Wert ins Feld – das Feld speichert
-    wie immer. Wer selbst tippt, erledigt den Vorschlag damit auch.
+    Vorschlag – **nur das Wesentliche:** der neue Wert, eine Zeile Quelle, «Übernehmen», ✕ (das
+    Feld zeigt den jetzigen Wert ja schon). «Übernehmen» schreibt den Wert ins Feld – das Feld
+    speichert wie immer. Wer selbst tippt, erledigt den Vorschlag damit auch.
   - **Etwas anlegen** (Auftrag, Notiz an einem anderen Datensatz …): «Entwurf öffnen» öffnet den
     **bestehenden** Entwurf vorausgefüllt; freigegeben wird wie immer.
-  Dafür braucht es genau zwei Bausteine: das Zeichen mit Fenster an einem Feld (einmal im
-  gemeinsamen Feld-Baustein) und «Entwurf vorausgefüllt öffnen». Jedes heutige und künftige Feld
-  kann es dann von selbst.
+  **Ein Feld-Baustein für das ganze ERP** (`<Field>`: Beschriftung, Eingabe, Auto-Save,
+  Fehlermeldung, Zeichen mit Vorschlag). Heute baut jede Karte ihre Felder selbst (rund 50 lose
+  Eingaben) – darum kommt zuerst dieser eine Baustein, und die bestehenden Felder ziehen darauf
+  um. Danach kann jedes heutige und künftige Feld Vorschläge von selbst; dazu «Entwurf
+  vorausgefüllt öffnen» einmal für alle Entwürfe.
 - **Was gespeichert wird:** je Vorschlag ein Log-Eintrag `proposal` – bei einer Änderung
   Datensatz, Feld (derselbe Name wie im Auto-Save) und neuer Wert; bei einer Anlage die Art des
   Entwurfs und seine Werte. Dazu die Quelle. Entschieden: `proposal.decided` (übernommen ·
