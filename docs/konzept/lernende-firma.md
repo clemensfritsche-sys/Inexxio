@@ -174,13 +174,14 @@ beginnt seine Spur im Log.
   Sonderfälle je Ereignis.
 - **Sichtbarkeit:** wer einen Datensatz öffnen darf, sieht seinen ganzen Verlauf. Zugriff wird nur
   auf Ebene des Datensatzes geregelt, nicht innerhalb.
-- **«Auf einen Blick» an jedem Datensatz** (ersetzt «Relevant hier» und «Offen aus Erfassen»):
-  **eine Liste**, Wichtiges zuerst, jeder Punkt mit Quelle. Ein Vorschlag führt zu seinem Feld
-  bzw. öffnet den Entwurf (siehe 3), ein Hinweis nicht – keine Abschnitte, keine Kategorien. So viele Punkte, wie
-  wirklich helfen – auch keiner.
-- **Auf Abruf, nicht bei jedem Öffnen:** die KI bildet die Liste neu, wenn jemand «neu ansehen»
-  drückt; bis dahin steht der letzte Stand mit Zeit da. Offene Vorschläge stehen immer da, ohne
-  KI-Aufruf. Kosten nur, wenn es jemand braucht; nach der Erprobung entscheiden wir mit Zahlen.
+- **«Auf einen Blick» ist das Angeheftete oben im Verlauf** – kein eigener Bereich, eine
+  Komponente mit dem Verlauf (wie angeheftete Nachrichten). Angeheftet sind Einträge des
+  Verlaufs (Notiz, Mail, Dokument) und offene Vorschläge, Wichtiges zuerst, so wenige wie möglich –
+  auch keiner. Das Symbol kommt von der **Art des Eintrags**, nicht von einer Regel und nicht von
+  der KI. Was angeheftet wird, entscheidet die KI aus dem Ziel; lösen kann es jeder.
+- **Auf Abruf, nicht bei jedem Öffnen:** die KI bildet das Angeheftete neu, wenn jemand «neu
+  ansehen» drückt; bis dahin steht der letzte Stand mit Zeit da. Offene Vorschläge stehen immer
+  da, ohne KI-Aufruf.
 - **Dokumente behalten ihre Nummer** (eigener Zustand, von anderswo angesprochen, Nachweis); im
   Verlauf erscheinen sie als Eintrag.
 - **Wichtiges bleibt oben**, bis es erledigt oder überholt ist. Wichtigkeit beurteilt die KI aus
@@ -228,10 +229,13 @@ speichert doppelt:
     speichert wie immer. Wer selbst tippt, erledigt den Vorschlag damit auch.
   - **Etwas anlegen** (Auftrag, Notiz an einem anderen Datensatz …): «Entwurf öffnen» öffnet den
     **bestehenden** Entwurf vorausgefüllt; freigegeben wird wie immer.
-  **Ein Feld-Baustein für das ganze ERP** (`<Field>`: Beschriftung, Eingabe, Auto-Save,
-  Fehlermeldung, Zeichen mit Vorschlag). Heute baut jede Karte ihre Felder selbst (rund 50 lose
-  Eingaben) – darum kommt zuerst dieser eine Baustein, und die bestehenden Felder ziehen darauf
-  um. Danach kann jedes heutige und künftige Feld Vorschläge von selbst; dazu «Entwurf
+  **Ein Feld-Baustein für das ganze ERP.** Analyse 06.11.2026: das **Speichern** ist zentral
+  (`lib/use-autosave.ts`, ein Saver für alles); das **Feld** nicht – `components/form/field.tsx`
+  gibt es, genutzt wird es in 5 Dateien, in rund 30 Dateien stehen lose `<input>`/`<select>`
+  (am meisten: Prozess-Editor, Beleg, Artikel, Dokument-Entwurf). **Aufräumen ist Pflicht und
+  der erste Schritt:** ein `Field` für Text, Zahl, Datum, Auswahl und Mehrzeilig – Beschriftung,
+  Pflicht-Stern, weiche Prüfung, Fehlermeldung, Vorschlags-Zeichen –, alle bearbeitbaren Felder
+  ziehen darauf um, ein Wächter (ESLint) verbietet lose Eingaben in Datensätzen. Danach kann jedes heutige und künftige Feld Vorschläge von selbst; dazu «Entwurf
   vorausgefüllt öffnen» einmal für alle Entwürfe.
 - **Was gespeichert wird:** je Vorschlag ein Log-Eintrag `proposal` – bei einer Änderung
   Datensatz, Feld (derselbe Name wie im Auto-Save) und neuer Wert; bei einer Anlage die Art des
@@ -292,25 +296,26 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
   Vorzug für Google (unser Cloud-Projekt, Daten in Europa). Das Hören ist ein eigener Dienst; das
   Verstehen und Ablegen bleibt bei Claude über `services/ai.py`.
 
-- **Lange Aufnahmen laufen im Hintergrund, Google meldet sich selbst:** hochladen → Google
-  schreibt ab → **Google meldet «fertig»** → die KI legt ab → der Vorschlag erscheint am
-  Datensatz. Ohne Netz wird nichts vorgesehen (Verbindung vorausgesetzt).
+- **Lange Aufnahmen laufen im Hintergrund:** hochladen → Google schreibt ab (Minuten) → der
+  **Takt** sieht nach, ob die Abschrift fertig ist, und gibt sie der KI → der Vorschlag erscheint
+  am Datensatz. Ohne Netz wird nichts vorgesehen.
 
-### Google meldet sich selbst (Infrastruktur)
+### Der Takt (Infrastruktur)
 
-**Push statt Nachfragen** – der Stand der Technik bei Google: Ereignisse laufen über **Pub/Sub**,
-das sie an eine geschützte Adresse des ERP schickt (angemeldet mit einem Google-Dienstkonto per
-OIDC, kein Geheimnis im Code). Pub/Sub wiederholt, bis das ERP «erhalten» sagt (bis 7 Tage) –
-nichts geht verloren, und jede Verarbeitung ist wiederholbar (zweimal schadet nicht).
+**Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, eine geschützte Adresse des ERP**
+(`POST /internal/tick`, angemeldet mit einem Google-Dienstkonto per OIDC, kein Geheimnis im Code).
+Er erledigt, was nicht an einem offenen Browser hängen darf:
+- **neue Mails holen und Fälliges senden** – auch, wenn niemand das ERP offen hat (heute nur,
+  solange ein Browser offen ist);
+- **fertige Abschriften abholen** (siehe oben);
+- **das Siegel des Logs** (einmal je Tag, die Prüfsumme aus Phase 1).
+Jede Aufgabe ist wiederholbar und einzeln gesperrt; scheitert eine, läuft sie beim nächsten Takt.
 
-- **Abschrift fertig:** Google legt das Ergebnis in unseren Speicher (Cloud Storage); der Speicher
-  meldet die neue Datei über Pub/Sub.
-- **Neue Mail:** Gmail meldet neue Post über Pub/Sub (`watch`) – Mails kommen damit auch an, wenn
-  niemand das ERP offen hat. Der Abgleich im offenen ERP entfällt; die Anmeldung beim Postfach
-  erneuert sich täglich von selbst.
-- **Siegel des Logs:** beim Start und bei jeder dieser Meldungen (einer zur Zeit).
-
-Kosten: im Gratis-Kontingent (Pub/Sub 10 GB je Monat). Einen Takt (Cloud Scheduler) gibt es nicht.
+Geprüft (06.11.2026): Pub/Sub (Google meldet sich selbst) ersetzt den Takt nicht – Google nennt
+Gmail-Push nicht garantiert und verlangt regelmässiges Nachfragen; die Push-Anmeldung läuft nach 7
+Tagen ab. Push wäre nur ein Beschleuniger – erst, wenn 5 Minuten stören.
+**Kosten:** Cloud Scheduler 3 Aufträge gratis; 288 kurze Aufrufe je Tag bleiben im
+Gratis-Kontingent von Cloud Run (bezahlt wird nur Rechenzeit während einer Anfrage). ≈ 0 CHF.
 
 ### Vergleich der Sprachdienste (Test, vor Phase 4)
 
@@ -320,7 +325,8 @@ Kosten: im Gratis-Kontingent (Pub/Sub 10 GB je Monat). Einen Takt (Cloud Schedul
 | Gemini auf Vertex AI (Flash) | hört die Aufnahme und schreibt sie wörtlich auf (Audio als Eingabe) |
 | ein Nicht-Google-Dienst als Massstab | nur zum Vergleich, falls beide Google-Dienste schwächeln |
 
-**Clemens testet selbst, ohne Code:** Google Cloud Console (Projekt `inexxio-dev`) →
+**Clemens testet selbst, ohne Code** (nur eigene Test-Aufnahmen ohne Kundendaten – im kostenlosen
+AI Studio darf Google Eingaben zur Verbesserung nutzen): Google Cloud Console (Projekt `inexxio-dev`) →
 «Speech-to-Text» → «Transkriptionen» → Datei hochladen, Modell Chirp 3, Deutsch (Schweiz), Region
 Europa; und aistudio.google.com → Audio hochladen → «Schreibe diese Aufnahme wörtlich auf, mit
 Sprechern». Getestet mit **drei echten Aufnahmen** von uns: eine Notiz (1 Min., Halle mit Lärm), ein Telefonat
@@ -347,7 +353,7 @@ günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
 | 1 | **Das Log** – neu, ersetzt alle heutigen Logs | gebaut (06.11.2026) |
 | 2 | Kommunikation skalierbar (Seiten, Anliegen-Spalte, Prüfsumme im Log) · Notiz an jedem Datensatz · Verlauf an jeder Nummer | offen |
 | 3+4 | **ein Durchstich:** «Erfassen» (zuerst Schreiben) → KI legt ab → Vorschläge am Feld → Lernen; danach Sprache (nach dem Test) mit Pub/Sub | offen |
-| 5 | «Auf einen Blick» (auf Abruf) | offen |
+| 5 | Das Angeheftete im Verlauf (auf Abruf) | offen |
 | eigene Projekte | Website-Messung (BigQuery) · Aufgaben («wer macht was») · MCP-Zugang (hier nur die Grundzüge) | offen |
 
 Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
@@ -383,9 +389,12 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
   Log als Prüfsumme. Vorschlag = gespeicherter ERP-Aufruf, im Log, eine Darstellung für alle.
   Lernen: letzte ~20 Entscheide als Beispiele. Phase 3 und 4 als ein Durchstich. Ohne Netz und Ziel-Messung werden nicht vorgesehen. Wort: «Datensatz» statt «Ding».
 
+- 06.11.2026 – Takt per Cloud Scheduler (5 Min., Tag und Nacht); Pub/Sub nicht. Feld-Baustein
+  für das ganze ERP (Aufräumen ist Pflicht, erster Schritt). «Auf einen Blick» = das Angeheftete
+  oben im Verlauf; Symbol aus der Art des Eintrags. «Abgelegt» schlicht: je Teil Datensatz + Text.
 - 06.11.2026 – Vorschläge stehen am Feld (Zeichen wie «zu tun», Fenster beim Darüberfahren,
   «Übernehmen» schreibt ins bestehende Feld) bzw. öffnen den bestehenden Entwurf vorausgefüllt –
-  kein eigenes Formular. Google meldet sich selbst (Pub/Sub, auch für Gmail) statt eines Takts.
+  kein eigenes Formular.
 
 ## Offene Fragen
 
@@ -394,4 +403,19 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 - Sprachtest: Clemens testet selbst (Anleitung oben) und meldet, was Namen, Zahlen, Fachwörter
   trafen.
 - Schwärzen einer Person: welche Einträge gehören alle zu ihr (bewusst offen).
+- **Lernen der KI** – Vorschlag drei Gedächtnisse (Wissen · ähnlichste Fälle · eigene Lektionen)
+  plus ein **Prüfsatz** echter Fälle; Entscheid ausstehend.
+- **Aufnehmen von Gesprächen:** Telefonate und Gespräche mit Aussenstehenden dürfen in der Schweiz
+  nur mit Einwilligung aller aufgenommen werden (StGB Art. 179bis/ter) – wie fragen wir, wo steht
+  es? Interne Meetings: alle wissen es.
+- **Aufnahme im Browser bei gesperrtem Bildschirm:** ein Browser (vor allem iPhone) hält die
+  Aufnahme an, wenn der Bildschirm ausgeht. Lösung: Bildschirm während der Aufnahme wach halten
+  (Wake Lock) – oder später eine App.
+- **Suchen («in 30 Sekunden gefunden»):** heute findet die Suche Datensätze über Nummer und Name,
+  nicht Inhalte von Notizen und Mails. Vorschlag: dieselbe Bedeutungssuche wie beim Lernen, über
+  Notizen, Mails, Dokumente – ein Suchfeld.
+- **Notiz verschieben:** falsch abgelegt und schon bestätigt → «Betrifft» ändern (gewöhnliche
+  Änderung, steht im Log).
+- **KI-Deckel:** heute 300 Aufrufe je Tag; mit Erfassen und Meetings neu festlegen (Kosten je
+  Notiz ≈ 1–3 Rp., Abschrift ≈ 2 Rp. je Minute).
 - Folgeprojekt «Aufgaben» (wer macht was, Zuständigkeit je Prozessschritt).
