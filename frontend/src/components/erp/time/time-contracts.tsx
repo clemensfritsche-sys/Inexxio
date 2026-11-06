@@ -72,10 +72,10 @@ function NewContract({ view, onSave }: {
   return (
     <div style={{ display: 'grid', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border-1)' }}>
       <div style={ROW_FORM}>
-        <TimeField id="nc-from" label="Gültig ab" value={from} onChange={setFrom} bad={!iso}
+        <TimeField id="nc-from" name="valid_from" label="Gültig ab" value={from} onChange={setFrom} bad={!iso}
           placeholder="TT.MM.JJJJ" width={140}
           info="Stichtag, auch in der Zukunft («Geplant»). Gesellschaft: die der Person." />
-        <TimeField id="nc-hours" label="Wochenstunden" value={hours} onChange={setHours}
+        <TimeField id="nc-hours" name="weekly_minutes" label="Wochenstunden" value={hours} onChange={setHours}
           bad={minutes == null} placeholder="h" width={110} info="0 h = Austritt" />
         {!exit && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -97,7 +97,7 @@ function NewContract({ view, onSave }: {
           </div>
         )}
         {!exit && (
-          <TimeField id="nc-weeks" label="Ferienwochen" value={weeks} onChange={setWeeks}
+          <TimeField id="nc-weeks" name="vacation_weeks" label="Ferienwochen" value={weeks} onChange={setWeeks}
             placeholder="gesetzlich" width={110}
             info="Leer = gesetzlich (bis zum 20. Geburtstag 5, sonst 4 Wochen, Alter am Stichtag). Mehr ist möglich, weniger nicht." />
         )}
@@ -131,12 +131,12 @@ function NewBooking({ view, onSave }: {
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <div style={ROW_FORM}>
-        <TimeField id="nb-day" label="Datum" value={d} onChange={setD} bad={!iso} placeholder="TT.MM.JJJJ" width={140} />
-        <TimeField id="nb-hours" label="Stunden ±" value={h} onChange={setH} bad={hours == null}
+        <TimeField id="nb-day" name="day" label="Datum" value={d} onChange={setD} bad={!iso} placeholder="TT.MM.JJJJ" width={140} />
+        <TimeField id="nb-hours" name="minutes" label="Stunden ±" value={h} onChange={setH} bad={hours == null}
           placeholder="±H:MM" width={110} info="Positiv = Gutschrift, negativ = Abzug (z. B. −10:00 ausbezahlt)." />
-        <TimeField id="nb-vac" label="Ferien ±" value={f} onChange={setF} bad={vac == null} placeholder="±H:MM"
+        <TimeField id="nb-vac" name="vacation_minutes" label="Ferien ±" value={f} onChange={setF} bad={vac == null} placeholder="±H:MM"
           width={110} info={`In Stunden, wie alles. Ein Tag = Tagessoll des Vertrags (${hm(view.day_soll)} h).`} />
-        <TimeField id="nb-note" label="Grund" value={note} onChange={setNote} placeholder="z. B. Auszahlung Oktober" width={220} />
+        <TimeField id="nb-note" name="note" label="Grund" value={note} onChange={setNote} placeholder="z. B. Auszahlung Oktober" width={220} />
         <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!ok} onClick={save}>
           <Check size={15} />Buchen</button>
       </div>

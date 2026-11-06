@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Check, Clock, X } from 'lucide-react';
+import { TextArea } from '@/components/form/field';
 import type { PublicDocument as View } from '@/types';
 import { api, ApiError, assetUrl } from '@/lib/api';
 import { day } from '@/lib/when';
@@ -83,7 +84,7 @@ export function DocumentPage() {
         )}
         {declining && (
           <div className={css.acts}>
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} rows={3}
+            <TextArea name="reason" value={reason} onChange={setReason} maxLength={300} rows={3}
               placeholder="Warum lehnen Sie ab?" aria-label="Grund"
               style={{ width: '100%', maxWidth: 460, padding: 12, borderRadius: 'var(--r-md)', border: '1px solid var(--border-2)', font: 'inherit' }} />
             <button type="button" className={`${css.btn} ${css.decline}`} disabled={busy || !reason.trim()}

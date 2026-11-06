@@ -9,6 +9,7 @@ import { statusCfg } from '@/lib/process-status';
 import { when } from '@/lib/when';
 import { DetailBody, DetailHeader, ReadField } from '@/components/erp/detail-frame';
 import { Dialog, inputCls } from '@/components/erp/controls';
+import { Input, TextArea } from '@/components/form/field';
 import { ErrorText } from '@/components/erp/hints';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -239,7 +240,7 @@ function SendDialog({ doc, error, onClose, onSend }: {
       </label>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={MICRO_LABEL}>Ein Satz dazu</span>
-        <textarea className={inputCls} rows={3} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)}
+        <TextArea name="note" className={inputCls} rows={3} maxLength={1000} value={note} onChange={setNote}
           placeholder="z. B. Bitte bis Freitag unterschreiben." />
       </label>
       {error && <ErrorText msg={error} />}
@@ -262,8 +263,8 @@ function DeleteDialog({ error, onClose, onConfirm }: {
       </div>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={MICRO_LABEL}>Grund</span>
-        <input className={inputCls} value={reason} autoFocus maxLength={300}
-          onChange={(e) => setReason(e.target.value)} placeholder="Warum wird es gelöscht?" />
+        <Input name="reason" className={inputCls} value={reason} autoFocus maxLength={300}
+          onChange={setReason} placeholder="Warum wird es gelöscht?" />
       </label>
       {error && <ErrorText msg={error} />}
       <button type="button" className="erp-actbtn erp-actbtn-danger" disabled={!reason.trim()}

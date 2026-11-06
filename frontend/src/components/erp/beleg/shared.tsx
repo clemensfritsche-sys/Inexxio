@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { SearchSelect } from '@/components/erp/search-select';
+import { Select } from '@/components/form/field';
 import type { VoucherEmbed } from '@/types';
 
 /**
@@ -111,7 +112,9 @@ export function FixedValue({ hint, face, children }: {
  * **Der gedruckte Wert IST das Bedienelement**: sichtbar ein `<span>` in der Schrift, die
  * dort ohnehin steht, bedienbar ein unsichtbares `<select>` darüber.
  */
-export function DocPick({ on, value, text, options, face, tip, aria, missing, onChange }: {
+export function DocPick({ name, on, value, text, options, face, tip, aria, missing, onChange }: {
+  /** API-Schlüssel des Wertes (`useField`). */
+  name: string;
   on: boolean;
   value: string;
   text: ReactNode;
@@ -128,14 +131,14 @@ export function DocPick({ on, value, text, options, face, tip, aria, missing, on
     <Editable title={tip} missing={missing}
       style={{ position: 'relative', minWidth: MIN_PICK, maxWidth: '100%' }}>
       {shown}
-      <select value={value} aria-label={aria}
-        onChange={(e) => onChange(e.target.value)}
+      <Select name={name} value={value} aria-label={aria}
+        onChange={onChange}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
                  opacity: 0, cursor: 'pointer' }}>
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
-      </select>
+      </Select>
     </Editable>
   );
 }

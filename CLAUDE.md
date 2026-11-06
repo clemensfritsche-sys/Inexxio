@@ -351,6 +351,7 @@ Gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine** Implementierung
 `services/sites.py` (Gesellschaften) · `objects.obj_nr` (Objektnummer) ·
 `services/documents.py` (jede Datei, `file` ist die einzige Anlage) · `services/ai.py` (jeder
 KI-Aufruf) · `components/erp/document-draft.tsx` (jeder Entwurf) ·
+`components/form/field.tsx` + `use-field.ts` (jedes Eingabefeld, ESLint-Wächter) ·
 `components/erp/address-field.tsx` · `object-select.tsx` (jedes Referenzfeld) ·
 `lib/when.ts` (die einzige Datums-Ausgabe) · `lib/use-autosave.ts`. Zwei Wege für dieselbe
 Sache sind ein Bug, auch wenn beide funktionieren.

@@ -93,13 +93,13 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
       <KtSection id="person" title="Person" text="So sprechen wir Sie an und so erreichen wir Sie."
         aside={<SaveStatusIndicator status={status} errorMsg={errorMsg} />}>
         <div className="kt-grid2">
-          <KtField id="kt-first" label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)}
+          <KtField id="kt-first" name="first_name" objectId={profile.object_id} label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)}
             onEnter={saveNow} missing={empty('first_name')} autoComplete="given-name" />
-          <KtField id="kt-last" label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)}
+          <KtField id="kt-last" name="last_name" objectId={profile.object_id} label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)}
             onEnter={saveNow} missing={empty('last_name')} autoComplete="family-name" />
-          <KtField id="kt-phone" label="Telefon" type="tel" value={form.phone} onChange={(v) => set('phone', v)}
+          <KtField id="kt-phone" name="phone" objectId={profile.object_id} label="Telefon" type="tel" value={form.phone} onChange={(v) => set('phone', v)}
             onEnter={saveNow} missing={empty('phone')} placeholder="+41 44 000 00 00" autoComplete="tel" />
-          <KtDate id="kt-born" label="Geburtsdatum" value={form.date_of_birth}
+          <KtDate id="kt-born" name="date_of_birth" objectId={profile.object_id} label="Geburtsdatum" value={form.date_of_birth}
             onChange={(v) => set('date_of_birth', v)} onEnter={saveNow} missing={empty('date_of_birth')} />
         </div>
       </KtSection>

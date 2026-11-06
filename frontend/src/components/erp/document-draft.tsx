@@ -8,6 +8,7 @@ import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/detail-
 import { ErrorText } from '@/components/erp/hints';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { inputCls } from '@/components/erp/controls';
+import { Input } from '@/components/form/field';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { DocScanner } from '@/components/scan/doc-scanner';
 import { ComposeChat } from '@/components/erp/compose-chat';
@@ -193,14 +194,14 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
               )}
               <label style={{ display: 'flex', flexDirection: 'column' }}>
                 <MicroLabel>Art *</MicroLabel>
-                <input className={inputCls} value={art} maxLength={80} placeholder="z. B. Lieferantenrechnung"
-                  onChange={(e) => setArt(e.target.value)} />
+                <Input name="art" className={inputCls} value={art} maxLength={80} placeholder="z. B. Lieferantenrechnung"
+                  onChange={setArt} />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column' }}>
                 <MicroLabel>Name *</MicroLabel>
-                <input className={inputCls} value={name} maxLength={200}
+                <Input name="name" className={inputCls} value={name} maxLength={200}
                   placeholder="was es von anderen derselben Art unterscheidet"
-                  onChange={(e) => setName(e.target.value)} />
+                  onChange={setName} />
               </label>
               <div>
                 <MicroLabel>Referenz</MicroLabel>

@@ -7,6 +7,7 @@ import { happened } from '@/lib/when';
 import { QUOTE_STATE, VOUCHER_STAGE } from '@/lib/modules';
 import { ObjId } from '@/components/erp/obj-id';
 import { numericInputProps, numericOnly } from '@/components/erp/controls';
+import { Input } from '@/components/form/field';
 import { ACT_H, ActionButton, Amount, Steady } from '@/components/erp/module-ui';
 import type { VoucherParty, VoucherQuoteOut, VoucherSide } from '@/types';
 import { Term } from './terms';
@@ -312,33 +313,32 @@ function QuoteForm({ d, f, setF }: {
         <Stacked label="Betrag">
           <Editable missing={f.amount.trim() === ''} title="Betrag seiner Offerte">
             <Amount currency={d.currency} size={13}>
-              <input {...numericInputProps} value={f.amount} aria-label="Betrag"
-                onChange={(e) => set({ amount: numericOnly(e.target.value,
-                                                           { decimals: d.currency_decimals }) })}
+              <Input name="amount" {...numericInputProps} value={f.amount} aria-label="Betrag"
+                onChange={(v) => set({ amount: numericOnly(v, { decimals: d.currency_decimals }) })}
                 style={{ ...DOC_FIELD, width: 92, textAlign: 'right', fontSize: 13,
                          fontVariantNumeric: 'tabular-nums' }} />
             </Amount>
           </Editable>
         </Stacked>
-        <Term label={d.payment_term_label} on value={f.pay} terms={d.payment_terms ?? []}
+        <Term name="pay" label={d.payment_term_label} on value={f.pay} terms={d.payment_terms ?? []}
           freeMin={d.term_free_min} freeLabel={d.term_free_label}
           onChange={(pay) => set({ pay })} />
-        <Term label={d.lead_term_label} on value={f.lead} terms={d.lead_terms ?? []}
+        <Term name="lead" label={d.lead_term_label} on value={f.lead} terms={d.lead_terms ?? []}
           freeMin={d.term_free_min} freeLabel={d.term_free_label}
           onChange={(lead) => set({ lead })} />
       </div>
       <div className="flex flex-wrap items-end" style={{ gap: '8px 18px', minWidth: 0 }}>
         <Stacked label="Bestellnummer">
           <Editable title="Seine Bestellnummer bzw. Auftragsnummer">
-            <input value={f.reference} aria-label="Bestellnummer" placeholder="—"
-              onChange={(e) => set({ reference: e.target.value })}
+            <Input name="reference" value={f.reference} aria-label="Bestellnummer" placeholder="—"
+              onChange={(reference) => set({ reference })}
               style={{ ...DOC_FIELD, width: 150, fontSize: 13 }} />
           </Editable>
         </Stacked>
         <Stacked label="Link zur Bestellung">
           <Editable title="Bei einem Online-Kauf: der Link zur Bestellung">
-            <input value={f.link} aria-label="Link zur Bestellung" placeholder="—"
-              onChange={(e) => set({ link: e.target.value })}
+            <Input name="link" value={f.link} aria-label="Link zur Bestellung" placeholder="—"
+              onChange={(link) => set({ link })}
               style={{ ...DOC_FIELD, width: 190, fontSize: 13 }} />
           </Editable>
         </Stacked>
