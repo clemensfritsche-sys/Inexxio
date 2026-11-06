@@ -13,7 +13,7 @@ import type {
   ArticleValidation,
   ModuleCatalog,
   Article,
-  Message, MessageIn, MessageChannel, Mailbox, Todo, NewsletterState, PaymentRow,
+  Message, MessageIn, MessageChannel, HistoryPage, Mailbox, Todo, NewsletterState, PaymentRow,
   TimeView, TimeEntryIn, EntryPreview, TimeContractIn, CompanyTimeView, HolidayOut, HolidayIn, TimeRulesIn,
   ArticleInput,
   ArticleNameSuggestion,
@@ -571,12 +571,12 @@ class ApiClient {
     return this.get(`/api/v1/erp/people?${params}`);
   }
 
-  /** **Der Verlauf** einer Person bzw. aller Personen einer Firma – chronologisch. */
-  getMessages(scope: { person?: number; company?: number }, req?: Req): Promise<Message[]> {
+  /** **Der Verlauf eines Datensatzes** – eine Seite, die neuesten zuerst; `before` ist der
+   *  Cursor der vorigen Seite (`services/history`). */
+  history(objectId: number, before?: string, req?: Req): Promise<HistoryPage> {
     const params = new URLSearchParams();
-    if (scope.person) params.set('person', String(scope.person));
-    if (scope.company) params.set('company', String(scope.company));
-    return this.get(`/api/v1/erp/messages?${params}`, req);
+    if (before) params.set('before', before);
+    return this.get(`/api/v1/erp/history/${objectId}?${params}`, req);
   }
 
   createMessage(data: MessageIn): Promise<Message> {

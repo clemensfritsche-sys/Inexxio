@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import { hashKey } from '@tanstack/react-query';
 import { ObjId } from '@/components/erp/obj-id';
 import { numericInputProps, numericOnly } from '@/components/erp/controls';
+import { Input } from '@/components/form/field';
 import { Amount } from '@/components/erp/module-ui';
 import { useAutosaveSignature } from '@/lib/use-autosave';
 import {
@@ -153,9 +154,8 @@ function Service({ on, value, onChange, onDone }: {
   if (!on) return value ? <span style={face}>{value}</span> : null;
   return (
     <Editable title="Die Leistung zu diesen Stücken – vorbelegt aus dem Artikel, bis zur Offerte änderbar">
-      <input value={value} aria-label="Leistung" placeholder="Leistung"
-        onChange={(e) => onChange(e.target.value)} onBlur={onDone}
-        onKeyDown={(e) => { if (e.key === 'Enter') onDone(); }}
+      <Input name="service" value={value} aria-label="Leistung" placeholder="Leistung"
+        onChange={onChange} onBlur={onDone} onEnter={onDone}
         style={{ ...DOC_FIELD, ...face, width: `${Math.max(12, value.length + 1)}ch`,
                  maxWidth: '100%' }} />
     </Editable>
@@ -168,11 +168,11 @@ function Customs({ on, draft, set, onDone }: {
 }) {
   return (
     <span className="flex flex-wrap items-baseline" style={{ gap: '4px 10px', minWidth: 0 }}>
-      <CustomsField label="Zolltarif" value={draft.hs} on={on} width={86}
+      <CustomsField name="hs" label="Zolltarif" value={draft.hs} on={on} width={86}
         onChange={(hs) => set({ hs })} onDone={onDone} />
-      <CustomsField label="Ursprung" value={draft.origin} on={on} width={40}
+      <CustomsField name="origin" label="Ursprung" value={draft.origin} on={on} width={40}
         onChange={(origin) => set({ origin: origin.toUpperCase() })} onDone={onDone} />
-      <CustomsField label="Gewicht" unit="kg je Stück" value={draft.weight} on={on} width={52}
+      <CustomsField name="weight" label="Gewicht" unit="kg je Stück" value={draft.weight} on={on} width={52}
         numeric onChange={(weight) => set({ weight })} onDone={onDone} />
     </span>
   );
@@ -182,8 +182,8 @@ function Customs({ on, draft, set, onDone }: {
  * **Eine Zoll-Angabe** – die Beschriftung steht davor, beim Eingeben wie im fertigen Beleg
  * (nie als Platzhalter, der beim ersten Zeichen verschwindet).
  */
-function CustomsField({ label, unit, value, on, width, numeric, onChange, onDone }: {
-  label: string; unit?: string; value: string; on: boolean; width: number;
+function CustomsField({ name, label, unit, value, on, width, numeric, onChange, onDone }: {
+  name: string; label: string; unit?: string; value: string; on: boolean; width: number;
   numeric?: boolean; onChange: (v: string) => void; onDone: () => void;
 }) {
   const face: CSSProperties = { fontSize: 11.5, color: 'var(--fg-3)' };
@@ -194,11 +194,10 @@ function CustomsField({ label, unit, value, on, width, numeric, onChange, onDone
     <span className="inline-flex items-baseline" style={{ gap: 4, minWidth: 0 }}>
       <span style={{ ...face, flex: 'none' }}>{label}</span>
       <Editable title={label} missing={value.trim() === ''}>
-        <input value={value} aria-label={label}
+        <Input name={name} value={value} aria-label={label}
           {...(numeric ? numericInputProps : {})}
-          onChange={(e) => onChange(numeric
-            ? numericOnly(e.target.value, { decimals: 3 }) : e.target.value)}
-          onBlur={onDone} onKeyDown={(e) => { if (e.key === 'Enter') onDone(); }}
+          onChange={(v) => onChange(numeric ? numericOnly(v, { decimals: 3 }) : v)}
+          onBlur={onDone} onEnter={onDone}
           style={{ ...DOC_FIELD, width, fontSize: 11.5, color: 'var(--fg-2)' }} />
       </Editable>
       {unit && <span style={{ ...face, flex: 'none' }}>{unit}</span>}
@@ -224,7 +223,7 @@ function VatPick({ d, line, on, value, onChange }: {
   const current = (d.vat_rates ?? []).find((v) => v.key === value);
   const text = vatText(current?.label ?? line.vat_label, current?.rate ?? line.vat_rate);
   return (
-    <DocPick on={on && rates.length > 1} value={value} text={text} aria={d.vat_label}
+    <DocPick name="vat" on={on && rates.length > 1} value={value} text={text} aria={d.vat_label}
       tip={line.vat_note || d.vat_label} face={{ fontSize: 12, color: 'var(--fg-3)' }}
       options={rates.map((v) => ({ value: v.key, label: vatText(v.label, v.rate) }))}
       onChange={onChange} />
@@ -243,9 +242,9 @@ function Price({ d, on, value, shown, onChange, onDone }: {
   return (
     <Editable title="Einzelpreis, netto" missing={value.trim() === ''}>
       <Amount currency={d.currency} size={13} weight={400}>
-        <input {...numericInputProps} value={value} aria-label="Einzelpreis"
-          onChange={(e) => onChange(numericOnly(e.target.value, { decimals: d.currency_decimals }))}
-          onBlur={onDone} onKeyDown={(e) => { if (e.key === 'Enter') onDone(); }}
+        <Input name="price" {...numericInputProps} value={value} aria-label="Einzelpreis"
+          onChange={(v) => onChange(numericOnly(v, { decimals: d.currency_decimals }))}
+          onBlur={onDone} onEnter={onDone}
           style={{ ...DOC_FIELD, width: 92, textAlign: 'right', fontSize: 13,
                    fontVariantNumeric: 'tabular-nums' }} />
       </Amount>
@@ -283,10 +282,9 @@ function Part({ d, line, on, value, onChange, onDone }: {
         <span className="inline-flex items-baseline" style={{ gap: 6 }}>
           <Editable title={`Teilbetrag, netto – von ${line.full ?? '—'} ${d.currency}`}
             missing={value.trim() === ''}>
-            <input {...numericInputProps} value={value} aria-label="Teilbetrag" autoFocus={!line.part}
-              onChange={(e) => onChange(numericOnly(e.target.value,
-                                                    { decimals: d.currency_decimals }))}
-              onBlur={onDone} onKeyDown={(e) => { if (e.key === 'Enter') onDone(); }}
+            <Input name="part" {...numericInputProps} value={value} aria-label="Teilbetrag" autoFocus={!line.part}
+              onChange={(v) => onChange(numericOnly(v, { decimals: d.currency_decimals }))}
+              onBlur={onDone} onEnter={onDone}
               style={{ ...DOC_FIELD, width: 84, textAlign: 'right', fontSize: 13,
                        fontWeight: 600, fontVariantNumeric: 'tabular-nums' }} />
           </Editable>
@@ -387,7 +385,7 @@ function SumRow({ label, value, code, dec }: {
 /** **Die Währung – der Code selbst ist der Wähler**, wo `can` ihn führt. */
 function Currency({ d, onAction }: { d: Filled; onAction: Send }) {
   return (
-    <DocPick on={may(d, 'currency')} value={d.currency} text={d.currency}
+    <DocPick name="currency" on={may(d, 'currency')} value={d.currency} text={d.currency}
       face={{ font: 'inherit', color: 'inherit' }} tip={d.currency_label} aria={d.currency_label}
       options={(d.currencies ?? []).map((c) => ({ value: c.code, label: c.label }))}
       onChange={(currency) => void onAction({ action: 'currency', currency })} />

@@ -94,7 +94,7 @@ def test_the_erp_cannot_subscribe_anyone_it_can_only_ask(world, monkeypatch):
     monkeypatch.setattr(mb, "send", lambda _db, m: sent.append(m) or True)
     m = nl.invite(db, p.object_id, "invitation")
     assert sent[-1].id == m.id and m.subject == nl.WORDS["confirmSubject"]
-    assert [x.person_object_id for x in db.query(MessageParty).filter(
+    assert [x.object_id for x in db.query(MessageParty).filter(
         MessageParty.message_id == m.id)] == [p.object_id]
     assert nl.WORDS["confirmButton"] in m.body and "/api/v1/newsletter/confirm?t=" in m.body
     assert nl.subscribed(db, [p.object_id]) == set()         # noch nicht angemeldet
@@ -148,7 +148,7 @@ def test_a_circular_is_one_mail_per_person_with_her_own_greeting(world):
     assert len(copies) == 2 and all(m.outgoing and not m.newsletter for m in copies)
     for m, p in zip(copies, (a, b)):
         assert m.body.startswith(f"Guten Tag {p.display_name}\n\n")
-        assert [x.person_object_id for x in db.query(MessageParty).filter(
+        assert [x.object_id for x in db.query(MessageParty).filter(
             MessageParty.message_id == m.id)] == [p.object_id]
     with pytest.raises(HTTPException):
         _send(world, "circular", [a.object_id], cc=[b.object_id])

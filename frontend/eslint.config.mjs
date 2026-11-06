@@ -46,14 +46,43 @@ const HOUSE_SYNTAX = [
   })),
   // `busy` sperrt Handlungen, nie einen Wert: `disabled` nimmt dem Feld den Fokus, und ein
   // Auto-Save darf nichts verschieben.
+  // Gilt auch für den Feld-Baustein (`Input` · `Select` · `TextArea` · `Field` · `SelectField`).
   {
-    selector: "JSXOpeningElement[name.name=/^(input|select|textarea)$/] > JSXAttribute[name.name='disabled'] > JSXExpressionContainer > Identifier[name='busy']",
+    selector: "JSXOpeningElement[name.name=/^(input|select|textarea|Input|Select|TextArea|Field|SelectField)$/] > JSXAttribute[name.name='disabled'] > JSXExpressionContainer > Identifier[name='busy']",
     message: '`busy` sperrt Handlungen, nie ein Eingabefeld (disabled nimmt den Fokus).',
   },
 ];
 const BUSY_INPUT = HOUSE_SYNTAX[HOUSE_SYNTAX.length - 1];
 const STAFF_ROLE = HOUSE_SYNTAX.filter((r) => r.selector.startsWith('BinaryExpression'));
 const without = (all, ...drop) => all.filter((r) => !drop.includes(r));
+/**
+ * ►►► **Ein Feld steht im Feld-Baustein** (`components/form/field.tsx`, Logik in
+ * `use-field.ts`; Projektakte «Die lernende Firma» §4.3, Schritt 2.1). ◄◄◄ Ein loses
+ * `<input>` / `<select>` / `<textarea>` hätte seine eigene Fassung von Enter, Pflicht, Format –
+ * und später keinen Vorschlag. Wer anders aussehen muss (der Beleg), nimmt `Input` · `Select`
+ * · `TextArea` mit eigener Klasse: Logik zentral, Aussehen frei. Kästchen und Dateiwahl
+ * sind kein Wert zum Tippen und fallen nicht darunter.
+ */
+const RAW_FIELD = {
+  selector: "JSXOpeningElement[name.name=/^(input|select|textarea)$/]:not(:has(JSXAttribute[name.name='type'][value.value=/^(checkbox|file)$/]))",
+  message: 'Ein Feld über den Feld-Baustein (components/form/field: Field · SelectField · Input · Select · TextArea), nicht als loses Element.',
+};
+// Wo der Wächter gilt: die Oberflächen der Datensätze (ERP, Konto, Kundenseite).
+const RECORD_UI = ['src/components/erp/**', 'src/components/account/**', 'src/components/beleg/**'];
+/**
+ * **Die Ausnahmen – je Datei mit Grund.** Hier ist jedes lose Feld KEIN Wert eines
+ * Datensatzes. Steht eine Ausnahme mitten in einer Datei mit echten Feldern, trägt sie ein
+ * `eslint-disable-next-line no-restricted-syntax -- <Grund>` am Element (Adresssuche,
+ * Instanzsuche der Stückliste); ein überflüssiges meldet ESLint (`reportUnusedDisableDirectives`).
+ */
+const RAW_FIELD_ALLOWED = [
+  'src/components/erp/feed-panel.tsx',              // Suchfeld des Feeds
+  'src/components/erp/search-select.tsx',           // Suchtext des Auswahlfelds – der Wert ist die Wahl
+  'src/components/erp/territory-map.tsx',           // Ländersuche der Gebietskarte
+  'src/components/erp/communication/composer.tsx',  // Eingabe einer Nachricht (eigener Entwurf `Draft`)
+  'src/components/erp/compose-chat.tsx',            // Eingabe im Chat «Verfassen» (KI)
+];
+
 // Gemeinsame Bausteine wohnen nicht unter «account»: nur das Konto importiert von dort.
 const ACCOUNT_IMPORT = {
   regex: '^@/components/account/',
@@ -99,6 +128,15 @@ const config = [
     files: ['src/components/account/**', 'src/app/(account)/**'],
     rules: { 'no-restricted-imports': 'off' },
   },
+  {
+    files: RECORD_UI,
+    rules: { 'no-restricted-syntax': ['error', ...HOUSE_SYNTAX, RAW_FIELD] },
+  },
+  {
+    files: RAW_FIELD_ALLOWED,
+    rules: { 'no-restricted-syntax': ['error', ...HOUSE_SYNTAX] },
+  },
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
 ];
 
 export default config;

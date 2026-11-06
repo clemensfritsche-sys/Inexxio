@@ -65,7 +65,7 @@ src/components/
 ├── auth/      ← login-dialog, passkey-nudge, auth-gate (Schutz von /erp und /konto, `staffOnly`)
 ├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label,
 │                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)
-├── form/      ← field, save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
+├── form/      ← field + use-field (**der Feld-Baustein**, siehe unten), save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
 ├── layout/    ← site-shell, account-sync
 └── feedback/  ← feedback-pin (Testnotizen; als Insel auch auf der Website)
 src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.ts (generiert) ·
@@ -93,7 +93,8 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `object-select.tsx` | **Jedes Referenzfeld** («welchen Datensatz meinst du?»), Kamera im Feld |
 | `address-field.tsx`, `address-book.tsx` | Jede Adress-Eingabe (Google Places) · das Adressbuch einer Person (zwei Konten) |
 | `company-field.tsx` | Firmenzuordnung einer Person (Konto und ERP) |
-| `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter): die Ansicht (`communication.tsx`, Verlauf als Query) · `timeline` (Chat ab der jüngsten Nachricht, «ältere laden») · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – Spiegel `DELIVERIES`) |
+| `history.tsx` | **Der Verlauf** – EINE Komponente an jeder Detailansicht (Person, Firma, Auftrag, Artikel, Instanz, Dokument): `useHistory` (`useInfiniteQuery`, Seiten vom Server, «ältere laden» beim Rollen), Nachrichten als Blasen, Dokumente als Zeile, Änderungen je Handlung technisch (`feld: alt → neu`, Festbreite) |
+| `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter «Verlauf»): die Ansicht (`communication.tsx`: Postfach, `History`, Eingabe) · `timeline` (die Blase einer Nachricht, Tagestrenner, die wartende Mail) · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – Spiegel `DELIVERIES`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |
 | `new-record.tsx` | Anlegen aus dem Feed («+») |
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |
@@ -160,7 +161,7 @@ Skill `inexxio-design-system`.
 - **Detailansichten**: Schlüssel aus `lib/queries.qk` (`[<Bereich>, …]`, Bereiche in
   `feed.DETAILS`): Auftrag, Instanz, Dokument, Artikel (Umfeld), Erzeugungsprozess, Bestand
   und Nummern (`useInfiniteQuery`), Dokumente an einem Datensatz (`useDocumentsOf`),
-  Zahlungen, Verlauf, Absender, Postfach, Newsletter, Gesellschaft. Die Antwort einer Handlung
+  Zahlungen, Verlauf (`qk.history`, `useInfiniteQuery` – jeder Schreibvorgang lädt ihn nach), Absender, Postfach, Newsletter, Gesellschaft. Die Antwort einer Handlung
   geht per `setQueryData` in den Cache. **Prüfen und Vorschau** (Auftrag, Artikel,
   Zeiterfassung) über `useDebouncedQuery`: Eingabe 250 ms entprellt und Teil des Schlüssels,
   `keepPreviousData`, überholte Anfragen brechen ab (`api.get/post(…, { signal })`).
@@ -206,6 +207,13 @@ Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-s
 - **`busy` sperrt Handlungen, nie Geometrie und nie Werte**: kein `disabled={busy}` an einem
   Eingabefeld, nichts verschwindet während eines Auto-Saves; was erst mit der Serverantwort
   entsteht, hat seinen Platz von Anfang an.
+- **Ein Feld = der Feld-Baustein** (`components/form/use-field.ts` + `field.tsx`): die Logik
+  steht EINMAL in `useField` (Wert, Pflicht, weiche Format-Prüfung, Meldung, Enter = fertig,
+  und die Adresse `objectId` + `name` für Vorschläge, Schritt 3.4); `Field` · `SelectField`
+  sind die Standardform, `Input` · `Select` · `TextArea` dieselbe Logik in freiem Aussehen (Beleg,
+  Konto, Prozess-Editor). Ein loses `<input>`/`<select>`/`<textarea>` unter
+  `components/{erp,account,beleg}` weist ESLint ab (`RAW_FIELD`); die Ausnahmen (Suchfelder,
+  Nachrichten-Eingabe, Kästchen, Dateiwahl) stehen dort mit Grund.
 - **Ein gescheiterter Abruf ist nie stumm** (`lib/notice.ts`): wer bei einem Fehler nichts
   anderes zu tun hat, schreibt `.catch(tell('Aufträge'))` – unten rechts steht dann «Nicht
   geladen: Aufträge – <Grund>» (`components/layout/notice-host.tsx`, im Wurzel-Layout),

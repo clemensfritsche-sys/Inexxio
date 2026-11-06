@@ -1,4 +1,4 @@
-"""Kommunikation – Verlauf lesen, Nachricht anlegen, offene zählen (nur Personal)."""
+"""Kommunikation – Nachricht anlegen, Postfächer, Abgleich (nur Personal)."""
 
 from typing import Optional
 from urllib.parse import urlencode
@@ -14,7 +14,6 @@ from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.communication import (ChannelOut, MailboxOut, MessageIn, MessageOut,
                                      SyncOut)
-from ..services import log
 from ..services import communication as svc
 from ..services import mailbox
 
@@ -55,13 +54,9 @@ def disconnect(channel: str, db: Session = Depends(get_db),
 def sync(db: Session = Depends(get_db), _: UserProfile = Depends(require_employee)):
     """Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein
     Rundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je
-    Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op.
-
-    Derselbe Herzschlag versiegelt abgeschlossene Tage des Logs (``log.seal_due``, sonst
-    nur beim Start) – einer zur Zeit, meist nichts zu tun."""
+    Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ohne offenen
+    Browser tut dasselbe der Takt (``services/tick``)."""
     new, sent = mailbox.sync_all(db)
-    if log.seal_due(db):
-        db.commit()
     return SyncOut(new=new, sent=sent)
 
 
@@ -96,17 +91,8 @@ def attachment(message_id: int, index: int, db: Session = Depends(get_db),
         "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
 
-@router.get("", response_model=list[MessageOut])
-def history(
-    person: Optional[int] = Query(None),
-    company: Optional[int] = Query(None),
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
-):
-    """Der Verlauf einer Person oder aller Personen einer Firma – chronologisch."""
-    if not person and not company:
-        raise HTTPException(400, detail="Person oder Firma angeben.")
-    return svc.history(db, person=person, company=company)
+# Den Verlauf liest ``GET /erp/history/{object_id}`` (``services/history``) – EIN Verlauf
+# für jeden Datensatz, in Seiten; Nachrichten sind ein Teil davon.
 
 
 @router.post("", response_model=MessageOut)

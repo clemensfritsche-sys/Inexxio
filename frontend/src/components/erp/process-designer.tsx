@@ -27,6 +27,7 @@ import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
 import { IconSwitch, Label, inputCls, numericInputProps, numericOnly } from '@/components/erp/controls';
 import { InfoHint } from '@/components/erp/hints';
+import { Input, Select } from '@/components/form/field';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -243,10 +244,10 @@ function DisposalFields({ module: m, onChange }: {
           label: o.label, hint: o.hint,
         }))}
       />
-      <input className={inputCls} value={m.reason} maxLength={200}
+      <Input name="reason" className={inputCls} value={m.reason} maxLength={200}
         placeholder="Grund, z. B. Ausschuss aus der Sichtprüfung"
         aria-label="Grund der Aussonderung"
-        onChange={(e) => onChange({ reason: e.target.value })} />
+        onChange={(reason) => onChange({ reason })} />
     </div>
   );
 }
@@ -438,12 +439,12 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
             }}>{known[row.party] ?? ''}</span>
             {/* Die Bestellangabe gibt es nur, wo wir bestellen (`partyRef`). */}
             {voucherDirection(m.direction).partyRef && (
-              <input className={inputCls} value={row.ref} maxLength={200} required
+              <Input name="parties.ref" className={inputCls} value={row.ref} maxLength={200} required
                 aria-label={VOUCHER_ORDER_REF} placeholder={VOUCHER_ORDER_REF_HINT}
                 style={{ flex: '1 1 160px', minWidth: 0 }}
-                onChange={(e) => onChange({
+                onChange={(ref) => onChange({
                   parties: m.parties.map((x) => (x.party === row.party
-                    ? { ...x, ref: e.target.value } : x)),
+                    ? { ...x, ref } : x)),
                 })} />
             )}
             <RowDelete label="Entfernen" hint="Aus der Freigabe nehmen" reveal
@@ -458,9 +459,9 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
           Spezifikation». */}
       <div>
         <Label>{VOUCHER_TASK}</Label>
-        <input className={inputCls} value={m.instruction} maxLength={400}
+        <Input name="instruction" className={inputCls} value={m.instruction} maxLength={400}
           aria-label={VOUCHER_TASK} placeholder={VOUCHER_TASK_HINT}
-          onChange={(e) => onChange({ instruction: e.target.value })} />
+          onChange={(v) => onChange({ instruction: v })} />
       </div>
       <MoneyPresets module={m} onChange={onChange} />
     </div>
@@ -494,18 +495,18 @@ function MoneyPresets({ module: m, onChange }: {
             <Label>{p.label}</Label>
             {p.days ? (
               <div className="flex items-center gap-1.5">
-                <input className={inputCls} value={m.presets[p.key]} {...numericInputProps}
+                <Input name={`presets.${p.key}`} className={inputCls} value={m.presets[p.key]} {...numericInputProps}
                   aria-label={p.label} placeholder={VOUCHER_PRESET_OPEN}
-                  onChange={(e) => set(p.key, numericOnly(e.target.value, { decimals: false }))} />
+                  onChange={(v) => set(p.key, numericOnly(v, { decimals: false }))} />
                 <span className="text-xs" style={{ color: 'var(--fg-4)', flex: 'none' }}>Tage</span>
               </div>
             ) : (
-              <select className={inputCls} value={m.presets[p.key]} aria-label={p.label}
+              <Select name={`presets.${p.key}`} className={inputCls} value={m.presets[p.key]} aria-label={p.label}
                 style={{ color: m.presets[p.key] ? undefined : 'var(--fg-4)' }}
-                onChange={(e) => set(p.key, e.target.value)}>
+                onChange={(v) => set(p.key, v)}>
                 <option value="">{VOUCHER_PRESET_OPEN}</option>
                 {options(p.key).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              </Select>
             )}
           </div>
         ))}
@@ -561,9 +562,9 @@ function SampleRow({ value, onChange }: {
         />
         {value.mode === 'free' && (
           <>
-            <input className={inputCls} style={{ width: 80 }} value={value.value}
+            <Input name="sample" className={inputCls} style={{ width: 80 }} value={value.value}
               {...numericInputProps} placeholder="z. B. 10"
-              onChange={(e) => onChange({ ...value, value: numericOnly(e.target.value) })} />
+              onChange={(v) => onChange({ ...value, value: numericOnly(v) })} />
             <span className="text-xs" style={{ color: 'var(--fg-4)' }}>%</span>
           </>
         )}
@@ -613,21 +614,21 @@ function ModuleFields({ module: m, types, onChange }: {
                 Weg zur selben Entscheidung. Umentscheiden heisst löschen und neu
                 anlegen, wie beim Modul selbst. */}
             <PointIcon type={p.type} types={types} />
-            <input className={inputCls} style={{ flex: 1, minWidth: 120 }} value={p.label}
+            <Input name="points.label" className={inputCls} style={{ flex: 1, minWidth: 120 }} value={p.label}
               maxLength={120} placeholder="Erfassungspunkt, z. B. Gratfrei"
-              onChange={(e) => setPoint(i, { label: e.target.value })} />
+              onChange={(label) => setPoint(i, { label })} />
             {p.type === NEEDS_TARGET && (
               <>
-                <input className={inputCls} style={{ width: 76 }} value={p.target ?? ''}
+                <Input name="points.target" className={inputCls} style={{ width: 76 }} value={p.target ?? ''}
                   {...numericInputProps} placeholder="Soll"
-                  onChange={(e) => setPoint(i, { target: numericOnly(e.target.value, { decimals: true }) })} />
-                <input className={inputCls} style={{ width: 76 }} value={p.tolerance ?? ''}
+                  onChange={(v) => setPoint(i, { target: numericOnly(v, { decimals: true }) })} />
+                <Input name="points.tolerance" className={inputCls} style={{ width: 76 }} value={p.tolerance ?? ''}
                   {...numericInputProps} placeholder="± Tol."
-                  onChange={(e) => setPoint(i, { tolerance: numericOnly(e.target.value, { decimals: true }) })} />
+                  onChange={(v) => setPoint(i, { tolerance: numericOnly(v, { decimals: true }) })} />
                 {/* Worin gemessen wird – ein freies, kurzes Wort (#707). */}
-                <input className={inputCls} style={{ width: 62 }} value={p.unit ?? ''}
+                <Input name="points.unit" className={inputCls} style={{ width: 62 }} value={p.unit ?? ''}
                   maxLength={8} placeholder="Einheit" data-tip="mm · kg · °C …"
-                  onChange={(e) => setPoint(i, { unit: e.target.value })} />
+                  onChange={(unit) => setPoint(i, { unit })} />
               </>
             )}
             <RowDelete label="Erfassungspunkt entfernen"

@@ -7,9 +7,9 @@ dieselbe Bauart wie ``statuses.terminal_guard_sql`` und ``timekeeping.append_onl
 * ``log_actor()`` – **wer handelt**, aus der Transaktion (``SET LOCAL inexxio.actor``, gesetzt
   an EINER Stelle: ``services/log.act``). Fehlt er, scheitert das Schreiben – lieber laut als
   ohne Spur.
-* ``log_row()`` – der Trigger an **jeder** Tabelle (``OBJECT`` sagt, an welchem Ding eine
+* ``log_row()`` – der Trigger an **jeder** Tabelle (``OBJECT`` sagt, an welchem Datensatz eine
   Zeile hängt). Nur Geändertes, ``updated_at`` zählt nicht; Geheimes und Binäres steht nie
-  im Klartext da.
+  im Klartext da; ein langer Wert (``LONG_VALUE``) nur als Prüfsumme (``log_shorten``).
 * ``log_event(…)`` – ein fachliches Ereignis, das keine Zeile ändert, in derselben
   Transaktion.
 * ``log_immutable()`` – ``UPDATE``, ``DELETE`` und ``TRUNCATE`` auf ``log`` und ``log_seal``
@@ -75,7 +75,7 @@ OBJECT: dict[str, str | None] = {
     "instance_units": _via("instance_id", "instances"),
     "instances": _own("object_id"),
     "mailboxes": _own("owner_object_id"),
-    "message_parties": _own("person_object_id"),
+    "message_parties": _own("object_id"),
     "messages": _own("sender_object_id"),
     "newsletter_consents": _own("person_object_id"),
     "objects": _own("object_id"),
@@ -95,9 +95,53 @@ OBJECT: dict[str, str | None] = {
     "webauthn_credentials": _via("user_id", "user_profiles"),
 }
 
+#: ►► **Ein Wort je Tabelle** – so steht eine Änderung im Verlauf (``services/history``):
+#:    «Person», nicht ``user_profiles``. Nur die Tabellennamen werden übersetzt; die Feldnamen
+#:    bleiben roh (``feld: alt → neu``). Jede Tabelle aus ``OBJECT`` hat hier ein Wort
+#:    (``tests/test_verlauf.py``).
+TABLE_WORDS: dict[str, str] = {
+    "addresses": "Adresse",
+    "article_process_steps": "Prozessschritt",
+    "articles": "Artikel",
+    "attachments": "Datei",
+    "captures": "Erfassung",
+    "company_settings": "Unternehmen",
+    "company_territories": "Gebiet",
+    "document_links": "Link",
+    "document_refs": "Referenz",
+    "document_signatures": "Unterschrift",
+    "documents": "Dokument",
+    "feedback_notes": "Testnotiz",
+    "holidays": "Feiertag",
+    "instance_units": "Stück",
+    "instances": "Instanz",
+    "mailboxes": "Postfach",
+    "message_parties": "Beteiligte",
+    "messages": "Nachricht",
+    "newsletter_consents": "Einwilligung",
+    "objects": "Nummer",
+    "order_lines": "Position",
+    "order_units": "Zugehörigkeit",
+    "orders": "Auftrag",
+    "process_steps": "Modul",
+    "time_contracts": "Vertrag",
+    "time_entries": "Zeiteintrag",
+    "user_profiles": "Person",
+    "voucher_documents": "Papier",
+    "voucher_entries": "Geld-Zeile",
+    "voucher_lines": "Beleg-Position",
+    "voucher_quotes": "Angebot",
+    "vouchers": "Beleg",
+    "webauthn_challenges": "Passkey-Anfrage",
+    "webauthn_credentials": "Passkey",
+}
+
 ROW_TRIGGER = "trg_log_row"
 IMMUTABLE_TRIGGER = "trg_log_immutable"
 IMMUTABLE_TRUNCATE = "trg_log_no_truncate"
+#: Ab dieser Länge (Zeichen) steht ein Wert im Log als Prüfsumme ``{"sha256", "len"}`` statt als
+#: Inhalt – er liegt unveränderlich in seiner Zeile; doppelt wüchse das Log mit jeder Mail.
+LONG_VALUE = 2000
 #: Der Siegel-Lauf: einer zur Zeit, die anderen gehen weiter, statt zu warten.
 SEAL_LOCK = 778_899_003
 
@@ -121,6 +165,19 @@ BEGIN
   END IF;
   RETURN a::jsonb;
 END;
+$fn$;
+
+CREATE OR REPLACE FUNCTION log_shorten(v jsonb) RETURNS jsonb LANGUAGE sql IMMUTABLE AS $fn$
+  SELECT CASE
+    WHEN v IS NULL OR jsonb_typeof(v) = 'null' THEN v
+    WHEN jsonb_typeof(v) = 'string' AND length(v #>> '{}') > __LONG__ THEN
+      jsonb_build_object('sha256', encode(sha256(convert_to(v #>> '{}', 'UTF8')), 'hex'),
+                         'len', length(v #>> '{}'))
+    WHEN jsonb_typeof(v) IN ('object', 'array') AND length(v::text) > __LONG__ THEN
+      jsonb_build_object('sha256', encode(sha256(convert_to(v::text, 'UTF8')), 'hex'),
+                         'len', length(v::text))
+    ELSE v
+  END;
 $fn$;
 
 CREATE OR REPLACE FUNCTION log_row() RETURNS trigger LANGUAGE plpgsql AS $fn$
@@ -158,6 +215,13 @@ BEGIN
       END IF;
     END LOOP;
   END IF;
+  -- Ein langer Wert (Mail-HTML, Dokumenttext …) steht nur als Prüfsumme da: er liegt schon
+  -- unveränderlich in seiner Zeile, und doppelt gespeichert wüchse das Log mit jeder Mail.
+  SELECT jsonb_object_agg(e.key, CASE WHEN TG_OP = 'UPDATE'
+                                      THEN jsonb_build_array(log_shorten(e.value -> 0),
+                                                             log_shorten(e.value -> 1))
+                                      ELSE log_shorten(e.value) END)
+    INTO ch FROM jsonb_each(ch) e;
   IF TG_ARGV[0] <> '' THEN
     EXECUTE TG_ARGV[0] INTO oid USING r;
   END IF;
@@ -320,7 +384,7 @@ BEGIN
   END LOOP;
 END;
 $fn$;
-""".replace("__SEAL_LOCK__", str(SEAL_LOCK))
+""".replace("__SEAL_LOCK__", str(SEAL_LOCK)).replace("__LONG__", str(LONG_VALUE))
 
 
 def _immutable_sql(table: str) -> str:

@@ -181,7 +181,7 @@ def test_documents_are_mailed_into_the_history(db):
     assert msg is not None and msg.subject.startswith("Ihre Offerte")
     assert f"/beleg?t={doc.token}" in msg.html, "Die Mail trägt den Link zum Online-Beleg."
     assert db.query(MessageParty).filter(MessageParty.message_id == msg.id,
-                                         MessageParty.person_object_id == who.object_id
+                                         MessageParty.object_id == who.object_id
                                          ).count()
 
 

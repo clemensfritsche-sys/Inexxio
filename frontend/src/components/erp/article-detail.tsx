@@ -29,7 +29,9 @@ import { FREIGEGEBEN } from '@/lib/process-status';
 
 import { ErrorText } from '@/components/erp/hints';
 import { IconSwitch, inputCls } from '@/components/erp/controls';
-import { DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/detail-frame';
+import { Input, Select } from '@/components/form/field';
+import { DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, SectionSep } from '@/components/erp/detail-frame';
+import { History } from '@/components/erp/history';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { DocumentTiles } from '@/components/erp/documents';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -307,8 +309,8 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
                     <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
                   </div>
                   <div style={GRID2}>
-                    <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" error={form.size ? errs.size : null} />
-                    <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
+                    <EditField name="size" label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" error={form.size ? errs.size : null} />
+                    <EditField name="weight_kg" label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
                   </div>
                   {/* Bei Bedarf hinzugefügte optionale Felder + abgeleitete Auto-Werte (nur wenn vorhanden). */}
                   {added.length > 0 && (
@@ -359,6 +361,12 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
               />
             </div>
             {record?.object_id != null && <DocumentTiles objectId={record.object_id} />}
+            {record?.object_id != null && (
+              <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <SectionSep label="Verlauf" />
+                <History objectId={record.object_id} />
+              </div>
+            )}
         </DetailBody>
 
       </div>
@@ -397,11 +405,12 @@ function NameField({ value, onChange, error }: {
   return (
     <div ref={boxRef} style={{ position: 'relative' }}>
       <FieldLabel required>Name</FieldLabel>
-      <input
+      <Input
+        name="name"
         value={value}
         maxLength={ARTICLE_NAME_MAX_LENGTH}
         placeholder="Artikelname eingeben…"
-        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onChange={(v) => { onChange(v); setOpen(true); }}
         onFocus={() => setOpen(true)}
         className={inputCls}
         style={error ? { borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)' } : undefined}
@@ -527,12 +536,12 @@ function OptField({ f, form, onSet, onRemove }: {
         </button>
       </div>
       {f.boolean ? (
-        <select value={form[f.key] === 'ja' ? 'ja' : ''} onChange={(e) => onSet(f.key, e.target.value)} className={inputCls}>
+        <Select name={f.key} value={form[f.key] === 'ja' ? 'ja' : ''} onChange={(v) => onSet(f.key, v)} className={inputCls}>
           <option value="">Nein</option>
           <option value="ja">Ja</option>
-        </select>
+        </Select>
       ) : (
-        <input value={form[f.key]} placeholder={f.placeholder} onChange={(e) => onSet(f.key, e.target.value)} className={inputCls} />
+        <Input name={f.key} value={form[f.key]} placeholder={f.placeholder} onChange={(v) => onSet(f.key, v)} className={inputCls} />
       )}
     </div>
   );
@@ -551,14 +560,14 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
 }
 
 // Eingabe-Feld (Entwurf): Overline-Label + `.fin`-Input + Fehler/Hinweis.
-function EditField({ label, value, onChange, placeholder, hint, error, required, full }: {
-  label: string; value: string; onChange: (v: string) => void;
+function EditField({ name, label, value, onChange, placeholder, hint, error, required, full }: {
+  name: string; label: string; value: string; onChange: (v: string) => void;
   placeholder?: string; hint?: string; error?: string | null; required?: boolean; full?: boolean;
 }) {
   return (
     <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
       <FieldLabel required={required}>{label}</FieldLabel>
-      <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
+      <Input name={name} value={value} placeholder={placeholder} onChange={onChange}
         className={inputCls} style={error ? { borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)' } : undefined} />
       {error ? <ErrorText msg={error} /> : hint ? (
         <div style={{ marginTop: 8, font: '500 12.5px var(--font-body)', color: 'var(--fg-4)' }}>{hint}</div>

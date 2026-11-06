@@ -3,8 +3,8 @@
 > Was hier steht, ist **so eingerichtet**. Massgeblich sind die Workflows
 > (`.github/workflows/deploy.yml`, aufgerufen von `deploy-dev.yml` und `deploy-prod.yml` mit
 > den Werten ihrer Umgebung) – sie setzen bei jedem Deploy alles, was ein Dienst braucht;
-> diese Seite erklärt es nur. Eingerichtet wird nicht per Skript, sondern einmal
-> von Hand (unten), und jeder Deploy prüft danach, ob es trägt.
+> diese Seite erklärt es nur. Eingerichtet wird einmal von Hand (unten; der Takt mit
+> `infra/setup-takt.sh`), und jeder Deploy prüft danach, ob es trägt.
 
 ## Zwei Umgebungen
 
@@ -48,6 +48,9 @@ Je Umgebung, alles in **europe-west6 (Zürich)**:
    **steht die Datenbank auf dem Stand des Codes?** (`scripts/check-schema.sh` liest
    `/health` → `schema`, `revision`, `head`). Sonst rot.
 5. **Hosting**: genau die Ausgabe aus 3 nach Firebase Hosting.
+6. **Takt** (neben dem Hosting, nach dem Backend): der Cloud-Scheduler-Job `inexxio-tick`
+   angelegt oder nachgeführt (siehe «Der Takt»). Scheitert er, geht das Hosting trotzdem
+   hinaus, und der Lauf ist rot mit dem einmaligen Befehl.
 
 Der Dienst ist auf beiden Seiten öffentlich aufrufbar (`--allow-unauthenticated`): Firebase
 Hosting leitet `/api/**` nur an einen öffentlichen Dienst weiter; wer etwas darf, prüft das
@@ -110,6 +113,61 @@ gcloud run services update inexxio-backend-dev --region europe-west6 --project i
   --update-labels=rotated=$(date +%s)
 ```
 
+## Der Takt
+
+**Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, `POST /api/v1/internal/tick`** am
+Cloud-Run-Dienst (Job `inexxio-tick`, europe-west6, Zeitzone Europe/Zurich). Was er tut, steht an
+einer Stelle, `backend/app/services/tick.py` (`TASKS`): **das Siegel des Logs** (jeder
+abgeschlossene Tag) und **Mails holen und senden** (`mailbox.sync_all` – dasselbe, was das offene
+ERP alle 30 s tut; ohne Takt ginge eine geplante Mail erst hinaus, wenn jemand das ERP öffnet).
+Jede Aufgabe läuft in eigener Sitzung, einzeln gesperrt (Advisory-Lock: läuft sie anderswo,
+wird sie übersprungen), mit Zeitgrenze (nach 20 s beginnt nichts Neues, Cloud Run bricht nach
+60 s ab); eine gescheiterte hält die übrigen nicht auf, die Antwort ist dann 500. Was eine
+Aufgabe getan hat, steht im Log (`tick.seal`, `tick.mail` mit Zahlen) – bei Leerlauf nichts.
+
+**Anmeldung ohne Geheimnis**: Cloud Scheduler holt bei jedem Aufruf ein von Google signiertes
+ID-Token (OIDC) des Dienstkontos `tick@<projekt>.iam.gserviceaccount.com`, Zielgruppe
+`inexxio-tick-<env>`. Das Backend prüft Signatur, Ablauf, Zielgruppe und Konto
+(`backend/app/core/oidc.py`; beide Werte setzt der Deploy als `TICK_SERVICE_ACCOUNT` und
+`TICK_AUDIENCE`). Ohne sie antwortet der Takt 503, mit falschem Token 401/403. Das Dienstkonto
+hat keine Rolle im Projekt, nur `roles/run.invoker` auf dem Dienst.
+
+**Eingerichtet im Deploy** (`deploy.yml`, Job «Takt»): Adresse des Dienstes lesen, Job anlegen
+oder nachführen (alle 5 Minuten, Versuch höchstens 60 s, ein Wiederholversuch nach 30–60 s).
+**Einmal je Projekt vorher**, in Cloud Shell (idempotent, ein zweiter Lauf schadet nicht):
+
+```bash
+bash infra/setup-takt.sh inexxio-dev github-actions@inexxio-dev.iam.gserviceaccount.com ALARM-EMAIL
+bash infra/setup-takt.sh inexxio-prod <Deploy-Konto aus WIF_SA_PROD> ALARM-EMAIL
+```
+
+Es schaltet Cloud Scheduler ein, legt `tick@` an (mit `run.invoker` auf dem Dienst), gibt dem
+Deploy-Konto `roles/cloudscheduler.admin` und `roles/iam.serviceAccountUser` auf `tick@` und
+richtet den **Alarm** ein: die log-basierte Kennzahl `inexxio-tick-failed` zählt gescheiterte
+Aufrufe (`AttemptFinished` mit Schweregrad ERROR), ab **3 in 30 Minuten** schickt Cloud
+Monitoring eine Mail an ALARM-EMAIL (Richtlinie «Inexxio – der Takt scheitert»).
+
+**Nachsehen**:
+
+```bash
+gcloud scheduler jobs describe inexxio-tick --location europe-west6 --project inexxio-dev
+gcloud scheduler jobs run inexxio-tick --location europe-west6 --project inexxio-dev   # sofort
+gcloud logging read 'resource.type="cloud_scheduler_job" AND resource.labels.job_id="inexxio-tick"' \
+  --project inexxio-dev --limit 10 --format='table(timestamp,severity,jsonPayload.status,httpRequest.status)'
+gcloud run services logs read inexxio-backend-dev --region europe-west6 --project inexxio-dev | grep TICK
+```
+
+**Gegenprobe des Alarms**: die Zielgruppe am Job kurz verfälschen (`gcloud scheduler jobs update
+http inexxio-tick --location europe-west6 --project P --oidc-service-account-email
+tick@P.iam.gserviceaccount.com --oidc-token-audience falsch`) → jeder Aufruf 401 (mit dem
+Wiederholversuch zwei je Lauf) → nach 5–10 Minuten kommt die Mail. Danach stellt der nächste Deploy den Job wieder richtig (oder
+derselbe Befehl mit `inexxio-tick-<env>`). Ein **pausierter** Job scheitert nicht – er löst
+keinen Alarm aus.
+
+**Kosten ≈ 0**: Cloud Scheduler hat drei Jobs je Rechnungskonto frei (dev + prod = zwei);
+Cloud Run rechnet nur während der Anfrage (288 Aufrufe am Tag à 1–2 s liegen im
+Gratis-Kontingent), die Kennzahl und der Alarm kosten nichts.
+
 ## Anmeldung der Deploys ohne Schlüssel (Workload Identity)
 
 GitHub meldet sich bei Google mit einem kurzlebigen Token an, das nur für dieses Repository
@@ -149,6 +207,7 @@ alten Schlüssel löschen (`gcloud iam service-accounts keys list --iam-account 
 ## Werkzeuge
 
 - `scripts/check-schema.sh` – der Schritt nach dem Deploy (oben).
+- `infra/setup-takt.sh` – der Takt, einmal je Projekt (oben, «Der Takt»).
 - `docker-compose.yml` – nur die lokale Datenbank (PostgreSQL 16).
 - `scripts/dump-db.sh` – vollständige Sicherung der dev-Datenbank (Cloud Shell).
 - `scripts/reset-dev-db.sql` – dev leeren, damit sie neu aus den Migrationen entsteht

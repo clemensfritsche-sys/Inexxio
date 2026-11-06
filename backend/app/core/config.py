@@ -114,6 +114,15 @@ class Settings(BaseSettings):
     #: Datenbankverbindung, mit Warnung im Log.
     link_secret: str = ""
 
+    # ── Der Takt (``services/tick``, ``core/oidc``) ──────────────────────────────
+    #: Cloud Scheduler ruft alle 5 Minuten ``POST /api/v1/internal/tick`` – mit einem von
+    #: Google signierten Token (OIDC) des Dienstkontos ``tick@…``. Geprüft werden beide
+    #: Werte: die Zielgruppe (``aud``, je Umgebung eine feste Zeichenkette) und die E-Mail des
+    #: Dienstkontos. **Beide gesetzt vom Deploy**, kein Geheimnis. Fehlt einer, gibt es den
+    #: Takt nicht (503) – nie einen Takt ohne Anmeldung.
+    tick_audience: str = ""
+    tick_service_account: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

@@ -334,7 +334,7 @@ function Fields(p: {
   );
 }
 
-const MODE_OF: Record<string, Mode> = { email: 'email', phone: 'phone', internal: 'internal' };
+const MODE_OF: Record<string, Mode> = { email: 'email', phone: 'phone', internal: 'internal', note: 'internal' };
 
 /** Worauf ein Klick auf «Antworten» zielt – mit einem Zähler, damit derselbe Klick auf
  *  dieselbe Nachricht ein zweites Mal wirkt. */

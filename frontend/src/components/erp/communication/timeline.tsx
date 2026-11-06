@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, ChevronUp, Clock, ExternalLink, Loader2, Mail, Megaphone, MoreHorizontal, Newspaper, Paperclip, Phone, Reply } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { Check, Clock, ExternalLink, Loader2, Mail, Megaphone, MoreHorizontal, Newspaper, Paperclip, Phone, Reply } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatWhen, whenDay, whenTitle } from '@/lib/when';
+import { formatWhen, whenTitle } from '@/lib/when';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { DraftSheet } from '@/components/erp/document-draft';
 import type { Message } from '@/types';
-import { DELIVERIES, ICON_BTN, KIND_ICON, Mode, Person, topicColor } from '@/components/erp/communication/shared';
+import { DELIVERIES, ICON_BTN, KIND_ICON, Person, topicColor } from '@/components/erp/communication/shared';
 
-// ─── Verlauf ────────────────────────────────────────────────────────────────
+// ─── Die Blase einer Nachricht ──────────────────────────────────────────────
+// Der Verlauf selbst – in Seiten, mit Dokumenten und Änderungen – ist `components/erp/history.tsx`.
 
 /** Was im Text auf etwas zeigt: «Text <https://…>» (so schreibt Gmail einen Link als
  *  Klartext) · ein blosses `<https://…>` · eine Adresse (`https://…`, `www.…`) · eine
@@ -160,14 +161,14 @@ function Time({ m, state }: { m: Message; state: boolean }) {
   );
 }
 
-function Bubble({ m, mirror, named, onReply, onDone }: {
+export function Bubble({ m, mirror, named, onReply, onDone }: {
   m: Message; mirror: boolean;
   /** Den Namen trägt die Blase nur, wo die Seite ihn nicht schon sagt. */
   named: boolean;
   onReply?: (m: Message) => void; onDone?: (m: Message) => void;
 }) {
   const call = m.channel.kind === 'phone';
-  const Icon = m.bcc.length > 2 ? Megaphone : KIND_ICON[m.channel.kind as Mode] ?? Mail;
+  const Icon = m.bcc.length > 2 ? Megaphone : KIND_ICON[m.channel.kind as keyof typeof KIND_ICON] ?? Mail;
   const showState = !mirror && m.open;
   const bg = !m.channel.outside ? 'var(--bg-3)' : m.ours ? 'var(--accent-soft)' : 'var(--bg-1)';
   // Wer ausser dem einen Empfänger dabei war – das «Cc», kurz; alles Genaue im Hover.
@@ -204,7 +205,7 @@ function Bubble({ m, mirror, named, onReply, onDone }: {
           {/* Die Blase hängt an einer Hülle ohne ``overflow`` – ``truncate`` schnitte sie weg. */}
           <span data-tip={details(m)} data-tip-list="" data-tip-pos="bottom"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            {m.channel.kind === 'internal' && <Icon size={12} style={{ flex: 'none' }} />}
+            {!m.channel.outside && <Icon size={12} style={{ flex: 'none' }} />}
             {group && <GroupIcon size={12} style={{ flex: 'none' }} />}
             {cc && <span className="truncate">{cc}</span>}
           </span>
@@ -267,7 +268,7 @@ function sinceWord(text: string): string {
   return text.startsWith('vor ') ? `seit ${text.slice(4)}` : text;
 }
 
-function Divider({ label }: { label: string }) {
+export function Divider({ label }: { label: string }) {
   return (
     <div style={{ alignSelf: 'center', color: 'var(--fg-3)', fontSize: 12, margin: '8px 0 4px' }}>{label}</div>
   );
@@ -279,7 +280,7 @@ export type Sending = { topic: string; body: string; to: string; left: number; u
   /** Wie es dasteht: eine Mail hellblau, intern grau – wie die Nachricht danach. */
   internal: boolean; verb: string };
 
-function SendingBubble({ s }: { s: Sending }) {
+export function SendingBubble({ s }: { s: Sending }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{ maxWidth: '74%', minWidth: 0, opacity: 0.6,
@@ -299,60 +300,6 @@ function SendingBubble({ s }: { s: Sending }) {
             flex: 'none' }}>Rückgängig</button>
         </div>
       </div>
-    </div>
-  );
-}
-
-/** So viele Nachrichten stehen zuerst da – und kommen je Nachladen (Rollen nach oben) dazu. */
-const PAGE = 8;
-
-export function Timeline({ messages, mirror, personId, meId, onReply, onDone, sending }: {
-  messages: Message[]; mirror: boolean; personId?: number; meId?: number;
-  onReply?: (m: Message) => void; onDone?: (m: Message) => void;
-  /** Die Mail, die gerade drei Sekunden wartet – sie steht schon am Ende des Verlaufs. */
-  sending?: Sending | null;
-}) {
-  // ►►► Wie WhatsApp: sichtbar sind die jüngsten Nachrichten, Älteres kommt von selbst,
-  // sobald man nach oben rollt (Testnotiz #1216). ◄◄◄ Nur die Anzeige ist begrenzt –
-  // geladen ist der ganze Verlauf (Betreffe, offene). Der Knopf bleibt als Weg für die
-  // Tastatur; der Beobachter drückt ihn, sobald er in Sicht kommt.
-  const [shown, setShown] = useState(PAGE);
-  const more = useRef<HTMLButtonElement>(null);
-  const hasMore = messages.length > shown;
-  useEffect(() => {
-    const el = more.current;
-    if (!el || !hasMore || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver((seen) => {
-      if (seen.some((e) => e.isIntersecting)) setShown((n) => n + PAGE);
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [hasMore, shown]);
-  if (!messages.length && !sending) {
-    return <p style={{ color: 'var(--fg-3)', fontSize: 13, padding: '24px 0' }}>Noch keine Nachrichten.</p>;
-  }
-  const hidden = Math.max(0, messages.length - shown);
-  const rows: ReactNode[] = [];
-  if (hidden > 0) rows.push(
-    <button key="more" ref={more} type="button" data-more="" onClick={() => setShown((n) => n + PAGE)}
-      style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 6, height: 28,
-        padding: '0 12px', border: '1px solid var(--border-1)', borderRadius: 999, cursor: 'pointer',
-        background: 'var(--bg-1)', color: 'var(--fg-2)', font: 'inherit', fontSize: 12, fontWeight: 600,
-        marginBottom: 4 }}>
-      <ChevronUp size={14} />{hidden} ältere {hidden === 1 ? 'Nachricht' : 'Nachrichten'} laden
-    </button>);
-  let last = '';
-  for (const m of messages.slice(hidden)) {
-    const label = m.planned ? 'Geplant' : whenDay(m.at);
-    if (label !== last) rows.push(<Divider key={`d-${m.id}`} label={label} />);
-    last = label;
-    const named = mirror || (m.ours ? m.sender.object_id !== meId : m.sender.object_id !== personId);
-    rows.push(<Bubble key={m.id} m={m} mirror={mirror} named={named} onReply={onReply} onDone={onDone} />);
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '4px 0' }}>
-      {rows}
-      {sending && <SendingBubble s={sending} />}
     </div>
   );
 }

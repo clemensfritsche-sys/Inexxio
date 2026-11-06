@@ -1,14 +1,20 @@
 """►►► **Kommunikation – der eine Dienst** (CRM Schritt 2, ``domain/communication``). ◄◄◄
 
-* ``create``  – eine Nachricht anlegen. Dieselbe Funktion für jede Art.
-* ``history`` – der Verlauf einer Person bzw. aller Personen einer Firma.
+* ``create``  – eine Nachricht anlegen. Dieselbe Funktion für jede Art (auch die Notiz).
+* ``page`` / ``history`` – der Verlauf **in Seiten** (die neuesten zuerst, ``before`` ist
+  der Cursor): einer Person, aller Personen einer Firma, oder die Nachrichten, die einen
+  beliebigen Datensatz «betreffen» (``scope``). Nie alles auf einmal.
 * ``open_counts`` – je Person, wie viele offene/überfällige Nachrichten in ihrem Verlauf
   stehen (das Zeichen im Feed).
+* ``move_note`` – eine Notiz gehört woandershin: Vermerk am falschen, Inhalt am richtigen
+  Datensatz; gelöscht wird nichts.
 
 **Offen ist eine Ableitung**, keine Spalte: an uns gerichtet (``domain.to_us``),
 Zeitpunkt erreicht, und keine **spätere Nachricht von uns mit demselben Betreff**
 (``domain.topic``) erreicht ihren Absender (``answered``). Eine Spalte wäre die zweite
-Wahrheit, die beim ersten vergessenen Nachziehen falsch wird.
+Wahrheit, die beim ersten vergessenen Nachziehen falsch wird. Das Anliegen selbst steht als
+Spalte da (``messages.topic``, aus dem Betreff, der sich nie ändert) – so ist «beantwortet»
+**eine Abfrage** (``_ANSWERED``), die je Kandidatin nur ihr eigenes Anliegen ansieht.
 """
 
 from collections import defaultdict
@@ -16,7 +22,7 @@ from datetime import datetime, timezone
 from typing import Callable, Iterable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func, or_, select
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..domain import communication as dc
@@ -129,6 +135,15 @@ def _assert_people(db: Session, ids: set[int]) -> None:
         raise HTTPException(400, detail=f"Person «{missing[0]}» gibt es nicht.")
 
 
+def _assert_records(db: Session, ids: set[int]) -> None:
+    """**«Betrifft» darf jeder Datensatz sein** – eine Person, eine Firma, ein Auftrag, ein
+    Artikel, eine Instanz, ein Dokument. Er muss nur existieren."""
+    from .records import labels
+    missing = sorted(ids - set(_people(db, ids)) - set(labels(db, ids)))
+    if missing:
+        raise HTTPException(400, detail=f"Datensatz «{missing[0]}» gibt es nicht.")
+
+
 # ---------------------------------------------------------------------------
 # Anlegen
 # ---------------------------------------------------------------------------
@@ -147,7 +162,8 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     Absender). ◄◄◄
 
     **Intern heisst intern**: an eine interne Nachricht gehen nur Mitarbeiter – wen sie
-    betrifft, steht im «Betrifft»."""
+    betrifft, steht im «Betrifft». **«Betrifft» darf jeder Datensatz sein** (die Notiz am
+    Auftrag); An, Cc und Bcc sind immer Personen – nur sie bekommen etwas."""
     try:
         dc.channel(data.channel)
     except ValueError as exc:
@@ -155,7 +171,8 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     if not actor.object_id:
         raise HTTPException(400, detail="Ohne Objektnummer lässt sich nichts schreiben.")
     roles = {"to": data.to, "cc": data.cc, "bcc": data.bcc, "about": data.about}
-    _assert_people(db, {i for ids in roles.values() for i in ids})
+    _assert_people(db, {i for r in ("to", "cc", "bcc") for i in roles[r]})
+    _assert_records(db, set(data.about))
     body = (data.body or "").strip()
     subject = dc.subject_line(data.subject)
     if not subject and (body or not data.about):
@@ -254,7 +271,8 @@ def _incoming_call(data: MessageIn, roles: dict[str, list[int]], actor: UserProf
 
 def write(db: Session, msg: Message, roles: dict[str, list[int]]) -> Message:
     """**Die eine Schreibstelle** – für eine erfasste wie für eine abgeglichene Nachricht
-    (``services/mailbox``): Zeile und Beteiligte (ohne Dubletten)."""
+    (``services/mailbox``): Zeile und Beteiligte (ohne Dubletten). Das Anliegen
+    (``topic``) setzt das Modell mit dem Betreff (``Message._topic``)."""
     db.add(msg)
     db.flush()
     seen: set[tuple[int, str]] = set()
@@ -262,7 +280,7 @@ def write(db: Session, msg: Message, roles: dict[str, list[int]]) -> Message:
         for oid in ids:
             if (oid, role) not in seen:
                 seen.add((oid, role))
-                db.add(MessageParty(message_id=msg.id, person_object_id=oid, role=role))
+                db.add(MessageParty(message_id=msg.id, object_id=oid, role=role))
     db.flush()
     return msg
 
@@ -287,87 +305,161 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
         mailbox.send(db, msg)
 
 
+
+
 # ---------------------------------------------------------------------------
-# Lesen
+# Beantwortet – EINE Abfrage
 # ---------------------------------------------------------------------------
 
-def _ids_for(db: Session, persons: list[int]) -> list[int]:
-    """Die Nachrichten, an denen eine dieser Personen beteiligt ist (Regel 2)."""
-    if not persons:
-        return []
-    as_party = select(MessageParty.message_id).where(
-        MessageParty.person_object_id.in_(persons))
-    rows = db.query(Message.id).filter(
-        Message.is_active.is_(True),
-        or_(Message.sender_object_id.in_(persons), Message.id.in_(as_party)),
-    ).all()
-    return [r for (r,) in rows]
+#: ►►► **Beantwortet ist, was eine spätere Nachricht VON UNS mit demselben Betreff
+#: erreicht** – als Bedingung über eine Kandidatin ``m`` (Spalten ``id``, ``at``,
+#: ``sender_object_id``, ``topic``). ◄◄◄ Die eine Fassung der Regel; ``answered`` fragt sie
+#: für eine Liste, ``open_counts`` für alle, die an uns gehen. Je Kandidatin liest sie nur
+#: ihr eigenes Anliegen ab ihrem Zeitpunkt (Index ``ix_messages_topic_at``).
+#:
+#: * **erreicht**: ihr Absender ist an der Antwort beteiligt (Absender, An, Cc, Bcc,
+#:   Betrifft) – damit erledigt eine Antwort alle offenen Nachrichten des Anliegens;
+#: * **wer fragt, beantwortet seine Frage nicht selbst** – ausser der Erinnerung an mich
+#:   (ich stehe in ihrem «An»);
+#: * **wer von aussen schreibt, bekommt die Antwort von aussen** (eine Mail, ein Anruf);
+#:   intern erledigt ihn nur die Nachricht ohne Text («Erledigt ohne Antwort»). «Ohne
+#:   Text» heisst: kein Zeichen ausser Leerraum (``!~ '\S'``, wie ``str.strip``).
+#: * eine **geplante** Antwort (Zeitpunkt in der Zukunft) beantwortet noch nichts.
+#: Wer zu uns gehört – einmal je Abfrage gelesen (``MATERIALIZED``: ein paar Zeilen, und der
+#: Planer schätzt danach richtig, statt jede Nachricht teuer einzupreisen).
+_STAFF = ("WITH staff AS MATERIALIZED (SELECT object_id FROM user_profiles "
+          "WHERE role = ANY(:staff) AND object_id IS NOT NULL) ")
+
+_ANSWERED = """EXISTS (
+  SELECT 1 FROM messages r
+   WHERE r.topic = m.topic AND r.is_active AND r.at <= :now AND r.id <> m.id
+     AND r.channel <> 'note'
+     AND r.sender_object_id IN (SELECT object_id FROM staff)
+     AND (r.at > m.at OR (r.at = m.at AND r.id > m.id))
+     AND (r.sender_object_id <> m.sender_object_id OR EXISTS (
+            SELECT 1 FROM message_parties own WHERE own.message_id = m.id
+               AND own.role = 'to' AND own.object_id = m.sender_object_id))
+     AND (r.channel <> ALL(:inside) OR r.body !~ '\\S'
+          OR m.sender_object_id IN (SELECT object_id FROM staff))
+     AND (r.sender_object_id = m.sender_object_id OR EXISTS (
+            SELECT 1 FROM message_parties w WHERE w.message_id = r.id
+               AND w.object_id = m.sender_object_id)))"""
 
 
-#: **Was die Regel «beantwortet/offen» liest** – Zeilen statt Objekte: die Regel fragt fünf
-#: Spalten.
-_READ = (Message.id, Message.at, Message.channel, Message.subject, Message.sender_object_id)
+def _rule_params() -> dict:
+    return {"staff": list(STAFF_ROLES), "now": _now(),
+            "inside": [k for k, c in dc.CHANNELS.items() if not c.outside]}
 
 
-def answered(db: Session, msgs: list[Message],
-             roles: dict[int, dict[str, list[int]]]) -> set[int]:
-    """►►► **Beantwortet ist, was eine spätere Nachricht VON UNS mit demselben Betreff
-    erreicht.** ◄◄◄ Erreicht heisst: ihr Absender ist an der Antwort beteiligt (als
-    Absender, An, Cc, Bcc oder Betrifft). Damit erledigt eine Antwort **alle** offenen
-    Nachrichten dieses Anliegens, und «erledigt ohne Antwort» ist dieselbe Regel – eine
-    stille interne Nachricht mit dem Betreff, die den Absender betrifft. Schreibt ein Kunde
-    im selben Anliegen nach, wartet seine Nachricht weiter: sie ist jünger als die Antwort.
-
-    **Wer fragt, beantwortet seine Frage nicht selbst**: schreibe ich einer Kollegin, und
-    schreibe ich danach noch einmal zum selben Betreff, wartet die Frage weiter auf sie.
-    Die eine Ausnahme ist die Erinnerung an mich selbst (ich stehe in ihrem «An») – die
-    erledige ich.
+def answered(db: Session, ids: list[int]) -> set[int]:
+    """►►► **Welche dieser Nachrichten sind beantwortet?** (``_ANSWERED``) ◄◄◄
 
     Gefragt wird **über alle Nachrichten**, nicht nur die geladenen: im Verlauf einer
     Person, die aus dem Cc genommen wurde, steht die Antwort nicht – erledigt ist die
-    Nachricht trotzdem, und zwar überall gleich.
+    Nachricht trotzdem, und zwar überall gleich. Schreibt ein Kunde im selben Anliegen nach,
+    wartet seine Nachricht weiter: sie ist jünger als die Antwort."""
+    if not ids:
+        return set()
+    rows = db.execute(text(f"{_STAFF}SELECT m.id FROM messages m WHERE m.id = ANY(:ids) "
+                           f"AND {_ANSWERED}"),
+                      {"ids": list(ids), **_rule_params()})
+    return {i for (i,) in rows}
 
-    **Wer von aussen schreibt, bekommt seine Antwort von aussen** – eine Mail oder ein
-    Anruf. Eine interne Nachricht mit Text, die ihn betrifft («kannst du hinfahren?»),
-    ist eine Rückfrage im Haus und keine Antwort an ihn; er wartet weiter. Die eine
-    interne, die ihn erledigt, ist die ohne Text: «Erledigt ohne Antwort»."""
-    if not msgs:
-        return set()
-    since = min(_aware(m.at) for m in msgs)
-    # Nur die Spalten, die die Regel liest – die gebaute Mail (``html``) gehört nicht dazu,
-    # und über alle eigenen Nachrichten seit der ältesten Kandidatin wären das Megabytes.
-    ours = db.query(*_READ, Message.body).join(
-            UserProfile, UserProfile.object_id == Message.sender_object_id
-        ).filter(Message.is_active.is_(True), Message.at >= since,
-                 Message.at <= _now(),     # eine geplante noch nicht
-                 UserProfile.role.in_(STAFF_ROLES)).all()
-    if not ours:
-        return set()
-    parts: dict[int, set[int]] = defaultdict(set)
-    for mid, oid in db.query(MessageParty.message_id, MessageParty.person_object_id).filter(
-            MessageParty.message_id.in_([r.id for r in ours])).all():
-        parts[mid].add(oid)
-    by_topic: dict[str, list[tuple[datetime, int, int, set[int], bool]]] = defaultdict(list)
-    for r in ours:
-        reaches_out = dc.channel(r.channel).outside or not (r.body or "").strip()
-        by_topic[dc.topic(r.subject)].append(
-            (_aware(r.at), r.id, r.sender_object_id, parts[r.id] | {r.sender_object_id},
-             reaches_out))
-    staff = {oid for (oid,) in db.query(UserProfile.object_id).filter(
-        UserProfile.object_id.in_({m.sender_object_id for m in msgs}),
-        UserProfile.role.in_(STAFF_ROLES)).all()}
-    done: set[int] = set()
-    for m in msgs:
-        at = _aware(m.at)
-        own = m.sender_object_id in roles.get(m.id, {}).get("to", [])
-        for r_at, r_id, r_sender, who, reaches_out in by_topic.get(dc.topic(m.subject), []):
-            later = r_at > at or (r_at == at and r_id > m.id)
-            asker = r_sender == m.sender_object_id and not own
-            heard = reaches_out or m.sender_object_id in staff
-            if r_id != m.id and later and not asker and heard and m.sender_object_id in who:
-                done.add(m.id)
-                break
-    return done
+
+# ---------------------------------------------------------------------------
+# Lesen – in Seiten
+# ---------------------------------------------------------------------------
+
+#: So viele Einträge hat eine Seite des Verlaufs – wie WhatsApp: die neuesten, ältere beim
+#: Rollen.
+PAGE = 30
+#: Ein Cursor: (Zeitpunkt, id) – geliefert wird, was **davor** liegt.
+Before = tuple[datetime, int]
+
+
+def scope(db: Session, object_id: int) -> list[int]:
+    """►►► **Wessen Nachrichten im Verlauf eines Datensatzes stehen** (Regel 2). ◄◄◄ Eine
+    Firma spiegelt ihre Personen (dazu, was sie selbst betrifft); jeder andere Datensatz ist
+    er selbst – eine Person als Absenderin oder Beteiligte, alles andere über «Betrifft».
+    (Personen hat nur eine Firma: ``company_object_id`` zeigt auf nichts anderes.)"""
+    return [object_id, *(oid for (oid,) in db.query(UserProfile.object_id).filter(
+        UserProfile.company_object_id == object_id, UserProfile.object_id.isnot(None)).all())]
+
+
+_INVOLVED = ("(m.sender_object_id = ANY(:t) OR m.id IN ("
+             "SELECT message_id FROM message_parties WHERE object_id = ANY(:t)))")
+
+_PAGE = text(f"""
+SELECT m.id, m.at, m.group_id FROM messages m
+ WHERE m.is_active AND {_INVOLVED} AND (m.at, m.id) < (:bat, :bid)
+ ORDER BY m.at DESC, m.id DESC LIMIT :n""")
+
+#: ►► **Ein Rundschreiben steht im Verlauf EINMAL.** ◄◄ Je Gruppe die Kopie an diese
+#:    Person(en), sonst die erste – unter den Kopien, die im Verlauf stehen; dazu, an wie
+#:    viele es ging. Ohne Zustand: eine Kopie erscheint, wenn sie die gewählte ist – so
+#:    bleibt eine Gruppe auch über eine Seitengrenze hinweg eine Zeile.
+_GROUPS = text(f"""
+SELECT m.group_id, count(*) AS n,
+       min(m.id) FILTER (WHERE {_INVOLVED} AND EXISTS (
+           SELECT 1 FROM message_parties p WHERE p.message_id = m.id AND p.role = 'to'
+              AND p.object_id = ANY(:t))) AS mine,
+       min(m.id) FILTER (WHERE {_INVOLVED}) AS first
+  FROM messages m WHERE m.group_id = ANY(:g) AND m.is_active GROUP BY m.group_id""")
+
+#: Die unerreichbare Grenze – «vor allem».
+_END = (datetime(9999, 1, 1, tzinfo=timezone.utc), 2 ** 62)
+
+
+def page(db: Session, targets: list[int], before: Optional[Before], limit: int
+         ) -> tuple[list[tuple[int, datetime]], dict[int, int]]:
+    """►►► **Eine Seite des Verlaufs** – die ``limit`` neuesten Nachrichten vor ``before``,
+    an denen einer der ``targets`` beteiligt ist (Absender oder Partei), die neueste zuerst;
+    dazu je Rundschreiben, an wie viele es ging. ◄◄◄ Gelesen werden nur Nummer und Zeit, in
+    Stücken, bis die Seite voll ist – nie der ganze Verlauf."""
+    out: list[tuple[int, datetime]] = []
+    sizes: dict[int, int] = {}
+    if not targets or limit <= 0:
+        return out, sizes
+    bound = before or _END
+    while len(out) < limit:
+        batch = db.execute(_PAGE, {"t": targets, "bat": bound[0], "bid": bound[1],
+                                   "n": limit * 2}).all()
+        if not batch:
+            break
+        groups = {r.group_id for r in batch if r.group_id}
+        reps: dict[int, int] = {}
+        if groups:
+            for g, n, mine, first in db.execute(_GROUPS, {"t": targets, "g": list(groups)}):
+                reps[g] = mine or first
+                sizes[mine or first] = n
+        for r in batch:
+            if not r.group_id or reps.get(r.group_id) == r.id:
+                out.append((r.id, r.at))
+                if len(out) == limit:
+                    break
+        bound = (batch[-1].at, batch[-1].id)
+        if len(batch) < limit * 2:
+            break
+    shown = {i for i, _ in out}
+    return out, {k: v for k, v in sizes.items() if k in shown}
+
+
+def history(db: Session, *, person: Optional[int] = None, company: Optional[int] = None,
+            before: Optional[Before] = None, limit: int = PAGE) -> list[MessageOut]:
+    """Eine Seite des Verlaufs einer Person oder aller Personen einer Firma (Regel 2) –
+    chronologisch, wie er dasteht."""
+    oid = person or company
+    found, sizes = page(db, scope(db, oid) if oid else [], before, limit)
+    out = load(db, [i for i, _ in found])
+    for m in out:
+        m.recipients = sizes.get(m.id, 0)
+    return out
+
+
+def _names(db: Session, ids: Iterable[int]) -> dict[int, str]:
+    """Wie ein beteiligter Datensatz heisst, der keine Person ist («Auftrag · …»)."""
+    from .records import labels
+    return {k: r.label for k, r in labels(db, ids).items()}
 
 
 def load(db: Session, ids: list[int]) -> list[MessageOut]:
@@ -375,19 +467,20 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
         return []
     msgs = db.query(Message).filter(Message.id.in_(ids)).order_by(Message.at, Message.id).all()
     parties = db.query(MessageParty).filter(MessageParty.message_id.in_(ids)).all()
-    people = _people(db, [m.sender_object_id for m in msgs]
-                     + [p.person_object_id for p in parties])
+    people = _people(db, [m.sender_object_id for m in msgs] + [p.object_id for p in parties])
+    names = _names(db, {p.object_id for p in parties} - set(people))
     by_msg: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     for p in parties:
-        by_msg[p.message_id][p.role].append(p.person_object_id)
-    done = answered(db, msgs, by_msg)
+        by_msg[p.message_id][p.role].append(p.object_id)
+    done = answered(db, [m.id for m in msgs])
     now = _now()
     labels = _labels(db, [m.channel for m in msgs])
     firms = _firms(db, people)
-    return [_out(m, by_msg[m.id], m.id in done, people, now, labels, firms) for m in msgs]
+    return [_out(m, by_msg[m.id], m.id in done, people, now, labels, firms, names)
+            for m in msgs]
 
 
-def _state(m: Message, roles: dict[str, list[int]], answered: bool,
+def _state(m, roles: dict[str, list[int]], answered: bool,
            staff: Callable[[int], bool], now: datetime) -> tuple[bool, bool]:
     """►►► **Offen und überfällig – die EINE Regel** (Regel 3). ◄◄◄ Gelesen vom Verlauf
     (``_out``) **und** vom Zeichen im Feed (``open_counts``): zwei Fassungen hiessen
@@ -402,10 +495,17 @@ def _state(m: Message, roles: dict[str, list[int]], answered: bool,
 def _out(m: Message, roles: dict[str, list[int]], answered: bool,
          people: dict[int, UserProfile], now: datetime,
          labels: dict[str, tuple[str, Optional[str]]],
-         firms: Optional[dict[int, str]] = None) -> MessageOut:
+         firms: Optional[dict[int, str]] = None,
+         names: Optional[dict[int, str]] = None) -> MessageOut:
     from .mailbox import gmail_url
     sender = _ref(people, m.sender_object_id, firms)
-    refs = {r: [_ref(people, i, firms) for i in roles.get(r, [])] for r in dc.ROLES}
+
+    def ref(i: int) -> PersonRef:
+        """Eine Person wie immer; ein anderer Datensatz («Betrifft») mit seinem Namen."""
+        if i in people or not names or i not in names:
+            return _ref(people, i, firms)
+        return PersonRef(object_id=i, name=names[i])
+    refs = {r: [ref(i) for i in roles.get(r, [])] for r in dc.ROLES}
     at = _aware(m.at)
     is_open, overdue = _state(m, roles, answered, lambda i: _is_staff(people, i), now)
     address, name = labels.get(m.channel, (None, None))
@@ -426,67 +526,31 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
     )
 
 
-def history(db: Session, *, person: Optional[int] = None,
-            company: Optional[int] = None) -> list[MessageOut]:
-    """Der Verlauf – einer Person, oder aller Personen einer Firma (Regel 2)."""
-    persons: list[int] = []
-    if person:
-        persons = [person]
-    elif company:
-        persons = [oid for (oid,) in db.query(UserProfile.object_id).filter(
-            UserProfile.company_object_id == company,
-            UserProfile.object_id.isnot(None)).all()]
-    ids, sizes = _collapse(db, _ids_for(db, persons), set(persons))
-    out = load(db, ids)
-    for m in out:
-        m.recipients = sizes.get(m.id, 0)
-    return out
-
-
-def _collapse(db: Session, ids: list[int], persons: set[int]
-              ) -> tuple[list[int], dict[int, int]]:
-    """►►► **Ein Rundschreiben steht im Verlauf EINMAL.** ◄◄◄ Je Gruppe bleibt die Kopie an
-    diese Person (bzw. eine dieser Personen); wer es geschrieben hat, sieht die erste. Dazu
-    je verbliebener Nachricht, an wie viele es ging."""
-    rows = db.query(Message.id, Message.group_id).filter(
-        Message.id.in_(ids), Message.group_id.isnot(None)).all() if ids else []
-    if not rows:
-        return ids, {}
-    theirs = {mid for (mid,) in db.query(MessageParty.message_id).filter(
-        MessageParty.message_id.in_([r.id for r in rows]), MessageParty.role == "to",
-        MessageParty.person_object_id.in_(persons))}
-    pick: dict[int, int] = {}
-    for mid, gid in sorted(rows):
-        if gid not in pick or (mid in theirs and pick[gid] not in theirs):
-            pick[gid] = mid
-    drop = {r.id for r in rows} - set(pick.values())
-    sizes = db.query(Message.group_id, func.count(Message.id)).filter(
-        Message.group_id.in_(list(pick)), Message.is_active.is_(True)
-    ).group_by(Message.group_id).all()
-    return [i for i in ids if i not in drop], {pick[g]: n for g, n in sizes}
+#: Die Nachrichten, die an uns gehen können und nicht beantwortet sind – Kandidatinnen für
+#: «offen». Was wir selbst hinausschicken, ist nie offen; ein stiller Kanal (Gespräch,
+#: Notiz) auch nicht. Was hier steht, entscheidet danach ``_state`` – die eine Regel.
+_UNANSWERED = text(f"""{_STAFF}
+SELECT m.id, m.at, m.channel, m.sender_object_id FROM messages m
+ WHERE m.is_active AND m.at <= :now AND m.channel <> ALL(:quiet)
+   AND (m.sender_object_id NOT IN (SELECT object_id FROM staff)
+        OR m.id IN (SELECT t.message_id FROM message_parties t
+                     WHERE t.role = 'to' AND t.object_id IN (SELECT object_id FROM staff)))
+   AND NOT {_ANSWERED}""")
 
 
 def open_counts(db: Session) -> list[OpenCount]:
     """**Das Zeichen im Feed**: je Person die offenen Nachrichten in ihrem Verlauf.
 
-    Dieselbe Regel wie im Verlauf (``_state``, ``answered``) – gezählt wird bei **jedem**
-    Beteiligten. **Gezählt, nicht gebaut**: geladen werden nur die Spalten, die die Regel
-    liest, und nur die Nachrichten, die an uns gehen können (``dc.to_us``: von aussen, oder
-    ein Mitarbeiter im «An») – was wir selbst hinausschicken, ist nie offen."""
-    live = [k for k, c in dc.CHANNELS.items() if c.live]
-    now = _now()
-    staff_ids = select(UserProfile.object_id).where(UserProfile.role.in_(STAFF_ROLES),
-                                                    UserProfile.object_id.isnot(None))
-    to_staff = select(MessageParty.message_id).where(MessageParty.role == "to",
-                                                     MessageParty.person_object_id.in_(staff_ids))
-    msgs = db.query(*_READ).filter(
-            Message.is_active.is_(True), Message.at <= now, Message.channel.notin_(live),
-            or_(Message.sender_object_id.notin_(staff_ids), Message.id.in_(to_staff))
-            ).order_by(Message.at, Message.id).all()
+    Dieselbe Regel wie im Verlauf (``_state``, ``_ANSWERED``) – gezählt wird bei **jedem**
+    Beteiligten. **Gezählt, nicht gebaut**: die Datenbank liefert nur, was an uns geht und
+    unbeantwortet ist (``_UNANSWERED``) – ein paar Zeilen statt des ganzen Bestands; erst
+    für sie werden Beteiligte geladen und ``_state`` gefragt."""
+    params = {**_rule_params(), "quiet": [k for k in dc.CHANNELS if dc.quiet(k)]}
+    msgs = db.execute(_UNANSWERED, params).all()
     if not msgs:
         return []
     roles: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
-    for mid, oid, role in db.query(MessageParty.message_id, MessageParty.person_object_id,
+    for mid, oid, role in db.query(MessageParty.message_id, MessageParty.object_id,
                                    MessageParty.role).filter(
             MessageParty.message_id.in_([m.id for m in msgs])).all():
         roles[mid][role].append(oid)
@@ -494,13 +558,10 @@ def open_counts(db: Session) -> list[OpenCount]:
         i for r in roles.values() for ids in r.values() for i in ids}
     staff = {oid for (oid,) in db.query(UserProfile.object_id).filter(
         UserProfile.object_id.in_(everyone), UserProfile.role.in_(STAFF_ROLES)).all()}
-    # Was auch ohne Antwort nicht offen wäre, braucht ``answered`` nicht zu fragen – die
-    # Regel bleibt dieselbe, nur in dieser Reihenfolge ausgewertet.
-    maybe = [m for m in msgs if _state(m, roles[m.id], False, staff.__contains__, now)[0]]
-    done = answered(db, maybe, roles)
+    now = params["now"]
     counts: dict[int, list[int]] = defaultdict(lambda: [0, 0])
-    for m in maybe:
-        is_open, overdue = _state(m, roles[m.id], m.id in done, staff.__contains__, now)
+    for m in msgs:
+        is_open, overdue = _state(m, roles[m.id], False, staff.__contains__, now)
         if not is_open:
             continue
         r = roles[m.id]
@@ -510,3 +571,46 @@ def open_counts(db: Session) -> list[OpenCount]:
             counts[oid][0] += 1
             counts[oid][1] += int(overdue)
     return [OpenCount(object_id=k, open=v[0], overdue=v[1]) for k, v in counts.items()]
+
+
+# ---------------------------------------------------------------------------
+# Korrektur statt Löschen
+# ---------------------------------------------------------------------------
+
+def move_note(db: Session, message_id: int, to_object_id: int, actor: UserProfile
+              ) -> tuple[Message, Message]:
+    """►►► **Eine Notiz gehört woandershin – korrigiert wird, nicht gelöscht.** ◄◄◄
+
+    **Eine Heimat**: gültig ist immer genau ein Datensatz. Am falschen steht danach ein
+    Vermerk «ungültig – gehört zu <Nummer Name>», der die Notiz nennt (Betreff und
+    Zeitpunkt); am richtigen ihr Inhalt mit dem Verweis «verschoben von …». Die Notiz selbst
+    bleibt, wie sie war – die Geschichte ändert sich nicht. Beide Einträge gehen durch
+    ``create`` (dieselben Regeln, derselbe Handelnde). Gibt (Vermerk, neue Notiz) zurück.
+
+    Angestossen wird das heute nur im Dienst (die KI schlägt es in Phase 3 vor)."""
+    from ..core.clock import ZONE
+    from .objects import obj_nr
+    note = db.query(Message).filter(Message.id == message_id, Message.is_active.is_(True)).first()
+    if note is None or note.channel != dc.NOTE:
+        raise HTTPException(404, detail="Diese Notiz gibt es nicht.")
+    home = [oid for (oid,) in db.query(MessageParty.object_id).filter(
+        MessageParty.message_id == note.id, MessageParty.role == "about").all()]
+    if to_object_id in home:
+        raise HTTPException(400, detail=f"Die Notiz gehört schon zu «{obj_nr(to_object_id)}».")
+    _assert_records(db, {to_object_id})
+    names = {**_names(db, [to_object_id, *home]),
+             **{k: u.display_name for k, u in _people(db, [to_object_id, *home]).items()}}
+
+    def called(oid: int) -> str:
+        return f"{obj_nr(oid)} {names[oid]}" if names.get(oid) else obj_nr(oid)
+    subject = note.subject or "Notiz"
+    when = _aware(note.at).astimezone(ZONE).strftime("%d.%m.%Y %H:%M")
+    void = create(db, MessageIn(
+        channel=dc.NOTE, about=home, subject=subject,
+        body=f"Ungültig – gehört zu {called(to_object_id)}: die Notiz «{subject}» "
+             f"vom {when}."), actor)
+    origin = ", ".join(called(o) for o in home) or called(note.sender_object_id)
+    moved = create(db, MessageIn(
+        channel=dc.NOTE, about=[to_object_id], subject=subject,
+        body=f"{note.body}\n\nVerschoben von {origin} (Notiz vom {when})."), actor)
+    return void, moved

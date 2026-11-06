@@ -8,6 +8,7 @@ import { qk, useSettled } from '@/lib/queries';
 import type { ArticleOption, UnitChoices, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { FieldAction, IconSwitch, inputCls } from '@/components/erp/controls';
+import { Input } from '@/components/form/field';
 import { StatusDot } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { UnitNumber } from '@/components/erp/unit-number';
@@ -212,15 +213,16 @@ function QuantityInput({ value, disabled, onChange }: {
   }
 
   return (
-    <input
+    <Input
+      name="quantity"
       className={inputCls}
       inputMode="numeric"
       value={text}
       disabled={disabled}
       data-tip={disabled ? 'Zuerst den Artikel wählen – ohne ihn ist die Menge nicht deutbar.' : undefined}
-      onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))}
+      onChange={(v) => setText(v.replace(/[^0-9]/g, ''))}
       onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
+      onEnter={commit}
     />
   );
 }
@@ -583,6 +585,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
               Etikett geben (PROCESS_CORE, Einzelinstanz-Regel). Der Treffer setzt die
               Suche – die Stücke der Instanz stehen dann untereinander. */}
           <div className="py-2" style={{ position: 'relative' }}>
+            {/* eslint-disable-next-line no-restricted-syntax -- Suchfeld: die Eingabe sucht eine Instanz, sie ist kein Wert des Datensatzes. */}
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}

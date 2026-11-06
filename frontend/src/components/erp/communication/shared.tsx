@@ -1,6 +1,6 @@
 'use client';
 
-import { Lock, Mail, Megaphone, Newspaper, Phone } from 'lucide-react';
+import { Lock, Mail, Megaphone, Newspaper, Phone, StickyNote } from 'lucide-react';
 import { MODULE_TONE } from '@/lib/modules';
 import type { MessageIn } from '@/types';
 
@@ -20,7 +20,9 @@ export const DELIVERIES: { key: Delivery; label: string; tip: string }[] = [
 ];
 
 
-export const KIND_ICON = { email: Mail, phone: Phone, internal: Lock } as const;
+/** Das Symbol je Art eines Kanals (`ChannelOut.kind`) – Spiegel von
+ *  `domain/communication.CHANNELS` (getestet). Die Notiz trägt den Zettel. */
+export const KIND_ICON = { email: Mail, phone: Phone, internal: Lock, note: StickyNote } as const;
 /** ►►► **EINE Leiste für Art und Versand**: Mail · Rundschreiben · Newsletter | Anruf · Intern. ◄◄◄
  *  Eine Wahl setzt beides (`mode` und `delivery`) – eine Zeile «Versand» gibt es nicht. */
 export type Kind = { key: string; mode: Mode; delivery: Delivery; label: string; tip: string;

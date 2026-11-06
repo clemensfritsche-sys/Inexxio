@@ -55,7 +55,7 @@ alembic revision --autogenerate -m "description"     # neue Migration
   Sitzung (Handelnder: das System, `start`) und nur mit Warnung bei Fehlschlag: der Betreiber
   als nummerierter Datensatz (`sites.operator`), die Rechtstexte als Dokumente
   (`legal.adopt_templates`, nur solange es noch keine gibt) und das Siegel des Logs für jeden
-  abgeschlossenen Tag (`log.seal_due`). Admin wird nur `initial_admin_email`,
+  abgeschlossenen Tag (`log.seal_due`; danach alle 5 Minuten im Takt, `services/tick`). Admin wird nur `initial_admin_email`,
   beim Login (`core/auth`).
 - **dev neu aufbauen** (nur dev, alle Daten weg): `scripts/reset-dev-db.sql` auf `inexxio_dev`
   (bricht auf jeder anderen Datenbank ab), dann ein Deploy – der Start baut alles aus den
@@ -82,7 +82,8 @@ app/
 │                       actor.py (WER handelt: act, public(…), system_session) ·
 │                       auth.py (Firebase-JWT, get_current_user, require_employee, require_admin;
 │                       nur bestätigte Adressen) · clock.py (jetzt/heute in Europe/Zurich) ·
-│                       signed.py (signierte Links, LINK_SECRET)
+│                       signed.py (signierte Links, LINK_SECRET) ·
+│                       oidc.py (der Takt: Google-Token prüfen, require_tick)
 ├── domain/           ← der fachliche Kern: KEINE DB, KEINE Services
 │   ├── statuses.py   ← jeder Zustand: Beschriftung, Ampelton, Achsen, stock, terminal
 │   ├── modules.py    ← die Prozessschrittmodule (MODULES) und was jedes deklariert
@@ -90,12 +91,13 @@ app/
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)
 │   ├── log.py        ← das Log: Funktionen und Trigger (wer handelt, Zeilen, Ereignisse,
-│   │                   unveränderlich, Schwärzen, Siegel), OBJECT (Tabelle → Ding)
+│   │                   unveränderlich, Schwärzen, Siegel), OBJECT (Tabelle → Ding),
+│   │                   TABLE_WORDS (ein Wort je Tabelle für den Verlauf)
 │   ├── voucher.py    ← der Beleg: Direction, Stufen, Steuer (VAT_RATES, vat_split,
 │   │                   vat_choices nach Anschrift), Saldo (balance), Mahnstufen, Wörter
 │   ├── currency.py   ← Währungen (ISO 4217) mit ihren Nachkommastellen
 │   ├── incoterms.py  ← die elf Klauseln der Incoterms 2020 mit Erklärung
-│   ├── communication.py ← Kanäle, Rollen, Versandarten, Betreff/Anliegen, overdue (2 h), Signatur
+│   ├── communication.py ← Kanäle (auch die Notiz), Rollen, Versandarten, Betreff/Anliegen, overdue (2 h), Signatur
 │   ├── newsletter.py ← Quellen der Einwilligung, Gültigkeit der Bestätigung
 │   ├── timekeeping.py← Zeiterfassung: Absenzarten (je EINE Wirkung), Regeln CH (ArG/OR),
 │   │                   Hinweise, Reglement-Texte (ⓘ), append-only-Trigger
@@ -110,6 +112,7 @@ scripts/
 ├── dump_openapi.py   ← OpenAPI → backend/openapi.json (Quelle der Frontend-Typen)
 ├── dump_statuses.py  ← domain/statuses.py → frontend/src/lib/status-catalog.ts
 ├── deadcode.py       ← «was liest eigentlich niemand mehr?» (beide Seiten)
+├── measure_verlauf.py← Messung: Verlauf und «zu tun» bei 50'000 Nachrichten (rollt zurück)
 ├── build_geoip.py    ← DB-IP Lite → IP→Land (im Docker-Build)
 ├── invariant_report.py · scenario_report.py  ← lesen tests/invariants.py · tests/matrix.py
 ```
@@ -122,9 +125,11 @@ scripts/
 | Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, Beleg: `voucher.py` (Kern: lesen, Ableitungen, Anlage, Rahmen) → `voucher_head.py` (Belegkopf, Anschrift, Positionen) → `voucher_money.py` (Geld-Zeilen, Erstattung, QR, anstehende Papiere) → `voucher_actions.py` (`VERBS`, `can`, `apply`) → `voucher_view.py` (`embed_data`) (+ `voucher_docs.py`, `document.py`, `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
-| Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
+| Kommunikation | `communication.py` (anlegen, Seiten `page`, «offen» als Abfrage, `move_note`), `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
+| Verlauf | `history.py` (ein Verlauf je Nummer: Nachrichten, Dokumente, Änderungen aus dem Log; `HIDDEN`), Wörter der Tabellen in `domain/log.TABLE_WORDS` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen) |
+| Der Takt | `tick.py` (`TASKS`: Siegel, Mails – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
@@ -145,7 +150,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **128 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **129 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -216,12 +221,13 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET | `/api/v1/erp/payments?person=\|company=` | staff | **Zahlungen** einer Person oder eigenen Gesellschaft (Ableitung, `services/payment_list`) |
 | GET | `/api/v1/attachments/{token}` | – | Bild ausliefern (unerratbarer Token) |
 | POST | `/api/v1/payments/webhook` | – (Signatur) | Rückmeldung des Zahlungsdienstes – bucht eine Geld-Zeile am Beleg, sonst nichts |
-| GET | `/api/v1/erp/messages` | staff | Verlauf einer Person (`person=`) oder Firma (`company=`) |
+| GET | `/api/v1/erp/history/{object_id}?before=&limit=` | staff | **Der Verlauf eines Datensatzes** – eine Seite (30), die neuesten zuerst: Nachrichten, Dokumente, Änderungen je Handlung (`services/history`); Dokumente nach `access`, Zeiterfassung nur selbst/Admin |
 | POST | `/api/v1/erp/messages` | staff | Nachricht anlegen (jede Art dieselbe Form) |
 | GET | `/api/v1/erp/messages/channels` | staff | Kanäle, aus denen man schreiben kann |
 | GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |
 | POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
-| POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) |
+| POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) – solange das ERP offen ist; ohne Browser tut es der Takt |
+| POST | `/api/v1/internal/tick` | – (Google-Token, `core/oidc`) | **Der Takt** (Cloud Scheduler, alle 5 Min.): jede Aufgabe aus `tick.TASKS` (Siegel des Logs, Mails holen und senden); je `ok` · `skipped` · `failed`, 500 wenn eine scheitert; ohne `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` 503 |
 | GET | `/api/v1/mail/callback` | – (signierter `state`) | Rückkehr von Google → `/erp?mail=…` |
 | POST | `/api/v1/newsletter` | – | Anmeldung von der Website (E-Mail → Bitte um Bestätigung, legt keine Person an); Honigtopf, 5/h je IP |
 | GET · POST | `/api/v1/newsletter/confirm?t=` | – (signierter Link) | GET zeigt einen Knopf, POST bestätigt → angemeldet (Quelle aus dem Link; ohne Person entsteht sie jetzt) → `/newsletter/bestaetigt` |
@@ -282,7 +288,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
   Dienst protokolliert Zeilen-Änderungen selbst. Ein Dienst schreibt nur **Ereignisse**, die
   keine Zeile ändern (`services/log.event`). **Jede Route mit Datenbank setzt einen
   Handelnden** – `get_current_user` (die Person) oder `dependencies=[public("web" | "link" |
-  "webhook" | "login" | "probe")]`; eine eigene Sitzung (Start, Job, Skript) bekommt ihn über
+  "webhook" | "login" | "probe")]` oder, beim Takt, `core/oidc.require_tick` (das System, `job`); eine eigene Sitzung (Start, Job, Skript) bekommt ihn über
   `core/actor.system_session` bzw. `act`. Ohne Handelnden scheitert jedes Schreiben
   (`tests/test_log.py` prüft jede Route).
 - **Pydantic verwirft unbekannte Felder still** – ein neues Feld gehört in Request-Schema
@@ -294,7 +300,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 `/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,
 `FIREBASE_PROJECT_ID`. Optional: `INITIAL_ADMIN_EMAIL`, `GOOGLE_CLIENT_ID`/`_SECRET`
 (Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP`
-(KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB), `LINK_SECRET` (signierte Links, `core/signed`; leer = abgeleitet aus `DATABASE_URL`, Warnung im Log). Secrets nie im Repo.
+(KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB), `LINK_SECRET` (signierte Links, `core/signed`; leer = abgeleitet aus `DATABASE_URL`, Warnung im Log), `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` (der Takt, setzt der Deploy; leer = kein Takt, 503). Secrets nie im Repo.
 
 ## Tote Stellen finden
 ```bash

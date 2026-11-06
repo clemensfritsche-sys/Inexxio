@@ -334,6 +334,24 @@ def test_the_deliveries_mirror_the_backend_word_for_word():
     assert dict(re.findall(r"key: '(\w+)', label: '([^']+)'", body)) == DELIVERIES
 
 
+def test_every_channel_kind_has_its_icon():
+    """**Jede Art eines Kanals hat in der Oberfläche ihr Symbol** (``shared.KIND_ICON``) – die
+    Notiz ihren Zettel. Eine Art ohne Zeile sähe aus wie eine Mail (der Rückfall).
+
+    Gegenprobe: eine Art, die es nicht gibt, steht dort auch nicht."""
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import communication as dc
+
+    ts = _read(FRONTEND / "components" / "erp" / "communication" / "shared.tsx")
+    table = re.search(r"KIND_ICON = \{(.*?)\}", ts, re.S)
+    assert table, "KIND_ICON fehlt in shared.tsx – der Leser ist blind."
+    mirrored = set(re.findall(r"(\w+):", table.group(1)))
+    wanted = {c.kind for c in dc.CHANNELS.values()} | {dc.channel("c100000001").kind}
+    assert wanted == mirrored, f"Kanal-Arten {sorted(wanted)} ≠ Symbole {sorted(mirrored)}"
+    assert "fax" not in mirrored
+
+
 # ---------------------------------------------------------------------------
 # Zeiterfassung (docs/zeiterfassung-spezifikation.md)
 # ---------------------------------------------------------------------------

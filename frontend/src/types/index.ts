@@ -254,6 +254,10 @@ export type FeedbackUpdateInput = Omit<components['schemas']['FeedbackUpdate'], 
 export type Message = components['schemas']['MessageOut'];
 export type MessageIn = components['schemas']['MessageIn'];
 export type MessageChannel = components['schemas']['ChannelOut'];
+/** **Der Verlauf eines Datensatzes** (`services/history`) – eine Seite, die neuesten zuerst. */
+export type HistoryPage = components['schemas']['HistoryPage'];
+export type HistoryEntry = components['schemas']['HistoryEntry'];
+export type ChangeBlock = components['schemas']['ChangeBlock'];
 /** **Was an einem Datensatz zu tun ist** – die Zahl am Symbol in Feed und Kopf (Nachrichten,
  *  Zeiterfassung, Pflichtangaben, Feiertage). */
 export type Todo = components['schemas']['TodoOut'];

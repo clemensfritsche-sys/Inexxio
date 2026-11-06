@@ -30,6 +30,7 @@ dort, wo sie ohnehin liegen – in Gmail.
 import base64
 import hashlib
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from email.utils import formataddr, getaddresses, parseaddr
@@ -312,11 +313,21 @@ def _token(mb: Mailbox, tokens: Optional[dict[int, Optional[str]]] = None) -> Op
     return tokens[mb.id]
 
 
-def sync_all(db: Session, *, force: bool = False) -> tuple[int, int]:
+def _over(deadline: Optional[float]) -> bool:
+    """Ist die Zeit des Laufs um? (``deadline`` in ``time.monotonic()``; ``None`` = offen)."""
+    return deadline is not None and time.monotonic() >= deadline
+
+
+def sync_all(db: Session, *, force: bool = False,
+             deadline: Optional[float] = None) -> tuple[int, int]:
     """Alle verbundenen Postfächer abgleichen und Fälliges senden. Gibt die Zahl neuer
     und die Zahl versendeter Nachrichten zurück. Ein Postfach, das gerade ein anderer
     abgleicht, wird übersprungen (``SKIP LOCKED``) – zwei Instanzen holen dieselbe Mail nie
-    gleichzeitig. «Wir» (``_ours``) und die Zugangs-Tokens gelten für den ganzen Lauf."""
+    gleichzeitig. «Wir» (``_ours``) und die Zugangs-Tokens gelten für den ganzen Lauf.
+
+    ``deadline`` (der Takt, ``services/tick``): danach beginnt der Lauf **keinen neuen
+    Schritt** mehr (kein Postfach, keine Mail, kein Abruf) – was fehlt, holt der nächste
+    Lauf; ein angefangener Schritt ist durch die Zeitgrenzen der Abrufe begrenzt."""
     if not ready():
         return 0, 0
     due = _now() - SYNC_EVERY
@@ -327,20 +338,24 @@ def sync_all(db: Session, *, force: bool = False) -> tuple[int, int]:
     ours = _ours(db)
     tokens: dict[int, Optional[str]] = {}
     for mb in boxes:
+        if _over(deadline):
+            break
         if force or mb.synced_at is None or mb.synced_at < due:
             try:        # ein gestörtes Postfach hält die übrigen und den Versand nicht auf
                 with db.begin_nested():
-                    new += _sync_one(db, mb, ours, tokens)
-                    _mark_read(db, mb, tokens)
+                    new += _sync_one(db, mb, ours, tokens, deadline)
+                    if not _over(deadline):     # sonst holt es der nächste Lauf nach
+                        _mark_read(db, mb, tokens)
             except Exception as exc:
                 print(f"WARNING: MAILBOX sync {mb.channel} failed: {exc!r}", flush=True)
-    sent = send_due(db, tokens)
+    sent = send_due(db, tokens, deadline)
     db.commit()
     return new, sent
 
 
 def _sync_one(db: Session, mb: Mailbox, ours: dict[str, Optional[int]],
-              tokens: Optional[dict[int, Optional[str]]] = None) -> int:
+              tokens: Optional[dict[int, Optional[str]]] = None,
+              deadline: Optional[float] = None) -> int:
     """Die neuen Mails eines Postfachs. **Eine Mail, die sich nicht verarbeiten lässt, hält
     den Abgleich nicht auf**: sie steht im Log, wird übersprungen, und der Stand rückt vor.
     Scheitert dagegen das **Holen** (Netz, Gmail), bleibt der Stand stehen – der nächste Lauf
@@ -351,6 +366,9 @@ def _sync_one(db: Session, mb: Mailbox, ours: dict[str, Optional[int]],
     ids, latest = _new_ids(token, mb.history_id)
     count = 0
     for gid in ids:
+        if _over(deadline):
+            latest = None       # der Stand bleibt stehen – der nächste Lauf holt den Rest
+            break
         if db.query(Message.id).filter(Message.channel == mb.channel,
                                        Message.gmail_id == gid).first():
             continue
@@ -387,7 +405,6 @@ def _mark_read(db: Session, mb: Mailbox,
     verliert in Gmail sein «UNREAD», genau einmal (``read_marked``). Umgekehrt nicht:
     gelesen heisst nicht erledigt. Fehlt dem Postfach die Freigabe (vor dem Umstellen
     verbunden), bleibt alles, wie es ist – bis es neu verbunden wird."""
-    from collections import defaultdict
     from .communication import answered
     since = _now() - MARK_WITHIN
     msgs = db.query(Message).filter(
@@ -396,11 +413,7 @@ def _mark_read(db: Session, mb: Mailbox,
         Message.at >= since).all()
     if not msgs:
         return
-    roles: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
-    for p in db.query(MessageParty).filter(
-            MessageParty.message_id.in_([m.id for m in msgs])).all():
-        roles[p.message_id][p.role].append(p.person_object_id)
-    replied = answered(db, msgs, roles)     # einmal gefragt, nicht je Nachricht
+    replied = answered(db, [m.id for m in msgs])     # einmal gefragt, nicht je Nachricht
     done = [m for m in msgs if m.id in replied]
     token = _token(mb, tokens) if done else None
     if not token:
@@ -624,7 +637,8 @@ def assert_may_send(db: Session, channel: str, sender: UserProfile) -> None:
 MAX_ATTEMPTS = 3
 
 
-def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None) -> int:
+def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None,
+             deadline: Optional[float] = None) -> int:
     """Was hinaus muss und dessen Zeitpunkt da ist (auch ein früher gescheiterter Versand) –
     **nur über ein verbundenes Postfach ohne Störung**: eine Mail an einem getrennten oder
     abgelaufenen Postfach wartet, ohne die übrigen aufzuhalten.
@@ -641,6 +655,8 @@ def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None) -> 
         .order_by(Message.at, Message.id).limit(20)]
     sent = 0
     for mid in ids:
+        if _over(deadline):
+            break       # die übrigen gehen mit dem nächsten Lauf
         msg = (db.query(Message).filter(Message.id == mid, Message.outgoing.is_(True))
                .with_for_update(skip_locked=True).first())
         if msg is None:
@@ -691,7 +707,7 @@ def _give_up(db: Session, msg: Message, reason: str) -> None:
     writer = db.query(UserProfile.object_id).filter(
         UserProfile.id == msg.created_by).scalar() if msg.created_by else None
     to = writer or (mb.owner_object_id if mb is not None else msg.sender_object_id)
-    about = [p.person_object_id for p in db.query(MessageParty).filter(
+    about = [p.object_id for p in db.query(MessageParty).filter(
         MessageParty.message_id == msg.id, MessageParty.role.in_(("to", "cc", "bcc"))).all()]
     note = Message(sender_object_id=to, channel="intern", subject=msg.subject,
                    body=(f"Diese Mail ging nach {MAX_ATTEMPTS} Versuchen nicht hinaus: {reason} "
@@ -779,7 +795,7 @@ def send_direct(db: Session, channel: str, to: str, subject: str, mail: Any) -> 
 
 def _consents(db: Session, msg: Message) -> bool:
     from .newsletter import subscribed
-    to = [p.person_object_id for p in db.query(MessageParty).filter(
+    to = [p.object_id for p in db.query(MessageParty).filter(
         MessageParty.message_id == msg.id, MessageParty.role == "to").all()]
     return bool(to) and subscribed(db, to) == set(to)
 
@@ -810,17 +826,16 @@ def _parent(db: Session, msg: Message) -> Optional[Message]:
     key = dc.topic(msg.subject)
     if not key:
         return None
-    people = {p.person_object_id for p in db.query(MessageParty).filter(
+    people = {p.object_id for p in db.query(MessageParty).filter(
         MessageParty.message_id == msg.id, MessageParty.role.in_(("to", "cc"))).all()}
     if not people:
         return None
-    involved = select(MessageParty.message_id).where(MessageParty.person_object_id.in_(people))
-    rows = (db.query(Message).filter(
+    involved = select(MessageParty.message_id).where(MessageParty.object_id.in_(people))
+    return (db.query(Message).filter(
         Message.id != msg.id, Message.is_active.is_(True), Message.rfc_id.isnot(None),
-        Message.at <= msg.at,
+        Message.at <= msg.at, Message.topic == key,
         or_(Message.sender_object_id.in_(people), Message.id.in_(involved)))
-        .order_by(Message.at.desc()).limit(200).all())
-    return next((m for m in rows if dc.topic(m.subject) == key), None)
+        .order_by(Message.at.desc()).first())
 
 
 def signer_of(sender: Optional[UserProfile], msg: Message):
@@ -839,7 +854,7 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
     HTML, unterschrieben mit dem Menschen im Namen der Gesellschaft."""
     from . import mail_layout as layout
     parties = db.query(MessageParty).filter(MessageParty.message_id == msg.id).all()
-    ids = {p.person_object_id for p in parties} | {msg.sender_object_id}
+    ids = {p.object_id for p in parties} | {msg.sender_object_id}
     people = {u.object_id: u for u in
               db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all()}
     signer = signer_of(people.get(msg.sender_object_id), msg)
@@ -847,9 +862,9 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
     mime = EmailMessage()
     mime["From"] = formataddr((layout.sender_name(signer), mb.address))
     for role, header in (("to", "To"), ("cc", "Cc"), ("bcc", "Bcc")):
-        addrs = [formataddr((people[p.person_object_id].display_name,
-                             people[p.person_object_id].email))
-                 for p in parties if p.role == role and p.person_object_id in people]
+        addrs = [formataddr((people[p.object_id].display_name,
+                             people[p.object_id].email))
+                 for p in parties if p.role == role and p.object_id in people]
         if addrs:
             mime[header] = ", ".join(addrs)
     mime["Subject"] = msg.subject or ""
@@ -874,7 +889,7 @@ def _unsubscribe(mime: EmailMessage, parties: list[MessageParty]):
     """Der Abmeldelink eines Newsletters: im Fuss **und** als Kopf, damit das Mailprogramm
     selbst «Abbestellen» anbietet (RFC 2369/8058, von Gmail und Yahoo verlangt)."""
     from .newsletter import footer
-    to = next(p.person_object_id for p in parties if p.role == "to")
+    to = next(p.object_id for p in parties if p.role == "to")
     off = footer(to)
     mime["List-Unsubscribe"] = f"<{off.url}>"
     mime["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"

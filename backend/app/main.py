@@ -18,7 +18,7 @@ from .domain import statuses as st
 from .domain import timekeeping as timekeeping_domain
 from .routers import (
     admin, articles, attachments, auth, beleg, communication, contact, documents, erp, feedback,
-    health, website,
+    health, history, internal, website,
     instances, newsletter, orders, passkey, payments, payments_list, places, public_documents,
     timekeeping,
 )
@@ -268,10 +268,12 @@ app.include_router(payments_list.router)
 app.include_router(feedback.router)
 app.include_router(communication.router)
 app.include_router(communication.callback_router)
+app.include_router(history.router)
 app.include_router(newsletter.router)
 app.include_router(newsletter.me_router)
 app.include_router(newsletter.erp_router)
 app.include_router(timekeeping.router)
+app.include_router(internal.router)
 
 
 @app.get("/")

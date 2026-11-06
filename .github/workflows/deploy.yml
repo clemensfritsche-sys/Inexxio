@@ -7,6 +7,8 @@ name: Deploy (eine Umgebung)
 #                Hosting-Ausgabe (Artefakt). Scheitert er, ist noch nichts ausgerollt.
 #   2. Backend   Bild bauen, nach Cloud Run, danach: steht die Datenbank auf dem Stand?
 #   3. Hosting   genau die Ausgabe aus Schritt 1 nach Firebase Hosting.
+#   3'. Takt     daneben (nach dem Backend, hält das Hosting nicht auf): der Cloud-Scheduler-Job,
+#                der alle 5 Minuten POST /api/v1/internal/tick ruft.
 
 on:
   workflow_call:
@@ -217,6 +219,8 @@ jobs:
       - name: Deploy to Cloud Run
         run: |
           vars="APP_ENV=${{ inputs.app_env }},FRONTEND_BASE_URL=${{ inputs.site_url }},FILES_BUCKET=${{ inputs.gcp_project }}-files,WEB_WORKERS=${{ inputs.web_workers }}"
+          # Der Takt (backend/app/core/oidc.py): wer ihn rufen darf – kein Geheimnis.
+          vars="$vars,TICK_SERVICE_ACCOUNT=tick@${{ inputs.gcp_project }}.iam.gserviceaccount.com,TICK_AUDIENCE=inexxio-tick-${{ inputs.env_name }}"
           [ -n "${{ inputs.firebase_project_id }}" ] && vars="$vars,FIREBASE_PROJECT_ID=${{ inputs.firebase_project_id }}"
           [ -n "${{ inputs.stripe_publishable_key }}" ] && vars="$vars,STRIPE_PUBLISHABLE_KEY=${{ inputs.stripe_publishable_key }}"
           gcloud run deploy "${{ inputs.service }}" \
@@ -240,6 +244,58 @@ jobs:
       # Startet der Dienst ohne Datenbank oder gegen ein anderes Schema, wird es hier rot.
       - name: Datenbank auf dem Stand des Codes?
         run: scripts/check-schema.sh "${{ inputs.gcp_project }}" "${{ inputs.service }}" "${{ inputs.region }}"
+
+  # ►►► **Der Takt** – Cloud Scheduler ruft alle 5 Minuten POST /api/v1/internal/tick
+  # (backend/app/services/tick.py), mit einem Google-Token des Dienstkontos tick@ (OIDC). ◄◄◄
+  # Angelegt oder nachgeführt bei jedem Deploy (idempotent: gibt es ihn, wird er
+  # aktualisiert). Ein eigener Job neben «Hosting»: scheitert er, geht das Hosting trotzdem
+  # hinaus, und der Lauf ist rot mit dem einmaligen Befehl (infra/setup-takt.sh).
+  scheduler:
+    name: Takt → Cloud Scheduler (${{ inputs.env_name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: backend
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ inputs.workload_identity_provider || secrets.workload_identity_provider }}
+          service_account: ${{ inputs.service_account || secrets.service_account }}
+
+      - name: Takt einrichten
+        run: |
+          P="${{ inputs.gcp_project }}"
+          R="${{ inputs.region }}"
+          JOB="inexxio-tick"
+          SA="tick@$P.iam.gserviceaccount.com"
+          AUD="inexxio-tick-${{ inputs.env_name }}"
+          once="::error::Einmalig in Cloud Shell (Projekt $P): bash infra/setup-takt.sh $P ${{ inputs.service_account || 'DEPLOY-KONTO' }} ALARM-EMAIL"
+          if ! url=$(gcloud run services describe "${{ inputs.service }}" --project "$P" \
+                       --region "$R" --format='value(status.url)' 2>&1) || [ -z "$url" ]; then
+            echo "::error::Die Adresse von ${{ inputs.service }} ist nicht lesbar: $url"
+            exit 1
+          fi
+          args=(--project "$P" --location "$R"
+                --schedule '*/5 * * * *' --time-zone 'Europe/Zurich'
+                --uri "$url/api/v1/internal/tick" --http-method post
+                --oidc-service-account-email "$SA" --oidc-token-audience "$AUD"
+                --attempt-deadline 60s
+                --max-retry-attempts 1 --min-backoff 30s --max-backoff 60s --max-retry-duration 120s
+                --description "Der Takt: Mails holen und senden, Siegel des Logs (infra/README.md)")
+          if gcloud scheduler jobs describe "$JOB" --project "$P" --location "$R" >/dev/null 2>&1; then
+            verb=update
+          else
+            verb=create
+          fi
+          if ! out=$(gcloud scheduler jobs "$verb" http "$JOB" "${args[@]}" --quiet 2>&1); then
+            echo "$out"
+            echo "::error::Der Takt ($JOB) liess sich nicht einrichten ($verb) – dem Deploy-Konto fehlen Rechte, oder das Dienstkonto $SA fehlt."
+            echo "$once"
+            exit 1
+          fi
+          echo "Takt $JOB: $verb → $url/api/v1/internal/tick (alle 5 Minuten, $AUD)"
 
   hosting:
     name: Hosting → Firebase (${{ inputs.env_name }})

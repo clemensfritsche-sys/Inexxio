@@ -8,6 +8,7 @@
  * zählt nur, was übernommen ist. Fehlen die Feiertage, steht die Zahl am Symbol.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Select } from '@/components/form/field';
 import { CalendarDays, CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Download, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
 import { Card, TodoChip } from '@/components/erp/detail-frame';
 import { ErrorText } from '@/components/erp/hints';
@@ -44,11 +45,11 @@ function CantonSelect({ v, company, onView }: {
   // Nach dem Auto-Save-Effekt (der den Stand eben vorgemerkt hat): sofort hinaus.
   useEffect(() => { void saveNow(); }, [canton, saveNow]);
   return (
-    <select value={canton} onChange={(e) => setCanton(e.target.value)}
+    <Select name="canton" objectId={company} value={canton} onChange={setCanton}
       style={{ padding: '4px 8px', borderRadius: 8, border: '1px solid var(--border-1)', background: 'var(--bg-1)', fontSize: 13 }}>
       <option value="">–</option>
       {v.cantons.map(([c, name]) => <option key={c} value={c}>{c} · {name}</option>)}
-    </select>
+    </Select>
   );
 }
 
@@ -133,8 +134,8 @@ function Holidays({ v, company, onView, todo }: {
       )}
       {add && (
         <div style={ROW_FORM}>
-          <TimeField id="nh-d" label="Datum" value={add.d} onChange={(d) => setAdd({ ...add, d })} bad={!iso} placeholder="TT.MM.JJJJ" width={140} />
-          <TimeField id="nh-n" label="Bezeichnung" value={add.n} onChange={(x) => setAdd({ ...add, n: x })} placeholder="z. B. Ortsfeiertag" width={220} />
+          <TimeField id="nh-d" name="day" label="Datum" value={add.d} onChange={(d) => setAdd({ ...add, d })} bad={!iso} placeholder="TT.MM.JJJJ" width={140} />
+          <TimeField id="nh-n" name="name" label="Bezeichnung" value={add.n} onChange={(x) => setAdd({ ...add, n: x })} placeholder="z. B. Ortsfeiertag" width={220} />
           <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!iso || !add.n.trim() || busy}
             onClick={() => iso && run(api.addHolidays(company, [{ day: iso, name: add.n.trim() }], v.year))}>
             <Plus size={15} />Hinzufügen</button>
@@ -162,7 +163,7 @@ function Arts({ v, company, onView }: { v: CompanyTimeView; company: number; onV
           if (edit?.key === a.key) {
             return (
               <div key={a.key} style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
-                <TimeField id={`na-${a.key}`} label={`${a.label}: Nachweis ab Tag`} value={edit.val}
+                <TimeField id={`na-${a.key}`} name={`proof.${a.key}`} label={`${a.label}: Nachweis ab Tag`} value={edit.val}
                   onChange={(val) => setEdit({ ...edit, val })} placeholder="leer = nie" onEnter={save} />
                 <IconButton icon={Check} label="Übernehmen" height={36} onClick={save} />
               </div>

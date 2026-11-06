@@ -1,214 +1,149 @@
 # Projektakte «Die lernende Firma»
 
-> **Kopfstatus:** Konzept, in Arbeit; **Phase 1 (das Log) gebaut** (06.11.2026) · Lead: Claude · Entscheid: Clemens Fritsche · seit 03.11.2026
+> **Kopfstatus:** in Umsetzung · **Phase 1 (das Log) und Phase 2 (Fundament) gebaut** (06.11.2026) ·
+> Lead: Claude · Entscheid: Clemens Fritsche · seit 03.11.2026
 > Mockup (1:1 im ERP): https://claude.ai/artifact/8jAy56JQ1jEESPwgRHPSSK
-> Diese Akte ist die eine Quelle für Ziel, Regeln, Entscheide und offene Fragen. Was hier nicht
-> steht, ist nicht entschieden.
+> Diese Akte ist die **eine** Quelle für Ziel, Regeln, Plan und Entscheide – sie beschreibt den
+> gültigen Stand. Wie er entstand, steht in der Git-Geschichte dieser Datei und in
+> `docs/history/2026-11-06-das-log.md`. Was hier nicht steht, ist nicht entschieden.
 
-## Problem
+## 1 · Problem
 
-Wissen entsteht überall – im Gespräch, auf Montage, in Mails, in Aufträgen. Das meiste bleibt
-im Kopf (implizites Wissen), verändert sich bei jeder Übergabe (stille Post), ist später nicht
-auffindbar und geht mit den Leuten (Organisationsgedächtnis). Rückmeldungen erreichen nicht, wer
-handeln kann, und ob eine Massnahme gewirkt hat, prüft niemand. Die Firma lernt darum nicht
-verlässlich aus dem, was sie erlebt.
+Wissen entsteht überall – im Gespräch, auf Montage, in Mails, in Aufträgen. Das meiste bleibt im
+Kopf, verändert sich bei jeder Übergabe (stille Post), ist später nicht auffindbar und geht mit den
+Leuten. Rückmeldungen erreichen nicht, wer handeln kann, und ob eine Massnahme gewirkt hat, prüft
+niemand. Die Firma lernt darum nicht verlässlich aus dem, was sie erlebt.
 
-## Ziel
+## 2 · Ziel
 
-**Eine Firma, die nichts vergisst und sich von selbst verbessert – ohne dass jemand es managt
-oder überwacht.**
+**Eine Firma, die nichts vergisst und sich von selbst verbessert – ohne dass jemand es managt oder
+überwacht.**
 
-Woran wir es messen (nach rund 3 Monaten im Alltag):
+Messpunkte (nach rund drei Monaten im Alltag, einmal von Hand aus dem Log ausgewertet):
 
 1. **Erfassen unter 30 Sekunden** – jede Montage, jedes Kundengespräch hinterlässt eine Notiz.
-2. **In 30 Sekunden gefunden** – was über ein Ding bekannt ist, steht dort, mit Quelle.
-3. **Wichtiges ist nicht zu übersehen** – es steht oben am Ding, bis es erledigt oder überholt ist.
-4. **Keine neue Insel** – bestehende Funktionen werden zusammengeführt, keine kommt dazu.
+2. **In 30 Sekunden gefunden** – was über einen Datensatz bekannt ist, steht dort, mit Quelle.
+3. **Wichtiges ist nicht zu übersehen** – es ist am Datensatz angeheftet, bis es erledigt ist.
+4. **Keine neue Insel** – Bestehendes wird zusammengeführt; es entsteht kein neuer Datentyp.
 
-## Grundsatz
+## 3 · Grundsätze
 
-**Die KI arbeitet nach dem Ziel, ein Mensch kontrolliert.** Sie bekommt keine Wenn-dann-Regeln,
-sondern einen Auftrag (wer wir sind, was wir erreichen wollen) und darf, was die Person darf.
-Gearbeitet wird **nur im ERP** – Mitarbeitende erfassen dort, die KI verarbeitet im Hintergrund.
+- **Die KI arbeitet nach dem Ziel, ein Mensch kontrolliert.** Keine Wenn-dann-Regeln, keine
+  Kategorien, keine Listen – ein Auftrag (wer wir sind, was wir wollen) und echte Daten. Die KI
+  schreibt nie selbst; sie schlägt vor, ein Mensch entscheidet.
+- **Gearbeitet wird nur im ERP.** Eine Regel für alles, keine Ausnahmen.
+- **Ein Wissenswerkzeug, kein Management-Werkzeug:** kein Dashboard, kein Rückblick, keine Termine.
+  Wer was tut, regeln Aufträge; feste Zuständigkeit kommt mit dem Projekt «Aufgaben».
+- **Die gerade Linie für alles, was festgehalten wird:**
+  1. **Ein Weg für jede Eingabe:** gesprochen, geschrieben, fotografiert oder als Datei – die KI
+     hört, liest oder sieht es und macht daraus **Text** (Abschrift, Bildbeschreibung, Inhalt).
+     Dieser Text ist, was man wiederfindet und woraus das System lernt – auch beim Foto.
+  2. **Bleibt das Original wichtig?** Nein → **Notiz** (eine Nachricht; vom Gesprochenen bleibt nur
+     der Text). Ja → **Dokument** mit Nummer (Foto, Scan, Datei, Video – unterschreibbar,
+     sendbar, in ein Pflichtfeld hängbar). Änderungen → **Log**. Etwas zu tun → **Auftrag**.
+- **Nichts wird gelöscht, korrigiert wird** – wie überall im ERP.
+- **Mail:** keine eigene Notiz-Adresse – was an die Postfächer der Gesellschaften kommt, ordnet das
+  System zu wie heute.
+- **Kultur** (Fehler melden ist sicher; wer meldet, hört, was daraus wurde) ist Teil des Ziels,
+  kann aber nicht gebaut werden – sie wird vorgelebt.
 
-## Aufbau in vier Schichten
+## 4 · Aufbau in vier Schichten
 
-| Schicht | Inhalt | Reihenfolge |
+| Schicht | Inhalt | Phase |
 |---|---|---|
-| 1 · **Das Log** | was geschehen ist – jede Handlung, eine Stelle | zuerst |
-| 2 · **Wissen am Ding** | Verlauf, Kommunikation, Dokumente, Dateien, Bilder, Notizen an der Objektnummer | danach |
-| 3 · **KI-Werkzeuge** | die KI darf, was die Person darf, in ihrem Namen | danach |
-| 4 · **Oberflächen** | «Erfassen» im ERP; optional ein MCP-Zugang für Claude (nur Clemens) | zuletzt |
+| 1 · **Das Log** | was geschehen ist – jede Handlung, eine Stelle | 1 (gebaut) |
+| 2 · **Wissen am Datensatz** | ein Verlauf je Nummer: Nachrichten, Notizen, Dokumente, Änderungen | 2 |
+| 3 · **KI** | ablegen, vorschlagen, anheften, lernen – mit den Rechten der Person | 3 |
+| 4 · **Oberflächen** | «Erfassen» (Schreiben, Foto, Datei, später Sprache) | 3 + 4 |
 
-## 1 · Das Log
+### 4.1 · Das Log (gebaut, Migrationen 166/167)
 
-**Zweck:** die eine, vollständige, unveränderliche Wahrheit darüber, was im System geschehen
-ist – Grundlage für den Verlauf am Ding, für das Lernen der KI aus Korrekturen, für «Relevant
-hier», für Nachvollziehbarkeit (Buchungsbelege 10 Jahre) und für die Fehlersuche.
+Die eine, unveränderliche Wahrheit darüber, was geschah – Grundlage für den Verlauf, das Lernen,
+das Angeheftete, Nachvollziehbarkeit (Buchungsbelege 10 Jahre) und Fehlersuche. Ersetzt
+`audit_log` und `process_events` (keine Rückwärtskompatibilität).
 
-**Keine Rückwärtskompatibilität.** Die heutigen Logs (`audit_log`, `process_events`, das
-Protokoll einzelner Stellen) werden ersetzt, nicht übernommen. Was heute aus `process_events`
-abgeleitet wird (Prozessbild, Protokoll, Stückliste, Journey), liest danach aus dem neuen Log.
+- **Eine Tabelle `log`:** `at` (Datenbank-Zeit) · `actor_kind` (`person` · `ai` · `system` ·
+  `external`) · `actor_id` (Objektnummer; bei `ai` die Person, in deren Namen) · `source` ·
+  `request_id` (verbindet eine Handlung) · `object_id` (der Datensatz) · `table_name`/`row_key` ·
+  `action` (`insert` · `update` · `delete` · `event`) · `event` · `changes` (nur Geändertes:
+  `{feld: [alt, neu]}`) · `payload`. Indizes für Verlauf, Handlung, Person, Ereignis, Zeit.
+- **Die Datenbank schreibt es selbst:** ein Trigger an jeder Tabelle (`domain/log`); Geheimes und
+  Binäres nie im Klartext. **Ohne Handelnden scheitert jedes Schreiben** – gesetzt an einer Stelle
+  (`core/actor`: Anmeldung, `public(…)` an öffentlichen Routen, Start, Migration).
+- **Fachliche Ereignisse** (keine Zeilen-Änderung) über `services/log.event`, in derselben
+  Transaktion: `ai.call`, `mail.send_failed`, `voucher.action`, `document.read` … Die Ereignisse
+  des Prozesses stehen als `process.<art>` darin (gelesen über die Sicht `process_log`).
+- **Unveränderlich** per Trigger (auch `TRUNCATE`). **Siegel:** je abgeschlossenem Tag eine
+  verkettete Prüfsumme (`log_seal`, `log.verify`). `log.redact` (Schwärzen) steht bereit, wird aber
+  nicht genutzt (Entscheid 06.11.2026).
+- **Wächter** (`tests/test_log.py`, je gegen die Bug-Form geprüft): jede Tabelle hat den Trigger ·
+  ohne Handelnden scheitert es · jede Route mit Datenbank nennt einen Handelnden · das Log ist
+  unveränderlich · das Siegel bemerkt jede nachträgliche Änderung.
+- Nicht partitioniert (ein Index trägt auf Jahre). Website-Messung ist ein eigener Strom (später).
 
-**Was ein Eintrag festhält** (eine Tabelle, append-only):
+### 4.2 · Wissen am Datensatz
 
-| Feld | Bedeutung |
-|---|---|
-| Zeitpunkt | von der Datenbank gesetzt, nicht vom Aufrufer |
-| Wer | Person (Objektnummer) · Art: Mensch · KI im Namen von · System · von aussen (Webhook, Kunde über Link) |
-| Woher | Oberfläche, Erfassen, Webhook, Job, Migration, MCP – und eine Vorgangs-Id, die alle Einträge einer Handlung verbindet |
-| Woran | Objektnummer des Dings (und die Zeile, falls es keine Nummer hat) |
-| Was | Handlung: angelegt · geändert · gelöscht (weich) · fachliches Ereignis (z. B. Status passiert, Mail gesendet, Vorschlag verworfen) |
-| Vorher → nachher | nur die geänderten Felder |
-| Prüfsumme | Kette über die Einträge: jede nachträgliche Änderung wird erkennbar |
+- **Jede Nummer hat einen Verlauf** – eine Komponente für jeden Datensatz, gemischt nach Zeit:
+  Nachrichten (Mail, Anruf, intern, **Notiz**), Dokumente, Änderungen aus dem Log. **In Seiten**
+  wie WhatsApp (die neuesten 30, ältere beim Scrollen) – er wächst nie mit.
+- **Eine Notiz ist eine Nachricht:** Betreff, Text, Zeit, beantwortbar, als Erinnerung möglich.
+  «Betrifft» darf **jeder Datensatz** sein (`message_parties.object_id` statt
+  `person_object_id`). **Eine Heimat:** gültig ist immer genau ein Datensatz. Gehört eine Notiz
+  woandershin, erfasst man das; die KI schlägt einen Vermerk «ungültig, gehört zu …» am falschen
+  und die Notiz mit Verweis am richtigen Datensatz vor – nichts wird gelöscht.
+- **Änderungen technisch, nicht als Sätze:** je Handlung ein Block – wer · wann · Tabelle ·
+  `feld: alt → neu`. Übersetzt werden nur die Tabellennamen (ein Wort je Tabelle).
+- **Sichtbarkeit:** wer einen Datensatz öffnen darf, sieht seinen ganzen Verlauf.
+- **Das Angeheftete** («auf einen Blick») steht im Verlauf **unten beim Neuesten** – kein eigener
+  Bereich:
+  - **offene Vorschläge immer und zuerst** – sie verschwinden nur durch einen Entscheid;
+  - **Hinweise** (Einträge des Verlaufs, die jetzt wichtig sind) wählt die KI aus dem Ziel, so wenige
+    wie möglich, **auf Abruf** («neu ansehen»); lösen kann sie jeder.
+  Das Symbol kommt von der Art des Eintrags – keine Regel, keine Wahl der KI.
+- **Kommunikation bleibt in der Bedienung, wie sie ist.** Andere Datensätze haben kein eigenes
+  Eingabefeld – Wissen kommt über «Erfassen».
+- **Die Kommunikation wird skalierbar** (geprüft 06.11.2026 – Struktur richtig, zwei Abfragen
+  wachsen unbegrenzt): Verlauf in Seiten · das **Anliegen** (Betreff in Normalform) als Spalte mit
+  Index, «offen» als Datenbank-Abfrage mit unveränderter Regel · ein **langer Wert** (über 2'000
+  Zeichen) steht im Log als Prüfsumme (`sha256` + Länge) statt doppelt. Rundschreiben bleiben je
+  Empfänger eine Nachricht (bewusst).
 
-**Wie es nicht vergessen werden kann:**
-- **Die Datenbank schreibt es selbst** – ein Trigger an jeder Tabelle hält jede Änderung fest.
-  Wer handelt, gibt die Anwendung je Anfrage in der Transaktion mit; fehlt diese Angabe, **scheitert
-  das Schreiben** (lieber laut als ohne Spur).
-- **Fachliche Ereignisse** (die keine Zeile ändern) schreibt eine einzige Funktion in dieselbe
-  Tabelle, in derselben Transaktion – entweder beides oder nichts.
-- **Wächter-Tests:** jede Tabelle hat den Trigger (Ausnahmen namentlich begründet); das Log ist
-  weder änder- noch löschbar (auch nicht für die Anwendung selbst).
-- **Lesen sensibler Daten** (Download, Export, Zugriff der KI) wird ebenfalls festgehalten.
+### 4.3 · KI
 
-**Datenschutz:** Das Log nennt Personen über ihre Objektnummer. Muss eine Person gelöscht werden,
-geschieht das über eine einzige, selbst protokollierte Schwärzungsfunktion – die einzige erlaubte
-Änderung.
+- **Die KI darf, was die Person darf, in ihrem Namen** – lesen frei im Rahmen der Rechte,
+  schreiben nur als Vorschlag. Eine Tür: jeder Aufruf (Claude, Gemini, Hilfsmodell) über
+  `services/ai.py` – ein Deckel, ein Log.
+- **Ein Vorschlag steht dort, wo man es von Hand täte – nie ein eigenes Formular:**
+  - **ändern:** das Zeichen wie bei «zu tun» am Datensatz im Feed, am Abschnitt und **am Feld**;
+    darüberfahren oder tippen zeigt nur das Wesentliche (neuer Wert, Quelle, «Übernehmen», ✕).
+    Übernehmen schreibt ins bestehende Feld – dieselbe Prüfung, dasselbe Auto-Save, dasselbe Log
+    wie Tippen. Wer selbst tippt, erledigt ihn auch.
+  - **anlegen:** «Entwurf öffnen» öffnet den bestehenden Entwurf vorausgefüllt; gespeichert wird
+    erst mit der Freigabe.
+  - **kein Feld auf dem Bildschirm:** im Angehefteten, mit demselben Fenster.
+- **Ein Feld-Baustein für das ganze ERP:** das Speichern ist heute zentral (`lib/use-autosave`),
+  das Feld nicht (rund 30 Dateien mit losen Eingaben). Darum: `useField` (Wert, Speichern, Prüfung,
+  Fehler, Vorschlag) und `Field` (Text, Zahl, Datum, Auswahl, Mehrzeilig). **Logik zentral,
+  Aussehen frei** – das Zahlungsmodul behält sein Aussehen, nutzt aber dieselbe Logik.
+- **Gespeichert im Log, keine eigene Tabelle:** `proposal` (Datensatz, Feld bzw. Entwurf, Wert,
+  Quelle) und `proposal.decided` (übernommen · selbst geändert · verworfen). Offen = ohne Entscheid.
+  Offene Vorschläge zählen in «zu tun» und führen per Sprung zum Feld.
+- **Robust:** Übernehmen = Tippen; weist das Feld ab, steht seine Meldung da; ist der Datensatz weg
+  oder das Feld schon geändert, erledigt sich der Vorschlag; fällt die KI aus, bleibt die Eingabe
+  roh am Datensatz und wird nachgeholt.
+- **Lernen ohne Training – drei Gedächtnisse** (so arbeitet heute auch Claude selbst):
+  1. **Wissen** – alles im ERP; die KI schlägt nach. Erster Hinweis: der Datensatz, der beim
+     Erfassen offen ist (nur seine Nummer).
+  2. **Erfahrung** – jeder Vorschlag mit Entscheid ist ein **Fall**; die KI bekommt die
+     **ähnlichsten** Fälle mit. Gefunden über Bedeutungs-Zahlen (Hilfsmodell von Google Vertex AI,
+     Region Europa; gespeichert mit `pgvector` in der eigenen Datenbank). Nichts wird vergessen.
+  3. **Lektionen** – ein kurzes Notizbuch, das die KI selbst aus ihren Fällen verdichtet (mit
+     Belegen); Clemens kann es lesen und kürzen. Ab rund 100 Fällen.
+  Massstab: wie oft ein Vorschlag geändert oder verworfen wird.
+- **Deckel in Franken:** 10 CHF je Tag für alle KI-Aufrufe, Hinweis bei 80 %. Am Deckel bleibt die
+  Eingabe roh und wird am nächsten Tag nachgeholt.
 
-**Grösse und Ort:** Das Log bleibt in der Datenbank (Cloud SQL). Für das ERP reicht das auf
-Jahre; es wird nach Monaten aufgeteilt, damit es schnell bleibt.
-
-### Technische Spezifikation (gebaut, Migration 166)
-
-**Tabelle `log`** (nicht partitioniert, siehe «Abweichungen vom Entwurf»):
-
-| Spalte | Typ | Inhalt |
-|---|---|---|
-| `id` | bigint | fortlaufend |
-| `at` | timestamptz | `now()` der Datenbank |
-| `actor_kind` | text | `person` · `ai` · `system` · `external` |
-| `actor_id` | bigint | Objektnummer der handelnden Person (bei `ai`: die Person, in deren Namen) |
-| `source` | text | `ui` · `capture` · `web` · `link` · `webhook` · `login` · `probe` · `job` · `start` · `migration` · `mcp` · `test` |
-| `request_id` | uuid | verbindet alle Einträge einer Handlung |
-| `object_id` | bigint | Objektnummer des Dings, falls die Zeile eine hat oder an einem hängt |
-| `table_name`, `row_key` | text | welche Zeile |
-| `action` | text | `insert` · `update` · `delete` · `event` |
-| `event` | text | Name des fachlichen Ereignisses (z. B. `process.pass`, `mail.sent`, `proposal.rejected`) |
-| `changes` | jsonb | nur geänderte Felder: `{"feld": [alt, neu]}` (bei `insert` nur neu) |
-| `payload` | jsonb | Inhalt eines fachlichen Ereignisses |
-
-Indizes: `(object_id, at)` für den Verlauf, `(request_id)`, `(actor_id, at)`, `(event, at)`.
-
-**Wie geschrieben wird:**
-1. **Wer handelt**, setzt die Anwendung an **einer** Stelle je Transaktion (`SET LOCAL
-   inexxio.actor …`, in der Datenbank-Sitzung der Anfrage, im Job, im Webhook).
-2. **Eine Trigger-Funktion** `log_row()` (AFTER INSERT/UPDATE/DELETE, je Zeile) an **jeder**
-   Tabelle schreibt die Änderung. Reine Zeitstempel-Änderungen (`updated_at`) zählen nicht. Fehlt
-   der Handelnde, **bricht die Transaktion ab**.
-3. **Fachliche Ereignisse** schreibt eine einzige Funktion `log.event(name, object_id, payload)` in
-   derselben Transaktion.
-4. **Unveränderlich:** ein Trigger weist `UPDATE`/`DELETE` auf `log` ab (Bauart wie heute beim
-   Prozess-Log); einzige Ausnahme ist die Schwärzungsfunktion, die selbst einen Eintrag schreibt.
-5. **Versiegelung:** einmal je Nacht bildet ein Job eine Prüfsumme über die Einträge des Tages und
-   die Prüfsumme des Vortags (Kette in `log_seal`). Jede nachträgliche Änderung wird erkennbar, ohne
-   dass das Schreiben tagsüber auf eine Kette warten muss.
-
-**Wächter (Tests):** jede Tabelle hat den Trigger (Ausnahmen namentlich begründet) · eine Änderung
-ohne Handelnden scheitert · `log` ist nicht änderbar · jede schreibende Route hinterlässt mindestens
-einen Eintrag · die Bug-Form jedes Wächters wird gegengeprüft.
-
-**Ersetzt (keine Rückwärtskompatibilität):** `audit_log` und `process_events` entfallen; die
-Ableitungen aus dem Prozess-Log (Bild, Protokoll, Stückliste, Journey) lesen die Ereignisse
-`process.*` aus `log`. `time_entries` bleibt – das sind Eingaben, kein Log. Die Daten auf dev dürfen
-dafür zurückgesetzt werden.
-
-**Abweichungen vom Entwurf (beim Bauen entschieden):**
-- **Keine Partitionierung.** Bei unseren Mengen (einige hunderttausend Einträge im Jahr) trägt
-  ein Index auf `(object_id, at)` auf Jahre; Monats-Partitionen bräuchten einen Job, der sie
-  rechtzeitig anlegt – eine Stelle mehr, die vergessen werden kann. Nachrüstbar, wenn das Log
-  in die zig Millionen geht.
-- **Versiegelt wird beim Start und im Abgleich** (`POST /erp/messages/sync`, läuft, solange das
-  ERP offen ist) statt «nachts per Job» – es gibt keinen Zeitplaner, und ein Tag wird erst sechs
-  Stunden nach Mitternacht (UTC) versiegelt, damit keine laufende Transaktion fehlt.
-- **Wer handelt, sagt jede Route ausdrücklich** (`get_current_user` oder `public(…)`); der
-  Wächter prüft das **für jede Route** statt «jede schreibende Route hinterlässt einen Eintrag»
-  – eine Anfrage, die nichts ändert, braucht keinen.
-- **Die Ereignisse des Prozesses** stehen als `process.<art>` im Log; Bild, Protokoll, Stückliste
-  und Journey lesen sie unverändert über die Sicht `process_log`. Die bisherigen Einträge sind
-  übernommen (der Invarianten-Bericht ist vor und nach der Umstellung Zeichen für Zeichen gleich).
-- **Lesen sensibler Daten:** `document.read` (ERP), `document.viewed` und `voucher.viewed` (Link
-  der Partei), `ai.call` (KI). Dateien hinter einem Token (`/attachments/…`) tragen keinen
-  Menschen – ihr Abruf steht nicht im Log.
-- **`audit_log` und `process_events`** standen einen Deploy lang ungemappt da und sind mit
-  Migration 167 gefallen (Zwei-Deploy-Regel; vorher holte sie nach, was die alte Fassung beim
-  Ausrollen noch schrieb).
-
-**Website-Messung ist ein eigener Strom, nicht das Log.** Klicks und Wege von anonymen Besuchern
-sind Messdaten, keine Handlungen im System – viel mehr, kurzlebiger, anonym. Sie gehen in
-**BigQuery** (gebaut für genau solche Mengen und Auswertungen, günstig bei unseren Zahlen); das ERP
-liest daraus verdichtete Zahlen, nicht jede Zeile. Wird aus einem Besucher ein Kunde (Anfrage),
-beginnt seine Spur im Log.
-
-## 2 · Wissen am Ding
-
-- **Jedes Ding hat eine Nummer, jede Nummer einen Verlauf.** Der Verlauf zeigt, was zum Ding
-  gehört: Kommunikation, Dokumente, Dateien, Bilder, Notizen und Änderungen (aus dem Log).
-- **Eine Heimat:** jeder Eintrag gehört genau einem Ding; nichts wird doppelt abgelegt. Eine
-  Aufnahme mit mehreren Themen (z. B. ein Meeting) teilt die KI in Teile, jeder mit seiner Heimat.
-- **Datensatz oder Eintrag:** Ein Datensatz (mit Nummer) hat einen eigenen Zustand oder wird von
-  anderswo angesprochen. Notiz, Änderung → Eintrag. Foto, Scan, Datei, Video → Dokument. Etwas zu
-  tun → Auftrag (immer mit Stücken; Immaterielles über einen Artikel, z. B. «Website»).
-- **«Auf einen Blick» an jedem Ding** (ersetzt «Relevant hier» und «Offen aus Erfassen»): **eine
-  Liste**, Wichtiges zuerst, jeder Punkt mit Quelle. Ein Vorschlag der KI trägt Bestätigen/✕, ein
-  Hinweis nicht – das ist der ganze Unterschied, keine Abschnitte, keine Kategorien. So viele
-  Punkte, wie wirklich helfen – auch keiner.
-- **Auf Abruf, nicht bei jedem Öffnen:** die KI bildet die Liste neu, wenn jemand «neu ansehen»
-  drückt; bis dahin steht der letzte Stand mit Zeit da (eine Ableitung mit Stand, keine zweite
-  Wahrheit). Offene Vorschläge stehen immer da, ohne KI-Aufruf. Grund: eine feste Logik «hat sich
-  am Verbundenen etwas geändert?» müsste selbst wissen, was verbunden ist und was zählt – zu eng
-  verpasst sie Wichtiges, zu weit kostet sie wie jedes Öffnen. Kosten so nur, wenn es jemand
-  braucht. Nach der Erprobung entscheiden wir mit echten Zahlen, ob mehr nötig ist.
-- **Der Verlauf ist eine Liste für alle Dinge**, mit derselben Logik wie heute die Kommunikation:
-  die neuesten Einträge zuerst, ältere laden beim Scrollen. Eine Komponente, kein zweiter Weg.
-- **Dokumente behalten ihre Nummer.** Geprüft: ein Dokument hat einen eigenen Zustand
-  (Freigegeben, Unterschrift angefragt, Abgelehnt), wird von anderswo angesprochen (Pflichtfelder in
-  Zahlung, Zeiterfassung, Gesellschaft; ein Link beim Senden) und muss als Nachweis bestehen bleiben
-  – genau die Regel für einen Datensatz. Dazu: eine Stelle für jede Datei ist einfacher als zwei
-  (Datei am Eintrag *und* Dokument). Kosten: eine Nummer je Datei, sonst nichts. Im Verlauf
-  erscheint das Dokument als Eintrag; man muss es nicht als eigenen Datensatz bemerken.
-- **Wichtiges bleibt oben**, bis es erledigt oder überholt ist. Wichtigkeit beurteilt die KI aus
-  dem Ziel und echten Daten (Neukunde? Warenwert? schon vorgekommen?), nicht durch Zählen.
-- **Audio wird nicht gespeichert** (wörtliches Transkript und KI-Fassung bleiben), **Video
-  bleibt im Original**.
-- **Kommunikation bleibt, wie sie ist:** Mails an Personen und Firmen schreibt man dort wie
-  heute. Andere Dinge (Artikel, Auftrag …) haben kein eigenes Eingabefeld – Wissen kommt über
-  «Erfassen».
-
-## 3 · KI-Werkzeuge
-
-- **Die KI darf, was die Person darf, in ihrem Namen** – über dieselben Wege und Prüfungen wie die
-  Oberfläche, kein zweiter Code. Ihre Handlungen sind die Handlungen des ERP selbst; mit jedem
-  neuen Feature kann sie es von selbst auch. Keine eigene, feste Liste.
-- **Lesen frei (im Rahmen der Rechte), Schreiben als Vorschlag.** Was die KI ändern oder anlegen
-  will, wird ein Vorschlag; ein Mensch bestätigt oder verwirft. (Ob einzelne Handlungen später
-  ohne Bestätigung laufen dürfen, entscheiden wir mit Erfahrung.)
-- **Offene Vorschläge warten am Ding**, an dem erfasst wurde («Zu entscheiden»), und zählen in
-  dessen «zu tun»-Zahl am Symbol (gibt es schon). Nichts muss sofort erledigt werden.
-- **Robustheit der Vorschläge:** entscheiden darf, wer die Handlung selbst ausführen dürfte; ist sie
-  inzwischen von Hand geschehen (Angabe schon geändert, Ding gelöscht), erledigt sich der Vorschlag
-  von selbst mit Vermerk; zwei Personen gleichzeitig → der zweite sieht «schon entschieden»; jeder
-  Vorschlag lässt sich vor dem Bestätigen bearbeiten; Bestätigen, Ändern, Verwerfen stehen im Log.
-  Fällt die KI aus, bleibt die Notiz unverarbeitet am Ding und wird nachgeholt – nichts geht verloren.
-- **Der Auftrag an die KI** ist ein einziger, versionierter Text im Repository (Entwurf unten). Er
-  gibt ein grobes Ziel, keine Regeln und keine Kategorien. Alles Weitere holt sich die KI selbst:
-  sie liest, was im ERP steht (im Rahmen der Rechte), und lernt aus dem, was Menschen mit ihren
-  Vorschlägen getan haben.
-- **Sie lernt ständig, ohne Training:** jedes Bestätigen, Ändern und Verwerfen steht im Log. Vor
-  einem Entscheid liest die KI die passenden früheren Korrekturen nach (wie jede andere Angabe) und
-  richtet sich danach. Weniger Korrekturen = bessere KI; das ist zugleich der Massstab.
-
-### Entwurf: Auftrag an die KI
+**Der Auftrag an die KI** (versioniert im Repository, gilt für Ablegen, Vorschläge, Angeheftetes):
 
 > Du arbeitest für INEXXIO, einen kleinen Schweizer Maschinenbaubetrieb. Unser Ziel: Wissen geht
 > nicht verloren, derselbe Fehler passiert nicht zweimal, und jeder findet, was er braucht, dort,
@@ -219,97 +154,124 @@ beginnt seine Spur im Log.
 > Mensch entscheidet. Lies im ERP nach, was du brauchst – auch, wie wir früher deine Vorschläge
 > bestätigt, geändert oder verworfen haben, und richte dich danach.
 >
-> Wenn jemand ein Ding öffnet, zeig, was für ihn jetzt wichtig ist, mit Quelle – so wenig wie
+> Wenn jemand einen Datensatz öffnet, zeig, was für ihn jetzt wichtig ist, mit Quelle – so wenig wie
 > möglich, auch nichts. Frag nur zurück, wenn ohne Antwort etwas Wichtiges verloren ginge.
 > Schreib kurz und schlicht, wie man im Betrieb redet.
 
-Bewusst nicht drin: Listen von Gründen, Beispiele für Wichtigkeit, Kategorien. Wird der Text
-länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Ziel.
-- **Eine Tür:** jeder KI-Aufruf läuft über `services/ai.py` (Tageslimit, jeder Aufruf im Log).
-- **MCP-Zugang (optional, später):** dieselben Werkzeuge, angeboten an Claude (App) – nur für
-  Clemens, aus Interesse. Richtung: Claude ruft das ERP auf, nicht umgekehrt. Das ERP selbst
-  braucht dafür nichts: «Erfassen» spricht die KI direkt über `services/ai.py` an.
+Bewusst nicht drin: Gründe, Beispiele für Wichtigkeit, Kategorien. Wächst der Text, wachsen Regeln
+hinein – dann zurück aufs Ziel. Geprüft wird er an den drei Beispielen (Montage-Notiz Hans-Peter,
+Meeting Heiri, Kundenmail).
 
-## 4 · Oberflächen
+### 4.4 · Oberflächen
 
-- **Ein Einstieg «Erfassen», schlicht:** oben rund «festhalten» (Aufnehmen · Foto mit Galerie ·
-  Datei mit Scannen · Schreiben), unten eckig in den Farben des Feeds «neu anlegen» (Person, Firma,
-  Artikel, Auftrag …). Aufnehmen mit Start/Stopp, auch für ein ganzes Meeting; die Aufnahme zeigt nur
-  Zeit, Pegel, Stopp.
-- **Dokumente bleiben, wie sie sind** (Entwurf → Freigeben, Pflichtfelder, Senden, Unterschreiben).
-  Neu nur: Foto und Datei aus «Erfassen» öffnen den bestehenden Entwurf, die KI schlägt den Bezug vor
-  (gibt es schon), und ein Dokument erscheint als Eintrag im Verlauf seines Dings.
-- **Die KI legt ab, der Mensch kontrolliert** («Stimmt so» oder «ändern»), auch im Datensatz.
-- **Spracherfassung** von Anfang an, mit einem professionellen, robusten Dienst (Mundart).
-  Vorzug für Google (unser Cloud-Projekt, Daten in Europa). Das Hören ist ein eigener Dienst; das
-  Verstehen und Ablegen bleibt bei Claude über `services/ai.py`.
+- **«Erfassen»** – ein Knopf «+»: oben rund festhalten (Aufnehmen · Foto · Datei · Schreiben),
+  unten eckig neu anlegen (Person, Firma, Artikel, Auftrag – in den Farben des Feeds). Foto und
+  Datei öffnen den bestehenden Dokument-Entwurf.
+- **«Abgelegt»** – schlicht: je Teil der Datensatz (antippen = anderer) und der Text; «Stimmt so».
+  Ein Meeting wird in Teile mit je einer Heimat geteilt.
+- **Aufnehmen im Browser:** Start/Stopp, auch ein ganzes Meeting; der Bildschirm bleibt an (Wake
+  Lock); die Aufnahme geht **in Stücken** (alle 30 s) hoch – bricht sie ab, ist alles bis dahin da.
+  Gespräche aufnehmen: Clemens trägt die Verantwortung. Ohne Netz wird nichts vorgesehen.
+- **Abschreiben macht Gemini** (Test Clemens 06.11.2026: hervorragend, auch Mundart) über
+  **Vertex AI**, Region Europa (Eingaben nicht zum Training); die Claude-API nimmt keine
+  Audiodateien. **Verstehen und ablegen macht Claude.** Das Audio wird nach der Abschrift gelöscht
+  (spätestens nach einem Tag, Regel im Speicher). Verarbeitet wird im Namen der Person, die
+  aufgenommen hat.
 
-### Vergleich der Sprachdienste (Test, vor Phase 4)
+### 4.5 · Infrastruktur: der Takt
 
-| Kandidat | Was er ist |
-|---|---|
-| Google Speech-to-Text v2, Modell Chirp | reiner Transkriptionsdienst, Sprache «Deutsch (Schweiz)» |
-| Gemini auf Vertex AI (Flash) | hört die Aufnahme und schreibt sie wörtlich auf (Audio als Eingabe) |
-| ein Nicht-Google-Dienst als Massstab | nur zum Vergleich, falls beide Google-Dienste schwächeln |
+**Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, `POST /internal/tick`** – eigenes Dienstkonto
+nur mit diesem Recht, Anmeldung per Google-Token (OIDC), kein Geheimnis im Code, eingerichtet im
+Deploy. Aufgaben: **Mails holen und senden** (auch ohne offenen Browser) · **Aufnahmen abschreiben
+und ablegen** · **das Siegel des Logs**. Jede Aufgabe wiederholbar, einzeln gesperrt, mit
+Zeitgrenze; Handlungen stehen im Log; mehrere Fehlschläge hintereinander → Mail von Cloud
+Monitoring. Kosten ≈ 0 CHF (im Gratis-Kontingent).
 
-Getestet mit **drei echten Aufnahmen** von uns: eine Notiz (1 Min., Halle mit Lärm), ein Telefonat
-mit Lautsprecher, ein Meeting (10 Min., mehrere Stimmen). Gemessen: stimmen Namen, Zahlen und
-Fachwörter? Trennt er die Sprecher? Dauer und Kosten je Minute. Gewinner ist der einfachste und
-günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
+Geprüft und verworfen: Pub/Sub ersetzt den Takt nicht (Gmail-Push ist laut Google nicht garantiert,
+die Anmeldung läuft nach 7 Tagen ab) – höchstens später als Beschleuniger.
 
-## Weitere Regeln
+## 5 · Review gegen das Ziel (06.11.2026)
 
-- **Eine Regel für alles, keine Ausnahmen** (auch nicht für Sicherheit).
-- **Ein Wissenswerkzeug, kein Management-Werkzeug:** kein Rückblick, kein Dashboard, keine
-  Termine. Wer was tut, regeln Aufträge; Zuständigkeit künftig je Prozessschritt (Kompetenz
-  statt Abteilung) – Folgeprojekt «Aufgaben».
-- **Mail:** keine eigene Notiz-Adresse; was an die Postfächer der Gesellschaften kommt, ordnet das
-  System zu.
-- Kultur (Fehler melden ist sicher, wer meldet, hört, was daraus wurde) ist Teil des Ziels, kann
-  aber nicht gebaut werden – sie wird vorgelebt.
+| Messpunkt | Wie | Stand |
+|---|---|---|
+| 1 · Erfassen < 30 s | ein Knopf, die KI legt ab, «Stimmt so» | erreicht |
+| 2 · Gefunden < 30 s | alles am Datensatz, Verlauf in Seiten, Angeheftetes | **teilweise** – man muss wissen, bei welchem Datensatz (Fragen im Erfassen: später) |
+| 3 · Nicht zu übersehen | Angeheftetes, offene Vorschläge zuerst, «zu tun» | **teilweise** – wartet am Datensatz, nicht bei der zuständigen Person («Aufgaben») |
+| 4 · Keine neue Insel | Notiz = Nachricht, Vorschlag = Log, ein Feld-Baustein | erreicht |
 
-## Plan
+**Verbessert sich von selbst:** kommt ein ähnliches Problem wieder, findet die KI über ihre
+Erfahrung den früheren Fall samt Massnahme und heftet ihn an.
+
+**Richtiger Weg:** ja. Verworfen: ein Wiki (neue Insel) · ein Chat-Assistent als Ort des Wissens
+(Wissen läge in Gesprächen statt am Datensatz) · Regeln und Kategorien (veralten) · ein
+nachtrainiertes Modell (teuer, modellgebunden).
+
+**Nachhaltig:** modellunabhängig (Auftrag, Fälle, Lektionen sind Daten) · wächst ohne Pflege (keine
+Listen; jedes neue Feld kann Vorschläge) · robust (Ausfälle warten und werden nachgeholt, nichts wird
+gelöscht) · skaliert (Seiten, Indizes, Bedeutungssuche in der eigenen Datenbank).
+
+## 6 · Plan
 
 | Phase | Inhalt | Stand |
 |---|---|---|
-| 0 | Projektakte, Mockup | in Arbeit |
-| 1 | **Das Log** – neu, ersetzt alle heutigen Logs | gebaut (06.11.2026) |
-| 2 | Verlauf an jeder Nummer (Wissen am Ding) | offen |
-| 3 | KI-Werkzeuge: Vorschläge, Auftrag an die KI, Lernen aus Korrekturen | offen |
-| 4 | «Erfassen» mit Spracherfassung | offen |
-| 5 | «Auf einen Blick» (auf Abruf) | offen |
-| eigene Projekte | Website-Messung (BigQuery) · Aufgaben («wer macht was») · MCP-Zugang (hier nur die Grundzüge) | offen |
+| 1 | **Das Log** | gebaut (06.11.2026) |
+| 2 | **Fundament:** Feld-Baustein · Prüfsumme im Log · Kommunikation skalierbar · Notiz an jedem Datensatz · ein Verlauf · der Takt | gebaut (06.11.2026) |
+| 3 | **KI:** Lesen · Erfassen · Ablegen · Vorschläge · Angeheftetes · Lernen (Wissen + Erfahrung) · Deckel | als Nächstes |
+| 4 | **Sprache:** Aufnehmen · Gemini · der Takt legt ab | offen |
+| danach | Lektionen (ab ~100 Fällen) · Fragen im Erfassen · Projekt «Aufgaben» (Zuständigkeit je Prozessschritt) | offen |
+| später | Suche in Inhalten · Website-Messung (BigQuery) · MCP-Zugang (nur für Clemens) | offen |
 
-Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
+**Jede Phase:** Feature-Branch · Volltest · unabhängiges Gegenlesen · Deploy auf dev · Doku
+nachgezogen · danach zwei Wochen im Alltag, dann Entscheid über die nächste.
 
-## Entscheide (mit Datum)
+### Schritte je Phase («fertig, wenn …»)
 
-- 03.11.2026 – Arbeitsweise: Claude führt, stellt Fragen mit Empfehlung; Clemens entscheidet.
-- 03.11.2026 – Kein Zählen, keine Termine; Wichtiges bleibt oben am Ding. Das Werkzeug bewahrt
-  Wissen, es führt keine Aufgaben. Keine Ausnahme für Sicherheit.
-- 03.11.2026 – Die KI legt ab (auch aufgeteilt), der Mensch kontrolliert.
-- 04.11.2026 – Ziel statt Regeln; Name «Erfassen»; Aufnehmen mit Start/Stopp; Wichtigkeit ohne
-  feste Gründe.
-- 05.11.2026 – Vier Schichten, das Log zuerst; **keine Rückwärtskompatibilität** für die heutigen
-  Logs; Website-Messung als eigener Strom (BigQuery).
-- 05.11.2026 – Gearbeitet wird nur im ERP; MCP höchstens als persönlicher Zugang für Clemens.
-- 05.11.2026 – Kommunikation (Mails an Personen und Firmen) bleibt, wie sie ist.
-- 05.11.2026 – «Auf einen Blick» an jedem Ding (Offenes + Wissen); Erfassen schlicht mit «neu
-  anlegen» unten; Dokumente bleiben; berechnet bei Änderung. Noch nichts bauen – erst alles definieren.
-- 05.11.2026 – «Offenes wartet am Ding» wird gebaut (Teil von Phase 3). Aufgaben, Website-Messung
-  und MCP sind eigene Projekte; MCP hier nur in Grundzügen. Alles bleibt in dieser einen Akte.
+**Phase 2 · Fundament**
 
-- 05.11.2026 – «Auf einen Blick» ist eine Liste (Vorschläge mit Bestätigen/✕, Hinweise ohne), auf
-  Abruf neu gebildet. Verlauf mit der Logik der Kommunikation. Dokumente behalten ihre Nummer.
-  Auftrag an die KI: grobes Ziel, keine Regeln, sie lernt aus Korrekturen. Sprachdienst: Vorzug
-  Google, Vergleich mit echten Aufnahmen.
+| # | Schritt | Fertig, wenn … |
+|---|---|---|
+| 2.1 | **Feld-Baustein:** `useField` + `Field`; alle bearbeitbaren Felder ziehen um; das Zahlungsmodul behält sein Aussehen | ein ESLint-Wächter findet keine lose Eingabe mehr · alle Tests grün · Detailseiten sehen aus wie vorher (Bildvergleich) |
+| 2.2 | **Langer Wert als Prüfsumme im Log** | Wächter-Test mit einer langen Mail · `log.verify` grün |
+| 2.3 | **Kommunikation skalierbar:** Seiten · Anliegen-Spalte mit Index · «offen» als Abfrage | Kommunikations-Tests unverändert grün · mit 50'000 Nachrichten: Seite < 200 ms, «zu tun» < 300 ms |
+| 2.4 | **Notiz an jedem Datensatz:** `message_parties.object_id` (Zwei-Deploy-Regel) · Kanal «Notiz» · Korrektur per Vermerk | Notiz an Auftrag, Artikel, Instanz, Dokument erscheint in deren Verlauf; Korrektur zeigt Vermerk und Verweis |
+| 2.5 | **Ein Verlauf für jeden Datensatz:** ein Endpunkt, eine Komponente, ein Wörterbuch der Tabellennamen | jeder Datensatztyp zeigt ihn · je Handlung ein Block `feld: alt → neu` |
+| 2.6 | **Der Takt** (Mails, Siegel), eingerichtet im Deploy | auf dev kommen Mails ohne offenen Browser · je Tag ein Siegel · Alarm gegengeprüft |
 
-- 06.11.2026 – Phase 1 bauen und auf dev ausrollen (das Log); Spielraum für Verbesserungen beim
-  Bauen.
+**Phase 3 · KI**
 
-## Offene Fragen
+| # | Schritt | Fertig, wenn … |
+|---|---|---|
+| 3.1 | **Lese-Werkzeuge** (Datensatz, Verlauf, Nummer/Name) mit den Rechten der Person | Test: die KI sieht nie mehr als die Person |
+| 3.2 | **Erfassen** («+», Schreiben, Foto/Datei, neu anlegen; offener Datensatz als Hinweis) | auf dem Handy eine Notiz in unter 30 s |
+| 3.3 | **KI legt ab** (Teile mit Heimat, «Abgelegt», «Stimmt so») | die drei Beispiele laufen durch |
+| 3.4 | **Vorschläge** (`proposal`/`decided`, Zeichen in `useField`, Entwurf vorausgefüllt, feldlose im Angehefteten, «zu tun») | Übernehmen = Tippen · selbst getippt erledigt ihn · zwei gleichzeitig: beide im Log |
+| 3.5 | **Das Angeheftete** (offene Vorschläge immer zuerst, Hinweise auf Abruf) | «neu ansehen» nimmt nie einen offenen Vorschlag weg |
+| 3.6 | **Lernen – Wissen + Erfahrung** (Bedeutungs-Zahlen, ähnlichste Fälle) | nach einer Korrektur schlägt die KI im ähnlichen Fall anders vor |
+| 3.7 | **Deckel in Franken** | am Deckel bleibt die Eingabe roh und wird nachgeholt |
 
-- Der Auftrag an die KI: Prüfung des Entwurfs an den drei Beispielen (Montage-Notiz,
-  Meeting-Notiz, Kunden-Mail), sobald Phase 3 steht.
-- Sprachtest: drei echte Aufnahmen (Notiz, Telefonat, Meeting) von Clemens.
-- Folgeprojekt «Aufgaben» (wer macht was, Zuständigkeit je Prozessschritt).
+**Phase 4 · Sprache**
+
+| # | Schritt | Fertig, wenn … |
+|---|---|---|
+| 4.1 | **Aufnehmen im Browser** (Bildschirm an, Stücke alle 30 s, Löschregel 1 Tag) | Abbruch nach 10 Min. → die 10 Min. sind da |
+| 4.2 | **Gemini schreibt ab** (Vertex AI, Region Europa, über `services/ai.py`) | eigene Testaufnahmen in Mundart: Namen und Zahlen stimmen |
+| 4.3 | **Der Takt legt ab** (im Namen der Person; «Abgelegt» erscheint bei ihr) | eine Aufnahme von 1 Stunde läuft auf dev durch · Audio danach gelöscht |
+
+## 7 · Entscheide
+
+Der gültige Stand jedes Entscheids steht in den Abschnitten oben; hier die Liste zum Nachschlagen.
+
+| Datum | Entscheid |
+|---|---|
+| 03.11. | Claude führt und empfiehlt, Clemens entscheidet. Kein Zählen, keine Termine. Die KI legt ab, der Mensch kontrolliert. Keine Ausnahme, auch nicht für Sicherheit. |
+| 04.11. | Ziel statt Regeln. Name «Erfassen». Aufnehmen mit Start/Stopp. |
+| 05.11. | Vier Schichten, das Log zuerst, keine Rückwärtskompatibilität. Nur im ERP; MCP höchstens persönlich für Clemens. Kommunikation bleibt in der Bedienung. Dokumente behalten ihre Nummer. Alles in einer Akte. |
+| 06.11. | Phase 1 gebaut und ausgerollt. |
+| 06.11. | Notiz = Nachricht an jedem Datensatz; das Log bleibt Protokoll. Verlauf in Seiten, Änderungen technisch. Sichtbarkeit nur auf Ebene des Datensatzes. Kommunikation skalierbar, langer Wert als Prüfsumme. |
+| 06.11. | Vorschläge am Feld bzw. als vorausgefüllter Entwurf, kein eigenes Formular; minimales Fenster. Feld-Baustein: Logik zentral, Aussehen frei (Aufräumen ist Pflicht). |
+| 06.11. | Angeheftetes unten im Verlauf; offene Vorschläge immer und zuerst; Hinweise auf Abruf. |
+| 06.11. | Lernen mit drei Gedächtnissen (ohne Prüfsatz); Hilfsmodell von Google Vertex. Offener Datensatz als schlanker Hinweis. |
+| 06.11. | Der Takt per Cloud Scheduler (5 Min.), Pub/Sub nicht. Deckel 10 CHF/Tag. |
+| 06.11. | Sprache: Gemini über Vertex AI; Bildschirm bleibt an, Aufnahme in Stücken; Audio nach der Abschrift gelöscht; Gespräche aufnehmen in Verantwortung von Clemens. |
+| 06.11. | Gerade Linie: ein Weg für jede Eingabe; Original wichtig → Dokument, sonst Notiz. Nichts löschen, korrigieren. |
+| 06.11. | Plan in drei Phasen mit Schritten. Zurückgestellt: Suche in Inhalten, Fragen im Erfassen, Rückmeldung an Personen (→ «Aufgaben»). Nicht gemacht: Schwärzen, Ziel-Dashboard, Arbeiten ohne Netz. |

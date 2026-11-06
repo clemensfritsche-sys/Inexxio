@@ -34,7 +34,8 @@ Dateien:   Cloud Storage, je Umgebung ein Bucket (inexxio-dev-files · inexxio-p
            services/attachments, ausgeliefert über einen unerratbaren Token
 Karten:    Google Places (Adress-Suche in jedem Adressfeld); Schlüssel je Umgebung aus dem
            Secret Manager (GOOGLE_MAPS_API_KEY), nicht aus der Datenbank
-Infra:     Google Cloud Run (europe-west6) + Firebase Hosting
+Infra:     Google Cloud Run (europe-west6) + Firebase Hosting; Cloud Scheduler ruft alle
+           5 Minuten den Takt (POST /api/v1/internal/tick, Google-Token, infra/README.md)
 Zahlung:   Stripe – eigene Bezahlkarte im ERP (Payment Element + Webhook). OPTIONAL:
            ohne Schlüssel gibt es den Dienst nicht (docs/stripe-setup.md)
 E-Mail:    Gmail API – je eigener Gesellschaft ein Postfach, Abgleich + Versand.
@@ -98,7 +99,7 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   `services/log.event` (z. B. `ai.call`, `mail.send_failed`, `document.read`,
   `voucher.action`). Unveränderlich per Trigger (auch `TRUNCATE`); einzige Ausnahme die
   Schwärzung `log.redact`, die sich selbst einträgt. Je abgeschlossenem Tag ein verkettetes
-  Siegel (`log_seal`, `log.seal_due` beim Start und im Abgleich, `log.verify`).
+  Siegel (`log_seal`, `log.seal_due` beim Start und im Takt, `log.verify`).
 - **Ereignisse des Prozesses** stehen im Log als `process.<art>` (`process._pass` ist die
   eine Schreibstelle, über `log.process_events`); gelesen über die Sicht `process_log`
   (`models.ProcessEvent`). Bild, Protokoll, Stückliste und Journey sind **Ableitungen aus dem
@@ -249,16 +250,35 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   je Konto genau ein Standard je Art. Der Beleg wählt daraus (Verb `address`) und friert ein.
 - **Kommunikation** (`domain/communication.py`, `services/communication.py`,
   `components/erp/communication.tsx`): **Alles ist eine Nachricht** (E-Mail, Anruf, intern,
-  Erinnerung) – ohne Objektnummer, ohne Status, ohne Typfeld. **Jede Nachricht hat einen
-  Betreff, und das Anliegen IST der Betreff** (ohne «Re:» usw.). **Offen** = an uns, Zeitpunkt
-  erreicht, keine spätere Nachricht von uns mit demselben Betreff; **überfällig nach 2 h**.
-  Intern heisst intern (nur Mitarbeitende); wer von aussen schreibt, bekommt die Antwort von
-  aussen. Verlauf einer Firma = der ihrer Personen. Feed-Zeichen am Symbol
-  (`detail-frame` → `RecordIcon`).
+  Notiz, Erinnerung) – ohne Objektnummer, ohne Status, ohne Typfeld. **Jede Nachricht hat einen
+  Betreff, und das Anliegen IST der Betreff** (ohne «Re:» usw.; als Spalte `messages.topic` mit
+  Index `(topic, at)`, gesetzt nur vom Modell mit dem Betreff, `Message._topic`). **Offen** = an
+  uns, Zeitpunkt erreicht, keine spätere Nachricht von uns mit demselben Betreff; **überfällig
+  nach 2 h** – «beantwortet» ist EINE Abfrage (`communication._ANSWERED`), die je Kandidatin nur
+  ihr Anliegen liest. Intern heisst intern (nur Mitarbeitende); wer von aussen schreibt, bekommt
+  die Antwort von aussen. Die Beteiligten sind **Datensätze** (`message_parties.object_id`):
+  An/Cc/Bcc immer Personen, **«Betrifft» jeder Datensatz**. Verlauf einer Firma = der ihrer
+  Personen. Feed-Zeichen am Symbol (`detail-frame` → `RecordIcon`).
+- **Notiz** (Kanal `note`, `domain/communication.NOTE`): Wissen an einem Datensatz, keine Bitte –
+  nie offen (`asks` aus, `quiet`), nie hinaus, **nie eine Antwort** (schliesst kein Anliegen). **Eine Heimat**; gehört sie woandershin, wird
+  korrigiert, nicht gelöscht (`communication.move_note`: Vermerk «ungültig – gehört zu …» am
+  falschen, Inhalt mit «verschoben von …» am richtigen Datensatz; die Oberfläche dafür kommt mit
+  Phase 3).
+- **Der Verlauf** (`services/history.py`, `GET /erp/history/{nummer}`,
+  `components/erp/history.tsx`): **ein Verlauf für jeden Datensatz** – Person, Firma, Auftrag,
+  Artikel, Instanz, Dokument –, gemischt nach Zeit und **in Seiten** (30, Cursor `before` =
+  Zeit · Art · Nummer; nie alles): Nachrichten (`communication.page`, Rundschreiben einmal),
+  Dokumente an ihm (`access.visible`) und Änderungen aus dem Log an seiner Nummer – **je Handlung
+  (`request_id`) ein Block**, technisch `feld: alt → neu`, Ereignisse mit Name und einfachen
+  Angaben; übersetzt nur die Tabellennamen (`domain/log.TABLE_WORDS`). Nicht gezeigt: die
+  Log-Zeilen von Nachrichten und die Nummernvergabe (`history.HIDDEN`, EINE Liste); die
+  Zeiterfassung einer Person nur ihr selbst und dem Admin. An Person und Firma ist er die Liste
+  der Kommunikation (mit Eingabe an der Person); andere Datensätze haben keine Eingabe.
 - **Gmail-Postfach je eigener Gesellschaft** (`services/mailbox.py`, Kanal `c<Objektnummer>`,
   verbindet nur ein Admin; persönliche Postfächer gibt es nicht). Die Kontakt-E-Mail der
   Gesellschaft **ist** das Postfach (gesetzt durch Verbinden, geleert durch Trennen). Abgleich
-  solange das ERP offen ist (`POST /erp/messages/sync`, 30 s je Postfach); ein unbekannter
+  solange das ERP offen ist (`POST /erp/messages/sync`, 30 s je Postfach) und ohne Browser
+  alle 5 Minuten im **Takt** (siehe «Der Takt»); ein unbekannter
   Absender wird Person (`people.ensure`), Massenpost nicht; eine eigene Adresse ist nie eine
   Person; eine Mail, die sich nicht verarbeiten lässt, wird übersprungen (Log). Senden: jede
   Mail genau einmal (einzeln gesperrt, sofort festgeschrieben), nur über ein verbundenes
@@ -294,6 +314,17 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Seite `/newsletter` (Link im Fuss), Konto. Wörter: `website/src/config/newsletter.mjs`.
 - **Kontaktformular der Website** → offene Nachricht im ERP (`services/inquiry`), siehe
   «Website».
+
+## Der Takt
+
+Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, `POST /api/v1/internal/tick` – was nicht
+von einem offenen Browser abhängen darf. **Die Aufgaben stehen an einer Stelle**
+(`services/tick.TASKS`): Siegel des Logs · Mails holen und senden. Je Aufgabe eigene Sitzung
+(das System, `job`), Advisory-Lock (läuft sie anderswo: übersprungen), Zeitgrenze, ein
+Fehlschlag hält die übrigen nicht auf (Antwort 500 → Alarm). Getanes steht im Log
+(`tick.<name>`), Leerlauf nicht. Anmeldung: Google-Token (OIDC) des Dienstkontos `tick@`, geprüft
+in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingerichtet im Deploy
+(Job «Takt»), einmal je Projekt `infra/setup-takt.sh` (Dienstkonto, Rechte, Alarm per Mail).
 
 ## Zeiterfassung
 
@@ -338,6 +369,7 @@ Gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine** Implementierung
 `services/sites.py` (Gesellschaften) · `objects.obj_nr` (Objektnummer) ·
 `services/documents.py` (jede Datei, `file` ist die einzige Anlage) · `services/ai.py` (jeder
 KI-Aufruf) · `components/erp/document-draft.tsx` (jeder Entwurf) ·
+`components/form/field.tsx` + `use-field.ts` (jedes Eingabefeld, ESLint-Wächter) ·
 `components/erp/address-field.tsx` · `object-select.tsx` (jedes Referenzfeld) ·
 `lib/when.ts` (die einzige Datums-Ausgabe) · `lib/use-autosave.ts`. Zwei Wege für dieselbe
 Sache sind ein Bug, auch wenn beide funktionieren.
@@ -593,6 +625,8 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   ändern**: Server prüft (`people.email_problem`), Firebase schickt den Link an die neue Adresse
   (`verifyBeforeUpdateEmail`), das Profil übernimmt sie aus dem nächsten Token. Telefon schreibt
   der Server lesbar zurück (`people.tidy_phone`).
+- **Verlauf** an jedem Datensatz (Nachrichten, Notizen, Dokumente, Änderungen aus dem Log – in
+  Seiten); Notiz an jedem Datensatz (ohne eigene Eingabe ausser an der Person).
 - **ERP-Feed** (Master-Detail, eine Route `/erp`): Benutzer · Artikel · Aufträge · Instanzen
   · Unternehmen · Dokumente; Objektnummer, QR-Etikett und Kamera-Scan an jedem Datensatz.
 - **Artikel** mit Spezifikation, Bestand in drei Ebenen, Reihe und gemeldeter Stückliste.

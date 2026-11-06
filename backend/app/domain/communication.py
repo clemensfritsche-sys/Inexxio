@@ -31,6 +31,9 @@ Zwei Eigenschaften tragen die ganze Unterscheidung:
 * ``live`` – beantwortet sich das Gespräch selbst? Ein Anruf ist ein Gespräch, beide
   waren dabei; danach wartet niemand auf eine Antwort. Wer zurückrufen muss, setzt eine
   Erinnerung – ebenfalls eine Nachricht.
+* ``asks`` – kann eine Nachricht auf diesem Kanal auf eine Antwort warten? Eine **Notiz**
+  nie: sie hält Wissen an einem Datensatz fest (``about`` = jeder Datensatz) und ist keine
+  Bitte – nie offen, nie hinaus.
 """
 
 import re
@@ -81,14 +84,27 @@ class Channel:
     address: Optional[str]
     outside: bool
     live: bool
+    #: Wartet eine Nachricht hier je auf eine Antwort? (Notiz: nie.)
+    asks: bool = True
 
+
+#: Die Notiz – Wissen an einem Datensatz, keine Bitte (``docs/konzept/lernende-firma.md`` §4.2).
+NOTE = "note"
 
 CHANNELS: dict[str, Channel] = {
     c.key: c for c in (
         Channel("phone", "Telefon", "phone", None, outside=True, live=True),
         Channel("intern", "Intern", "internal", None, outside=False, live=False),
+        Channel(NOTE, "Notiz", "note", None, outside=False, live=False, asks=False),
     )
 }
+
+
+def quiet(key: str) -> bool:
+    """**Wartet auf diesem Kanal nie jemand?** – ein Gespräch (``live``) beantwortet sich
+    selbst, eine Notiz (``asks`` aus) bittet um nichts."""
+    c = channel(key)
+    return c.live or not c.asks
 
 #: Ein **Postfach** ist ein Kanal einer festen Form – kein Katalogeintrag je Gesellschaft:
 #: die Form ist die Regel. ``c`` = eigene Gesellschaft.
@@ -157,9 +173,9 @@ def to_us(*, channel_key: str, sender_staff: bool, to_staff: bool) -> bool:
 
     Uns = jeder Kanal der eigenen Gesellschaft und jeder Mitarbeiter. Also: wer von
     aussen schreibt, schreibt an uns; und wer intern einen Mitarbeiter im «An» nennt
-    (auch sich selbst – das ist die Erinnerung), ebenso. Ein Gespräch (``live``)
-    wartet auf niemanden."""
-    if channel(channel_key).live:
+    (auch sich selbst – das ist die Erinnerung), ebenso. Ein Gespräch (``live``) und eine
+    Notiz warten auf niemanden (``quiet``)."""
+    if quiet(channel_key):
         return False
     return (not sender_staff) or to_staff
 
