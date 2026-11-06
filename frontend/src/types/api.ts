@@ -2001,14 +2001,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * History
-         * @description Der Verlauf einer Person oder aller Personen einer Firma – chronologisch.
-         */
-        get: operations["history_api_v1_erp_messages_get"];
+        get?: never;
         put?: never;
         /** Create */
         post: operations["create_api_v1_erp_messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/history/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * History
+         * @description Eine Seite des Verlaufs – Nachrichten, Dokumente und Änderungen, die neuesten zuerst;
+         *     ``before`` ist der Cursor der vorigen Seite.
+         */
+        get: operations["history_api_v1_erp_history__object_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2914,6 +2931,25 @@ export interface components {
             /** Label */
             label: string;
         };
+        /**
+         * ChangeBlock
+         * @description **Eine Handlung** (``request_id``) – wer, woher, und was sich änderte.
+         */
+        ChangeBlock: {
+            /** Actor Kind */
+            actor_kind: string;
+            /** Actor Id */
+            actor_id?: number | null;
+            /** Actor Name */
+            actor_name?: string | null;
+            /** Source */
+            source: string;
+            /**
+             * Rows
+             * @default []
+             */
+            rows: components["schemas"]["LogRow"][];
+        };
         /** ChannelOut */
         ChannelOut: {
             /** Key */
@@ -3435,6 +3471,27 @@ export interface components {
              */
             read_later: boolean;
         };
+        /**
+         * DocumentEntry
+         * @description Ein Dokument, das an diesem Datensatz hängt (seine Referenz).
+         */
+        DocumentEntry: {
+            /** Object Id */
+            object_id: number;
+            /** Art */
+            art: string;
+            /** Name */
+            name: string;
+            /** Part */
+            part?: string | null;
+            /** Field */
+            field?: string | null;
+            /**
+             * Deleted
+             * @default false
+             */
+            deleted: boolean;
+        };
         /** DocumentRefOut */
         DocumentRefOut: {
             /** Id */
@@ -3726,6 +3783,19 @@ export interface components {
             resolution?: string | null;
         };
         /**
+         * FieldChange
+         * @description ``feld: alt → neu`` – roh, der Feldname bleibt, wie er in der Tabelle heisst. Bei einer
+         *     neuen Zeile fehlt ``old``, bei einer gelöschten ``new``.
+         */
+        FieldChange: {
+            /** Field */
+            field: string;
+            /** Old */
+            old?: string | null;
+            /** New */
+            new?: string | null;
+        };
+        /**
          * FiledOut
          * @description Die Antwort auf «Freigeben»: das Dokument – und ob es dieselbe Datei schon gab.
          */
@@ -3910,6 +3980,34 @@ export interface components {
             tone: string;
             /** Icon */
             icon: string;
+        };
+        /** HistoryEntry */
+        HistoryEntry: {
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "message" | "document" | "change";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            message?: components["schemas"]["MessageOut"] | null;
+            document?: components["schemas"]["DocumentEntry"] | null;
+            change?: components["schemas"]["ChangeBlock"] | null;
+        };
+        /** HistoryPage */
+        HistoryPage: {
+            /**
+             * Entries
+             * @default []
+             */
+            entries: components["schemas"]["HistoryEntry"][];
+            /** Before */
+            before?: string | null;
         };
         /**
          * HoldNumbers
@@ -4139,6 +4237,34 @@ export interface components {
             html?: string | null;
             /** Url */
             url?: string | null;
+        };
+        /**
+         * LogRow
+         * @description Eine Zeile des Logs: eine geänderte Tabellenzeile oder ein Ereignis.
+         */
+        LogRow: {
+            /** Action */
+            action: string;
+            /** Table */
+            table?: string | null;
+            /** Word */
+            word?: string | null;
+            /** Row */
+            row?: string | null;
+            /** Event */
+            event?: string | null;
+            /**
+             * Changes
+             * @default []
+             */
+            changes: components["schemas"]["FieldChange"][];
+            /**
+             * Payload
+             * @default {}
+             */
+            payload: {
+                [key: string]: string;
+            };
         };
         /**
          * MailboxOut
@@ -10304,38 +10430,6 @@ export interface operations {
             };
         };
     };
-    history_api_v1_erp_messages_get: {
-        parameters: {
-            query?: {
-                person?: number | null;
-                company?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     create_api_v1_erp_messages_post: {
         parameters: {
             query?: never;
@@ -10356,6 +10450,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    history_api_v1_erp_history__object_id__get: {
+        parameters: {
+            query?: {
+                before?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryPage"];
                 };
             };
             /** @description Validation Error */

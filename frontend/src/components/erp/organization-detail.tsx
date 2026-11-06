@@ -353,7 +353,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
           // **Zahlungen** – nur an einer eigenen Gesellschaft: alle, die in ihrem Namen laufen.
           ...(own ? [{ key: 'pay' as const, label: 'Zahlungen', icon: HandCoins }] : []),
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
-          { key: 'comm', label: 'Kommunikation', icon: MessagesSquare },
+          { key: 'comm', label: 'Verlauf', icon: MessagesSquare },
         ]} />}
       />
 

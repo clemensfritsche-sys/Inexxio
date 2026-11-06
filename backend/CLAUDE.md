@@ -90,12 +90,13 @@ app/
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)
 │   ├── log.py        ← das Log: Funktionen und Trigger (wer handelt, Zeilen, Ereignisse,
-│   │                   unveränderlich, Schwärzen, Siegel), OBJECT (Tabelle → Ding)
+│   │                   unveränderlich, Schwärzen, Siegel), OBJECT (Tabelle → Ding),
+│   │                   TABLE_WORDS (ein Wort je Tabelle für den Verlauf)
 │   ├── voucher.py    ← der Beleg: Direction, Stufen, Steuer (VAT_RATES, vat_split,
 │   │                   vat_choices nach Anschrift), Saldo (balance), Mahnstufen, Wörter
 │   ├── currency.py   ← Währungen (ISO 4217) mit ihren Nachkommastellen
 │   ├── incoterms.py  ← die elf Klauseln der Incoterms 2020 mit Erklärung
-│   ├── communication.py ← Kanäle, Rollen, Versandarten, Betreff/Anliegen, overdue (2 h), Signatur
+│   ├── communication.py ← Kanäle (auch die Notiz), Rollen, Versandarten, Betreff/Anliegen, overdue (2 h), Signatur
 │   ├── newsletter.py ← Quellen der Einwilligung, Gültigkeit der Bestätigung
 │   ├── timekeeping.py← Zeiterfassung: Absenzarten (je EINE Wirkung), Regeln CH (ArG/OR),
 │   │                   Hinweise, Reglement-Texte (ⓘ), append-only-Trigger
@@ -110,6 +111,7 @@ scripts/
 ├── dump_openapi.py   ← OpenAPI → backend/openapi.json (Quelle der Frontend-Typen)
 ├── dump_statuses.py  ← domain/statuses.py → frontend/src/lib/status-catalog.ts
 ├── deadcode.py       ← «was liest eigentlich niemand mehr?» (beide Seiten)
+├── measure_verlauf.py← Messung: Verlauf und «zu tun» bei 50'000 Nachrichten (rollt zurück)
 ├── build_geoip.py    ← DB-IP Lite → IP→Land (im Docker-Build)
 ├── invariant_report.py · scenario_report.py  ← lesen tests/invariants.py · tests/matrix.py
 ```
@@ -122,7 +124,8 @@ scripts/
 | Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, Beleg: `voucher.py` (Kern: lesen, Ableitungen, Anlage, Rahmen) → `voucher_head.py` (Belegkopf, Anschrift, Positionen) → `voucher_money.py` (Geld-Zeilen, Erstattung, QR, anstehende Papiere) → `voucher_actions.py` (`VERBS`, `can`, `apply`) → `voucher_view.py` (`embed_data`) (+ `voucher_docs.py`, `document.py`, `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
-| Kommunikation | `communication.py`, `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
+| Kommunikation | `communication.py` (anlegen, Seiten `page`, «offen» als Abfrage, `move_note`), `mailbox.py`, `mail_layout.py`, `inquiry.py`, `newsletter.py` |
+| Verlauf | `history.py` (ein Verlauf je Nummer: Nachrichten, Dokumente, Änderungen aus dem Log; `HIDDEN`), Wörter der Tabellen in `domain/log.TABLE_WORDS` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen) |
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
@@ -216,7 +219,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET | `/api/v1/erp/payments?person=\|company=` | staff | **Zahlungen** einer Person oder eigenen Gesellschaft (Ableitung, `services/payment_list`) |
 | GET | `/api/v1/attachments/{token}` | – | Bild ausliefern (unerratbarer Token) |
 | POST | `/api/v1/payments/webhook` | – (Signatur) | Rückmeldung des Zahlungsdienstes – bucht eine Geld-Zeile am Beleg, sonst nichts |
-| GET | `/api/v1/erp/messages` | staff | Verlauf einer Person (`person=`) oder Firma (`company=`) |
+| GET | `/api/v1/erp/history/{object_id}?before=&limit=` | staff | **Der Verlauf eines Datensatzes** – eine Seite (30), die neuesten zuerst: Nachrichten, Dokumente, Änderungen je Handlung (`services/history`); Dokumente nach `access`, Zeiterfassung nur selbst/Admin |
 | POST | `/api/v1/erp/messages` | staff | Nachricht anlegen (jede Art dieselbe Form) |
 | GET | `/api/v1/erp/messages/channels` | staff | Kanäle, aus denen man schreiben kann |
 | GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |

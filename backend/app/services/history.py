@@ -63,7 +63,7 @@ _BIG = 2 ** 62
 Key = tuple[datetime, int, int]
 
 
-def key_of(at: datetime, kind: str, ident: int) -> str:
+def _key(at: datetime, kind: str, ident: int) -> str:
     return f"{at.isoformat()}~{RANK[kind]}~{ident}"
 
 
@@ -100,7 +100,7 @@ def _empty(v: Any) -> bool:
     return v is None or v == "" or v == [] or v == {}
 
 
-def changes_of(action: str, changes: Optional[dict[str, Any]]) -> list[FieldChange]:
+def _changes_of(action: str, changes: Optional[dict[str, Any]]) -> list[FieldChange]:
     """``feld: alt → neu`` – aus dem, was der Trigger schrieb: bei ``update`` (auch dem
     weichen Löschen) Paare, bei ``insert`` die Werte, bei ``delete`` die alten Werte."""
     if not changes:
@@ -116,7 +116,7 @@ def changes_of(action: str, changes: Optional[dict[str, Any]]) -> list[FieldChan
     return out
 
 
-def payload_of(payload: Optional[dict[str, Any]]) -> dict[str, str]:
+def _payload_of(payload: Optional[dict[str, Any]]) -> dict[str, str]:
     """Die einfachen Angaben eines Ereignisses (Text, Zahl, ja/nein) – roh, ohne Satz."""
     out: dict[str, str] = {}
     for k, v in (payload or {}).items():
@@ -158,14 +158,14 @@ def _changes(db: Session, oid: int, hidden: list[str], before: Optional[Key], n:
         rs = rows.get(b.request_id, [])
         head = rs[0]
         out.append(HistoryEntry(
-            key=key_of(b.at, "change", b.id), kind="change", at=b.at,
+            key=_key(b.at, "change", b.id), kind="change", at=b.at,
             change=ChangeBlock(
                 actor_kind=head.actor_kind, actor_id=head.actor_id,
                 actor_name=actors.get(head.actor_id), source=head.source,
                 rows=[LogRow(action=r.action, table=r.table_name,
                              word=TABLE_WORDS.get(r.table_name or ""), row=r.row_key,
-                             event=r.event, changes=changes_of(r.action, r.changes),
-                             payload=payload_of(r.payload)) for r in rs])))
+                             event=r.event, changes=_changes_of(r.action, r.changes),
+                             payload=_payload_of(r.payload)) for r in rs])))
     return out
 
 
@@ -180,7 +180,7 @@ def _documents(db: Session, oid: int, viewer: UserProfile, before: Optional[Key]
         q = q.filter(tuple_(DocumentRef.created_at, DocumentRef.id) < bound)
     rows = access.visible(q, viewer).order_by(
         DocumentRef.created_at.desc(), DocumentRef.id.desc()).limit(n).all()
-    return [HistoryEntry(key=key_of(r.created_at, "document", r.id), kind="document",
+    return [HistoryEntry(key=_key(r.created_at, "document", r.id), kind="document",
                          at=r.created_at,
                          document=DocumentEntry(object_id=r.object_id, art=r.art, name=r.name,
                                                 part=r.part, field=r.field,
@@ -196,7 +196,7 @@ def _messages(db: Session, oid: int, before: Optional[Key], n: int) -> list[Hist
     for i, at in found:
         m = built[i]
         m.recipients = sizes.get(i, 0)
-        out.append(HistoryEntry(key=key_of(at, "message", i), kind="message", at=at, message=m))
+        out.append(HistoryEntry(key=_key(at, "message", i), kind="message", at=at, message=m))
     return out
 
 

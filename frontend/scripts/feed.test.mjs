@@ -77,7 +77,12 @@ test('die Detailansichten hängen an derselben Tabelle', () => {
   }
   assert.ok(areas(`${API}/erp/documents/${oid}/refs`).has('documentsOf'), 'Kacheln am Datensatz');
   assert.ok(areas(`${API}/erp/documents`).has('document'));
-  assert.ok(areas(`${API}/erp/messages`).has('messages'));
+  assert.ok(areas(`${API}/erp/messages`).has('history'));
+  // Jede Änderung steht im Log – jeder Schreibvorgang lädt den Verlauf nach.
+  for (const p of [`${API}/erp/orders/${oid}/steps/${step}/confirm`, `${API}/erp/records/${oid}`,
+    `${API}/erp/documents/${oid}/refs`, `${API}/erp/time/${oid}/swipe`, `${API}/admin/companies/${oid}`]) {
+    assert.ok(areas(p).has('history'), p);
+  }
   assert.ok(areas(`${API}/erp/newsletter/${oid}/invite`).has('newsletter'));
   assert.ok(areas(`${API}/erp/messages/mailboxes/c${oid}/connect`).has('mailboxes'));
   assert.deepEqual([...areas(`${API}/erp/orders/validate`)], []);

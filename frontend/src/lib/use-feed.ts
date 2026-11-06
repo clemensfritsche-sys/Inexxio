@@ -51,7 +51,7 @@ export function useFeedClient(): QueryClient {
       touchedBy(path).forEach((area) => invalidate(areaKey(area)));
     };
     const onMessages = () => {
-      invalidate(feedKey('todo')); invalidate(feedKey('people')); invalidate(areaKey('messages'));
+      invalidate(feedKey('todo')); invalidate(feedKey('people')); invalidate(areaKey('history'));
     };
     const onTodo = () => invalidate(feedKey('todo'));
     window.addEventListener(DATA_CHANGED, onChanged);

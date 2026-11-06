@@ -325,17 +325,21 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
 #:   intern erledigt ihn nur die Nachricht ohne Text («Erledigt ohne Antwort»). «Ohne
 #:   Text» heisst: kein Zeichen ausser Leerraum (``!~ '\S'``, wie ``str.strip``).
 #: * eine **geplante** Antwort (Zeitpunkt in der Zukunft) beantwortet noch nichts.
+#: Wer zu uns gehört – einmal je Abfrage gelesen (``MATERIALIZED``: ein paar Zeilen, und der
+#: Planer schätzt danach richtig, statt jede Nachricht teuer einzupreisen).
+_STAFF = ("WITH staff AS MATERIALIZED (SELECT object_id FROM user_profiles "
+          "WHERE role = ANY(:staff) AND object_id IS NOT NULL) ")
+
 _ANSWERED = """EXISTS (
   SELECT 1 FROM messages r
-    JOIN user_profiles ru ON ru.object_id = r.sender_object_id AND ru.role = ANY(:staff)
    WHERE r.topic = m.topic AND r.is_active AND r.at <= :now AND r.id <> m.id
+     AND r.sender_object_id IN (SELECT object_id FROM staff)
      AND (r.at > m.at OR (r.at = m.at AND r.id > m.id))
      AND (r.sender_object_id <> m.sender_object_id OR EXISTS (
             SELECT 1 FROM message_parties own WHERE own.message_id = m.id
                AND own.role = 'to' AND own.object_id = m.sender_object_id))
-     AND (r.channel <> ALL(:inside) OR r.body !~ '\\S' OR EXISTS (
-            SELECT 1 FROM user_profiles mu WHERE mu.object_id = m.sender_object_id
-               AND mu.role = ANY(:staff)))
+     AND (r.channel <> ALL(:inside) OR r.body !~ '\\S'
+          OR m.sender_object_id IN (SELECT object_id FROM staff))
      AND (r.sender_object_id = m.sender_object_id OR EXISTS (
             SELECT 1 FROM message_parties w WHERE w.message_id = r.id
                AND w.object_id = m.sender_object_id)))"""
@@ -355,7 +359,8 @@ def answered(db: Session, ids: list[int]) -> set[int]:
     wartet seine Nachricht weiter: sie ist jünger als die Antwort."""
     if not ids:
         return set()
-    rows = db.execute(text(f"SELECT m.id FROM messages m WHERE m.id = ANY(:ids) AND {_ANSWERED}"),
+    rows = db.execute(text(f"{_STAFF}SELECT m.id FROM messages m WHERE m.id = ANY(:ids) "
+                           f"AND {_ANSWERED}"),
                       {"ids": list(ids), **_rule_params()})
     return {i for (i,) in rows}
 
@@ -523,14 +528,12 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
 #: Die Nachrichten, die an uns gehen können und nicht beantwortet sind – Kandidatinnen für
 #: «offen». Was wir selbst hinausschicken, ist nie offen; ein stiller Kanal (Gespräch,
 #: Notiz) auch nicht. Was hier steht, entscheidet danach ``_state`` – die eine Regel.
-_UNANSWERED = text(f"""
+_UNANSWERED = text(f"""{_STAFF}
 SELECT m.id, m.at, m.channel, m.sender_object_id FROM messages m
  WHERE m.is_active AND m.at <= :now AND m.channel <> ALL(:quiet)
-   AND (NOT EXISTS (SELECT 1 FROM user_profiles su WHERE su.object_id = m.sender_object_id
-                      AND su.role = ANY(:staff))
-        OR EXISTS (SELECT 1 FROM message_parties t
-                     JOIN user_profiles tu ON tu.object_id = t.object_id AND tu.role = ANY(:staff)
-                    WHERE t.message_id = m.id AND t.role = 'to'))
+   AND (m.sender_object_id NOT IN (SELECT object_id FROM staff)
+        OR m.id IN (SELECT t.message_id FROM message_parties t
+                     WHERE t.role = 'to' AND t.object_id IN (SELECT object_id FROM staff)))
    AND NOT {_ANSWERED}""")
 
 

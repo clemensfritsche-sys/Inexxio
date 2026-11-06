@@ -249,12 +249,30 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   je Konto genau ein Standard je Art. Der Beleg wählt daraus (Verb `address`) und friert ein.
 - **Kommunikation** (`domain/communication.py`, `services/communication.py`,
   `components/erp/communication.tsx`): **Alles ist eine Nachricht** (E-Mail, Anruf, intern,
-  Erinnerung) – ohne Objektnummer, ohne Status, ohne Typfeld. **Jede Nachricht hat einen
-  Betreff, und das Anliegen IST der Betreff** (ohne «Re:» usw.). **Offen** = an uns, Zeitpunkt
-  erreicht, keine spätere Nachricht von uns mit demselben Betreff; **überfällig nach 2 h**.
-  Intern heisst intern (nur Mitarbeitende); wer von aussen schreibt, bekommt die Antwort von
-  aussen. Verlauf einer Firma = der ihrer Personen. Feed-Zeichen am Symbol
-  (`detail-frame` → `RecordIcon`).
+  Notiz, Erinnerung) – ohne Objektnummer, ohne Status, ohne Typfeld. **Jede Nachricht hat einen
+  Betreff, und das Anliegen IST der Betreff** (ohne «Re:» usw.; als Spalte `messages.topic` mit
+  Index `(topic, at)`, gesetzt nur vom Modell mit dem Betreff, `Message._topic`). **Offen** = an
+  uns, Zeitpunkt erreicht, keine spätere Nachricht von uns mit demselben Betreff; **überfällig
+  nach 2 h** – «beantwortet» ist EINE Abfrage (`communication._ANSWERED`), die je Kandidatin nur
+  ihr Anliegen liest. Intern heisst intern (nur Mitarbeitende); wer von aussen schreibt, bekommt
+  die Antwort von aussen. Die Beteiligten sind **Datensätze** (`message_parties.object_id`):
+  An/Cc/Bcc immer Personen, **«Betrifft» jeder Datensatz**. Verlauf einer Firma = der ihrer
+  Personen. Feed-Zeichen am Symbol (`detail-frame` → `RecordIcon`).
+- **Notiz** (Kanal `note`, `domain/communication.NOTE`): Wissen an einem Datensatz, keine Bitte –
+  nie offen (`asks` aus, `quiet`), nie hinaus. **Eine Heimat**; gehört sie woandershin, wird
+  korrigiert, nicht gelöscht (`communication.move_note`: Vermerk «ungültig – gehört zu …» am
+  falschen, Inhalt mit «verschoben von …» am richtigen Datensatz; die Oberfläche dafür kommt mit
+  Phase 3).
+- **Der Verlauf** (`services/history.py`, `GET /erp/history/{nummer}`,
+  `components/erp/history.tsx`): **ein Verlauf für jeden Datensatz** – Person, Firma, Auftrag,
+  Artikel, Instanz, Dokument –, gemischt nach Zeit und **in Seiten** (30, Cursor `before` =
+  Zeit · Art · Nummer; nie alles): Nachrichten (`communication.page`, Rundschreiben einmal),
+  Dokumente an ihm (`access.visible`) und Änderungen aus dem Log an seiner Nummer – **je Handlung
+  (`request_id`) ein Block**, technisch `feld: alt → neu`, Ereignisse mit Name und einfachen
+  Angaben; übersetzt nur die Tabellennamen (`domain/log.TABLE_WORDS`). Nicht gezeigt: die
+  Log-Zeilen von Nachrichten und die Nummernvergabe (`history.HIDDEN`, EINE Liste); die
+  Zeiterfassung einer Person nur ihr selbst und dem Admin. An Person und Firma ist er die Liste
+  der Kommunikation (mit Eingabe an der Person); andere Datensätze haben keine Eingabe.
 - **Gmail-Postfach je eigener Gesellschaft** (`services/mailbox.py`, Kanal `c<Objektnummer>`,
   verbindet nur ein Admin; persönliche Postfächer gibt es nicht). Die Kontakt-E-Mail der
   Gesellschaft **ist** das Postfach (gesetzt durch Verbinden, geleert durch Trennen). Abgleich
@@ -593,6 +611,8 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   ändern**: Server prüft (`people.email_problem`), Firebase schickt den Link an die neue Adresse
   (`verifyBeforeUpdateEmail`), das Profil übernimmt sie aus dem nächsten Token. Telefon schreibt
   der Server lesbar zurück (`people.tidy_phone`).
+- **Verlauf** an jedem Datensatz (Nachrichten, Notizen, Dokumente, Änderungen aus dem Log – in
+  Seiten); Notiz an jedem Datensatz (ohne eigene Eingabe ausser an der Person).
 - **ERP-Feed** (Master-Detail, eine Route `/erp`): Benutzer · Artikel · Aufträge · Instanzen
   · Unternehmen · Dokumente; Objektnummer, QR-Etikett und Kamera-Scan an jedem Datensatz.
 - **Artikel** mit Spezifikation, Bestand in drei Ebenen, Reihe und gemeldeter Stückliste.

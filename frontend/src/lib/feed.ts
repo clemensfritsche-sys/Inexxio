@@ -24,7 +24,7 @@ type FeedList = (typeof FEED_LISTS)[number];
 
 /** Die Bereiche der Detailansichten – je einer ist das erste Glied ihrer Schlüssel. */
 export const DETAILS = ['order', 'instance', 'article', 'articleProcess', 'stock', 'units',
-  'unitOptions', 'document', 'documentsOf', 'payments', 'messages', 'senders', 'mailboxes',
+  'unitOptions', 'document', 'documentsOf', 'payments', 'history', 'senders', 'mailboxes',
   'newsletter', 'company'] as const;
 export type Detail = (typeof DETAILS)[number];
 type Area = FeedList | Detail;
@@ -43,7 +43,8 @@ const API = '/api/v1';
 
 /**
  * Pfad (hinter `API`) → betroffene Bereiche; **der erste passende Eintrag gilt**, also das
- * Genauere zuerst. `=` am Anfang heisst «genau dieser Pfad», sonst ist es ein Präfix ganzer
+ * Genauere zuerst. **Jede Änderung steht im Log** – darum lädt jeder Schreibvorgang auch
+ * den Verlauf (`history`) nach. `=` am Anfang heisst «genau dieser Pfad», sonst ist es ein Präfix ganzer
  * Pfadteile (`erp/orders` trifft `erp/orders/…`, nicht `erp/ordersx`).
  */
 const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
@@ -61,22 +62,22 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   // Ein Auftrag bewegt Stücke, meldet die Stückliste am Artikel, legt Papiere als
   // Dokumente an und macht Papiere fällig.
   ['erp/orders', ['orders', 'instances', 'articles', 'documents', 'todo', 'order', 'instance',
-    'article', 'stock', 'units', 'unitOptions', 'document', 'documentsOf', 'payments']],
-  ['erp/instances', ['instances', 'orders', 'instance', 'units', 'stock', 'unitOptions']],
-  ['erp/places', ['instances', 'instance', 'units']],
-  ['erp/articles', ['articles', 'article', 'stock']],
-  ['erp/documents', ['documents', 'todo', 'document', 'documentsOf']],
-  ['erp/attachments', ['documents', 'todo', 'document', 'documentsOf']],
+    'article', 'stock', 'units', 'unitOptions', 'document', 'documentsOf', 'payments', 'history']],
+  ['erp/instances', ['instances', 'orders', 'instance', 'units', 'stock', 'unitOptions', 'history']],
+  ['erp/places', ['instances', 'instance', 'units', 'history']],
+  ['erp/articles', ['articles', 'article', 'stock', 'history']],
+  ['erp/documents', ['documents', 'todo', 'document', 'documentsOf', 'history']],
+  ['erp/attachments', ['documents', 'todo', 'document', 'documentsOf', 'history']],
   // Eine Person kann dabei eine Firma anlegen (`sites.resolve`); fehlende Angaben zählen.
-  ['erp/records', ['people', 'companies', 'todo']],
-  ['auth/me', ['people', 'companies', 'todo']],
-  ['erp/newsletter', ['people', 'todo', 'newsletter', 'messages']],
+  ['erp/records', ['people', 'companies', 'todo', 'history']],
+  ['auth/me', ['people', 'companies', 'todo', 'history']],
+  ['erp/newsletter', ['people', 'todo', 'newsletter', 'history']],
   // Ein Postfach verbinden oder trennen setzt die Kontakt-E-Mail der Gesellschaft.
-  ['erp/messages/mailboxes', ['companies', 'company', 'mailboxes', 'senders']],
+  ['erp/messages/mailboxes', ['companies', 'company', 'mailboxes', 'senders', 'history']],
   // Ein unbekannter Absender wird Person; eine Nachricht von uns schliesst Offenes.
-  ['erp/messages', ['people', 'todo', 'messages']],
-  ['erp/time', ['todo']],
-  ['admin', ['companies', 'todo', 'company', 'documentsOf']],
+  ['erp/messages', ['people', 'todo', 'history']],
+  ['erp/time', ['todo', 'history']],
+  ['admin', ['companies', 'todo', 'company', 'documentsOf', 'history']],
 ];
 
 /** Welche Bereiche ein Schreibvorgang auf `path` ändert (unbekannt → alle). */
