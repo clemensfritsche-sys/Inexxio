@@ -352,7 +352,7 @@ günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
 | 0 | Projektakte, Mockup | in Arbeit |
 | 1 | **Das Log** – neu, ersetzt alle heutigen Logs | gebaut (06.11.2026) |
 | 2 | Kommunikation skalierbar (Seiten, Anliegen-Spalte, Prüfsumme im Log) · Notiz an jedem Datensatz · Verlauf an jeder Nummer | offen |
-| 3+4 | **ein Durchstich:** «Erfassen» (zuerst Schreiben) → KI legt ab → Vorschläge am Feld → Lernen; danach Sprache (nach dem Test) mit Pub/Sub | offen |
+| 3+4 | **ein Durchstich:** «Erfassen» (zuerst Schreiben) → KI legt ab → Vorschläge am Feld → Lernen; danach Sprache (nach dem Test) mit dem Takt | offen |
 | 5 | Das Angeheftete im Verlauf (auf Abruf) | offen |
 | eigene Projekte | Website-Messung (BigQuery) · Aufgaben («wer macht was») · MCP-Zugang (hier nur die Grundzüge) | offen |
 
