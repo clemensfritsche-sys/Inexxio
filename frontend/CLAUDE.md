@@ -65,7 +65,7 @@ src/components/
 ├── auth/      ← login-dialog, passkey-nudge, auth-gate (Schutz von /erp und /konto, `staffOnly`)
 ├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label,
 │                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)
-├── form/      ← field, save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
+├── form/      ← field + use-field (**der Feld-Baustein**, siehe unten), save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
 ├── layout/    ← site-shell, account-sync
 └── feedback/  ← feedback-pin (Testnotizen; als Insel auch auf der Website)
 src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.ts (generiert) ·
@@ -206,6 +206,13 @@ Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-s
 - **`busy` sperrt Handlungen, nie Geometrie und nie Werte**: kein `disabled={busy}` an einem
   Eingabefeld, nichts verschwindet während eines Auto-Saves; was erst mit der Serverantwort
   entsteht, hat seinen Platz von Anfang an.
+- **Ein Feld = der Feld-Baustein** (`components/form/use-field.ts` + `field.tsx`): die Logik
+  steht EINMAL in `useField` (Wert, Pflicht, weiche Format-Prüfung, Meldung, Enter = fertig,
+  und die Adresse `objectId` + `name` für Vorschläge, Schritt 3.4); `Field` · `SelectField`
+  sind die Standardform, `Input` · `Select` · `TextArea` dieselbe Logik in freiem Aussehen (Beleg,
+  Konto, Prozess-Editor). Ein loses `<input>`/`<select>`/`<textarea>` unter
+  `components/{erp,account,beleg}` weist ESLint ab (`RAW_FIELD`); die Ausnahmen (Suchfelder,
+  Nachrichten-Eingabe, Kästchen, Dateiwahl) stehen dort mit Grund.
 - **Ein gescheiterter Abruf ist nie stumm** (`lib/notice.ts`): wer bei einem Fehler nichts
   anderes zu tun hat, schreibt `.catch(tell('Aufträge'))` – unten rechts steht dann «Nicht
   geladen: Aufträge – <Grund>» (`components/layout/notice-host.tsx`, im Wurzel-Layout),
