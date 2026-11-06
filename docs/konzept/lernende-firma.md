@@ -155,8 +155,11 @@ beginnt seine Spur im Log.
 - **Jeder Datensatz hat eine Nummer, jede Nummer einen Verlauf.** Der Verlauf zeigt, was zu ihm
   gehört, gemischt nach Zeit: **Nachrichten** (Mail, Anruf, intern, **Notiz**), **Dokumente** und
   **Änderungen** (aus dem Log).
-- **Eine Notiz ist eine Nachricht.** Sie hat Betreff, Text, Zeitpunkt, kann eine Erinnerung sein,
-  beantwortet werden und – wenn sie falsch ist – gelöscht werden (weich). «Betrifft» darf **jeder
+- **Eine Notiz ist eine Nachricht.** Sie hat Betreff, Text, Zeitpunkt, kann eine Erinnerung sein
+  und beantwortet werden. **Gelöscht wird nichts, korrigiert wird:** gehört eine Notiz woanders
+  hin, erfasst man das («die Notiz von gestern gehört zum Kran 100000028») – die KI schlägt vor,
+  am falschen Datensatz einen Vermerk «ungültig, gehört zu …» und am richtigen die Notiz mit
+  Verweis zurück. Beides steht im Verlauf; gültig ist immer genau eine Heimat. «Betrifft» darf **jeder
   Datensatz** sein: Person, Firma, Auftrag, Artikel, Instanz, Dokument … (in `message_parties`
   heisst die Spalte künftig `object_id` statt `person_object_id`). Das Log bleibt reines
   Protokoll dessen, was geschah – kein Inhaltsspeicher.
@@ -174,12 +177,14 @@ beginnt seine Spur im Log.
   Sonderfälle je Ereignis.
 - **Sichtbarkeit:** wer einen Datensatz öffnen darf, sieht seinen ganzen Verlauf. Zugriff wird nur
   auf Ebene des Datensatzes geregelt, nicht innerhalb.
-- **«Auf einen Blick» ist das Angeheftete oben im Verlauf** – kein eigener Bereich, eine
-  Komponente mit dem Verlauf (wie angeheftete Nachrichten). Angeheftet sind Einträge des
-  Verlaufs (Notiz, Mail, Dokument) und offene Vorschläge, Wichtiges zuerst, so wenige wie möglich –
-  auch keiner. Das Symbol kommt von der **Art des Eintrags**, nicht von einer Regel und nicht von
-  der KI. Was angeheftet wird, entscheidet die KI aus dem Ziel; lösen kann es jeder.
-- **Auf Abruf, nicht bei jedem Öffnen:** die KI bildet das Angeheftete neu, wenn jemand «neu
+- **«Auf einen Blick» ist das Angeheftete im Verlauf – unten beim Neuesten** (wie in WhatsApp),
+  kein eigener Bereich. Zwei Arten von Zeilen, ohne Kategorien:
+  - **Offene Vorschläge stehen immer dort und immer zuerst** – sie verschwinden nur durch einen
+    Entscheid, nie durch «neu ansehen». Die KI ordnet sie nicht und kann sie nicht wegnehmen.
+  - **Hinweise** (Notiz, Mail, Dokument des Verlaufs): die wählt die KI aus dem Ziel, so wenige wie
+    möglich – auch keiner; lösen kann sie jeder.
+  Das Symbol kommt von der **Art des Eintrags**, nicht von einer Regel und nicht von der KI.
+- **Auf Abruf, nicht bei jedem Öffnen:** die KI bildet die Hinweise neu, wenn jemand «neu
   ansehen» drückt; bis dahin steht der letzte Stand mit Zeit da. Offene Vorschläge stehen immer
   da, ohne KI-Aufruf.
 - **Dokumente behalten ihre Nummer** (eigener Zustand, von anderswo angesprochen, Nachweis); im
@@ -235,7 +240,10 @@ speichert doppelt:
   (am meisten: Prozess-Editor, Beleg, Artikel, Dokument-Entwurf). **Aufräumen ist Pflicht und
   der erste Schritt:** ein `Field` für Text, Zahl, Datum, Auswahl und Mehrzeilig – Beschriftung,
   Pflicht-Stern, weiche Prüfung, Fehlermeldung, Vorschlags-Zeichen –, alle bearbeitbaren Felder
-  ziehen darauf um, ein Wächter (ESLint) verbietet lose Eingaben in Datensätzen. Danach kann jedes heutige und künftige Feld Vorschläge von selbst; dazu «Entwurf
+  ziehen darauf um, ein Wächter (ESLint) verbietet lose Eingaben in Datensätzen.
+  **Logik zentral, Aussehen frei:** wo ein Feld bewusst anders aussieht (Zahlungsmodul), nutzt es
+  dieselbe Logik (`useField`: Wert, Speichern, Prüfung, Fehler, Vorschlag) mit eigenem Aussehen
+  (Mockup «Feld im Zahlungsmodul»). Es gibt keine zweite Logik, nur verschiedene Kleider. Danach kann jedes heutige und künftige Feld Vorschläge von selbst; dazu «Entwurf
   vorausgefüllt öffnen» einmal für alle Entwürfe.
 - **Was gespeichert wird:** je Vorschlag ein Log-Eintrag `proposal` – bei einer Änderung
   Datensatz, Feld (derselbe Name wie im Auto-Save) und neuer Wert; bei einer Anlage die Art des
@@ -253,10 +261,18 @@ speichert doppelt:
   gibt ein grobes Ziel, keine Regeln und keine Kategorien. Alles Weitere holt sich die KI selbst:
   sie liest, was im ERP steht (im Rahmen der Rechte), und lernt aus dem, was Menschen mit ihren
   Vorschlägen getan haben.
-- **Sie lernt ständig, ohne Training:** vor einem neuen Vorschlag bekommt sie die **letzten rund 20
-  Entscheide** als Beispiele mit: was sie vorschlug, was der Mensch daraus machte (übernommen,
-  anders getippt, verworfen). Wie ein neuer Mitarbeiter, der vor der Arbeit die letzten
-  Korrekturen des Chefs liest. Ändert sich, wie wir es wollen, ändern sich die Beispiele von selbst. Keine Kategorien, keine Regeln, keine Suchmaschine –
+- **Sie lernt ständig, ohne Training – mit drei Gedächtnissen** (so arbeiten heute alle, auch
+  Claude selbst: Nachschlagen plus ein Gedächtnis, das die KI selbst führt; niemand trainiert das
+  Modell nach):
+  1. **Wissen** – alles im ERP; die KI schlägt nach wie ein Mitarbeiter.
+  2. **Erfahrung** – jeder Vorschlag mit seinem Entscheid ist ein **Fall** (im Log: Eingabe,
+     Vorschlag, was der Mensch daraus machte, Datensatz). Bei einem neuen Vorschlag bekommt die KI
+     die **ähnlichsten** Fälle mit, nicht die neuesten – gefunden über eine Bedeutungssuche in der
+     eigenen Datenbank (`pgvector`, in Cloud SQL vorhanden). Nichts wird vergessen.
+  3. **Lektionen** – ein kurzes Notizbuch, das die KI **selbst** aus ihren Fällen verdichtet (jede
+     Lektion mit ihren Belegen); Clemens kann es lesen und eine Lektion streichen. Ab rund 100
+     Fällen, dann regelmässig.
+  Massstab: wie oft ein Vorschlag geändert oder verworfen wird. Keine Kategorien, keine Regeln, keine Suchmaschine –
   die Beispiele stehen schon im Log. Weniger Korrekturen = bessere KI; das ist zugleich der
   Massstab.
 
@@ -296,6 +312,12 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
   Vorzug für Google (unser Cloud-Projekt, Daten in Europa). Das Hören ist ein eigener Dienst; das
   Verstehen und Ablegen bleibt bei Claude über `services/ai.py`.
 
+- **Aufnehmen im Browser:** der Bildschirm bleibt während der Aufnahme an (Wake Lock – sonst hält
+  vor allem das iPhone die Aufnahme an); die Aufnahme geht **in Stücken** (alle 30 Sekunden) hoch –
+  bricht sie ab (Anruf, Akku, gesperrt), ist alles bis dahin da. Eine eigene App erst, wenn das
+  nicht reicht. Gespräche aufnehmen: Clemens trägt die Verantwortung (Entscheid 06.11.2026).
+- **Warum Google hört und nicht Claude:** die Claude-API nimmt heute Text, Bilder und PDF an, keine
+  Audiodateien. Darum: Google schreibt ab, Claude versteht und legt ab.
 - **Lange Aufnahmen laufen im Hintergrund:** hochladen → Google schreibt ab (Minuten) → der
   **Takt** sieht nach, ob die Abschrift fertig ist, und gibt sie der KI → der Vorschlag erscheint
   am Datensatz. Ohne Netz wird nichts vorgesehen.
@@ -310,6 +332,10 @@ Er erledigt, was nicht an einem offenen Browser hängen darf:
 - **fertige Abschriften abholen** (siehe oben);
 - **das Siegel des Logs** (einmal je Tag, die Prüfsumme aus Phase 1).
 Jede Aufgabe ist wiederholbar und einzeln gesperrt; scheitert eine, läuft sie beim nächsten Takt.
+Professionell umgesetzt heisst: eigenes Dienstkonto nur mit dem Recht, diese eine Adresse
+aufzurufen; die Adresse prüft das Google-Token; jede Aufgabe hat eine Zeitgrenze; was ein Takt
+tat, steht im Log (nur Handlungen, kein «nichts zu tun»); schlägt der Takt mehrmals hintereinander
+fehl, meldet Cloud Monitoring per Mail; eingerichtet im Deploy (`deploy.yml`), nicht von Hand.
 
 Geprüft (06.11.2026): Pub/Sub (Google meldet sich selbst) ersetzt den Takt nicht – Google nennt
 Gmail-Push nicht garantiert und verlangt regelmässiges Nachfragen; die Push-Anmeldung läuft nach 7
@@ -396,6 +422,12 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
   «Übernehmen» schreibt ins bestehende Feld) bzw. öffnen den bestehenden Entwurf vorausgefüllt –
   kein eigenes Formular.
 
+- 06.11.2026 – Takt mit allem, was professionell dazugehört. Feld: Logik zentral, Aussehen frei.
+  Lernen mit drei Gedächtnissen (ohne Prüfsatz). Angeheftetes unten beim Neuesten; offene
+  Vorschläge immer und zuerst. Gespräche werden aufgenommen (Verantwortung Clemens); Bildschirm
+  bleibt an, Aufnahme in Stücken. Notizen werden nicht gelöscht, sondern korrigiert. KI-Deckel in
+  Franken: 10 CHF je Tag, Hinweis bei 80 % (heute 300 Aufrufe).
+
 ## Offene Fragen
 
 - Der Auftrag an die KI: Prüfung des Entwurfs an den drei Beispielen (Montage-Notiz,
@@ -403,19 +435,8 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 - Sprachtest: Clemens testet selbst (Anleitung oben) und meldet, was Namen, Zahlen, Fachwörter
   trafen.
 - Schwärzen einer Person: welche Einträge gehören alle zu ihr (bewusst offen).
-- **Lernen der KI** – Vorschlag drei Gedächtnisse (Wissen · ähnlichste Fälle · eigene Lektionen)
-  plus ein **Prüfsatz** echter Fälle; Entscheid ausstehend.
-- **Aufnehmen von Gesprächen:** Telefonate und Gespräche mit Aussenstehenden dürfen in der Schweiz
-  nur mit Einwilligung aller aufgenommen werden (StGB Art. 179bis/ter) – wie fragen wir, wo steht
-  es? Interne Meetings: alle wissen es.
-- **Aufnahme im Browser bei gesperrtem Bildschirm:** ein Browser (vor allem iPhone) hält die
-  Aufnahme an, wenn der Bildschirm ausgeht. Lösung: Bildschirm während der Aufnahme wach halten
-  (Wake Lock) – oder später eine App.
 - **Suchen («in 30 Sekunden gefunden»):** heute findet die Suche Datensätze über Nummer und Name,
-  nicht Inhalte von Notizen und Mails. Vorschlag: dieselbe Bedeutungssuche wie beim Lernen, über
-  Notizen, Mails, Dokumente – ein Suchfeld.
-- **Notiz verschieben:** falsch abgelegt und schon bestätigt → «Betrifft» ändern (gewöhnliche
-  Änderung, steht im Log).
-- **KI-Deckel:** heute 300 Aufrufe je Tag; mit Erfassen und Meetings neu festlegen (Kosten je
-  Notiz ≈ 1–3 Rp., Abschrift ≈ 2 Rp. je Minute).
+  nicht Inhalte. Vorschlag: dasselbe Suchfeld findet auch Notizen, Mails und Dokumente – (a)
+  Wortsuche der Datenbank (gratis, findet «Dichtung»), (b) Bedeutungssuche (dieselbe wie beim
+  Lernen, findet bei «Leck» auch «tropft»). Kein Chat, eine Trefferliste. Entscheid ausstehend.
 - Folgeprojekt «Aufgaben» (wer macht was, Zuständigkeit je Prozessschritt).
