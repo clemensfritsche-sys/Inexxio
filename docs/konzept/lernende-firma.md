@@ -161,10 +161,17 @@ dafür zurückgesetzt werden.
   Protokoll dessen, was geschah – kein Inhaltsspeicher.
 - **Eine Heimat:** jeder Eintrag gehört genau einem Datensatz; nichts wird doppelt abgelegt. Eine
   Aufnahme mit mehreren Themen (z. B. ein Meeting) teilt die KI in Teile, jeder mit seiner Heimat.
-- **Datensatz oder Eintrag:** Ein Datensatz (mit Nummer) hat einen eigenen Zustand oder wird von
-  anderswo angesprochen. Notiz → Nachricht (Eintrag). Änderung → Log. Foto, Scan, Datei, Video →
-  Dokument. Etwas zu tun → Auftrag (immer mit Stücken; Immaterielles über einen Artikel, z. B.
-  «Website»).
+- **Die gerade Linie für alles, was festgehalten wird – zwei Regeln:**
+  1. **Ein Weg für jede Eingabe:** ob gesprochen, geschrieben, fotografiert oder als Datei – die KI
+     liest, hört oder sieht es und macht daraus **Text** (Abschrift, Bildbeschreibung, Inhalt der
+     Datei). Dieser Text ist das, was man wiederfindet und woraus das System lernt – auch beim Foto.
+  2. **Wo es liegt, sagt eine Frage: bleibt das Original wichtig?** Nein → **Notiz** (eine
+     Nachricht; vom Gesprochenen bleibt nur der Text, die Aufnahme wird gelöscht). Ja → **Dokument**
+     (Foto, Scan, Datei, Video – das Original bleibt; jede Datei an einer Stelle, mit Nummer, weil
+     sie unterschrieben, gesendet oder in ein Pflichtfeld gehängt werden kann). Beides erscheint im
+     Verlauf seines Datensatzes; eine Notiz kann auf ihre Fotos verweisen.
+  Dazu: Änderung → Log. Etwas zu tun → Auftrag (immer mit Stücken; Immaterielles über einen
+  Artikel, z. B. «Website»).
 - **Der Verlauf lädt in Seiten** (wie WhatsApp): die neuesten 30, ältere beim Scrollen, über einen
   Index auf (Datensatz, Zeit). Er wächst nie mit. Eine Komponente für jeden Datensatz.
 - **Änderungen erscheinen technisch, nicht als Sätze:** eine Handlung (dieselbe `request_id`) ist
@@ -267,7 +274,10 @@ speichert doppelt:
   2. **Erfahrung** – jeder Vorschlag mit seinem Entscheid ist ein **Fall** (im Log: Eingabe,
      Vorschlag, was der Mensch daraus machte, Datensatz). Bei einem neuen Vorschlag bekommt die KI
      die **ähnlichsten** Fälle mit, nicht die neuesten – gefunden über eine Bedeutungssuche in der
-     eigenen Datenbank (`pgvector`, in Cloud SQL vorhanden). Nichts wird vergessen.
+     eigenen Datenbank (`pgvector`, in Cloud SQL vorhanden). Das Hilfsmodell, das Text in
+     Bedeutungs-Zahlen übersetzt («Pumpe tropft» ≈ «Dichtung undicht»), kommt von Google (Vertex
+     AI, Region Europa) – Claude bietet keins an, Vertex nutzen wir für Gemini ohnehin; über die
+     eine Tür `services/ai.py`. Nichts wird vergessen.
   3. **Lektionen** – ein kurzes Notizbuch, das die KI **selbst** aus ihren Fällen verdichtet (jede
      Lektion mit ihren Belegen); Clemens kann es lesen und eine Lektion streichen. Ab rund 100
      Fällen, dann regelmässig.
@@ -306,6 +316,11 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
   Neu nur: Foto und Datei aus «Erfassen» öffnen den bestehenden Entwurf, die KI schlägt den Bezug vor
   (gibt es schon), und ein Dokument erscheint als Eintrag im Verlauf seines Datensatzes.
 - **Die KI legt ab, der Mensch kontrolliert** («Stimmt so» oder «ändern»), auch im Datensatz.
+- **Der offene Datensatz ist der erste Hinweis:** drückt man «Erfassen», während ein Datensatz
+  offen ist, bekommt die KI seine Nummer mit – nur das, schlank. Sie legt treffsicherer und
+  günstiger ab.
+- **Fragen stellen** («wann war der letzte Service bei Gerber?», Antwort mit Link in den Verlauf)
+  im selben Eingabefeld – ein späterer Schritt, nach Phase 4.
 - **Aufnehmen im Browser:** der Bildschirm bleibt während der Aufnahme an (Wake Lock – sonst hält
   vor allem das iPhone die Aufnahme an); die Aufnahme geht **in Stücken** (alle 30 Sekunden) hoch –
   bricht sie ab (Anruf, Akku, gesperrt), ist alles bis dahin da. Eine eigene App erst, wenn das
@@ -400,21 +415,56 @@ Abschrift); in wessen Namen der Takt eine Aufnahme verarbeitet (jetzt: im Namen 
 - Zuständigkeit (Projekt «Aufgaben») – bis dahin wartet Wichtiges am Datensatz statt bei einer Person;
   Messpunkt 3 nur teilweise. **Empfehlung:** als Nächstes nach Phase 5.
 - Die Messpunkte werden nach drei Monaten einmal von Hand aus dem Log ausgewertet (kein Dashboard).
-- Schwärzen einer Person.
+- Schwärzen einer Person – wird nicht gemacht (Entscheid 06.11.2026); die Funktion `log.redact`
+  steht bereit, falls es je nötig wird.
 
 ## Plan
 
 | Phase | Inhalt | Stand |
 |---|---|---|
-| 0 | Projektakte, Mockup | in Arbeit |
-| 1 | **Das Log** – neu, ersetzt alle heutigen Logs | gebaut (06.11.2026) |
-| 2 | Kommunikation skalierbar (Seiten, Anliegen-Spalte, Prüfsumme im Log) · Notiz an jedem Datensatz · Verlauf an jeder Nummer | offen |
-| 3+4 | **ein Durchstich:** «Erfassen» (zuerst Schreiben) → KI legt ab → Vorschläge am Feld → Lernen; danach Sprache (nach dem Test) mit dem Takt | offen |
-| 5 | Das Angeheftete im Verlauf (auf Abruf) | offen |
-| danach | **Aufgaben** («wer macht was», Zuständigkeit je Prozessschritt) – macht Messpunkt 3 vollständig | offen |
-| später | Suche in Inhalten · Website-Messung (BigQuery) · MCP-Zugang (nur Grundzüge) | offen |
+| 0 | Projektakte, Mockup | fertig |
+| 1 | **Das Log** | gebaut (06.11.2026) |
+| 2 | **Fundament:** Feld-Baustein · Prüfsumme im Log · Kommunikation skalierbar · Notiz an jedem Datensatz · ein Verlauf für jeden Datensatz · der Takt | offen |
+| 3 | **KI:** Erfassen (Schreiben, Foto, Datei) · KI legt ab · Vorschläge · das Angeheftete · Lernen (Wissen + Erfahrung) · Deckel in Franken | offen |
+| 4 | **Sprache:** Aufnehmen · Gemini schreibt ab · der Takt legt ab | offen |
+| danach | Lektionen (ab ~100 Fällen) · Fragen im Erfassen · Zuständigkeit je Prozessschritt («Aufgaben») | offen |
+| später | Suche in Inhalten · Website-Messung · MCP-Zugang | offen |
 
-Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
+Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste. Jede Phase: Feature-Branch,
+Volltest, unabhängiges Gegenlesen, Deploy auf dev, Doku nachgezogen.
+
+### Umsetzung – Schritte je Phase («fertig, wenn …»)
+
+**Phase 2 · Fundament**
+
+| # | Schritt | Fertig, wenn … |
+|---|---|---|
+| 2.1 | **Feld-Baustein:** `useField` (Wert, Speichern, Prüfung, Fehler, Vorschlag – zunächst ohne Vorschläge) und `Field` (Text, Zahl, Datum, Auswahl, Mehrzeilig); alle bearbeitbaren Felder ziehen um; das Zahlungsmodul behält sein Aussehen | ein ESLint-Wächter findet keine lose Eingabe mehr · alle Tests grün · Detailseiten sehen aus wie vorher (Bildvergleich) |
+| 2.2 | **Langer Wert als Prüfsumme im Log** (über 2'000 Zeichen → `sha256` + Länge) | Wächter-Test mit einer langen Mail · `log.verify` grün |
+| 2.3 | **Kommunikation skalierbar:** Verlauf in Seiten · Anliegen-Spalte mit Index (Migration füllt sie) · «offen» als Datenbank-Abfrage, Regel unverändert | alle Kommunikations-Tests unverändert grün · mit 50'000 Nachrichten: Seite < 200 ms, «zu tun» < 300 ms |
+| 2.4 | **Notiz an jedem Datensatz:** `message_parties.object_id` (Zwei-Deploy-Regel) · Kanal «Notiz» · Korrektur per Vermerk statt Löschen | Test: Notiz an Auftrag, Artikel, Instanz, Dokument erscheint in dessen Verlauf; korrigierte Notiz zeigt Vermerk und Verweis |
+| 2.5 | **Ein Verlauf für jeden Datensatz:** ein Endpunkt (Nachrichten + Dokumente + Log-Änderungen, nach Zeit, in Seiten), eine Komponente, ein Wörterbuch für Tabellennamen | jeder Datensatztyp zeigt ihn · Änderungen als `feld: alt → neu`, je Handlung ein Block |
+| 2.6 | **Der Takt:** Cloud Scheduler (5 Min.) → `POST /internal/tick` (Dienstkonto, OIDC) · Aufgaben: Mail-Abgleich, Siegel · Alarm bei wiederholtem Fehler · eingerichtet im Deploy | auf dev kommen Mails ohne offenen Browser · je Tag ein Siegel · Alarm gegengeprüft (absichtlicher Fehler löst Mail aus) |
+
+**Phase 3 · KI**
+
+| # | Schritt | Fertig, wenn … |
+|---|---|---|
+| 3.1 | **Lese-Werkzeuge der KI** (Datensatz lesen, Verlauf lesen, Nummer/Name nachschlagen) – mit den Rechten der Person | Test: die KI sieht nie mehr als die Person |
+| 3.2 | **Erfassen:** «+» → Schreiben · Foto/Datei (bestehender Dokument-Entwurf) · «neu anlegen»; der offene Datensatz als Hinweis | auf dem Handy eine Notiz in unter 30 s |
+| 3.3 | **KI legt ab:** in Teile mit je einer Heimat, «Abgelegt» → «Stimmt so» → Notizen bzw. Dokumente | die drei Beispiele der Akte (Hans-Peter, Heiri, Kundenmail) laufen durch |
+| 3.4 | **Vorschläge:** `proposal`/`proposal.decided` im Log · Zeichen und Fenster in `useField` · Entwurf vorausgefüllt öffnen · feldlose im Angehefteten · zählen in «zu tun» | Übernehmen = Tippen (gleiche Prüfung, gleiches Log) · selbst getippt erledigt ihn · zwei gleichzeitig: beide im Log |
+| 3.5 | **Das Angeheftete im Verlauf:** offene Vorschläge immer und zuerst · Hinweise auf Abruf | «neu ansehen» nimmt nie einen offenen Vorschlag weg (Test) |
+| 3.6 | **Lernen – Wissen + Erfahrung:** jeder Fall bekommt seine Bedeutungs-Zahlen (Vertex, `pgvector`), die ähnlichsten Fälle gehen in den Auftrag | Test: nach einer Korrektur schlägt die KI im ähnlichen Fall anders vor |
+| 3.7 | **Deckel in Franken** (10 CHF/Tag, Hinweis bei 80 %) für Claude, Gemini und das Hilfsmodell | am Deckel: Notiz bleibt roh und wird am nächsten Tag nachgeholt |
+
+**Phase 4 · Sprache**
+
+| # | Schritt | Fertig, wenn … |
+|---|---|---|
+| 4.1 | **Aufnehmen im Browser:** Start/Stopp, Bildschirm bleibt an, Stücke alle 30 s in den Speicher (Löschregel 1 Tag) | Abbruch nach 10 Min. → die 10 Min. sind da |
+| 4.2 | **Gemini schreibt ab** (Vertex AI, Region Europa, über `services/ai.py`) | eigene Testaufnahmen in Mundart: Namen und Zahlen stimmen |
+| 4.3 | **Der Takt legt ab** – im Namen der Person, die aufgenommen hat; «Abgelegt» erscheint bei ihr | eine Aufnahme von 1 Stunde läuft auf dev durch · Audio danach gelöscht |
 
 ## Entscheide (mit Datum)
 
@@ -468,11 +518,16 @@ Abschnitten oben.
 
 - 06.11.2026 – Sprachdienst: Gemini über Vertex AI (Region Europa), nach dem Test von Clemens.
 
+- 06.11.2026 – Nachgeschärft: A (Rückmeldung an Personen) bleibt beim Projekt «Aufgaben». Offener
+  Datensatz als Hinweis (schlank). Hilfsmodell für die Bedeutungssuche von Google (Vertex). Plan
+  gestrafft (Takt in Phase 2, Angeheftetes in Phase 3). Schritte je Phase mit «fertig, wenn».
+  Schwärzen wird nicht gemacht. Die gerade Linie: ein Weg für jede Eingabe (KI macht Text daraus);
+  Original wichtig → Dokument, sonst → Notiz. Erfassen bleibt, wie es ist; Fragen später.
+
 ## Offene Fragen
 
 - Der Auftrag an die KI: Prüfung des Entwurfs an den drei Beispielen (Montage-Notiz,
   Meeting-Notiz, Kunden-Mail), sobald Phase 3 steht.
-- Schwärzen einer Person: welche Einträge gehören alle zu ihr (bewusst offen).
 - **Suchen in Inhalten** (Notizen, Mails, Dokumente) – zurückgestellt (06.11.2026). Bis dahin
   findet man über den Datensatz (Nummer, Name, Scan) und liest seinen Verlauf.
 - Folgeprojekt «Aufgaben» (wer macht was, Zuständigkeit je Prozessschritt).
