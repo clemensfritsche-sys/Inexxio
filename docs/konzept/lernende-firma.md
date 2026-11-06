@@ -42,6 +42,8 @@ Messpunkte (nach rund drei Monaten im Alltag, einmal von Hand aus dem Log ausgew
      der Text). Ja → **Dokument** mit Nummer (Foto, Scan, Datei, Video – unterschreibbar,
      sendbar, in ein Pflichtfeld hängbar). Änderungen → **Log**. Etwas zu tun → **Auftrag**.
 - **Nichts wird gelöscht, korrigiert wird** – wie überall im ERP.
+- **Mail:** keine eigene Notiz-Adresse – was an die Postfächer der Gesellschaften kommt, ordnet das
+  System zu wie heute.
 - **Kultur** (Fehler melden ist sicher; wer meldet, hört, was daraus wurde) ist Teil des Ziels,
   kann aber nicht gebaut werden – sie wird vorgelebt.
 
