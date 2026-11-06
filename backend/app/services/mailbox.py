@@ -30,6 +30,7 @@ dort, wo sie ohnehin liegen – in Gmail.
 import base64
 import hashlib
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from email.utils import formataddr, getaddresses, parseaddr
@@ -312,11 +313,21 @@ def _token(mb: Mailbox, tokens: Optional[dict[int, Optional[str]]] = None) -> Op
     return tokens[mb.id]
 
 
-def sync_all(db: Session, *, force: bool = False) -> tuple[int, int]:
+def _over(deadline: Optional[float]) -> bool:
+    """Ist die Zeit des Laufs um? (``deadline`` in ``time.monotonic()``; ``None`` = offen)."""
+    return deadline is not None and time.monotonic() >= deadline
+
+
+def sync_all(db: Session, *, force: bool = False,
+             deadline: Optional[float] = None) -> tuple[int, int]:
     """Alle verbundenen Postfächer abgleichen und Fälliges senden. Gibt die Zahl neuer
     und die Zahl versendeter Nachrichten zurück. Ein Postfach, das gerade ein anderer
     abgleicht, wird übersprungen (``SKIP LOCKED``) – zwei Instanzen holen dieselbe Mail nie
-    gleichzeitig. «Wir» (``_ours``) und die Zugangs-Tokens gelten für den ganzen Lauf."""
+    gleichzeitig. «Wir» (``_ours``) und die Zugangs-Tokens gelten für den ganzen Lauf.
+
+    ``deadline`` (der Takt, ``services/tick``): danach beginnt der Lauf **keinen neuen
+    Schritt** mehr (kein Postfach, keine Mail, kein Abruf) – was fehlt, holt der nächste
+    Lauf; ein angefangener Schritt ist durch die Zeitgrenzen der Abrufe begrenzt."""
     if not ready():
         return 0, 0
     due = _now() - SYNC_EVERY
@@ -327,20 +338,23 @@ def sync_all(db: Session, *, force: bool = False) -> tuple[int, int]:
     ours = _ours(db)
     tokens: dict[int, Optional[str]] = {}
     for mb in boxes:
+        if _over(deadline):
+            break
         if force or mb.synced_at is None or mb.synced_at < due:
             try:        # ein gestörtes Postfach hält die übrigen und den Versand nicht auf
                 with db.begin_nested():
-                    new += _sync_one(db, mb, ours, tokens)
+                    new += _sync_one(db, mb, ours, tokens, deadline)
                     _mark_read(db, mb, tokens)
             except Exception as exc:
                 print(f"WARNING: MAILBOX sync {mb.channel} failed: {exc!r}", flush=True)
-    sent = send_due(db, tokens)
+    sent = send_due(db, tokens, deadline)
     db.commit()
     return new, sent
 
 
 def _sync_one(db: Session, mb: Mailbox, ours: dict[str, Optional[int]],
-              tokens: Optional[dict[int, Optional[str]]] = None) -> int:
+              tokens: Optional[dict[int, Optional[str]]] = None,
+              deadline: Optional[float] = None) -> int:
     """Die neuen Mails eines Postfachs. **Eine Mail, die sich nicht verarbeiten lässt, hält
     den Abgleich nicht auf**: sie steht im Log, wird übersprungen, und der Stand rückt vor.
     Scheitert dagegen das **Holen** (Netz, Gmail), bleibt der Stand stehen – der nächste Lauf
@@ -351,6 +365,9 @@ def _sync_one(db: Session, mb: Mailbox, ours: dict[str, Optional[int]],
     ids, latest = _new_ids(token, mb.history_id)
     count = 0
     for gid in ids:
+        if _over(deadline):
+            latest = None       # der Stand bleibt stehen – der nächste Lauf holt den Rest
+            break
         if db.query(Message.id).filter(Message.channel == mb.channel,
                                        Message.gmail_id == gid).first():
             continue
@@ -624,7 +641,8 @@ def assert_may_send(db: Session, channel: str, sender: UserProfile) -> None:
 MAX_ATTEMPTS = 3
 
 
-def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None) -> int:
+def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None,
+             deadline: Optional[float] = None) -> int:
     """Was hinaus muss und dessen Zeitpunkt da ist (auch ein früher gescheiterter Versand) –
     **nur über ein verbundenes Postfach ohne Störung**: eine Mail an einem getrennten oder
     abgelaufenen Postfach wartet, ohne die übrigen aufzuhalten.
@@ -641,6 +659,8 @@ def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None) -> 
         .order_by(Message.at, Message.id).limit(20)]
     sent = 0
     for mid in ids:
+        if _over(deadline):
+            break       # die übrigen gehen mit dem nächsten Lauf
         msg = (db.query(Message).filter(Message.id == mid, Message.outgoing.is_(True))
                .with_for_update(skip_locked=True).first())
         if msg is None:

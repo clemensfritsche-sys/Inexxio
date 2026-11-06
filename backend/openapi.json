@@ -6477,6 +6477,43 @@
         ]
       }
     },
+    "/api/v1/internal/tick": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Run Tick",
+        "description": "**Der Takt** (Cloud Scheduler, alle 5 Minuten): jede Aufgabe aus ``tick.TASKS`` einmal\n– je ``ok`` · ``skipped`` (läuft anderswo, keine Zeit mehr) · ``failed``. Scheitert eine,\nantwortet er mit 500, damit Cloud Scheduler den Fehlschlag zählt (Alarm nach mehreren\nhintereinander, ``infra/setup-takt.sh``); die übrigen sind trotzdem gelaufen.",
+        "operationId": "run_tick_api_v1_internal_tick_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TickOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Eine Aufgabe scheiterte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TickOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -13653,6 +13690,65 @@
         ],
         "title": "TerritoryRegion",
         "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
+      },
+      "TickOut": {
+        "properties": {
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TickTaskOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tasks"
+        ],
+        "title": "TickOut"
+      },
+      "TickTaskOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "skipped",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "done": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Done",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "state"
+        ],
+        "title": "TickTaskOut",
+        "description": "Eine Aufgabe des Takts (``services/tick.TASKS``) in diesem Lauf."
       },
       "TimeRulesIn": {
         "properties": {
