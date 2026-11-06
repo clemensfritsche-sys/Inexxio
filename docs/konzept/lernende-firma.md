@@ -43,8 +43,8 @@ Gearbeitet wird **nur im ERP** – Mitarbeitende erfassen dort, die KI verarbeit
 ## 1 · Das Log
 
 **Zweck:** die eine, vollständige, unveränderliche Wahrheit darüber, was im System geschehen
-ist – Grundlage für den Verlauf am Datensatz, für das Lernen der KI aus Korrekturen, für «Relevant
-hier», für Nachvollziehbarkeit (Buchungsbelege 10 Jahre) und für die Fehlersuche.
+ist – Grundlage für den Verlauf am Datensatz, für das Lernen der KI aus Korrekturen, für das
+Angeheftete, für Nachvollziehbarkeit (Buchungsbelege 10 Jahre) und für die Fehlersuche.
 
 **Keine Rückwärtskompatibilität.** Die heutigen Logs (`audit_log`, `process_events`, das
 Protokoll einzelner Stellen) werden ersetzt, nicht übernommen. Was heute aus `process_events`
@@ -191,8 +191,9 @@ beginnt seine Spur im Log.
   Verlauf erscheinen sie als Eintrag.
 - **Wichtiges bleibt oben**, bis es erledigt oder überholt ist. Wichtigkeit beurteilt die KI aus
   dem Ziel und echten Daten, nicht durch Zählen.
-- **Audio wird nicht gespeichert** (wörtliches Transkript und KI-Fassung bleiben), **Video
-  bleibt im Original**.
+- **Audio wird nicht aufbewahrt** (wörtliches Transkript und KI-Fassung bleiben): die Stücke
+  liegen nur bis zur fertigen Abschrift im Speicher und werden danach gelöscht (spätestens nach
+  einem Tag, Regel im Speicher selbst). **Video bleibt im Original**.
 - **Kommunikation bleibt in der Bedienung, wie sie ist:** Mails an Personen und Firmen schreibt
   man dort. Andere Datensätze haben kein eigenes Eingabefeld – Wissen kommt über «Erfassen».
 
@@ -234,6 +235,8 @@ speichert doppelt:
     speichert wie immer. Wer selbst tippt, erledigt den Vorschlag damit auch.
   - **Etwas anlegen** (Auftrag, Notiz an einem anderen Datensatz …): «Entwurf öffnen» öffnet den
     **bestehenden** Entwurf vorausgefüllt; freigegeben wird wie immer.
+  - **Kein Feld auf dem Bildschirm** (eine Angabe, die keine Karte zeigt): der Vorschlag steht im
+    Angehefteten mit demselben Fenster. Kein dritter Weg.
   **Ein Feld-Baustein für das ganze ERP.** Analyse 06.11.2026: das **Speichern** ist zentral
   (`lib/use-autosave.ts`, ein Saver für alles); das **Feld** nicht – `components/form/field.tsx`
   gibt es, genutzt wird es in 5 Dateien, in rund 30 Dateien stehen lose `<input>`/`<select>`
@@ -272,9 +275,8 @@ speichert doppelt:
   3. **Lektionen** – ein kurzes Notizbuch, das die KI **selbst** aus ihren Fällen verdichtet (jede
      Lektion mit ihren Belegen); Clemens kann es lesen und eine Lektion streichen. Ab rund 100
      Fällen, dann regelmässig.
-  Massstab: wie oft ein Vorschlag geändert oder verworfen wird. Keine Kategorien, keine Regeln, keine Suchmaschine –
-  die Beispiele stehen schon im Log. Weniger Korrekturen = bessere KI; das ist zugleich der
-  Massstab.
+  Keine Kategorien, keine Regeln. Massstab: wie oft ein Vorschlag geändert oder verworfen wird –
+  weniger Korrekturen = bessere KI.
 
 ### Entwurf: Auftrag an die KI
 
@@ -320,7 +322,8 @@ länger, ist das ein Zeichen, dass Regeln hineinwachsen – dann zurück aufs Zi
   Audiodateien. Darum: Google schreibt ab, Claude versteht und legt ab.
 - **Lange Aufnahmen laufen im Hintergrund:** hochladen → Google schreibt ab (Minuten) → der
   **Takt** sieht nach, ob die Abschrift fertig ist, und gibt sie der KI → der Vorschlag erscheint
-  am Datensatz. Ohne Netz wird nichts vorgesehen.
+  am Datensatz. Verarbeitet wird **im Namen der Person, die aufgenommen hat** (dieselben Rechte),
+  auch wenn der Takt es anstösst. Ohne Netz wird nichts vorgesehen.
 
 ### Der Takt (Infrastruktur)
 
@@ -371,6 +374,49 @@ günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
 - Kultur (Fehler melden ist sicher, wer meldet, hört, was daraus wurde) ist Teil des Ziels, kann
   aber nicht gebaut werden – sie wird vorgelebt.
 
+## Review gegen das Ziel (06.11.2026)
+
+**Das Ziel:** eine Firma, die nichts vergisst und sich von selbst verbessert – ohne dass jemand es
+managt oder überwacht. Gemessen an vier Punkten:
+
+| Messpunkt | Wie das System ihn erreicht | Stand |
+|---|---|---|
+| 1 · Erfassen unter 30 s | ein Knopf «Erfassen», sprechen oder schreiben, die KI legt ab, «Stimmt so» | erreicht |
+| 2 · In 30 s gefunden | alles steht am Datensatz (Verlauf in Seiten, Angeheftetes); man findet den Datensatz über Nummer, Name, Scan | **teilweise** – ohne Inhaltssuche muss man wissen, *wo* es steht |
+| 3 · Wichtiges nicht zu übersehen | Angeheftetes, offene Vorschläge immer zuerst, «zu tun» am Symbol | **teilweise** – es wartet am Datensatz; wer *zuständig* ist, regelt erst das Projekt «Aufgaben» |
+| 4 · Keine neue Insel | Notiz = Nachricht, Vorschlag = Log, Verlauf = Nachrichten + Log, Feld = ein Baustein | erreicht – es entsteht kein neuer Datentyp |
+
+**«Verbessert sich von selbst»** (das Problem: «ob eine Massnahme gewirkt hat, prüft niemand»): kein
+eigener Mechanismus nötig. Kommt ein ähnliches Problem wieder, findet die KI über ihre Erfahrung den
+früheren Fall und die Massnahme dazu und heftet es an («wie im September – Dichtung damals
+getauscht»). Ihr Auftrag nennt genau das: derselbe Fehler passiert nicht zweimal.
+
+**Richtiger Weg?** Ja. Geprüfte Alternativen und warum nicht: ein eigenes Wiki (neue Insel, wird nicht
+gepflegt) · ein Chat-Assistent (verlagert Wissen in Gespräche statt an den Datensatz) · Regeln und
+Kategorien (veralten, müssen gepflegt werden) · ein nachtrainiertes Modell (teuer, bindet an ein
+Modell). Unser Weg nutzt, was es schon gibt, und fügt nur hinzu, was fehlt.
+
+**Nachhaltig?** Ja:
+- **Unabhängig vom Modell:** Auftrag, Fälle und Lektionen sind Daten. Ein neues Modell übernimmt sie
+  ohne Umbau.
+- **Wächst ohne Pflege:** keine Listen, keine Regeln; was das ERP neu kann, kann der Vorschlag am Feld
+  von selbst (ein Feld-Baustein).
+- **Robust:** Fällt die KI aus, bleibt die Notiz roh am Datensatz und wird nachgeholt; fällt Google aus,
+  wartet die Aufnahme; nichts wird gelöscht, alles steht im Log.
+- **Skaliert:** Verlauf in Seiten, «zu tun» über Indizes, Bedeutungssuche in der eigenen Datenbank.
+
+**Korrigiert in diesem Review:** veraltete Wörter («Relevant hier»); Widerspruch beim Lernen («keine
+Suchmaschine» neben der Bedeutungssuche); ein Vorschlag ohne Feld auf dem Bildschirm (jetzt: im
+Angehefteten mit demselben Fenster); Audio lag als Stücke im Speicher (jetzt: gelöscht nach der
+Abschrift); in wessen Namen der Takt eine Aufnahme verarbeitet (jetzt: im Namen der Person).
+
+**Bewusst offen (Schwächen, die wir kennen):**
+- Inhaltssuche – zurückgestellt; Messpunkt 2 nur teilweise.
+- Zuständigkeit (Projekt «Aufgaben») – bis dahin wartet Wichtiges am Datensatz statt bei einer Person;
+  Messpunkt 3 nur teilweise. **Empfehlung:** als Nächstes nach Phase 5.
+- Die Messpunkte werden nach drei Monaten einmal von Hand aus dem Log ausgewertet (kein Dashboard).
+- Schwärzen einer Person.
+
 ## Plan
 
 | Phase | Inhalt | Stand |
@@ -380,7 +426,8 @@ günstigste Dienst, der die Namen und Zahlen zuverlässig trifft.
 | 2 | Kommunikation skalierbar (Seiten, Anliegen-Spalte, Prüfsumme im Log) · Notiz an jedem Datensatz · Verlauf an jeder Nummer | offen |
 | 3+4 | **ein Durchstich:** «Erfassen» (zuerst Schreiben) → KI legt ab → Vorschläge am Feld → Lernen; danach Sprache (nach dem Test) mit dem Takt | offen |
 | 5 | Das Angeheftete im Verlauf (auf Abruf) | offen |
-| eigene Projekte | Website-Messung (BigQuery) · Aufgaben («wer macht was») · MCP-Zugang (hier nur die Grundzüge) | offen |
+| danach | **Aufgaben** («wer macht was», Zuständigkeit je Prozessschritt) – macht Messpunkt 3 vollständig | offen |
+| später | Suche in Inhalten · Website-Messung (BigQuery) · MCP-Zugang (nur Grundzüge) | offen |
 
 Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 
@@ -428,6 +475,9 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
   bleibt an, Aufnahme in Stücken. Notizen werden nicht gelöscht, sondern korrigiert. KI-Deckel in
   Franken: 10 CHF je Tag, Hinweis bei 80 % (heute 300 Aufrufe).
 
+- 06.11.2026 – Suche in Inhalten zurückgestellt. Review gegen das Ziel: Weg bestätigt, Korrekturen
+  eingetragen; Projekt «Aufgaben» als Nächstes nach Phase 5 empfohlen.
+
 ## Offene Fragen
 
 - Der Auftrag an die KI: Prüfung des Entwurfs an den drei Beispielen (Montage-Notiz,
@@ -435,8 +485,6 @@ Nach jeder Phase zwei Wochen im Alltag, dann Entscheid über die nächste.
 - Sprachtest: Clemens testet selbst (Anleitung oben) und meldet, was Namen, Zahlen, Fachwörter
   trafen.
 - Schwärzen einer Person: welche Einträge gehören alle zu ihr (bewusst offen).
-- **Suchen («in 30 Sekunden gefunden»):** heute findet die Suche Datensätze über Nummer und Name,
-  nicht Inhalte. Vorschlag: dasselbe Suchfeld findet auch Notizen, Mails und Dokumente – (a)
-  Wortsuche der Datenbank (gratis, findet «Dichtung»), (b) Bedeutungssuche (dieselbe wie beim
-  Lernen, findet bei «Leck» auch «tropft»). Kein Chat, eine Trefferliste. Entscheid ausstehend.
+- **Suchen in Inhalten** (Notizen, Mails, Dokumente) – zurückgestellt (06.11.2026). Bis dahin
+  findet man über den Datensatz (Nummer, Name, Scan) und liest seinen Verlauf.
 - Folgeprojekt «Aufgaben» (wer macht was, Zuständigkeit je Prozessschritt).
