@@ -351,7 +351,7 @@ Tagen ab. Push wäre nur ein Beschleuniger – erst, wenn 5 Minuten stören.
 **Kosten:** Cloud Scheduler 3 Aufträge gratis; 288 kurze Aufrufe je Tag bleiben im
 Gratis-Kontingent von Cloud Run (bezahlt wird nur Rechenzeit während einer Anfrage). ≈ 0 CHF.
 
-### Vergleich der Sprachdienste (Test, vor Phase 4)
+### Vergleich der Sprachdienste (erledigt 06.11.2026 – Ergebnis: Gemini, siehe oben)
 
 | Kandidat | Was er ist |
 |---|---|
