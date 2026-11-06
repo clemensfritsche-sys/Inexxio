@@ -260,7 +260,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   An/Cc/Bcc immer Personen, **«Betrifft» jeder Datensatz**. Verlauf einer Firma = der ihrer
   Personen. Feed-Zeichen am Symbol (`detail-frame` → `RecordIcon`).
 - **Notiz** (Kanal `note`, `domain/communication.NOTE`): Wissen an einem Datensatz, keine Bitte –
-  nie offen (`asks` aus, `quiet`), nie hinaus. **Eine Heimat**; gehört sie woandershin, wird
+  nie offen (`asks` aus, `quiet`), nie hinaus, **nie eine Antwort** (schliesst kein Anliegen). **Eine Heimat**; gehört sie woandershin, wird
   korrigiert, nicht gelöscht (`communication.move_note`: Vermerk «ungültig – gehört zu …» am
   falschen, Inhalt mit «verschoben von …» am richtigen Datensatz; die Oberfläche dafür kommt mit
   Phase 3).

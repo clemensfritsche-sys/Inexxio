@@ -29,14 +29,12 @@ _request: Any = None
 
 
 def _transport():
-    """Ein HTTP-Transport für Googles öffentliche Schlüssel – **zwischengespeichert** nach
-    deren ``Cache-Control`` (cachecontrol): nicht bei jedem Takt neu geholt."""
+    """Ein HTTP-Transport für Googles öffentliche Schlüssel (einmal je Prozess angelegt; die
+    Schlüssel holt er je Takt – alle 5 Minuten ein kleiner Abruf, ohne Zusatzpaket)."""
     global _request
     if _request is None:
-        import cachecontrol
-        import requests
         from google.auth.transport.requests import Request
-        _request = Request(session=cachecontrol.CacheControl(requests.Session()))
+        _request = Request()
     return _request
 
 

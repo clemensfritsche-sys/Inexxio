@@ -187,6 +187,21 @@ def test_a_note_is_never_open_and_never_leaves_the_house(world):
     assert not note.outgoing and not dc.channel(dc.NOTE).outside
 
 
+def test_a_note_never_answers(world):
+    """Eine Notiz ist Wissen, keine Antwort: auch leer und zum selben Anliegen schliesst sie
+    die Frage eines Kunden nicht. Gegenprobe: dieselbe leere Nachricht intern («Erledigt ohne
+    Antwort») schliesst sie."""
+    db, staff = world
+    kunde = new_person(db)
+    ask = comm.create(db, MessageIn(channel="intern", to=[staff.object_id],
+                                    subject="Offerte?", body="Bitte melden."), kunde)
+    _note(db, staff, [kunde.object_id], subject="Offerte?", body="")
+    assert ask.id not in comm.answered(db, [ask.id])
+    comm.create(db, MessageIn(channel="intern", about=[kunde.object_id], subject="Offerte?",
+                              body=""), staff)
+    assert ask.id in comm.answered(db, [ask.id])
+
+
 def test_moving_a_note_writes_both_entries_and_deletes_nothing(world):
     """►►► **Korrektur statt Löschen.** ◄◄◄ Am falschen Datensatz ein Vermerk «ungültig –
     gehört zu …», am richtigen der Inhalt mit «verschoben von …»; die Notiz selbst bleibt,

@@ -344,7 +344,8 @@ def sync_all(db: Session, *, force: bool = False,
             try:        # ein gestörtes Postfach hält die übrigen und den Versand nicht auf
                 with db.begin_nested():
                     new += _sync_one(db, mb, ours, tokens, deadline)
-                    _mark_read(db, mb, tokens)
+                    if not _over(deadline):     # sonst holt es der nächste Lauf nach
+                        _mark_read(db, mb, tokens)
             except Exception as exc:
                 print(f"WARNING: MAILBOX sync {mb.channel} failed: {exc!r}", flush=True)
     sent = send_due(db, tokens, deadline)

@@ -333,6 +333,7 @@ _STAFF = ("WITH staff AS MATERIALIZED (SELECT object_id FROM user_profiles "
 _ANSWERED = """EXISTS (
   SELECT 1 FROM messages r
    WHERE r.topic = m.topic AND r.is_active AND r.at <= :now AND r.id <> m.id
+     AND r.channel <> 'note'
      AND r.sender_object_id IN (SELECT object_id FROM staff)
      AND (r.at > m.at OR (r.at = m.at AND r.id > m.id))
      AND (r.sender_object_id <> m.sender_object_id OR EXISTS (

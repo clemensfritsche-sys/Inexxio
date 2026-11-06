@@ -11,7 +11,9 @@ steht nicht hier, sondern in `docs/history/` (zuletzt `2026-10-backlog-erledigt.
 - **`message_parties.person_object_id`** (ersetzt durch `object_id`, Migration 168) – samt
   Index `ix_message_parties_person_object_id`, Funktion `message_parties_bridge()` und Trigger
   `trg_message_parties_bridge` (hält beide Spalten gleich, solange die alte Fassung während des
-  Ausrollens noch schreibt). Fällt mit der nächsten Migration nach dem Ausrollen von 168.
+  Ausrollens noch schreibt). Fällt mit der nächsten Migration nach dem Ausrollen von 168 (169);
+  sie holt zugleich das **Anliegen** nach für Nachrichten, die die alte Fassung im Ausroll-Fenster
+  ohne `topic` schrieb (`topic = ''` bei vorhandenem Betreff).
 
 Zuletzt gefallen: die Tabellen `audit_log` und `process_events` (Migration 167,
 durch das Log ersetzt); davor `orders.end_status`, `user_profiles.department`, `job_title`

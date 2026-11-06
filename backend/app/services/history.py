@@ -127,9 +127,15 @@ def _payload_of(payload: Optional[dict[str, Any]]) -> dict[str, str]:
 
 # ─── Die drei Quellen ─────────────────────────────────────────────────────────────────
 
+#: Gruppiert wird nur ein Fenster der neuesten sichtbaren Zeilen (``_SCAN`` je gesuchtem Block):
+#: sonst kostete jede Seite so viel wie das ganze Leben des Datensatzes.
+_SCAN = 200
+
 _BLOCKS = text("""
-SELECT request_id, max(at) AS at, max(id) AS id FROM log
- WHERE object_id = :o AND (action = 'event' OR table_name <> ALL(:hidden))
+SELECT request_id, max(at) AS at, max(id) AS id FROM (
+  SELECT request_id, at, id FROM log
+   WHERE object_id = :o AND at <= :bat AND (action = 'event' OR table_name <> ALL(:hidden))
+   ORDER BY at DESC, id DESC LIMIT :scan) w
  GROUP BY request_id
 HAVING (max(at), max(id)) < (:bat, :bid)
  ORDER BY 2 DESC, 3 DESC LIMIT :n""")
@@ -145,7 +151,7 @@ def _changes(db: Session, oid: int, hidden: list[str], before: Optional[Key], n:
              ) -> list[HistoryEntry]:
     bound = _bound(before, "change") or (datetime(9999, 1, 1, tzinfo=timezone.utc), _BIG)
     blocks = db.execute(_BLOCKS, {"o": oid, "hidden": hidden, "bat": bound[0],
-                                  "bid": bound[1], "n": n}).all()
+                                  "bid": bound[1], "n": n, "scan": n * _SCAN}).all()
     if not blocks:
         return []
     rows: dict[Any, list[Any]] = {}
