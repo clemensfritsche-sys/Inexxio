@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/v1/erp", tags=["ki"])
 def start(data: RecordingIn, db: Session = Depends(get_db),
           user: UserProfile = Depends(require_employee)):
     """**Eine Aufnahme beginnt** – am offenen Datensatz (Hinweis), sonst an der Person."""
-    rec = recordings.start(db, data.hint_object_id, data.mime, user)
+    rec = recordings.start(db, data.hint_object_id, data.mime, user, data.context or "")
     db.commit()
     return recordings.view(db, rec, user)
 
@@ -62,3 +62,12 @@ def advance(recording_id: int, db: Session = Depends(get_db),
         trouble = recordings.advance(db, recording_id)
     db.commit()
     return recordings.view(db, recordings.load(db, recording_id), user, problem=trouble)
+
+
+@router.post("/recordings/{recording_id}/dismiss", response_model=Recording)
+def dismiss(recording_id: int, db: Session = Depends(get_db),
+            user: UserProfile = Depends(require_employee)):
+    """**Verwerfen** – eine gescheiterte Aufnahme verschwindet aus dem «+»."""
+    rec = recordings.dismiss(db, recording_id, user)
+    db.commit()
+    return recordings.view(db, rec, user)

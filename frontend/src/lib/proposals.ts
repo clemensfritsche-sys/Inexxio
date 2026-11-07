@@ -57,7 +57,7 @@ export function usePinned(objectId: number) {
   }, client ?? idleClient());
 }
 
-/** Meine Erfassungen, die noch nicht abgelegt sind («+» und das Angeheftete). */
+/** Meine Erfassungen, die noch nicht abgelegt sind («+»: «Nicht abgelegt» und die Zahl). */
 export function useOpenIntakes() {
   const client = useContext(ProposalClient);
   return useQuery({
@@ -78,6 +78,17 @@ export function useOpenRecordings() {
     enabled: !!client,
     meta: { what: 'Aufnahmen' },
   }, client ?? idleClient());
+}
+
+/**
+ * ►►► **Die Zahl am «+»** – was ich erfasst, aber nicht abgelegt habe: offene Erfassungen und
+ * Aufnahmen, die noch nicht fertig (oder gescheitert) sind. Dieselben zwei Listen wie «Nicht
+ * abgelegt» – EINE Quelle; an der Person zählt es nicht (`services/todo`). ◄◄◄
+ */
+export function useUnfiled(): { count: number; failed: boolean } {
+  const intakes = useOpenIntakes().data ?? [];
+  const recordings = (useOpenRecordings().data ?? []).filter((r) => r.state !== 'done');
+  return { count: intakes.length + recordings.length, failed: recordings.some((r) => r.state === 'failed') };
 }
 
 /** Den Vorschlag lokal schliessen – in beiden Antworten, in denen er steht. */

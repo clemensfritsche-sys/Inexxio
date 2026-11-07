@@ -315,10 +315,10 @@ def test_after_a_day_the_audio_is_gone_and_the_recording_failed(db, api, gemini,
     assert send(c, rec["id"], 0, 1).status_code == 409
     assert recordings.sweep(db) == {"failed": 0, "dropped": 0}          # wiederholbar
 
+    # Sichtbar im «+» (die Zahl am Knopf), sieben Tage lang – nur für mich.
     def mine(viewer):
-        found = {t.object_id: t for t in todo.todo(db, viewer)}.get(viewer.object_id)
-        return [(i.label, i.red) for i in found.items if "Aufnahme" in i.label] if found else []
-    assert mine(me) == [("1 Aufnahme fehlgeschlagen", True)]
+        return [r["state"] for r in api.as_(viewer).get(f"{BASE}/open").json()]
+    assert mine(me) == ["failed"]
     assert mine(other) == []
     later(monkeypatch, timedelta(days=recordings.FAILED_DAYS + 1))
     assert mine(me) == []
@@ -651,8 +651,28 @@ def test_failed_recordings_are_visible_silence_is_not(db, api, gemini):  # noqa:
     shown = c.get(f"{BASE}/open").json()
     assert [(r["id"], r["state"], r["problem"]) for r in shown] == [
         (broken, "failed", recordings.UNREADABLE)]
+    # Nicht mehr in «zu tun» an der Person – die Zahl am «+» ist diese Liste.
     found = {t.object_id: t for t in todo.todo(db, me)}.get(me.object_id)
-    assert [i.label for i in found.items if "Aufnahme" in i.label] == ["1 Aufnahme fehlgeschlagen"]
+    assert not found or not [i for i in found.items if "Aufnahme" in i.label]
+    # Verwerfen: weg aus dem «+», das Log behält sie; was nicht gescheitert ist, nicht.
+    assert c.post(f"{BASE}/{broken}/dismiss").status_code == 200
+    assert c.post(f"{BASE}/{broken}/dismiss").status_code == 200          # zweimal ist einmal
+    assert c.get(f"{BASE}/open").json() == []
+    running = begin(c)["id"]
+    assert c.post(f"{BASE}/{running}/dismiss").status_code == 409
+
+
+def test_the_pin_context_stands_before_the_transcript(db, api, gemini):  # noqa: F811
+    """Die Stecknadel beim Sprechen: Seite und Element stehen vor dem abgeschriebenen Text."""
+    me = new_person(db, "employee")
+    c = api.as_(me)
+    r = c.post(BASE, json={"mime": "audio/webm", "context": "Stelle: /erp · «Freigeben»\x00"})
+    rid = r.json()["id"]
+    send(c, rid, 0, 0)
+    c.post(f"{BASE}/{rid}/stop", json={"segments": 1})
+    gemini(said("Der Knopf ist doppelt."))
+    got = c.post(f"{BASE}/{rid}/advance").json()
+    assert got["intake"]["text"] == "Stelle: /erp · «Freigeben»\n\nDer Knopf ist doppelt."
 
 
 def test_sweep_commits_before_it_unlocks_and_lock_frees_its_connection(db, api, gemini, monkeypatch):  # noqa: F811

@@ -32,10 +32,9 @@ on:
       # Leer: STRIPE_PUBLISHABLE_KEY als optionales Secret (prod). Gesetzt: als Wert (dev).
       # Er ist kein Geheimnis – er steht im Browser jedes Zahlenden.
       stripe_publishable_key: { type: string, default: '' }
-      # Die Website: «DEV»-Kennzeichen und Testnotizen nur auf dev.
+      # Die Website: «DEV»-Kennzeichen nur auf dev.
       site_env:          { type: string, default: '' }
-      site_feedback:     { type: string, default: '' }
-      next_environment:  { type: string, default: '' }        # development baut die Testnotiz-Insel
+      next_environment:  { type: string, default: '' }        # development: Konto/ERP nie indexiert
       noindex:           { type: boolean, default: false }     # X-Robots-Tag auf jeder Antwort
       api_rewrite:       { type: boolean, default: false }     # /api/** auf diesen Dienst umstellen
       # Firebase-Web-Konfiguration (kein Geheimnis – steht im Browser).
@@ -80,7 +79,6 @@ jobs:
           SITE_URL: ${{ inputs.site_url }}
           SITE_API: ${{ inputs.site_url }}            # Telefon und E-Mail ins HTML, aus dem ERP
           SITE_ENV: ${{ inputs.site_env }}
-          SITE_FEEDBACK: ${{ inputs.site_feedback }}
         run: npm run build
 
       - name: OFFENE_PUNKTE.md aktuell

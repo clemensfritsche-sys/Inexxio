@@ -42,9 +42,11 @@
 - **20 · Ein Stylesheet** für die ganze Website (`cssCodeSplit: false`).
 - **49 · Dev wird nie indexiert** (`X-Robots-Tag` im Dev-Deploy); unabhängig davon sperrt der
   Modus `preview` per `noindex` und `robots.txt`. **86 · DEV-Eckband** nur bei `SITE_ENV=dev`.
-- **48/66 · Testnotizen** auf der Website = dasselbe Werkzeug wie im ERP
-  (`frontend/scripts/build-islands.mjs` → `/islands/feedback.js`), nur mit
-  `SITE_FEEDBACK=on` (Dev) und nur für Angemeldete; geladen mit `?v=<Commit>`.
+- **48/66 · Das «+» für Personal** (ersetzt die Testnotizen, November 2026): angemeldetes Personal
+  sieht unten rechts dasselbe «+» wie im ERP – `src/scripts/capture.ts` öffnet `/erp/erfassen` in
+  einem Rahmen (eigene Anmeldung, gleicher Ursprung; CSP `frame-src 'self'`). Die Stecknadel
+  zeigt auf die Website; Rückmeldungen werden Notizen am Artikel «Website». Alle anderen sehen
+  nichts, die Seite lädt dafür nichts.
 
 ## 2. Kopf, Fuss und Konto (die Naht zum ERP)
 

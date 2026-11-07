@@ -87,11 +87,12 @@ Aufnahme stehen nicht im Verlauf (`history.HIDDEN_EVENTS`).
 ## API (`/api/v1/erp`, Personal)
 
 ```
-POST /recordings                         {hint_object_id?, mime}          → Recording
+POST /recordings                         {hint_object_id?, mime, context?} → Recording  (context: die Stecknadel)
 POST /recordings/{id}/chunks             multipart: segment, seq, file     → Recording
 POST /recordings/{id}/stop               {segments}                        → Recording
 POST /recordings/{id}/advance                                              → Recording
-GET  /recordings/open                                                      → Recording[]  (meine, nicht fertig; gescheiterte 7 Tage, «Nichts zu hören» nie)
+GET  /recordings/open                                                      → Recording[]  (meine, nicht fertig; gescheiterte 7 Tage, «Nichts zu hören» und verworfene nie)
+POST /recordings/{id}/dismiss                                              → Recording  (eine gescheiterte verwerfen: `recording.dismissed`)
 ```
 
 ```ts
@@ -105,9 +106,13 @@ Recording = { id: number, at: string, hint_object_id: number|null, mime: string,
   fehlen) · `filing` (Text da, Erfassung entsteht/KI legt ab) · `done` (es gibt die Erfassung;
   `intake` gesetzt – die Oberfläche öffnet «Abgelegt») · `failed` (`problem`).
 - Ein Stück: höchstens 4 MB; nur die Person, die aufnimmt; nach `done`/`failed` 409.
-- «zu tun» an meiner Person: Aufnahmen, die fertig abgeschrieben, aber nicht abgelegt sind,
-  zählen schon als offene Erfassung (Phase 3); fehlgeschlagene als «Aufnahme fehlgeschlagen»
-  (nicht: «Nichts zu hören», `silent`).
+- **Die Zahl am «+»** (nicht «zu tun» an der Person): Aufnahmen, die fertig abgeschrieben, aber
+  nicht abgelegt sind, zählen als offene Erfassung (Phase 3); unfertige und fehlgeschlagene als
+  Aufnahme (nicht: «Nichts zu hören», `silent`; nicht: verworfene).
+- **Die Oberfläche** (Erfassen neu, November 2026): die Aufnahme läuft *im* Eingabefeld des «+»
+  (Punkt, Zeit, Pegel, Stopp); nach dem Stopp steht dort das Skeleton, bis «Abgelegt» kommt. Die
+  Schleife «weiter abschreiben» gehört nicht dem Fenster (`lib/transcribe.ts`): schliesst man,
+  läuft sie weiter und meldet sich.
 
 ## Die KI
 

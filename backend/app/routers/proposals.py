@@ -46,6 +46,15 @@ def file(intake_id: int, data: FileIn, db: Session = Depends(get_db),
     return intake.view(db, it)
 
 
+@router.post("/intake/{intake_id}/discard", response_model=IntakeOut)
+def discard(intake_id: int, db: Session = Depends(get_db),
+            user: UserProfile = Depends(require_employee)):
+    """**«Verwerfen»** – nicht ablegen; was aus ihr folgte, geht mit."""
+    it = intake.discard(db, intake_id, user)
+    db.commit()
+    return intake.view(db, it)
+
+
 @router.get("/proposals", response_model=list[AiProposal])
 def open_proposals(object_id: int = Query(...), db: Session = Depends(get_db),
                    user: UserProfile = Depends(require_employee)):

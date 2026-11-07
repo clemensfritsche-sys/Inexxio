@@ -68,7 +68,9 @@ def pinned(db: Session, object_id: int, viewer: UserProfile, *,
     """►►► **Das Angeheftete** – offene Vorschläge (immer, zuerst) + die ungelösten Hinweise
     des letzten «neu ansehen». ◄◄◄"""
     history.assert_visible(db, object_id, viewer)
-    found = proposals.open_for(db, object_id, viewer)
+    # Eine Erfassung, die auf «Stimmt so» wartet (``file``), steht nicht hier, sondern im «+»
+    # («Nicht abgelegt», die Zahl am Knopf) – EIN Ort für Unabgelegtes.
+    found = [p for p in proposals.open_for(db, object_id, viewer) if p.kind != "file"]
     pin = _latest(db, object_id)
     hints: list[PinHint] = []
     if pin is not None:

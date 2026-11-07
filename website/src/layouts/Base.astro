@@ -20,20 +20,6 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import MobileBar from '../components/MobileBar.astro';
 
-/**
- * Testnotizen (wie im ERP) – nur, wenn der Build sie einschaltet (`SITE_FEEDBACK=on`, allein
- * im Dev-Deploy) und nur für Angemeldete. Das Skript baut das Frontend
- * (`frontend/scripts/build-islands.mjs`); hier wird es bloss nachgeladen.
- */
-const feedback = process.env.SITE_FEEDBACK === 'on';
-/**
- * Stand des Werkzeugs für Testnotizen: `/islands/feedback.js` hat keinen Hash im Namen, und
- * die Hosting-Regel gibt jedem .js ein Jahr Cache («immutable») – ohne diese Angabe behielt
- * der Browser die alte Fassung (daher «die Notizen gehen beim Seitenwechsel verloren»).
- * Website und Insel entstehen im selben Deploy, also nennt der Commit die passende Fassung.
- */
-const feedbackVersion = (process.env.GITHUB_SHA ?? 'lokal').slice(0, 12);
-
 /** Die Kontaktdaten dieses Builds – scripts/contact.ts tauscht sie gegen die aus dem ERP. */
 const builtContact = JSON.stringify({
   phone: site.phone.display, e164: site.phone.e164, email: contactEmail(), country: site.address.country,
@@ -82,24 +68,21 @@ const nodes = [organization(siteUrl), website(siteUrl), ...(crumbs.length ? [bre
 
 // Strenge Richtlinie der Website (zusätzlich zur globalen Header-CSP): Skripte nur vom
 // eigenen Ursprung, keine Fremd-Einbettungen. Im Dev-Server nicht, dort braucht Vite Inline-Skripte.
-// Mit Testnotizen (nur Dev) braucht die Firebase-Anmeldung des Werkzeugs Google-Dienste:
-// Token erneuern (googleapis), den Anmelde-Rahmen (firebaseapp) und dessen Lader (apis.google).
-const FIREBASE = feedback
-  ? { script: ' https://apis.google.com', connect: ' https://*.googleapis.com https://*.firebaseapp.com', frame: 'https://*.firebaseapp.com' }
-  : { script: '', connect: '', frame: "'none'" };
+// Eingebettet wird nur Eigenes: das «+» für Personal ist die Seite /erp/erfassen in einem Rahmen
+// (scripts/capture.ts) – sie bringt ihre Anmeldung selbst mit, die Website lädt nichts von Google.
 const csp = [
   "default-src 'self'",
-  `script-src 'self'${FIREBASE.script}`,
+  "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   // Bild-Quellen wie der Hosting-Header (EINE Quelle, src/lib/csp.mjs) – sonst blockiert
   // diese Liste das Profilbild im gemeinsamen Kopf (#1139).
   `img-src ${hostingCsp()['img-src']}`,
   "font-src 'self'",
-  `connect-src 'self'${FIREBASE.connect}`,
+  "connect-src 'self'",
   "form-action 'self'",
   "base-uri 'self'",
   "object-src 'none'",
-  `frame-src ${FIREBASE.frame}`,
+  "frame-src 'self'",
   'upgrade-insecure-requests',
 ].join('; ');
 ---
@@ -140,7 +123,7 @@ const csp = [
     <meta name="twitter:image" content={ogImage} />
     <script type="application/ld+json" is:inline set:html={graph(nodes)} />
   </head>
-  <body data-feedback={feedback ? feedbackVersion : undefined} data-contact={builtContact}>
+  <body data-contact={builtContact}>
     <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
     <Header over={stage} />
     <main id="inhalt" tabindex="-1" class:list={[stage && 'main--stage']}>
@@ -154,14 +137,14 @@ const csp = [
       import { initAccount, syncAccount } from '../scripts/account';
       import { initMobileBar } from '../scripts/mobilebar';
       import { initReveal } from '../scripts/reveal';
-      import { initFeedback } from '../scripts/feedback';
+      import { initCapture } from '../scripts/capture';
       import { initContact } from '../scripts/contact';
       import { initMedia } from '../scripts/media';
       initHeader();
       initAccount();
       initMobileBar();
       initReveal();
-      initFeedback();
+      initCapture();
       initContact();
       initMedia();
       // Dasselbe Skript trägt Kopf und Fuss im Konto/ERP (WEBSITE_PLAN Entscheid 60): dort

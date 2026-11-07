@@ -44,7 +44,7 @@ setzt Klassen zusammen, mischt keine).
 cd frontend
 npm install
 npm run dev        # http://localhost:3000
-npm run build      # build-islands + next build
+npm run build      # next build
 npm test           # node --test scripts/*.test.mjs
 npm run lint       # eslint .
 ```
@@ -58,7 +58,9 @@ src/app/
 ├── (auth)/login/        ← Magic Link · Google · Passkey (Pop-up ODER Route); verify/ = Magic-Link-Rückkehr
 ├── (auth)/abmelden/     ← Abmelde-Weg für die Website (ruft logout(), räumt den Anzeige-Cache)
 ├── (account)/konto/     ← «Mein Konto»: EINE Seite (Person · Adressen · Firma · Newsletter · Sicherheit) – Spiegel des eigenen Benutzer-Datensatzes
-└── (erp)/erp/           ← Universal Feed (Master-Detail) – die EINZIGE ERP-Oberfläche
+└── (erp)/erp/           ← Universal Feed (Master-Detail) – die EINZIGE ERP-Oberfläche;
+                           erfassen/ = dasselbe «+» zum Einbetten (die Website zeigt es Personal
+                           in einem Rahmen, `html[data-embed]`: ohne Kopf und Fuss)
 src/components/
 ├── erp/       ← alle ERP-Bauteile (siehe unten)
 ├── account/   ← account-shell (Kopf mit dem Namen als grossem Wort, Sprungleiste), sections/ (profile, security, passkeys)
@@ -66,8 +68,7 @@ src/components/
 ├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label,
 │                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)
 ├── form/      ← field + use-field (**der Feld-Baustein**, siehe unten), proposal-mark (Zeichen + Fenster eines Vorschlags), save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
-├── layout/    ← site-shell, account-sync
-└── feedback/  ← feedback-pin (Testnotizen; als Insel auch auf der Website)
+└── layout/    ← site-shell, account-sync
 src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.ts (generiert) ·
                  process-status.ts · status-tone.ts · record-status.ts (isStaff) · account-cache.ts ·
                  login-target.ts · legal-forms.ts · feed.ts (was ein Pfad ändert, `TOUCHES`) ·
@@ -75,14 +76,15 @@ src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.
                  saver.ts (Kern des Auto-Saves) · process-graph.ts (Prozessbild, reine
                  Funktionen) · web-link.ts · notice.ts · recorder.ts (Aufnehmen ohne
                  Browser: Abschnitte, Stücke, Warteschlange – Wächter `scripts/recorder.test.mjs`,
-                 der Anschluss `scripts/use-recorder.test.mjs`)
+                 der Anschluss `scripts/use-recorder.test.mjs`) · transcribe.ts (eine Aufnahme
+                 zu Ende abschreiben lassen, auch wenn das «+» zu ist) · pin-point.ts (die
+                 Stecknadel: auf eine Stelle zeigen, «Stelle: …», Artikel «ERP»/«Website»)
                  … und **alle Hooks** als `use-*.ts`
                  (use-autosave, use-search, use-profile-completion, use-google-maps,
                  use-maps-key, use-feed, use-feed-lists, use-mail-sync, use-url-params,
                  use-recorder = Mikrofon, `MediaRecorder`, Pegel, Wake Lock);
                  nur Kamera und Decoder liegen beim Scanner (components/scan/)
 src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
-src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands.mjs)
 ```
 
 ### `components/erp/` – eine Zeile je Datei
@@ -101,8 +103,8 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter «Verlauf»): die Ansicht (`communication.tsx`: Postfach, `History`, Eingabe) · `timeline` (die Blase einer Nachricht, Tagestrenner, die wartende Mail) · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – Spiegel `DELIVERIES`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |
 | `new-record.tsx` | Person und Firma anlegen (Entwurf; `initial` = vorausgefüllt aus einem Vorschlag) |
-| `capture/` | **«+» = Erfassen** (Phase 3/4): `capture-sheet` (das Blatt: oben rund Aufnehmen (nur mit `MediaRecorder`) · Foto · Datei · Schreiben, «Nicht abgelegt» = offene Erfassungen + Aufnahmen, unten eckig neu anlegen; Schreiben → `POST /erp/intake`, «legt ab …»; **während einer Aufnahme gesperrt** – kein Wegtippen, kein Escape) · `recorder` (Phase 4: `RecorderView` – nur Zeit, Pegel, Stopp; `Transcribe` – «schreibt ab …», fragt `…/advance` bis `done` → «Abgelegt») · `filed` («Abgelegt»: je Teil Datensatz-Chip → `ObjectSelect`, Text, Vorschläge, «Stimmt so») · `proposal-card` (ein Vorschlag als Zeile, auch im Angehefteten) · `capture-context` (`createDraft`, `openIntake` – gehalten von der Feed-Seite) · `sheet-head` |
-| `pinned.tsx` | **Das Angeheftete** unten im Verlauf (`History`): offene Vorschläge (`change` «Zum Feld», `create` «Entwurf öffnen», `file` «Abgelegt», ✕), dann die Hinweise mit «neu ansehen» und «lösen»; Sprungziel `data-todo="vorschlaege"` |
+| `capture/` | **«+» = Erfassen – EINE Ansicht wie das Eingabefeld bei Claude**: `capture-sheet` (die Eingabe: Text, Enter = ab an die KI; 📷 → Dokument-Entwurf mit Kamera, 📄 → Dateiwahl → Entwurf, 📌 Stecknadel (`lib/pin-point`), 🎤 Aufnahme im Feld; darunter Skeleton → «Abgelegt» an derselben Stelle; dann «Nicht abgelegt» (Knöpfe) und «Neu anlegen»; was nicht geht, wird blass; während einer Aufnahme nicht schliessbar; `host` = wo die Stecknadel zeigt) · `recorder` (`RecordingStrip`: Punkt, Zeit, Pegel, Stopp – im Feld; `recordingWord`) · `filed` (`FiledBody`: je Teil Datensatz-Chip → `ObjectSelect`, Text, Vorschläge «Zum Feld»/«Entwurf öffnen», «Verwerfen» · «Stimmt so») · `proposal-card` (ein Vorschlag als Zeile, auch im Angehefteten) · `capture-context` (`createDraft` – gehalten von der Feed-Seite bzw. `/erp/erfassen`) |
+| `pinned.tsx` | **Das Angeheftete** unten im Verlauf (`History`): offene Vorschläge (`change` «Zum Feld», `create` «Entwurf öffnen», ✕ – eine Erfassung, die auf «Stimmt so» wartet, steht im «+»), dann die Hinweise mit «neu ansehen» und «lösen»; Sprungziel `data-todo="vorschlaege"` |
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |
 | `flow-column.tsx`, `module-card.tsx`, `process-columns.tsx`, `process-flow.tsx` | Prozessbild: die Spalte (`FlowColumn`, Achse, Zustände, Herkunft) · die Modul-Karte (`ModuleShell`, `StepCard`, `ModuleMark`) · drei Spuren · **ein** Liniengenerator (`polyPath`); die reinen Funktionen in `lib/process-graph.ts` (Wächter `scripts/process-graph.test.mjs`) |
 | `capture-work.tsx`, `capture-form.tsx`, `photo-capture.tsx`, `signature-pad.tsx` | Ausführung von Datenerfassung, Aussondern, Verbrauch, Bewegen |

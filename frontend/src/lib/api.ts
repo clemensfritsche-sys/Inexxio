@@ -31,9 +31,6 @@ import type {
   ErpAdminUpdate,
   TerritoryMap,
   Passkey,
-  FeedbackNote,
-  FeedbackCreateInput,
-  FeedbackUpdateInput,
   PlaceRef,
   PaymentSetup,
   TransferInfo,
@@ -103,13 +100,9 @@ function aborted(options: RequestInit): boolean {
  * **Pfad** betrifft (`feedsTouchedBy`). Gefeuert wird nach **jeder erfolgreichen Anfrage,
  * die kein GET ist** – so kann ein Aufrufer es nicht vergessen, und ein zweiter Melde-Weg
  * kann nicht entstehen.
- *
- * Ausgenommen sind die **Testnotizen**: sie sind keine ERP-Daten, und beim Anheften
- * einer Notiz vier Feed-Abfragen auszulösen wäre Arbeit ohne Ertrag.
  */
 function notifyDataChanged(path: string) {
   if (typeof window === 'undefined') return;
-  if (path.startsWith('/api/v1/feedback')) return;
   window.dispatchEvent(new CustomEvent(DATA_CHANGED, { detail: { path } }));
 }
 
@@ -150,7 +143,7 @@ class ApiClient {
 
   /**
    * **Das eigene Profil – EIN Abruf für alle, die es gleichzeitig fragen.** Beim Öffnen des
-   * ERP fragten Layout, Kopf-Cache, Feed und Testnotizen je selbst (vier gleiche Anfragen).
+   * ERP fragten Layout, Kopf-Cache und Feed je selbst (mehrere gleiche Anfragen).
    * Gehalten wird die laufende bzw. jüngste Antwort für `ME_TTL`; jede schreibende Anfrage
    * und jeder Wechsel der Anmeldung (`forgetMe`) verwirft sie, ein Fehler wird nicht
    * gehalten.
@@ -606,6 +599,11 @@ class ApiClient {
     return this.post(`/api/v1/erp/intake/${id}/file`, { parts });
   }
 
+  /** **«Verwerfen»** – nicht ablegen; was aus der Erfassung folgte, geht mit. */
+  discardIntake(id: number): Promise<Intake> {
+    return this.post(`/api/v1/erp/intake/${id}/discard`, {});
+  }
+
   /** Die offenen Vorschläge an einem Datensatz. */
   proposals(objectId: number, req?: Req): Promise<Proposal[]> {
     return this.get(`/api/v1/erp/proposals?object_id=${objectId}`, req);
@@ -632,9 +630,12 @@ class ApiClient {
   }
 
   // ─── Phase 4 · Sprache: Aufnehmen (docs/konzept/phase4-bauplan.md) ─────────
-  /** Eine Aufnahme beginnen – `hint` = der Datensatz, der dabei offen war. */
-  startRecording(mime: string, hint?: number | null): Promise<Recording> {
-    return this.post('/api/v1/erp/recordings', hint ? { hint_object_id: hint, mime } : { mime });
+  /** Eine Aufnahme beginnen – `hint` = der Datensatz, der dabei offen war; `context` = die
+   *  Stecknadel («Stelle: …»), sie steht später vor dem abgeschriebenen Text. */
+  startRecording(mime: string, hint?: number | null, context?: string | null): Promise<Recording> {
+    return this.post('/api/v1/erp/recordings', {
+      mime, ...(hint ? { hint_object_id: hint } : {}), ...(context ? { context } : {}),
+    });
   }
 
   /** **Ein Stück** (alle 30 s) – Abschnitt und Stück ab 0; dasselbe Stück noch einmal ersetzt es. */
@@ -659,6 +660,11 @@ class ApiClient {
   /** Meine Aufnahmen, die noch nicht fertig sind. */
   openRecordings(req?: Req): Promise<Recording[]> {
     return this.get('/api/v1/erp/recordings/open', req);
+  }
+
+  /** **Verwerfen** – eine gescheiterte Aufnahme verschwindet aus dem «+». */
+  dismissRecording(id: number): Promise<Recording> {
+    return this.post(`/api/v1/erp/recordings/${id}/dismiss`, {});
   }
 
   // ─── Zahlungen (eine Ableitung aus den Zahlungsmodulen) ────────────────────
@@ -1092,30 +1098,6 @@ class ApiClient {
 
   getInstance(objectId: number, req?: Req): Promise<Instance> {
     return this.get(`/api/v1/erp/instances/${objectId}`, req);
-  }
-
-  // ─── Testnotizen (in-app Feedback, nur Testumgebung) ────────────────────────
-
-  listFeedback(route?: string): Promise<FeedbackNote[]> {
-    const q = route ? `?route=${encodeURIComponent(route)}` : '';
-    return this.get(`/api/v1/feedback${q}`);
-  }
-
-  createFeedback(data: FeedbackCreateInput): Promise<FeedbackNote> {
-    return this.post('/api/v1/feedback', data);
-  }
-
-  updateFeedback(id: number, data: FeedbackUpdateInput): Promise<FeedbackNote> {
-    return this.patch(`/api/v1/feedback/${id}`, data);
-  }
-
-  deleteFeedback(id: number): Promise<void> {
-    return this.delete(`/api/v1/feedback/${id}`);
-  }
-
-  /** Aufräumen: 'done' entfernt Erledigte/Verworfene, 'all' setzt zurück. */
-  clearFeedback(scope: 'done' | 'all'): Promise<{ deleted: number }> {
-    return this.delete(`/api/v1/feedback?scope=${scope}`);
   }
 }
 

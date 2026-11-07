@@ -42,6 +42,8 @@ export interface DraftSeed {
   /** Datensätze, die schon als Referenz dastehen (Foto/Datei aus «+»: der offene Datensatz) –
    *  gewöhnliche Referenzen, wegnehmbar. */
   refs?: { object_id: number; label: string }[];
+  /** «+» → 📷: der Entwurf beginnt gleich mit der Kamera (Blatterkennung, sonst Foto). */
+  start?: 'scan';
 }
 
 /** Eine Referenz im Entwurf: ganzer Datensatz oder (vom Vorschlag) ein Pflichtfeld. */
@@ -82,7 +84,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
   /** Das verfasste Papier (Quelle «Verfassen») – es ist die Datei. */
   const [composed, setComposed] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
-  const [scanning, setScanning] = useState(false);
+  const [scanning, setScanning] = useState(seed?.start === 'scan');
 
   // **Lesen, sobald es eine Datei gibt** – einmal je Entwurf. Gespeichert wird dabei nichts.
   // Ein verfasstes Papier liest niemand nach: die KI hat es eben geschrieben.

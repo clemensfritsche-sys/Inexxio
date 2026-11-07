@@ -6,7 +6,7 @@
     "predev": "node scripts/site-shell.mjs && node scripts/vendor-opencv.mjs",
     "dev": "next dev",
     "prebuild": "node scripts/site-shell.mjs && node scripts/vendor-opencv.mjs",
-    "build": "node scripts/build-islands.mjs && next build",
+    "build": "next build",
     "prelint": "node scripts/site-shell.mjs",
     "lint": "eslint .",
     "pretype-check": "node scripts/site-shell.mjs && next typegen",

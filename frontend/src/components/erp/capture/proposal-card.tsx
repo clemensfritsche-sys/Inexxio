@@ -6,7 +6,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import type { Proposal } from '@/types';
 
 /** Was ein Vorschlag als Handlung anbietet – je Art genau eine (`change` «Zum Feld», `create`
- *  «Entwurf öffnen», `file` «Abgelegt»). */
+ *  «Entwurf öffnen»). */
 export interface ProposalAction { label: string; run: () => void }
 
 /**

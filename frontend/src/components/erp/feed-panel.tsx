@@ -5,6 +5,7 @@ import { Loader2, Plus, ScanLine, Search, X } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { FILTER_TYPES, TYPE_META } from '@/lib/erp-record';
 import { type Row, rowStatus, rowTitle } from '@/lib/use-feed-lists';
+import { useUnfiled } from '@/lib/proposals';
 import { RecordIcon } from '@/components/erp/detail-frame';
 import { StatusBadge } from '@/components/erp/fields';
 import { userInitials } from '@/components/erp/user-detail';
@@ -134,21 +135,32 @@ function TypeChips({ typeFilter, onTypeFilter, count }: {
 }
 
 /**
- * **«+» = Erfassen** – öffnet das Blatt (`capture/capture-sheet.tsx`): oben festhalten (Foto ·
- * Datei · Schreiben), unten neu anlegen. Er schwebt über der Liste (Schatten der schwebenden
+ * **«+» = Erfassen** – öffnet das «+» (`capture/capture-sheet.tsx`): oben die Eingabe, darunter
+ * was nicht abgelegt ist, unten neu anlegen. Er schwebt über der Liste (Schatten der schwebenden
  * Ebene); der rote Schatten ist nur der Hover-Akzent des roten Knopfs (Design-System §3).
+ * **Die Zahl daran** ist, was ich erfasst, aber nicht abgelegt habe (`useUnfiled`) – gelb,
+ * rot bei einer gescheiterten Aufnahme; an meiner Person zählt es nicht.
  */
 function CaptureButton({ onCapture }: { onCapture: () => void }) {
+  const unfiled = useUnfiled();
+  const tip = unfiled.count
+    ? `Erfassen · ${unfiled.count} nicht abgelegt` : 'Erfassen oder neu anlegen';
   return (
     <div className="absolute right-5 bottom-5 z-20">
       <button
         type="button"
         onClick={onCapture}
-        data-tip="Erfassen oder neu anlegen"
-        aria-label="Erfassen oder neu anlegen"
-        className="w-[54px] h-[54px] rounded-full bg-inexxio hover:bg-inexxio-deep text-fg-on-red shadow-ds-md hover:shadow-ds-red flex items-center justify-center transition-all hover:-translate-y-0.5"
+        data-tip={tip}
+        aria-label={tip}
+        className="relative w-[54px] h-[54px] rounded-full bg-inexxio hover:bg-inexxio-deep text-fg-on-red shadow-ds-md hover:shadow-ds-red flex items-center justify-center transition-all hover:-translate-y-0.5"
       >
         <Plus size={24} />
+        {unfiled.count > 0 && (
+          <span aria-hidden className="erp-fab-count tabular-nums"
+            style={{ background: unfiled.failed ? 'var(--danger)' : 'var(--warning)' }}>
+            {unfiled.count > 9 ? '9+' : unfiled.count}
+          </span>
+        )}
       </button>
     </div>
   );

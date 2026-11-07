@@ -93,10 +93,9 @@ const config = [
   ...nextVitals,
   { rules: compilerRulesOff },
   {
-    // Gebautes und Übernommenes, nicht Quelltext: die Testnotiz-Insel und OpenCV.js
-    // (`scripts/build-islands.mjs`, `scripts/vendor-opencv.mjs`), Kopf und Fuss der
-    // Website (`scripts/site-shell.mjs`).
-    ignores: ['public/islands/**', 'public/vendor/**', 'src/generated/**'],
+    // Gebautes und Übernommenes, nicht Quelltext: OpenCV.js (`scripts/vendor-opencv.mjs`),
+    // Kopf und Fuss der Website (`scripts/site-shell.mjs`).
+    ignores: ['public/vendor/**', 'src/generated/**'],
   },
   {
     files: ['**/*.ts', '**/*.tsx'],

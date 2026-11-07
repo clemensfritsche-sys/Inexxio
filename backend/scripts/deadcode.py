@@ -28,9 +28,7 @@ Modell über die Beziehung. Der Report sagt deshalb, wie oft ein Name in Tests u
 Skripten vorkommt – gelesen wird das Ergebnis, nicht befolgt.
 
 **Frontend · erreichbar ab den Next-Einstiegen** (``page``/``layout``/``not-found``/
-``robots``/``icon``) **und ab den Inseln** – den Dateien, die
-``frontend/scripts/build-islands.mjs`` mit esbuild bündelt (Einstieg und Alias); ohne sie
-stünden die Testnotizen als «unerreichbar» da. Statische und dynamische Importe.
+``robots``/``icon``). Statische und dynamische Importe.
 
 **Frontend · Exporte, die niemand importiert.** ESLints ``no-unused-vars`` sieht nur
 Ungenutztes *innerhalb* einer Datei; ein exportiertes Symbol ist für ihn immer benutzt.
@@ -59,7 +57,6 @@ OUTSIDE = ("backend/tests", "backend/scripts")
 
 FRONTEND_ENTRY = re.compile(r"src/app/.*(page|layout|not-found|robots|icon)\.(tsx|ts)$")
 #: Der esbuild-Lauf der Inseln – seine ``resolve(ROOT, 'src/…')``-Pfade sind Einstiege.
-ISLANDS_BUILD = ROOT / "frontend" / "scripts" / "build-islands.mjs"
 #: Generiert, nicht geschrieben: liest keine unserer Namen, auch wenn es sie enthält.
 GENERATED = ("frontend/src/types/api.ts",)
 EXPORTED = re.compile(
@@ -229,15 +226,6 @@ def _resolve_import(spec: str, frm: pathlib.Path, files: dict[str, pathlib.Path]
     return None
 
 
-def _island_entries() -> set[str]:
-    """Die Dateien, die der Insel-Build als Einstieg (oder Alias-Ziel) nennt."""
-    if not ISLANDS_BUILD.exists():
-        return set()
-    found = re.findall(r"""resolve\(\s*ROOT\s*,\s*['"](src/[^'"]+)['"]\s*\)""",
-                       ISLANDS_BUILD.read_text())
-    return {f"frontend/{p}" for p in found}
-
-
 def frontend_reachable() -> tuple[dict[str, pathlib.Path], set[str]]:
     files = _frontend_files()
     edges: dict[str, set[str]] = defaultdict(set)
@@ -250,8 +238,7 @@ def frontend_reachable() -> tuple[dict[str, pathlib.Path], set[str]]:
             if found:
                 edges[key].add(found)
     seen: set[str] = set()
-    islands = _island_entries()
-    stack = [k for k in files if FRONTEND_ENTRY.search(k) or k in islands]
+    stack = [k for k in files if FRONTEND_ENTRY.search(k)]
     while stack:
         key = stack.pop()
         if key in seen:

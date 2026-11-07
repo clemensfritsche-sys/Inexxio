@@ -619,9 +619,10 @@ fieldset:disabled .ix-editable.is-missing {
 .erp-actbtn-neutral:not(:disabled):hover { background: var(--bg-2); }
 
 /* ── «+» = Erfassen (components/erp/capture/) ──────────────────────────────────
-   Am Handy ein Blatt von unten über die ganze Breite, am Schreibtisch dasselbe Blatt unten
-   links über der Liste (dort sitzt «+»). Eine echte Überlagerung – darum Schatten. Oben rund
-   festhalten (64 px, Daumen), unten eckig neu anlegen in den Farben des Feeds. */
+   EINE Ansicht, wie das Eingabefeld bei Claude: oben die Eingabe (Aufnahme läuft darin), an
+   ihrer Stelle darunter das Skeleton und dann «Abgelegt», darunter «Nicht abgelegt» und «Neu
+   anlegen». Am Handy ein Blatt von unten über die ganze Breite, am Schreibtisch unten links
+   über der Liste (dort sitzt «+»). Eine echte Überlagerung – darum Schatten. */
 .erp-capture-scrim {
   position: fixed; inset: 0; z-index: 58; display: flex; align-items: flex-end;
   background: color-mix(in srgb, var(--bg-dark) 35%, transparent);
@@ -633,19 +634,22 @@ fieldset:disabled .ix-editable.is-missing {
 }
 @media (min-width: 768px) {
   .erp-capture-scrim { align-items: flex-end; justify-content: flex-start; padding: 16px; }
-  .erp-capture-sheet { width: 420px; max-height: min(720px, calc(100dvh - 32px)); border-radius: var(--r-lg); }
+  .erp-capture-sheet { width: 440px; max-height: min(760px, calc(100dvh - 32px)); border-radius: var(--r-lg); }
 }
-.erp-capture-round {
-  display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 76px;
-  background: none; border: none; padding: 0; cursor: pointer; font: 600 13px var(--font-body); color: var(--fg-2);
+.erp-capture-body { display: flex; flex-direction: column; gap: 14px; padding: 16px; overflow-y: auto; }
+/* Was gerade nicht geht, wird blass – es verschwindet nicht. */
+.erp-capture-rest { display: flex; flex-direction: column; gap: 18px; transition: opacity .2s; }
+.erp-capture-rest[aria-disabled] { opacity: .4; pointer-events: none; }
+.erp-capture-hint { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--fg-3); min-width: 0; margin-top: -6px; }
+.erp-capture-x {
+  display: inline-flex; flex: none; padding: 4px; border: none; background: none; cursor: pointer;
+  color: var(--fg-4); border-radius: 6px;
 }
-.erp-capture-round-dot {
-  width: 64px; height: 64px; border-radius: 999px; display: grid; place-items: center;
-  background: var(--bg-2); border: 1px solid var(--border-1); color: var(--fg-1); transition: background .15s;
-}
-.erp-capture-round:hover .erp-capture-round-dot { background: var(--bg-3); }
-.erp-capture-round-strong { background: var(--inexxio-black); border-color: transparent; color: #fff; }
-.erp-capture-round:hover .erp-capture-round-strong { background: var(--color-ink-hover); }
+.erp-capture-x:hover { color: var(--fg-2); background: var(--bg-2); }
+.erp-capture-problem { display: flex; gap: 8px; margin: 0; font-size: 13px; line-height: 1.45; color: var(--danger); }
+.erp-capture-problem svg { flex: none; margin-top: 2px; }
+.erp-capture-part { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border-1); border-radius: var(--r-md); }
+.erp-capture-skel { display: flex; flex-direction: column; gap: 14px; }
 .erp-capture-create { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .erp-capture-tile {
   height: 64px; border: none; border-radius: var(--r-md); cursor: pointer;
@@ -653,33 +657,91 @@ fieldset:disabled .ix-editable.is-missing {
   font: 700 12.5px var(--font-body); transition: filter .15s;
 }
 .erp-capture-tile:hover { filter: brightness(.97); }
+/* «Nicht abgelegt»: je Zeile ein Knopf (Fläche, Pfeil). */
 .erp-capture-row {
-  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; width: 100%;
-  background: none; border: 1px solid var(--border-1); border-radius: var(--r-md); cursor: pointer;
-  font: 500 13.5px var(--font-body); color: var(--fg-1); text-align: left;
+  display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 10px 0 12px; width: 100%;
+  background: var(--bg-2); border: 1px solid var(--border-1); border-radius: var(--r-md); cursor: pointer;
+  font: 500 13.5px var(--font-body); color: var(--fg-1); text-align: left; transition: background .15s;
 }
-.erp-capture-row:hover { background: var(--bg-2); }
+.erp-capture-row:hover { background: var(--bg-3); }
+.erp-capture-row-warn { color: var(--danger); }
+.erp-capture-when { flex: none; font-size: 12px; color: var(--fg-4); }
 .erp-capture-chip {
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; max-width: 100%; padding: 0 12px;
   border: 1px solid var(--border-2); border-radius: 999px; background: var(--bg-1); cursor: pointer;
   font: 500 13px var(--font-body); color: var(--fg-1);
 }
 .erp-capture-chip:hover { background: var(--bg-2); }
-.erp-capture-row-warn { color: var(--danger); }
-/* Phase 4 · Aufnahme: Zeit, Pegel, Stopp (Mockup «Aufnahme»). */
-.erp-rec-time { font: 600 40px var(--font-mono); letter-spacing: -.02em; color: var(--fg-1); font-variant-numeric: tabular-nums; }
-.erp-rec-level { display: flex; align-items: center; justify-content: center; gap: 2px; height: 34px; margin: 16px 0 22px; }
-.erp-rec-level > span { width: 3px; border-radius: 2px; background: var(--fg-1); transition: height .1s linear; }
-.erp-rec-stop {
-  width: 76px; height: 76px; border-radius: 999px; border: none; cursor: pointer; display: grid; place-items: center;
-  background: var(--inexxio-red); color: #fff; box-shadow: 0 0 0 7px color-mix(in srgb, var(--inexxio-red) 13%, transparent);
-  transition: background .15s;
+/* Die Eingabe: Text, darunter die Leiste (📷 📄 📌 … 🎤 ➤). */
+.erp-composer {
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 8px 12px;
+  border: 1px solid var(--border-2); border-radius: 14px; background: var(--bg-1);
+  transition: border-color .15s, box-shadow .15s;
 }
-.erp-rec-stop:hover:not(:disabled) { background: var(--inexxio-red-deep); }
-.erp-rec-stop:disabled { cursor: default; opacity: .7; }
-.erp-rec-progress { height: 4px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
-.erp-rec-progress > span { display: block; height: 100%; background: var(--fg-1); transition: width .3s; }
-@media (prefers-reduced-motion: reduce) { .erp-rec-level > span, .erp-rec-progress > span { transition: none; } }
+.erp-composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.erp-composer-wait { opacity: .55; }
+.erp-composer-input {
+  width: 100%; min-height: 48px; max-height: 40dvh; resize: none; field-sizing: content; border: none; outline: none;
+  background: transparent; padding: 2px 0; font: 400 16px/1.45 var(--font-body); color: var(--fg-1);
+}
+.erp-composer-input::placeholder { color: var(--fg-4); }
+.erp-composer-place {
+  display: flex; align-items: flex-start; gap: 6px; padding: 6px 4px 6px 8px; border-radius: 8px;
+  background: var(--bg-2); font-size: 12.5px; line-height: 1.4; color: var(--fg-2);
+}
+.erp-composer-place > svg { margin-top: 1px; color: var(--inexxio-red); }
+.erp-composer-bar { display: flex; align-items: center; gap: 2px; }
+.erp-icbtn {
+  width: 36px; height: 36px; border-radius: 9px; border: none; background: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-3); transition: background .15s, color .15s;
+}
+.erp-icbtn:hover:not(:disabled) { background: var(--bg-2); color: var(--fg-1); }
+.erp-icbtn:disabled { opacity: .4; cursor: default; }
+.erp-icbtn-on { background: var(--bg-2); color: var(--inexxio-red); }
+.erp-send {
+  width: 36px; height: 36px; margin-left: 4px; border-radius: 999px; border: none; flex: none;
+  display: inline-flex; align-items: center; justify-content: center; background: var(--bg-3); color: var(--fg-4);
+  cursor: default; transition: background .15s;
+}
+.erp-send-go { background: var(--inexxio-red); color: #fff; cursor: pointer; }
+.erp-send-go:hover { background: var(--inexxio-red-deep); }
+/* Die Aufnahme im Feld: rot umrandet, Punkt · Zeit · Pegel · Stopp. */
+.erp-composer-rec { border-color: var(--inexxio-red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--inexxio-red) 13%, transparent); }
+.erp-composer-rec:focus-within { border-color: var(--inexxio-red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--inexxio-red) 13%, transparent); }
+.erp-rec-line { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+.erp-rec-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--fg-4); }
+.erp-rec-dot[data-live] { background: var(--inexxio-red); animation: erp-rec-blink 1.4s ease-in-out infinite; }
+@keyframes erp-rec-blink { 50% { opacity: .35; } }
+.erp-rec-time { font: 600 16px var(--font-mono); color: var(--fg-1); font-variant-numeric: tabular-nums; flex: none; min-width: 52px; }
+.erp-rec-level { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; height: 28px; overflow: hidden; }
+.erp-rec-level > span { width: 3px; flex: none; border-radius: 2px; background: var(--inexxio-red); transition: height .1s linear; }
+.erp-send-stop { background: var(--inexxio-red); color: #fff; cursor: pointer; }
+.erp-send-stop:hover:not(:disabled) { background: var(--inexxio-red-deep); }
+.erp-send-stop:disabled { opacity: .6; cursor: default; }
+.erp-rec-trouble { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12.5px; color: var(--fg-3); }
+/* Skeleton: die Form des Ergebnisses, grau, mit leisem Schimmer. */
+.erp-skel {
+  display: block; border-radius: 6px;
+  background: linear-gradient(90deg, var(--bg-3) 0%, var(--bg-2) 50%, var(--bg-3) 100%); background-size: 200% 100%;
+  animation: erp-skel 1.4s linear infinite;
+}
+@keyframes erp-skel { to { background-position: -200% 0; } }
+/* Die Zahl am «+»: was nicht abgelegt ist (wie «zu tun» am Symbol). */
+.erp-fab-count {
+  position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center; color: #fff; font: 700 11px/1 var(--font-body);
+  box-shadow: 0 0 0 2px var(--bg-1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .erp-rec-level > span { transition: none; }
+  .erp-rec-dot[data-live], .erp-skel { animation: none; }
+}
+
+/* Eingebettet (`/erp/erfassen` im Rahmen über der Website): nur das «+» – kein Kopf, kein Fuss,
+   keine Fläche; die Website bleibt dahinter sichtbar. */
+html[data-embed], html[data-embed] body, html[data-embed] main { background: transparent !important; }
+html[data-embed] main { min-height: 0 !important; }
+html[data-embed] .ix-shell { display: none !important; }
 
 /* ── Objektnummer: eine KENNUNG, die sich anfassen lässt ──────────────────────
    Testnotiz #784. Sie stand als blauer, unterstrichener Text da – die drei Marker,

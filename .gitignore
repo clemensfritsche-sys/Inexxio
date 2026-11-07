@@ -17,8 +17,6 @@ frontend/out/
 frontend/build/
 # Von Next erzeugt (`next typegen` vor `type-check`, `next build`) – verweist auf .next/types
 frontend/next-env.d.ts
-# Inseln für die Website – gebaut von frontend/scripts/build-islands.mjs
-frontend/public/islands/
 frontend/public/vendor/
 # Kopf und Fuss der Website – übernommen von frontend/scripts/site-shell.mjs
 frontend/src/generated/

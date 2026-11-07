@@ -352,20 +352,34 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   Entscheide fest (liest nur ableitbare Kandidaten per SQL); «zu tun» zählt mit EINER Abfrage. Ein Vorschlag darf nur Felder aus `proposals.FIELDS` ändern. Im Verlauf
   stehen diese Ereignisse nicht (`history.HIDDEN_EVENTS`) – sie haben «Abgelegt» und das
   Angeheftete.
-- **Erfassen** (`services/intake.py`, «+» im Feed): Schreiben → die KI teilt in Teile mit je
-  einer Heimat und schlägt vor, was folgt → «Abgelegt» → «Stimmt so» legt je Teil eine Notiz
-  an (Notizen und Entscheid in einer Transaktion). Fällt die KI aus, bleibt die Eingabe roh,
-  der Mensch legt von Hand ab, der Takt holt nach. Foto und Datei öffnen den Dokument-Entwurf.
+- **Erfassen = das «+»** (`services/intake.py`, `components/erp/capture/`): **EINE Ansicht wie
+  das Eingabefeld bei Claude** – schreiben (Enter = ab an die KI), 📷 Foto und 📄 Datei (springen
+  in den **Dokument-Entwurf**, Kamera mit Blatterkennung bzw. Dateiwahl, der offene Datensatz als
+  Referenz), 📌 Stecknadel, 🎤 Aufnehmen (läuft *im* Feld). Darunter das Skeleton und an seiner
+  Stelle «Abgelegt»: je Teil eine Heimat, die Vorschläge («Zum Feld», «Entwurf öffnen»), dann
+  **«Stimmt so»** (je Teil eine Notiz, Notizen und Entscheid in einer Transaktion) oder
+  **«Verwerfen»** (`intake.discard`: nichts abgelegt, was aus ihr folgte, geht mit). Darunter
+  «Nicht abgelegt» und «Neu anlegen». Das Fenster ändert sich nie; was nicht geht, wird blass.
+  **Was nicht abgelegt ist, ist die Zahl am «+»** (`useUnfiled`), nicht «zu tun» an der Person
+  und nicht im Angehefteten. Fällt die KI aus, bleibt die Eingabe roh, der Mensch legt von Hand
+  ab, der Takt holt nach; schliesst man, während sie arbeitet, meldet es sich, wenn es fertig ist.
   Eine Erfassung sieht nur, wer sie machte (und der Admin); die Quelle eines Vorschlags daraus
   heisst nur «Erfassung von <Name>», ohne ihre Worte.
+- **Die Stecknadel = Rückmeldung zur Software** (`lib/pin-point.ts`): auf eine Stelle zeigen →
+  «Stelle: Seite · Datensatz · Herkunft (`data-where-*`) · Element» vor dem Text; der Hinweis ist
+  der Artikel **«ERP»** (auf `/erp`) bzw. **«Website»** – eine gewöhnliche Notiz, Teil der
+  lernenden Firma. Eigene Testnotizen gibt es nicht mehr (Migration 172).
+- **Das «+» auf der Website** (`website/src/scripts/capture.ts`): nur für angemeldetes Personal,
+  unten rechts; öffnet `/erp/erfassen` (dasselbe «+», eigene Anmeldung) in einem Rahmen – die
+  Stecknadel zeigt auf die Website, Foto, Datei und «Neu anlegen» springen ins ERP (`?neu=`).
 - **Folgen aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person wird im
   Takt gelesen; was folgt, wird ein Vorschlag. Ein Fehlschlag zählt (`mail.follow_failed`),
   nach dem dritten gilt die Mail als geprüft (`mail.followed`); am Deckel kein Versuch.
 - **Das Angeheftete** (`services/pins.py`, `components/erp/pinned.tsx`) unten im Verlauf: offene
   Vorschläge immer und zuerst, dann höchstens drei Hinweise der KI auf Abruf («neu ansehen»).
   **Vorschlag am Feld:** `useField` kennt die offenen Vorschläge seines Datensatzes und zeigt
-  das Zeichen wie «zu tun» (`form/proposal-mark.tsx`); offene Vorschläge und Erfassungen zählen
-  in «zu tun».
+  das Zeichen wie «zu tun» (`form/proposal-mark.tsx`); offene Vorschläge zählen in «zu tun»
+  (eine Erfassung, die auf «Stimmt so» wartet, steht im «+»).
 - **Lernen** (`services/memory.py`, Migration 170): jeder **entschiedene** Fall, dessen
   Inhalt jedes Personal sehen darf (`change`/`create`; `file` nur abgelegt), bekommt beim
   Entscheid Bedeutungs-Zahlen (Vertex AI, `ai_memory`, pgvector; der Takt holt nach); vor dem
@@ -716,10 +730,11 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   (Blatterkennung, mehrere Seiten → PDF) · Datei · Verfassen (KI); Lesen, Stichworte und
   Zuordnung durch die KI als Vorschlag; Pflichtfelder in Zahlung, Zeiterfassung, Datenerfassung
   und Gesellschaft; Senden je Empfänger mit Link ohne Ablauf, Unterschreiben auf `/dokument`.
-- **Die KI** (Phasen 3 und 4): Erfassen mit «+» (Aufnehmen, Schreiben, Foto, Datei), Ablegen in Teilen mit
-  «Stimmt so», Vorschläge am Feld und im Angehefteten, Folgen aus Mails, Hinweise auf Abruf,
-  Lernen aus entschiedenen Fällen, Deckel in Franken (siehe «Die KI»).
-- **Testnotizen** in der laufenden Oberfläche (nur Testumgebung; Skill `feedback`).
+- **Die KI** (Phasen 3 und 4): das «+» als eine Eingabe wie bei Claude (Schreiben, Aufnehmen im
+  Feld, Foto, Datei, Stecknadel; auch auf der Website für Personal), Ablegen in Teilen mit
+  «Stimmt so» oder «Verwerfen», die Zahl am «+», Vorschläge am Feld und im Angehefteten, Folgen
+  aus Mails, Hinweise auf Abruf, Lernen aus entschiedenen Fällen, Deckel in Franken (siehe «Die
+  KI»); Rückmeldungen zur Software als Notiz an den Artikeln «ERP» und «Website».
 
 **Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): Shop, Module
 Beschaffen/Verkauf/Ausliefern, «Zahlung (alt)», das alte Dokumentmodul (neu gebaut, siehe

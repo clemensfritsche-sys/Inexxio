@@ -57,7 +57,8 @@ HIDDEN_EVENTS = frozenset({"intake", "intake.failed", "proposal", "proposal.deci
                            # Phase 4: eine Aufnahme ist privat, bis sie eine Erfassung wird
                            # (dann wie oben) – ihre Abschrift stünde sonst für jeden da.
                            "recording.start", "recording.stop", "recording.segment",
-                           "recording.segment_failed", "recording.done", "recording.failed"})
+                           "recording.segment_failed", "recording.done", "recording.failed",
+                           "recording.dismissed"})
 _EVENTS = sorted(HIDDEN_EVENTS)
 #: Die Zeiterfassung einer Person sieht nur sie selbst und der Admin.
 PRIVATE = frozenset({"time_entries", "time_contracts"})

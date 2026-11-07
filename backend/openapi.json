@@ -4854,269 +4854,6 @@
         }
       }
     },
-    "/api/v1/feedback": {
-      "get": {
-        "tags": [
-          "feedback"
-        ],
-        "summary": "List Feedback",
-        "operationId": "list_feedback_api_v1_feedback_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "route",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Nur Notizen dieser Seite (Pfad)",
-              "title": "Route"
-            },
-            "description": "Nur Notizen dieser Seite (Pfad)"
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/FeedbackNoteResponse"
-                  },
-                  "title": "Response List Feedback Api V1 Feedback Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "feedback"
-        ],
-        "summary": "Create Feedback",
-        "operationId": "create_feedback_api_v1_feedback_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FeedbackCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeedbackNoteResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "feedback"
-        ],
-        "summary": "Clear Feedback",
-        "description": "Aufräumen bzw. zurücksetzen – wirkt nur auf die eigenen sichtbaren Notizen.",
-        "operationId": "clear_feedback_api_v1_feedback_delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "scope",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "'done' = Erledigte/Verworfene, 'all' = alles",
-              "default": "done",
-              "title": "Scope"
-            },
-            "description": "'done' = Erledigte/Verworfene, 'all' = alles"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/feedback/{note_id}": {
-      "delete": {
-        "tags": [
-          "feedback"
-        ],
-        "summary": "Delete Feedback",
-        "operationId": "delete_feedback_api_v1_feedback__note_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Note Id"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "feedback"
-        ],
-        "summary": "Update Feedback",
-        "description": "Erledigt/verworfen setzen – durch den Melder selbst oder durch Personal.",
-        "operationId": "update_feedback_api_v1_feedback__note_id__patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "note_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Note Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FeedbackUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeedbackNoteResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/messages/channels": {
       "get": {
         "tags": [
@@ -6616,6 +6353,54 @@
         }
       }
     },
+    "/api/v1/erp/intake/{intake_id}/discard": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Discard",
+        "description": "**«Verwerfen»** – nicht ablegen; was aus ihr folgte, geht mit.",
+        "operationId": "discard_api_v1_erp_intake__intake_id__discard_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "intake_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Intake Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/proposals": {
       "get": {
         "tags": [
@@ -7072,6 +6857,54 @@
         "summary": "Advance",
         "description": "**Weiter abschreiben**, so weit die Zeit reicht (unter den 60 s von Firebase Hosting) –\ndie Oberfläche fragt nach, bis ``state`` ``done`` oder ``failed`` ist.",
         "operationId": "advance_api_v1_erp_recordings__recording_id__advance_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/recordings/{recording_id}/dismiss": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Dismiss",
+        "description": "**Verwerfen** – eine gescheiterte Aufnahme verschwindet aus dem «+».",
+        "operationId": "dismiss_api_v1_erp_recordings__recording_id__dismiss_post",
         "security": [
           {
             "HTTPBearer": []
@@ -10557,292 +10390,6 @@
         "type": "object",
         "title": "ErpAdminUpdate",
         "description": "Was am **ERP-Benutzer-Datensatz** änderbar ist.\n\n**ERP ist Master:** das sind ALLE Felder, die die Person selbst pflegen kann\n(geerbt von ``UserProfileUpdate``) **plus** die Anstellungsdaten. Vorher war\ndies eine schmale Extra-Liste – das ERP konnte Name, Adresse, Firmenangaben und\nBankverbindung nur ANZEIGEN, editieren konnte sie allein die Person in ihrem\nKonto. Damit lag die Wahrheit ausserhalb des ERP, also genau verkehrt herum.\nDurch die Vererbung kann die Liste auch nicht mehr auseinanderlaufen."
-      },
-      "FeedbackAnchor": {
-        "properties": {
-          "label": {
-            "type": "string",
-            "maxLength": 200,
-            "title": "Label",
-            "default": ""
-          },
-          "tag": {
-            "type": "string",
-            "maxLength": 40,
-            "title": "Tag",
-            "default": ""
-          },
-          "selector": {
-            "type": "string",
-            "maxLength": 500,
-            "title": "Selector",
-            "default": ""
-          },
-          "html": {
-            "type": "string",
-            "maxLength": 800,
-            "title": "Html",
-            "default": ""
-          },
-          "section": {
-            "type": "string",
-            "maxLength": 80,
-            "title": "Section",
-            "default": ""
-          },
-          "rx": {
-            "type": "number",
-            "title": "Rx",
-            "default": 0.5
-          },
-          "ry": {
-            "type": "number",
-            "title": "Ry",
-            "default": 0.5
-          }
-        },
-        "type": "object",
-        "title": "FeedbackAnchor",
-        "description": "WO die Notiz hängt. ``label`` (sichtbarer Text) ist der beste greppbare Anker."
-      },
-      "FeedbackContext": {
-        "properties": {
-          "viewport": {
-            "type": "string",
-            "maxLength": 40,
-            "title": "Viewport",
-            "default": ""
-          },
-          "ua": {
-            "type": "string",
-            "maxLength": 300,
-            "title": "Ua",
-            "default": ""
-          },
-          "role": {
-            "type": "string",
-            "maxLength": 20,
-            "title": "Role",
-            "default": ""
-          },
-          "version": {
-            "type": "string",
-            "maxLength": 60,
-            "title": "Version",
-            "default": ""
-          },
-          "view": {
-            "type": "string",
-            "maxLength": 80,
-            "title": "View",
-            "default": ""
-          },
-          "errors": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Errors"
-          }
-        },
-        "type": "object",
-        "title": "FeedbackContext",
-        "description": "WOMIT es passiert ist – die Umgebung, die man von Hand nie sauber notiert."
-      },
-      "FeedbackCreate": {
-        "properties": {
-          "body": {
-            "type": "string",
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Body"
-          },
-          "route": {
-            "type": "string",
-            "maxLength": 500,
-            "title": "Route",
-            "default": ""
-          },
-          "target_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Object Id"
-          },
-          "anchor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FeedbackAnchor"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "context": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FeedbackContext"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "body"
-        ],
-        "title": "FeedbackCreate"
-      },
-      "FeedbackNoteResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "body": {
-            "type": "string",
-            "title": "Body"
-          },
-          "route": {
-            "type": "string",
-            "title": "Route"
-          },
-          "target_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Object Id"
-          },
-          "anchor": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Anchor"
-          },
-          "context": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Context"
-          },
-          "resolution": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolution"
-          },
-          "resolved_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolved At"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "created_by": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By"
-          },
-          "author_name": {
-            "type": "string",
-            "title": "Author Name",
-            "default": ""
-          },
-          "mine": {
-            "type": "boolean",
-            "title": "Mine",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "status",
-          "body",
-          "route",
-          "created_at"
-        ],
-        "title": "FeedbackNoteResponse"
-      },
-      "FeedbackUpdate": {
-        "properties": {
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
-          },
-          "resolution": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 2000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolution"
-          }
-        },
-        "type": "object",
-        "title": "FeedbackUpdate",
-        "description": "Rückkopplung: erledigt/verworfen setzen (oder wieder öffnen) + Begründung."
       },
       "FieldChange": {
         "properties": {
@@ -14364,6 +13911,18 @@
             "type": "string",
             "maxLength": 100,
             "title": "Mime"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 600
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
           }
         },
         "type": "object",

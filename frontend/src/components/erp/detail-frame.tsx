@@ -201,7 +201,7 @@ export function SectionTitle({ icon: Icon, info, right, children }: {
 }) {
   return (
     <div
-      data-fb-section={typeof children === 'string' ? children : undefined}
+      data-where-section={typeof children === 'string' ? children : undefined}
       style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}
     >
       {Icon && <Icon size={13} style={{ color: 'var(--fg-4)' }} />}
@@ -218,9 +218,9 @@ export function PanelHeader({ icon: Icon, title, tone = 'var(--accent)', info, r
   icon: ElementType; title: string; tone?: string; info?: string; right?: ReactNode;
 }) {
   return (
-    // `data-fb-section` benennt den Abschnitt für eine Testnotiz: im Prozess-Editor
+    // `data-where-section` benennt den Abschnitt für die Stecknadel (`lib/pin-point`): im Prozess-Editor
     // sagt «Bewegung» mehr als jede Positions-Kette im Selektor.
-    <div data-fb-section={title} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div data-where-section={title} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, background: `${tone}14`, color: tone, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
         <Icon size={15} />
       </span>

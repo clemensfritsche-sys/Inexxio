@@ -19,7 +19,6 @@ from .attachment import Attachment
 from .document import Document, DocumentLink, DocumentRef, DocumentSignature
 from .webauthn import WebAuthnCredential, WebAuthnChallenge
 from .log import Log, LogSeal
-from .feedback import FeedbackNote
 from .object_ref import ObjectRef
 from .message import Message, MessageParty
 from .mailbox import Mailbox
@@ -35,7 +34,7 @@ __all__ = [
     "Instance", "InstanceUnit", "Capture",
     "Attachment", "Document", "DocumentRef", "DocumentSignature", "DocumentLink",
     "WebAuthnCredential", "WebAuthnChallenge",
-    "Log", "LogSeal", "ObjectRef", "FeedbackNote",
+    "Log", "LogSeal", "ObjectRef",
     "Message", "MessageParty", "Mailbox", "NewsletterConsent",
     "TimeContract", "TimeEntry", "Holiday", "AiMemory", "RecordingChunk",
 ]

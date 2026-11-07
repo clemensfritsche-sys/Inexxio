@@ -149,7 +149,7 @@ api.setTokenProvider(async (force) => {
 export function onAuthChange(callback: (user: User | null) => void) {
   if (!auth) return () => {};
   // `onIdTokenChanged` statt `onAuthStateChanged`: feuert bei Anmelden/Abmelden UND bei
-  // jeder Token-Erneuerung (die Abonnenten – `AuthGate`, `AccountSync`, Testnotizen,
+  // jeder Token-Erneuerung (die Abonnenten – `AuthGate`, `AccountSync`,
   // Passkey-Hinweis – prüfen darum selbst, ob sich für sie etwas geändert hat).
   return onIdTokenChanged(auth, callback);
 }

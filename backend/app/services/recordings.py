@@ -100,6 +100,8 @@ class Rec:
     actor_id: Optional[int]
     hint: Optional[int]
     mime: str
+    #: Wo die Aufnahme ansetzt (die Stecknadel: Seite und Element) – steht vor dem Text.
+    context: str = ""
     stop: Optional[dict[str, Any]] = None
     texts: dict[int, dict[str, Any]] = field(default_factory=dict)
     #: Je Abschnitt: wie oft Gemini ablehnte (``failures``) bzw. ohne Ablehnung scheiterte.
@@ -140,7 +142,7 @@ def load(db: Session, rec_id: int) -> Rec:
         raise HTTPException(404, detail=f"Aufnahme «{rec_id}» gibt es nicht.")
     p = r.payload or {}
     rec = Rec(id=r.id, at=r.at, object_id=r.object_id, actor_id=r.actor_id, hint=p.get("hint"),
-              mime=str(p.get("mime") or ""))
+              mime=str(p.get("mime") or ""), context=str(p.get("context") or ""))
     for e in db.execute(_EVENTS, {"i": rec_id}):
         body = e.payload or {}
         if e.event == "recording.stop" and rec.stop is None:
@@ -213,7 +215,7 @@ _OPEN = text(f"""
 SELECT s.id FROM log s
  WHERE s.event = 'recording.start' AND s.actor_id = :me
    AND NOT EXISTS (SELECT 1 FROM log e WHERE (e.payload ->> 'recording')::bigint = s.id
-                     AND (e.event = 'recording.done'
+                     AND (e.event IN ('recording.done', 'recording.dismissed')
                           OR (e.event = 'recording.failed' AND (e.at < :since OR {_SILENT}))))
  ORDER BY s.id DESC LIMIT :n""")
 
@@ -228,16 +230,35 @@ def open_for(db: Session, actor: UserProfile, limit: int = 20) -> list[Recording
 
 # ─── Aufnehmen ─────────────────────────────────────────────────────────────────────────
 
-def start(db: Session, hint: Optional[int], mime: str, actor: UserProfile) -> Rec:
+def start(db: Session, hint: Optional[int], mime: str, actor: UserProfile,
+          context: str = "") -> Rec:
     """►► **Eine Aufnahme beginnt** – ``recording.start`` am offenen Datensatz, sonst an der
-    Person. ◄◄"""
+    Person; ``context`` (die Stecknadel) steht später vor dem abgeschriebenen Text. ◄◄"""
     mime = (mime or "").strip()
     if not mime.lower().startswith("audio/"):
         raise HTTPException(400, detail=f"«{mime[:60]}» ist keine Tonaufnahme.")
     if hint is not None and records.labels(db, [hint]).get(hint) is None:
         raise HTTPException(400, detail=f"Datensatz «{hint}» gibt es nicht.")
-    rid = log.event(db, "recording.start", hint or actor.object_id, {"hint": hint, "mime": mime})
+    payload: dict[str, Any] = {"hint": hint, "mime": mime}
+    if intake.clean(context or "").strip():
+        payload["context"] = intake.clean(context).strip()
+    rid = log.event(db, "recording.start", hint or actor.object_id, payload)
     return load(db, rid)
+
+
+def dismiss(db: Session, rec_id: int, actor: UserProfile) -> Rec:
+    """►► **Eine gescheiterte Aufnahme verwerfen** – sie verschwindet aus dem «+» (``recording.dismissed``);
+    das Log behält sie. Nur, was gescheitert ist (was läuft, endet mit Stopp, was fertig ist, ist
+    eine Erfassung und wird dort verworfen); zweimal ist einmal. ◄◄"""
+    rec = get(db, rec_id, actor)
+    if state_of(rec) != "failed":
+        raise HTTPException(409, detail=f"Aufnahme «{rec_id}» ist nicht gescheitert – verwerfen geht "
+                                        "nur dort.")
+    gone = db.execute(text("SELECT 1 FROM log WHERE event = 'recording.dismissed' "
+                           "AND (payload ->> 'recording')::bigint = :i"), {"i": rec_id}).first()
+    if gone is None:
+        log.event(db, "recording.dismissed", rec.object_id, {"recording": rec.id})
+    return rec
 
 
 def _open_for_more(rec: Rec) -> None:
@@ -366,7 +387,7 @@ def _end(db: Session, rec: Rec, event: str, payload: dict[str, Any]) -> None:
 def _whole(rec: Rec) -> str:
     """Der ganze Text in der Reihenfolge der Abschnitte; **jede Lücke als Vermerk**
     «[Abschnitt n: Grund]» – auch «keine Stücke angekommen»: man sieht, wo etwas fehlt."""
-    out = []
+    out = [rec.context] if rec.context else []
     for s in range(rec.segments):
         t = rec.texts.get(s) or {"skipped": NO_CHUNKS}
         if (t.get("text") or "").strip():
@@ -537,16 +558,3 @@ def sweep(db: Session) -> dict[str, int]:
 
 # ─── «zu tun» ──────────────────────────────────────────────────────────────────────────
 
-_FAILED = text("""
-SELECT count(*) FROM log f JOIN log s ON s.id = (f.payload ->> 'recording')::bigint
- WHERE f.event = 'recording.failed' AND f.at >= :since
-   AND NOT coalesce((f.payload ->> 'silent')::boolean, false)
-   AND s.event = 'recording.start' AND s.actor_id = :me""")
-
-
-def failed_count(db: Session, actor: UserProfile) -> int:
-    """Meine Aufnahmen, die in den letzten ``FAILED_DAYS`` Tagen gescheitert sind."""
-    if not actor.object_id:
-        return 0
-    return int(db.execute(_FAILED, {"me": actor.object_id,
-                                    "since": _now() - timedelta(days=FAILED_DAYS)}).scalar() or 0)

@@ -40,7 +40,6 @@ jobs:
       # FIREBASE_PROJECT_ID kommt auf dev aus dem Secret Manager (Eingabe leer).
       stripe_publishable_key: pk_test_51TnjWgQr3aoUqi8iUdnZrLl9X5CvfjtUXwfKHQrXtnUEEYtMKnU74R5gGxGg0otY0GTSZZQLQLBZ1LYse95ICcO700e1hcSnsn
       site_env: dev
-      site_feedback: 'on'
       next_environment: development
       noindex: true
       firebase_api_key: AIzaSyCl0x8TQUWX5XaECVF2luO9i9PNU8L7CWE

@@ -255,7 +255,7 @@ export function Section({ title, aside, first, children }: {
   children: ReactNode;
 }) {
   return (
-    <section data-fb-section={title} style={{ marginTop: first ? 0 : SECTION_GAP, minWidth: 0 }}>
+    <section data-where-section={title} style={{ marginTop: first ? 0 : SECTION_GAP, minWidth: 0 }}>
       <header className="flex items-baseline justify-between" style={{
         gap: 12, margin: '0 0 14px', font: '600 14px var(--font-display)',
         letterSpacing: '-.01em', color: 'var(--fg-1)',

@@ -79,9 +79,9 @@ export function ModuleShell({ tone, icon, label, active, lead, trail, head, body
 }) {
   return (
     // **Die Karte ist weiss** wie jeder Datensatz (Struktur vor Fläche); die Modulfarbe
-    // steht in der Marke und im Rahmen, wenn das Modul dran ist. `data-fb-module` nennt
-    // das Modul für eine Testnotiz (`lib/feedback.originOf`).
-    <div className="rounded-ds-lg" data-fb-module={label} {...body}
+    // steht in der Marke und im Rahmen, wenn das Modul dran ist. `data-where-module` nennt
+    // das Modul für die Stecknadel (`lib/pin-point`).
+    <div className="rounded-ds-lg" data-where-module={label} {...body}
       style={{
         ...MODULE_CARD,
         borderColor: active ? tone.fg : 'var(--border-1)',

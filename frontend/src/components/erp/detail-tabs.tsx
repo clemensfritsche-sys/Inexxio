@@ -24,9 +24,8 @@ export function DetailTabs<K extends string>({ tabs, active, onChange }: {
         return (
           <button key={t.key} type="button" role="tab" aria-selected={active === t.key}
             onClick={() => onChange(t.key)}
-            // Der aktive Reiter markiert sich für die Testnotizen: eine Notiz weiss
-            // dadurch, in welcher Ansicht sie gesetzt wurde (`context.view`).
-            data-fb-tab={active === t.key ? t.label : undefined}
+            // Der aktive Reiter benennt die Ansicht für die Stecknadel (`lib/pin-point`).
+            data-where-tab={active === t.key ? t.label : undefined}
             className={cn('erp-tab', active === t.key && 'erp-tab-active')}>
             <Icon size={15} aria-hidden /> {t.label}
           </button>

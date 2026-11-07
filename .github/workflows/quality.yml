@@ -49,8 +49,7 @@ jobs:
         working-directory: frontend
         run: npm test
 
-      # Ohne Website-Build entsteht eine leere Shell (``scripts/site-shell.mjs``);
-      # ``development`` baut die Testnotiz-Insel mit, die ein Prod-Build auslässt.
+      # Ohne Website-Build entsteht eine leere Shell (``scripts/site-shell.mjs``).
       - name: Build (Frontend)
         if: ${{ inputs.build != false }}
         working-directory: frontend

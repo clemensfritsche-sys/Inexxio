@@ -173,6 +173,16 @@ def assert_may(db: Session, intake_id: int, viewer: UserProfile) -> Intake:
     return it
 
 
+#: Steuerzeichen, die PostgreSQL in ``text``/``jsonb`` nicht aufnimmt (NUL) oder die nur
+#: stören – Tab und Zeilenumbruch bleiben. Was eine Seite hergibt (die Stecknadel liest Text
+#: aus dem Element), entscheidet nicht, ob eine Erfassung speicherbar ist.
+_CONTROL = dict.fromkeys([*range(0, 9), 11, 12, *range(14, 32)])
+
+
+def clean(body: str) -> str:
+    return body.translate(_CONTROL)
+
+
 def first_words(body: str, n: int = 6) -> str:
     words = body.split()
     return " ".join(words[:n])[:80] + ("…" if len(words) > n else "")
@@ -248,7 +258,7 @@ def capture(db: Session, body: str, hint: Optional[int], actor: UserProfile, *,
     der offen war (``hint``), sonst an der Person. Der Aufrufer committet, bevor die KI läuft.
     **Erfasst hat immer ``actor``** – auch wenn der Takt eine Aufnahme zu Ende abschreibt
     (``recording``: die Aufnahme, aus der der Text kommt; dann darf er länger sein)."""
-    body = (body or "").strip()
+    body = clean(body or "").strip()
     if not body:
         raise HTTPException(400, detail="Eine Erfassung braucht Text.")
     if hint is not None and records.labels(db, [hint]).get(hint) is None:
@@ -481,6 +491,31 @@ def file(db: Session, intake_id: int, parts: list[Any], actor: UserProfile) -> I
                          **({} if kept else {"parts": clean}))
         for other in open_files[:-1]:
             proposals.decide(db, other, "gone")
+    return it
+
+
+def discard(db: Session, intake_id: int, actor: UserProfile) -> Intake:
+    """►►► **«Verwerfen»** – die Erfassung wird nicht abgelegt. ◄◄◄ Sie bleibt im Log (nichts wird
+    gelöscht), ist aber nicht mehr offen: ihr ``file``-Vorschlag wird ``rejected`` – gab es noch
+    keinen (KI aus), entsteht er roh und wird gleich verworfen, damit auch der Takt sie nicht mehr
+    nachholt. **Was aus ihr folgte, geht mit**: ihre offenen ``change``/``create`` werden ebenso
+    verworfen (ein Vorschlag aus einer verworfenen Eingabe stünde sonst verwaist am Datensatz).
+    Zweimal verwerfen ist einmal; nach «Stimmt so» 409."""
+    it = assert_may(db, intake_id, actor)
+    found = proposals.of_intake(db, it.id)
+    files = [p for p in found if p.kind == "file"]
+    done = proposals.decided(db, [p.id for p in found])
+    if any(done.get(p.id, {}).get("outcome") in ("accepted", "changed") for p in files):
+        raise HTTPException(409, detail=f"Erfassung «{intake_id}» ist schon abgelegt.")
+    with db.begin_nested():
+        if not files:
+            pid = proposals.propose(db, object_id=it.object_id, kind="file", parts=[raw_part(it)],
+                                    source=source_of(it, actor), actor=actor.object_id, ai=False)
+            found += proposals.load(db, [pid]) if pid else []
+        for p in found:
+            if p.id in done or (p.kind != "file" and proposals.derive(db, p) is not None):
+                continue
+            proposals.decide(db, p, "rejected")
     return it
 
 

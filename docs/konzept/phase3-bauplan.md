@@ -55,6 +55,7 @@ es **genau einen** Entscheid (eindeutiger Index `ix_log_decided`; ein zweiter is
 POST /intake                    {text, hint_object_id?}           → Intake
 GET  /intake/open                                                  → Intake[]   (meine, noch nicht abgelegt)
 POST /intake/{id}/file          {parts: [{object_id, text, subject?}]} → Intake (abgelegt: notes gefüllt)
+POST /intake/{id}/discard                                          → Intake     («Verwerfen»: nichts abgelegt, Folgen mit)
 GET  /proposals?object_id=N                                        → Proposal[] (offen, an diesem Datensatz)
 POST /proposals/{id}/reject                                        → Proposal   (✕)
 GET  /pins/{object_id}                                             → Pinned
@@ -84,7 +85,8 @@ Pinned   = { proposals: Proposal[] /* immer, zuerst */,
 - `POST /intake/{id}/file` legt **je Teil eine Notiz** an seinem Datensatz an (Betreff =
   `subject`, sonst die ersten Worte), schreibt den Entscheid und gibt die Erfassung zurück.
 - «zu tun» (`GET /erp/todo`) zählt offene Vorschläge am Datensatz (Abschnitt `vorschlaege`,
-  Wort «n Vorschläge») und **meine** offenen Erfassungen an meiner Person.
+  Wort «n Vorschläge»). **Meine** offenen Erfassungen (und unfertigen Aufnahmen) sind die Zahl
+  am «+» – nicht an meiner Person und nicht im Angehefteten (Erfassen neu, November 2026).
 
 ## Die KI (`services/ai.py` + `services/ai_tools.py`)
 
@@ -129,15 +131,18 @@ Bedeutungs-Zahlen nachholen. Unter der Zeitgrenze des Takts wiederholt das SDK n
 
 ## Oberfläche
 
-- **«+» im Feed = Erfassen:** oben rund festhalten – Foto · Datei · Schreiben (Aufnehmen kommt
-  mit Phase 4, bis dahin kein Knopf); unten eckig neu anlegen (Person, Firma, Artikel, Auftrag,
-  in den Farben des Feeds). Foto und Datei öffnen den bestehenden Dokument-Entwurf; der offene
+- **«+» im Feed = Erfassen** (seit November 2026 EINE Ansicht wie das Eingabefeld bei Claude):
+  oben die Eingabe – schreiben, 📷 Foto und 📄 Datei (springen in den Dokument-Entwurf), 📌
+  Stecknadel (Rückmeldung zur Software, Notiz am Artikel «ERP»/«Website»), 🎤 Aufnehmen im Feld;
+  darunter «Nicht abgelegt» und eckig «Neu anlegen» in den Farben des Feeds. Der offene
   Datensatz ist der Hinweis.
-- **Schreiben → «Abgelegt»:** je Teil der Datensatz (antippen = anderer, `ObjectSelect`) und
-  der Text; darunter die Vorschläge; «Stimmt so» legt ab.
+- **Ablegen an derselben Stelle:** nach dem Absenden das Skeleton, dann «Abgelegt» – je Teil der
+  Datensatz (antippen = anderer, `ObjectSelect`) und der Text; darunter die Vorschläge («Zum
+  Feld», «Entwurf öffnen»); **«Verwerfen»** oder **«Stimmt so»**.
 - **Vorschlag am Feld:** `useField` fragt die offenen Vorschläge des Datensatzes
   (`objectId`) und zeigt am Feld (`name`) das Zeichen wie «zu tun»; Darüberfahren/Tippen
   öffnet ein Fenster: neuer Wert, Quelle, «Übernehmen», ✕. Übernehmen ruft `onChange(value)`
   und speichert sofort (wie Enter).
 - **Das Angeheftete** steht im Verlauf unten beim Neuesten: zuerst alle offenen Vorschläge
-  (immer), dann die Hinweise der KI mit «neu ansehen»; ein Hinweis lässt sich lösen.
+  (immer; ohne `file` – der wartet im «+»), dann die Hinweise der KI mit «neu ansehen»; ein
+  Hinweis lässt sich lösen.

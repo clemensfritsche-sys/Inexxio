@@ -7,11 +7,11 @@ import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { tell } from '@/lib/notice';
 import { when, whenTitle } from '@/lib/when';
-import { openAtField, pinnedOpen, useDecide, useFieldsOnPage, useOpenIntakes, usePinned } from '@/lib/proposals';
+import { openAtField, pinnedOpen, useDecide, useFieldsOnPage, usePinned } from '@/lib/proposals';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { useCapture } from '@/components/erp/capture/capture-context';
 import { ProposalCard, type ProposalAction } from '@/components/erp/capture/proposal-card';
-import type { Intake, Pinned as PinnedData, Proposal } from '@/types';
+import type { Pinned as PinnedData, Proposal } from '@/types';
 
 /**
  * ►►► **Das Angeheftete – unten beim Neuesten im Verlauf** (Akte §4.2, Bauplan «Oberfläche»). ◄◄◄
@@ -22,8 +22,9 @@ import type { Intake, Pinned as PinnedData, Proposal } from '@/types';
  * in jeder Antwort mit, und was lokal entschieden ist, bleibt weg (`lib/proposals`).
  *
  * Je Art eine Handlung: `change` «Zum Feld» (nur, wenn das Feld auf der Seite steht – sonst
- * zeigt die Karte Wert und Quelle, ✕ geht immer) · `create` «Entwurf öffnen» · `file`
- * «Abgelegt». Sprungziel von «zu tun» (Abschnitt `vorschlaege`).
+ * zeigt die Karte Wert und Quelle, ✕ geht immer) · `create` «Entwurf öffnen». Eine Erfassung,
+ * die auf «Stimmt so» wartet, steht nicht hier, sondern im «+» (die Zahl am Knopf). Sprungziel
+ * von «zu tun» (Abschnitt `vorschlaege`).
  */
 export function Pinned({ objectId }: { objectId: number }) {
   const { data } = usePinned(objectId);
@@ -95,17 +96,13 @@ function PinnedProposals({ proposals }: { proposals: Proposal[] }) {
   const decide = useDecide();
   const capture = useCapture();
   const onPage = useFieldsOnPage(proposals.filter((p) => p.kind === 'change').map((p) => p.id));
-  const intakes = useOpenIntakes().data;
-  const intakeOf = (p: Proposal): Intake | null => intakes?.find((i) => i.id === p.source.intake
-    || i.proposals.some((x) => x.id === p.id)) ?? null;
   const actionOf = (p: Proposal): ProposalAction | null => {
     if (p.kind === 'change') return onPage.has(p.id) ? { label: 'Zum Feld', run: () => openAtField(p.id) } : null;
     if (p.kind === 'create' && p.draft && capture) {
       const draft = p.draft;
       return { label: 'Entwurf öffnen', run: () => capture.createDraft(draft.type, draft.values) };
     }
-    const intake = p.kind === 'file' ? intakeOf(p) : null;
-    return intake && capture ? { label: 'Abgelegt', run: () => capture.openIntake(intake) } : null;
+    return null;
   };
   return (
     <>

@@ -130,9 +130,9 @@ scripts/
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen) |
 | Der Takt | `tick.py` (`TASKS`: Siegel, Mails, Aufnahmen (`voice`), KI – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
-| KI (Phase 3, `docs/konzept/phase3-bauplan.md`) | `ai.py` (die Tür: `converse` mit Werkzeugen, Deckel in Franken), `ai_tools.py` (Lese-Werkzeuge mit den Rechten der Person), `memory.py` (ähnliche Fälle, pgvector), `proposals.py` (Vorschläge `proposal`/`proposal.decided` im Log; `FIELDS`, offen = abgeleitet, `settle`), `intake.py` (Erfassen → `intake`, die KI legt ab → `file`-Vorschlag, «Stimmt so» → Notizen), `pins.py` (das Angeheftete: offene Vorschläge + Hinweise `pin`), `follow.py` (was aus einer eingehenden Mail folgt, im Takt; Start `follow.start`, je Mail `mail.followed`) |
-| Sprache (Phase 4, `docs/konzept/phase4-bauplan.md`) | `recordings.py` (EINE Stelle: `start`, `add_chunk`, `stop`, `advance` – Abschnitte der Reihe nach über `ai.transcribe` → `recording.segment`, dann EINE Erfassung im Namen der Person → `recording.done`, Stücke weg; `due`/`sweep` für den Takt, `failed_count` für «zu tun»), `ai.py` (`transcribe`, Gemini über `_vertex` – dieselbe Stelle wie `embed`), Stücke in `recording_chunks` (nicht im Log), Bytes über `attachments.put_object` (eigener Bucket `RECORDINGS_BUCKET`, sonst die Zeile); aus einer Aufnahme legt die KI in **Bereichen nummerierter Absätze** ab, den Text baut `intake.spoken_parts` wörtlich |
-| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
+| KI (Phase 3, `docs/konzept/phase3-bauplan.md`) | `ai.py` (die Tür: `converse` mit Werkzeugen, Deckel in Franken), `ai_tools.py` (Lese-Werkzeuge mit den Rechten der Person), `memory.py` (ähnliche Fälle, pgvector), `proposals.py` (Vorschläge `proposal`/`proposal.decided` im Log; `FIELDS`, offen = abgeleitet, `settle`), `intake.py` (Erfassen → `intake`, die KI legt ab → `file`-Vorschlag, «Stimmt so» → Notizen, «Verwerfen» → `discard`; `clean` putzt Steuerzeichen), `pins.py` (das Angeheftete: offene Vorschläge + Hinweise `pin`), `follow.py` (was aus einer eingehenden Mail folgt, im Takt; Start `follow.start`, je Mail `mail.followed`) |
+| Sprache (Phase 4, `docs/konzept/phase4-bauplan.md`) | `recordings.py` (EINE Stelle: `start`, `add_chunk`, `stop`, `advance` – Abschnitte der Reihe nach über `ai.transcribe` → `recording.segment`, dann EINE Erfassung im Namen der Person → `recording.done`, Stücke weg; `due`/`sweep` für den Takt, `dismiss` verwirft eine gescheiterte; `context` = die Stecknadel vor dem Text), `ai.py` (`transcribe`, Gemini über `_vertex` – dieselbe Stelle wie `embed`), Stücke in `recording_chunks` (nicht im Log), Bytes über `attachments.put_object` (eigener Bucket `RECORDINGS_BUCKET`, sonst die Zeile); aus einer Aufnahme legt die KI in **Bereichen nummerierter Absätze** ab, den Text baut `intake.spoken_parts` wörtlich |
+| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
 Nach jeder Änderung an einem Request/Response-Schema oder am Statuskatalog:
@@ -152,7 +152,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **142 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **139 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -240,11 +240,13 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `/api/v1/erp/intake` | staff | **Festhalten** (`{text, hint_object_id?}`): rohe Eingabe sofort als `intake`, dann legt die KI ab (≤ 45 s) → Erfassung mit Teilen, Vorschlägen, `problem` (`services/intake`) |
 | GET | `/api/v1/erp/intake/open` | staff | Meine Erfassungen, die noch nicht abgelegt sind |
 | POST | `/api/v1/erp/intake/{id}/file` | staff (selbst · Admin) | **«Stimmt so»** – je Teil eine Notiz an seinem Datensatz, Entscheid `accepted`/`changed` |
-| POST | `/api/v1/erp/recordings` | staff | **Aufnahme beginnen** (`{hint_object_id?, mime}`) → `recording.start`; `Recording` (`services/recordings`) |
+| POST | `/api/v1/erp/intake/{id}/discard` | staff (selbst · Admin) | **«Verwerfen»** – nichts abgelegt (`file` → `rejected`, ohne KI erst roh angelegt), was aus ihr folgte, geht mit; zweimal ist einmal, nach «Stimmt so» 409 (`intake.discard`) |
+| POST | `/api/v1/erp/recordings` | staff | **Aufnahme beginnen** (`{hint_object_id?, mime, context?}`; `context` = die Stecknadel, steht vor dem Text) → `recording.start`; `Recording` (`services/recordings`) |
 | POST | `/api/v1/erp/recordings/{id}/chunks` | staff (nur wer aufnimmt) | **Ein Stück** (multipart `segment`, `seq`, `file`; ≤ 4 MB; dasselbe Stück ersetzt es; nach Ende 409) |
 | POST | `/api/v1/erp/recordings/{id}/stop` | staff (nur wer aufnimmt) | **Stopp** (`{segments}`) → `recording.stop` |
 | POST | `/api/v1/erp/recordings/{id}/advance` | staff (selbst · Admin) | **Weiter abschreiben**, so weit die Zeit reicht (`ai.until(50)`): Abschnitte → Erfassung → `done`; `problem` sagt, warum nicht |
-| GET | `/api/v1/erp/recordings/open` | staff | Meine Aufnahmen, die nicht fertig sind |
+| GET | `/api/v1/erp/recordings/open` | staff | Meine Aufnahmen, die nicht fertig sind (mit der Liste `/intake/open` die Zahl am «+») |
+| POST | `/api/v1/erp/recordings/{id}/dismiss` | staff (selbst · Admin) | **Verwerfen** einer gescheiterten Aufnahme → `recording.dismissed`, weg aus dem «+» |
 | GET | `/api/v1/erp/proposals?object_id=` | staff | Offene Vorschläge an einem Datensatz (`file` nur für wen erfasst hat) |
 | POST | `/api/v1/erp/proposals/{id}/reject` | staff | ✕ – verworfen (`proposal.decided` `rejected`) |
 | GET | `/api/v1/erp/pins/{object_id}` | staff | **Das Angeheftete**: offene Vorschläge (immer, zuerst) + ungelöste Hinweise (`services/pins`) |
@@ -257,8 +259,6 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET · PUT | `/api/v1/erp/time/companies/{object_id}` · `/rules` | staff · admin | Feiertage, Nachweis-Regeln, Regeln des Landes einer eigenen Gesellschaft / Kanton und Nachweis setzen |
 | GET | `/api/v1/erp/time/companies/{object_id}/proposal?year=` | admin | Vorschlag der Feiertage (OpenHolidays) – geholt, nicht gespeichert |
 | POST · DELETE | `/api/v1/erp/time/companies/{object_id}/holidays` · `/{holiday_id}` | admin | Feiertage übernehmen / einen entfernen (Soft-Delete) |
-| GET · POST · DELETE | `/api/v1/feedback` | user | Testnotizen (nur Testumgebung); `DELETE ?scope=done\|all` räumt die eigenen |
-| PATCH · DELETE | `/api/v1/feedback/{note_id}` | user | Notiz erledigt/verworfen setzen / löschen |
 
 ## Befehle statt Feld-Updates
 - **Ein Auftrag entsteht als GANZES** (ein `POST`); es gibt kein `PATCH /orders/{id}`.

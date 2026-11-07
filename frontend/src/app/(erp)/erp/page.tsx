@@ -9,7 +9,6 @@ import type { Article, CompanySettings, ErpRecordType, Order, OrderSummary, User
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { useScan } from '@/components/scan/scan-provider';
 import type { ScanCandidate } from '@/lib/scan';
-import { setOpenRecord } from '@/lib/feedback';
 import type { OrderSeed } from '@/components/erp/order-detail';
 import { qk } from '@/lib/queries';
 import { tell } from '@/lib/notice';
@@ -19,7 +18,7 @@ import { useUrlParams } from '@/lib/use-url-params';
 import { type Creatable, FeedPanel } from '@/components/erp/feed-panel';
 import { DetailPane, type DetailHandlers } from '@/components/erp/detail-pane';
 import type { DraftSeed } from '@/components/erp/document-draft';
-import { CaptureSheet, type CaptureHint, type CaptureStart } from '@/components/erp/capture/capture-sheet';
+import { CaptureSheet, type CaptureHint } from '@/components/erp/capture/capture-sheet';
 import { CaptureContext, type CaptureActions } from '@/components/erp/capture/capture-context';
 
 // Wie viele Vorschläge der Scanner höchstens anbietet (er zeigt ohnehin nur die ersten).
@@ -57,8 +56,8 @@ export default function ErpPage() {
   /** Was ein Entwurf aus «+» oder einem Vorschlag mitbringt; `no` beginnt ihn neu. */
   const [seeds, setSeeds] = useState<{ no: number; draft: DraftSeed | null; record: Record<string, string> | null }>(
     { no: 0, draft: null, record: null });
-  /** Das Blatt «Erfassen» («+») – offen bei den Knöpfen oder bei «Abgelegt». */
-  const [capture, setCapture] = useState<CaptureStart | null>(null);
+  /** Das «+» (Erfassen) – offen oder zu. */
+  const [capture, setCapture] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const scan = useScan();
 
@@ -68,7 +67,9 @@ export default function ErpPage() {
     setSel({ type, objectId });
     setMobileView('detail');
   };
-  useUrlParams({ onType: setTypeFilter, onOpen: open });
+  useUrlParams({ onType: setTypeFilter, onOpen: open,
+    onCreate: (type, camera, values) => startCreate(type, undefined, {
+      ...(camera ? { draft: { start: 'scan' } } : {}), ...(values ? { record: values } : {}) }) });
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.type] = (acc[r.type] ?? 0) + 1;
@@ -95,11 +96,6 @@ export default function ErpPage() {
   }).data;
   const activeRow: Row | null = selectedRow ?? (navId != null && navArticle
     ? { type: 'article', key: `a${navArticle.id}`, objectId: navId, data: navArticle } : null);
-
-  // Testnotizen: dem Notiz-Widget melden, WAS gerade offen ist – die Route bleibt `/erp`.
-  useEffect(() => {
-    setOpenRecord(sel ? { kind: TYPE_META[sel.type]?.label ?? sel.type, objectId: sel.objectId } : null);
-  }, [sel]);
 
   // Instanzen nur nachladen, wenn sie sichtbar sind (Feed «alle» oder «Instanzen»).
   const more = (typeFilter === null || typeFilter === 'instance') && !feed.instancesDone;
@@ -163,7 +159,7 @@ export default function ErpPage() {
     setOrderSeed(seed ?? null);
     setSeeds((s) => ({ no: s.no + 1, draft: more.draft ?? null, record: more.record ?? null }));
     setCreating(type);
-    setCapture(null);
+    setCapture(false);
     setMobileView('detail');
   }
 
@@ -174,7 +170,6 @@ export default function ErpPage() {
   } : null;
   const captureActions: CaptureActions = {
     createDraft: (type, values) => startCreate(type === 'user' ? 'person' : 'company', undefined, { record: values }),
-    openIntake: (intake) => setCapture({ view: 'filed', intake }),
   };
   const select = (s: { type: ErpRecordType; objectId: number | null }) => {
     setCreating(null);
@@ -228,17 +223,19 @@ export default function ErpPage() {
               loading={feed.loading} more={more} onMore={loadMore}
               isSelected={(r) => !creating && !!sel && sel.type === r.type && sel.objectId === r.objectId}
               onSelect={(r) => { if (r.objectId != null) open(r.type, r.objectId); }}
-              todos={todos} staff={staff} onScan={openScanner} onCapture={() => setCapture({ view: 'menu' })} />
+              todos={todos} staff={staff} onScan={openScanner} onCapture={() => setCapture(true)} />
             <DetailPane show={mobileView !== 'list'} creating={creating} sel={sel} activeRow={activeRow}
               orderSeed={orderSeed} seeds={seeds} isAdmin={isAdmin} me={me} todos={todos} h={handlers} />
           </div>
         </div>
         {capture && (
-          <CaptureSheet key={capture.view === 'filed' ? `f${capture.intake.id}` : 'menu'} start={capture} hint={hint}
-            onClose={() => setCapture(null)}
+          <CaptureSheet hint={hint} onClose={() => setCapture(false)}
             onCreate={(t) => startCreate(t)}
             onFiles={(files, about) => startCreate('document', undefined, { draft: {
               files, source: 'file', refs: about ? [{ object_id: about.objectId, label: about.label }] : undefined,
+            } })}
+            onScan={(about) => startCreate('document', undefined, { draft: {
+              start: 'scan', refs: about ? [{ object_id: about.objectId, label: about.label }] : undefined,
             } })} />
         )}
       </CaptureContext.Provider>

@@ -19,6 +19,8 @@ class RecordingIn(BaseModel):
 
     hint_object_id: Optional[int] = None
     mime: str = Field(max_length=100)
+    #: Die Stecknadel: Seite und Element, an dem die Aufnahme ansetzt («Stelle: …»).
+    context: Optional[str] = Field(default=None, max_length=600)
 
 
 class StopIn(BaseModel):

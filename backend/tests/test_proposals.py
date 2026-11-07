@@ -507,7 +507,9 @@ def test_refresh_without_ai_keeps_everything(db, api, monkeypatch):
 
 # ─── «zu tun» ──────────────────────────────────────────────────────────────────────────
 
-def test_todo_counts_proposals_my_intakes_and_the_cap(db, monkeypatch):
+def test_todo_counts_proposals_and_the_cap_but_not_my_intakes(db, monkeypatch):
+    """Was ich erfasst, aber nicht abgelegt habe, ist die Zahl am «+» (die Liste
+    ``/intake/open``) – nicht an meiner Person. Bug-Form: es zählt an zwei Orten."""
     firm, hans, meier, admin = _montage(db)
     for value in ("079 100 00 00", "079 200 00 00"):
         proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
@@ -520,8 +522,8 @@ def test_todo_counts_proposals_my_intakes_and_the_cap(db, monkeypatch):
         found = {t.object_id: t for t in todo.todo(db, viewer)}.get(oid)
         return [i for i in found.items if i.section in ("vorschlaege", "ki")] if found else []
     assert [(i.label, i.count) for i in items(hans, meier.object_id)] == [("2 Vorschläge", 2)]
-    assert [(i.label, i.count) for i in items(hans, hans.object_id)] == [("1 Erfassung ablegen", 1)]
-    assert items(admin, hans.object_id) == []                    # nur meine
+    assert items(hans, hans.object_id) == []                     # die Zahl hängt am «+»
+    assert len(intake.open_ids(db, hans)) == 1
     op = sites.find_operator(db) or new_firm(db, "Betreiber", own=True, is_operator=True)
     monkeypatch.setattr(ai, "near_cap", lambda db: True)
     monkeypatch.setattr(ai, "cap_chf", lambda: 10.0)
@@ -789,3 +791,70 @@ def test_8_filed_by_hand_while_the_ai_reads_leaves_no_second_file(db, monkeypatc
     assert intake.file_with_ai(db, it, me) is None
     (only,) = proposals.of_intake(db, it.id, "file")
     assert only.payload["parts"][0]["text"] == "Während die KI liest"      # der rohe Teil
+
+
+# ─── «Verwerfen» und das Angeheftete (Erfassen neu) ─────────────────────────────────────
+
+def test_discard_closes_the_intake_and_what_followed_from_it(db, api, monkeypatch):
+    """«Verwerfen» statt «Stimmt so»: keine Notiz, die Erfassung ist nicht mehr offen, ihr
+    Telefon-Vorschlag ist mit verworfen, der Takt holt sie nicht nach; zweimal ist einmal, nach
+    «Stimmt so» 409. Bug-Formen: ein verwaister Vorschlag bleibt am Datensatz · der Takt legt
+    eine verworfene Erfassung doch noch ab."""
+    firm, hans, meier, admin = _montage(db)
+    _ready(monkeypatch, _Script(_file_answer(
+        [(firm.object_id, "Schlauch ersetzt.", "Schlauch")],
+        [_change(meier.object_id, "phone", "079 123 45 67")])))
+    c = api.as_(hans)
+    got = c.post("/api/v1/erp/intake", json={"text": NOTE, "hint_object_id": firm.object_id}).json()
+    assert len(got["proposals"]) == 1
+    notes = db.query(Message).filter(Message.channel == "note").count()
+    r = c.post(f"/api/v1/erp/intake/{got['id']}/discard")
+    assert r.status_code == 200, r.text
+    assert c.get("/api/v1/erp/intake/open").json() == []
+    assert proposals.open_for(db, meier.object_id, admin) == []
+    assert db.query(Message).filter(Message.channel == "note").count() == notes
+    outcomes = {e.payload["outcome"] for e in _events(db, "proposal.decided")}
+    assert outcomes == {"rejected"}
+    assert c.post(f"/api/v1/erp/intake/{got['id']}/discard").status_code == 200   # einmal
+    assert got["id"] not in intake.waiting(db, 50)
+    other = api.as_(new_person(db, "employee")).post(f"/api/v1/erp/intake/{got['id']}/discard")
+    assert other.status_code == 404                              # fremde Erfassung
+
+
+def test_discard_without_ai_and_never_after_filing(db, api, monkeypatch):
+    """Ohne KI gibt es noch keinen ``file``-Vorschlag – verworfen wird trotzdem, und der Takt
+    holt sie nicht mehr nach. Nach «Stimmt so» ist Verwerfen 409."""
+    monkeypatch.setattr(ai, "ready", lambda: False)
+    _, hans, _, _ = _montage(db)
+    c = api.as_(hans)
+    raw = c.post("/api/v1/erp/intake", json={"text": "roh bleiben"}).json()
+    assert raw["id"] in intake.waiting(db, 50)
+    assert c.post(f"/api/v1/erp/intake/{raw['id']}/discard").status_code == 200
+    assert raw["id"] not in intake.waiting(db, 50) and c.get("/api/v1/erp/intake/open").json() == []
+    kept = c.post("/api/v1/erp/intake", json={"text": "ablegen"}).json()
+    parts = [{"object_id": p["object_id"], "text": p["text"], "subject": p["subject"]}
+             for p in kept["parts"]]
+    assert c.post(f"/api/v1/erp/intake/{kept['id']}/file", json={"parts": parts}).status_code == 200
+    assert c.post(f"/api/v1/erp/intake/{kept['id']}/discard").status_code == 409
+
+
+def test_an_intake_waiting_for_stimmt_so_is_not_pinned(db, api, monkeypatch):
+    """Das rätselhafte «Ablegen» im Angehefteten: eine Erfassung, die auf «Stimmt so» wartet,
+    steht im «+», nicht am Datensatz. Ein ``change`` daraus steht weiter da."""
+    firm, hans, meier, _ = _montage(db)
+    _ready(monkeypatch, _Script(_file_answer(
+        [(firm.object_id, "Schlauch ersetzt.", "Schlauch")],
+        [_change(meier.object_id, "phone", "079 123 45 67")])))
+    c = api.as_(hans)
+    c.post("/api/v1/erp/intake", json={"text": NOTE, "hint_object_id": firm.object_id})
+    assert c.get(f"/api/v1/erp/pins/{firm.object_id}").json()["proposals"] == []
+    assert [p["kind"] for p in c.get(f"/api/v1/erp/pins/{meier.object_id}").json()["proposals"]] == ["change"]
+
+
+def test_a_capture_drops_control_characters(db):
+    """PostgreSQL nimmt kein NUL – was die Stecknadel aus der Seite liest, darf eine Erfassung
+    nicht unspeicherbar machen. Tab und Zeilenumbruch bleiben."""
+    _, hans, _, _ = _montage(db)
+    act(db, "person", hans.object_id, "ui")
+    it = intake.capture(db, "Stelle: «Frei\x00geben»\n\tText\x07", None, hans)
+    assert intake.get(db, it.id).text == "Stelle: «Freigeben»\n\tText"

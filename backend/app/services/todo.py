@@ -75,24 +75,15 @@ def _cap_item(spent: float, cap: float) -> TodoItem:
 
 
 def _ai_items(db: Session, actor: UserProfile) -> list[tuple[int, TodoItem]]:
-    """**Phase 3 · KI**: offene Vorschläge je Datensatz, **meine** offenen Erfassungen an meiner
-    Person, und für den Admin am Betreiber der Hinweis, dass der Tagesdeckel der KI nahe ist."""
-    from . import ai, intake, proposals, recordings, sites
+    """**Phase 3 · KI**: offene Vorschläge je Datensatz, und für den Admin am Betreiber der
+    Hinweis, dass der Tagesdeckel der KI nahe ist. Was ich erfasst, aber nicht abgelegt habe
+    (Erfassungen, Aufnahmen), zählt **nicht hier**: es ist die Zahl am «+» (dieselben Listen
+    wie «Nicht abgelegt», ``/erp/intake/open`` und ``/erp/recordings/open``)."""
+    from . import ai, proposals, sites
     out = []
     for oid, n in proposals.open_counts(db).items():
         out.append((oid, TodoItem(section="vorschlaege", count=n,
                                   label=f"{n} Vorschl{'äge' if n != 1 else 'ag'}")))
-    mine = len(intake.open_ids(db, actor))
-    if mine and actor.object_id:
-        out.append((actor.object_id, TodoItem(
-            section="vorschlaege", count=mine,
-            label=f"{mine} Erfassung{'en' if mine != 1 else ''} ablegen")))
-    # Phase 4: meine gescheiterten Aufnahmen – sieben Tage lang (``recordings.FAILED_DAYS``).
-    failed = recordings.failed_count(db, actor)
-    if failed and actor.object_id:
-        out.append((actor.object_id, TodoItem(
-            section="vorschlaege", count=failed, red=True,
-            label=f"{failed} Aufnahme{'n' if failed != 1 else ''} fehlgeschlagen")))
     if actor.role == "admin" and ai.near_cap(db):
         op = sites.find_operator(db)
         if op is not None and op.object_id:

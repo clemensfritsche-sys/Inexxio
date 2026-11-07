@@ -226,30 +226,6 @@ export type CompanySettings = components['schemas']['CompanySettingsResponse'];
 /** Was sich an einem Unternehmen ändern lässt – die Abgeleiteten fehlen hier von selbst. */
 export type CompanySettingsUpdate = components['schemas']['CompanySettingsUpdate'];
 
-// ─── Testnotizen (in-app Feedback, nur Testumgebung) ─────────────────────────
-// Eine angeheftete Notiz aus der laufenden Oberfläche. Bewusst OHNE Objektnummer –
-// ein Meta-Artefakt über dem System, kein Geschäftsobjekt (siehe docs/feedback.md).
-
-/** WO die Notiz hängt (`label` ist der greppbare Anker) und WOMIT es passiert ist. */
-export type FeedbackAnchor = components['schemas']['FeedbackAnchor'];
-export type FeedbackContext = components['schemas']['FeedbackContext'];
-
-export type FeedbackStatus = 'open' | 'done' | 'dismissed';
-
-// Aus dem Schema; der Zustand auf die Union verengt, Anker und Umgebung typisiert (das
-// Schema führt sie als freies JSON).
-export type FeedbackNote = Omit<components['schemas']['FeedbackNoteResponse'], 'status' | 'anchor' | 'context'> & {
-  status: FeedbackStatus;
-  anchor: FeedbackAnchor | null;
-  context: FeedbackContext | null;
-};
-
-export type FeedbackCreateInput = components['schemas']['FeedbackCreate'];
-
-export type FeedbackUpdateInput = Omit<components['schemas']['FeedbackUpdate'], 'status'> & {
-  status?: FeedbackStatus;
-};
-
 /** **Eine Nachricht** – das einzige Objekt der Kommunikation (CRM Schritt 2). */
 export type Message = components['schemas']['MessageOut'];
 export type MessageIn = components['schemas']['MessageIn'];

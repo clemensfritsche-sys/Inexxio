@@ -198,13 +198,13 @@ def test_an_api_method_never_loses_its_client():
 def test_a_note_carries_no_control_characters():
     """►►► **Eine Notiz enthaelt nur Text, den eine Datenbank aufnimmt** (#943). ◄◄◄
 
-    Gemeldet war ein Speicherfehler beim Anlegen einer Testnotiz: PostgreSQL nimmt in
-    ``text`` **kein NUL** auf. Der Ausloeser war ein Platzhalter mit NUL-Byte im Beleg –
-    behoben –, und die Regel gehoert trotzdem in das Werkzeug: was die Seite hergibt,
-    entscheidet nicht die Seite.
+    PostgreSQL nimmt in ``text`` **kein NUL** auf. Der Ausloeser war einmal ein Platzhalter mit
+    NUL-Byte im Beleg – behoben –, und die Regel gehoert trotzdem an die Quelle: die Stecknadel
+    liest Text aus der Seite (``lib/pin-point.ts``), und was die Seite hergibt, entscheidet nicht.
+    Serverseitig putzt ``intake.clean`` (Verhalten: ``test_capture_flow``).
 
     Bug-Formen: (a) irgendeine Quelle im Frontend traegt wieder ein Steuerzeichen;
-    (b) das Werkzeug putzt nicht, was es erfasst.
+    (b) die Stecknadel putzt nicht, was sie aus der Seite liest.
     """
     import pathlib as _p
     schmutz = {chr(c) for c in range(32)} - {"\t", "\n", "\r"}
@@ -213,16 +213,12 @@ def test_a_note_carries_no_control_characters():
         bad = schmutz & set(text)
         assert not bad, (
             f"{path.name} traegt ein Steuerzeichen ({[hex(ord(c)) for c in bad]}) (a) – "
-            f"ueber `outerHTML` landet es in jeder Testnotiz, und das Speichern bricht ab."
+            f"ueber die Stecknadel landet es in einer Erfassung."
         )
-    src = _code(_read(FRONTEND / "lib" / "feedback.ts"))
-    assert "const clean = (s: string)" in src, (
-        "Das Werkzeug putzt nicht, was es erfasst (b)."
-    )
-    cut = src[_at(src, "const cut = "):]
-    assert "clean(s)" in cut[: cut.index("clamp01")], (
-        "Die eine Kapp-Funktion, durch die jede erfasste Zeichenkette laeuft, putzt nicht "
-        "(b) – dann haengt es an der Aufrufstelle, ob eine Notiz speicherbar ist."
+    src = _code(_read(FRONTEND / "lib" / "pin-point.ts"))
+    assert "const clean = (s: string)" in src, "Die Stecknadel putzt nicht, was sie liest (b)."
+    assert "clean(" in src[_at(src, "const cut = "):], (
+        "Die eine Kapp-Funktion der Stecknadel putzt nicht (b)."
     )
 
 
