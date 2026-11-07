@@ -93,15 +93,6 @@ function initMobile(header: HTMLElement, menu: HTMLDetailsElement): void {
       menu.querySelector<HTMLElement>('summary')?.focus();
     }
   });
-  // Das Konto-Symbol im schmalen Kopf öffnet das Menü mit aufgeklapptem Konto.
-  header.querySelectorAll<HTMLAnchorElement>('[data-mnav-open]').forEach((a) => {
-    a.addEventListener('click', (e) => {
-      if (window.matchMedia('(min-width: 1200px)').matches) return;
-      e.preventDefault();
-      menu.open = true;
-      show(a.dataset.mnavOpen ?? '');
-    });
-  });
   const wide = window.matchMedia('(min-width: 1200px)');
   wide.addEventListener('change', () => {
     if (wide.matches) menu.open = false;

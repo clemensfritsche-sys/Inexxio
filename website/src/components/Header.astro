@@ -151,10 +151,14 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
           </div>
         </div>
         <div class="dd dd--tool" data-dd>
-          <button type="button" class="hd__ic hd__acct" aria-expanded="false" aria-controls="dd-konto" aria-label="Mein Konto" data-dd-toggle>
-            <span data-acct="login" class="hd__acct-ico"><Icon name="circle-user" size={22} /></span>
-            <span data-acct="user" class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span>
-          </button>
+          {/* Das Symbol ist ein Link: abgemeldet zur Anmeldung, angemeldet ins Konto. Die Kacheln
+              öffnen beim Zeigen (wie jeder Punkt); auf Touch führt der Tipp direkt hin. */}
+          <a class="hd__ic hd__acct" href={login.href} rel="nofollow" data-acct="login" aria-label={login.label}>
+            <span class="hd__acct-ico"><Icon name="circle-user" size={22} /></span>
+          </a>
+          <a class="hd__ic hd__acct" href={acct.profile.href} rel="nofollow" data-acct="user" aria-label="Mein Konto">
+            <span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span>
+          </a>
           <div class="dd__panel" id="dd-konto">
             <ul role="list" class="dd__tiles" style={cols(1)} data-acct="login">
               <li><a class="tile" href={login.href} rel="nofollow">
@@ -164,15 +168,15 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
               </a></li>
             </ul>
             <ul role="list" class="dd__tiles" style={cols(3)} data-acct="user">
-              <li><div class="tile tile--me">
+              <li><a class="tile tile--me" href={acct.profile.href} rel="nofollow">
                 <span class="tile__label" data-acct-name>Angemeldet</span>
                 <span class="tile__stage"><span class="tile__ring"><span class="tile__avatar" data-acct-initials><Icon name="user" size={36} /></span></span></span>
                 <span class="tile__rows">
                   <span class="tile__row"><Icon name="mail" size={16} /><span data-acct-email></span></span>
                   <span class="tile__row"><Icon name="building-2" size={16} /><span data-acct-company></span></span>
                 </span>
-              </div></li>
-              {[profile, logout].map((t) => (
+              </a></li>
+              {[logout].map((t) => (
                 <li><a class="tile" href={t.href} rel="nofollow">
                   <span class="tile__label">{t.label}</span>
                   <img class="tile__img" src={t.img} alt="" loading="lazy" decoding="async" width="320" height="160" data-menu-img />
@@ -190,7 +194,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
       <a class="btn btn--primary hd__cta" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
 
       <a class="hd__ic hd__m-acct" href={acct.login.href} rel="nofollow" data-acct="login" aria-label={acct.login.label}><Icon name="circle-user" size={22} /></a>
-      <a class="hd__ic hd__m-acct" href={acct.profile.href} rel="nofollow" data-acct="user" data-mnav-open="konto" aria-label="Mein Konto"><span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span></a>
+      <a class="hd__ic hd__m-acct" href={acct.profile.href} rel="nofollow" data-acct="user" aria-label="Mein Konto"><span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span></a>
 
       <details class="mnav" data-mnav>
         <summary class="mnav__toggle" aria-label="Menü"><span class="mnav__word"><Icon name="menu" size={24} /></span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">Menü schliessen</span></summary>
@@ -373,9 +377,11 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
   .bubble--on { background: var(--red); color: var(--white); }
   .bubble--sm { padding: 8px 16px; font-size: 1.25rem; }
   .bubble--sm::after { bottom: -6px; width: 12px; height: 12px; }
-  /* Wer angemeldet ist – eine Auskunft, kein Knopf: gleiche Zeilen wie die Kacheln (Name · Bild · Text). */
-  .tile--me { cursor: default; }
-  .tile__stage { display: flex; align-items: center; justify-content: flex-start; height: 160px; }
+  /* Wer angemeldet ist – zugleich der Weg ins Konto: gleiche Zeilen wie die Kacheln (Name · Bild ·
+     Text), das Bild mittig wie die Zeichnungen der anderen Kacheln. */
+  .tile__stage { display: flex; align-items: center; justify-content: center; height: 160px; }
+  a.tile--me:hover .tile__ring { transform: translateY(-3px); }
+  .tile__ring { transition: transform 500ms var(--ease); }
   .tile__ring { display: inline-flex; align-items: center; justify-content: center; width: 132px; height: 132px; border-radius: 50%; background: radial-gradient(closest-side, transparent 82%, rgba(229, 26, 20, 0.14) 83% 100%); }
   .tile__avatar {
     display: inline-flex; align-items: center; justify-content: center; width: 104px; height: 104px; border-radius: 50%; overflow: hidden;

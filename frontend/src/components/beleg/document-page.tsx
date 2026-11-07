@@ -49,7 +49,7 @@ export function DocumentPage() {
   }, [load]);
 
   useEffect(() => {
-    if (view) document.title = `${view.art} · ${view.name} | ${meta.brand.legalName}`;
+    if (view) document.title = `${view.art} · ${view.name} | ${meta.brand.name}`;
   }, [view]);
 
   const act = async (run: () => Promise<View>) => {

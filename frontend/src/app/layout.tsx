@@ -17,14 +17,14 @@ const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
 // Der Konto-/ERP-Bereich trägt den Namen und den Satz der Website (`lib/site-meta.json`,
 // aus `website/src/config/site.mjs`).
 export const metadata: Metadata = {
-  title: { template: `%s | ${meta.brand.legalName}`, default: meta.brand.legalName },
+  title: { template: `%s | ${meta.brand.name}`, default: meta.brand.name },
   description: meta.claim,
   authors: [{ name: meta.brand.legalName }],
   robots: isDev ? { index: false, follow: false } : { index: true, follow: true },
   openGraph: {
     type: 'website',
     locale: 'de_CH',
-    siteName: meta.brand.legalName,
+    siteName: meta.brand.name,
   },
 };
 

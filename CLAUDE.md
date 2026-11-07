@@ -602,7 +602,8 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   Liste (`Header.astro`, `tilesOf`). **Jede Kachel zeigt das Titelbild ihrer Seite, sonst die Zeichnung**;
   welche Seite welches Titelbild trägt, steht EINMAL in `src/lib/titles.ts` (auch der Seitenkopf liest
   dort). Die Menübilder laden erst, wenn der Kopf berührt wird (Kachelreihe vorher nicht im Layout).
-  Im Profil-Menü ist die erste Kachel eine Auskunft, kein Knopf.
+  Das Konto-Symbol ist ein Link (abgemeldet → Anmelden, angemeldet → Konto); im Profil-Menü ist die
+  erste Kachel (Bild, E-Mail, Firma) zugleich der Weg ins Konto, daneben nur «Abmelden».
 - **Konto und ERP tragen DENSELBEN Kopf und Fuss** (`scripts/export-shell.mjs` →
   `frontend/scripts/site-shell.mjs`); der Anmeldezustand im Kopf ist ein **Anzeige-Cache**
   (`frontend/src/lib/account-cache.ts`).

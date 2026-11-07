@@ -105,7 +105,7 @@ export function BelegPage() {
 
   useEffect(() => {
     if (!view) return;
-    document.title = `${view.word}${view.number ? ` ${view.number}` : ''} | ${meta.brand.legalName}`;
+    document.title = `${view.word}${view.number ? ` ${view.number}` : ''} | ${meta.brand.name}`;
   }, [view]);
 
   const act = useCallback(async (what: Act) => {
