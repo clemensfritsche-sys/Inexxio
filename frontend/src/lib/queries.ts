@@ -34,6 +34,11 @@ export const qk = {
   mailboxes: (company: number) => key('mailboxes', company),
   newsletter: (person: number) => key('newsletter', person),
   company: (id: number) => key('company', id),
+  /** EIN Schlüssel je Datensatz: alle Felder fragen ihn, React Query fragt einmal. */
+  proposals: (objectId: number) => key('proposals', objectId),
+  pins: (objectId: number) => key('pins', objectId),
+  /** Meine Erfassungen, die noch nicht abgelegt sind. */
+  openIntakes: () => key('intake', 'open'),
 };
 
 /** Die Dokumente an einem Datensatz – Kacheln, Rechtstexte. */

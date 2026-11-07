@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Building2, ClipboardList, FileText, Loader2, Package, Plus, ScanLine, Search, User, X } from 'lucide-react';
+import { Loader2, Plus, ScanLine, Search, X } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { FILTER_TYPES, TYPE_META } from '@/lib/erp-record';
 import { type Row, rowStatus, rowTitle } from '@/lib/use-feed-lists';
@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/erp/fields';
 import { userInitials } from '@/components/erp/user-detail';
 import type { ErpRecordType, Todo } from '@/types';
 
-/** Was «+» anlegen kann – ein Anlageweg je Sorte. */
+/** Was «+» anlegen kann – ein Anlageweg je Sorte (`capture/capture-sheet.CREATE`). */
 export type Creatable = 'article' | 'order' | 'person' | 'company' | 'document';
 
 /** Wie viele Zeilen auf einmal gerendert werden; der Rest kommt beim Scrollen. */
@@ -133,59 +133,26 @@ function TypeChips({ typeFilter, onTypeFilter, count }: {
   );
 }
 
-const CREATE: { type: Creatable; label: string; icon: typeof Package }[] = [
-  { type: 'article', label: 'Artikel', icon: Package },
-  { type: 'order', label: 'Auftrag', icon: ClipboardList },
-  { type: 'person', label: 'Person', icon: User },
-  // Firmen legt jedes Personal an; «eigen» setzt nur ein Admin.
-  { type: 'company', label: 'Unternehmen', icon: Building2 },
-  // **Ein Anlageweg für jedes Dokument** – Scan, Datei, Verfassen.
-  { type: 'document', label: 'Dokument', icon: FileText },
-];
-
-/** «+» – neuen Datensatz anlegen; das Menü öffnet nach oben, ein Klick daneben schliesst. */
-function CreateButton({ onCreate }: { onCreate: (type: Creatable) => void }) {
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, []);
+/**
+ * **«+» = Erfassen** – öffnet das Blatt (`capture/capture-sheet.tsx`): oben festhalten (Foto ·
+ * Datei · Schreiben), unten neu anlegen. Er schwebt über der Liste (Schatten der schwebenden
+ * Ebene); der rote Schatten ist nur der Hover-Akzent des roten Knopfs (Design-System §3).
+ */
+function CaptureButton({ onCapture }: { onCapture: () => void }) {
   return (
-    <div ref={box} className="absolute right-5 bottom-5 z-20">
-      {open && (
-        <div className="absolute right-0 bottom-[calc(100%+10px)] bg-bg-1 border border-border-1 rounded-ds-md shadow-ds-lg p-1 min-w-[170px]">
-          {CREATE.map(({ type, label, icon: Icon }) => (
-            <button key={type} type="button" onClick={() => { setOpen(false); onCreate(type); }} style={MENU_ITEM}>
-              <Icon size={15} style={{ color: 'var(--fg-3)' }} /> {label}
-            </button>
-          ))}
-        </div>
-      )}
-      {/* Er schwebt über der Liste (Schatten der schwebenden Ebene); der rote Schatten ist
-          nur der Hover-Akzent des roten Knopfs (Design-System §3). */}
+    <div className="absolute right-5 bottom-5 z-20">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        data-tip={open ? undefined : 'Neuen Datensatz anlegen'}
-        aria-label="Neuen Datensatz anlegen"
-        aria-expanded={open}
+        onClick={onCapture}
+        data-tip="Erfassen oder neu anlegen"
+        aria-label="Erfassen oder neu anlegen"
         className="w-[54px] h-[54px] rounded-full bg-inexxio hover:bg-inexxio-deep text-fg-on-red shadow-ds-md hover:shadow-ds-red flex items-center justify-center transition-all hover:-translate-y-0.5"
       >
-        <Plus size={24} className={cn('transition-transform', open && 'rotate-45')} />
+        <Plus size={24} />
       </button>
     </div>
   );
 }
-
-const MENU_ITEM: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-  padding: '9px 11px', borderRadius: 8, border: 'none', background: 'none',
-  fontSize: 13, fontWeight: 600, color: 'var(--fg-2)', cursor: 'pointer', textAlign: 'left',
-};
 
 /**
  * ►►► **Die Liste des Feeds** – Suche, Typ-Filter, die Zeilen und «+». ◄◄◄ Gerendert wird
@@ -193,7 +160,7 @@ const MENU_ITEM: React.CSSProperties = {
  * Instanzen dazugehören – die nächste Seite vom Server (`onMore`).
  */
 export function FeedPanel({ show, search, onSearch, typeFilter, onTypeFilter, rows, count, loading,
-  more, onMore, isSelected, onSelect, todos, staff, onScan, onCreate }: {
+  more, onMore, isSelected, onSelect, todos, staff, onScan, onCapture }: {
   /** Schmal ist entweder die Liste oder das Detail zu sehen. */
   show: boolean;
   search: string; onSearch: (q: string) => void;
@@ -209,7 +176,8 @@ export function FeedPanel({ show, search, onSearch, typeFilter, onTypeFilter, ro
   todos: Map<number, Todo>;
   staff: boolean;
   onScan: () => void;
-  onCreate: (type: Creatable) => void;
+  /** «+» – das Blatt «Erfassen». */
+  onCapture: () => void;
 }) {
   const [visible, setVisible] = useState(CHUNK);
   // Wechselt die Suche oder der Filter, beginnt die Liste wieder oben.
@@ -255,7 +223,7 @@ export function FeedPanel({ show, search, onSearch, typeFilter, onTypeFilter, ro
           </div>
         )}
       </div>
-      {staff && <CreateButton onCreate={onCreate} />}
+      {staff && <CaptureButton onCapture={onCapture} />}
     </div>
   );
 }
