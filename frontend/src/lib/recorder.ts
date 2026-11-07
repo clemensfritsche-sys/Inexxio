@@ -9,25 +9,35 @@
  * - **Ein Stück alle 30 s** (`CHUNK_MS`, `MediaRecorder.start(timeslice)`): jedes
  *   `dataavailable` ist ein Stück und geht sofort hoch – bricht die Aufnahme ab, ist alles bis
  *   zum letzten Stück da.
- * - **Ein Abschnitt = 10 Minuten** (`SEGMENT_MS`): danach endet der Recorder und ein neuer
+ * - **Ein Abschnitt = 5 Minuten** (`SEGMENT_MS`): danach endet der Recorder und ein neuer
  *   beginnt am selben Mikrofon – jeder Abschnitt ist eine eigene, vollständige Datei, die
  *   Stück-Zählung beginnt wieder bei 0.
  * - **Höchstens 3 Stunden** (`MAX_MS`), dann hält die Aufnahme von selbst an.
- * - **Der Reihe nach hoch, mit Wiederholung** (`UploadQueue`): ein Stück, das nicht hochgeht,
- *   wird nach 1, 2, 4, 8 s erneut versucht; scheitert es endgültig, meldet es sich
- *   (`onFail`) – die übrigen gehen weiter.
+ * - **Der Reihe nach hoch – ein Stück wird nie aufgegeben, solange die Seite lebt**
+ *   (`UploadQueue`): wiederholt mit wachsender Pause bis höchstens 30 s, ohne Ende, jeder
+ *   Versuch mit Zeitgrenze (`UPLOAD_TIMEOUT_MS`). Aufgegeben wird nur, was der Server abweist
+ *   (`retryable`), und das meldet sich (`onFail`).
  *
  * Ohne Imports, damit der Test die echte Quelle transpiliert.
  */
 
 export const CHUNK_MS = 30_000;
-export const SEGMENT_MS = 10 * 60_000;
+export const SEGMENT_MS = 5 * 60_000;
 export const MAX_MS = 3 * 60 * 60_000;
 export const BITRATE = 24_000;
-/** Die Pausen vor den Wiederholungen eines Stücks – danach gilt es als gescheitert. */
-export const RETRY_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000];
-/** Wie lange der Stopp auf das letzte Stück eines Recorders wartet. */
-const STOP_WAIT_MS = 5_000;
+/** Die Pausen vor den Wiederholungen eines Stücks – danach immer `RETRY_MAX_MS`, ohne Ende. */
+export const RETRY_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000, 16_000];
+const RETRY_MAX_MS = 30_000;
+/** So lange darf ein Versuch dauern – dann wird er abgebrochen und wiederholt (nichts hängt). */
+export const UPLOAD_TIMEOUT_MS = 30_000;
+/** Die Sicherheitsgrenze, wie lange der Stopp auf das `stop`-Ereignis eines Recorders wartet –
+ *  davor kommt garantiert sein letztes Stück; meldet er sich nie, hält das den Stopp nicht ewig. */
+export const STOP_WAIT_MS = 60_000;
+
+/** Die Pause vor dem `n`-ten neuen Versuch (ab 0): 1, 2, 4, 8, 16, dann 30 s. */
+function retryPause(n: number): number {
+  return n < RETRY_MS.length ? RETRY_MS[n] : RETRY_MAX_MS;
+}
 
 /** Was der Browser aufnehmen kann – Opus in WebM, sonst MP4 (Safari), sonst seine Vorgabe (''). */
 export function pickMime(supported: (mime: string) => boolean): string {
@@ -52,10 +62,26 @@ export interface Chunk<B = unknown> { segment: number; seq: number; blob: B }
 export interface QueueState {
   /** Stücke, die noch nicht oben sind (inkl. dem, das gerade hochgeht). */
   pending: number;
-  /** Stücke, die endgültig nicht hochgingen. */
+  /** Stücke, die der Server abwies (aufgegeben). */
   failed: number;
   /** Bis wohin (Sekunden Aufnahme, geschätzt aus Abschnitt und Stück) alles oben ist. */
   uploadedSeconds: number;
+  /** Ein Stück ist gescheitert und wartet auf den nächsten Versuch – «wartet auf Netz». */
+  waiting: boolean;
+}
+
+interface QueueDeps<B> {
+  /** Ein Stück hochladen; `signal` bricht den Versuch nach `timeoutMs` ab. */
+  send: (chunk: Chunk<B>, signal: AbortSignal) => Promise<unknown>;
+  wait: (ms: number) => Promise<void>;
+  /** Lohnt ein neuer Versuch? (Eine Abweisung wie 409 «schon fertig» nicht.) */
+  retryable?: (error: unknown) => boolean;
+  /** Ein Stück wurde aufgegeben (abgewiesen). */
+  onFail?: (chunk: Chunk<B>, error: unknown) => void;
+  /** Das erste Mal, dass ein Stück warten muss – einmal je Warteschlange. */
+  onStall?: (error: unknown) => void;
+  onChange?: (state: QueueState) => void;
+  timeoutMs?: number;
 }
 
 /**
@@ -67,15 +93,10 @@ export class UploadQueue<B = unknown> {
   private running: Promise<void> | null = null;
   private failedCount = 0;
   private uploadedUntil = 0;
+  private waiting = false;
+  private stalled = false;
 
-  constructor(private readonly deps: {
-    send: (chunk: Chunk<B>) => Promise<unknown>;
-    wait: (ms: number) => Promise<void>;
-    /** Lohnt ein neuer Versuch? (Eine Abweisung wie 409 «schon fertig» nicht.) */
-    retryable?: (error: unknown) => boolean;
-    onFail?: (chunk: Chunk<B>, error: unknown) => void;
-    onChange?: (state: QueueState) => void;
-  }) {}
+  constructor(private readonly deps: QueueDeps<B>) {}
 
   push(chunk: Chunk<B>): void {
     this.items.push(chunk);
@@ -83,13 +104,13 @@ export class UploadQueue<B = unknown> {
     if (!this.running) this.running = this.run().finally(() => { this.running = null; });
   }
 
-  /** Bis alles oben (oder endgültig gescheitert) ist. */
+  /** Bis alles oben (oder abgewiesen) ist. */
   async drain(): Promise<void> {
     while (this.running) await this.running;
   }
 
   get state(): QueueState {
-    return { pending: this.items.length, failed: this.failedCount, uploadedSeconds: this.uploadedUntil };
+    return { pending: this.items.length, failed: this.failedCount, uploadedSeconds: this.uploadedUntil, waiting: this.waiting };
   }
 
   private changed() { this.deps.onChange?.(this.state); }
@@ -107,20 +128,34 @@ export class UploadQueue<B = unknown> {
     }
   }
 
-  /** Ein Stück: erster Versuch und die Wiederholungen. `false` = endgültig gescheitert. */
+  /** Ein Versuch mit Zeitgrenze – hängt die Verbindung, wird er abgebrochen. */
+  private async once(chunk: Chunk<B>): Promise<void> {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), this.deps.timeoutMs ?? UPLOAD_TIMEOUT_MS);
+    try {
+      await this.deps.send(chunk, ctl.signal);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Ein Stück: Versuche, bis es oben ist – `false` nur, wenn der Server es abweist. */
   private async attempt(chunk: Chunk<B>): Promise<boolean> {
     for (let i = 0; ; i++) {
       try {
-        await this.deps.send(chunk);
+        await this.once(chunk);
+        if (this.waiting) { this.waiting = false; this.changed(); }
         return true;
       } catch (e) {
-        const again = i < RETRY_MS.length && (this.deps.retryable?.(e) ?? true);
-        if (!again) {
+        if (!(this.deps.retryable?.(e) ?? true)) {
           this.failedCount += 1;
+          this.waiting = false;
           this.deps.onFail?.(chunk, e);
           return false;
         }
-        await this.deps.wait(RETRY_MS[i]);
+        if (!this.waiting) { this.waiting = true; this.changed(); }
+        if (!this.stalled) { this.stalled = true; this.deps.onStall?.(e); }
+        await this.deps.wait(retryPause(i));
       }
     }
   }
@@ -130,6 +165,8 @@ export class UploadQueue<B = unknown> {
 export interface RecorderLike<B = unknown> {
   start(timeslice: number): void;
   stop(): void;
+  /** Das Aufgenommene sofort als Stück liefern (Seite wird verlassen). */
+  requestData?(): void;
   ondataavailable: ((e: { data: B }) => void) | null;
   onstop: ((e: unknown) => void) | null;
 }
@@ -184,6 +221,11 @@ export class RecordingSession<B = unknown> {
     this.next();
   }
 
+  /** Was bisher aufgenommen ist, sofort als Stück hochschicken (die Seite wird verlassen). */
+  flush(): void {
+    if (this.current && !this.stopping) this.current.requestData?.();
+  }
+
   /** Anhalten: letzten Recorder beenden, sein letztes Stück abwarten, Warteschlange leeren.
    *  Gibt die Zahl der Abschnitte. Mehrfach gerufen – dasselbe Versprechen. */
   stop(): Promise<number> {
@@ -215,8 +257,8 @@ export class RecordingSession<B = unknown> {
     rec.start(CHUNK_MS);
   }
 
-  /** Einen Recorder beenden – `lastStopped` wartet, bis sein letztes Stück da ist (höchstens
-   *  `STOP_WAIT_MS`: ein Recorder, der nie «gestoppt» meldet, hält den Stopp nicht auf). */
+  /** Einen Recorder beenden – `lastStopped` wartet auf sein `stop`-Ereignis (davor kommt sein
+   *  letztes Stück); höchstens `STOP_WAIT_MS`, falls er sich nie meldet. */
   private end(rec: RecorderLike<B>): void {
     const done = new Promise<void>((resolve) => {
       const cancel = this.deps.after(resolve, STOP_WAIT_MS);

@@ -6217,7 +6217,7 @@ export interface components {
         };
         /**
          * StopIn
-         * @description **Stopp** – wie viele Abschnitte (je 10 Minuten, ab 0 gezählt) es gab.
+         * @description **Stopp** – wie viele Abschnitte (je 5 Minuten, ab 0 gezählt) es gab.
          */
         StopIn: {
             /** Segments */

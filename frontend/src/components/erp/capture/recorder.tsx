@@ -24,8 +24,8 @@ export function RecorderView({ hint, onStopped, onClose }: {
 }) {
   const rec = useRecorder(hint, onStopped);
   const live = rec.phase === 'recording';
-  // Mehr als ein Stück im Rückstand (das laufende geht gerade hoch) oder eines gescheitert.
-  const behind = rec.queue.pending > 1 || rec.queue.failed > 0;
+  // Ein Stück wartet auf den nächsten Versuch, oder der Server wies eines ab.
+  const behind = rec.queue.waiting || rec.queue.failed > 0;
   return (
     <>
       <SheetHead title="Aufnahme" onClose={rec.phase === 'failed' ? onClose : undefined} />
@@ -54,9 +54,10 @@ export function RecorderView({ hint, onStopped, onClose }: {
             : 'Stopp, wenn fertig · auch ein ganzes Meeting')}
           {live && behind && (
             <><StatusDot color="var(--warning)" />
-              {rec.queue.failed ? `${rec.queue.failed} Stück nicht hochgeladen` : `${rec.queue.pending} Stücke warten auf das Netz`}</>
+              {rec.queue.failed ? `${rec.queue.failed} Stück nicht hochgeladen`
+                : `wartet auf Netz · ${rec.queue.pending} ${rec.queue.pending === 1 ? 'Stück' : 'Stücke'}`}</>
           )}
-          {rec.phase === 'stopping' && 'lädt die letzten Stücke hoch …'}
+          {rec.phase === 'stopping' && (rec.queue.waiting ? 'wartet auf Netz – die letzten Stücke gehen hoch, sobald es zurück ist …' : 'lädt die letzten Stücke hoch …')}
         </p>
       </div>
     </>

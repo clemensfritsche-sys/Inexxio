@@ -22,7 +22,7 @@ class RecordingIn(BaseModel):
 
 
 class StopIn(BaseModel):
-    """**Stopp** – wie viele Abschnitte (je 10 Minuten, ab 0 gezählt) es gab."""
+    """**Stopp** – wie viele Abschnitte (je 5 Minuten, ab 0 gezählt) es gab."""
 
     segments: int = Field(ge=0)
 

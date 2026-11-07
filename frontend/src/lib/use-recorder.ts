@@ -20,6 +20,11 @@ import type { Recording } from '@/types';
  *
  * **Freigegeben wird immer**: Spuren des Mikrofons gestoppt, `AudioContext` geschlossen, Wake
  * Lock gelöst, Zeitgeber weg – beim Stopp, beim Fehler und beim Entfernen.
+ *
+ * **Nichts geht verloren, nichts läuft still weiter:** fällt das Mikrofon aus (Fehler des
+ * Recorders, Spur beendet, länger stumm), endet die Aufnahme sauber mit einer Meldung; wird die
+ * Seite verlassen oder unsichtbar, geht das Letzte sofort hoch (`requestData`); weist der Server
+ * ein Stück ab, weil die Aufnahme schon abgeschlossen ist (409), endet sie sofort mit klarem Satz.
  */
 
 /** Kann dieser Browser aufnehmen? Sonst steht kein Knopf da. */
@@ -34,20 +39,31 @@ type RecorderPhase = 'starting' | 'recording' | 'stopping' | 'failed';
 const LEVEL_BARS = 44;
 const LEVEL_MS = 100;
 
-const IDLE_QUEUE: QueueState = { pending: 0, failed: 0, uploadedSeconds: 0 };
+const IDLE_QUEUE: QueueState = { pending: 0, failed: 0, uploadedSeconds: 0, waiting: false };
+/** So lange darf das Mikrofon stumm sein (`mute`), bevor die Aufnahme als getrennt gilt. */
+const MUTE_MS = 5_000;
+const MIC_LOST = 'Mikrofon getrennt – Aufnahme beendet.';
+const CLOSED = 'Diese Aufnahme ist schon abgeschlossen – bitte neu starten.';
 
 /** Ein `MediaRecorder` in der Form, die die Sitzung braucht; ein Stopp am schon stillen
  *  Recorder meldet sich trotzdem als gestoppt. */
-function wrap(r: MediaRecorder): RecorderLike<Blob> {
+function wrap(r: MediaRecorder, onError: (e: unknown) => void): RecorderLike<Blob> {
   const like: RecorderLike<Blob> = {
     start: (ms) => r.start(ms),
     stop: () => { if (r.state !== 'inactive') r.stop(); else like.onstop?.(null); },
+    requestData: () => { if (r.state === 'recording') r.requestData(); },
     ondataavailable: null,
     onstop: null,
   };
   r.ondataavailable = (e) => like.ondataavailable?.(e);
   r.onstop = (e) => like.onstop?.(e);
+  r.onerror = onError;
   return like;
+}
+
+/** Ist die Aufnahme am Server schon abgeschlossen? (Ein Stück kam zu spät: 409.) */
+function closedOnServer(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 409;
 }
 
 /** Lohnt ein neuer Versuch? Nicht bei einer Abweisung des Servers (4xx ausser 408/429). */
@@ -125,7 +141,10 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
     const onVisible = () => { if (session?.active) wake(); };
     const onLeave = (e: BeforeUnloadEvent) => { if (busy) { e.preventDefault(); e.returnValue = ''; } };
 
-    /** Anhalten – vom Knopf, von der Höchstdauer oder beim Entfernen. Einmal. */
+    /** Anhalten – vom Knopf, von der Höchstdauer, beim Entfernen, wenn das Mikrofon ausfällt
+     *  oder der Server die Aufnahme schon abgeschlossen hat (`closed`: dann kein Stopp, ein
+     *  klarer Satz). Einmal. */
+    let closed = false;
     const finish = (): Promise<void> => {
       if (finishing) return finishing;
       if (!session || id === null) { freeMic(); busy = false; return Promise.resolve(); }
@@ -134,8 +153,14 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
       if (!dead) { setPhase('stopping'); setSpan((x) => x && { ...x, to: Date.now() }); }
       void s.recorded().then(freeMic);
       finishing = s.stop()
-        .then((segments) => api.stopRecording(rid, segments))
-        .then((rec) => { busy = false; if (!dead) doneRef.current(rec); })
+        .then((segments) => (closed ? null : api.stopRecording(rid, segments)))
+        .then((rec) => {
+          busy = false;
+          if (!rec) {
+            if (dead) notify(CLOSED);
+            else { setProblem(CLOSED); setPhase('failed'); }
+          } else if (!dead) doneRef.current(rec);
+        })
         .catch((e: unknown) => {
           busy = false;
           tell('Aufnahme', 'Nicht angehalten')(e);
@@ -144,6 +169,24 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
       return finishing;
     };
     stopRef.current = () => { void finish(); };
+    /** Das Mikrofon ist weg – einmal sagen, dann sauber beenden (was da ist, geht hoch). */
+    const micLost = () => {
+      if (finishing || !session) return;
+      notify(MIC_LOST, Date.now(), { tone: 'info' });
+      void finish();
+    };
+    /** Seite wird verlassen oder unsichtbar: das bisher Aufgenommene sofort hoch. */
+    const flush = () => { session?.flush(); };
+    const onHidden = () => { if (document.visibilityState === 'hidden') flush(); };
+    const watchTracks = (src: MediaStream) => {
+      for (const track of src.getAudioTracks()) {
+        let muted: ReturnType<typeof setTimeout> | null = null;
+        track.onended = micLost;
+        track.onmute = () => { if (!muted) muted = setTimeout(micLost, MUTE_MS); };
+        track.onunmute = () => { if (muted) clearTimeout(muted); muted = null; };
+        timers.push(() => { if (muted) clearTimeout(muted); track.onended = null; track.onmute = null; track.onunmute = null; });
+      }
+    };
 
     const meter = (src: MediaStream) => {
       audio = new AudioContext();
@@ -182,14 +225,24 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
         id = rid;
         const mic = stream;
         const uploads = new UploadQueue<Blob>({
-          send: (c) => api.recordingChunk(rid, c.segment, c.seq, c.blob),
+          send: (c, signal) => api.recordingChunk(rid, c.segment, c.seq, c.blob, { signal }),
           wait: sleep,
           retryable,
-          onFail: (c, e) => tell(`Aufnahme, Stück ${c.segment + 1}.${c.seq + 1}`, 'Nicht hochgeladen')(e),
+          onFail: (c, e) => {
+            if (closedOnServer(e)) { if (!closed) { closed = true; void finish(); } return; }
+            tell(`Aufnahme, Stück ${c.segment + 1}.${c.seq + 1}`, 'Nicht hochgeladen')(e);
+          },
+          // Einmal beim ersten Hängen – danach sagt es die Anzeige ruhig («wartet auf Netz»).
+          onStall: () => notify('Aufnahme: kein Netz – die Stücke warten und gehen hoch, sobald es zurück ist.',
+            Date.now(), { tone: 'info' }),
           onChange: (q) => { if (!dead) setQueue(q); },
         });
         session = new RecordingSession<Blob>({
-          createRecorder: () => { const r = spare ?? new MediaRecorder(mic, opts); spare = null; return wrap(r); },
+          createRecorder: () => {
+            const r = spare ?? new MediaRecorder(mic, opts);
+            spare = null;
+            return wrap(r, micLost);
+          },
           sizeOf: (b) => b.size,
           queue: uploads,
           every: (fn, ms) => { const t = setInterval(fn, ms); return () => clearInterval(t); },
@@ -200,6 +253,7 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
           },
         });
         session.start();
+        watchTracks(mic);
         setSpan({ from: Date.now(), to: null });
         setPhase('recording');
         // Ohne Pegel nimmt sie trotzdem auf – er ist nur Anzeige.
@@ -217,11 +271,15 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
     }
 
     document.addEventListener('visibilitychange', onVisible);
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('pagehide', flush);
     window.addEventListener('beforeunload', onLeave);
     void begin();
     return () => {
       dead = true;
       document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('pagehide', flush);
       // Entfernt mitten in der Aufnahme: nichts geht verloren – anhalten wie mit dem Knopf; bis
       // die letzten Stücke oben sind, fragt das Verlassen der Seite weiter nach.
       void finish().finally(() => window.removeEventListener('beforeunload', onLeave));

@@ -224,6 +224,9 @@ jobs:
           # Bedeutungs-Zahlen der KI (backend/app/services/memory.py) – Vertex AI im eigenen
           # Projekt, angemeldet über das Konto des Dienstes; einmal infra/setup-vertex.sh.
           vars="$vars,VERTEX_PROJECT=${{ inputs.gcp_project }}"
+          # Die Stücke einer Aufnahme (backend/app/services/recordings.py): eigener Bucket ohne
+          # Soft Delete, 1 Tag; einmal infra/setup-sprache.sh. Fehlt er, bleiben sie in der DB.
+          vars="$vars,RECORDINGS_BUCKET=${{ inputs.gcp_project }}-recordings"
           [ -n "${{ inputs.firebase_project_id }}" ] && vars="$vars,FIREBASE_PROJECT_ID=${{ inputs.firebase_project_id }}"
           [ -n "${{ inputs.stripe_publishable_key }}" ] && vars="$vars,STRIPE_PUBLISHABLE_KEY=${{ inputs.stripe_publishable_key }}"
           gcloud run deploy "${{ inputs.service }}" \

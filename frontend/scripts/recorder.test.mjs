@@ -4,8 +4,8 @@
  * Geprüft gegen die echte Quelle (transpiliert), ohne Browser: Recorder und Zeitgeber sind
  * Attrappen. Die Bug-Formen: die Stück-Zählung läuft über den Abschnitt hinaus weiter · das
  * letzte Stück eines Abschnitts trägt die Nummer des nächsten · Stücke überholen einander ·
- * ein gescheitertes Stück hält die übrigen auf oder verschwindet stumm · der Stopp wartet
- * nicht auf das letzte Stück.
+ * ein Stück wird aufgegeben, solange die Seite lebt (Netz weg) · ein hängender Versuch hält alles
+ * auf · eine Abweisung verschwindet stumm · der Stopp wartet nicht auf das letzte Stück.
  *
  *     node --test scripts/recorder.test.mjs
  */
@@ -64,12 +64,12 @@ function setup({ send } = {}) {
   return { session, queue, sent, recorders, timers, log };
 }
 
-test('Stücke alle 30 s, ein neuer Abschnitt alle 10 Minuten – die Zählung beginnt bei 0', async () => {
+test('Stücke alle 30 s, ein neuer Abschnitt alle 5 Minuten – die Zählung beginnt bei 0', async () => {
   const { session, sent, recorders, timers } = setup();
   session.start();
   assert.equal(recorders[0].slice, R.CHUNK_MS);
   assert.equal(R.CHUNK_MS, 30_000);
-  assert.equal(R.SEGMENT_MS, 600_000);
+  assert.equal(R.SEGMENT_MS, 300_000);
   recorders[0].emit('a'); recorders[0].emit('b');
   timers.fire(R.SEGMENT_MS);            // Abschnitt 1 beginnt sofort, Abschnitt 0 liefert noch sein letztes Stück
   assert.equal(recorders.length, 2);
@@ -116,31 +116,55 @@ test('nach 3 Stunden hält die Aufnahme von selbst an', async () => {
   assert.equal(session.active, false);
 });
 
-test('die Warteschlange: der Reihe nach, mit Pausen 1-2-4-8 s, dann gescheitert – die übrigen gehen weiter', async () => {
+test('die Warteschlange: der Reihe nach, ein Stück wird nie aufgegeben – Pausen wachsen bis 30 s', async () => {
   const tries = {};
   const waits = [];
   const sent = [];
   const failed = [];
+  const states = [];
+  let stalls = 0;
   const queue = new R.UploadQueue({
     send: async (c) => {
       tries[c.blob] = (tries[c.blob] ?? 0) + 1;
-      if (c.blob === 'kaputt') throw new Error('HTTP 500');
-      if (c.blob === 'wackelt' && tries[c.blob] < 3) throw new Error('kein Netz');
+      if (c.blob === 'netzloch' && tries[c.blob] <= 9) throw new Error('kein Netz');   // ~2 Minuten weg
+      if (c.blob === 'wackelt' && tries[c.blob] < 3) throw new Error('HTTP 503');
       sent.push(c.blob);
     },
     wait: async (ms) => { waits.push(ms); },
     onFail: (c, e) => failed.push(`${c.blob}: ${e.message}`),
+    onStall: () => { stalls += 1; },
+    onChange: (q) => states.push(q.waiting),
   });
-  for (const [seq, blob] of ['a', 'wackelt', 'kaputt', 'b'].entries()) queue.push({ segment: 0, seq, blob });
+  for (const [seq, blob] of ['a', 'netzloch', 'wackelt', 'b'].entries()) queue.push({ segment: 0, seq, blob });
   await queue.drain();
-  assert.deepEqual(sent, ['a', 'wackelt', 'b']);
-  assert.equal(tries.kaputt, 1 + R.RETRY_MS.length);
-  assert.deepEqual(waits, [1000, 2000, 1000, 2000, 4000, 8000]);
-  assert.deepEqual(failed, ['kaputt: HTTP 500']);
-  assert.deepEqual(queue.state, { pending: 0, failed: 1, uploadedSeconds: 120 });
+  assert.deepEqual(sent, ['a', 'netzloch', 'wackelt', 'b']);
+  assert.deepEqual(failed, []);
+  assert.equal(tries.netzloch, 10);
+  assert.deepEqual(waits, [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000, 1000, 2000]);
+  assert.equal(stalls, 1, 'eine Meldung beim ersten Hängen, nicht je Versuch');
+  assert.ok(states.includes(true) && states.at(-1) === false, '«wartet auf Netz», dann wieder ruhig');
+  assert.deepEqual(queue.state, { pending: 0, failed: 0, uploadedSeconds: 120, waiting: false });
 });
 
-test('eine Abweisung, die kein neuer Versuch ändert, wird nicht wiederholt', async () => {
+test('ein hängender Versuch wird nach der Zeitgrenze abgebrochen und wiederholt', async () => {
+  let n = 0;
+  const queue = new R.UploadQueue({
+    send: (c, signal) => new Promise((resolve, reject) => {
+      n += 1;
+      if (n > 1) { resolve(); return; }
+      signal.addEventListener('abort', () => reject(new Error('abgebrochen')));   // hängt, bis abgebrochen
+    }),
+    wait: async () => {},
+    timeoutMs: 20,
+  });
+  queue.push({ segment: 0, seq: 0, blob: 'x' });
+  await queue.drain();
+  assert.equal(n, 2);
+  assert.equal(R.UPLOAD_TIMEOUT_MS, 30_000);
+  assert.equal(queue.state.uploadedSeconds, 30);
+});
+
+test('nur eine Abweisung, die kein neuer Versuch ändert, wird aufgegeben – und meldet sich', async () => {
   let n = 0;
   const failed = [];
   const queue = new R.UploadQueue({
@@ -157,12 +181,12 @@ test('eine Abweisung, die kein neuer Versuch ändert, wird nicht wiederholt', as
 
 test('«hochgeladen bis» zählt nie über das Ende eines Abschnitts hinaus', async () => {
   const queue = new R.UploadQueue({ send: async () => {}, wait: async () => {} });
-  queue.push({ segment: 0, seq: 20, blob: 'letztes, kurzes Stück' });   // 21 × 30 s wäre 10:30
+  queue.push({ segment: 0, seq: 10, blob: 'letztes, kurzes Stück' });   // 11 × 30 s wäre 5:30
   await queue.drain();
-  assert.equal(queue.state.uploadedSeconds, 600);
+  assert.equal(queue.state.uploadedSeconds, 300);
   queue.push({ segment: 1, seq: 0, blob: 'x' });
   await queue.drain();
-  assert.equal(queue.state.uploadedSeconds, 630);
+  assert.equal(queue.state.uploadedSeconds, 330);
 });
 
 test('Laufzeit mm:ss, ab einer Stunde h:mm:ss', () => {
@@ -176,4 +200,35 @@ test('das Format: Opus in WebM, sonst MP4, sonst die Vorgabe des Browsers', () =
   assert.equal(R.pickMime(() => true), 'audio/webm;codecs=opus');
   assert.equal(R.pickMime((m) => m === 'audio/mp4'), 'audio/mp4');
   assert.equal(R.pickMime(() => false), '');
+});
+
+test('der Stopp wartet auf das stop-Ereignis, nicht auf eine kurze Frist', async () => {
+  const timers = fakeTimers();
+  const sent = [];
+  let rec;
+  const session = new R.RecordingSession({
+    createRecorder: () => {
+      rec = {
+        ondataavailable: null, onstop: null,
+        start() {}, stop() {}, requestData() { rec.ondataavailable?.({ data: 'jetzt' }); },
+        emit(d) { rec.ondataavailable?.({ data: d }); },
+      };
+      return rec;
+    },
+    sizeOf: () => 1,
+    queue: new R.UploadQueue({ send: async (c) => { sent.push(c.blob); }, wait: async () => {} }),
+    ...timers,
+  });
+  session.start();
+  session.flush();                               // Seite wird verlassen: sofort hoch
+  let done = false;
+  const stopped = session.stop().then(() => { done = true; });
+  timers.fire(5_000);                            // die alte Frist: hält nicht mehr an
+  await tick(); await tick();
+  assert.equal(done, false);
+  rec.emit('letztes');                           // davor kommt das letzte Stück …
+  rec.onstop({});                                // … dann das stop-Ereignis
+  await stopped;
+  assert.deepEqual(sent, ['jetzt', 'letztes']);
+  assert.equal(R.STOP_WAIT_MS, 60_000);
 });

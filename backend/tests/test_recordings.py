@@ -18,7 +18,7 @@ from app.core.actor import act
 from app.core.config import get_settings
 from app.models import Log, RecordingChunk
 from app.services import ai, attachments, history, intake, recordings, tick, todo
-from app.services.intake import AiPart, FileAnswer
+from app.services.intake import AiRange, SpokenAnswer
 from tests.factories import new_firm, new_person
 from tests.test_ai_core import _Script, _answer
 from tests.test_proposals import api  # noqa: F401 – die Fixture: echte Routen, dieselbe Sitzung
@@ -47,6 +47,8 @@ class _Gemini:
     def post(self, url, data, timeout, headers):
         self.seen.append({"url": url, "body": json.loads(data), "timeout": timeout})
         a = self.answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
         if isinstance(a, int):
             return SimpleNamespace(status_code=a, text="nein", json=lambda: {})
         return SimpleNamespace(status_code=200, text="", json=lambda a=a: a)
@@ -130,9 +132,10 @@ def test_a_recording_becomes_one_intake_in_the_order_of_its_segments(db, api, ge
     assert c.get(f"{BASE}/open").json() == []
 
 
-def test_a_recording_without_a_stop_counts_as_stopped_after_ten_quiet_minutes(db, api, gemini, monkeypatch):  # noqa: F811
-    """Akte: «Abbruch nach 10 Min. → die 10 Min. sind da». Bug-Form: ohne Stopp wird nie
-    abgeschrieben (Akku leer, Tab zu – alles verloren)."""
+def test_a_recording_without_a_stop_counts_as_stopped_after_thirty_quiet_minutes(db, api, gemini, monkeypatch):  # noqa: F811
+    """Akte: «Abbruch → was bis dahin aufgenommen ist, ist da». Bug-Formen: ohne Stopp wird nie
+    abgeschrieben (Akku leer, Tab zu – alles verloren) · ein Netzloch von 10+ Minuten schliesst
+    die Aufnahme, während der Browser noch aufnimmt (die späteren Stücke bekämen 409)."""
     me = new_person(db, "employee")
     c = api.as_(me)
     rec = begin(c)
@@ -142,7 +145,11 @@ def test_a_recording_without_a_stop_counts_as_stopped_after_ten_quiet_minutes(db
     got = c.post(f"{BASE}/{rec['id']}/advance").json()
     assert got["state"] == "recording" and g.seen == []          # läuft noch: nichts tun
     assert rec["id"] not in recordings.due(db, 100)
-    later(monkeypatch, timedelta(minutes=10, seconds=1))
+    later(monkeypatch, timedelta(minutes=15))                    # Netzloch: läuft noch
+    assert c.get(f"{BASE}/open").json()[0]["state"] == "recording"
+    assert rec["id"] not in recordings.due(db, 100)
+    assert recordings.QUIET == timedelta(minutes=30)
+    later(monkeypatch, timedelta(minutes=15, seconds=1))
     assert c.get(f"{BASE}/open").json()[0]["state"] == "transcribing"
     assert rec["id"] in recordings.due(db, 100)
     got = c.post(f"{BASE}/{rec['id']}/advance").json()
@@ -248,7 +255,9 @@ def test_without_vertex_or_at_the_cap_it_waits_and_nothing_is_lost(db, api, gemi
     gemini(503, 429)
     for _ in range(2):
         assert c.post(f"{BASE}/{rec['id']}/advance").json()["state"] == "transcribing"
-    assert events(db, "recording.segment_failed", rec["id"]) == [] and chunks(db, rec["id"]) == 1
+    # Gefragt und gescheitert (5xx, 429) zählt – als Fehlversuch, nicht als Ablehnung.
+    assert [e.payload["fault"] for e in events(db, "recording.segment_failed", rec["id"])] == [True, True]
+    assert chunks(db, rec["id"]) == 1
     gemini(said("Doch noch."))
     assert c.post(f"{BASE}/{rec['id']}/advance").json()["intake"]["text"] == "Doch noch."
 
@@ -267,7 +276,8 @@ def test_a_segment_refused_twice_is_skipped_with_a_note(db, api, gemini):  # noq
     gemini(400, said("Zweiter Teil."))
     got = c.post(f"{BASE}/{rec['id']}/advance").json()
     assert got["state"] == "done"
-    assert got["intake"]["text"] == "[Abschnitt 1 nicht abgeschrieben]\n\nZweiter Teil."
+    assert got["intake"]["text"].startswith("[Abschnitt 1: ")
+    assert got["intake"]["text"].endswith("]\n\nZweiter Teil.")
     assert len(events(db, "recording.segment_failed", rec["id"])) == 2
     (skipped,) = [e for e in events(db, "recording.segment", rec["id"]) if e.payload["segment"] == 0]
     assert skipped.payload["text"] == "" and skipped.payload["skipped"]
@@ -330,14 +340,26 @@ def test_a_stray_chunk_older_than_a_day_goes_too(db, api, gemini, monkeypatch): 
 # ─── Der Bucket ────────────────────────────────────────────────────────────────────────
 
 class _Bucket:
-    def __init__(self):
-        self.objects = {}
+    def __init__(self, broken=False):
+        self.objects, self.batches, self.broken = {}, 0, broken
+        self.client = SimpleNamespace(batch=self._batch)
+
+    def _batch(self, raise_exception=True):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def batch():
+            self.batches += 1
+            yield
+        return batch()
 
     def blob(self, name):
         bucket = self
 
         class Blob:
             def upload_from_string(self, raw, content_type):
+                if bucket.broken:
+                    raise RuntimeError("NotFound: bucket fehlt")
                 bucket.objects[name] = raw
 
             def download_as_bytes(self):
@@ -348,14 +370,15 @@ class _Bucket:
         return Blob()
 
     def list_blobs(self, prefix):
-        return [SimpleNamespace(delete=lambda n=n: self.objects.pop(n, None))
-                for n in list(self.objects) if n.startswith(prefix)]
+        return [SimpleNamespace(name=n) for n in list(self.objects) if n.startswith(prefix)]
 
 
 def test_with_a_bucket_the_bytes_live_there_and_go_after_the_commit(db, api, gemini, monkeypatch):  # noqa: F811
-    """Bug-Form: die Bytes stehen trotz Bucket in der Datenbank – oder bleiben im Bucket liegen."""
-    store = _Bucket()
-    monkeypatch.setattr(attachments, "bucket", lambda: store)
+    """Bug-Formen: die Bytes stehen trotz Bucket in der Datenbank – oder bleiben im Bucket
+    liegen – oder landen im Datei-Bucket (dort hielte Soft Delete gelöschtes Audio eine Woche)."""
+    store, files = _Bucket(), _Bucket()
+    monkeypatch.setattr(attachments, "recordings_bucket", lambda: store)
+    monkeypatch.setattr(attachments, "bucket", lambda: files)
     me = new_person(db, "employee")
     c = api.as_(me)
     rec = begin(c)
@@ -371,7 +394,38 @@ def test_with_a_bucket_the_bytes_live_there_and_go_after_the_commit(db, api, gem
     assert store.objects                                   # vor dem Commit noch da …
     db.dispatch.after_commit(db)
     assert store.objects == {}                             # … danach weg
+    assert files.objects == {}                             # nie im Datei-Bucket
 
+
+def test_without_the_recordings_bucket_the_chunks_stay_in_the_database(db, api, gemini, monkeypatch):  # noqa: F811
+    """Ohne eigenen Bucket (oder wenn er nicht da ist): die Stücke liegen in der Zeile – nie im
+    Datei-Bucket, nie verloren. Bug-Form: Rückfall auf ``FILES_BUCKET``."""
+    files = _Bucket()
+    monkeypatch.setattr(get_settings(), "files_bucket", "p-files")
+    monkeypatch.setattr(get_settings(), "recordings_bucket", "")
+    monkeypatch.setattr(attachments, "_client", SimpleNamespace(bucket=lambda name: {"p-files": files}[name]))
+    me = new_person(db, "employee")
+    c = api.as_(me)
+    rec = begin(c)
+    assert send(c, rec["id"], 0, 0).status_code == 200
+    missing = _Bucket(broken=True)                         # gesetzt, aber (noch) nicht angelegt
+    monkeypatch.setattr(attachments, "recordings_bucket", lambda: missing)
+    assert send(c, rec["id"], 0, 1).status_code == 200
+    assert files.objects == {} and missing.objects == {}
+    assert db.query(RecordingChunk.data).filter(RecordingChunk.recording == rec["id"]).order_by(
+        RecordingChunk.seq).all() == [(b"seg0-0",), (b"seg0-1",)]
+
+
+def test_deleting_three_hours_of_chunks_is_batched(db, monkeypatch):
+    """Bug-Form: je Stück eine Anfrage – drei Stunden Stücke zögen die Anfrage über 60 s."""
+    store = _Bucket()
+    store.objects = {f"recordings/7/{s}-{q}": b"x" for s in range(36) for q in range(10)}
+    store.objects["recordings/70/0-0"] = b"fremd"
+    monkeypatch.setattr(attachments, "recordings_bucket", lambda: store)
+    attachments.drop_objects(db, "recordings/7/")
+    db.dispatch.after_commit(db)
+    assert list(store.objects) == ["recordings/70/0-0"]
+    assert store.batches == 4                              # 360 Stücke in Bündeln à 100
 
 # ─── Die Tür: ai.transcribe ────────────────────────────────────────────────────────────
 
@@ -449,8 +503,8 @@ def test_the_tick_finishes_a_recording_without_a_browser(db, api, gemini, monkey
         send(c, rec["id"], seg, 0)
     c.post(f"{BASE}/{rec['id']}/stop", json={"segments": 2})
     gemini(said("Erster."), said("Zweiter."))
-    script = _Script(_answer(parsed=FileAnswer(parts=[AiPart(
-        object_id=firm.object_id, text="Erster. Zweiter.", subject="Takt")], proposals=[])))
+    script = _Script(_answer(parsed=SpokenAnswer(parts=[AiRange(
+        object_id=firm.object_id, subject="Takt", start=1, end=2)], proposals=[])))
     monkeypatch.setattr(ai, "ready", lambda: True)
     monkeypatch.setattr(ai, "_client", lambda *a: script)
     act(db, "system", None, "job")
@@ -459,7 +513,9 @@ def test_the_tick_finishes_a_recording_without_a_browser(db, api, gemini, monkey
     (end,) = events(db, "recording.done", rec["id"])
     it = intake.get(db, end.payload["intake"])
     assert it.text == "Erster.\n\nZweiter." and it.actor_id == me.object_id
-    assert intake.view(db, it).parts[0].object_id == firm.object_id    # die KI hat abgelegt
+    (part,) = intake.view(db, it).parts                               # die KI hat abgelegt
+    assert part.object_id == firm.object_id and part.text == "Erster.\n\nZweiter."
+    assert script.seen[0]["output_format"] is SpokenAnswer
     assert any(t.name == "voice" for t in tick.TASKS)
     assert tick._voice(db, time.monotonic() + 30) == {"failed": 0, "dropped": 0}
 
@@ -480,7 +536,7 @@ def test_what_is_written_after_a_day_is_kept_the_rest_is_noted(db, api, gemini, 
     (done,) = events(db, "recording.done", rec["id"])
     assert done.payload["partial"] is True and chunks(db, rec["id"]) == 0
     text = intake.get(db, done.payload["intake"]).text
-    assert text == "Erster Teil steht.\n\n[Abschnitt 2 nicht abgeschrieben]"
+    assert text == "Erster Teil steht.\n\n[Abschnitt 2: nach einem Tag nicht abgeschrieben]"
 
 
 def test_a_long_part_becomes_several_notes(db, api):  # noqa: F811
@@ -499,3 +555,211 @@ def test_a_long_part_becomes_several_notes(db, api):  # noqa: F811
     assert r.status_code == 200, r.text
     notes = r.json()["notes"]
     assert len(notes) == 3
+
+
+# ─── Prüfung Phase 4: nichts geht verloren, Zeit und Kosten ────────────────────────────
+
+class ReadTimeout(Exception):
+    """Wie ``requests.exceptions.ReadTimeout``: die Anfrage war unterwegs, die Antwort kam nie."""
+
+
+def stopped(c, segments, *pieces):
+    rec = begin(c)
+    for seg, seq in pieces:
+        assert send(c, rec["id"], seg, seq).status_code == 200
+    c.post(f"{BASE}/{rec['id']}/stop", json={"segments": segments})
+    return rec["id"]
+
+
+def test_a_segment_failing_six_times_is_skipped_and_a_timeout_costs(db, api, gemini):  # noqa: F811
+    """Bug-Formen: ein Abschnitt, der immer in die Zeit läuft, wird ewig (und bezahlt) versucht ·
+    eine Zeitüberschreitung kostet im Log nichts (der Deckel sähe sie nie) · eine abgeschnittene
+    Abschrift (``MAX_TOKENS``) wird still übernommen."""
+    me = new_person(db, "employee")
+    c = api.as_(me)
+    rid = stopped(c, 2, (0, 0), (0, 1), (1, 0))
+    g = gemini(ReadTimeout("read timed out"), 500, 429, said("halb", finish="MAX_TOKENS"),
+               503, ReadTimeout("x"), said("Zweiter."))
+    for _ in range(recordings.FAULTS - 1):
+        got = c.post(f"{BASE}/{rid}/advance").json()
+        assert got["state"] == "transcribing" and got["transcribed"] == 0
+    got = c.post(f"{BASE}/{rid}/advance").json()
+    assert got["state"] == "done" and len(g.seen) == recordings.FAULTS + 1
+    assert got["intake"]["text"].startswith("[Abschnitt 1: ") and "halb" not in got["intake"]["text"]
+    assert got["intake"]["text"].endswith("]\n\nZweiter.")
+    calls = [e.payload for e in db.query(Log).filter(Log.event == "ai.call", Log.actor_id == me.object_id)
+             .order_by(Log.id)]
+    timed_out = [p for p in calls if p.get("error") == "ReadTimeout"]
+    assert len(timed_out) == 2 and all(p["estimated"] for p in timed_out)
+    # 2 Stücke à 30 s = 60 s Audio × 32 Tokens/s, zum Preis von Gemini.
+    assert timed_out[0]["in"] == 60 * ai.AUDIO_TOKENS_PER_SECOND
+    assert timed_out[0]["chf"] == ai.cost_chf(ai.TRANSCRIBE_MODEL, 1920, 0) > 0
+
+
+def test_a_segment_without_its_first_chunk_or_too_big_is_noted_without_a_call(db, api, gemini, monkeypatch):  # noqa: F811
+    """Bug-Formen: ein Abschnitt ohne Stück 0 (ohne Kopf nicht lesbar) wird an Gemini bezahlt ·
+    ein zu grosser geht an Vertex, das ihn abweist · eine Lücke verschwindet still aus dem Text."""
+    me = new_person(db, "employee")
+    c = api.as_(me)
+    rid = stopped(c, 4, (0, 1), (2, 0), (3, 0), (3, 1))
+    monkeypatch.setattr(recordings, "MAX_AUDIO", len(b"seg3-0seg3-1") - 1)
+    g = gemini(said("Dritter."))
+    got = c.post(f"{BASE}/{rid}/advance").json()
+    assert got["state"] == "done" and len(g.seen) == 1 and g.audio(0)[0] == b"seg2-0"
+    assert got["intake"]["text"] == (
+        f"[Abschnitt 1: {recordings.NO_HEAD}]\n\n[Abschnitt 2: {recordings.NO_CHUNKS}]\n\n"
+        f"Dritter.\n\n[Abschnitt 4: {recordings.TOO_BIG}]")
+
+
+def test_no_segment_is_begun_with_less_than_forty_seconds_left(db, api, gemini):  # noqa: F811
+    """Bug-Form: ein bezahlter Aufruf, der sicher an der Zeitgrenze stirbt."""
+    me = new_person(db, "employee")
+    c = api.as_(me)
+    rid = stopped(c, 1, (0, 0))
+    g = gemini(said("Später."))
+    act(db, "person", me.object_id, "ui")
+    with ai.until(recordings.SEGMENT_LEAST - 1):
+        assert recordings.advance(db, rid) == recordings.NO_TIME
+    assert g.seen == [] and recordings.SEGMENT_LEAST == 40
+    with ai.until(recordings.SEGMENT_LEAST + 5):
+        assert recordings.advance(db, rid) is None
+    assert recordings.load(db, rid).end[0] == "recording.done"
+
+
+def test_the_recording_that_failed_last_waits_at_the_back(db, api, gemini):  # noqa: F811
+    """Bug-Form: eine schwierige Aufnahme steht im Takt immer zuvorderst und hält die übrigen auf."""
+    me = new_person(db, "employee")
+    c = api.as_(me)
+    first = stopped(c, 1, (0, 0))
+    second = stopped(c, 1, (0, 0))
+    assert [r for r in recordings.due(db, 100) if r in (first, second)] == [first, second]
+    gemini(503)
+    c.post(f"{BASE}/{first}/advance")
+    assert [r for r in recordings.due(db, 100) if r in (first, second)] == [second, first]
+
+
+def test_failed_recordings_are_visible_silence_is_not(db, api, gemini):  # noqa: F811
+    """Bug-Formen: eine gescheiterte Aufnahme verschwindet still aus dem «+» · Start und sofort
+    Stopp («Nichts zu hören») steht als Fehlschlag in «zu tun»."""
+    me = new_person(db, "employee")
+    c = api.as_(me)
+    silent = begin(c)["id"]
+    c.post(f"{BASE}/{silent}/stop", json={"segments": 0})
+    assert c.post(f"{BASE}/{silent}/advance").json()["problem"] == recordings.NOTHING
+    broken = stopped(c, 1, (0, 1))                          # nur ein Stück ohne Kopf
+    assert c.post(f"{BASE}/{broken}/advance").json()["state"] == "failed"
+    shown = c.get(f"{BASE}/open").json()
+    assert [(r["id"], r["state"], r["problem"]) for r in shown] == [
+        (broken, "failed", recordings.UNREADABLE)]
+    found = {t.object_id: t for t in todo.todo(db, me)}.get(me.object_id)
+    assert [i.label for i in found.items if "Aufnahme" in i.label] == ["1 Aufnahme fehlgeschlagen"]
+
+
+def test_sweep_commits_before_it_unlocks_and_lock_frees_its_connection(db, api, gemini, monkeypatch):  # noqa: F811
+    """Bug-Formen: die Sperre fällt, bevor die Rettung festgeschrieben ist (Anfrage und Takt
+    retten zweimal) · eine Verbindung mit halber Sperre geht in den Pool zurück."""
+    me = new_person(db, "employee")
+    rid = stopped(api.as_(me), 1, (0, 0))
+    order = []
+    real_commit, real_unlock = db.commit, recordings._unlock
+    monkeypatch.setattr(db, "commit", lambda: (order.append("commit"), real_commit())[1])
+    monkeypatch.setattr(recordings, "_unlock",
+                        lambda con, r: (order.append("unlock"), real_unlock(con, r))[1])
+    later(monkeypatch, timedelta(hours=25))
+    act(db, "system", None, "job")
+    recordings.sweep(db)
+    assert order[:2] == ["commit", "unlock"]
+    assert recordings.load(db, rid).end is not None
+    from app.core import database
+
+    class Con:
+        closed = invalid = False
+
+        def execute(self, *a, **k):
+            raise RuntimeError("Verbindung weg")
+
+        def invalidate(self):
+            Con.invalid = True
+
+        def close(self):
+            Con.closed = True
+    monkeypatch.setattr(database.engine, "connect", lambda: Con())
+    with pytest.raises(RuntimeError):
+        recordings._lock(rid)
+    assert Con.closed and Con.invalid
+
+
+def test_gemini_has_its_own_region_and_a_404_names_model_and_region(db, gemini, monkeypatch):
+    """Bug-Form: Gemini nur dort gefragt, wo das Einbettungsmodell steht – und ein 404 sagt nicht,
+    welches Modell wo fehlt."""
+    monkeypatch.setattr(get_settings(), "vertex_region", "europe-west3")
+    monkeypatch.setattr(get_settings(), "vertex_gemini_region", "europe-west4")
+    g = gemini(404)
+    assert ai.transcribe(db, b"x", "audio/webm", actor=None) is None
+    assert "europe-west4-aiplatform" in g.seen[0]["url"] and "/locations/europe-west4/" in g.seen[0]["url"]
+    assert ai.TRANSCRIBE_MODEL in ai.problem() and "europe-west4" in ai.problem()
+    assert "VERTEX_GEMINI_REGION" in ai.problem() and not ai.faulted() and not ai.refused()
+    monkeypatch.setattr(get_settings(), "vertex_gemini_region", "")
+    monkeypatch.setattr(ai, "_vertex_paused", {})
+    g = gemini(said("ok"))
+    ai.transcribe(db, b"x", "audio/webm", actor=None)
+    assert "/locations/europe-west3/" in g.seen[0]["url"]
+
+
+# ─── Lange Aufnahmen ablegen: Bereiche statt Text ──────────────────────────────────────
+
+def _claude(monkeypatch, script):
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
+    monkeypatch.setattr(ai, "_client", lambda *a: script)
+
+
+def test_an_hour_of_speech_is_filed_word_for_word_by_paragraph_ranges(db, monkeypatch):
+    """Bug-Formen: die KI schreibt eine Stunde ab (abgeschnitten, gekürzt, zu teuer) · ein Absatz
+    steht in zwei Teilen · ein Absatz, den die KI vergisst, ist weg."""
+    me, firm, other = new_person(db, "employee"), new_firm(db, "Kran"), new_firm(db, "Fahrzeug")
+    lines = [f"{'Anna' if i % 2 else 'Beat'}: Punkt {i} – " + "wir besprechen das Hubwerk. " * 20
+             for i in range(110)]
+    lines[40] = "Beat: " + "Ein langer Monolog ohne Zeilenumbruch. " * 100     # eine lange Zeile
+    long = "\n".join(lines[:55]) + "\n\n[Abschnitt 7: keine Stücke angekommen]\n\n" + "\n".join(lines[55:])
+    assert 55_000 < len(long) < 75_000
+    paras = intake.paragraphs(long)
+    assert "".join(paras) == long and max(len(p) for p in paras) <= intake.PARAGRAPH + 200
+    act(db, "person", me.object_id, "ui")
+    it = intake.capture(db, long, None, me, recording=99)
+    n = len(paras)
+    answer = SpokenAnswer(parts=[
+        AiRange(object_id=firm.object_id, subject="Hubwerk", start=1, end=30),
+        AiRange(object_id=other.object_id, subject="Fahrzeug", start=25, end=50),   # überlappt
+        AiRange(object_id=999_999_999, subject="gibt es nicht", start=51, end=60),
+        AiRange(object_id=firm.object_id, subject="Rest Kran", start=n - 5, end=n + 40),
+    ], proposals=[])
+    script = _Script(_answer(parsed=answer))
+    _claude(monkeypatch, script)
+    assert intake.file_with_ai(db, it, me) is None
+    sent = script.seen[0]
+    assert sent["output_format"] is SpokenAnswer and sent["max_tokens"] <= 6000
+    prompt = sent["messages"][0]["content"][0]["text"]
+    assert "[1] Beat: Punkt 0" in prompt and f"\n[{n}] " in prompt and "nummerierten Absätzen" in sent["system"]
+    parts = intake.view(db, it).parts
+    assert [p.object_id for p in parts] == [firm.object_id, other.object_id, me.object_id, firm.object_id]
+    assert parts[0].text == "".join(paras[:30]).strip()
+    assert parts[1].text == "".join(paras[30:50]).strip()          # 25–30 gehören schon «Hubwerk»
+    assert parts[2].text == "".join(paras[50:n - 6]).strip()       # Rest: an die Person
+    assert parts[3].text == "".join(paras[n - 6:]).strip()
+    # Jeder Absatz genau einmal, nichts gekürzt – zusammen wieder der ganze Text.
+    assert " ".join(" ".join(p.text for p in parts).split()) == " ".join(long.split())
+
+
+def test_a_typed_intake_is_still_filed_as_text(db, monkeypatch):
+    """Getippte Erfassungen bleiben, wie sie sind: Text-Teile, nicht Bereiche."""
+    from app.services.intake import AiPart, FileAnswer
+    me, firm = new_person(db, "employee"), new_firm(db, "Kran")
+    act(db, "person", me.object_id, "ui")
+    it = intake.capture(db, "Kran braucht Service.", None, me)
+    script = _Script(_answer(parsed=FileAnswer(parts=[AiPart(
+        object_id=firm.object_id, text="Kran braucht Service.", subject="Service")], proposals=[])))
+    _claude(monkeypatch, script)
+    assert intake.file_with_ai(db, it, me) is None
+    assert script.seen[0]["output_format"] is FileAnswer
+    assert "[1]" not in script.seen[0]["messages"][0]["content"][0]["text"]

@@ -394,6 +394,12 @@ _VERTEX_PAUSE_S = 3600.0
 _vertex_paused: dict[str, float] = {}
 #: Hat das Modell beim letzten Abschreiben den Inhalt abgelehnt (nicht: war es nicht erreichbar)?
 _REFUSED: ContextVar[bool] = ContextVar("ai_refused", default=False)
+#: Wurde beim letzten Abschreiben gefragt, und es kam nichts Brauchbares – Zeit überschritten,
+#: 5xx, 429, abgeschnitten (``MAX_TOKENS``)? Ein neuer Versuch kann helfen, aber nicht ewig.
+_FAULTED: ContextVar[bool] = ContextVar("ai_faulted", default=False)
+#: So viele Tokens zählt Gemini je Sekunde Audio – daraus die geschätzten Kosten eines Aufrufs,
+#: dessen Antwort nie kam (die Rechnung kommt trotzdem; der Deckel muss sie sehen).
+AUDIO_TOKENS_PER_SECOND = 32
 
 
 def _vertex_ready(model: str) -> bool:
@@ -414,6 +420,12 @@ def refused() -> bool:
     return _REFUSED.get()
 
 
+def faulted() -> bool:
+    """Wurde beim letzten ``transcribe`` gefragt, ohne brauchbare Antwort (Zeit, 5xx, 429,
+    abgeschnitten)? Nicht: abgelehnt (``refused``), nicht gefragt (Deckel, Einrichtung, Pause)."""
+    return _FAULTED.get()
+
+
 def remaining(limit: float) -> float:
     """Wie viele Sekunden ein Aufruf jetzt noch hätte – ``limit`` oder weniger unter ``until``."""
     return _left(limit)
@@ -427,12 +439,15 @@ def _vertex_session():
     return AuthorizedSession(creds, max_refresh_attempts=_retries(2))
 
 
-def _vertex_problem(status: Optional[int], text: str, what: str = "Bedeutungs-Zahlen") -> str:
+def _vertex_problem(status: Optional[int], text: str, what: str = "Bedeutungs-Zahlen",
+                    model: str = "", region: str = "") -> str:
     if status in (401, 403):
         return ("Vertex AI ist nicht eingerichtet oder der Dienst darf es nicht nutzen "
                 "(einmal infra/setup-vertex.sh).")
     if status == 404:
-        return f"Das Modell für {what} gibt es in dieser Region nicht."
+        setting = "VERTEX_GEMINI_REGION" if model == TRANSCRIBE_MODEL else "VERTEX_REGION"
+        return (f"Das Modell «{model}» für {what} gibt es in der Region «{region}» nicht – "
+                f"eine andere Region in {setting} setzen.")
     if status == 429:
         return "Vertex AI ist gerade ausgelastet – gleich noch einmal."
     return f"Vertex AI antwortet nicht ({status or 'kein Netz'}): {text[:160]}"
@@ -446,11 +461,13 @@ class _VertexCall:
     data: Optional[dict[str, Any]] = None
     usage: dict[str, Any] = field(default_factory=dict)
     status: Optional[int] = None
+    #: Keine Antwort in der Zeit – die Anfrage war aber unterwegs (und kostet vermutlich).
+    timeout: bool = False
 
 
 def _vertex(db: Session, *, model: str, method: str, body: dict[str, Any], limit: float,
-            least: float, what: str) -> _VertexCall:
-    """►►► **Ein Aufruf an Vertex AI** (Region ``VERTEX_REGION``) – EINE Stelle für Bedeutungs-
+            least: float, what: str, region: str = "") -> _VertexCall:
+    """►►► **Ein Aufruf an Vertex AI** (Region ``region``, sonst ``VERTEX_REGION``) – EINE Stelle für Bedeutungs-
     Zahlen und Abschreiben: Einrichtung, Pause nach Abweisung, Deckel, Zeitgrenze (``until``, kein
     zweiter Versuch), Fehler als ein Satz in ``problem()``. Ins Log schreibt der Aufrufer
     (``_record``), denn nur er kennt die Tokens. ◄◄◄"""
@@ -469,7 +486,7 @@ def _vertex(db: Session, *, model: str, method: str, body: dict[str, Any], limit
     if wait < least:
         _PROBLEM.set(f"Keine Zeit mehr für {what} – der Takt holt es nach.")
         return _VertexCall()
-    region = settings.vertex_region
+    region = region or settings.vertex_region
     url = (f"https://{region}-aiplatform.googleapis.com/v1/projects/{settings.vertex_project}"
            f"/locations/{region}/publishers/google/models/{model}:{method}")
     out = _VertexCall(asked=True)
@@ -478,13 +495,15 @@ def _vertex(db: Session, *, model: str, method: str, body: dict[str, Any], limit
                                    headers={"Content-Type": "application/json"})
         if r.status_code != 200:
             out.usage, out.status = {"error": "http", "status": r.status_code}, r.status_code
-            _PROBLEM.set(_vertex_problem(r.status_code, r.text, what))
+            _PROBLEM.set(_vertex_problem(r.status_code, r.text, what, model, region))
             if r.status_code in (401, 403, 404):
                 _vertex_paused[model] = _time.monotonic() + _VERTEX_PAUSE_S
         else:
             out.data = r.json()
     except Exception as exc:                                   # noqa: BLE001
-        out.usage = {"error": type(exc).__name__}
+        name = type(exc).__name__
+        out.usage = {"error": name}
+        out.timeout = "timeout" in name.lower() and "connect" not in name.lower()
         _PROBLEM.set(_vertex_problem(None, str(exc), what))
         print(f"WARNING: ai.{method} ({model}) failed: {exc!r}", flush=True)
     return out
@@ -540,20 +559,26 @@ def _transcript(data: dict[str, Any]) -> tuple[Optional[str], dict[str, Any]]:
         return None, {**usage, "stop": (data.get("promptFeedback") or {}).get("blockReason") or "none"}
     first = candidates[0]
     usage["stop"] = first.get("finishReason")
-    if first.get("finishReason") in _BLOCKED:
-        return None, usage
+    if first.get("finishReason") in _BLOCKED or first.get("finishReason") == "MAX_TOKENS":
+        return None, usage            # abgelehnt – oder abgeschnitten: nie still übernehmen
     parts = (first.get("content") or {}).get("parts") or []
     text = "".join(str(p.get("text") or "") for p in parts if not p.get("thought"))
     return text.strip(), usage
 
 
-def transcribe(db: Session, raw: bytes, mime: str, *, actor: Optional[UserProfile]) -> Optional[str]:
-    """►►► **Gesprochenes abschreiben** (Phase 4, Gemini über Vertex AI) – der Text (leer bei
-    Stille) oder ``None``: ``problem()`` sagt warum, ``refused()`` ob Gemini **den Inhalt**
-    ablehnte (dann hilft kein zweiter Versuch). Durch dieselbe Tür wie jeder Aufruf: Deckel,
-    ``until`` (keine Wiederholung), Pause nach Abweisung, ein ``ai.call`` mit Kosten. ◄◄◄"""
+def transcribe(db: Session, raw: bytes, mime: str, *, actor: Optional[UserProfile],
+               seconds: float = 0.0) -> Optional[str]:
+    """►►► **Gesprochenes abschreiben** (Phase 4, Gemini über Vertex AI, Region
+    ``VERTEX_GEMINI_REGION`` – leer: ``VERTEX_REGION``) – der Text (leer bei Stille) oder
+    ``None``: ``problem()`` sagt warum, ``refused()`` ob Gemini **den Inhalt** ablehnte (dann
+    hilft kein zweiter Versuch), ``faulted()`` ob gefragt wurde, ohne brauchbare Antwort (Zeit,
+    5xx, 429, abgeschnitten – ein neuer Versuch kann helfen). Durch dieselbe Tür wie jeder
+    Aufruf: Deckel, ``until`` (keine Wiederholung), Pause nach Abweisung, ein ``ai.call`` mit
+    Kosten – kam keine Antwort, mit den **geschätzten** Kosten aus ``seconds`` Audio. ◄◄◄"""
     _PROBLEM.set("")
     _REFUSED.set(False)
+    _FAULTED.set(False)
+    settings = get_settings()
     body = {"systemInstruction": {"parts": [{"text": ABSCHRIFT.strip()}]},
             "contents": [{"role": "user", "parts": [
                 {"inlineData": {"mimeType": audio_type(mime),
@@ -561,7 +586,8 @@ def transcribe(db: Session, raw: bytes, mime: str, *, actor: Optional[UserProfil
                 {"text": "Schreibe diese Aufnahme ab."}]}],
             "generationConfig": {"maxOutputTokens": 16384}}
     call = _vertex(db, model=TRANSCRIBE_MODEL, method="generateContent", body=body, limit=55.0,
-                   least=10.0, what="Abschreiben")
+                   least=10.0, what="Abschreiben",
+                   region=settings.vertex_gemini_region or settings.vertex_region)
     if not call.asked:
         return None
     text: Optional[str] = None
@@ -569,9 +595,14 @@ def transcribe(db: Session, raw: bytes, mime: str, *, actor: Optional[UserProfil
     if call.data is not None:
         text, usage = _transcript(call.data)
         if text is None:
-            _REFUSED.set(True)
+            _REFUSED.set(usage.get("stop") != "MAX_TOKENS")
+            _FAULTED.set(usage.get("stop") == "MAX_TOKENS")
             _PROBLEM.set(f"Gemini hat die Aufnahme nicht abgeschrieben ({usage.get('stop')}).")
     elif call.status == 400:
         _REFUSED.set(True)
+    elif call.status not in (401, 403, 404):
+        _FAULTED.set(True)                        # Zeit, 5xx, 429, Netz
+        if call.timeout:
+            usage = {**usage, "in": int(seconds * AUDIO_TOKENS_PER_SECOND), "estimated": True}
     _record(db, "transcribe", TRANSCRIBE_MODEL, actor, usage)
     return text

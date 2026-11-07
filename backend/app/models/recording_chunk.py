@@ -1,6 +1,6 @@
 """**Ein Stück einer Aufnahme** (Phase 4 · Sprache, ``docs/konzept/phase4-bauplan.md``).
 
-Der Browser schickt alle 30 s ein Stück; ein **Abschnitt** (10 Minuten) ist eine eigene,
+Der Browser schickt alle 30 s ein Stück; ein **Abschnitt** (5 Minuten) ist eine eigene,
 vollständige Datei aus seinen Stücken in Reihenfolge. Die Bytes liegen im Bucket
 (``recordings/<Aufnahme>/<Abschnitt>-<Stück>``, ``services/attachments``), ohne Bucket hier in
 ``data``. Technisch und kurzlebig: gelöscht nach der Abschrift, spätestens nach einem Tag
@@ -24,7 +24,7 @@ class RecordingChunk(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     #: Die Aufnahme – Log-Id ihres ``recording.start``.
     recording: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    #: Der Abschnitt (ab 0; je 10 Minuten eine eigene, vollständige Datei).
+    #: Der Abschnitt (ab 0; je 5 Minuten eine eigene, vollständige Datei).
     segment: Mapped[int] = mapped_column(Integer, nullable=False)
     #: Das Stück im Abschnitt (ab 0; je 30 s).
     seq: Mapped[int] = mapped_column(Integer, nullable=False)

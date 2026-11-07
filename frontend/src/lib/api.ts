@@ -638,12 +638,12 @@ class ApiClient {
   }
 
   /** **Ein Stück** (alle 30 s) – Abschnitt und Stück ab 0; dasselbe Stück noch einmal ersetzt es. */
-  recordingChunk(id: number, segment: number, seq: number, file: Blob): Promise<Recording> {
+  recordingChunk(id: number, segment: number, seq: number, file: Blob, req?: Req): Promise<Recording> {
     const form = new FormData();
     form.append('segment', String(segment));
     form.append('seq', String(seq));
     form.append('file', file, `${segment}-${seq}`);
-    return this.request(`/api/v1/erp/recordings/${id}/chunks`, { method: 'POST', body: form });
+    return this.request(`/api/v1/erp/recordings/${id}/chunks`, { method: 'POST', body: form, signal: req?.signal });
   }
 
   /** **Stopp** – `segments` = wie viele Abschnitte es gibt. */

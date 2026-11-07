@@ -4,7 +4,9 @@
   offen war, sonst an der Person). Was danach auch geschieht: sie ist da.
 * ``file_with_ai`` – die KI legt ab (``ai.converse``, Aufgabe ``file``, mit den Lese-Werkzeugen
   ``ai_tools.tools_for`` – was jedes Personal sehen darf): Teile mit je einer Heimat + was
-  daraus folgt. Das Ergebnis ist ein **Vorschlag**
+  daraus folgt. **Aus einer Aufnahme** (lang) nennt die KI je Teil nur einen **Bereich
+  nummerierter Absätze** (``spoken_parts``); den Text baut der Code wörtlich aus dem Original –
+  nie gekürzt, nichts doppelt, jeder Absatz genau einmal. Das Ergebnis ist ein **Vorschlag**
   ``file`` (die Teile) und die übrigen Vorschläge (``change``/``create``). Ungültige Nummern und
   Felder verwirft der Code, nicht die KI. Ohne KI: kein Vorschlag, ein roher Teil und ``problem``;
   der Takt holt nach (``catch_up``).
@@ -23,13 +25,14 @@ legt sie ab (``may_see`` ↔ ``assert_may``).
 
 from __future__ import annotations
 
+import re
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
 
 from fastapi import HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -81,6 +84,21 @@ class FileAnswer(BaseModel):
     proposals: list[AiProposal]
 
 
+class AiRange(BaseModel):
+    """Ein Teil einer Aufnahme – als Bereich der nummerierten Absätze, nicht als Text."""
+    model_config = ConfigDict(populate_by_name=True)
+    object_id: int = Field(description="Objektnummer des Datensatzes, an dem dieser Teil "
+                                       "später gesucht wird")
+    subject: str = Field(description="Betreff, wenige Worte")
+    start: int = Field(alias="from", description="Erster Absatz dieses Teils (Nummer)")
+    end: int = Field(alias="to", description="Letzter Absatz dieses Teils (Nummer, einschliesslich)")
+
+
+class SpokenAnswer(BaseModel):
+    parts: list[AiRange]
+    proposals: list[AiProposal]
+
+
 def fields_text() -> str:
     """Welche Felder ein Vorschlag ändern bzw. ein Entwurf vorausfüllen darf."""
     lines = [f"- ändern an {t}: " + ", ".join(f"{k} ({w})" for k, w in fs.items())
@@ -94,6 +112,17 @@ Antwortformat: `parts` – das Festgehaltene in Teilen, je Teil der Datensatz (O
 dem er später gesucht wird, sein Text und ein kurzer Betreff; `proposals` – was daraus folgt:
 `change` (ein Feld eines Datensatzes ändern) oder `create` (eine Person oder Firma anlegen).
 Erlaubte Felder:
+"""
+
+
+SPOKEN_FORMAT = """
+Antwortformat: Das Festgehaltene ist eine Abschrift in nummerierten Absätzen («[n] …»).
+`parts` – das Festgehaltene in Teilen, je Teil der Datensatz (Objektnummer), an dem er später
+gesucht wird, ein kurzer Betreff und der Bereich der Absätze: `from` (erster) und `to` (letzter,
+einschliesslich). Schreibe den Text NICHT ab – nur die Nummern. Jeder Absatz gehört zu genau
+einem Teil; was keinem gehört, legt das System an den Datensatz, der offen war. `proposals` – was
+daraus folgt: `change` (ein Feld eines Datensatzes ändern) oder `create` (eine Person oder Firma
+anlegen). Erlaubte Felder:
 """
 
 
@@ -111,6 +140,8 @@ class Intake(BaseModel):
     actor_id: Optional[int]
     text: str
     hint: Optional[int]
+    #: Die Aufnahme, aus der der Text kommt (Phase 4) – sonst getippt.
+    recording: Optional[int] = None
 
 
 def get(db: Session, intake_id: int) -> Intake:
@@ -120,7 +151,7 @@ def get(db: Session, intake_id: int) -> Intake:
         raise HTTPException(404, detail=f"Erfassung «{intake_id}» gibt es nicht.")
     p = r.payload or {}
     return Intake(id=r.id, at=r.at, object_id=r.object_id, actor_id=r.actor_id,
-                  text=str(p.get("text") or ""), hint=p.get("hint"))
+                  text=str(p.get("text") or ""), hint=p.get("hint"), recording=p.get("recording"))
 
 
 def _may(it: Intake, viewer: UserProfile) -> bool:
@@ -236,9 +267,71 @@ def _prompt(db: Session, it: Intake, actor: UserProfile) -> list[dict[str, Any]]
             f"{it.at.isoformat(timespec='minutes')}."]
     if it.hint:
         head.append(f"Offen war der Datensatz {it.hint}.")
-    cases = memory.as_prompt(memory.similar(db, it.text, actor=actor))
-    body = "\n".join(head) + ("\n\n" + cases if cases else "") + "\n\nFestgehalten:\n" + it.text
+    cases = memory.as_prompt(memory.similar(db, it.text[:MAX_TEXT], actor=actor))
+    said = it.text
+    if it.recording:
+        said = "\n".join(f"[{n}] {p.strip()}" for n, p in enumerate(paragraphs(it.text), 1))
+    body = "\n".join(head) + ("\n\n" + cases if cases else "") + "\n\nFestgehalten:\n" + said
     return [{"type": "text", "text": body}]
+
+
+#: Ein Absatz einer Abschrift ist höchstens etwa so lang – längere Zeilen (ein Sprecher, fünf
+#: Minuten am Stück) werden an Satzenden geteilt, damit die KI auch darin trennen kann.
+PARAGRAPH = 1200
+
+
+def paragraphs(text: str) -> list[str]:
+    """►► **Die Absätze einer Abschrift – ohne ein Zeichen zu verlieren**: zusammengesetzt
+    ergeben sie genau den Text (``"".join(paragraphs(t)) == t``). Geteilt an Zeilen (Leerzeilen,
+    Sprecherwechsel), lange Zeilen an Satzenden; Leerraum hängt am Absatz davor. ◄◄"""
+    out: list[str] = []
+    for line in re.split(r"(?<=\n)", text):
+        if not line:
+            continue
+        if not line.strip() and out:
+            out[-1] += line
+            continue
+        pieces = re.split(r"(?<=[.!?…])(?=\s)", line) if len(line) > PARAGRAPH else [line]
+        current = ""
+        for piece in pieces:
+            if current and len(current) + len(piece) > PARAGRAPH:
+                out.append(current)
+                current = ""
+            current += piece
+        if current:
+            out.append(current)
+    return out
+
+
+def spoken_parts(db: Session, answer: SpokenAnswer, it: Intake,
+                 actor: UserProfile) -> list[dict[str, Any]]:
+    """►►► **Die Teile einer Aufnahme, wörtlich aus dem Original** – je Teil die Absätze seines
+    Bereichs, die noch keinem gehören (nichts doppelt); was keinem Teil gehört (oder einem
+    Datensatz, den es nicht gibt), geht an den Datensatz der Erfassung. Jeder Absatz steht genau
+    einmal, nichts ist gekürzt. ◄◄◄"""
+    paras = paragraphs(it.text)
+    owner: list[Optional[int]] = [None] * len(paras)
+    claims: list[tuple[int, str]] = []
+    for r in answer.parts:
+        if not valid_target(db, r.object_id, actor):
+            continue
+        k = len(claims)
+        claims.append((r.object_id, " ".join(r.subject.split())[:255]))
+        for i in range(max(1, min(r.start, r.end)), min(len(paras), max(r.start, r.end)) + 1):
+            if owner[i - 1] is None:
+                owner[i - 1] = k
+    home = next((k for k, (oid, _) in enumerate(claims) if oid == it.object_id), None)
+    if home is None and None in owner:
+        home = len(claims)
+        claims.append((it.object_id, ""))
+    owner = [home if o is None else o for o in owner]
+    out = []
+    for k, (oid, subject) in enumerate(claims):
+        body = "".join(p for p, o in zip(paras, owner) if o == k).strip()
+        if body:
+            out.append((owner.index(k), {"object_id": oid, "text": body,
+                                         "subject": subject or first_words(body)}))
+    return [part for _, part in sorted(out, key=lambda x: x[0])] or [raw_part(it)]
 
 
 def valid_target(db: Session, object_id: int, viewer: UserProfile) -> bool:
@@ -298,16 +391,21 @@ def file_with_ai(db: Session, it: Intake, actor: UserProfile) -> Optional[str]:
         return None
     # Ohne KI kein Nachschlagen der Fälle (auch das kostet) – ``converse`` sagt dann nur warum.
     content = _prompt(db, it, actor) if ai.available(db) else []
-    answer = ai.converse(db, task="file", actor=actor, system=system_text(FILE_FORMAT),
-                         content=content, schema=FileAnswer, tools=ai_tools.tools_for(db))
+    spoken = bool(it.recording)
+    answer = ai.converse(db, task="file", actor=actor,
+                         system=system_text(SPOKEN_FORMAT if spoken else FILE_FORMAT),
+                         content=content, schema=SpokenAnswer if spoken else FileAnswer,
+                         tools=ai_tools.tools_for(db))
     if answer is None:
         return ai.problem() or "Die KI hat nichts abgelegt."
     source = source_of(it, actor)
     # Während die KI las, kann die Person von Hand abgelegt (oder der Takt nachgeholt) haben –
     # dann gibt es keinen zweiten ``file``-Vorschlag.
     if not proposals.of_intake(db, it.id, "file"):
+        parts = (spoken_parts(db, answer, it, actor) if isinstance(answer, SpokenAnswer)
+                 else _parts(db, answer, it, actor))
         proposals.propose(db, object_id=it.object_id, kind="file", source=source,
-                          parts=_parts(db, answer, it, actor), actor=actor.object_id)
+                          parts=parts, actor=actor.object_id)
     follow_up(db, answer.proposals, home=it.object_id, source=source, actor=actor)
     return None
 

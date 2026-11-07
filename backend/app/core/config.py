@@ -99,10 +99,19 @@ class Settings(BaseSettings):
     #: einmal je Projekt ``infra/setup-vertex.sh`` (API einschalten, Recht für den Dienst).
     vertex_project: str = ""
     vertex_region: str = "europe-west3"
+    #: **Wo Gemini abschreibt** (Phase 4) – leer: dieselbe Region wie ``vertex_region``. Ein
+    #: neues Gemini steht auf Vertex nicht überall zugleich; das Einbettungsmodell bleibt davon
+    #: unberührt.
+    vertex_gemini_region: str = ""
     #: **Die Datei-Ablage** (Cloud Storage) – je Umgebung ein eigener Bucket
     #: (``inexxio-dev-files`` · ``inexxio-prod-files``), gesetzt vom Deploy. Leer: die Dateien
     #: liegen in der Datenbank (lokal, Tests).
     files_bucket: str = ""
+    #: **Die Stücke einer Aufnahme** (Phase 4) – ein eigener Bucket ``<projekt>-recordings``
+    #: ohne Soft Delete, Lebensdauer 1 Tag (``infra/setup-sprache.sh``), gesetzt vom Deploy.
+    #: Leer, nicht da oder nicht schreibbar: die Stücke liegen in ``recording_chunks.data`` –
+    #: **nie** im Datei-Bucket (dort hielte Soft Delete gelöschtes Audio eine Woche).
+    recordings_bucket: str = ""
     #: **Der Google-Maps-Schlüssel** der Adress-Suche – je Umgebung einer, aus dem Secret Manager
     #: (``GOOGLE_MAPS_API_KEY``), eingebunden vom Deploy. Er steht ohnehin im Browser; geschützt
     #: ist er über die erlaubten Adressen in Google Cloud. Leer: Adressen werden von Hand erfasst.

@@ -74,7 +74,8 @@ src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.
                  queries.ts (Schlüssel der Detailansichten, `useDebouncedQuery`) ·
                  saver.ts (Kern des Auto-Saves) · process-graph.ts (Prozessbild, reine
                  Funktionen) · web-link.ts · notice.ts · recorder.ts (Aufnehmen ohne
-                 Browser: Abschnitte, Stücke, Warteschlange – Wächter `scripts/recorder.test.mjs`)
+                 Browser: Abschnitte, Stücke, Warteschlange – Wächter `scripts/recorder.test.mjs`,
+                 der Anschluss `scripts/use-recorder.test.mjs`)
                  … und **alle Hooks** als `use-*.ts`
                  (use-autosave, use-search, use-profile-completion, use-google-maps,
                  use-maps-key, use-feed, use-feed-lists, use-mail-sync, use-url-params,
@@ -364,14 +365,20 @@ Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.tes
 
 ## Aufnehmen (Phase 4, `docs/konzept/phase4-bauplan.md`)
 - **Logik ohne Browser** in `lib/recorder.ts`: Stück alle 30 s (`MediaRecorder.start(30000)`),
-  Abschnitt = 10 min (neuer Recorder am selben Mikrofon, Stück-Zählung ab 0), höchstens 3 h;
-  Warteschlange der Reihe nach, Wiederholung nach 1 · 2 · 4 · 8 s (nicht bei 4xx ausser 408/429),
-  endgültig gescheitert → `tell`, die übrigen gehen weiter; Stopp = letztes Stück abwarten,
-  Mikrofon zu, Warteschlange leeren, `POST …/stop {segments}`. Die Laufzeit «mm:ss» / «h:mm:ss»
-  steht EINMAL dort (`runtime` – eine Dauer, kein Datum).
+  Abschnitt = 5 min (neuer Recorder am selben Mikrofon, Stück-Zählung ab 0), höchstens 3 h;
+  Warteschlange der Reihe nach – **ein Stück wird nie aufgegeben, solange die Seite lebt**:
+  Pausen 1 · 2 · 4 · 8 · 16 s, dann 30 s ohne Ende, jeder Versuch mit Zeitgrenze 30 s
+  (`AbortController`); aufgegeben nur bei 4xx ausser 408/429 (→ `tell`; 409 = die Aufnahme ist
+  schon abgeschlossen → sofort beenden, klarer Satz). Solange ein Stück wartet, steht ruhig
+  «wartet auf Netz» (eine Meldung beim ersten Hängen). Stopp = auf das `stop`-Ereignis jedes
+  Recorders warten (Sicherheitsgrenze 60 s), Mikrofon zu, Warteschlange leeren,
+  `POST …/stop {segments}`. Die Laufzeit «mm:ss» / «h:mm:ss» steht EINMAL dort (`runtime` –
+  eine Dauer, kein Datum).
 - **Anschluss** `lib/use-recorder.ts`: Mono, Opus/WebM → MP4 → Vorgabe, 24 kbit/s; Pegel
   (`AnalyserNode`, 10 × je s); Wake Lock (beim Zurückkehren neu, verweigert = fehlt);
-  `beforeunload`, solange Mikrofon offen oder Stücke unterwegs. Wird das Bauteil entfernt,
-  hält die Aufnahme an wie mit «Stopp» (abgeschrieben im Takt). Spuren, `AudioContext` und
-  Wake Lock werden in jedem Fall freigegeben.
-- `Recording` steht vorübergehend von Hand in `src/types/index.ts` (`TODO(phase4)`).
+  `beforeunload`, solange Mikrofon offen oder Stücke unterwegs; `pagehide`/unsichtbar →
+  `requestData` (das Letzte geht sofort hoch). **Fällt das Mikrofon aus** (`MediaRecorder.onerror`,
+  Spur `ended`, länger als 5 s `mute`): einmal «Mikrofon getrennt – Aufnahme beendet», dann
+  sauber beenden. Wird das Bauteil entfernt, hält die Aufnahme an wie mit «Stopp» (abgeschrieben
+  im Takt). Spuren, `AudioContext` und Wake Lock werden in jedem Fall freigegeben.
+- `Recording` kommt generiert aus `src/types/api.ts` (Alias in `src/types/index.ts`).
