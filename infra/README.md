@@ -187,6 +187,24 @@ Es schaltet Vertex AI ein und gibt `cloudrun-backend@` die Rolle `roles/aiplatfo
 das geht alles – nur die ähnlichen Fälle fehlen; nach einer Abweisung fragt das Backend eine
 Stunde lang nicht mehr (kein Fehlversuch je Takt im Log). Kosten: Rappen im Monat.
 
+## Sprache (Phase 4): Aufnahmen abschreiben
+
+Gesprochenes wird Text (`docs/konzept/phase4-bauplan.md`): der Browser schickt die Aufnahme in
+Stücken (alle 30 s) an das Backend, das legt sie im Bucket `<projekt>-files` unter
+`recordings/<Aufnahme>/<Abschnitt>-<Stück>` ab; **Gemini** (`gemini-3.5-flash`) schreibt über
+**Vertex AI** im eigenen Projekt ab (dieselbe Einrichtung wie oben, `infra/setup-vertex.sh`;
+Eingaben nicht zum Training), derselbe Deckel in Franken. Vom Gesprochenen bleibt nur der Text:
+das Backend löscht die Stücke nach der Abschrift und im Takt (spätestens nach einem Tag). Das Netz
+darunter ist eine Lebensdauer-Regel im Bucket – einmal je Projekt in Cloud Shell:
+
+```bash
+bash infra/setup-sprache.sh inexxio-dev
+```
+
+Es liest die vorhandenen Regeln des Buckets und **ergänzt** sie um «`recordings/` nach 1 Tag
+löschen» (andere Regeln bleiben; steht die Regel schon, ändert sich nichts). Kosten: Rappen je
+Stunde Gesprochenes (Audio-Tokens, Preis in `backend/app/services/ai.py`, `PRICES`).
+
 ## Anmeldung der Deploys ohne Schlüssel (Workload Identity)
 
 GitHub meldet sich bei Google mit einem kurzlebigen Token an, das nur für dieses Repository

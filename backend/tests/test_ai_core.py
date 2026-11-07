@@ -168,7 +168,7 @@ def test_a_refusing_vertex_is_asked_once_an_hour_not_every_tick(db, monkeypatch)
 
     monkeypatch.setattr(get_settings(), "vertex_project", "p")
     monkeypatch.setattr(ai, "_vertex_session", lambda: Session())
-    monkeypatch.setattr(ai, "_embed_paused_until", 0.0)
+    monkeypatch.setattr(ai, "_vertex_paused", {})
     assert ai.embed(db, "x", actor=None) is None and "setup-vertex" in ai.problem()
     assert ai.embed(db, "y", actor=None) is None and len(calls) == 1
     assert "in einer Stunde" in ai.problem()

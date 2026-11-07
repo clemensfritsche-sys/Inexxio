@@ -14,7 +14,8 @@
    Tagesdeckel (``AI_DAILY_CAP_CHF``) zählt genau diese.
 6. **Lesen mit Werkzeugen** (``converse``): die KI schlägt im ERP nach – über die
    Lese-Werkzeuge in ``services/ai_tools``, mit den Rechten jedes Personals. Auch Bedeutungs-Zahlen
-   (``embed``, Vertex AI) gehen durch diese Tür.
+   (``embed``) und das Abschreiben von Gesprochenem (``transcribe``, Phase 4) – beide Vertex AI,
+   über EINE Stelle ``_vertex`` – gehen durch diese Tür.
 
 **Ohne Schlüssel, am Deckel oder bei einem Fehler gibt es keinen Vorschlag – sonst nichts.**
 Alles geht auch ohne KI: Art und Name tippt der Mensch, gesucht wird in der Datenbank.
@@ -32,6 +33,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, time, timezone
 from html import unescape
+from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
 from pydantic import BaseModel
@@ -158,6 +160,9 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-haiku-5-5": (0.10, 0.50),
     "claude-sonnet-5-5": (2.00, 10.00),
     "gemini-embedding-001": (0.15, 0.0),
+    # Abschreiben (Phase 4): Audio-Eingabe ist bei Gemini teurer als Text. Preisliste prüfen –
+    # bis dahin bewusst hoch angesetzt (lieber zu früh am Deckel).
+    "gemini-3.5-flash": (1.00, 6.00),
 }
 LONG_PROMPT = {"claude-haiku-5-5": (100_000, (0.50, 2.50))}
 #: Franken je US-Dollar – fest; der Deckel ist ein Schutz, keine Buchhaltung.
@@ -370,21 +375,48 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
     return None
 
 
-# ─── Bedeutungs-Zahlen (Vertex AI) ───────────────────────────────────────────────────────
+# ─── Vertex AI: Bedeutungs-Zahlen und Abschreiben ────────────────────────────────────────
 
 #: Das Hilfsmodell für Bedeutungs-Zahlen und ihre Länge (``ai_memory.embedding``).
 EMBED_MODEL = "gemini-embedding-001"
 EMBED_DIMS = 768
+#: ►► **Das Modell, das abschreibt** (Phase 4 · Sprache) – an EINER Stelle. Gemini 2.5 ist auf
+#:    Vertex seit Oktober 2026 abgeschaltet. ◄◄
+TRANSCRIBE_MODEL = "gemini-3.5-flash"
+#: Der Auftrag zum Abschreiben – wörtlich, eine Datei.
+ABSCHRIFT = (Path(__file__).resolve().parents[1] / "assets" / "ai" / "abschrift.md").read_text("utf-8")
 
 
-#: Nach einer Abweisung (nicht eingerichtet, kein Recht, Modell unbekannt) wird eine Stunde
-#: lang nicht mehr gefragt – sonst stünde jeder Takt einen Fehlversuch mehr im Log.
-_EMBED_PAUSE_S = 3600.0
-_embed_paused_until = 0.0
+#: Nach einer Abweisung (nicht eingerichtet, kein Recht, Modell unbekannt) wird ein Modell eine
+#: Stunde lang nicht mehr gefragt – sonst stünde jeder Takt einen Fehlversuch mehr im Log.
+_VERTEX_PAUSE_S = 3600.0
+#: Je Modell: bis wann (``time.monotonic``) es nach einer Abweisung ruht.
+_vertex_paused: dict[str, float] = {}
+#: Hat das Modell beim letzten Abschreiben den Inhalt abgelehnt (nicht: war es nicht erreichbar)?
+_REFUSED: ContextVar[bool] = ContextVar("ai_refused", default=False)
+
+
+def _vertex_ready(model: str) -> bool:
+    return bool(get_settings().vertex_project) and _time.monotonic() >= _vertex_paused.get(model, 0.0)
 
 
 def embed_ready() -> bool:
-    return bool(get_settings().vertex_project) and _time.monotonic() >= _embed_paused_until
+    return _vertex_ready(EMBED_MODEL)
+
+
+def transcribe_ready() -> bool:
+    return _vertex_ready(TRANSCRIBE_MODEL)
+
+
+def refused() -> bool:
+    """Hat das Modell beim letzten ``transcribe`` **den Inhalt** abgelehnt (400, blockiert, keine
+    Antwort)? Nicht: Deckel, keine Einrichtung, keine Zeit, Netz – das geht später wieder."""
+    return _REFUSED.get()
+
+
+def remaining(limit: float) -> float:
+    """Wie viele Sekunden ein Aufruf jetzt noch hätte – ``limit`` oder weniger unter ``until``."""
+    return _left(limit)
 
 
 def _vertex_session():
@@ -395,15 +427,67 @@ def _vertex_session():
     return AuthorizedSession(creds, max_refresh_attempts=_retries(2))
 
 
-def _vertex_problem(status: Optional[int], text: str) -> str:
+def _vertex_problem(status: Optional[int], text: str, what: str = "Bedeutungs-Zahlen") -> str:
     if status in (401, 403):
         return ("Vertex AI ist nicht eingerichtet oder der Dienst darf es nicht nutzen "
                 "(einmal infra/setup-vertex.sh).")
     if status == 404:
-        return "Das Modell für Bedeutungs-Zahlen gibt es in dieser Region nicht."
+        return f"Das Modell für {what} gibt es in dieser Region nicht."
     if status == 429:
         return "Vertex AI ist gerade ausgelastet – gleich noch einmal."
     return f"Vertex AI antwortet nicht ({status or 'kein Netz'}): {text[:160]}"
+
+
+@dataclass
+class _VertexCall:
+    """Ein Aufruf an Vertex AI: die Antwort (``data``), was ins ``ai.call`` gehört (``usage``),
+    ob überhaupt gefragt wurde (``asked``) und der HTTP-Status einer Abweisung."""
+    asked: bool = False
+    data: Optional[dict[str, Any]] = None
+    usage: dict[str, Any] = field(default_factory=dict)
+    status: Optional[int] = None
+
+
+def _vertex(db: Session, *, model: str, method: str, body: dict[str, Any], limit: float,
+            least: float, what: str) -> _VertexCall:
+    """►►► **Ein Aufruf an Vertex AI** (Region ``VERTEX_REGION``) – EINE Stelle für Bedeutungs-
+    Zahlen und Abschreiben: Einrichtung, Pause nach Abweisung, Deckel, Zeitgrenze (``until``, kein
+    zweiter Versuch), Fehler als ein Satz in ``problem()``. Ins Log schreibt der Aufrufer
+    (``_record``), denn nur er kennt die Tokens. ◄◄◄"""
+    settings = get_settings()
+    if not settings.vertex_project:
+        _PROBLEM.set(f"{what} ist nicht eingerichtet (VERTEX_PROJECT fehlt).")
+        return _VertexCall()
+    if not _vertex_ready(model):
+        _PROBLEM.set("Vertex AI hat eben abgewiesen – in einer Stunde wieder (infra/setup-vertex.sh).")
+        return _VertexCall()
+    cap = cap_chf()
+    if cap > 0 and spent_today(db) >= cap:
+        _PROBLEM.set("Der Tagesdeckel der KI ist erreicht – morgen wieder.")
+        return _VertexCall()
+    wait = _left(limit)
+    if wait < least:
+        _PROBLEM.set(f"Keine Zeit mehr für {what} – der Takt holt es nach.")
+        return _VertexCall()
+    region = settings.vertex_region
+    url = (f"https://{region}-aiplatform.googleapis.com/v1/projects/{settings.vertex_project}"
+           f"/locations/{region}/publishers/google/models/{model}:{method}")
+    out = _VertexCall(asked=True)
+    try:
+        r = _vertex_session().post(url, data=json.dumps(body), timeout=wait,
+                                   headers={"Content-Type": "application/json"})
+        if r.status_code != 200:
+            out.usage, out.status = {"error": "http", "status": r.status_code}, r.status_code
+            _PROBLEM.set(_vertex_problem(r.status_code, r.text, what))
+            if r.status_code in (401, 403, 404):
+                _vertex_paused[model] = _time.monotonic() + _VERTEX_PAUSE_S
+        else:
+            out.data = r.json()
+    except Exception as exc:                                   # noqa: BLE001
+        out.usage = {"error": type(exc).__name__}
+        _PROBLEM.set(_vertex_problem(None, str(exc), what))
+        print(f"WARNING: ai.{method} ({model}) failed: {exc!r}", flush=True)
+    return out
 
 
 def embed(db: Session, text: str, *, actor: Optional[UserProfile], query: bool = False
@@ -412,48 +496,82 @@ def embed(db: Session, text: str, *, actor: Optional[UserProfile], query: bool =
     ``None`` (nicht eingerichtet, Deckel, Fehler; ``problem()`` sagt warum). ``query``: der Text
     sucht (die Frage), sonst wird er gefunden (der Fall). Ein ``ai.call`` wie jeder Aufruf. ◄◄◄"""
     _PROBLEM.set("")
-    settings = get_settings()
-    if not settings.vertex_project:
-        _PROBLEM.set("Bedeutungs-Zahlen sind nicht eingerichtet (VERTEX_PROJECT fehlt).")
-        return None
-    if not embed_ready():
-        _PROBLEM.set("Vertex AI hat eben abgewiesen – in einer Stunde wieder (infra/setup-vertex.sh).")
-        return None
-    cap = cap_chf()
-    if cap > 0 and spent_today(db) >= cap:
-        _PROBLEM.set("Der Tagesdeckel der KI ist erreicht – morgen wieder.")
-        return None
-    wait = _left(20.0)
-    if wait < 2:
-        _PROBLEM.set("Keine Zeit mehr für Bedeutungs-Zahlen – der Takt holt sie nach.")
-        return None
-    region = settings.vertex_region
-    url = (f"https://{region}-aiplatform.googleapis.com/v1/projects/{settings.vertex_project}"
-           f"/locations/{region}/publishers/google/models/{EMBED_MODEL}:predict")
     body = {"instances": [{"content": text[:8000],
                            "task_type": "RETRIEVAL_QUERY" if query else "RETRIEVAL_DOCUMENT"}],
             "parameters": {"outputDimensionality": EMBED_DIMS, "autoTruncate": True}}
-    usage: dict[str, Any] = {}
+    call = _vertex(db, model=EMBED_MODEL, method="predict", body=body, limit=20.0, least=2.0,
+                   what="Bedeutungs-Zahlen")
+    if not call.asked:
+        return None
     values: Optional[list[float]] = None
-    try:
-        r = _vertex_session().post(url, data=json.dumps(body), timeout=wait,
-                                   headers={"Content-Type": "application/json"})
-        if r.status_code != 200:
-            usage = {"error": "http", "status": r.status_code}
-            _PROBLEM.set(_vertex_problem(r.status_code, r.text))
-            if r.status_code in (401, 403, 404):
-                global _embed_paused_until
-                _embed_paused_until = _time.monotonic() + _EMBED_PAUSE_S
-        else:
-            pred = r.json()["predictions"][0]["embeddings"]
+    usage = call.usage
+    if call.data is not None:
+        try:
+            pred = call.data["predictions"][0]["embeddings"]
             values = [float(v) for v in pred["values"]]
             usage = {"in": int(pred.get("statistics", {}).get("token_count") or len(text) // 4)}
             if len(values) != EMBED_DIMS:
                 values = None
                 _PROBLEM.set("Vertex AI lieferte Zahlen in der falschen Länge.")
-    except Exception as exc:                                   # noqa: BLE001
-        usage = {"error": type(exc).__name__}
-        _PROBLEM.set(_vertex_problem(None, str(exc)))
-        print(f"WARNING: ai.embed failed: {exc!r}", flush=True)
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            usage = {"error": type(exc).__name__}
+            _PROBLEM.set("Vertex AI lieferte keine Bedeutungs-Zahlen.")
     _record(db, "embed", EMBED_MODEL, actor, usage)
     return values
+
+
+#: Was Gemini als Audio annimmt – ohne Zusätze wie ``;codecs=opus``.
+def audio_type(mime: str) -> str:
+    return (mime or "").split(";", 1)[0].strip().lower() or "audio/webm"
+
+
+#: Ein Ende, das keinen Text bringt: Gemini hat den Inhalt abgelehnt.
+_BLOCKED = frozenset({"SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII",
+                      "IMAGE_SAFETY", "OTHER"})
+
+
+def _transcript(data: dict[str, Any]) -> tuple[Optional[str], dict[str, Any]]:
+    """Der Text und die Tokens aus der Antwort von ``generateContent`` – ``None``: abgelehnt."""
+    meta = data.get("usageMetadata") or {}
+    usage = {"in": int(meta.get("promptTokenCount") or 0),
+             "out": int(meta.get("candidatesTokenCount") or 0) + int(meta.get("thoughtsTokenCount") or 0)}
+    candidates = data.get("candidates") or []
+    if (data.get("promptFeedback") or {}).get("blockReason") or not candidates:
+        return None, {**usage, "stop": (data.get("promptFeedback") or {}).get("blockReason") or "none"}
+    first = candidates[0]
+    usage["stop"] = first.get("finishReason")
+    if first.get("finishReason") in _BLOCKED:
+        return None, usage
+    parts = (first.get("content") or {}).get("parts") or []
+    text = "".join(str(p.get("text") or "") for p in parts if not p.get("thought"))
+    return text.strip(), usage
+
+
+def transcribe(db: Session, raw: bytes, mime: str, *, actor: Optional[UserProfile]) -> Optional[str]:
+    """►►► **Gesprochenes abschreiben** (Phase 4, Gemini über Vertex AI) – der Text (leer bei
+    Stille) oder ``None``: ``problem()`` sagt warum, ``refused()`` ob Gemini **den Inhalt**
+    ablehnte (dann hilft kein zweiter Versuch). Durch dieselbe Tür wie jeder Aufruf: Deckel,
+    ``until`` (keine Wiederholung), Pause nach Abweisung, ein ``ai.call`` mit Kosten. ◄◄◄"""
+    _PROBLEM.set("")
+    _REFUSED.set(False)
+    body = {"systemInstruction": {"parts": [{"text": ABSCHRIFT.strip()}]},
+            "contents": [{"role": "user", "parts": [
+                {"inlineData": {"mimeType": audio_type(mime),
+                                "data": base64.standard_b64encode(raw).decode("ascii")}},
+                {"text": "Schreibe diese Aufnahme ab."}]}],
+            "generationConfig": {"maxOutputTokens": 16384}}
+    call = _vertex(db, model=TRANSCRIBE_MODEL, method="generateContent", body=body, limit=55.0,
+                   least=10.0, what="Abschreiben")
+    if not call.asked:
+        return None
+    text: Optional[str] = None
+    usage = call.usage
+    if call.data is not None:
+        text, usage = _transcript(call.data)
+        if text is None:
+            _REFUSED.set(True)
+            _PROBLEM.set(f"Gemini hat die Aufnahme nicht abgeschrieben ({usage.get('stop')}).")
+    elif call.status == 400:
+        _REFUSED.set(True)
+    _record(db, "transcribe", TRANSCRIBE_MODEL, actor, usage)
+    return text

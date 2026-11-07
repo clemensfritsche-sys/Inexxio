@@ -9,12 +9,17 @@ im Bucket der Umgebung (``FILES_BUCKET``, Objektname = Token, privat) – die Ze
 nur Name, Sorte, Grösse. Ohne Bucket (lokal, Tests) oder wenn er gerade nicht schreibbar ist,
 bleiben sie in der Zeile (``data``) – eine Datei geht nie verloren, weil der Speicher hakt.
 Gelesen wird beides gleich. Die Verbraucher kennen nur die URL ``/api/v1/attachments/{token}``.
+
+**Benannte Objekte** (``put_object`` · ``get_object`` · ``drop_objects``): Bytes, die keine Datei
+des Korbs sind – die Stücke einer Aufnahme (``services/recordings``). Gleiche Regel: im Bucket,
+sonst hält der Aufrufer sie in seiner Zeile.
 """
 
 import io
 import secrets
 from contextlib import contextmanager
 from contextvars import ContextVar
+from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy import event
@@ -209,6 +214,57 @@ def bytes_of(att: Attachment) -> bytes:
             raise HTTPException(404, detail="Diese Datei gibt es nicht mehr.")
         print(f"WARNING: Cloud Storage nicht lesbar ({exc!r})", flush=True)
         raise HTTPException(503, detail="Die Datei ist gerade nicht erreichbar – bitte gleich noch einmal.")
+
+
+# ---------------------------------------------------------------------------
+# Benannte Objekte – Bytes, die keine Datei des Korbs sind (die Stücke einer Aufnahme)
+# ---------------------------------------------------------------------------
+
+def put_object(name: str, raw: bytes, mime: str) -> bool:
+    """**Bytes unter einem Namen in den Bucket** – ``True``, wenn sie dort liegen. ``False``
+    (kein Bucket, ein Lauf zum Zurückrollen, Speicher hakt): dann hält der Aufrufer sie in
+    seiner Zeile – verloren geht nichts."""
+    target = None if _IN_DATABASE.get() else bucket()
+    if target is None:
+        return False
+    try:
+        target.blob(name).upload_from_string(raw, content_type=mime)
+        return True
+    except Exception as exc:                                       # noqa: BLE001
+        print(f"WARNING: Cloud Storage nicht schreibbar ({exc!r}) – {name} bleibt in der DB.",
+              flush=True)
+        return False
+
+
+def get_object(name: str) -> Optional[bytes]:
+    """Die Bytes unter einem Namen – oder ``None`` (kein Bucket, nicht mehr da). Ein Speicher,
+    der gerade nicht antwortet, ist 503 (der Aufrufer versucht es später wieder)."""
+    target = bucket()
+    if target is None:
+        return None
+    try:
+        return target.blob(name).download_as_bytes()
+    except Exception as exc:                                       # noqa: BLE001
+        if type(exc).__name__ == "NotFound":
+            return None
+        print(f"WARNING: Cloud Storage nicht lesbar ({exc!r})", flush=True)
+        raise HTTPException(503, detail=f"«{name}» ist gerade nicht erreichbar – gleich noch einmal.")
+
+
+def drop_objects(db: Session, prefix: str) -> None:
+    """**Alle Objekte unter einem Präfix löschen** – erst nach dem Commit (rollt die
+    Transaktion zurück, sind sie noch da). Ein Fehlschlag ist eine Warnung: die Lebensdauer-Regel
+    des Buckets räumt spätestens nach einem Tag (``infra/setup-sprache.sh``)."""
+    if bucket() is None or not prefix:
+        return
+
+    def _drop(_session) -> None:
+        try:
+            for blob in bucket().list_blobs(prefix=prefix):
+                blob.delete()
+        except Exception as exc:                                   # noqa: BLE001
+            print(f"WARNING: Objekte unter {prefix} nicht gelöscht ({exc!r})", flush=True)
+    event.listen(db, "after_commit", _drop, once=True)
 
 
 def discard(db: Session, att: Attachment) -> None:

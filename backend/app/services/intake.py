@@ -42,6 +42,8 @@ AUFTRAG = (Path(__file__).resolve().parents[1] / "assets" / "ai" / "auftrag.md")
 
 #: So lang ist eine Erfassung höchstens (wie eine Nachricht).
 MAX_TEXT = 20000
+#: So lang ist eine Erfassung aus einer Aufnahme höchstens – drei Stunden Gesprochenes.
+MAX_SPOKEN = 200_000
 #: Der Takt: so viele Erfassungen je Lauf, so alt höchstens, so oft höchstens versucht.
 CATCH_UP = 3
 CATCH_UP_DAYS = 7
@@ -209,16 +211,22 @@ def open_intakes(db: Session, viewer: UserProfile, limit: int = 50) -> list[Inta
 
 # ─── Erfassen ──────────────────────────────────────────────────────────────────────────
 
-def capture(db: Session, body: str, hint: Optional[int], actor: UserProfile) -> Intake:
+def capture(db: Session, body: str, hint: Optional[int], actor: UserProfile, *,
+            recording: Optional[int] = None) -> Intake:
     """►►► **Festhalten** – die rohe Eingabe als Ereignis ``intake``, sofort. ◄◄◄ Am Datensatz,
-    der offen war (``hint``), sonst an der Person. Der Aufrufer committet, bevor die KI läuft."""
+    der offen war (``hint``), sonst an der Person. Der Aufrufer committet, bevor die KI läuft.
+    **Erfasst hat immer ``actor``** – auch wenn der Takt eine Aufnahme zu Ende abschreibt
+    (``recording``: die Aufnahme, aus der der Text kommt; dann darf er länger sein)."""
     body = (body or "").strip()
     if not body:
         raise HTTPException(400, detail="Eine Erfassung braucht Text.")
     if hint is not None and records.labels(db, [hint]).get(hint) is None:
         raise HTTPException(400, detail=f"Datensatz «{hint}» gibt es nicht.")
     home = hint or actor.object_id
-    iid = log.event(db, "intake", home, {"text": body[:MAX_TEXT], "hint": hint})
+    payload: dict[str, Any] = {"text": body[:MAX_SPOKEN if recording else MAX_TEXT], "hint": hint}
+    if recording:
+        payload["recording"] = recording
+    iid = log.event(db, "intake", home, payload, kind="person", actor=actor.object_id)
     return get(db, iid)
 
 
