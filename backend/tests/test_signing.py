@@ -66,7 +66,7 @@ def test_compose_goes_through_the_gate_and_sets_the_paper(db, monkeypatch):
                 parsed_output=_paper(["Niemand Unbekannt"]), stop_reason="end_turn",
                 usage=SimpleNamespace(input_tokens=1, output_tokens=1)))
     monkeypatch.setattr(ai, "ready", lambda: True)
-    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
     monkeypatch.setattr(ai, "_client", lambda *a: Fake())
     paper = composing.compose(db, actor=staff, turns=[composing.Turn(who="user", text="Vertrag")],
                               current=None)

@@ -297,3 +297,13 @@ export type LegalText = components['schemas']['LegalOut'];
 export type ComposeResult = components['schemas']['ComposeOut'];
 /** Ein hochgeladenes Bild, das kein Dokument ist (die gezeichnete Unterschrift). */
 export type UploadResult = components['schemas']['UploadResult'];
+
+// ─── Phase 3 · KI (docs/konzept/phase3-bauplan.md, Abschnitt «API») ─────────
+
+/** **Phase 3 («KI»)** – Erfassung, Vorschlag, Angeheftetes; aus `api.ts` (Backend
+ *  `schemas/proposals.py`). Ein Vorschlag ist ein Ereignis `proposal` im Log; offen ist
+ *  abgeleitet. */
+export type IntakePart = components['schemas']['IntakePart'];
+export type Proposal = components['schemas']['AiProposal'];
+export type Intake = components['schemas']['IntakeOut'];
+export type Pinned = components['schemas']['PinnedOut'];

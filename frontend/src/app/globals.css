@@ -618,6 +618,54 @@ fieldset:disabled .ix-editable.is-missing {
 .erp-actbtn-neutral { background: var(--bg-1); border-color: var(--border-2); color: var(--fg-2); }
 .erp-actbtn-neutral:not(:disabled):hover { background: var(--bg-2); }
 
+/* ── «+» = Erfassen (components/erp/capture/) ──────────────────────────────────
+   Am Handy ein Blatt von unten über die ganze Breite, am Schreibtisch dasselbe Blatt unten
+   links über der Liste (dort sitzt «+»). Eine echte Überlagerung – darum Schatten. Oben rund
+   festhalten (64 px, Daumen), unten eckig neu anlegen in den Farben des Feeds. */
+.erp-capture-scrim {
+  position: fixed; inset: 0; z-index: 58; display: flex; align-items: flex-end;
+  background: color-mix(in srgb, var(--bg-dark) 35%, transparent);
+}
+.erp-capture-sheet {
+  width: 100%; max-height: 92dvh; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-1); border-radius: var(--r-lg) var(--r-lg) 0 0; box-shadow: var(--shadow-lg);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (min-width: 768px) {
+  .erp-capture-scrim { align-items: flex-end; justify-content: flex-start; padding: 16px; }
+  .erp-capture-sheet { width: 420px; max-height: min(720px, calc(100dvh - 32px)); border-radius: var(--r-lg); }
+}
+.erp-capture-round {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 76px;
+  background: none; border: none; padding: 0; cursor: pointer; font: 600 13px var(--font-body); color: var(--fg-2);
+}
+.erp-capture-round-dot {
+  width: 64px; height: 64px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--bg-2); border: 1px solid var(--border-1); color: var(--fg-1); transition: background .15s;
+}
+.erp-capture-round:hover .erp-capture-round-dot { background: var(--bg-3); }
+.erp-capture-round-strong { background: var(--inexxio-black); border-color: transparent; color: #fff; }
+.erp-capture-round:hover .erp-capture-round-strong { background: var(--color-ink-hover); }
+.erp-capture-create { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.erp-capture-tile {
+  height: 64px; border: none; border-radius: var(--r-md); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font: 700 12.5px var(--font-body); transition: filter .15s;
+}
+.erp-capture-tile:hover { filter: brightness(.97); }
+.erp-capture-row {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; width: 100%;
+  background: none; border: 1px solid var(--border-1); border-radius: var(--r-md); cursor: pointer;
+  font: 500 13.5px var(--font-body); color: var(--fg-1); text-align: left;
+}
+.erp-capture-row:hover { background: var(--bg-2); }
+.erp-capture-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; max-width: 100%; padding: 0 12px;
+  border: 1px solid var(--border-2); border-radius: 999px; background: var(--bg-1); cursor: pointer;
+  font: 500 13px var(--font-body); color: var(--fg-1);
+}
+.erp-capture-chip:hover { background: var(--bg-2); }
+
 /* ── Objektnummer: eine KENNUNG, die sich anfassen lässt ──────────────────────
    Testnotiz #784. Sie stand als blauer, unterstrichener Text da – die drei Marker,
    an denen man im Web einen Hyperlink erkennt. Im dichten ERP steht sie in fast jeder

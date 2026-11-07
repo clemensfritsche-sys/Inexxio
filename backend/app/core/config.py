@@ -90,8 +90,15 @@ class Settings(BaseSettings):
     #: **Leer heisst: es gibt keine KI** – alles geht trotzdem: Art und Name tippt der
     #: Mensch, gesucht wird in der Datenbank. Aus dem Secret Manager, nie aus dem Repo.
     anthropic_api_key: str = ""
-    #: Höchstens so viele KI-Aufrufe je Tag (Schutz vor einer Flut); 0 = kein Deckel.
-    ai_daily_cap: int = 300
+    #: **Der Deckel in Franken** – so viel dürfen alle KI-Aufrufe eines Tages (Europe/Zurich)
+    #: zusammen kosten; ab 80 % ein Hinweis, am Deckel kein Aufruf mehr (die Eingabe bleibt roh
+    #: und wird nachgeholt). 0 = kein Deckel.
+    ai_daily_cap_chf: float = 10.0
+    #: **Bedeutungs-Zahlen** (Lernen, ``services/memory``) kommen von Vertex AI im eigenen
+    #: Google-Projekt – leer heisst: keine ähnlichen Fälle, sonst geht alles. Gesetzt vom Deploy;
+    #: einmal je Projekt ``infra/setup-vertex.sh`` (API einschalten, Recht für den Dienst).
+    vertex_project: str = ""
+    vertex_region: str = "europe-west3"
     #: **Die Datei-Ablage** (Cloud Storage) – je Umgebung ein eigener Bucket
     #: (``inexxio-dev-files`` · ``inexxio-prod-files``), gesetzt vom Deploy. Leer: die Dateien
     #: liegen in der Datenbank (lokal, Tests).

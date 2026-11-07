@@ -129,7 +129,8 @@ scripts/
 | Verlauf | `history.py` (ein Verlauf je Nummer: Nachrichten, Dokumente, Änderungen aus dem Log; `HIDDEN`), Wörter der Tabellen in `domain/log.TABLE_WORDS` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen) |
-| Der Takt | `tick.py` (`TASKS`: Siegel, Mails – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
+| Der Takt | `tick.py` (`TASKS`: Siegel, Mails, KI – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
+| KI (Phase 3, `docs/konzept/phase3-bauplan.md`) | `ai.py` (die Tür: `converse` mit Werkzeugen, Deckel in Franken), `ai_tools.py` (Lese-Werkzeuge mit den Rechten der Person), `memory.py` (ähnliche Fälle, pgvector), `proposals.py` (Vorschläge `proposal`/`proposal.decided` im Log; `FIELDS`, offen = abgeleitet, `settle`), `intake.py` (Erfassen → `intake`, die KI legt ab → `file`-Vorschlag, «Stimmt so» → Notizen), `pins.py` (das Angeheftete: offene Vorschläge + Hinweise `pin`), `follow.py` (was aus einer eingehenden Mail folgt, im Takt; Start `follow.start`, je Mail `mail.followed`) |
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `feedback.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
@@ -150,7 +151,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **129 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **137 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -227,7 +228,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |
 | POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
 | POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) – solange das ERP offen ist; ohne Browser tut es der Takt |
-| POST | `/api/v1/internal/tick` | – (Google-Token, `core/oidc`) | **Der Takt** (Cloud Scheduler, alle 5 Min.): jede Aufgabe aus `tick.TASKS` (Siegel des Logs, Mails holen und senden); je `ok` · `skipped` · `failed`, 500 wenn eine scheitert; ohne `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` 503 |
+| POST | `/api/v1/internal/tick` | – (Google-Token, `core/oidc`) | **Der Takt** (Cloud Scheduler, alle 5 Min.): jede Aufgabe aus `tick.TASKS` (Siegel des Logs, Mails holen und senden, KI: Entscheide festschreiben, Erfassungen nachholen, Mails auf Folgen prüfen, Bedeutungs-Zahlen); je `ok` · `skipped` · `failed`, 500 wenn eine scheitert; ohne `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` 503 |
 | GET | `/api/v1/mail/callback` | – (signierter `state`) | Rückkehr von Google → `/erp?mail=…` |
 | POST | `/api/v1/newsletter` | – | Anmeldung von der Website (E-Mail → Bitte um Bestätigung, legt keine Person an); Honigtopf, 5/h je IP |
 | GET · POST | `/api/v1/newsletter/confirm?t=` | – (signierter Link) | GET zeigt einen Knopf, POST bestätigt → angemeldet (Quelle aus dem Link; ohne Person entsteht sie jetzt) → `/newsletter/bestaetigt` |
@@ -235,6 +236,13 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET · PUT | `/api/v1/auth/me/newsletter` | user | Mein Newsletter (Konto) – direkt an/ab, die Adresse ist bestätigt |
 | GET | `/api/v1/erp/newsletter/{object_id}` | staff | Zustand und Nachweis einer Person |
 | POST | `/api/v1/erp/newsletter/{object_id}/invite` · `/unsubscribe` | staff | Bitte um Bestätigung schicken / abmelden (anmelden kann das ERP niemanden) |
+| POST | `/api/v1/erp/intake` | staff | **Festhalten** (`{text, hint_object_id?}`): rohe Eingabe sofort als `intake`, dann legt die KI ab (≤ 45 s) → Erfassung mit Teilen, Vorschlägen, `problem` (`services/intake`) |
+| GET | `/api/v1/erp/intake/open` | staff | Meine Erfassungen, die noch nicht abgelegt sind |
+| POST | `/api/v1/erp/intake/{id}/file` | staff (selbst · Admin) | **«Stimmt so»** – je Teil eine Notiz an seinem Datensatz, Entscheid `accepted`/`changed` |
+| GET | `/api/v1/erp/proposals?object_id=` | staff | Offene Vorschläge an einem Datensatz (`file` nur für wen erfasst hat) |
+| POST | `/api/v1/erp/proposals/{id}/reject` | staff | ✕ – verworfen (`proposal.decided` `rejected`) |
+| GET | `/api/v1/erp/pins/{object_id}` | staff | **Das Angeheftete**: offene Vorschläge (immer, zuerst) + ungelöste Hinweise (`services/pins`) |
+| POST | `/api/v1/erp/pins/{object_id}/refresh` · `/solve` | staff | «Neu ansehen» (KI → Ereignis `pin`) · einen Hinweis lösen (`pin.solved`) |
 | GET | `/api/v1/erp/todo` | staff | **Was zu tun ist** je Datensatz – die Zahl am Symbol (offene Nachrichten, Zeiterfassung nur eigene/Admin, Pflichtangaben, Feiertage nur Admin; `services/todo`) |
 | GET | `/api/v1/erp/time/{object_id}?month=` | staff (selbst · Admin) | **Zeiterfassung** einer Person: Konto, Ferien, Verträge, Buchungen, ein Monat (`services/time_view`) |
 | POST | `/api/v1/erp/time/{object_id}/swipe` | staff (selbst · Admin) | Kommen ↔ Gehen, Serverzeit, ein Schlüssel je Wisch (idempotent, 60-s-Sperre) |
@@ -299,7 +307,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 ## Env-Variablen
 `/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,
 `FIREBASE_PROJECT_ID`. Optional: `INITIAL_ADMIN_EMAIL`, `GOOGLE_CLIENT_ID`/`_SECRET`
-(Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP`
+(Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP_CHF` (Deckel in Franken), `VERTEX_PROJECT`/`VERTEX_REGION` (Bedeutungs-Zahlen, setzt der Deploy; einmal `infra/setup-vertex.sh`)
 (KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB), `LINK_SECRET` (signierte Links, `core/signed`; leer = abgeleitet aus `DATABASE_URL`, Warnung im Log), `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` (der Takt, setzt der Deploy; leer = kein Takt, 503). Secrets nie im Repo.
 
 ## Tote Stellen finden

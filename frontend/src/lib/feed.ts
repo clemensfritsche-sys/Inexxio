@@ -25,7 +25,7 @@ type FeedList = (typeof FEED_LISTS)[number];
 /** Die Bereiche der Detailansichten – je einer ist das erste Glied ihrer Schlüssel. */
 export const DETAILS = ['order', 'instance', 'article', 'articleProcess', 'stock', 'units',
   'unitOptions', 'document', 'documentsOf', 'payments', 'history', 'senders', 'mailboxes',
-  'newsletter', 'company'] as const;
+  'newsletter', 'company', 'proposals', 'pins', 'intake'] as const;
 export type Detail = (typeof DETAILS)[number];
 type Area = FeedList | Detail;
 const AREAS: readonly Area[] = [...FEED_LISTS, ...DETAILS];
@@ -47,6 +47,13 @@ const API = '/api/v1';
  * den Verlauf (`history`) nach. `=` am Anfang heisst «genau dieser Pfad», sonst ist es ein Präfix ganzer
  * Pfadteile (`erp/orders` trifft `erp/orders/…`, nicht `erp/ordersx`).
  */
+/**
+ * **Was jede Änderung am Datensatz mitnimmt**: den Verlauf (jede Änderung steht im Log) und die
+ * offenen Vorschläge samt Angeheftetem – ob ein Vorschlag offen ist, wird aus dem Log
+ * abgeleitet (wer das Feld selbst ändert, erledigt ihn).
+ */
+const LOGGED: readonly Area[] = ['history', 'proposals', 'pins'];
+
 const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   // Prüfen, Vorschau, Lesen und Verfassen der KI legen nichts an.
   ['=erp/articles/validate', []],
@@ -62,22 +69,27 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   // Ein Auftrag bewegt Stücke, meldet die Stückliste am Artikel, legt Papiere als
   // Dokumente an und macht Papiere fällig.
   ['erp/orders', ['orders', 'instances', 'articles', 'documents', 'todo', 'order', 'instance',
-    'article', 'stock', 'units', 'unitOptions', 'document', 'documentsOf', 'payments', 'history']],
-  ['erp/instances', ['instances', 'orders', 'instance', 'units', 'stock', 'unitOptions', 'history']],
-  ['erp/places', ['instances', 'instance', 'units', 'history']],
-  ['erp/articles', ['articles', 'article', 'stock', 'history']],
-  ['erp/documents', ['documents', 'todo', 'document', 'documentsOf', 'history']],
-  ['erp/attachments', ['documents', 'todo', 'document', 'documentsOf', 'history']],
+    'article', 'stock', 'units', 'unitOptions', 'document', 'documentsOf', 'payments', ...LOGGED]],
+  ['erp/instances', ['instances', 'orders', 'instance', 'units', 'stock', 'unitOptions', ...LOGGED]],
+  ['erp/places', ['instances', 'instance', 'units', ...LOGGED]],
+  ['erp/articles', ['articles', 'article', 'stock', ...LOGGED]],
+  ['erp/documents', ['documents', 'todo', 'document', 'documentsOf', ...LOGGED]],
+  ['erp/attachments', ['documents', 'todo', 'document', 'documentsOf', ...LOGGED]],
   // Eine Person kann dabei eine Firma anlegen (`sites.resolve`); fehlende Angaben zählen.
-  ['erp/records', ['people', 'companies', 'todo', 'history']],
-  ['auth/me', ['people', 'companies', 'todo', 'history']],
-  ['erp/newsletter', ['people', 'todo', 'newsletter', 'history']],
+  ['erp/records', ['people', 'companies', 'todo', ...LOGGED]],
+  ['auth/me', ['people', 'companies', 'todo', ...LOGGED]],
+  ['erp/newsletter', ['people', 'todo', 'newsletter', ...LOGGED]],
   // Ein Postfach verbinden oder trennen setzt die Kontakt-E-Mail der Gesellschaft.
-  ['erp/messages/mailboxes', ['companies', 'company', 'mailboxes', 'senders', 'history']],
+  ['erp/messages/mailboxes', ['companies', 'company', 'mailboxes', 'senders', ...LOGGED]],
   // Ein unbekannter Absender wird Person; eine Nachricht von uns schliesst Offenes.
-  ['erp/messages', ['people', 'todo', 'history']],
-  ['erp/time', ['todo', 'history']],
-  ['admin', ['companies', 'todo', 'company', 'documentsOf', 'history']],
+  ['erp/messages', ['people', 'todo', ...LOGGED]],
+  ['erp/time', ['todo', ...LOGGED]],
+  ['admin', ['companies', 'todo', 'company', 'documentsOf', ...LOGGED]],
+  // Phase 3 · KI: eine Erfassung legt Notizen (Nachrichten) und Vorschläge an; ✕ entscheidet
+  // einen Vorschlag; das Angeheftete ändert nur sich (und den Verlauf: `pin.solved`).
+  ['erp/intake', ['people', 'todo', 'intake', ...LOGGED]],
+  ['erp/proposals', ['todo', 'intake', ...LOGGED]],
+  ['erp/pins', ['pins', 'history']],
 ];
 
 /** Welche Bereiche ein Schreibvorgang auf `path` ändert (unbekannt → alle). */

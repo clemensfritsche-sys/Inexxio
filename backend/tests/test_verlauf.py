@@ -403,3 +403,20 @@ def test_a_mailbox_belongs_to_its_company_not_to_who_connected_it(world):
     db.flush()
     rows = db.query(Log).filter(Log.table_name == "mailboxes", Log.row_key == str(box.id)).all()
     assert len(rows) == 2 and {r.object_id for r in rows} == {999999955}
+
+
+def test_the_events_of_the_ai_have_their_own_place_not_the_history(world):
+    """Eine Erfassung (roher Text), ein Vorschlag, ein Hinweis stehen nicht im Verlauf – sie
+    haben «Abgelegt» und das Angeheftete; andere Ereignisse schon.
+    Bug-Form: der rohe Text einer Erfassung steht für jedes Personal im Verlauf."""
+    from app.services import log
+    db, staff = world
+    lea = new_person(db)
+    log.event(db, "intake", lea.object_id, {"text": "geheime Notiz"})
+    log.event(db, "proposal", lea.object_id, {"kind": "change", "field": "phone"})
+    log.event(db, "document.read", lea.object_id, {"x": "sichtbar"})
+    db.flush()
+    events = [r.event for e in history.page(db, lea.object_id, staff, limit=50).entries
+              if e.change for r in e.change.rows if r.event]
+    assert "document.read" in events
+    assert not {"intake", "proposal"} & set(events)

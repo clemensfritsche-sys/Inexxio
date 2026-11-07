@@ -39,6 +39,7 @@ import type {
   TransferInfo,
   DocumentSummary, DocumentDetail, DocumentProposal, DocumentTarget, RecordRef,
   CompanySettingsUpdate, PublicDocument, BelegView, LegalText, VoucherPapers, ComposeResult, UploadResult,
+  Intake, Proposal, Pinned,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -586,6 +587,48 @@ class ApiClient {
   /** Je Datensatz, was zu tun ist – die Zahl am Symbol in Feed und Kopf. */
   todo(): Promise<Todo[]> {
     return this.get('/api/v1/erp/todo');
+  }
+
+  // ─── Phase 3 · KI: Erfassen, Vorschläge, Angeheftetes (docs/konzept/phase3-bauplan.md) ──
+  /** **Erfassen** («Schreiben» im «+»): die rohe Eingabe ist sofort abgelegt, dann legt die
+   *  KI ab (bis ~45 s). `hint` = der Datensatz, der dabei offen war. */
+  intake(text: string, hint?: number | null): Promise<Intake> {
+    return this.post('/api/v1/erp/intake', hint ? { text, hint_object_id: hint } : { text });
+  }
+
+  /** Meine Erfassungen, die noch nicht abgelegt sind. */
+  openIntakes(req?: Req): Promise<Intake[]> {
+    return this.get('/api/v1/erp/intake/open', req);
+  }
+
+  /** **«Stimmt so»** – je Teil eine Notiz an seinem Datensatz. */
+  fileIntake(id: number, parts: { object_id: number; text: string; subject?: string }[]): Promise<Intake> {
+    return this.post(`/api/v1/erp/intake/${id}/file`, { parts });
+  }
+
+  /** Die offenen Vorschläge an einem Datensatz. */
+  proposals(objectId: number, req?: Req): Promise<Proposal[]> {
+    return this.get(`/api/v1/erp/proposals?object_id=${objectId}`, req);
+  }
+
+  /** ✕ – den Vorschlag verwerfen (der einzige Entscheid, der gesetzt wird). */
+  rejectProposal(id: number): Promise<Proposal> {
+    return this.post(`/api/v1/erp/proposals/${id}/reject`, {});
+  }
+
+  /** **Das Angeheftete** eines Datensatzes: offene Vorschläge, dann die Hinweise. */
+  pins(objectId: number, req?: Req): Promise<Pinned> {
+    return this.get(`/api/v1/erp/pins/${objectId}`, req);
+  }
+
+  /** «neu ansehen» – die KI wählt die Hinweise neu (nur auf Abruf). */
+  refreshPins(objectId: number): Promise<Pinned> {
+    return this.post(`/api/v1/erp/pins/${objectId}/refresh`, {});
+  }
+
+  /** Einen Hinweis lösen. */
+  solvePin(objectId: number, key: string): Promise<Pinned> {
+    return this.post(`/api/v1/erp/pins/${objectId}/solve`, { key });
   }
 
   // ─── Zahlungen (eine Ableitung aus den Zahlungsmodulen) ────────────────────

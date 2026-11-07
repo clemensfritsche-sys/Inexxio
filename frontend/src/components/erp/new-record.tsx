@@ -21,12 +21,14 @@ import type { CompanySettings, CompanyRef, UserProfile, UserRole } from '@/types
  * dieser E-Mail an, ist sie **dieser** Datensatz. Personal-Rollen vergibt nur ein Admin –
  * der Dienst prüft es, die Auswahl bietet sie darum nur einem Admin an.
  */
-export function NewPerson({ isAdmin, onSaved, onBack }: {
+export function NewPerson({ isAdmin, initial, onSaved, onBack }: {
   isAdmin: boolean; onSaved: (u: UserProfile) => void; onBack: () => void;
+  /** Vorausgefüllt aus einem Vorschlag («Entwurf öffnen») – Spaltennamen wie die API. */
+  initial?: Record<string, string> | null;
 }) {
-  const [first, setFirst] = useState('');
-  const [last, setLast] = useState('');
-  const [email, setEmail] = useState('');
+  const [first, setFirst] = useState(initial?.first_name ?? '');
+  const [last, setLast] = useState(initial?.last_name ?? '');
+  const [email, setEmail] = useState(initial?.email ?? '');
   const [role, setRole] = useState<UserRole>('user');
   const [company, setCompany] = useState<CompanyRef | null>(null);
   // Die zuletzt gezeigten Vorschläge – die Wahl gibt nur die Nummer zurück.
@@ -100,12 +102,14 @@ export function NewPerson({ isAdmin, onSaved, onBack }: {
  * Gesellschaften. ◄◄◄ Name und Rechtsform sind Pflicht: «Muster» ist keine Rechtsperson,
  * «Muster AG» ist eine. Alles Weitere pflegt man danach an ihrem Datensatz.
  */
-export function NewCompany({ isAdmin, onSaved, onBack }: {
+export function NewCompany({ isAdmin, initial, onSaved, onBack }: {
   isAdmin: boolean; onSaved: (c: CompanySettings) => void; onBack: () => void;
+  /** Vorausgefüllt aus einem Vorschlag («Entwurf öffnen») – Spaltennamen wie die API. */
+  initial?: Record<string, string> | null;
 }) {
-  const [name, setName] = useState('');
-  const [form, setForm] = useState('');
-  const [uid, setUid] = useState('');
+  const [name, setName] = useState(initial?.company_name ?? '');
+  const [form, setForm] = useState(initial?.legal_form ?? '');
+  const [uid, setUid] = useState(initial?.uid_number ?? '');
   const [own, setOwn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

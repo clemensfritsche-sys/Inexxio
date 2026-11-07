@@ -6480,6 +6480,396 @@
         ]
       }
     },
+    "/api/v1/erp/intake": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Capture",
+        "description": "**Festhalten** – die rohe Eingabe steht sofort im Log (und bleibt, was auch geschieht);\ndann legt die KI ab (höchstens ~45 s, unter der Grenze von Firebase Hosting). Klappt das\nnicht, kommt ein Teil zurück und ``problem`` sagt warum – der Takt holt nach.",
+        "operationId": "capture_api_v1_erp_intake_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntakeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/intake/open": {
+      "get": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Open Intakes",
+        "description": "Meine Erfassungen, die noch nicht abgelegt sind.",
+        "operationId": "open_intakes_api_v1_erp_intake_open_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IntakeOut"
+                  },
+                  "type": "array",
+                  "title": "Response Open Intakes Api V1 Erp Intake Open Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/intake/{intake_id}/file": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "File",
+        "description": "**«Stimmt so»** – je Teil eine Notiz an seinem Datensatz, dann der Entscheid.",
+        "operationId": "file_api_v1_erp_intake__intake_id__file_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "intake_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Intake Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/proposals": {
+      "get": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Open Proposals",
+        "description": "Die offenen Vorschläge an diesem Datensatz.",
+        "operationId": "open_proposals_api_v1_erp_proposals_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AiProposal"
+                  },
+                  "title": "Response Open Proposals Api V1 Erp Proposals Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/proposals/{proposal_id}/reject": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Reject",
+        "description": "✕ – verworfen.",
+        "operationId": "reject_api_v1_erp_proposals__proposal_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiProposal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/pins/{object_id}": {
+      "get": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Pinned",
+        "description": "Das Angeheftete: offene Vorschläge (immer, zuerst), dann die Hinweise der KI.",
+        "operationId": "pinned_api_v1_erp_pins__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/pins/{object_id}/refresh": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Refresh",
+        "description": "«Neu ansehen» – die KI wählt die Hinweise neu; offene Vorschläge bleiben.",
+        "operationId": "refresh_api_v1_erp_pins__object_id__refresh_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/pins/{object_id}/solve": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Solve",
+        "description": "Einen Hinweis lösen.",
+        "operationId": "solve_api_v1_erp_pins__object_id__solve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolveIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/internal/tick": {
       "post": {
         "tags": [
@@ -6848,6 +7238,112 @@
           "is_default_billing"
         ],
         "title": "AddressOut"
+      },
+      "AiProposal": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "object_label": {
+            "type": "string",
+            "title": "Object Label",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "change",
+              "create",
+              "file"
+            ],
+            "title": "Kind"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parts": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/IntakePart"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parts"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProposalSource"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "object_id",
+          "kind",
+          "source"
+        ],
+        "title": "AiProposal",
+        "description": "►►► **Ein Vorschlag** – ``id`` ist die Nummer seines Ereignisses im Log. ◄◄◄"
       },
       "ArtOut": {
         "properties": {
@@ -9447,6 +9943,32 @@
         "title": "DocumentSummary",
         "description": "Eine Zeile im Feed bzw. eine Kachel unten im Datensatz."
       },
+      "DraftOut": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "organization"
+            ],
+            "title": "Type"
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Values",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "DraftOut",
+        "description": "Der Entwurf eines ``create``-Vorschlags – vorausgefüllt in «Entwurf öffnen»."
+      },
       "EmailCheck": {
         "properties": {
           "email": {
@@ -10091,6 +10613,23 @@
         ],
         "title": "FieldChange",
         "description": "``feld: alt → neu`` – roh, der Feldname bleibt, wie er in der Tabelle heisst. Bei einer\nneuen Zeile fehlt ``old``, bei einer gelöschten ``new``."
+      },
+      "FileIn": {
+        "properties": {
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartIn"
+            },
+            "type": "array",
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parts"
+        ],
+        "title": "FileIn",
+        "description": "«Stimmt so» – die Teile, wie sie abgelegt werden (je Teil eine Notiz)."
       },
       "FiledOut": {
         "properties": {
@@ -10830,6 +11369,137 @@
         ],
         "title": "InstanceUnitResponse",
         "description": "Eine Einzelinstanz – das Arbeitsobjekt."
+      },
+      "IntakeIn": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Text"
+          },
+          "hint_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "IntakeIn",
+        "description": "**Etwas festhalten** – der Text und der Datensatz, der dabei offen war (Hinweis)."
+      },
+      "IntakeOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "hint_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Object Id"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/IntakePart"
+            },
+            "type": "array",
+            "title": "Parts",
+            "default": []
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/AiProposal"
+            },
+            "type": "array",
+            "title": "Proposals",
+            "default": []
+          },
+          "filed": {
+            "type": "boolean",
+            "title": "Filed",
+            "default": false
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/NoteRef"
+            },
+            "type": "array",
+            "title": "Notes",
+            "default": []
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "text"
+        ],
+        "title": "IntakeOut",
+        "description": "►►► **Eine Erfassung** – ``id`` ist die Nummer ihres Ereignisses ``intake``. ◄◄◄"
+      },
+      "IntakePart": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "text"
+        ],
+        "title": "IntakePart",
+        "description": "**Ein Teil einer Erfassung** – wohin er gehört (Datensatz), was dort steht, Betreff."
       },
       "IssuerOut": {
         "properties": {
@@ -11587,6 +12257,25 @@
         "title": "NoteOut",
         "description": "Ein Satz statt einer Handlung – abgelaufen, überholt, storniert."
       },
+      "NoteRef": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "message_id": {
+            "type": "integer",
+            "title": "Message Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "message_id"
+        ],
+        "title": "NoteRef",
+        "description": "Eine Notiz, die beim Ablegen entstand."
+      },
       "ObjectResolution": {
         "properties": {
           "object_id": {
@@ -11991,6 +12680,38 @@
         "type": "object",
         "title": "PapersOut",
         "description": "Was eine Handlung hinausgäbe – leer, wenn sie kein Papier erzeugt."
+      },
+      "PartIn": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Text"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "text"
+        ],
+        "title": "PartIn",
+        "description": "Ein Teil, wie der Mensch ihn ablegt («Stimmt so»)."
       },
       "PasskeyLoginResult": {
         "properties": {
@@ -12416,6 +13137,81 @@
         "title": "PersonRef",
         "description": "Eine beteiligte Person – Nummer, Name und ob sie zu **uns** gehört."
       },
+      "PinHint": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "entry_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "text"
+        ],
+        "title": "PinHint"
+      },
+      "PinnedOut": {
+        "properties": {
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/AiProposal"
+            },
+            "type": "array",
+            "title": "Proposals",
+            "default": []
+          },
+          "hints": {
+            "items": {
+              "$ref": "#/components/schemas/PinHint"
+            },
+            "type": "array",
+            "title": "Hints",
+            "default": []
+          },
+          "refreshed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refreshed At"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "title": "PinnedOut",
+        "description": "►►► **Das Angeheftete eines Datensatzes** – offene Vorschläge immer zuerst, dann die\nHinweise der KI (vom letzten «neu ansehen»), ohne die gelösten. ◄◄◄"
+      },
       "PlaceRef": {
         "properties": {
           "object_id": {
@@ -12758,6 +13554,52 @@
         "type": "object",
         "title": "ProposalOut",
         "description": "Der Vorschlag für einen Entwurf – nichts davon ist gespeichert."
+      },
+      "ProposalSource": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "intake": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intake"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "title": "ProposalSource",
+        "description": "Woher ein Vorschlag kommt («Erfassung von Hans-Peter», «Mail von Vreni Kunz: …»), kurz –\nnie die Worte einer Erfassung."
       },
       "ProposedRef": {
         "properties": {
@@ -13424,6 +14266,19 @@
           "name"
         ],
         "title": "SignerOut"
+      },
+      "SolveIn": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "SolveIn"
       },
       "StampOut": {
         "properties": {

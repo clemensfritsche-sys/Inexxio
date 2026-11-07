@@ -92,3 +92,21 @@ test('die Detailansichten hängen an derselben Tabelle', () => {
   assert.deepEqual([...areaKey('order')], ['order']);
   assert.deepEqual([...areaKey('orders')], ['feed', 'orders']);
 });
+
+test('Phase 3: wer ein Feld ändert, lädt die Vorschläge nach; Erfassen und ✕ laden, was sie ändern', () => {
+  const areas = (p) => new Set(touchedBy(p));
+  // Ob ein Vorschlag offen ist, leitet der Server aus dem Log ab – jede Änderung am Datensatz
+  // kann ihn erledigen (Bug-Form: das Zeichen bliebe nach «Übernehmen» stehen).
+  for (const p of [`${API}/erp/records/${oid}`, `${API}/admin/companies/${oid}`,
+    `${API}/erp/orders/${oid}/steps/${step}/voucher`]) {
+    assert.ok(areas(p).has('proposals') && areas(p).has('pins'), p);
+  }
+  for (const p of [`${API}/erp/intake`, `${API}/erp/intake/${oid}/file`, `${API}/erp/proposals/${oid}/reject`]) {
+    for (const d of ['proposals', 'pins', 'intake', 'todo', 'history']) assert.ok(areas(p).has(d), `${p} → ${d}`);
+  }
+  // «neu ansehen» und «lösen» ändern nur das Angeheftete (und den Verlauf) – keine Liste.
+  assert.deepEqual(touched(`${API}/erp/pins/${oid}/refresh`), []);
+  assert.ok(areas(`${API}/erp/pins/${oid}/solve`).has('pins'));
+  // Prüfen bleibt ohne Folgen – auch für die Vorschläge.
+  assert.deepEqual([...areas(`${API}/erp/orders/validate`)], []);
+});

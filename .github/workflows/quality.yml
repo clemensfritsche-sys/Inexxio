@@ -67,7 +67,8 @@ jobs:
     # aus den Migrationen (``alembic upgrade head``) – der einzige Weg zum Schema.
     services:
       postgres:
-        image: postgres:16
+        # pgvector: das Gedächtnis der KI (Migration 170, ``ai_memory``) – wie Cloud SQL.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_PASSWORD: postgres
         ports: ['5432:5432']

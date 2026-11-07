@@ -1,4 +1,6 @@
-import type { ChangeEvent, KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useDecide, useProposals } from '@/lib/proposals';
+import type { Proposal } from '@/types';
 
 /**
  * ►►► **Die Logik eines Feldes – EINE Stelle für das ganze ERP** (Projektakte «Die lernende
@@ -20,10 +22,12 @@ import type { ChangeEvent, KeyboardEvent } from 'react';
  *   Formular schickt sich ab. Ein Feld nur zur Anzeige tut nichts. Mehrzeilig gibt es kein
  *   `onEnter` – dort ist Enter eine neue Zeile.
  *
- * **Wo Schritt 3.4 ansetzt (Vorschläge):** jedes Feld nennt seinen Datensatz (`objectId`)
- * und seinen API-Schlüssel (`name`). Ein offener Vorschlag zu genau diesem Paar wird HIER
- * nachgeschlagen und als Zeichen am Feld zurückgegeben – «Übernehmen» ruft dasselbe
- * `onChange` wie Tippen. Bis dahin tragen die beiden Angaben nur die Adresse des Feldes.
+ * - **Vorschlag** (Phase 3) – jedes Feld nennt seinen Datensatz (`objectId`) und seinen
+ *   API-Schlüssel (`name`). Die offenen Vorschläge des Datensatzes kommen unter EINEM Schlüssel
+ *   (`lib/proposals.useProposals`, nur im ERP); der zu genau diesem `name` steht als
+ *   `proposal` da, das Zeichen zeigt `form/proposal-mark`. **Übernehmen ist Tippen**: dasselbe
+ *   `onChange`, danach – sobald der Wert im Formular steht – `onEnter` wie die Taste, also
+ *   speichert das Auto-Save sofort. Ein Feld nur zur Anzeige zeigt keinen Vorschlag.
  */
 export interface FieldSpec {
   /** API-Schlüssel des Feldes (`first_name`, `voucher.reference` …) – nicht das HTML-`name`. */
@@ -51,6 +55,15 @@ export interface FieldNote { text: string; tone: 'danger' | 'warning' | 'quiet' 
 
 type FieldElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
+/** Der offene Vorschlag an einem Feld – und die zwei Entscheide, die das Feld treffen kann. */
+export interface FieldProposal {
+  proposal: Proposal;
+  /** «Übernehmen» – `onChange(value)` und sofort speichern wie Enter. */
+  take: () => void;
+  /** ✕ – verwerfen. */
+  reject: () => void;
+}
+
 interface FieldState {
   /** Pflicht und leer. */
   empty: boolean;
@@ -59,8 +72,13 @@ interface FieldState {
   /** Die eine Meldung unter dem Feld, oder nichts. */
   note: FieldNote | null;
   tone: FieldTone;
+  /** Ein offener Vorschlag zu genau diesem Feld (`objectId` + `name`), sonst nichts. */
+  proposal: FieldProposal | null;
+  /** Das Element, sobald es steht – der Anker für das Zeichen in freiem Aussehen. */
+  element: FieldElement | null;
   /** Was an das Element geht: Wert, Änderung, Enter, Tastatur am Handy. */
   control: {
+    ref: (el: FieldElement | null) => void;
     value: string;
     readOnly?: boolean;
     onChange?: (e: ChangeEvent<FieldElement>) => void;
@@ -98,7 +116,8 @@ function fieldFormatIssue(type: string, value: string): string | null {
 
 export function useField(spec: FieldSpec): FieldState {
   const { value, onChange, type = 'text', required, readOnly, onEnter, error, hint } = spec;
-  // `objectId` und `name` sind die Adresse des Feldes für Schritt 3.4 (siehe oben).
+  const proposal = useFieldProposal(spec);
+  const [element, setElement] = useState<FieldElement | null>(null);
   const empty = !!required && !value.trim();
   const issue = readOnly ? null : fieldFormatIssue(type, value);
   // Der Hinweis meldet, blockiert aber nicht (#326) – gespeichert wird trotzdem.
@@ -110,7 +129,10 @@ export function useField(spec: FieldSpec): FieldState {
     issue,
     note,
     tone: empty || issue || error ? 'warn' : readOnly ? 'read' : 'normal',
+    proposal: proposal(element),
+    element,
     control: {
+      ref: setElement,
       value,
       readOnly,
       onChange: onChange ? (e) => onChange(e.target.value) : undefined,
@@ -119,5 +141,40 @@ export function useField(spec: FieldSpec): FieldState {
       },
       inputMode: type === 'tel' ? 'tel' : type === 'email' ? 'email' : undefined,
     },
+  };
+}
+
+/**
+ * **Der Vorschlag am Feld** – nachgeschlagen unter dem Schlüssel des Datensatzes, gefiltert auf
+ * `name`. «Übernehmen» setzt den Wert über `onChange`; erst wenn er im Formular steht (nächster
+ * Render, das Auto-Save hat ihn vorgemerkt), läuft `onEnter` – wie die Taste.
+ */
+function useFieldProposal({ name, objectId, value, onChange, readOnly, onEnter }: FieldSpec) {
+  const writable = !!onChange && !readOnly;
+  const { data } = useProposals(objectId, writable);
+  const decide = useDecide();
+  const open = writable ? data?.find((p) => p.kind === 'change' && p.field === name) ?? null : null;
+  const pending = useRef<{ value: string; el: FieldElement | null } | null>(null);
+  const enter = useRef(onEnter);
+  enter.current = onEnter;
+  useEffect(() => {
+    const p = pending.current;
+    if (!p || p.value !== value) return;
+    pending.current = null;
+    // Nach dem Render: die Eltern (Auto-Save) merken den Wert in ihrem Effekt vor – danach erst
+    // «Enter», sonst speicherte es den alten Stand.
+    const t = setTimeout(() => { if (p.el) enter.current?.(p.el); }, 0);
+    return () => clearTimeout(t);
+  }, [value]);
+  return (el: FieldElement | null): FieldProposal | null => open && {
+    proposal: open,
+    take: () => {
+      const next = open.value ?? '';
+      decide.taken(open);
+      if (next === value) { if (el) enter.current?.(el); return; }
+      pending.current = { value: next, el };
+      onChange?.(next);
+    },
+    reject: () => void decide.reject(open),
   };
 }

@@ -14,7 +14,10 @@
  * Cursor kommt vom Server). Der Verlauf wächst nie mit – geladen ist, was man gesehen hat.
  *
  * Eingabe gibt es nur an Person (und dort die Kommunikation, `communication.tsx`); andere
- * Datensätze haben keine – Wissen kommt später über «Erfassen».
+ * Datensätze haben keine – Wissen kommt über «Erfassen» («+» im Feed).
+ *
+ * **Unten beim Neuesten steht das Angeheftete** (`pinned.tsx`): offene Vorschläge, dann die
+ * Hinweise der KI – an jedem Datensatz, der einen Verlauf hat, auch wenn er noch leer ist.
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
@@ -26,6 +29,7 @@ import { formatWhen, whenDay, whenTitle } from '@/lib/when';
 import { ObjId } from '@/components/erp/obj-id';
 import type { ChangeBlock, HistoryEntry, Message } from '@/types';
 import { Bubble, Divider, SendingBubble, type Sending } from '@/components/erp/communication/timeline';
+import { Pinned } from '@/components/erp/pinned';
 
 /** Die Seiten des Verlaufs – eine Query je Nummer; dieselbe für den Verlauf und die
  *  Kommunikation darüber (React Query fragt nur einmal). */
@@ -151,10 +155,11 @@ export function History({ objectId, mirror = true, personId, meId, onReply, onDo
   }
   if (!q.data) return <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Lädt …</p>;
   const entries = entriesOf(q.data.pages).reverse();
-  if (!entries.length && !sending) {
-    return <p style={{ color: 'var(--fg-3)', fontSize: 13, padding: '24px 0' }}>Noch nichts im Verlauf.</p>;
-  }
   const rows: ReactNode[] = [];
+  if (!entries.length && !sending) {
+    rows.push(<p key="empty" style={{ color: 'var(--fg-3)', fontSize: 13, padding: '24px 0', margin: 0 }}>
+      Noch nichts im Verlauf.</p>);
+  }
   if (hasNextPage) rows.push(
     <button key="more" ref={more} type="button" data-more="" disabled={isFetchingNextPage}
       onClick={() => void fetchNextPage()}
@@ -170,11 +175,11 @@ export function History({ objectId, mirror = true, personId, meId, onReply, onDo
     const label = m?.planned ? 'Geplant' : whenDay(e.at);
     if (label !== last) rows.push(<Divider key={`d-${e.key}`} label={label} />);
     last = label;
-    if (m) {
-      const named = mirror || (m.ours ? m.sender.object_id !== meId : m.sender.object_id !== personId);
-      rows.push(<Bubble key={e.key} m={m} mirror={mirror} named={named} onReply={onReply} onDone={onDone} />);
-    } else if (e.document) rows.push(<DocumentRow key={e.key} e={e} />);
-    else if (e.change) rows.push(<ChangeRow key={e.key} c={e.change} at={e.at} />);
+    const named = !!m && (mirror || (m.ours ? m.sender.object_id !== meId : m.sender.object_id !== personId));
+    const row = m ? <Bubble m={m} mirror={mirror} named={named} onReply={onReply} onDone={onDone} />
+      : e.document ? <DocumentRow e={e} /> : e.change ? <ChangeRow c={e.change} at={e.at} /> : null;
+    // Die Adresse des Eintrags für einen Hinweis im Angehefteten – ohne eigene Box.
+    if (row) rows.push(<div key={e.key} data-entry={e.key} style={{ display: 'contents' }}>{row}</div>);
   }
   // ►►► Der Verlauf steht beim NEUESTEN. ◄◄◄ `column-reverse` verankert das Rollen am unteren
   // Ende: ohne Skript beim Öffnen unten, Neues bleibt im Blick, und «ältere laden» schiebt
@@ -187,6 +192,7 @@ export function History({ objectId, mirror = true, personId, meId, onReply, onDo
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '4px 0' }}>
         {rows}
         {sending && <SendingBubble s={sending} />}
+        <Pinned objectId={objectId} />
       </div>
     </div>
   );

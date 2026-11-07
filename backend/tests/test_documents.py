@@ -268,19 +268,19 @@ def test_without_key_the_proposal_is_empty_but_the_sender_still_counts(world, mo
 def test_the_gate_logs_every_call_and_respects_the_cap(world, monkeypatch):
     monkeypatch.setattr(ai, "ready", lambda: True)
     monkeypatch.setattr(ai, "_client", lambda *a: _FakeClient(_reading()))
-    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
     p = reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
     assert p.read and p.art == "Lieferschein" and "pump" in p.keywords
     rows = world.db.query(Log).filter(Log.event == "ai.call",
                                       Log.actor_id == world.staff.object_id).all()
     assert rows and rows[-1].actor_kind == "ai" and rows[-1].payload["task"]
-    monkeypatch.setattr(ai, "used_today", lambda db: 10_000)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 10_000.0)
     assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
 
 
 def test_a_refusal_or_broken_answer_is_no_proposal(world, monkeypatch):
     monkeypatch.setattr(ai, "ready", lambda: True)
-    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
     monkeypatch.setattr(ai, "_client", lambda *a: _FakeClient(_reading(), stop="refusal"))
     assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
 
@@ -293,7 +293,7 @@ def test_a_refusal_or_broken_answer_is_no_proposal(world, monkeypatch):
 def test_our_number_on_the_sheet_points_to_the_record(world, monkeypatch):
     target = _person(world.db, "user")
     monkeypatch.setattr(ai, "ready", lambda: True)
-    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
     monkeypatch.setattr(ai, "_client", lambda *a: _FakeClient(_reading(numbers=[str(target.object_id)])))
     p = reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
     assert [r.object_id for r in p.refs] == [target.object_id] and "Nummer" in p.why
@@ -333,7 +333,7 @@ def test_a_failed_reading_names_its_reason(world, monkeypatch):
     reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
     assert "Kein KI-Schlüssel" in ai.problem()
     monkeypatch.setattr(ai, "ready", lambda: True)
-    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
     monkeypatch.setattr(ai, "_client", failing(401, "invalid x-api-key"))
     assert not reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
     assert "Schlüssel wird abgelehnt" in ai.problem()
@@ -343,7 +343,7 @@ def test_a_failed_reading_names_its_reason(world, monkeypatch):
     monkeypatch.setattr(ai, "_client", lambda *a: _FakeClient(_reading()))
     assert reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff).read
     assert ai.problem() == ""
-    monkeypatch.setattr(ai, "used_today", lambda db: 10_000)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 10_000.0)
     reading.propose(world.db, raw=PDF, mime="application/pdf", actor=world.staff)
     assert "Tagesdeckel" in ai.problem()
 
@@ -353,7 +353,7 @@ def test_a_drawing_without_text_is_read_once(world, monkeypatch):
     KI nicht noch einmal (Fehlerform: «kein Text» hiess «noch nicht gelesen»)."""
     calls = []
     monkeypatch.setattr(ai, "ready", lambda: True)
-    monkeypatch.setattr(ai, "used_today", lambda db: 0)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
     monkeypatch.setattr(ai, "_client", lambda *a: calls.append(1) or _FakeClient(_reading(text="")))
     doc, _ = _file(world.db, world.staff)
     oid = doc.object_id

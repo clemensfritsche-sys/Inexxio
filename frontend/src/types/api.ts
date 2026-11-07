@@ -2340,6 +2340,168 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/intake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Capture
+         * @description **Festhalten** – die rohe Eingabe steht sofort im Log (und bleibt, was auch geschieht);
+         *     dann legt die KI ab (höchstens ~45 s, unter der Grenze von Firebase Hosting). Klappt das
+         *     nicht, kommt ein Teil zurück und ``problem`` sagt warum – der Takt holt nach.
+         */
+        post: operations["capture_api_v1_erp_intake_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/intake/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open Intakes
+         * @description Meine Erfassungen, die noch nicht abgelegt sind.
+         */
+        get: operations["open_intakes_api_v1_erp_intake_open_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/intake/{intake_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * File
+         * @description **«Stimmt so»** – je Teil eine Notiz an seinem Datensatz, dann der Entscheid.
+         */
+        post: operations["file_api_v1_erp_intake__intake_id__file_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open Proposals
+         * @description Die offenen Vorschläge an diesem Datensatz.
+         */
+        get: operations["open_proposals_api_v1_erp_proposals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/proposals/{proposal_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject
+         * @description ✕ – verworfen.
+         */
+        post: operations["reject_api_v1_erp_proposals__proposal_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/pins/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pinned
+         * @description Das Angeheftete: offene Vorschläge (immer, zuerst), dann die Hinweise der KI.
+         */
+        get: operations["pinned_api_v1_erp_pins__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/pins/{object_id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh
+         * @description «Neu ansehen» – die KI wählt die Hinweise neu; offene Vorschläge bleiben.
+         */
+        post: operations["refresh_api_v1_erp_pins__object_id__refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/pins/{object_id}/solve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Solve
+         * @description Einen Hinweis lösen.
+         */
+        post: operations["solve_api_v1_erp_pins__object_id__solve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/tick": {
         parameters: {
             query?: never;
@@ -2494,6 +2656,46 @@ export interface components {
             is_default_delivery: boolean;
             /** Is Default Billing */
             is_default_billing: boolean;
+        };
+        /**
+         * AiProposal
+         * @description ►►► **Ein Vorschlag** – ``id`` ist die Nummer seines Ereignisses im Log. ◄◄◄
+         */
+        AiProposal: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Object Id */
+            object_id: number;
+            /**
+             * Object Label
+             * @default
+             */
+            object_label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "change" | "create" | "file";
+            /** Field */
+            field?: string | null;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Value */
+            value?: string | null;
+            /** Current */
+            current?: string | null;
+            draft?: components["schemas"]["DraftOut"] | null;
+            /** Parts */
+            parts?: components["schemas"]["IntakePart"][] | null;
+            source: components["schemas"]["ProposalSource"];
         };
         /** ArtOut */
         ArtOut: {
@@ -3563,6 +3765,24 @@ export interface components {
             fields: string[];
         };
         /**
+         * DraftOut
+         * @description Der Entwurf eines ``create``-Vorschlags – vorausgefüllt in «Entwurf öffnen».
+         */
+        DraftOut: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "user" | "organization";
+            /**
+             * Values
+             * @default {}
+             */
+            values: {
+                [key: string]: string;
+            };
+        };
+        /**
          * EmailCheck
          * @description Die neue Anmelde-E-Mail – gefragt, bevor der Bestätigungslink hinausgeht.
          */
@@ -3815,6 +4035,14 @@ export interface components {
             old?: string | null;
             /** New */
             new?: string | null;
+        };
+        /**
+         * FileIn
+         * @description «Stimmt so» – die Teile, wie sie abgelegt werden (je Teil eine Notiz).
+         */
+        FileIn: {
+            /** Parts */
+            parts: components["schemas"]["PartIn"][];
         };
         /**
          * FiledOut
@@ -4207,6 +4435,75 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * IntakeIn
+         * @description **Etwas festhalten** – der Text und der Datensatz, der dabei offen war (Hinweis).
+         */
+        IntakeIn: {
+            /** Text */
+            text: string;
+            /** Hint Object Id */
+            hint_object_id?: number | null;
+        };
+        /**
+         * IntakeOut
+         * @description ►►► **Eine Erfassung** – ``id`` ist die Nummer ihres Ereignisses ``intake``. ◄◄◄
+         */
+        IntakeOut: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Text */
+            text: string;
+            /** Hint Object Id */
+            hint_object_id?: number | null;
+            /**
+             * Parts
+             * @default []
+             */
+            parts: components["schemas"]["IntakePart"][];
+            /**
+             * Proposals
+             * @default []
+             */
+            proposals: components["schemas"]["AiProposal"][];
+            /**
+             * Filed
+             * @default false
+             */
+            filed: boolean;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: components["schemas"]["NoteRef"][];
+            /** Problem */
+            problem?: string | null;
+        };
+        /**
+         * IntakePart
+         * @description **Ein Teil einer Erfassung** – wohin er gehört (Datensatz), was dort steht, Betreff.
+         */
+        IntakePart: {
+            /** Object Id */
+            object_id: number;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Text */
+            text: string;
+            /**
+             * Subject
+             * @default
+             */
+            subject: string;
         };
         /**
          * IssuerOut
@@ -4614,6 +4911,16 @@ export interface components {
             link?: string | null;
         };
         /**
+         * NoteRef
+         * @description Eine Notiz, die beim Ablegen entstand.
+         */
+        NoteRef: {
+            /** Object Id */
+            object_id: number;
+            /** Message Id */
+            message_id: number;
+        };
+        /**
          * ObjectResolution
          * @description Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs).
          */
@@ -4804,6 +5111,18 @@ export interface components {
         PapersOut: {
             /** Papers */
             papers?: components["schemas"]["PaperOut"][];
+        };
+        /**
+         * PartIn
+         * @description Ein Teil, wie der Mensch ihn ablegt («Stimmt so»).
+         */
+        PartIn: {
+            /** Object Id */
+            object_id: number;
+            /** Text */
+            text: string;
+            /** Subject */
+            subject?: string | null;
         };
         /**
          * PasskeyLoginResult
@@ -5006,6 +5325,36 @@ export interface components {
             company?: string | null;
             /** Email */
             email?: string | null;
+        };
+        /** PinHint */
+        PinHint: {
+            /** Key */
+            key: string;
+            /** Text */
+            text: string;
+            /** Entry Key */
+            entry_key?: string | null;
+        };
+        /**
+         * PinnedOut
+         * @description ►►► **Das Angeheftete eines Datensatzes** – offene Vorschläge immer zuerst, dann die
+         *     Hinweise der KI (vom letzten «neu ansehen»), ohne die gelösten. ◄◄◄
+         */
+        PinnedOut: {
+            /**
+             * Proposals
+             * @default []
+             */
+            proposals: components["schemas"]["AiProposal"][];
+            /**
+             * Hints
+             * @default []
+             */
+            hints: components["schemas"]["PinHint"][];
+            /** Refreshed At */
+            refreshed_at?: string | null;
+            /** Problem */
+            problem?: string | null;
         };
         /**
          * PlaceRef
@@ -5259,6 +5608,24 @@ export interface components {
             /** Requirement */
             requirement?: string | null;
         };
+        /**
+         * ProposalSource
+         * @description Woher ein Vorschlag kommt («Erfassung von Hans-Peter», «Mail von Vreni Kunz: …»), kurz –
+         *     nie die Worte einer Erfassung.
+         */
+        ProposalSource: {
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /** Object Id */
+            object_id?: number | null;
+            /** Intake */
+            intake?: number | null;
+            /** At */
+            at?: string | null;
+        };
         /** ProposedRef */
         ProposedRef: {
             /** Object Id */
@@ -5498,6 +5865,11 @@ export interface components {
             object_id: number;
             /** Name */
             name: string;
+        };
+        /** SolveIn */
+        SolveIn: {
+            /** Key */
+            key: string;
         };
         /** StampOut */
         StampOut: {
@@ -11093,6 +11465,253 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TodoOut"][];
+                };
+            };
+        };
+    };
+    capture_api_v1_erp_intake_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntakeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_intakes_api_v1_erp_intake_open_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeOut"][];
+                };
+            };
+        };
+    };
+    file_api_v1_erp_intake__intake_id__file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intake_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_proposals_api_v1_erp_proposals_get: {
+        parameters: {
+            query: {
+                object_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiProposal"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_api_v1_erp_proposals__proposal_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proposal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiProposal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pinned_api_v1_erp_pins__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinnedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_api_v1_erp_pins__object_id__refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinnedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    solve_api_v1_erp_pins__object_id__solve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinnedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

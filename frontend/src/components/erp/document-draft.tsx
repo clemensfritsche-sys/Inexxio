@@ -39,6 +39,9 @@ export interface DraftSeed {
   target?: DocumentTarget & { label?: string; lock?: string };
   art?: string;
   name?: string;
+  /** Datensätze, die schon als Referenz dastehen (Foto/Datei aus «+»: der offene Datensatz) –
+   *  gewöhnliche Referenzen, wegnehmbar. */
+  refs?: { object_id: number; label: string }[];
 }
 
 /** Eine Referenz im Entwurf: ganzer Datensatz oder (vom Vorschlag) ein Pflichtfeld. */
@@ -66,7 +69,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
   const [name, setName] = useState(seed?.name ?? '');
   const [refs, setRefs] = useState<DraftRef[]>(seed?.target
     ? [{ object_id: seed.target.object_id, label: seed.target.label ?? String(seed.target.object_id), target: seed.target }]
-    : []);
+    : (seed?.refs ?? []).map((r) => ({ object_id: r.object_id, label: r.label })));
   const [proposal, setProposal] = useState<DocumentProposal | null>(null);
   const [reading, setReading] = useState(false);
   /** Warum das Lesen nicht ging – die Anfrage selbst scheiterte (Netz, Zeitgrenze). */

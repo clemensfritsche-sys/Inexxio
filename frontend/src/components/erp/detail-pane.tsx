@@ -12,7 +12,7 @@ import { OrganizationDetail } from '@/components/erp/organization-detail';
 import { UserDetail } from '@/components/erp/user-detail';
 import { NewCompany, NewPerson } from '@/components/erp/new-record';
 import { DocumentDetail } from '@/components/erp/document-detail';
-import { DocumentDraft } from '@/components/erp/document-draft';
+import { DocumentDraft, type DraftSeed } from '@/components/erp/document-draft';
 import type { Creatable } from '@/components/erp/feed-panel';
 import type { Article, CompanySettings, ErpRecordType, Order, Todo, UserProfile } from '@/types';
 
@@ -38,9 +38,12 @@ export interface DetailHandlers {
  * Oberfläche: der Boundary zeigt eine erholbare Meldung und setzt sich beim Wechsel der
  * Auswahl zurück. Im Entwurf führt keine Nummer weg – er lebt nur im Browser.
  */
-export function DetailPane({ show, creating, sel, activeRow, orderSeed, isAdmin, me, todos, h }: {
+export function DetailPane({ show, creating, sel, activeRow, orderSeed, seeds, isAdmin, me, todos, h }: {
   show: boolean;
   creating: Creatable | null;
+  /** Was ein Entwurf schon mitbringt – aus «+» (Foto, Datei) oder einem Vorschlag
+   *  («Entwurf öffnen»); `no` zählt je Anlage hoch, damit ein neuer Entwurf neu beginnt. */
+  seeds: { no: number; draft: DraftSeed | null; record: Record<string, string> | null };
   sel: { type: ErpRecordType; objectId: number } | null;
   activeRow: Row | null;
   orderSeed: OrderSeed | null;
@@ -61,16 +64,16 @@ export function DetailPane({ show, creating, sel, activeRow, orderSeed, isAdmin,
               onRefresh={h.onRefreshArticles} onBack={h.onCancelCreate} />
           )}
           {creating === 'person' && (
-            <NewPerson key="new-person" isAdmin={isAdmin} onSaved={h.onPersonCreated} onBack={h.onCancelCreate} />
+            <NewPerson key={`new-person-${seeds.no}`} isAdmin={isAdmin} initial={seeds.record} onSaved={h.onPersonCreated} onBack={h.onCancelCreate} />
           )}
           {creating === 'company' && (
-            <NewCompany key="new-company" isAdmin={isAdmin} onSaved={h.onCompanyCreated} onBack={h.onCancelCreate} />
+            <NewCompany key={`new-company-${seeds.no}`} isAdmin={isAdmin} initial={seeds.record} onSaved={h.onCompanyCreated} onBack={h.onCancelCreate} />
           )}
           {creating === 'order' && (
             <OrderDetail key="new-order" record={null} seed={orderSeed} onSaved={h.onOrderSaved} onBack={h.onCancelCreate} />
           )}
           {creating === 'document' && (
-            <DocumentDraft key="new-document" onCancel={h.onCancelCreate}
+            <DocumentDraft key={`new-document-${seeds.no}`} seed={seeds.draft ?? undefined} onCancel={h.onCancelCreate}
               onFiled={(d) => h.onOpen({ type: 'document', objectId: d.object_id })}
               onOpen={(oid) => h.onOpen({ type: 'document', objectId: oid })} />
           )}

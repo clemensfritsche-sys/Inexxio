@@ -41,8 +41,11 @@ Zahlung:   Stripe – eigene Bezahlkarte im ERP (Payment Element + Webhook). OPT
 E-Mail:    Gmail API – je eigener Gesellschaft ein Postfach, Abgleich + Versand.
            OPTIONAL: ohne OAuth-Client wird eine Mail nur erfasst (docs/gmail-setup.md)
 KI:        Claude API (Anthropic SDK) – EINE Tür services/ai.py: Lesen (Haiku 5.5),
-           Verfassen (Sonnet 5.5), 300 Aufrufe je Tag, jeder Aufruf im Log. OPTIONAL: ohne
-           ANTHROPIC_API_KEY geht alles ausser Verfassen (docs/dokumente.md)
+           Verfassen, Ablegen, Folgen, Hinweise (Sonnet 5.5, mit Lese-Werkzeugen), Deckel
+           10 CHF je Tag, jeder Aufruf im Log. Bedeutungs-Zahlen: Vertex AI (europe-west3) +
+           pgvector. OPTIONAL: ohne ANTHROPIC_API_KEY geht alles ausser Verfassen und Ablegen
+           durch die KI; ohne Vertex fehlen nur die ähnlichen Fälle (docs/dokumente.md,
+           «Die KI» unten)
 Scanner:   OpenCV.js (Paket @techstark/opencv-js, als /vendor/opencv-<Version>.js
            ausgeliefert, geladen erst beim Scannen)
 ```
@@ -262,8 +265,8 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Notiz** (Kanal `note`, `domain/communication.NOTE`): Wissen an einem Datensatz, keine Bitte –
   nie offen (`asks` aus, `quiet`), nie hinaus, **nie eine Antwort** (schliesst kein Anliegen). **Eine Heimat**; gehört sie woandershin, wird
   korrigiert, nicht gelöscht (`communication.move_note`: Vermerk «ungültig – gehört zu …» am
-  falschen, Inhalt mit «verschoben von …» am richtigen Datensatz; die Oberfläche dafür kommt mit
-  Phase 3).
+  falschen, Inhalt mit «verschoben von …» am richtigen Datensatz; eine Oberfläche dafür gibt es
+  noch nicht).
 - **Der Verlauf** (`services/history.py`, `GET /erp/history/{nummer}`,
   `components/erp/history.tsx`): **ein Verlauf für jeden Datensatz** – Person, Firma, Auftrag,
   Artikel, Instanz, Dokument –, gemischt nach Zeit und **in Seiten** (30, Cursor `before` =
@@ -319,12 +322,57 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 
 Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, `POST /api/v1/internal/tick` – was nicht
 von einem offenen Browser abhängen darf. **Die Aufgaben stehen an einer Stelle**
-(`services/tick.TASKS`): Siegel des Logs · Mails holen und senden. Je Aufgabe eigene Sitzung
+(`services/tick.TASKS`): Siegel des Logs · Mails holen und senden · die KI (Entscheide
+festschreiben, Erfassungen nachholen, Folgen aus Mails, Bedeutungs-Zahlen; alles unter 50 s,
+`ai.until`). Je Aufgabe eigene Sitzung
 (das System, `job`), Advisory-Lock (läuft sie anderswo: übersprungen), Zeitgrenze, ein
 Fehlschlag hält die übrigen nicht auf (Antwort 500 → Alarm). Getanes steht im Log
 (`tick.<name>`), Leerlauf nicht. Anmeldung: Google-Token (OIDC) des Dienstkontos `inexxio-tick@`, geprüft
 in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingerichtet im Deploy
 (Job «Takt»), einmal je Projekt `infra/setup-takt.sh` (Dienstkonto, Rechte, Alarm per Mail).
+
+## Die KI (Phase 3, Projektakte `docs/konzept/lernende-firma.md`, Vertrag `docs/konzept/phase3-bauplan.md`)
+
+- **Die KI liest, was jedes Personal sehen darf – nie mehr als die Person, nie Privates –
+  und schreibt nie**: sie schlägt vor, ein Mensch entscheidet. Ihr Ergebnis (Vorschlag,
+  Hinweis, Quelle) sieht jedes Personal, darum lesen die Werkzeuge immer als gemeinsamer
+  Betrachter (`ai_tools.reader`: Rolle `employee`, ohne eigene Nummer – keine Zeiterfassung,
+  keine privaten Dokumentteile), auch wenn ein Admin handelt; der Handelnde steht im Log
+  (`ai.call`, Kosten). Eine Tür: `services/ai.py` (`converse` mit Werkzeugen, feste Antwortform,
+  je Zug ein `ai.call` mit Kosten in Franken; `ai.until` hält jede Anfrage und jeden Takt unter
+  60 s und schaltet die Wiederholung im SDK ab). Lese-Werkzeuge `services/ai_tools.py` (`find` ·
+  `record` · `history`) fragen dieselben Dienste wie die Oberfläche (`access`, `history.page`). Der Auftrag an die KI steht wörtlich in
+  `backend/app/assets/ai/auftrag.md`.
+- **Alles sind Ereignisse im Log**, keine Tabelle: `intake` (die rohe Erfassung), `proposal`
+  (`change` ein Feld · `create` etwas anlegen · `file` eine Erfassung ablegen),
+  `proposal.decided` (**genau einer je Vorschlag**, eindeutiger Index `ix_log_decided`; ein
+  zweiter ist 409), `pin`/`pin.solved`. **Offen ist abgeleitet** (`services/proposals.py`): ✕
+  verwirft; eine spätere Änderung genau dieses Feldes im Log erledigt ihn (gleich →
+  übernommen, anders → selbst geändert) – **Übernehmen = Tippen**; der Takt schreibt die
+  Entscheide fest (liest nur ableitbare Kandidaten per SQL); «zu tun» zählt mit EINER Abfrage. Ein Vorschlag darf nur Felder aus `proposals.FIELDS` ändern. Im Verlauf
+  stehen diese Ereignisse nicht (`history.HIDDEN_EVENTS`) – sie haben «Abgelegt» und das
+  Angeheftete.
+- **Erfassen** (`services/intake.py`, «+» im Feed): Schreiben → die KI teilt in Teile mit je
+  einer Heimat und schlägt vor, was folgt → «Abgelegt» → «Stimmt so» legt je Teil eine Notiz
+  an (Notizen und Entscheid in einer Transaktion). Fällt die KI aus, bleibt die Eingabe roh,
+  der Mensch legt von Hand ab, der Takt holt nach. Foto und Datei öffnen den Dokument-Entwurf.
+  Eine Erfassung sieht nur, wer sie machte (und der Admin); die Quelle eines Vorschlags daraus
+  heisst nur «Erfassung von <Name>», ohne ihre Worte.
+- **Folgen aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person wird im
+  Takt gelesen; was folgt, wird ein Vorschlag. Ein Fehlschlag zählt (`mail.follow_failed`),
+  nach dem dritten gilt die Mail als geprüft (`mail.followed`); am Deckel kein Versuch.
+- **Das Angeheftete** (`services/pins.py`, `components/erp/pinned.tsx`) unten im Verlauf: offene
+  Vorschläge immer und zuerst, dann höchstens drei Hinweise der KI auf Abruf («neu ansehen»).
+  **Vorschlag am Feld:** `useField` kennt die offenen Vorschläge seines Datensatzes und zeigt
+  das Zeichen wie «zu tun» (`form/proposal-mark.tsx`); offene Vorschläge und Erfassungen zählen
+  in «zu tun».
+- **Lernen** (`services/memory.py`, Migration 170): jeder **entschiedene** Fall, dessen
+  Inhalt jedes Personal sehen darf (`change`/`create`; `file` nur abgelegt), bekommt beim
+  Entscheid Bedeutungs-Zahlen (Vertex AI, `ai_memory`, pgvector; der Takt holt nach); vor dem
+  Ablegen und Folgen gehen die ähnlichsten mit Entscheid in die Anfrage. Ohne Vertex keine
+  Fälle, sonst nichts.
+- **Deckel in Franken** (`AI_DAILY_CAP_CHF`, 10 je Schweizer Tag, Preise in `ai.PRICES`); ab 80 %
+  ein Hinweis in «zu tun» des Admins (am Betreiber); am Deckel bleibt die Eingabe roh.
 
 ## Zeiterfassung
 
@@ -612,7 +660,7 @@ cd backend && alembic upgrade head
   Go-live; mehr Instanzen erst ab Cloud SQL `db-g1-small`).
 - Erster Besuch nach einem Deploy: einmal Hard-Refresh (Ctrl+Shift+R).
 
-## Status (Stand Oktober 2026) – aktuell halten
+## Status (Stand November 2026) – aktuell halten
 Phase 1 · Deployment develop → https://inexxio-dev.web.app
 
 **Was heute steht** (Einzelheiten in den Abschnitten oben)
@@ -647,6 +695,9 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   (Blatterkennung, mehrere Seiten → PDF) · Datei · Verfassen (KI); Lesen, Stichworte und
   Zuordnung durch die KI als Vorschlag; Pflichtfelder in Zahlung, Zeiterfassung, Datenerfassung
   und Gesellschaft; Senden je Empfänger mit Link ohne Ablauf, Unterschreiben auf `/dokument`.
+- **Die KI** (Phase 3): Erfassen mit «+» (Schreiben, Foto, Datei), Ablegen in Teilen mit
+  «Stimmt so», Vorschläge am Feld und im Angehefteten, Folgen aus Mails, Hinweise auf Abruf,
+  Lernen aus entschiedenen Fällen, Deckel in Franken (siehe «Die KI»).
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung; Skill `feedback`).
 
 **Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): Shop, Module
@@ -662,6 +713,8 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 - Zeiterfassung: Export für die Lohnbuchhaltung, Schichtpläne (`docs/zeiterfassung-spezifikation.md` §12).
 - Dokumente: automatische Freigabe einzelner Papiere (`voucher.AUTO_RELEASE`); Zugriff von
   aussen auf Dokumente (heute nur über einen Link).
+- Die KI: Sprache (Aufnehmen, Gemini, Phase 4 der Akte) · Lektionen (ab ~100 Fällen) ·
+  «Notiz gehört woandershin» als Handlung (`communication.move_note` steht bereit).
 - Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop
   (`docs/backlog.md`), offene-Posten-Liste je Partner, TOTP-MFA.
 

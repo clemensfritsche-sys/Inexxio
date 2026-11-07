@@ -17,6 +17,9 @@ export function todoChanged(): void {
 /** Die Abschnitte, in der Reihenfolge der Seite – und ihr Wort im Hover. */
 const SECTION: Record<string, string> = {
   kommunikation: 'Kommunikation',
+  // Offene Vorschläge der KI (und meine nicht abgelegten Erfassungen) – sie stehen im
+  // Angehefteten unten im Verlauf (`components/erp/pinned.tsx`, `data-todo="vorschlaege"`).
+  vorschlaege: 'Vorschläge',
   zeiterfassung: 'Zeiterfassung',
   // Überfällige Rechnungen – keine eigene Mahnliste, sie zählen an der Person.
   zahlungen: 'Zahlungen',
@@ -39,10 +42,11 @@ export function todoTip(items: TodoItem[]): string {
     .join('\n');
 }
 
-/** Zum ersten Abschnitt springen, der etwas zu tun hat (`data-todo` an der Stelle). */
+/** Zum ersten Abschnitt springen, der etwas zu tun hat (`data-todo` an der Stelle) – steht
+ *  einer nicht auf der Seite, zum nächsten. */
 export function jumpToTodo(items: TodoItem[]): void {
-  const first = [...items].sort((a, b) => ORDER.indexOf(a.section) - ORDER.indexOf(b.section))[0];
-  if (!first) return;
-  const el = document.querySelector(`[data-todo="${first.section}"]`);
+  const rank = (s: string) => (ORDER.includes(s) ? ORDER.indexOf(s) : ORDER.length);
+  const sorted = [...items].sort((a, b) => rank(a.section) - rank(b.section));
+  const el = sorted.map((i) => document.querySelector(`[data-todo="${i.section}"]`)).find(Boolean);
   el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
