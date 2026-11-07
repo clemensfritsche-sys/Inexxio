@@ -134,11 +134,14 @@ export function Communication({ person, company, ownCompany, me }: {
     <div>
       {error && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</p>}
       <Mailboxes boxes={mailboxes} />
-      <History key={objectId} objectId={objectId} mirror={!person} personId={personId} meId={me?.object_id}
+      {/* Kein eigener `key` für Verlauf und Eingabe: ein Datensatz ist ein Bauteil – das
+          Detail darüber ist je Datensatz geschlüsselt (`detail-pane`). Zwei Geschwister mit
+          demselben Schlüssel (beide die Nummer) liess React den Verlauf doppelt aufbauen. */}
+      <History objectId={objectId} mirror={!person} personId={personId} meId={me?.object_id}
         onReply={writable ? (m) => setTarget({ m, n: Date.now() }) : undefined}
         onDone={writable ? done : undefined} sending={sending} />
       {writable && person && me && messages && (
-        <Composer key={person.object_id} person={person} me={me} channels={channels}
+        <Composer person={person} me={me} channels={channels}
           target={target} topics={topics} onSent={changed} onSending={setSending} />
       )}
     </div>

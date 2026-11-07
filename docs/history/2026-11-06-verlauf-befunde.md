@@ -19,3 +19,20 @@ Clemens testete den Verlauf auf dev an einem Dokument und an seiner Person.
    ist unveränderlich).
 4. Ein Ereignis stand mit seinem Namen zweimal da («document.read document.read»): der
    Name steht jetzt nur im Kopf des Blocks.
+
+## Nachtrag 07.11.2026 – zwei Verlauf-Kästen an der Person
+
+**Ursache:** In `communication.tsx` trugen `History` und `Composer` – Geschwister im selben
+Element – denselben React-Schlüssel (beide die Nummer der Person). React meldet das als
+Fehler und baut Kinder dann doppelt auf oder lässt sie weg; sobald ältere Einträge
+nachluden, stand ein zweiter Verlauf-Kasten unter dem ersten. Nachgestellt im Browser
+(Playwright, Abschnitt wie in der Personenseite, Server-Antworten nachgebildet): zwei
+Kästen und «Encountered two children with the same key, 100000005».
+
+**Lösung an der Wurzel:** beide Schlüssel weg. Ein Datensatz ist ein Bauteil – das Detail
+darüber ist je Datensatz geschlüsselt (`detail-pane`, `key={row.key}`); innen braucht es
+keinen eigenen. Danach: ein Kasten, keine Meldung.
+
+**Zweiter Fehler, nicht Ursache dieses Bildes:** Die doppelten Einträge vom Vortag
+(Handlung über mehrere Transaktionen, Punkt 2 oben) waren ein Fehler für sich und bleiben
+behoben.
