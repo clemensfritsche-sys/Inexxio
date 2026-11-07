@@ -297,3 +297,55 @@ export type LegalText = components['schemas']['LegalOut'];
 export type ComposeResult = components['schemas']['ComposeOut'];
 /** Ein hochgeladenes Bild, das kein Dokument ist (die gezeichnete Unterschrift). */
 export type UploadResult = components['schemas']['UploadResult'];
+
+// ─── Phase 3 · KI (docs/konzept/phase3-bauplan.md, Abschnitt «API») ─────────
+
+/** Ein Teil einer Erfassung: sein Datensatz («Benutzer · Hans Muster») und sein Text. */
+// TODO(phase3): aus api.ts, sobald das Backend da ist
+export interface IntakePart { object_id: number; label: string; text: string; subject: string }
+
+/** **Ein Vorschlag der KI** – ein Ereignis `proposal` im Log; offen, solange ohne Entscheid. */
+// TODO(phase3): aus api.ts, sobald das Backend da ist
+export interface Proposal {
+  /** Die Nummer des Ereignisses im Log. */
+  id: number;
+  at: string;
+  object_id: number;
+  object_label: string;
+  kind: 'change' | 'create' | 'file';
+  /** `change`: der Spaltenname – derselbe wie `name` am Feld (`useField`). */
+  field: string | null;
+  /** Das Wort für das Feld bzw. für das, was vorgeschlagen ist. */
+  label: string;
+  value: string | null;
+  current: string | null;
+  draft: { type: 'user' | 'organization'; values: Record<string, string> } | null;
+  parts: IntakePart[] | null;
+  /** Woher – kurz («Notiz von Hans-Peter»). `intake` (nur `file`): die Erfassung, die
+   *  «Abgelegt» öffnet – im Log-Payload steht sie (`source.intake`), im Bauplan-Typ noch nicht. */
+  source: { text: string; object_id: number | null; at: string; intake?: number | null };
+}
+
+/** **Eine Erfassung** («Schreiben» im «+») – die rohe Eingabe und wie sie abgelegt wird. */
+// TODO(phase3): aus api.ts, sobald das Backend da ist
+export interface Intake {
+  /** Die Nummer des Ereignisses `intake` im Log. */
+  id: number;
+  at: string;
+  text: string;
+  hint_object_id: number | null;
+  parts: IntakePart[];
+  proposals: Proposal[];
+  filed: boolean;
+  notes: { object_id: number; message_id: number }[];
+  problem: string | null;
+}
+
+/** **Das Angeheftete** eines Datensatzes – offene Vorschläge (immer, zuerst), dann die Hinweise. */
+// TODO(phase3): aus api.ts, sobald das Backend da ist
+export interface Pinned {
+  proposals: Proposal[];
+  hints: { key: string; text: string; entry_key: string | null }[];
+  refreshed_at: string | null;
+  problem: string | null;
+}
