@@ -25,6 +25,7 @@ from .message import Message, MessageParty
 from .mailbox import Mailbox
 from .newsletter import NewsletterConsent
 from .timekeeping import Holiday, TimeContract, TimeEntry
+from .ai_memory import AiMemory
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Address", "Article",
@@ -35,5 +36,5 @@ __all__ = [
     "WebAuthnCredential", "WebAuthnChallenge",
     "Log", "LogSeal", "ObjectRef", "FeedbackNote",
     "Message", "MessageParty", "Mailbox", "NewsletterConsent",
-    "TimeContract", "TimeEntry", "Holiday",
+    "TimeContract", "TimeEntry", "Holiday", "AiMemory",
 ]

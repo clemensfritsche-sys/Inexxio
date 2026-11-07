@@ -37,6 +37,7 @@ EXEMPT = {
     "log": "das Log selbst (unveränderlich, eigener Trigger)",
     "log_seal": "die Siegel des Logs (unveränderlich, eigener Trigger)",
     "process_log": "eine Sicht auf das Log, keine Tabelle",
+    "ai_memory": "Bedeutungs-Zahlen je Vorschlag – eine Ableitung aus dem Log (``memory``)",
 }
 
 
