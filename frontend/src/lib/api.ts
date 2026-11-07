@@ -39,7 +39,7 @@ import type {
   TransferInfo,
   DocumentSummary, DocumentDetail, DocumentProposal, DocumentTarget, RecordRef,
   CompanySettingsUpdate, PublicDocument, BelegView, LegalText, VoucherPapers, ComposeResult, UploadResult,
-  Intake, Proposal, Pinned,
+  Intake, Proposal, Pinned, Recording,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -629,6 +629,36 @@ class ApiClient {
   /** Einen Hinweis lösen. */
   solvePin(objectId: number, key: string): Promise<Pinned> {
     return this.post(`/api/v1/erp/pins/${objectId}/solve`, { key });
+  }
+
+  // ─── Phase 4 · Sprache: Aufnehmen (docs/konzept/phase4-bauplan.md) ─────────
+  /** Eine Aufnahme beginnen – `hint` = der Datensatz, der dabei offen war. */
+  startRecording(mime: string, hint?: number | null): Promise<Recording> {
+    return this.post('/api/v1/erp/recordings', hint ? { hint_object_id: hint, mime } : { mime });
+  }
+
+  /** **Ein Stück** (alle 30 s) – Abschnitt und Stück ab 0; dasselbe Stück noch einmal ersetzt es. */
+  recordingChunk(id: number, segment: number, seq: number, file: Blob): Promise<Recording> {
+    const form = new FormData();
+    form.append('segment', String(segment));
+    form.append('seq', String(seq));
+    form.append('file', file, `${segment}-${seq}`);
+    return this.request(`/api/v1/erp/recordings/${id}/chunks`, { method: 'POST', body: form });
+  }
+
+  /** **Stopp** – `segments` = wie viele Abschnitte es gibt. */
+  stopRecording(id: number, segments: number): Promise<Recording> {
+    return this.post(`/api/v1/erp/recordings/${id}/stop`, { segments });
+  }
+
+  /** **Weiter abschreiben** – so weit es in einer Anfrage geht (≤ 60 s); dann wieder fragen. */
+  advanceRecording(id: number, req?: Req): Promise<Recording> {
+    return this.post(`/api/v1/erp/recordings/${id}/advance`, {}, req);
+  }
+
+  /** Meine Aufnahmen, die noch nicht fertig sind. */
+  openRecordings(req?: Req): Promise<Recording[]> {
+    return this.get('/api/v1/erp/recordings/open', req);
   }
 
   // ─── Zahlungen (eine Ableitung aus den Zahlungsmodulen) ────────────────────
