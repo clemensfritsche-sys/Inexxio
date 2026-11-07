@@ -335,6 +335,19 @@ def _unchanged(a: list[dict[str, Any]], b: list[dict[str, Any]]) -> bool:
     return key(a) == key(b)
 
 
+def pieces(text: str, limit: int = MAX_TEXT) -> list[str]:
+    """►► **Ein langer Teil wird zu mehreren Notizen** (eine Notiz trägt höchstens ``limit``
+    Zeichen) – getrennt an Absätzen, sonst an Zeilen, sonst an Wörtern; nichts geht verloren. ◄◄"""
+    text = text.strip()
+    out: list[str] = []
+    while len(text) > limit:
+        cut = max(text.rfind("\n\n", 0, limit), text.rfind("\n", 0, limit), text.rfind(" ", 0, limit))
+        cut = cut if cut > limit // 2 else limit
+        out.append(text[:cut].rstrip())
+        text = text[cut:].lstrip()
+    return out + [text] if text or not out else out
+
+
 def file(db: Session, intake_id: int, parts: list[Any], actor: UserProfile) -> Intake:
     """►►► **«Stimmt so»** – je Teil eine Notiz an seinem Datensatz, dann der Entscheid. ◄◄◄
     Gab es noch keinen Vorschlag (KI aus), entsteht er hier – als der rohe Teil, den der Mensch
@@ -358,9 +371,12 @@ def file(db: Session, intake_id: int, parts: list[Any], actor: UserProfile) -> I
     with db.begin_nested():
         notes = []
         for p in clean:
-            msg = communication.create(db, MessageIn(channel=dc.NOTE, about=[p["object_id"]],
-                                                     subject=p["subject"], body=p["text"]), actor)
-            notes.append({"object_id": p["object_id"], "message_id": msg.id})
+            chunks = pieces(p["text"])
+            for n, body in enumerate(chunks, 1):
+                subject = p["subject"] if len(chunks) == 1 else f"{p['subject']} ({n}/{len(chunks)})"
+                msg = communication.create(db, MessageIn(
+                    channel=dc.NOTE, about=[p["object_id"]], subject=subject[:255], body=body), actor)
+                notes.append({"object_id": p["object_id"], "message_id": msg.id})
         chosen = open_files[-1]
         kept = _unchanged(chosen.payload.get("parts") or [], clean)
         proposals.decide(db, chosen, "accepted" if kept else "changed", notes=notes,

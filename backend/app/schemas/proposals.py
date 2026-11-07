@@ -25,7 +25,9 @@ class PartIn(BaseModel):
     """Ein Teil, wie der Mensch ihn ablegt («Stimmt so»)."""
 
     object_id: int
-    text: str = Field(max_length=20000)
+    #: So lang wie eine abgeschriebene Aufnahme (``intake.MAX_SPOKEN``); eine Notiz trägt
+    #: höchstens ``intake.MAX_TEXT`` – längere Teile werden zu mehreren Notizen (``intake.pieces``).
+    text: str = Field(max_length=200_000)
     subject: Optional[str] = Field(None, max_length=255)
 
 

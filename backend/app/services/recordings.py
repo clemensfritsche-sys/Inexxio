@@ -428,14 +428,37 @@ SELECT s.id FROM log s
  ORDER BY s.id""")
 
 
+def _rescue(db: Session, rec: Rec) -> bool:
+    """►► **Was nach einem Tag schon abgeschrieben ist, geht nicht verloren**: es wird die
+    Erfassung, der Rest ein Vermerk «[Abschnitt n nicht abgeschrieben]». Ohne jeden Text →
+    ``recording.failed``. ``True``, wenn eine Erfassung entstand. ◄◄"""
+    if rec.end is not None:
+        return True
+    person = db.query(UserProfile).filter(UserProfile.object_id == rec.actor_id).first()
+    if person is None or not any((t.get("text") or "").strip() for t in rec.texts.values()):
+        _end(db, rec, "recording.failed", {"problem": TOO_OLD})
+        return False
+    for s in range(rec.segments):
+        rec.texts.setdefault(s, {"skipped": TOO_OLD})
+    hint = rec.hint if rec.hint and records.labels(db, [rec.hint]).get(rec.hint) else None
+    it = intake.capture(db, _whole(rec), hint, person, recording=rec.id)
+    _end(db, rec, "recording.done", {"intake": it.id, "partial": True})
+    return True
+
+
 def sweep(db: Session) -> dict[str, int]:
     """►► **Aufräumen**: eine Aufnahme, die nach ``KEEP`` nicht fertig ist → ``recording.failed``
     mit Grund (ihre Stücke gehen mit); jedes Stück, das älter ist als ``KEEP``, geht auch. ◄◄"""
     cut = _now() - KEEP
     failed = 0
     for r in db.execute(_STALE, {"cut": cut}).all():
-        _end(db, load(db, r.id), "recording.failed", {"problem": TOO_OLD})
-        failed += 1
+        con = _lock(r.id)
+        if con is None:
+            continue                       # wird gerade abgeschrieben – im nächsten Lauf
+        try:
+            failed += 0 if _rescue(db, load(db, r.id)) else 1
+        finally:
+            _unlock(con, r.id)
     old = sorted({rid for (rid,) in db.query(RecordingChunk.recording)
                   .filter(RecordingChunk.updated_at < cut).distinct()})
     for rid in old:

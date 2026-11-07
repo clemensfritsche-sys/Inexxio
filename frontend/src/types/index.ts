@@ -308,18 +308,6 @@ export type Proposal = components['schemas']['AiProposal'];
 export type Intake = components['schemas']['IntakeOut'];
 export type Pinned = components['schemas']['PinnedOut'];
 
-// TODO(phase4): aus api.ts – vorübergehend von Hand nach docs/konzept/phase4-bauplan.md («API»).
-/** Eine **Aufnahme** (Phase 4): Nummer = Log-Id von `recording.start`; `intake`, sobald abgelegt bereit. */
-export interface Recording {
-  id: number;
-  at: string;
-  hint_object_id: number | null;
-  mime: string;
-  state: 'recording' | 'transcribing' | 'filing' | 'done' | 'failed';
-  /** Abschnitte, die der Server kennt. */
-  segments: number;
-  transcribed: number;
-  seconds: number;
-  intake: Intake | null;
-  problem: string | null;
-}
+/** Eine **Aufnahme** (Phase 4): Nummer = Log-Id von `recording.start`; `intake`, sobald
+ *  abgelegt bereit (`docs/konzept/phase4-bauplan.md`). */
+export type Recording = components['schemas']['Recording'];

@@ -462,3 +462,40 @@ def test_the_tick_finishes_a_recording_without_a_browser(db, api, gemini, monkey
     assert intake.view(db, it).parts[0].object_id == firm.object_id    # die KI hat abgelegt
     assert any(t.name == "voice" for t in tick.TASKS)
     assert tick._voice(db, time.monotonic() + 30) == {"failed": 0, "dropped": 0}
+
+
+def test_what_is_written_after_a_day_is_kept_the_rest_is_noted(db, api, gemini, monkeypatch):  # noqa: F811
+    """Nach einem Tag geht das Audio – aber was schon abgeschrieben ist, wird die Erfassung.
+    Bug-Form: eine halb abgeschriebene Stunde ist nach einem Tag ganz weg."""
+    me = new_person(db, "employee")
+    c = api.as_(me)
+    rec = begin(c)
+    send(c, rec["id"], 0, 0)
+    send(c, rec["id"], 1, 0)
+    c.post(f"{BASE}/{rec['id']}/stop", json={"segments": 2})
+    gemini(said("Erster Teil steht."), 503)
+    assert c.post(f"{BASE}/{rec['id']}/advance").json()["state"] == "transcribing"
+    later(monkeypatch, timedelta(hours=24, minutes=1))
+    assert recordings.sweep(db)["failed"] == 0
+    (done,) = events(db, "recording.done", rec["id"])
+    assert done.payload["partial"] is True and chunks(db, rec["id"]) == 0
+    text = intake.get(db, done.payload["intake"]).text
+    assert text == "Erster Teil steht.\n\n[Abschnitt 2 nicht abgeschrieben]"
+
+
+def test_a_long_part_becomes_several_notes(db, api):  # noqa: F811
+    """Eine Stunde Gesprochenes ist länger als eine Notiz trägt – «Stimmt so» legt sie in
+    Stücken ab, nichts geht verloren. Bug-Form: 422 und die Abschrift ist nicht ablegbar."""
+    me, firm = new_person(db, "employee"), new_firm(db, "Kran")
+    para = ("Wort " * 1990).strip()                       # ~9950 Zeichen
+    long = "\n\n".join([para] * 5)                        # ~50'000 Zeichen
+    got = intake.pieces(long)
+    assert len(got) == 3 and all(len(p) <= intake.MAX_TEXT for p in got)
+    assert " ".join(" ".join(got).split()) == " ".join(long.split())          # kein Wort fehlt
+    act(db, "person", me.object_id, "ui")
+    it = intake.capture(db, long, firm.object_id, me, recording=1)
+    r = api.as_(me).post(f"/api/v1/erp/intake/{it.id}/file",
+                         json={"parts": [{"object_id": firm.object_id, "text": long, "subject": "Sitzung"}]})
+    assert r.status_code == 200, r.text
+    notes = r.json()["notes"]
+    assert len(notes) == 3
