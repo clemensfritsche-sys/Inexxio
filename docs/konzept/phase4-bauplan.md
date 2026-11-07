@@ -1,6 +1,6 @@
 # Phase 4 · Sprache – Bauplan (Vertrag zwischen Backend und Oberfläche)
 
-> **Kopfstatus:** in Umsetzung (07.11.2026) · gehört zur Projektakte
+> **Kopfstatus:** gebaut (07.11.2026) · gehört zur Projektakte
 > `docs/konzept/lernende-firma.md` (§4.4 «Aufnehmen», «Abschreiben», §6 Phase 4). Baut auf
 > Phase 3 (`docs/konzept/phase3-bauplan.md`): aus einer Aufnahme wird eine **Erfassung**
 > (`intake`), danach ist alles wie beim Schreiben («Abgelegt», «Stimmt so»).
