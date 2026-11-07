@@ -5,7 +5,8 @@ Offene Nachrichten (``communication.open_counts``), Aufgaben der Zeiterfassung
 Pflichtangaben (``people.missing_fields``), an einer
 eigenen Gesellschaft fehlende Feiertage (``holidays.holiday_tasks``) und Rechtstexte
 (``legal.FIELD_OF``), am Auftrag anstehende Papiere (``voucher_money.papers_due``) und erwartete
-Dokumente (``requirements``). Jede Quelle rechnet
+Dokumente (``requirements``), offene Vorschläge der KI und meine offenen Erfassungen
+(``proposals``, ``intake``). Jede Quelle rechnet
 selbst; hier wird nur gezählt. Rot, sobald etwas dringend ist (überfällige Nachricht,
 Aufgabe ab ``URGENT_DAYS`` Tagen).
 
@@ -58,6 +59,28 @@ def _documents(db: Session) -> list[tuple[int, str]]:
     return out
 
 
+def _ai_items(db: Session, actor: UserProfile) -> list[tuple[int, TodoItem]]:
+    """**Phase 3 · KI**: offene Vorschläge je Datensatz, **meine** offenen Erfassungen an meiner
+    Person, und für den Admin am Betreiber der Hinweis, dass der Tagesdeckel der KI nahe ist."""
+    from . import ai, intake, proposals, sites
+    out = []
+    for oid, n in proposals.open_counts(db).items():
+        out.append((oid, TodoItem(section="vorschlaege", count=n,
+                                  label=f"{n} Vorschl{'äge' if n != 1 else 'ag'}")))
+    mine = len(intake.open_ids(db, actor))
+    if mine and actor.object_id:
+        out.append((actor.object_id, TodoItem(
+            section="vorschlaege", count=mine,
+            label=f"{mine} Erfassung{'en' if mine != 1 else ''} ablegen")))
+    if actor.role == "admin" and ai.near_cap(db):
+        op = sites.find_operator(db)
+        if op is not None and op.object_id:
+            out.append((op.object_id, TodoItem(
+                section="ki", count=1, red=not ai.available(db),
+                label=f"KI: {round(ai.WARN_AT * 100)} % des Tagesdeckels")))
+    return out
+
+
 def todo(db: Session, actor: UserProfile) -> list[TodoOut]:
     items: dict[int, list[TodoItem]] = defaultdict(list)
     for c in communication.open_counts(db):
@@ -77,6 +100,8 @@ def todo(db: Session, actor: UserProfile) -> list[TodoOut]:
                                                label=f"{m['label']} fehlt"))
     for oid, label in _documents(db):
         items[oid].append(TodoItem(section="dokumente", count=1, label=label))
+    for oid, item in _ai_items(db, actor):
+        items[oid].append(item)
     if actor.role == "admin":
         for c in db.query(CompanySettings).filter(CompanySettings.is_own.is_(True),
                                                   CompanySettings.is_active.is_(True)).all():

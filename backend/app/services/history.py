@@ -221,7 +221,7 @@ def _names(db: Session, ids: set[int]) -> dict[int, str]:
 
 # ─── Die Seite ─────────────────────────────────────────────────────────────────────────
 
-def _assert_visible(db: Session, oid: int, viewer: UserProfile) -> Optional[UserProfile]:
+def assert_visible(db: Session, oid: int, viewer: UserProfile) -> Optional[UserProfile]:
     """Wer den Datensatz öffnen darf, sieht seinen Verlauf. Gibt die Person zurück, wenn der
     Datensatz eine ist (ihre Zeiterfassung hat eine eigene Regel)."""
     found = records.labels(db, [oid]).get(oid)
@@ -244,7 +244,7 @@ def page(db: Session, oid: int, viewer: UserProfile, *, before: Optional[str] = 
     Jede Quelle liefert höchstens ``limit + 1``; gemischt wird nach (Zeit, Art, Nummer), und
     ob es weitergeht, sagt der eine Eintrag zu viel."""
     from .timekeeping import may_see
-    person = _assert_visible(db, oid, viewer)
+    person = assert_visible(db, oid, viewer)
     cursor = parse(before)
     hidden = set(HIDDEN)
     if person is not None and not may_see(viewer, person):
