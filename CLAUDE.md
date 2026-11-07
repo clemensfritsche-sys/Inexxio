@@ -322,7 +322,7 @@ von einem offenen Browser abhängen darf. **Die Aufgaben stehen an einer Stelle*
 (`services/tick.TASKS`): Siegel des Logs · Mails holen und senden. Je Aufgabe eigene Sitzung
 (das System, `job`), Advisory-Lock (läuft sie anderswo: übersprungen), Zeitgrenze, ein
 Fehlschlag hält die übrigen nicht auf (Antwort 500 → Alarm). Getanes steht im Log
-(`tick.<name>`), Leerlauf nicht. Anmeldung: Google-Token (OIDC) des Dienstkontos `tick@`, geprüft
+(`tick.<name>`), Leerlauf nicht. Anmeldung: Google-Token (OIDC) des Dienstkontos `inexxio-tick@`, geprüft
 in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingerichtet im Deploy
 (Job «Takt»), einmal je Projekt `infra/setup-takt.sh` (Dienstkonto, Rechte, Alarm per Mail).
 

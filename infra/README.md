@@ -126,7 +126,7 @@ wird sie übersprungen), mit Zeitgrenze (nach 20 s beginnt nichts Neues, Cloud R
 Aufgabe getan hat, steht im Log (`tick.seal`, `tick.mail` mit Zahlen) – bei Leerlauf nichts.
 
 **Anmeldung ohne Geheimnis**: Cloud Scheduler holt bei jedem Aufruf ein von Google signiertes
-ID-Token (OIDC) des Dienstkontos `tick@<projekt>.iam.gserviceaccount.com`, Zielgruppe
+ID-Token (OIDC) des Dienstkontos `inexxio-tick@<projekt>.iam.gserviceaccount.com`, Zielgruppe
 `inexxio-tick-<env>`. Das Backend prüft Signatur, Ablauf, Zielgruppe und Konto
 (`backend/app/core/oidc.py`; beide Werte setzt der Deploy als `TICK_SERVICE_ACCOUNT` und
 `TICK_AUDIENCE`). Ohne sie antwortet der Takt 503, mit falschem Token 401/403. Das Dienstkonto
@@ -141,8 +141,8 @@ bash infra/setup-takt.sh inexxio-dev github-actions@inexxio-dev.iam.gserviceacco
 bash infra/setup-takt.sh inexxio-prod <Deploy-Konto aus WIF_SA_PROD> ALARM-EMAIL
 ```
 
-Es schaltet Cloud Scheduler ein, legt `tick@` an (mit `run.invoker` auf dem Dienst), gibt dem
-Deploy-Konto `roles/cloudscheduler.admin` und `roles/iam.serviceAccountUser` auf `tick@` und
+Es schaltet Cloud Scheduler ein, legt `inexxio-tick@` an (mit `run.invoker` auf dem Dienst), gibt dem
+Deploy-Konto `roles/cloudscheduler.admin` und `roles/iam.serviceAccountUser` auf `inexxio-tick@` und
 richtet den **Alarm** ein: die log-basierte Kennzahl `inexxio-tick-failed` zählt gescheiterte
 Aufrufe (`AttemptFinished` mit Schweregrad ERROR), ab **3 in 30 Minuten** schickt Cloud
 Monitoring eine Mail an ALARM-EMAIL (Richtlinie «Inexxio – der Takt scheitert»).
@@ -159,7 +159,7 @@ gcloud run services logs read inexxio-backend-dev --region europe-west6 --projec
 
 **Gegenprobe des Alarms**: die Zielgruppe am Job kurz verfälschen (`gcloud scheduler jobs update
 http inexxio-tick --location europe-west6 --project P --oidc-service-account-email
-tick@P.iam.gserviceaccount.com --oidc-token-audience falsch`) → jeder Aufruf 401 (mit dem
+inexxio-tick@P.iam.gserviceaccount.com --oidc-token-audience falsch`) → jeder Aufruf 401 (mit dem
 Wiederholversuch zwei je Lauf) → nach 5–10 Minuten kommt die Mail. Danach stellt der nächste Deploy den Job wieder richtig (oder
 derselbe Befehl mit `inexxio-tick-<env>`). Ein **pausierter** Job scheitert nicht – er löst
 keinen Alarm aus.

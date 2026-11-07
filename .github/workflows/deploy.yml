@@ -220,7 +220,7 @@ jobs:
         run: |
           vars="APP_ENV=${{ inputs.app_env }},FRONTEND_BASE_URL=${{ inputs.site_url }},FILES_BUCKET=${{ inputs.gcp_project }}-files,WEB_WORKERS=${{ inputs.web_workers }}"
           # Der Takt (backend/app/core/oidc.py): wer ihn rufen darf – kein Geheimnis.
-          vars="$vars,TICK_SERVICE_ACCOUNT=tick@${{ inputs.gcp_project }}.iam.gserviceaccount.com,TICK_AUDIENCE=inexxio-tick-${{ inputs.env_name }}"
+          vars="$vars,TICK_SERVICE_ACCOUNT=inexxio-tick@${{ inputs.gcp_project }}.iam.gserviceaccount.com,TICK_AUDIENCE=inexxio-tick-${{ inputs.env_name }}"
           [ -n "${{ inputs.firebase_project_id }}" ] && vars="$vars,FIREBASE_PROJECT_ID=${{ inputs.firebase_project_id }}"
           [ -n "${{ inputs.stripe_publishable_key }}" ] && vars="$vars,STRIPE_PUBLISHABLE_KEY=${{ inputs.stripe_publishable_key }}"
           gcloud run deploy "${{ inputs.service }}" \
@@ -246,7 +246,7 @@ jobs:
         run: scripts/check-schema.sh "${{ inputs.gcp_project }}" "${{ inputs.service }}" "${{ inputs.region }}"
 
   # ►►► **Der Takt** – Cloud Scheduler ruft alle 5 Minuten POST /api/v1/internal/tick
-  # (backend/app/services/tick.py), mit einem Google-Token des Dienstkontos tick@ (OIDC). ◄◄◄
+  # (backend/app/services/tick.py), mit einem Google-Token des Dienstkontos inexxio-tick@ (OIDC). ◄◄◄
   # Angelegt oder nachgeführt bei jedem Deploy (idempotent: gibt es ihn, wird er
   # aktualisiert). Ein eigener Job neben «Hosting»: scheitert er, geht das Hosting trotzdem
   # hinaus, und der Lauf ist rot mit dem einmaligen Befehl (infra/setup-takt.sh).
@@ -269,7 +269,7 @@ jobs:
           P="${{ inputs.gcp_project }}"
           R="${{ inputs.region }}"
           JOB="inexxio-tick"
-          SA="tick@$P.iam.gserviceaccount.com"
+          SA="inexxio-tick@$P.iam.gserviceaccount.com"
           AUD="inexxio-tick-${{ inputs.env_name }}"
           once="::error::Einmalig in Cloud Shell (Projekt $P): bash infra/setup-takt.sh $P ${{ inputs.service_account || 'DEPLOY-KONTO' }} ALARM-EMAIL"
           if ! url=$(gcloud run services describe "${{ inputs.service }}" --project "$P" \

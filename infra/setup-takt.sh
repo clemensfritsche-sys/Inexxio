@@ -6,11 +6,11 @@
 #
 # Was es tut (ein zweiter Lauf schadet nicht, er bringt alles auf denselben Stand):
 #   1. Cloud Scheduler einschalten (und seinen Dienst-Agenten anlegen).
-#   2. Dienstkonto tick@PROJEKT – es hat KEINE Rolle im Projekt; es darf nur den Backend-Dienst
+#   2. Dienstkonto inexxio-tick@PROJEKT – es hat KEINE Rolle im Projekt; es darf nur den Backend-Dienst
 #      aufrufen (roles/run.invoker auf genau diesem Dienst). Sein Google-Token (OIDC) ist die
 #      Anmeldung am Takt; das Backend prüft Konto und Zielgruppe (backend/app/core/oidc.py).
 #   3. Das Deploy-Konto darf Scheduler-Jobs verwalten (roles/cloudscheduler.admin) und als
-#      tick@ auftreten (roles/iam.serviceAccountUser, nur auf tick@) – den Job selbst legt jeder
+#      tick@ auftreten (roles/iam.serviceAccountUser, nur auf inexxio-tick@) – den Job selbst legt jeder
 #      Deploy an oder führt ihn nach (.github/workflows/deploy.yml, Job «Takt»).
 #   4. Alarm: eine log-basierte Kennzahl zählt fehlgeschlagene Aufrufe des Jobs; ab 3 in
 #      30 Minuten geht eine Mail an ALARM-EMAIL (Cloud Monitoring).
@@ -29,7 +29,7 @@ DEPLOY_SA="$2"
 EMAIL="$3"
 REGION="europe-west6"
 JOB="inexxio-tick"
-TICK="tick@$P.iam.gserviceaccount.com"
+TICK="inexxio-tick@$P.iam.gserviceaccount.com"
 METRIC="inexxio-tick-failed"
 POLICY_NAME="Inexxio – der Takt scheitert ($P)"
 CHANNEL_NAME="Inexxio Alarm ($EMAIL)"
@@ -50,10 +50,10 @@ gcloud services enable cloudscheduler.googleapis.com monitoring.googleapis.com \
 gcloud beta services identity create --service=cloudscheduler.googleapis.com \
   --project "$P" >/dev/null 2>&1 || true
 
-# 2 · Dienstkonto tick@ ----------------------------------------------------------------
+# 2 · Dienstkonto inexxio-tick@ ----------------------------------------------------------------
 say "Dienstkonto $TICK"
 if ! gcloud iam service-accounts describe "$TICK" --project "$P" >/dev/null 2>&1; then
-  gcloud iam service-accounts create tick --project "$P" \
+  gcloud iam service-accounts create inexxio-tick --project "$P" \
     --display-name "Inexxio Takt (Cloud Scheduler)" \
     --description "Ruft alle 5 Minuten POST /api/v1/internal/tick – sonst nichts."
 fi
@@ -61,7 +61,7 @@ gcloud run services add-iam-policy-binding "$SERVICE" --project "$P" --region "$
   --member "serviceAccount:$TICK" --role roles/run.invoker --format='value(etag)'
 
 # 3 · Das Deploy-Konto ------------------------------------------------------------------
-say "Deploy-Konto $DEPLOY_SA: Scheduler-Jobs verwalten, als tick@ auftreten"
+say "Deploy-Konto $DEPLOY_SA: Scheduler-Jobs verwalten, als inexxio-tick@ auftreten"
 gcloud projects add-iam-policy-binding "$P" --member "serviceAccount:$DEPLOY_SA" \
   --role roles/cloudscheduler.admin --condition=None --format='value(etag)'
 gcloud iam service-accounts add-iam-policy-binding "$TICK" --project "$P" \
@@ -121,12 +121,12 @@ cat > "$POLICY_FILE" <<JSON
   "alertStrategy": { "autoClose": "86400s" }
 }
 JSON
-POLICY=$(gcloud monitoring policies list --project "$P" \
+POLICY=$(gcloud beta monitoring policies list --project "$P" \
   --filter "displayName=\"$POLICY_NAME\"" --format='value(name)' | head -n 1)
 if [ -n "$POLICY" ]; then
-  gcloud monitoring policies update "$POLICY" --project "$P" --policy-from-file "$POLICY_FILE"
+  gcloud beta monitoring policies update "$POLICY" --project "$P" --policy-from-file "$POLICY_FILE"
 else
-  gcloud monitoring policies create --project "$P" --policy-from-file "$POLICY_FILE"
+  gcloud beta monitoring policies create --project "$P" --policy-from-file "$POLICY_FILE"
 fi
 
 say "Fertig. Der Job $JOB entsteht beim nächsten Deploy (Job «Takt»)."

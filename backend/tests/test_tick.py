@@ -19,7 +19,7 @@ from app.services import tick
 from tests.runner import session
 
 AUD = "inexxio-tick-test"
-SA = "tick@inexxio-test.iam.gserviceaccount.com"
+SA = "inexxio-tick@inexxio-test.iam.gserviceaccount.com"
 URL = "/api/v1/internal/tick"
 
 
