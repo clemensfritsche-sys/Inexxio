@@ -1,7 +1,7 @@
 # Projektakte «Wiederkehrende Aufträge»
 
 > **Kopfstatus:** in Klärung · **nichts gebaut** · Lead: Claude · Entscheid: Clemens Fritsche ·
-> seit 06.11.2026 · zuletzt 07.11.2026
+> seit 06.11.2026 · zuletzt 07.11.2026 (zweite Runde)
 > Bild (Ist-Stand 1:1, Schlaufe, Abo): https://claude.ai/artifact/Lk5AKy8G1CTWi68ZxA57uj
 > Diese Akte ist die **eine** Quelle für Ziel, Grundsätze, Vorschläge und Entscheide. Das Bild
 > zeigt, die Akte hält fest. Was hier nicht als entschieden steht, ist nicht entschieden.
@@ -28,8 +28,10 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
 3. **Eine Wiederkehr gibt es nur an einem regulären Auftrag, nie an einer Abweichung.**
 4. **Der Takt ist Zeit, an einem festen Kalendertag** (wie bei einem Abo). Zähler wie
    Betriebsstunden oder Kilometer kommen später; das Modell lässt nur Platz dafür.
-5. **Solange der vorige Auftrag offen ist, entsteht kein neuer.** Sobald er abgeschlossen ist,
-   entsteht der neue sofort.
+5. **Eine fällige Wiederholung wartet, bis sie entstehen kann, und entsteht dann sofort.**
+   Steckt das Stück gerade in einem anderen Auftrag (auch einem von Hand angelegten), wartet
+   sie. **Keine Periode geht verloren**: jede wird ein Auftrag, der Reihe nach. Aufträge von
+   Hand sind jederzeit möglich und verschieben den Kalender nicht.
 6. **Jederzeit änderbar und beendbar, ohne Kündigungsfrist.** Ändert sich der Ablauf (z. B.
    ein Prüfpunkt mehr), wird die Wiederkehr beendet und ein neuer Auftrag mit eigener
    Wiederkehr angelegt.
@@ -46,6 +48,10 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
 11. **Die Wiederkehr legt selbst an** (07.11.2026, → V2).
 12. **Die Wiederkehr ist eine Schlaufe im Prozessbild**, gezeichnet und geschaltet wie die
     Rückführung (07.11.2026, → V3).
+13. **Zahlung: Was vorher festgelegt ist, gilt weiter; was bewusst offen blieb, wird jedes Mal
+    neu festgelegt** (07.11.2026, → O1).
+14. **Was die Wiederholung nimmt, sagt der Mensch je Zeile ausdrücklich** (Vorschlag 07.11.2026,
+    → V3): «dieselben Stücke» oder «nach FIFO».
 
 ## 4 · Befunde aus dem Code
 
@@ -85,6 +91,22 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
   Minuten, Advisory-Lock, Getanes im Log). Die Wiederkehr wird dort eine Aufgabe mehr.
 - **«Zu tun» am Auftrag gibt es schon:** `services/todo` zählt anstehende Papiere am Auftrag;
   dieselbe Zahl am Symbol trägt eine wartende Wiederkehr (→ O3).
+- **Ob Stücke von Hand oder per FIFO gewählt wurden, speichert heute niemand.** FIFO ist im
+  Entwurf nur ein Vorschlag (`definition-lines.StockPicker`, `preselect`). Nach der Freigabe
+  hat jede Lager-Zeile eine fertige Liste von Stücken (`order_lines` + `order_units`), und
+  `validate_draft` verlangt genau so viele gewählte Stücke wie die Menge. Die Regel «von Hand
+  gewählt → dieselben, sonst FIFO» lässt sich darum **nicht ableiten**. → V3, Grundsatz 14.
+- **Wie das System heute mit «geht nicht» umgeht** (Vorbild für O3 und O6):
+  - **Beim Freigeben** nennt `orders.validate_draft` alles, was fehlt, als Sätze (Stück ist
+    endgültig, zu wenig gewählt, Artikel darf nichts erzeugen). Der Knopf ist gesperrt, und
+    der Hover nennt die Sätze. Es entsteht nichts.
+  - **Im Verbrauch** ist Unterdeckung kein Zustand (`StepNeed`: gebraucht · verfügbar · am
+    Ort). Das Modul ist einfach nicht fertig und bietet «holen lassen» oder «Nachschub
+    anlegen» an. Angelegt wird nichts von selbst.
+  - **In der Datenerfassung** ist der Halt eine Auskunft, keine Sperre, und das System bietet
+    einen Auftrag mit vorgewählten Stücken an.
+  - Gemeinsam ist allen: **der Grund steht als Satz da, nichts entsteht still, der Mensch
+    entscheidet.**
 - **Was es sonst schon gibt:** einen Auftragsentwurf mit vorgewählten Stücken und Ablauf
   (`OrderSeed`), append-only Zeilen «ab Stichtag» (`time_contracts`), den Schalter
   «kehrt zurück ↔ bleibt hier» unter dem Ziel (`flow-column.ReturnRow`, prozessbild §8.1a).
@@ -103,9 +125,16 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
   - **Die Linie folgt prozessbild §8.1a:** ein Zug aus `polyPath`, dockt unten an der letzten
     und oben an der ersten Zeile der Spalte an, Haarlinie bis zur ersten Wiederholung, danach
     kräftig. Kein Strichmuster, keine eigene Farbe.
-  - **Am Anfang steht, was die Wiederholung nimmt:** «dieses Stück» (Service, Abo, fremder
-    Kran) oder «nach FIFO» bzw. «neu» wie in der Vorlage (Lieferung). Mehr Möglichkeiten gibt
-    es nicht.
+  - **Am Anfang steht, was die Wiederholung nimmt**, je Lager-Zeile eine **Pflichtwahl ohne
+    Vorbelegung** (wie das Eigentum am Beleg): «dieselben Stücke» (Service, Abo, fremder Kran)
+    oder «nach FIFO» (Lieferung). Eine Zeile «Neu» erzeugt jedes Mal neu. Mehr Möglichkeiten
+    gibt es nicht. Ausdrücklich, weil es sich nicht ableiten lässt (§4) und weil eine falsche
+    Annahme teuer wäre: wer z. B. zwölf Kartuschen von Hand wählt und «dieselben» bekäme,
+    würde nächsten Monat dieselben, schon verkauften Kartuschen noch einmal liefern.
+  - **FIFO nimmt weiter nur `Freigegeben`**, «dieselben Stücke» darf auch `Verkauft` (V1).
+  - **Neben einer Abweichung:** Die Schlaufe ist ein Zug wie jede Querlinie und bekommt ihre
+    Spur aus `process-flow.channels`. Sie reicht über die ganze Spalte, also bekommt sie die
+    äusserste Spur, und eine Abweichung daneben liegt innen.
   - **Gespeichert wird append-only**, wie die Verträge der Zeiterfassung: «ab Stichtag: alle
     N Monate am Tag X», später «ab Stichtag: einmalig». Wiederholt wird die eingefrorene
     Definition des Vorlage-Auftrags (Module und Zeilen).
@@ -120,8 +149,8 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
 
 ## 6 · Offen
 
-- **O1 · Die Zahlung in der Schlaufe.** Vorschlag, ein Satz für alle Fälle: **Was in der
-  Vorlage zugesagt ist, gilt weiter; was offen war, bleibt offen.**
+- **O1 · Die Zahlung in der Schlaufe** – entschieden 07.11.2026 (Grundsatz 13). Ein Satz für
+  alle Fälle: **Was in der Vorlage zugesagt ist, gilt weiter; was offen war, bleibt offen.**
   - Die Zahlung weiss von der Schlaufe (Idee Clemens): Die Offerte nennt die Wiederkehr
     («alle 12 Monate, bis auf Widerruf»), die Annahme gilt für jede Wiederholung.
   - Jede Wiederholung übernimmt Partei, Anschrift, Eigentum und Positionen.
@@ -134,29 +163,54 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
     neben den heutigen `VOUCHER_PRESETS`.
   - Das ändert PROCESS_CORE §13.6 («die Zahlung muss von ihr nichts wissen»), aber nur an
     dieser einen Stelle.
-- **O2 · Ein fremdes Stück aufnehmen.** Ein Artikel mit Instanz anlegen geht (Grundsatz 8).
-  Nur endet ein Erzeugungsauftrag ohne Zahlung bei uns im Bestand (§4). Vorschlag: Der erste
-  Auftrag ist zugleich die Aufnahme und die erste Prüfung, also Zeile «Neu: Brückenkran
-  Fremdfabrikat», Datenerfassung, Zahlung «geht an die Partei». Am Ziel steht der Kran auf
-  «Verkauft», und die Schlaufe nimmt «dieses Stück». Ob die Zahlung einen Betrag 0 annimmt
-  («erste Inspektion gratis»), ist noch zu prüfen.
-- **O3 · Fällig, aber das Stück ist nicht frei.** Vorschlag:
-  - Es entsteht nichts. Die Zahl «zu tun» am Symbol des Vorlage-Auftrags und im Feed nennt
-    den Grund, z. B. «Wiederholung 14.11.2027 wartet: 100004501-1 ist im Prozess».
-  - Der Takt prüft alle 5 Minuten und legt an, sobald das Stück frei ist.
-  - Der Kalender verschiebt sich nicht.
-  - Je Periode höchstens ein Auftrag. Beginnt die nächste Periode, bevor die wartende
-    entstanden ist, fällt die wartende aus und steht als «ausgelassen» im Verlauf des Auftrags.
-    Nachgeholt wird nie von selbst.
+- **O2 · Ein fremdes Stück aufnehmen.** Der erste Vorschlag (Erzeugungsauftrag mit Zahlung
+  «geht an die Partei») ist **verworfen**: Er hängt das Eigentum an Geld. Wird diese Zahlung
+  storniert, gehört der Kundenkran plötzlich uns, und FIFO dürfte ihn weitergeben.
+  Neuer Vorschlag: **Eigentum bei der Entstehung.**
+  - Eine Zeile «Neu» trägt eine Angabe «gehört: uns | Partei X». Die Vorgabe ist «uns».
+  - Die Ableitung bleibt eine Ableitung: das jüngste Zahlungsmodul entscheidet, **und ohne
+    Zahlungsmodul gilt der Eigentümer bei der Entstehung** (heute fest «uns»).
+  - Folge: Der fremde Kran endet «Verkauft», nie in unserem Bestand und nie bei FIFO. Ein Storno
+    ändert daran nichts, weil keine Zahlung beteiligt ist.
+  - Offen: Das Wort «Verkauft» passt für einen nie verkauften Kran nicht ganz. Die Bedeutung im
+    Katalog ist «gehört einer anderen Partei». Behalten oder umbenennen (z. B. «Bei Partei»)?
+- **O3 · Fällig, aber es geht gerade nicht** (Stück in einem anderen Auftrag, zu wenig frei bei
+  FIFO, Stück verschrottet, Artikel ersetzt). Vorschlag, zusammen mit O6, **eine** Regel:
+  - Der Takt stellt dieselbe Frage wie der Knopf «Freigeben» (`orders.validate_draft`). Eine
+    zweite Prüfung gibt es nicht.
+  - Ist die Antwort «es fehlt …», entsteht nichts. Die Sätze stehen als Zahl oben am Symbol des
+    Vorlage-Auftrags (Hover) und im Feed «zu tun» (`services/todo`, wie anstehende Papiere).
+  - Alle 5 Minuten wird neu gefragt. Ist die Antwort leer, entsteht der Auftrag sofort.
+  - **Keine Periode geht verloren** (Grundsatz 5): Ist schon die nächste fällig, entstehen sie
+    der Reihe nach, wegen der Exklusivität immer einer nach dem anderen. Je Periode höchstens
+    ein Auftrag heisst nur «nie doppelt», nicht «auslassen».
+  - Bei zu wenig Bestand (FIFO) bietet «zu tun» wie im Verbrauch «Nachschub anlegen» an.
 - **O4 · Vorlauf** – später. Idee: «fertig bis» statt «beginnt am», mit der Dauer aus dem Log
   gelernt (wie lange die letzten Wiederholungen liefen; beim ersten Mal die Vorlage selbst).
   Nichts eintippen.
 - **O5 · Kunde sieht Fristen** – später, mit dem Shop.
-- **O6 · Stück weg** (verschrottet, Artikel ersetzt). Vorschlag wie überall: «Nichtverfügbarkeit
-  ist kein Zustand». Die Wiederkehr endet nicht von selbst. «Zu tun» sagt «100004501-1 ist
-  verschrottet – Wiederkehr beenden?», und der Mensch beendet. Vorbild: der Halt der
-  Datenerfassung (eine Auskunft, keine Sperre) und `release.pick_problem` (der Grund in einem
-  Satz).
+- **O6 · Stück weg** (verschrottet, Artikel ersetzt) – dieselbe Regel wie O3. Ein dauerhafter
+  Grund bleibt in «zu tun» stehen, mit dem Angebot «Wiederkehr beenden». Von selbst endet
+  nichts.
+
+### Weitere Punkte, die noch festzulegen sind
+
+- **O7 · Wer handelt?** Jedes Schreiben braucht einen Handelnden (`core/actor.act`). Vorschlag:
+  das System, im Namen der Person, die die Wiederkehr gesetzt hat (wie die KI im Namen der
+  Person). So steht im Log, wessen Entscheid es war.
+- **O8 · Welche Anschrift?** Der Beleg friert die Anschrift je Vorgang ein. Zieht der Kunde um,
+  nimmt die Wiederholung dann die alte (aus der Vorlage) oder den heutigen Standard aus dem
+  Adressbuch? Vorschlag: den heutigen Standard.
+- **O9 · Unbezahlt.** Die Stücke passieren die Zahlung mit der Zusage, ein Auftrag kann also
+  abgeschlossen sein, während die Rechnung offen ist. Soll die nächste Wiederholung warten,
+  solange eine Rechnung überfällig ist? Vorschlag: nein, Überfälliges zählt schon heute in
+  «zu tun»; Liefersperre erst, wenn es gebraucht wird.
+- **O10 · Monatsende.** «Jeden Monat am 31.» im Februar? Vorschlag: der letzte Tag des Monats.
+- **O11 · Wer darf eine Wiederkehr setzen und beenden?** Jede Person mit ERP-Zugang (wie das
+  Freigeben eines Auftrags) oder nur der Admin?
+- **O12 · Geht die Abo-Rechnung von selbst hinaus?** Heute geht kein Papier von selbst
+  (`voucher.AUTO_RELEASE` leer). Vorschlag: zuerst «Prüfen und freigeben» in «zu tun»;
+  automatisch erst, wenn es sich bewährt hat.
 
 ## 7 · Rückfragen und Antworten
 
@@ -164,10 +218,10 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
 |---|---|---|
 | F1 | Was soll besser werden? | Wiederholtes gerät nicht in Vergessenheit, möglichst automatisch; eine Logik für alles |
 | F2 | Welcher Fall zuerst? | keiner – eine Logik für alle |
-| F3 | Anlegen oder anbieten? | anlegen (V2); wartend in «zu tun» (O3) |
+| F3 | Anlegen oder anbieten? | anlegen (V2); wartend als Zahl am Symbol und im Feed «zu tun» (O3) |
 | F4 | Kalender oder letzte Erledigung? | fester Kalendertag (wie ein Abo) |
 | F5 | Takte ausser Zeit? | später; nur vorsehen |
-| F6 | Voriger Auftrag noch offen? | nicht anlegen, solange offen; danach sofort |
+| F6 | Voriger Auftrag noch offen? | warten, bis das Stück frei ist, dann sofort; keine Periode geht verloren |
 | F7 | Jeder Kran ein Stück? | ja, auch ein fremder (Artikel + Instanz) |
 | F8 | Service am verkauften Stück eine Abweichung? | nein → V1, Folgen §4 |
 | F9 | Je Einsatz oder Pauschale? | dieselbe Logik, das Abo ist ein Stück (V6) |
@@ -175,3 +229,5 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
 | F11 | Wie endet sie? | jederzeit änderbar und beendbar, ohne Frist |
 | F12 | Ablauf ändert sich? | beenden, neuer Auftrag, neue Wiederkehr |
 | | Darstellung? | Schlaufe im Prozessbild wie die Rückführung, nicht als eigene Karte (V3) |
+| | Was nimmt die Wiederholung? | von Hand gewählt → dieselben, sonst FIFO; da nicht ableitbar: Pflichtwahl je Zeile (V3) |
+| | Zahlung fest oder offen? | was vorher festgelegt ist, gilt; was offen blieb, wird jedes Mal festgelegt (O1) |
