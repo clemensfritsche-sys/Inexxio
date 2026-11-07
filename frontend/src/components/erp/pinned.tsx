@@ -65,7 +65,7 @@ export function Pinned({ objectId }: { objectId: number }) {
       {hints.map((h) => (
         <div key={h.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 2px 6px 10px',
           borderLeft: '1px solid var(--border-1)', fontSize: 13, color: 'var(--fg-2)' }}>
-          <button type="button" disabled={!h.entry_key} onClick={() => toEntry(h.entry_key)}
+          <button type="button" disabled={!h.entry_key} onClick={() => toEntry(h.entry_key ?? null)}
             data-tip={h.entry_key ? 'Im Verlauf zeigen' : undefined}
             style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0,
               font: 'inherit', color: 'inherit', cursor: h.entry_key ? 'pointer' : 'default', overflowWrap: 'anywhere' }}>

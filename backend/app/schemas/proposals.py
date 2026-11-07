@@ -66,7 +66,7 @@ class ProposalSource(BaseModel):
     at: Optional[datetime] = None
 
 
-class ProposalOut(BaseModel):
+class AiProposal(BaseModel):
     """►►► **Ein Vorschlag** – ``id`` ist die Nummer seines Ereignisses im Log. ◄◄◄"""
 
     id: int
@@ -98,7 +98,7 @@ class IntakeOut(BaseModel):
     #: bzw. an der Person).
     parts: list[IntakePart] = []
     #: Was daraus folgt (offene ``change``/``create``).
-    proposals: list[ProposalOut] = []
+    proposals: list[AiProposal] = []
     filed: bool = False
     notes: list[NoteRef] = []
     #: Warum die KI (noch) nicht abgelegt hat – ein Satz, oder leer.
@@ -116,7 +116,7 @@ class PinnedOut(BaseModel):
     """►►► **Das Angeheftete eines Datensatzes** – offene Vorschläge immer zuerst, dann die
     Hinweise der KI (vom letzten «neu ansehen»), ohne die gelösten. ◄◄◄"""
 
-    proposals: list[ProposalOut] = []
+    proposals: list[AiProposal] = []
     hints: list[PinHint] = []
     refreshed_at: Optional[datetime] = None
     problem: Optional[str] = None

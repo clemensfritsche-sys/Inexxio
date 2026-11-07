@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import UserProfile
-from ..schemas.proposals import FileIn, IntakeIn, IntakeOut, PinnedOut, ProposalOut, SolveIn
-from ..services import intake, pins, proposals
+from ..schemas.proposals import FileIn, IntakeIn, IntakeOut, PinnedOut, AiProposal, SolveIn
+from ..services import ai, intake, pins, proposals
 
 router = APIRouter(prefix="/api/v1/erp", tags=["ki"])
 
@@ -25,7 +25,8 @@ def capture(data: IntakeIn, db: Session = Depends(get_db),
     nicht, kommt ein Teil zurück und ``problem`` sagt warum – der Takt holt nach."""
     it = intake.capture(db, data.text, data.hint_object_id, user)
     db.commit()
-    trouble = intake.file_with_ai(db, it, user)
+    with ai.until(50):      # ähnliche Fälle + Ablegen + Bedeutungs-Zahlen: alles unter 60 s
+        trouble = intake.file_with_ai(db, it, user)
     db.commit()
     return intake.view(db, it, problem=trouble)
 
@@ -45,14 +46,14 @@ def file(intake_id: int, data: FileIn, db: Session = Depends(get_db),
     return intake.view(db, it)
 
 
-@router.get("/proposals", response_model=list[ProposalOut])
+@router.get("/proposals", response_model=list[AiProposal])
 def open_proposals(object_id: int = Query(...), db: Session = Depends(get_db),
                    user: UserProfile = Depends(require_employee)):
     """Die offenen Vorschläge an diesem Datensatz."""
     return proposals.open_for(db, object_id, user)
 
 
-@router.post("/proposals/{proposal_id}/reject", response_model=ProposalOut)
+@router.post("/proposals/{proposal_id}/reject", response_model=AiProposal)
 def reject(proposal_id: int, db: Session = Depends(get_db),
            user: UserProfile = Depends(require_employee)):
     """✕ – verworfen."""
@@ -72,7 +73,8 @@ def pinned(object_id: int, db: Session = Depends(get_db),
 def refresh(object_id: int, db: Session = Depends(get_db),
             user: UserProfile = Depends(require_employee)):
     """«Neu ansehen» – die KI wählt die Hinweise neu; offene Vorschläge bleiben."""
-    found = pins.refresh(db, object_id, user)
+    with ai.until(50):
+        found = pins.refresh(db, object_id, user)
     db.commit()
     return found
 

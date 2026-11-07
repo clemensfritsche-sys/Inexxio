@@ -45,8 +45,15 @@ from . import access, communication, records
 #: * ``webauthn_challenges`` – je Anmeldung eine Wegwerf-Frage: Rauschen.
 #: ``documents``/``document_refs`` stehen im Log an der Nummer des **Dokuments** (nicht am
 #: Datensatz, an dem es hängt) – dort sind sie seine eigenen Änderungen, keine Doppelung.
-#: Ereignisse (``action = 'event'``) zeigt er immer.
+#: Ereignisse (``action = 'event'``) zeigt er – ausser denen der KI (``HIDDEN_EVENTS``).
 HIDDEN = frozenset({"messages", "message_parties", "objects", "webauthn_challenges"})
+#: ►► **Die Ereignisse der KI stehen nicht im Verlauf** – sie haben ihren eigenen Ort: eine
+#:    Erfassung in «Abgelegt» (nur für die Person, die erfasst hat), ein Vorschlag und ein
+#:    Hinweis im Angehefteten; was abgelegt wird, steht danach als Notiz da. Im Verlauf wären sie
+#:    dieselbe Sache ein zweites Mal – und der rohe Text einer Erfassung für jeden lesbar. ◄◄
+HIDDEN_EVENTS = frozenset({"intake", "intake.failed", "proposal", "proposal.decided", "pin",
+                           "pin.solved", "mail.followed", "follow.start"})
+_EVENTS = sorted(HIDDEN_EVENTS)
 #: Die Zeiterfassung einer Person sieht nur sie selbst und der Admin.
 PRIVATE = frozenset({"time_entries", "time_contracts"})
 
@@ -134,7 +141,7 @@ _SCAN = 200
 _BLOCKS = text("""
 SELECT request_id, max(at) AS at, max(id) AS id FROM (
   SELECT request_id, at, id FROM log
-   WHERE object_id = :o AND at <= :bat AND (action = 'event' OR table_name <> ALL(:hidden))
+   WHERE object_id = :o AND at <= :bat AND (CASE WHEN action = 'event' THEN event <> ALL(:hidden_events) ELSE table_name <> ALL(:hidden) END)
    ORDER BY at DESC, id DESC LIMIT :scan) w
  GROUP BY request_id
 HAVING (max(at), max(id)) < (:bat, :bid)
@@ -142,26 +149,26 @@ HAVING (max(at), max(id)) < (:bat, :bid)
    -- jüngste Zeile steht – liegt die schon vor dem Cursor, war sie auf einer früheren Seite.
    AND NOT EXISTS (SELECT 1 FROM log l
                     WHERE l.request_id = w.request_id AND l.object_id = :o
-                      AND (l.action = 'event' OR l.table_name <> ALL(:hidden))
+                      AND (CASE WHEN l.action = 'event' THEN l.event <> ALL(:hidden_events) ELSE l.table_name <> ALL(:hidden) END)
                       AND (l.at, l.id) >= (:bat, :bid))
  ORDER BY 2 DESC, 3 DESC LIMIT :n""")
 
 _ROWS = text("""
 SELECT request_id, actor_kind, actor_id, source, action, table_name, row_key, event,
        changes, payload FROM log
- WHERE object_id = :o AND request_id::text = ANY(:r) AND (action = 'event' OR table_name <> ALL(:hidden))
+ WHERE object_id = :o AND request_id::text = ANY(:r) AND (CASE WHEN action = 'event' THEN event <> ALL(:hidden_events) ELSE table_name <> ALL(:hidden) END)
  ORDER BY id""")
 
 
 def _changes(db: Session, oid: int, hidden: list[str], before: Optional[Key], n: int
              ) -> list[HistoryEntry]:
     bound = _bound(before, "change") or (datetime(9999, 1, 1, tzinfo=timezone.utc), _BIG)
-    blocks = db.execute(_BLOCKS, {"o": oid, "hidden": hidden, "bat": bound[0],
+    blocks = db.execute(_BLOCKS, {"o": oid, "hidden": hidden, "hidden_events": _EVENTS, "bat": bound[0],
                                   "bid": bound[1], "n": n, "scan": n * _SCAN}).all()
     if not blocks:
         return []
     rows: dict[Any, list[Any]] = {}
-    for r in db.execute(_ROWS, {"o": oid, "hidden": hidden,
+    for r in db.execute(_ROWS, {"o": oid, "hidden": hidden, "hidden_events": _EVENTS,
                                 "r": [str(b.request_id) for b in blocks]}):
         rows.setdefault(r.request_id, []).append(r)
     actors = _names(db, {r[0].actor_id for r in rows.values() if r[0].actor_id})

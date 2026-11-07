@@ -172,3 +172,20 @@ def test_a_refusing_vertex_is_asked_once_an_hour_not_every_tick(db, monkeypatch)
     assert ai.embed(db, "x", actor=None) is None and "setup-vertex" in ai.problem()
     assert ai.embed(db, "y", actor=None) is None and len(calls) == 1
     assert "in einer Stunde" in ai.problem()
+
+
+def test_a_flow_with_a_time_limit_never_gives_a_call_more_time(db, monkeypatch):
+    """Cloud Scheduler und Firebase Hosting warten 60 s – ``ai.until`` kürzt jeden Aufruf darin.
+    Bug-Form: ein Aufruf nimmt seine eigene Grenze (45 s), obwohl nur noch 10 s bleiben."""
+    staff = new_person(db, "employee")
+    seen = []
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
+    monkeypatch.setattr(ai, "_client", lambda timeout, retries: seen.append(timeout) or _Script(
+        _answer(parsed=Out(answer="ok"))))
+    with ai.until(10):
+        assert ai.converse(db, task="file", actor=staff, system="s", schema=Out, content=[])
+    assert 0 < seen[0] <= 10
+    with ai.until(1):
+        assert ai.converse(db, task="file", actor=staff, system="s", schema=Out, content=[]) is None
+    assert "zu lange" in ai.problem()

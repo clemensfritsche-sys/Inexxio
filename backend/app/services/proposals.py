@@ -34,7 +34,7 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from ..models import CompanySettings, UserProfile
-from ..schemas.proposals import DraftOut, IntakePart, ProposalOut, ProposalSource
+from ..schemas.proposals import DraftOut, IntakePart, AiProposal, ProposalSource
 from . import log, records
 
 #: ►►► **Was ein ``change`` ändern darf – je Typ die Felder und ihr Wort.** ◄◄◄ Nur Spalten der
@@ -467,7 +467,7 @@ def part_out(p: dict[str, Any], names: dict[int, Any]) -> IntakePart:
                       text=str(p.get("text") or ""), subject=str(p.get("subject") or ""))
 
 
-def out(db: Session, found: list[Proposal]) -> list[ProposalOut]:
+def out(db: Session, found: list[Proposal]) -> list[AiProposal]:
     """Die Vorschläge, wie die Oberfläche sie zeigt – mit Namen und heutigem Wert."""
     ids = {p.object_id for p in found}
     for p in found:
@@ -481,7 +481,7 @@ def out(db: Session, found: list[Proposal]) -> list[ProposalOut]:
         src = p.source
         draft = p.payload.get("draft")
         parts = p.payload.get("parts")
-        result.append(ProposalOut(
+        result.append(AiProposal(
             id=p.id, at=p.at, object_id=p.object_id, object_label=name.label if name else "",
             kind=p.kind, field=field, label=str(p.payload.get("label") or ""),
             value=p.payload.get("value"),
@@ -500,6 +500,6 @@ def visible(db: Session, found: list[Proposal], viewer: UserProfile) -> list[Pro
             or may_see(db, int(p.source.get("intake") or 0), viewer)]
 
 
-def open_for(db: Session, object_id: int, viewer: UserProfile) -> list[ProposalOut]:
+def open_for(db: Session, object_id: int, viewer: UserProfile) -> list[AiProposal]:
     """►►► **Die offenen Vorschläge an einem Datensatz** – für Feld, Angeheftetes, «zu tun». ◄◄◄"""
     return out(db, visible(db, open_list(db, object_id), viewer))

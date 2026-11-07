@@ -46,6 +46,32 @@ T = TypeVar("T", bound=BaseModel)
 
 #: Warum der letzte Aufruf in dieser Anfrage keinen Vorschlag brachte – leer, wenn er einen brachte.
 _PROBLEM: ContextVar[str] = ContextVar("ai_problem", default="")
+#: Bis wann (``time.monotonic``) alle Aufrufe in diesem Ablauf fertig sein müssen – ``ai.until``.
+_UNTIL: ContextVar[Optional[float]] = ContextVar("ai_until", default=None)
+
+
+class until:
+    """►► **Eine Zeitgrenze für alles, was in einem Ablauf an die KI geht** – ``with
+    ai.until(seconds):``. Eine Anfrage über Firebase Hosting bricht nach 60 s ab, ein Lauf des
+    Takts ebenso (Cloud Scheduler); jeder Aufruf darin (Ablegen, Bedeutungs-Zahlen, Folgen)
+    bekommt nur noch die Zeit, die bleibt. ◄◄"""
+
+    def __init__(self, seconds: float):
+        self.at = _time.monotonic() + seconds
+
+    def __enter__(self) -> "until":
+        current = _UNTIL.get()
+        self._token = _UNTIL.set(self.at if current is None else min(current, self.at))
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        _UNTIL.reset(self._token)
+
+
+def _left(limit: float) -> float:
+    """Wie lange ein Aufruf noch dauern darf – seine eigene Grenze oder die des Ablaufs."""
+    end = _UNTIL.get()
+    return limit if end is None else min(limit, end - _time.monotonic())
 
 
 def problem() -> str:
@@ -295,7 +321,7 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
         extra["tools"] = [t.spec() for t in by_name.values()]
     if spec.effort:
         extra["output_config"] = {"effort": spec.effort}
-    deadline = _time.monotonic() + spec.timeout
+    deadline = _time.monotonic() + _left(spec.timeout)
     for turn in range(1, max(1, spec.rounds) + 1):
         if not available(db):
             _PROBLEM.set("Der Tagesdeckel der KI ist erreicht – morgen wieder.")
@@ -388,6 +414,10 @@ def embed(db: Session, text: str, *, actor: Optional[UserProfile], query: bool =
     if cap > 0 and spent_today(db) >= cap:
         _PROBLEM.set("Der Tagesdeckel der KI ist erreicht – morgen wieder.")
         return None
+    wait = _left(20.0)
+    if wait < 2:
+        _PROBLEM.set("Keine Zeit mehr für Bedeutungs-Zahlen – der Takt holt sie nach.")
+        return None
     region = settings.vertex_region
     url = (f"https://{region}-aiplatform.googleapis.com/v1/projects/{settings.vertex_project}"
            f"/locations/{region}/publishers/google/models/{EMBED_MODEL}:predict")
@@ -397,7 +427,7 @@ def embed(db: Session, text: str, *, actor: Optional[UserProfile], query: bool =
     usage: dict[str, Any] = {}
     values: Optional[list[float]] = None
     try:
-        r = _vertex_session().post(url, data=json.dumps(body), timeout=20,
+        r = _vertex_session().post(url, data=json.dumps(body), timeout=wait,
                                    headers={"Content-Type": "application/json"})
         if r.status_code != 200:
             usage = {"error": "http", "status": r.status_code}

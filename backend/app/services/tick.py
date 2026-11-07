@@ -31,6 +31,8 @@ from ..core.actor import system_session
 
 #: Danach beginnt der Takt nichts Neues mehr (Sekunden ab Beginn des Laufs).
 START_WITHIN = 20.0
+#: Bis dahin muss auch die KI fertig sein (Sekunden ab Beginn) – Cloud Scheduler wartet 60 s.
+FINISH_WITHIN = 50.0
 
 #: Der Namensraum der Sperren des Takts (erste Hälfte des Advisory-Locks mit zwei Schlüsseln).
 LOCK_SPACE = 778_899
@@ -75,6 +77,13 @@ def _ai(db, deadline: float) -> dict[str, int]:
     keine KI, läuft immer) · offene Erfassungen ohne Vorschlag nachholen · neue Mails auf ihre
     Folgen prüfen · fehlende Bedeutungs-Zahlen nachholen. Am Deckel nur das Erste. Jeder
     Schritt committet für sich – ein Ausfall der KI nimmt das Getane nicht zurück."""
+    import time as _t
+    from . import ai
+    with ai.until(deadline - _t.monotonic() + FINISH_WITHIN - START_WITHIN):
+        return _ai_steps(db, deadline)
+
+
+def _ai_steps(db, deadline: float) -> dict[str, int]:
     import time as _t
     from . import ai, follow, intake, memory, proposals
     done = {"decided": proposals.settle(db)}

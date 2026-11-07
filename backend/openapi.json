@@ -3827,7 +3827,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/app__schemas__documents__ProposalOut"
+                  "$ref": "#/components/schemas/ProposalOut"
                 }
               }
             }
@@ -6648,7 +6648,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/app__schemas__proposals__ProposalOut"
+                    "$ref": "#/components/schemas/AiProposal"
                   },
                   "title": "Response Open Proposals Api V1 Erp Proposals Get"
                 }
@@ -6698,7 +6698,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/app__schemas__proposals__ProposalOut"
+                  "$ref": "#/components/schemas/AiProposal"
                 }
               }
             }
@@ -7238,6 +7238,112 @@
           "is_default_billing"
         ],
         "title": "AddressOut"
+      },
+      "AiProposal": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "object_label": {
+            "type": "string",
+            "title": "Object Label",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "change",
+              "create",
+              "file"
+            ],
+            "title": "Kind"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parts": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/IntakePart"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parts"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProposalSource"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "object_id",
+          "kind",
+          "source"
+        ],
+        "title": "AiProposal",
+        "description": "►►► **Ein Vorschlag** – ``id`` ist die Nummer seines Ereignisses im Log. ◄◄◄"
       },
       "ArtOut": {
         "properties": {
@@ -11326,7 +11432,7 @@
           },
           "proposals": {
             "items": {
-              "$ref": "#/components/schemas/app__schemas__proposals__ProposalOut"
+              "$ref": "#/components/schemas/AiProposal"
             },
             "type": "array",
             "title": "Proposals",
@@ -13064,7 +13170,7 @@
         "properties": {
           "proposals": {
             "items": {
-              "$ref": "#/components/schemas/app__schemas__proposals__ProposalOut"
+              "$ref": "#/components/schemas/AiProposal"
             },
             "type": "array",
             "title": "Proposals",
@@ -13370,6 +13476,84 @@
         ],
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus\n``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert."
+      },
+      "ProposalOut": {
+        "properties": {
+          "art": {
+            "type": "string",
+            "title": "Art",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "keywords": {
+            "type": "string",
+            "title": "Keywords",
+            "default": ""
+          },
+          "facts": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Facts",
+            "default": {}
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedRef"
+            },
+            "type": "array",
+            "title": "Refs",
+            "default": []
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "default": ""
+          },
+          "read": {
+            "type": "boolean",
+            "title": "Read",
+            "default": false
+          },
+          "ai": {
+            "type": "boolean",
+            "title": "Ai",
+            "default": false
+          },
+          "ai_problem": {
+            "type": "string",
+            "title": "Ai Problem",
+            "default": ""
+          },
+          "values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Values",
+            "default": {}
+          },
+          "requirement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requirement"
+          }
+        },
+        "type": "object",
+        "title": "ProposalOut",
+        "description": "Der Vorschlag für einen Entwurf – nichts davon ist gespeichert."
       },
       "ProposalSource": {
         "properties": {
@@ -18235,190 +18419,6 @@
         ],
         "title": "VoucherWay",
         "description": "►►► **Ein Weg zum Geld – und was er auslöst.** ◄◄◄\n\nBar · Überweisung · Karte sind drei Antworten auf **eine** Frage. Jeder Weg trägt\ndarum sein eigenes Verb: ``action`` ist die Handlung am Beleg (``pay`` ↔\n``pay_online``), ``verb`` ihr Wort. **Beide leer** heisst: dieser Weg ist eine reine\n*Auskunft* – so sieht die Gegenpartei die Überweisung, und dort steht kein Knopf, der\nnach Buchung aussieht."
-      },
-      "app__schemas__documents__ProposalOut": {
-        "properties": {
-          "art": {
-            "type": "string",
-            "title": "Art",
-            "default": ""
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "default": ""
-          },
-          "text": {
-            "type": "string",
-            "title": "Text",
-            "default": ""
-          },
-          "keywords": {
-            "type": "string",
-            "title": "Keywords",
-            "default": ""
-          },
-          "facts": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Facts",
-            "default": {}
-          },
-          "refs": {
-            "items": {
-              "$ref": "#/components/schemas/ProposedRef"
-            },
-            "type": "array",
-            "title": "Refs",
-            "default": []
-          },
-          "why": {
-            "type": "string",
-            "title": "Why",
-            "default": ""
-          },
-          "read": {
-            "type": "boolean",
-            "title": "Read",
-            "default": false
-          },
-          "ai": {
-            "type": "boolean",
-            "title": "Ai",
-            "default": false
-          },
-          "ai_problem": {
-            "type": "string",
-            "title": "Ai Problem",
-            "default": ""
-          },
-          "values": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Values",
-            "default": {}
-          },
-          "requirement": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Requirement"
-          }
-        },
-        "type": "object",
-        "title": "ProposalOut",
-        "description": "Der Vorschlag für einen Entwurf – nichts davon ist gespeichert."
-      },
-      "app__schemas__proposals__ProposalOut": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "At"
-          },
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "object_label": {
-            "type": "string",
-            "title": "Object Label",
-            "default": ""
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "change",
-              "create",
-              "file"
-            ],
-            "title": "Kind"
-          },
-          "field": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Field"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "default": ""
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          },
-          "current": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current"
-          },
-          "draft": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DraftOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "parts": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/IntakePart"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parts"
-          },
-          "source": {
-            "$ref": "#/components/schemas/ProposalSource"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "at",
-          "object_id",
-          "kind",
-          "source"
-        ],
-        "title": "ProposalOut",
-        "description": "►►► **Ein Vorschlag** – ``id`` ist die Nummer seines Ereignisses im Log. ◄◄◄"
       }
     },
     "securitySchemes": {

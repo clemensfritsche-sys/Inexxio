@@ -23,7 +23,7 @@ def _vector(word: str) -> list[float]:
 def _fake_vertex(monkeypatch):
     monkeypatch.setattr(get_settings(), "vertex_project", "test")
 
-    def embed(db, text, *, actor, query=False):
+    def embed(db, text, *, actor, query=False, **kw):
         word = "schlauch" if "schlauch" in text.lower() else "telefon" if "telefon" in text.lower() else text
         return _vector(word)
     monkeypatch.setattr(ai, "embed", embed)
