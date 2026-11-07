@@ -155,3 +155,20 @@ def test_without_vertex_there_are_no_meaning_numbers_but_no_error(db, monkeypatc
     monkeypatch.setattr(get_settings(), "vertex_project", "")
     assert ai.embed(db, "Hydraulikschlauch geplatzt", actor=None) is None
     assert "nicht eingerichtet" in ai.problem()
+
+
+def test_a_refusing_vertex_is_asked_once_an_hour_not_every_tick(db, monkeypatch):
+    """Bug-Form: ohne Einrichtung stünde jeder Takt einen Fehlversuch mehr im Log."""
+    calls = []
+
+    class Session:
+        def post(self, *a, **kw):
+            calls.append(1)
+            return SimpleNamespace(status_code=403, text="denied")
+
+    monkeypatch.setattr(get_settings(), "vertex_project", "p")
+    monkeypatch.setattr(ai, "_vertex_session", lambda: Session())
+    monkeypatch.setattr(ai, "_embed_paused_until", 0.0)
+    assert ai.embed(db, "x", actor=None) is None and "setup-vertex" in ai.problem()
+    assert ai.embed(db, "y", actor=None) is None and len(calls) == 1
+    assert "in einer Stunde" in ai.problem()

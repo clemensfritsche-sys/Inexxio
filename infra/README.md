@@ -168,6 +168,25 @@ keinen Alarm aus.
 Cloud Run rechnet nur während der Anfrage (288 Aufrufe am Tag à 1–2 s liegen im
 Gratis-Kontingent), die Kennzahl und der Alarm kosten nichts.
 
+## Das Lernen der KI (Vertex AI)
+
+Die KI bekommt vor jedem Vorschlag die ähnlichsten früheren Fälle mit (Projektakte «Die lernende
+Firma» §4.3). «Ähnlich» rechnen **Bedeutungs-Zahlen** von Vertex AI (`gemini-embedding-001`,
+768 Zahlen, Region `europe-west3` Frankfurt – Eingaben nicht zum Training); gesucht wird mit
+**pgvector** in der eigenen Datenbank (Migration 170, Tabelle `ai_memory`). Der Deploy setzt
+`VERTEX_PROJECT` auf das Projekt; angemeldet ist das Backend über sein eigenes Konto
+(`cloudrun-backend@`), ohne Schlüssel.
+
+Einmal je Projekt in Cloud Shell:
+
+```bash
+bash infra/setup-vertex.sh inexxio-dev
+```
+
+Es schaltet Vertex AI ein und gibt `cloudrun-backend@` die Rolle `roles/aiplatform.user`. Ohne
+das geht alles – nur die ähnlichen Fälle fehlen; nach einer Abweisung fragt das Backend eine
+Stunde lang nicht mehr (kein Fehlversuch je Takt im Log). Kosten: Rappen im Monat.
+
 ## Anmeldung der Deploys ohne Schlüssel (Workload Identity)
 
 GitHub meldet sich bei Google mit einem kurzlebigen Token an, das nur für dieses Repository

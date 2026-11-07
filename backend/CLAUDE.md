@@ -299,7 +299,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 ## Env-Variablen
 `/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,
 `FIREBASE_PROJECT_ID`. Optional: `INITIAL_ADMIN_EMAIL`, `GOOGLE_CLIENT_ID`/`_SECRET`
-(Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP`
+(Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP_CHF` (Deckel in Franken), `VERTEX_PROJECT`/`VERTEX_REGION` (Bedeutungs-Zahlen, setzt der Deploy; einmal `infra/setup-vertex.sh`)
 (KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB), `LINK_SECRET` (signierte Links, `core/signed`; leer = abgeleitet aus `DATABASE_URL`, Warnung im Log), `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` (der Takt, setzt der Deploy; leer = kein Takt, 503). Secrets nie im Repo.
 
 ## Tote Stellen finden

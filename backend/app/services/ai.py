@@ -343,8 +343,14 @@ EMBED_MODEL = "gemini-embedding-001"
 EMBED_DIMS = 768
 
 
+#: Nach einer Abweisung (nicht eingerichtet, kein Recht, Modell unbekannt) wird eine Stunde
+#: lang nicht mehr gefragt – sonst stünde jeder Takt einen Fehlversuch mehr im Log.
+_EMBED_PAUSE_S = 3600.0
+_embed_paused_until = 0.0
+
+
 def embed_ready() -> bool:
-    return bool(get_settings().vertex_project)
+    return bool(get_settings().vertex_project) and _time.monotonic() >= _embed_paused_until
 
 
 def _vertex_session():
@@ -372,8 +378,11 @@ def embed(db: Session, text: str, *, actor: Optional[UserProfile], query: bool =
     sucht (die Frage), sonst wird er gefunden (der Fall). Ein ``ai.call`` wie jeder Aufruf. ◄◄◄"""
     _PROBLEM.set("")
     settings = get_settings()
-    if not embed_ready():
+    if not settings.vertex_project:
         _PROBLEM.set("Bedeutungs-Zahlen sind nicht eingerichtet (VERTEX_PROJECT fehlt).")
+        return None
+    if not embed_ready():
+        _PROBLEM.set("Vertex AI hat eben abgewiesen – in einer Stunde wieder (infra/setup-vertex.sh).")
         return None
     cap = cap_chf()
     if cap > 0 and spent_today(db) >= cap:
@@ -393,6 +402,9 @@ def embed(db: Session, text: str, *, actor: Optional[UserProfile], query: bool =
         if r.status_code != 200:
             usage = {"error": "http", "status": r.status_code}
             _PROBLEM.set(_vertex_problem(r.status_code, r.text))
+            if r.status_code in (401, 403, 404):
+                global _embed_paused_until
+                _embed_paused_until = _time.monotonic() + _EMBED_PAUSE_S
         else:
             pred = r.json()["predictions"][0]["embeddings"]
             values = [float(v) for v in pred["values"]]
