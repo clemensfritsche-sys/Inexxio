@@ -110,3 +110,21 @@ test('Phase 3: wer ein Feld ändert, lädt die Vorschläge nach; Erfassen und �
   // Prüfen bleibt ohne Folgen – auch für die Vorschläge.
   assert.deepEqual([...areas(`${API}/erp/orders/validate`)], []);
 });
+
+test('Phase 4: ein Stück der Aufnahme lädt nichts nach, «weiter abschreiben» wie eine Erfassung', () => {
+  const areas = (p) => new Set(touchedBy(p));
+  const rec = 4711;
+  // Alle 30 s ein Stück – lüde es alles nach (unbekannt → alle), liefe der Feed während eines
+  // Meetings im Kreis.
+  assert.deepEqual([...areas(`${API}/erp/recordings/${rec}/chunks`)], []);
+  for (const d of ['intake', 'recordings', 'todo', 'proposals', 'history']) {
+    assert.ok(areas(`${API}/erp/recordings/${rec}/advance`).has(d), d);
+  }
+  for (const p of [`${API}/erp/recordings`, `${API}/erp/recordings/${rec}/stop`]) {
+    assert.ok(areas(p).has('recordings') && areas(p).has('todo'), p);
+  }
+  // `*` ist genau EIN Pfadteil – nicht null, nicht zwei.
+  assert.ok(areas(`${API}/erp/recordings/${rec}/x/chunks`).has('recordings'));
+  assert.ok(areas(`${API}/erp/recordings//chunks`).has('recordings'));
+  assert.ok(areas(`${API}/erp/recordings/${rec}/chunks/x`).has('recordings'));
+});

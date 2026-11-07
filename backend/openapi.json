@@ -6870,6 +6870,248 @@
         }
       }
     },
+    "/api/v1/erp/recordings": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Start",
+        "description": "**Eine Aufnahme beginnt** – am offenen Datensatz (Hinweis), sonst an der Person.",
+        "operationId": "start_api_v1_erp_recordings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/recordings/open": {
+      "get": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Open Recordings",
+        "description": "Meine Aufnahmen, die nicht fertig sind.",
+        "operationId": "open_recordings_api_v1_erp_recordings_open_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Recording"
+                  },
+                  "type": "array",
+                  "title": "Response Open Recordings Api V1 Erp Recordings Open Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/recordings/{recording_id}/chunks": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Chunk",
+        "description": "**Ein Stück** (alle 30 s) – höchstens 4 MB; dasselbe Stück zweimal ersetzt es.",
+        "operationId": "chunk_api_v1_erp_recordings__recording_id__chunks_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_chunk_api_v1_erp_recordings__recording_id__chunks_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/recordings/{recording_id}/stop": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Stop",
+        "description": "**Stopp** – mit der Zahl der Abschnitte.",
+        "operationId": "stop_api_v1_erp_recordings__recording_id__stop_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/recordings/{recording_id}/advance": {
+      "post": {
+        "tags": [
+          "ki"
+        ],
+        "summary": "Advance",
+        "description": "**Weiter abschreiben**, so weit die Zeit reicht (unter den 60 s von Firebase Hosting) –\ndie Oberfläche fragt nach, bis ``state`` ``done`` oder ``failed`` ist.",
+        "operationId": "advance_api_v1_erp_recordings__recording_id__advance_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/internal/tick": {
       "post": {
         "tags": [
@@ -8225,6 +8467,30 @@
         ],
         "title": "BelegView",
         "description": "**Was die Seite zeigt** – das eingefrorene Papier, der Weg, die Handlungen."
+      },
+      "Body_chunk_api_v1_erp_recordings__recording_id__chunks_post": {
+        "properties": {
+          "segment": {
+            "type": "integer",
+            "title": "Segment"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment",
+          "seq",
+          "file"
+        ],
+        "title": "Body_chunk_api_v1_erp_recordings__recording_id__chunks_post"
       },
       "Body_file_document_api_v1_erp_documents_post": {
         "properties": {
@@ -12689,7 +12955,7 @@
           },
           "text": {
             "type": "string",
-            "maxLength": 20000,
+            "maxLength": 200000,
             "title": "Text"
           },
           "subject": {
@@ -13997,6 +14263,116 @@
         "title": "RecordValue",
         "description": "Ein erfasster Wert — **mit seiner Frage**, nicht nur mit seinem Schlüssel."
       },
+      "Recording": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "hint_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Object Id"
+          },
+          "mime": {
+            "type": "string",
+            "title": "Mime"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "recording",
+              "transcribing",
+              "filing",
+              "done",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "segments": {
+            "type": "integer",
+            "title": "Segments",
+            "default": 0
+          },
+          "transcribed": {
+            "type": "integer",
+            "title": "Transcribed",
+            "default": 0
+          },
+          "seconds": {
+            "type": "integer",
+            "title": "Seconds",
+            "default": 0
+          },
+          "intake": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntakeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "mime",
+          "state"
+        ],
+        "title": "Recording",
+        "description": "►►► **Eine Aufnahme** – ``id`` ist die Nummer ihres ``recording.start`` im Log. ◄◄◄\n\n``state``: ``recording`` (kein Stopp, nicht abgebrochen) · ``transcribing`` (gestoppt,\nAbschnitte fehlen) · ``filing`` (Text da, die Erfassung entsteht) · ``done`` (die Erfassung\ngibt es, ``intake`` gesetzt) · ``failed`` (``problem``)."
+      },
+      "RecordingIn": {
+        "properties": {
+          "hint_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Object Id"
+          },
+          "mime": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Mime"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mime"
+        ],
+        "title": "RecordingIn",
+        "description": "**Eine Aufnahme beginnen** – der Datensatz, der offen war (Hinweis), und die Sorte, die\nder Browser aufnimmt (``audio/webm;codecs=opus``, Safari ``audio/mp4``)."
+      },
       "RefIn": {
         "properties": {
           "object_id": {
@@ -14561,6 +14937,21 @@
         ],
         "title": "StockState",
         "description": "Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.\n\nDie Aufstellung ersetzt den Zustand, den eine Gruppe nicht haben kann: nicht «diese\nInstanz ist freigegeben», sondern «3 freigegeben, 1 im Prozess».\n\n``stock`` sagt, in welchen Block das Segment gehört – ``live`` (aktueller Bestand),\n``history`` (nur noch Datensatz) oder ``unknown``. **Die Zuordnung kommt vom\nServer**, weil sie eine Eigenschaft des Status ist (``domain/statuses.Status.stock``)\nund keine Liste, die eine Oberfläche pflegt. Ein neuer Status wird damit an genau\neiner Stelle ergänzt, und die Bestandsansicht folgt ohne Änderung."
+      },
+      "StopIn": {
+        "properties": {
+          "segments": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Segments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segments"
+        ],
+        "title": "StopIn",
+        "description": "**Stopp** – wie viele Abschnitte (je 5 Minuten, ab 0 gezählt) es gab."
       },
       "SwipeIn": {
         "properties": {

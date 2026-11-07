@@ -372,7 +372,27 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   Ablegen und Folgen gehen die ähnlichsten mit Entscheid in die Anfrage. Ohne Vertex keine
   Fälle, sonst nichts.
 - **Deckel in Franken** (`AI_DAILY_CAP_CHF`, 10 je Schweizer Tag, Preise in `ai.PRICES`); ab 80 %
-  ein Hinweis in «zu tun» des Admins (am Betreiber); am Deckel bleibt die Eingabe roh.
+  ein Hinweis in «zu tun» des Admins (am Betreiber, mit Betrag; am Deckel rot); am Deckel bleibt
+  die Eingabe roh.
+- **Sprache** (Phase 4, `docs/konzept/phase4-bauplan.md`, `services/recordings.py`,
+  `components/erp/capture/recorder.tsx`): «Aufnehmen» im «+» (Zeit, Pegel, Stopp; Bildschirm
+  bleibt an). Der Browser schickt **alle 30 s ein Stück**, je **5 Minuten ein Abschnitt** (eine
+  eigene Datei); ein Stück wird wiederholt, solange die Seite lebt (aufgegeben nur bei einer
+  Abweisung); fällt das Mikrofon aus, endet die Aufnahme sauber. Bricht sie ab, gilt sie nach
+  **30 Minuten Ruhe** als gestoppt – nichts bis dahin geht verloren. **Gemini** (Vertex AI, `ai.transcribe`, `gemini-3.5-flash`, dieselbe Tür
+  und derselbe Deckel) schreibt je Abschnitt ab – Hochdeutsch in Schweizer Schreibweise, auch bei
+  Mundart; der Text wird **eine Erfassung im Namen der Person**, danach wie beim Schreiben.
+  Was sich nicht abschreiben lässt (kein Stück 0, über 15 MB, zweimal abgelehnt, sechsmal
+  gescheitert), wird **mit Vermerk** «[Abschnitt n: …]» übersprungen. Aus einer Aufnahme legt die
+  KI in **Bereichen nummerierter Absätze** ab; den Text baut der Code wörtlich
+  (`intake.spoken_parts`). **Vom Gesprochenen bleibt nur der Text:** die Stücke
+  (`recording_chunks`, Bytes über `attachments.put_object` in einem **eigenen Bucket ohne Soft
+  Delete** `RECORDINGS_BUCKET`, sonst in der Zeile – nie im Datei-Bucket; nicht im Log) gehen nach
+  der Abschrift, spätestens nach einem Tag (Takt `voice`; dazu die Regel im Bucket,
+  `infra/setup-sprache.sh`) – was bis dahin abgeschrieben ist, bleibt als Erfassung. Gescheiterte
+  Aufnahmen stehen sieben Tage mit Grund im «+». `recordings.advance` treibt eine Aufnahme so weit, wie
+  die Zeit reicht – in der Anfrage («schreibt ab …») und im Takt. Eine Aufnahme sieht nur, wer
+  aufnahm (und der Admin).
 
 ## Zeiterfassung
 
@@ -695,7 +715,7 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   (Blatterkennung, mehrere Seiten → PDF) · Datei · Verfassen (KI); Lesen, Stichworte und
   Zuordnung durch die KI als Vorschlag; Pflichtfelder in Zahlung, Zeiterfassung, Datenerfassung
   und Gesellschaft; Senden je Empfänger mit Link ohne Ablauf, Unterschreiben auf `/dokument`.
-- **Die KI** (Phase 3): Erfassen mit «+» (Schreiben, Foto, Datei), Ablegen in Teilen mit
+- **Die KI** (Phasen 3 und 4): Erfassen mit «+» (Aufnehmen, Schreiben, Foto, Datei), Ablegen in Teilen mit
   «Stimmt so», Vorschläge am Feld und im Angehefteten, Folgen aus Mails, Hinweise auf Abruf,
   Lernen aus entschiedenen Fällen, Deckel in Franken (siehe «Die KI»).
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung; Skill `feedback`).
@@ -713,7 +733,7 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 - Zeiterfassung: Export für die Lohnbuchhaltung, Schichtpläne (`docs/zeiterfassung-spezifikation.md` §12).
 - Dokumente: automatische Freigabe einzelner Papiere (`voucher.AUTO_RELEASE`); Zugriff von
   aussen auf Dokumente (heute nur über einen Link).
-- Die KI: Sprache (Aufnehmen, Gemini, Phase 4 der Akte) · Lektionen (ab ~100 Fällen) ·
+- Die KI: Lektionen (ab ~100 Fällen) ·
   «Notiz gehört woandershin» als Handlung (`communication.move_note` steht bereit).
 - Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop
   (`docs/backlog.md`), offene-Posten-Liste je Partner, TOTP-MFA.

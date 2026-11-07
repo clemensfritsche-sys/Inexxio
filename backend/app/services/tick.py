@@ -108,12 +108,39 @@ def _ai_steps(db, deadline: float) -> dict[str, int]:
     return done
 
 
+#: So viele Aufnahmen schaut ein Lauf höchstens an (jede nur, solange Zeit ist).
+VOICE_PER_RUN = 10
+
+
+def _voice(db, deadline: float) -> dict[str, int]:
+    """**Aufnahmen ohne Browser zu Ende bringen** (Phase 4): zuerst aufräumen (braucht keine KI,
+    läuft immer – kein Audio bleibt länger als einen Tag), dann gestoppte oder abgebrochene
+    Aufnahmen abschreiben und erfassen, solange Zeit ist (``recordings.advance`` committet je
+    Schritt)."""
+    import time as _t
+    from . import ai, recordings
+    done = recordings.sweep(db)
+    db.commit()
+    with ai.until(deadline - _t.monotonic() + FINISH_WITHIN - START_WITHIN):
+        for rid in recordings.due(db, VOICE_PER_RUN):
+            if _t.monotonic() >= deadline:
+                break
+            recordings.advance(db, rid)
+            if recordings.load(db, rid).end is not None:
+                done["finished"] = done.get("finished", 0) + 1
+    return done
+
+
 #: ►► **Die Aufgaben des Takts, in dieser Reihenfolge.** Das Siegel zuerst: es dauert
-#:    Millisekunden und darf nie hinter einem langsamen Postfach warten. Die KI zuletzt: sie
-#:    braucht am längsten und wartet auf die Mails, die der Abgleich eben holte.
+#:    Millisekunden und darf nie hinter einem langsamen Postfach warten. Dann die Aufnahmen
+#:    (``voice``): eine eigene Aufgabe mit eigener Sperre – das Aufräumen läuft auch, wenn die KI
+#:    scheitert, und ein Mensch wartet auf seinen Text; vor der KI, weil ein langes Ablegen oder
+#:    Folgen sonst jeden Lauf die Zeit nähme. Die KI zuletzt: sie braucht am längsten, wartet auf
+#:    die Mails, die der Abgleich eben holte, und legt ab, was ``voice`` eben erfasste.
 TASKS: tuple[Task, ...] = (
     Task("seal", _seal),
     Task("mail", _mail),
+    Task("voice", _voice),
     Task("ai", _ai),
 )
 

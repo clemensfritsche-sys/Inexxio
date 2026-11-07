@@ -53,7 +53,11 @@ HIDDEN = frozenset({"messages", "message_parties", "objects", "webauthn_challeng
 #:    dieselbe Sache ein zweites Mal – und der rohe Text einer Erfassung für jeden lesbar. ◄◄
 HIDDEN_EVENTS = frozenset({"intake", "intake.failed", "proposal", "proposal.decided", "pin",
                            "pin.solved", "mail.followed", "mail.follow_failed",
-                           "follow.start"})
+                           "follow.start",
+                           # Phase 4: eine Aufnahme ist privat, bis sie eine Erfassung wird
+                           # (dann wie oben) – ihre Abschrift stünde sonst für jeden da.
+                           "recording.start", "recording.stop", "recording.segment",
+                           "recording.segment_failed", "recording.done", "recording.failed"})
 _EVENTS = sorted(HIDDEN_EVENTS)
 #: Die Zeiterfassung einer Person sieht nur sie selbst und der Admin.
 PRIVATE = frozenset({"time_entries", "time_contracts"})

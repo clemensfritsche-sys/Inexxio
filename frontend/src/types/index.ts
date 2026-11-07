@@ -307,3 +307,7 @@ export type IntakePart = components['schemas']['IntakePart'];
 export type Proposal = components['schemas']['AiProposal'];
 export type Intake = components['schemas']['IntakeOut'];
 export type Pinned = components['schemas']['PinnedOut'];
+
+/** Eine **Aufnahme** (Phase 4): Nummer = Log-Id von `recording.start`; `intake`, sobald
+ *  abgelegt bereit (`docs/konzept/phase4-bauplan.md`). */
+export type Recording = components['schemas']['Recording'];

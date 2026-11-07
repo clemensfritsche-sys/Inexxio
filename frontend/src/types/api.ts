@@ -2502,6 +2502,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/recordings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start
+         * @description **Eine Aufnahme beginnt** – am offenen Datensatz (Hinweis), sonst an der Person.
+         */
+        post: operations["start_api_v1_erp_recordings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/recordings/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open Recordings
+         * @description Meine Aufnahmen, die nicht fertig sind.
+         */
+        get: operations["open_recordings_api_v1_erp_recordings_open_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/recordings/{recording_id}/chunks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chunk
+         * @description **Ein Stück** (alle 30 s) – höchstens 4 MB; dasselbe Stück zweimal ersetzt es.
+         */
+        post: operations["chunk_api_v1_erp_recordings__recording_id__chunks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/recordings/{recording_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop
+         * @description **Stopp** – mit der Zahl der Abschnitte.
+         */
+        post: operations["stop_api_v1_erp_recordings__recording_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/recordings/{recording_id}/advance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Advance
+         * @description **Weiter abschreiben**, so weit die Zeit reicht (unter den 60 s von Firebase Hosting) –
+         *     die Oberfläche fragt nach, bis ``state`` ``done`` oder ``failed`` ist.
+         */
+        post: operations["advance_api_v1_erp_recordings__recording_id__advance_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/tick": {
         parameters: {
             query?: never;
@@ -3051,6 +3152,15 @@ export interface components {
             currency: string;
             /** Agb */
             agb?: string | null;
+        };
+        /** Body_chunk_api_v1_erp_recordings__recording_id__chunks_post */
+        Body_chunk_api_v1_erp_recordings__recording_id__chunks_post: {
+            /** Segment */
+            segment: number;
+            /** Seq */
+            seq: number;
+            /** File */
+            file: string;
         };
         /** Body_file_document_api_v1_erp_documents_post */
         Body_file_document_api_v1_erp_documents_post: {
@@ -5757,6 +5867,61 @@ export interface components {
             /** Ok */
             ok?: boolean | null;
         };
+        /**
+         * Recording
+         * @description ►►► **Eine Aufnahme** – ``id`` ist die Nummer ihres ``recording.start`` im Log. ◄◄◄
+         *
+         *     ``state``: ``recording`` (kein Stopp, nicht abgebrochen) · ``transcribing`` (gestoppt,
+         *     Abschnitte fehlen) · ``filing`` (Text da, die Erfassung entsteht) · ``done`` (die Erfassung
+         *     gibt es, ``intake`` gesetzt) · ``failed`` (``problem``).
+         */
+        Recording: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Hint Object Id */
+            hint_object_id?: number | null;
+            /** Mime */
+            mime: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "recording" | "transcribing" | "filing" | "done" | "failed";
+            /**
+             * Segments
+             * @default 0
+             */
+            segments: number;
+            /**
+             * Transcribed
+             * @default 0
+             */
+            transcribed: number;
+            /**
+             * Seconds
+             * @default 0
+             */
+            seconds: number;
+            intake?: components["schemas"]["IntakeOut"] | null;
+            /** Problem */
+            problem?: string | null;
+        };
+        /**
+         * RecordingIn
+         * @description **Eine Aufnahme beginnen** – der Datensatz, der offen war (Hinweis), und die Sorte, die
+         *     der Browser aufnimmt (``audio/webm;codecs=opus``, Safari ``audio/mp4``).
+         */
+        RecordingIn: {
+            /** Hint Object Id */
+            hint_object_id?: number | null;
+            /** Mime */
+            mime: string;
+        };
         /** RefIn */
         RefIn: {
             /** Object Id */
@@ -6049,6 +6214,14 @@ export interface components {
             quantity: number;
             /** Stock */
             stock: string;
+        };
+        /**
+         * StopIn
+         * @description **Stopp** – wie viele Abschnitte (je 5 Minuten, ab 0 gezählt) es gab.
+         */
+        StopIn: {
+            /** Segments */
+            segments: number;
         };
         /**
          * SwipeIn
@@ -11703,6 +11876,160 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PinnedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_api_v1_erp_recordings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_recordings_api_v1_erp_recordings_open_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"][];
+                };
+            };
+        };
+    };
+    chunk_api_v1_erp_recordings__recording_id__chunks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recording_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_chunk_api_v1_erp_recordings__recording_id__chunks_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_api_v1_erp_recordings__recording_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recording_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advance_api_v1_erp_recordings__recording_id__advance_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recording_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"];
                 };
             };
             /** @description Validation Error */

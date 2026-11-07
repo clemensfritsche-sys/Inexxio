@@ -73,9 +73,13 @@ src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.
                  login-target.ts · legal-forms.ts · feed.ts (was ein Pfad ändert, `TOUCHES`) ·
                  queries.ts (Schlüssel der Detailansichten, `useDebouncedQuery`) ·
                  saver.ts (Kern des Auto-Saves) · process-graph.ts (Prozessbild, reine
-                 Funktionen) · web-link.ts · notice.ts … und **alle Hooks** als `use-*.ts`
+                 Funktionen) · web-link.ts · notice.ts · recorder.ts (Aufnehmen ohne
+                 Browser: Abschnitte, Stücke, Warteschlange – Wächter `scripts/recorder.test.mjs`,
+                 der Anschluss `scripts/use-recorder.test.mjs`)
+                 … und **alle Hooks** als `use-*.ts`
                  (use-autosave, use-search, use-profile-completion, use-google-maps,
-                 use-maps-key, use-feed, use-feed-lists, use-mail-sync, use-url-params);
+                 use-maps-key, use-feed, use-feed-lists, use-mail-sync, use-url-params,
+                 use-recorder = Mikrofon, `MediaRecorder`, Pegel, Wake Lock);
                  nur Kamera und Decoder liegen beim Scanner (components/scan/)
 src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands.mjs)
@@ -97,7 +101,7 @@ src/islands/   ← Testnotizen als Insel für die Website (scripts/build-islands
 | `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter «Verlauf»): die Ansicht (`communication.tsx`: Postfach, `History`, Eingabe) · `timeline` (die Blase einer Nachricht, Tagestrenner, die wartende Mail) · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – Spiegel `DELIVERIES`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |
 | `new-record.tsx` | Person und Firma anlegen (Entwurf; `initial` = vorausgefüllt aus einem Vorschlag) |
-| `capture/` | **«+» = Erfassen** (Phase 3): `capture-sheet` (das Blatt: oben rund Foto · Datei · Schreiben, «Nicht abgelegt», unten eckig neu anlegen; Schreiben → `POST /erp/intake`, «legt ab …») · `filed` («Abgelegt»: je Teil Datensatz-Chip → `ObjectSelect`, Text, Vorschläge, «Stimmt so») · `proposal-card` (ein Vorschlag als Zeile, auch im Angehefteten) · `capture-context` (`createDraft`, `openIntake` – gehalten von der Feed-Seite) · `sheet-head` |
+| `capture/` | **«+» = Erfassen** (Phase 3/4): `capture-sheet` (das Blatt: oben rund Aufnehmen (nur mit `MediaRecorder`) · Foto · Datei · Schreiben, «Nicht abgelegt» = offene Erfassungen + Aufnahmen, unten eckig neu anlegen; Schreiben → `POST /erp/intake`, «legt ab …»; **während einer Aufnahme gesperrt** – kein Wegtippen, kein Escape) · `recorder` (Phase 4: `RecorderView` – nur Zeit, Pegel, Stopp; `Transcribe` – «schreibt ab …», fragt `…/advance` bis `done` → «Abgelegt») · `filed` («Abgelegt»: je Teil Datensatz-Chip → `ObjectSelect`, Text, Vorschläge, «Stimmt so») · `proposal-card` (ein Vorschlag als Zeile, auch im Angehefteten) · `capture-context` (`createDraft`, `openIntake` – gehalten von der Feed-Seite) · `sheet-head` |
 | `pinned.tsx` | **Das Angeheftete** unten im Verlauf (`History`): offene Vorschläge (`change` «Zum Feld», `create` «Entwurf öffnen», `file` «Abgelegt», ✕), dann die Hinweise mit «neu ansehen» und «lösen»; Sprungziel `data-todo="vorschlaege"` |
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |
 | `flow-column.tsx`, `module-card.tsx`, `process-columns.tsx`, `process-flow.tsx` | Prozessbild: die Spalte (`FlowColumn`, Achse, Zustände, Herkunft) · die Modul-Karte (`ModuleShell`, `StepCard`, `ModuleMark`) · drei Spuren · **ein** Liniengenerator (`polyPath`); die reinen Funktionen in `lib/process-graph.ts` (Wächter `scripts/process-graph.test.mjs`) |
@@ -164,7 +168,7 @@ Skill `inexxio-design-system`.
   `feed.DETAILS`): Auftrag, Instanz, Dokument, Artikel (Umfeld), Erzeugungsprozess, Bestand
   und Nummern (`useInfiniteQuery`), Dokumente an einem Datensatz (`useDocumentsOf`),
   Zahlungen, Verlauf (`qk.history`, `useInfiniteQuery` – jeder Schreibvorgang lädt ihn nach), Absender, Postfach, Newsletter, Gesellschaft;
-  **Phase 3** `qk.proposals` · `qk.pins` · `qk.openIntakes` (`lib/proposals.ts`; `feed.LOGGED` =
+  **Phase 4** `qk.openRecordings` (`useOpenRecordings`); **Phase 3** `qk.proposals` · `qk.pins` · `qk.openIntakes` (`lib/proposals.ts`; `feed.LOGGED` =
   Verlauf + Vorschläge + Angeheftetes lädt jede Änderung am Datensatz nach – offen ist abgeleitet).
   Was lokal entschieden ist («Übernehmen», ✕), bleibt 30 s weg (`lib/settled.ts`), danach zählt wieder der Server. Die Antwort einer Handlung
   geht per `setQueryData` in den Cache. **Prüfen und Vorschau** (Auftrag, Artikel,
@@ -173,8 +177,8 @@ Skill `inexxio-design-system`.
 - **Invalidiert wird an EINER Stelle**: `lib/api.ts` meldet jede erfolgreiche Anfrage, die
   kein GET ist, mit ihrem Pfad (`DATA_CHANGED`); `useFeedClient` invalidiert die Bereiche aus
   `touchedBy(path)` – Listen des Feeds **und** Detailansichten (Tabelle `TOUCHES` in
-  `lib/feed.ts`, erster Treffer gilt; **unbekannt → alle**, Prüfen/Lesen/leerer Abgleich →
-  keine). Neue Nachrichten (`MESSAGES_CHANGED`) laden «zu tun», Personen und den Verlauf,
+  `lib/feed.ts`, erster Treffer gilt, `*` = ein Pfadteil; **unbekannt → alle**,
+  Prüfen/Lesen/leerer Abgleich/ein Stück einer Aufnahme → keine). Neue Nachrichten (`MESSAGES_CHANGED`) laden «zu tun», Personen und den Verlauf,
   `TODO_CHANGED` «zu tun». Wächter: `scripts/feed.test.mjs`.
 - **Query-Daten treiben nie ein Formular**: ein Formular mit Auto-Save (Person,
   Gesellschaft, Konto) wird einmal befüllt; ein anderer Datensatz ist ein neues Bauteil
@@ -358,3 +362,23 @@ Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.tes
 - Rechtliches: AGB, Datenschutz und Impressum hier (`/agb`, `/datenschutz`, `/impressum`, eine
   Komponente `components/beleg/legal-page.tsx`, Text vom Server `api.publicLegal`). Keine
   Statistik, kein Cookie-Dialog.
+
+## Aufnehmen (Phase 4, `docs/konzept/phase4-bauplan.md`)
+- **Logik ohne Browser** in `lib/recorder.ts`: Stück alle 30 s (`MediaRecorder.start(30000)`),
+  Abschnitt = 5 min (neuer Recorder am selben Mikrofon, Stück-Zählung ab 0), höchstens 3 h;
+  Warteschlange der Reihe nach – **ein Stück wird nie aufgegeben, solange die Seite lebt**:
+  Pausen 1 · 2 · 4 · 8 · 16 s, dann 30 s ohne Ende, jeder Versuch mit Zeitgrenze 30 s
+  (`AbortController`); aufgegeben nur bei 4xx ausser 408/429 (→ `tell`; 409 = die Aufnahme ist
+  schon abgeschlossen → sofort beenden, klarer Satz). Solange ein Stück wartet, steht ruhig
+  «wartet auf Netz» (eine Meldung beim ersten Hängen). Stopp = auf das `stop`-Ereignis jedes
+  Recorders warten (Sicherheitsgrenze 60 s), Mikrofon zu, Warteschlange leeren,
+  `POST …/stop {segments}`. Die Laufzeit «mm:ss» / «h:mm:ss» steht EINMAL dort (`runtime` –
+  eine Dauer, kein Datum).
+- **Anschluss** `lib/use-recorder.ts`: Mono, Opus/WebM → MP4 → Vorgabe, 24 kbit/s; Pegel
+  (`AnalyserNode`, 10 × je s); Wake Lock (beim Zurückkehren neu, verweigert = fehlt);
+  `beforeunload`, solange Mikrofon offen oder Stücke unterwegs; `pagehide`/unsichtbar →
+  `requestData` (das Letzte geht sofort hoch). **Fällt das Mikrofon aus** (`MediaRecorder.onerror`,
+  Spur `ended`, länger als 5 s `mute`): einmal «Mikrofon getrennt – Aufnahme beendet», dann
+  sauber beenden. Wird das Bauteil entfernt, hält die Aufnahme an wie mit «Stopp» (abgeschrieben
+  im Takt). Spuren, `AudioContext` und Wake Lock werden in jedem Fall freigegeben.
+- `Recording` kommt generiert aus `src/types/api.ts` (Alias in `src/types/index.ts`).

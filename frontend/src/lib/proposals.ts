@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { tell } from '@/lib/notice';
 import { isSettled, markSettled } from '@/lib/settled';
-import type { Pinned, Proposal } from '@/types';
+import type { Pinned, Proposal, Recording } from '@/types';
 
 /**
  * ►►► **Die Vorschläge der KI – gelesen an EINER Stelle** (Bauplan Phase 3, «Oberfläche»). ◄◄◄
@@ -65,6 +65,18 @@ export function useOpenIntakes() {
     queryFn: ({ signal }) => api.openIntakes({ signal }),
     enabled: !!client,
     meta: { what: 'Erfassungen' },
+  }, client ?? idleClient());
+}
+
+/** Meine Aufnahmen, die noch nicht fertig sind («+» unter «Nicht abgelegt»: wird abgeschrieben
+ *  oder fehlgeschlagen). Fertige stehen als offene Erfassung da (`useOpenIntakes`). */
+export function useOpenRecordings() {
+  const client = useContext(ProposalClient);
+  return useQuery<Recording[]>({
+    queryKey: qk.openRecordings(),
+    queryFn: ({ signal }) => api.openRecordings({ signal }),
+    enabled: !!client,
+    meta: { what: 'Aufnahmen' },
   }, client ?? idleClient());
 }
 

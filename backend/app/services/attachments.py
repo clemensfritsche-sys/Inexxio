@@ -9,12 +9,19 @@ im Bucket der Umgebung (``FILES_BUCKET``, Objektname = Token, privat) – die Ze
 nur Name, Sorte, Grösse. Ohne Bucket (lokal, Tests) oder wenn er gerade nicht schreibbar ist,
 bleiben sie in der Zeile (``data``) – eine Datei geht nie verloren, weil der Speicher hakt.
 Gelesen wird beides gleich. Die Verbraucher kennen nur die URL ``/api/v1/attachments/{token}``.
+
+**Benannte Objekte** (``put_object`` · ``get_object`` · ``drop_objects``): Bytes, die keine Datei
+des Korbs sind – die Stücke einer Aufnahme (``services/recordings``). Sie liegen in einem
+**eigenen** Bucket (``RECORDINGS_BUCKET``: ohne Soft Delete, Lebensdauer 1 Tag), **nie** im
+Datei-Bucket – dort hielte Soft Delete gelöschtes Audio noch eine Woche. Ohne diesen Bucket oder
+wenn er hakt, hält der Aufrufer die Bytes in seiner Zeile – verloren geht nichts.
 """
 
 import io
 import secrets
 from contextlib import contextmanager
 from contextvars import ContextVar
+from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy import event
@@ -209,6 +216,79 @@ def bytes_of(att: Attachment) -> bytes:
             raise HTTPException(404, detail="Diese Datei gibt es nicht mehr.")
         print(f"WARNING: Cloud Storage nicht lesbar ({exc!r})", flush=True)
         raise HTTPException(503, detail="Die Datei ist gerade nicht erreichbar – bitte gleich noch einmal.")
+
+
+# ---------------------------------------------------------------------------
+# Benannte Objekte – Bytes, die keine Datei des Korbs sind (die Stücke einer Aufnahme)
+# ---------------------------------------------------------------------------
+
+#: So viele Löschungen gehen in EINE Anfrage an Cloud Storage (Grenze einer Batch-Anfrage: 100).
+DROP_BATCH = 100
+
+
+def recordings_bucket():
+    """►► **Der Bucket der Aufnahmen** (``RECORDINGS_BUCKET``) – oder ``None``. Nie der
+    Datei-Bucket: fehlt dieser hier, bleiben die Bytes in der Datenbank. ◄◄"""
+    name = get_settings().recordings_bucket
+    if not name:
+        return None
+    global _client
+    if _client is None:
+        from google.cloud import storage
+        _client = storage.Client()
+    return _client.bucket(name)
+
+
+def put_object(name: str, raw: bytes, mime: str) -> bool:
+    """**Bytes unter einem Namen in den Bucket der Aufnahmen** – ``True``, wenn sie dort liegen.
+    ``False`` (kein Bucket, ein Lauf zum Zurückrollen, Bucket fehlt oder hakt): dann hält der
+    Aufrufer sie in seiner Zeile – verloren geht nichts."""
+    target = None if _IN_DATABASE.get() else recordings_bucket()
+    if target is None:
+        return False
+    try:
+        target.blob(name).upload_from_string(raw, content_type=mime)
+        return True
+    except Exception as exc:                                       # noqa: BLE001
+        print(f"WARNING: Cloud Storage nicht schreibbar ({exc!r}) – {name} bleibt in der DB.",
+              flush=True)
+        return False
+
+
+def get_object(name: str) -> Optional[bytes]:
+    """Die Bytes unter einem Namen – oder ``None`` (kein Bucket, nicht mehr da). Ein Speicher,
+    der gerade nicht antwortet, ist 503 (der Aufrufer versucht es später wieder)."""
+    target = recordings_bucket()
+    if target is None:
+        return None
+    try:
+        return target.blob(name).download_as_bytes()
+    except Exception as exc:                                       # noqa: BLE001
+        if type(exc).__name__ == "NotFound":
+            return None
+        print(f"WARNING: Cloud Storage nicht lesbar ({exc!r})", flush=True)
+        raise HTTPException(503, detail=f"«{name}» ist gerade nicht erreichbar – gleich noch einmal.")
+
+
+def drop_objects(db: Session, prefix: str) -> None:
+    """**Alle Objekte unter einem Präfix löschen** – erst nach dem Commit (rollt die
+    Transaktion zurück, sind sie noch da), **gebündelt** (je ``DROP_BATCH`` eine Anfrage: drei
+    Stunden Stücke ziehen die Anfrage nicht über 60 s). Ein Fehlschlag ist eine Warnung: die
+    Lebensdauer-Regel des Buckets räumt spätestens nach einem Tag (``infra/setup-sprache.sh``)."""
+    target = recordings_bucket()
+    if target is None or not prefix:
+        return
+
+    def _drop(_session) -> None:
+        try:
+            names = [b.name for b in target.list_blobs(prefix=prefix)]
+            for i in range(0, len(names), DROP_BATCH):
+                with target.client.batch(raise_exception=False):
+                    for name in names[i:i + DROP_BATCH]:
+                        target.blob(name).delete()
+        except Exception as exc:                                   # noqa: BLE001
+            print(f"WARNING: Objekte unter {prefix} nicht gelöscht ({exc!r})", flush=True)
+    event.listen(db, "after_commit", _drop, once=True)
 
 
 def discard(db: Session, att: Attachment) -> None:

@@ -21,7 +21,10 @@ Je Umgebung, alles in **europe-west6 (Zürich)**:
   `start.sh` fährt bei jedem Start `alembic upgrade head`, dann uvicorn.
 - **Datenbank**: Cloud SQL PostgreSQL (`inexxio-dev-db`, Datenbank `inexxio_dev`, Benutzer
   `backend`), angebunden über den Unix-Socket (`--add-cloudsql-instances`).
-- **Dateien**: Bucket `<projekt>-files` (privat, `FILES_BUCKET`, `docs/dokumente.md`).
+- **Dateien**: Bucket `<projekt>-files` (privat, `FILES_BUCKET`, `docs/dokumente.md`; Soft
+  Delete bleibt dort – für Dokumente).
+- **Aufnahmen**: eigener Bucket `<projekt>-recordings` (privat, **ohne Soft Delete**, Lebensdauer
+  1 Tag, `RECORDINGS_BUCKET`, `infra/setup-sprache.sh`) – Audio liegt nie im Datei-Bucket.
 - **Secrets**: Secret Manager, als Umgebungsvariablen eingebunden. Pflicht: `DATABASE_URL`;
   dev ausserdem `FIREBASE_PROJECT_ID` (prod setzt es als Wert). Optional – auf beiden Seiten
   dieselbe Liste, eingebunden nur, wenn es sie gibt: `GOOGLE_CLIENT_ID`/`_SECRET` (Gmail),
@@ -186,6 +189,30 @@ bash infra/setup-vertex.sh inexxio-dev
 Es schaltet Vertex AI ein und gibt `cloudrun-backend@` die Rolle `roles/aiplatform.user`. Ohne
 das geht alles – nur die ähnlichen Fälle fehlen; nach einer Abweisung fragt das Backend eine
 Stunde lang nicht mehr (kein Fehlversuch je Takt im Log). Kosten: Rappen im Monat.
+
+## Sprache (Phase 4): Aufnahmen abschreiben
+
+Gesprochenes wird Text (`docs/konzept/phase4-bauplan.md`): der Browser schickt die Aufnahme in
+Stücken (alle 30 s) an das Backend, das legt sie in einem **eigenen Bucket**
+`<projekt>-recordings` unter `recordings/<Aufnahme>/<Abschnitt>-<Stück>` ab (`RECORDINGS_BUCKET`,
+setzt der Deploy); **Gemini** (`gemini-3.5-flash`) schreibt über **Vertex AI** im eigenen Projekt
+ab (dieselbe Einrichtung wie oben, `infra/setup-vertex.sh`; Eingaben nicht zum Training; Region
+`VERTEX_GEMINI_REGION`, leer = `VERTEX_REGION`), derselbe Deckel in Franken. Vom Gesprochenen
+bleibt nur der Text: das Backend löscht die Stücke nach der Abschrift und im Takt (spätestens
+nach einem Tag). Einmal je Projekt in Cloud Shell:
+
+```bash
+bash infra/setup-sprache.sh inexxio-dev
+```
+
+Es legt `<projekt>-recordings` an (europe-west6, privat, **ohne Soft Delete** – gelöschtes Audio
+ist wirklich weg), setzt die Lebensdauer-Regel «nach 1 Tag löschen» als Netz darunter und gibt
+`cloudrun-backend@` `roles/storage.objectAdmin` **nur auf diesem Bucket**; eine frühere Regel
+«`recordings/`» im Datei-Bucket entfernt es. **Warum ein eigener Bucket:** der Datei-Bucket hält
+gelöschte Objekte per Soft Delete eine Woche wiederherstellbar – richtig für Dokumente, falsch für
+Audio, das nach einem Tag weg sein muss. Fehlt der Bucket (noch), liegen die Stücke in der
+Datenbank (`recording_chunks.data`) – nie verloren, nie im Datei-Bucket. Kosten: Rappen je Stunde
+Gesprochenes (Audio-Tokens, Preis in `backend/app/services/ai.py`, `PRICES`).
 
 ## Anmeldung der Deploys ohne Schlüssel (Workload Identity)
 

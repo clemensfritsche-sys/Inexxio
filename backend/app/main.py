@@ -20,7 +20,7 @@ from .routers import (
     admin, articles, attachments, auth, beleg, communication, contact, documents, erp, feedback,
     health, history, internal, website,
     instances, newsletter, orders, passkey, payments, payments_list, places, proposals,
-    public_documents, timekeeping,
+    public_documents, recordings, timekeeping,
 )
 
 settings = get_settings()
@@ -274,6 +274,7 @@ app.include_router(newsletter.me_router)
 app.include_router(newsletter.erp_router)
 app.include_router(timekeeping.router)
 app.include_router(proposals.router)
+app.include_router(recordings.router)
 app.include_router(internal.router)
 
 
