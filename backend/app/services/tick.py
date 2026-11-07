@@ -66,11 +66,45 @@ def _mail(db, deadline: float) -> dict[str, int]:
     return {"new": new, "sent": sent}
 
 
+#: So viele Vorschläge ohne Bedeutungs-Zahlen holt ein Lauf nach.
+MEMORY_PER_RUN = 10
+
+
+def _ai(db, deadline: float) -> dict[str, int]:
+    """**Die KI im Takt** (Bauplan Phase 3): die abgeleiteten Entscheide festschreiben (braucht
+    keine KI, läuft immer) · offene Erfassungen ohne Vorschlag nachholen · neue Mails auf ihre
+    Folgen prüfen · fehlende Bedeutungs-Zahlen nachholen. Am Deckel nur das Erste. Jeder
+    Schritt committet für sich – ein Ausfall der KI nimmt das Getane nicht zurück."""
+    import time as _t
+    from . import ai, follow, intake, memory, proposals
+    done = {"decided": proposals.settle(db)}
+    db.commit()
+    if not ai.available(db) or _t.monotonic() >= deadline:
+        return done
+    done["filed"] = intake.catch_up(db, deadline)
+    if _t.monotonic() < deadline and ai.available(db):
+        done["mails"], done["proposals"] = follow.run(db, deadline)
+        db.commit()
+    if ai.embed_ready() and _t.monotonic() < deadline:
+        from ..models import UserProfile
+        for pid, payload, actor in memory.missing(db, MEMORY_PER_RUN):
+            if _t.monotonic() >= deadline:
+                break
+            who = db.query(UserProfile).filter(UserProfile.object_id == actor).first() if actor else None
+            if not memory.remember(db, pid, payload, actor=who):
+                break
+            done["remembered"] = done.get("remembered", 0) + 1
+        db.commit()
+    return done
+
+
 #: ►► **Die Aufgaben des Takts, in dieser Reihenfolge.** Das Siegel zuerst: es dauert
-#:    Millisekunden und darf nie hinter einem langsamen Postfach warten.
+#:    Millisekunden und darf nie hinter einem langsamen Postfach warten. Die KI zuletzt: sie
+#:    braucht am längsten und wartet auf die Mails, die der Abgleich eben holte.
 TASKS: tuple[Task, ...] = (
     Task("seal", _seal),
     Task("mail", _mail),
+    Task("ai", _ai),
 )
 
 

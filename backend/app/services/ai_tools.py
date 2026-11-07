@@ -123,7 +123,7 @@ def record(db: Session, viewer: UserProfile, object_id: Any) -> str:
     return "\n".join(lines)
 
 
-def _entry(e: Any) -> str:
+def entry_line(e: Any) -> str:
     """Ein Eintrag des Verlaufs als eine Zeile für die KI – knapp, ohne Formatierung."""
     when = e.at.isoformat(timespec="minutes")
     if e.message is not None:
@@ -157,7 +157,7 @@ def history(db: Session, viewer: UserProfile, object_id: Any) -> str:
         return _not_found(object_id)
     if not page.entries:
         return "Noch nichts im Verlauf."
-    return "\n".join(_entry(e) for e in page.entries)
+    return "\n".join(entry_line(e) for e in page.entries)
 
 
 def find(db: Session, viewer: UserProfile, q: Any) -> str:
