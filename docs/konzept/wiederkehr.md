@@ -1,7 +1,7 @@
 # Projektakte «Wiederkehrende Aufträge»
 
 > **Kopfstatus:** in Klärung · **nichts gebaut** · Lead: Claude · Entscheid: Clemens Fritsche ·
-> seit 06.11.2026 · zuletzt 07.11.2026 (dritte Runde)
+> seit 06.11.2026 · zuletzt 07.11.2026 (vierte Runde)
 > Bild (Ist-Stand 1:1, Schlaufe, Abo): https://claude.ai/artifact/Lk5AKy8G1CTWi68ZxA57uj
 > Diese Akte ist die **eine** Quelle für Ziel, Grundsätze, Vorschläge und Entscheide. Das Bild
 > zeigt, die Akte hält fest. Was hier nicht als entschieden steht, ist nicht entschieden.
@@ -50,8 +50,8 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
     Rückführung (07.11.2026, → V3).
 13. **Zahlung: Was vorher festgelegt ist, gilt weiter; was bewusst offen blieb, wird jedes Mal
     neu festgelegt** (07.11.2026, → O1).
-14. **Was die Wiederholung nimmt, sagt der Mensch je Zeile ausdrücklich**: «dieselben Stücke»
-    oder «nach FIFO». Es steht **unten bei der Schlaufe**, zusammen mit Takt und Ende
+14. **Was die Wiederholung nimmt, sagt der Mensch je Zeile ausdrücklich**: «gleiche Instanzen»
+    (genau dieselben Einzelinstanzen) oder «FIFO». Es steht **unten bei der Schlaufe**, zusammen mit Takt und Ende
     (07.11.2026, → V3).
 15. **Eingestellt wird wie ein Dauerauftrag im E-Banking**: wiederholen (wöchentlich ·
     monatlich · vierteljährlich · halbjährlich · jährlich), erste Ausführung, Ende
@@ -59,6 +59,9 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
 16. **Setzen, ändern und beenden darf jede Person mit ERP-Zugang** (07.11.2026, O11).
 17. **Die Schlaufe gehört allen Aufträgen, die aus ihr entstehen.** Jeder zeigt dieselbe
     Einstellung, und beendet werden kann sie von jedem aus.
+18. **Beenden ist endgültig, wie bei einem Dauerauftrag** (07.11.2026). Es gibt kein «Wieder
+    einschalten» und keine Kopie als Entwurf. Wer weitermachen will, legt einen neuen Auftrag
+    mit eigener Schlaufe an.
 
 ## 4 · Befunde aus dem Code
 
@@ -133,12 +136,12 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
     und oben an der ersten Zeile der Spalte an, Haarlinie bis zur ersten Wiederholung, danach
     kräftig. Kein Strichmuster, keine eigene Farbe.
   - **Am Anfang steht, was die Wiederholung nimmt**, je Lager-Zeile eine **Pflichtwahl ohne
-    Vorbelegung** (wie das Eigentum am Beleg): «dieselben Stücke» (Service, Abo, fremder Kran)
-    oder «nach FIFO» (Lieferung). Eine Zeile «Neu» erzeugt jedes Mal neu. Mehr Möglichkeiten
+    Vorbelegung** (wie das Eigentum am Beleg): «gleiche Instanzen» (Service, Abo, fremder Kran)
+    oder «FIFO» (Lieferung). Eine Zeile «Neu» erzeugt jedes Mal neu. Mehr Möglichkeiten
     gibt es nicht. Ausdrücklich, weil es sich nicht ableiten lässt (§4) und weil eine falsche
-    Annahme teuer wäre: wer z. B. zwölf Kartuschen von Hand wählt und «dieselben» bekäme,
+    Annahme teuer wäre: wer z. B. zwölf Kartuschen von Hand wählt und «gleiche Instanzen» bekäme,
     würde nächsten Monat dieselben, schon verkauften Kartuschen noch einmal liefern.
-  - **FIFO nimmt weiter nur `Freigegeben`**, «dieselben Stücke» darf auch `Verkauft` (V1).
+  - **FIFO nimmt weiter nur `Freigegeben`**, «gleiche Instanzen» darf auch `Verkauft` (V1).
   - **Neben einer Abweichung:** Die Schlaufe ist ein Zug wie jede Querlinie und bekommt ihre
     Spur aus `process-flow.channels`. Sie reicht über die ganze Spalte, also bekommt sie die
     äusserste Spur, und eine Abweichung daneben liegt innen.
@@ -192,17 +195,17 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
   gelernt (wie lange die letzten Wiederholungen liefen; beim ersten Mal die Vorlage selbst).
   Nichts eintippen.
 - **O5 · Kunde sieht Fristen** – später, mit dem Shop.
-- **O6 · Stück weg** (verschrottet, Artikel ersetzt) – dieselbe Regel wie O3, aber der Grund
-  vergeht nicht. Die Schlaufe steht rot auf «geht nicht mehr», die Zahl am Symbol ist rot, und
-  es gibt zwei Wege: **«Beenden»** oder **«Neu aufsetzen»** (öffnet einen Entwurf mit Ablauf und
-  Stücken der Vorlage, ohne das, was fehlt, und mit derselben Einstellung; die alte Schlaufe
-  endet mit der Freigabe). «Neu aufsetzen» ist zugleich der Weg aus F12 (Ablauf ändert sich).
-  Von selbst endet nichts. Bild: Teil 3, Zustand «geht nicht mehr».
-- **Beenden** (Rückfrage 07.11.2026): «Ab heute beenden» in der Einstellung der Schlaufe, von
-  jedem ihrer Aufträge aus. Es wird eine Zeile «ab heute: einmalig» (append-only). Was schon
-  entstanden ist, läuft normal zu Ende. «Wieder einschalten» ist wieder eine Zeile. Die Linie
-  verschwindet; war sie schon kräftig (es gab Wiederholungen), bleibt sie nach prozessbild §8.1a
-  kräftig stehen, und der Schalter sagt «einmalig».
+- **O6 · Stück weg** (verschrottet, Artikel ersetzt) – entschieden 07.11.2026: dieselbe Regel
+  wie O3, aber der Grund vergeht nicht. Die Schlaufe steht rot auf «geht nicht mehr», die Zahl am
+  Symbol ist rot, und es gibt **nur «Beenden»**, wie bei einem Dauerauftrag (Grundsatz 18). Von
+  selbst endet nichts. Bild: Teil 3, Zustand «geht nicht mehr».
+- **Beenden**: «Ab heute beenden» in der Einstellung der Schlaufe, von jedem ihrer Aufträge aus.
+  Es wird eine Zeile «ab heute: beendet» (append-only, endgültig). Was schon entstanden ist,
+  läuft normal zu Ende. Die Linie verschwindet; war sie schon kräftig (es gab Wiederholungen),
+  bleibt sie nach prozessbild §8.1a kräftig stehen, und der Schalter sagt «einmalig».
+  **Verbaut man sich damit etwas?** Nein: Ein neuer Auftrag kann jederzeit dieselben Instanzen
+  nehmen und eine eigene Schlaufe tragen. Es fehlt nur die Bequemlichkeit einer Kopie, keine
+  Möglichkeit. Das ist auch der Weg, wenn sich der Ablauf ändert (F12).
 
 ### Weitere Punkte, die noch festzulegen sind
 
@@ -232,11 +235,11 @@ Gefragt: Gibt es einen Zustand, aus dem man nicht mehr herauskommt?
 | Fall | Was passiert | Ausweg | Sackgasse? |
 |---|---|---|---|
 | Stück steckt in einem Auftrag, der nie fertig wird | Wiederholung wartet, «zu tun» nennt den Auftrag | den Auftrag fertig machen oder abbrechen (Abweichung mit gekappter Rückführung) | nein |
-| Stück verschrottet, Artikel ersetzt | «geht nicht mehr» | Beenden · Neu aufsetzen | nein |
-| Service-Vertrag über 3 Krane, einer verschrottet | die ganze Wiederholung geht nicht mehr (ein Auftrag läuft nicht halb) | Neu aufsetzen mit den 2 übrigen | nein, aber nur mit «Neu aufsetzen». Die Schlaufe lässt nie still ein Stück weg |
+| Stück verschrottet, Artikel ersetzt | «geht nicht mehr» | Beenden, dann ein neuer Auftrag | nein |
+| Service-Vertrag über 3 Krane, einer verschrottet | die ganze Wiederholung geht nicht mehr (ein Auftrag läuft nicht halb) | beenden, neuer Auftrag mit den 2 übrigen | nein. Die Schlaufe lässt nie still ein Stück weg |
 | Prüfung durchgefallen, Kran `Gesperrt` | wäre eine Abweichung → wartet (O3) | Kran instand stellen (ein Auftrag hebt die Sperre auf) | nein |
 | Zwei Schlaufen am selben Kran (Prüfung jährlich, Wartung halbjährlich) am selben Tag | Exklusivität: eine wartet auf die andere | keiner nötig, läuft nacheinander | nein. Beides in einem Besuch ist ein eigener Wunsch für später |
-| Lange blockiert, mehrere Perioden fällig | entstehen der Reihe nach, keine geht verloren (Grundsatz 5) | wer das nicht will: beenden oder neu aufsetzen | nein, aber es kann eine Reihe von Aufträgen nacheinander geben, z. B. zwei Prüfungen kurz hintereinander |
+| Lange blockiert, mehrere Perioden fällig | entstehen der Reihe nach, keine geht verloren (Grundsatz 5) | wer das nicht will: beenden | nein, aber es kann eine Reihe von Aufträgen nacheinander geben, z. B. zwei Prüfungen kurz hintereinander |
 | FIFO-Lieferung, Lager leer | «fehlt gerade: 12 gebraucht, 7 frei», wartet | Nachschub (wie im Verbrauch angeboten) | nein |
 | Preis steigt beim Abo | fester Preis gilt weiter | beenden, neu anbieten, neue Schlaufe (F12) | nein |
 | Takt fällt aus (Cloud Scheduler) | nichts entsteht, bis er wieder läuft; der Alarm geht per Mail (Takt) | holt nach: jede Periode ohne Auftrag ist weiter fällig | nein |
@@ -244,7 +247,7 @@ Gefragt: Gibt es einen Zustand, aus dem man nicht mehr herauskommt?
 
 **Ergebnis:** keine Sackgasse. Jeder Halt hat einen Grund in einem Satz und einen Weg hinaus,
 und der Weg ist immer eine Handlung, die es schon gibt (Auftrag fertig machen, abbrechen,
-beenden, neu aufsetzen). Zwei Folgen sind gewollt, aber man muss sie kennen: Eine Schlaufe
+beenden, neuer Auftrag). Zwei Folgen sind gewollt, aber man muss sie kennen: Eine Schlaufe
 lässt nie still ein Stück weg, und nach langer Blockade kommen die Perioden der Reihe nach.
 
 ## 7 · Rückfragen und Antworten
@@ -267,5 +270,5 @@ lässt nie still ein Stück weg, und nach langer Blockade kommen die Perioden de
 | | Was nimmt die Wiederholung? | von Hand gewählt → dieselben, sonst FIFO; da nicht ableitbar: Pflichtwahl je Zeile (V3) |
 | | Wo wird eingestellt? | unten bei der Schlaufe, wie ein Dauerauftrag (Grundsatz 15) |
 | | Fremder Kran? | wie jeder Artikel, nichts Besonderes (O2) |
-| | Wie beenden? | «Ab heute beenden» in der Schlaufe; bei «geht nicht mehr» auch «Neu aufsetzen» (O6) |
+| | Wie beenden? | «Ab heute beenden», endgültig wie ein Dauerauftrag; weiter mit einem neuen Auftrag (Grundsatz 18) |
 | | Zahlung fest oder offen? | was vorher festgelegt ist, gilt; was offen blieb, wird jedes Mal festgelegt (O1) |
