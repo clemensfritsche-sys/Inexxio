@@ -1,0 +1,176 @@
+---
+/**
+ * Häufige Fragen (v4): links ein Bild, das mit der offenen Frage überblendet, rechts darüber
+ * ein Glas-Akkordeon. Höchstens EINE Antwort offen – native <details name> (WEBSITE_PLAN: Faq
+ * zeigt nur eine offene Antwort). Ist keine offen, steht das Grundbild (Frage grau, Antwort rot).
+ * Schmal: das Bild steht immer direkt über der offenen Frage und rückt mit ihr (die Fragen
+ * davor rutschen darüber); alle zu → Grundbild ganz oben.
+ * Das Bild je Frage ist ein Schema oder eine Zeichnung (`illo` je Frage, sonst die der Seite).
+ * Die strukturierte Fassung (FAQPage) baut die Seite aus DENSELBEN Einträgen.
+ */
+import { site } from '../config/site.mjs';
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+import { illustration } from '../lib/illustrations';
+import half from '../assets/schema/garantie-haelfte.svg?raw';
+import year from '../assets/schema/inexxio-365-jahr.svg?raw';
+import base from '../assets/schema/fragen.svg?raw';
+
+export type FaqVisual = 'garantie' | 'inexxio365' | 'telefon' | 'uebergabe' | 'zeichnung';
+interface Props {
+  /** `illo`: eigene Zeichnung für diese Frage (Schlüssel in src/assets/illustrations). */
+  items: { q: string; a: string; visual?: FaqVisual; illo?: string }[];
+  title?: string;
+  lead?: string;
+  id?: string;
+  /** Zeichnung der Seite (Schlüssel in src/assets/illustrations, z. B. «spezial-krane»), für jede
+      Frage, die zu keinem eigenen Bild passt. */
+  illo?: string;
+}
+const { items, title = 'Häufige Fragen', lead, id = 'fragen', illo = 'menu/service' } = Astro.props;
+const group = `${id}-faq`;
+const art = (key: string) => illustration(key, 'Fragen');
+const ueber = art('menu/ueber');
+const pageArt = art(illo);
+/** Das Bild zur Frage: angegeben – oder nach ihrem Thema; sonst die Zeichnung der Seite. */
+const pick = (q: string): FaqVisual => {
+  if (/zufriedenheit/i.test(q)) return 'garantie';
+  if (/365/.test(q)) return 'inexxio365';
+  if (/still|notfall|stillstand|telefonnummer|anrufen/i.test(q)) return 'telefon';
+  if (/hs steiner|heiri|übergabe|verträge|in zukunft|ersatzteile für ältere/i.test(q)) return 'uebergabe';
+  return 'zeichnung';
+};
+if (items.length > 10) throw new Error(`Fragen: höchstens 10 je Seite (hier ${items.length}).`);
+const visuals = items.map((it) => it.visual ?? (it.illo ? 'zeichnung' : pick(it.q)));
+const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
+---
+<section class="v4-section fq-sec" id={id} aria-labelledby={`${id}-title`}>
+  <div class="wrap">
+    <header class="v4-head--center">
+      <h2 class="v4-h2" id={`${id}-title`}>{title}</h2>
+      {lead && <Rich as="p" class="v4-sub" text={lead} />}
+    </header>
+    <div class="fq" data-faq-stage>
+      <div class="fq__art" aria-hidden="true">
+        <div class="fq__v fq__v--base"><div class="fq__vin" set:html={base} /></div>
+        {visuals.map((v, i) => (
+          <div class:list={['fq__v', v === 'inexxio365' && 'fq__v--dark']} data-i={i}>
+            <div class="fq__vin">
+              {v === 'garantie' && <Fragment set:html={half} />}
+              {v === 'inexxio365' && <div class="fq__year" set:html={year} />}
+              {v === 'telefon' && (
+                <svg viewBox="0 0 400 300">
+                  <circle class="fq__pulse" cx="200" cy="130" r="46" fill="#E51A14" opacity=".2" />
+                  <circle cx="200" cy="130" r="46" fill="#E51A14" />
+                  <g transform="translate(176 106) scale(2)" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384" /></g>
+                  <text x="200" y="232" text-anchor="middle" class="fq__tel">{site.phone.display}</text>
+                </svg>
+              )}
+              {v === 'uebergabe' && <img src={ueber} alt="" width="400" height="300" loading="lazy" decoding="async" />}
+              {v === 'zeichnung' && <img src={drawing(i)} alt="" width="400" height="300" loading="lazy" decoding="async" />}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div class="fq__list">
+        {items.map((it, i) => (
+          <details class="fq__item glass-light" name={group} open={i === 0} data-i={i} style={`--o:${2 * i + 2}`}>
+            <summary class="fq__q"><Icon name="chevron-down" size={18} class="fq__chev" /><Rich as="h3" class="fq__title" text={it.q} /></summary>
+            <div class="fq__a">{it.a.split('\n\n').map((para) => <Rich text={para} />)}</div>
+          </details>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Das Bild folgt der offenen Frage; ältere Browser ohne <details name> schliessen hier.
+  // Schmal rückt das Bild über die offene Frage (CSS order). Damit es gleitet statt springt:
+  // vor dem Wechsel die Lagen merken, danach von dort an den neuen Platz bewegen (FLIP).
+  const narrow = window.matchMedia('(max-width: 959px)');
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+  document.querySelectorAll<HTMLElement>('[data-faq-stage]').forEach((root) => {
+    const items = Array.from(root.querySelectorAll<HTMLDetailsElement>('details'));
+    const art = root.querySelector<HTMLElement>('.fq__art');
+    const moving = art ? [art, ...items] : items;
+    let before: Map<HTMLElement, number> | null = null;
+    const glide = () => {
+      if (!before) return;
+      for (const el of moving) {
+        const dy = (before.get(el) ?? 0) - el.getBoundingClientRect().top;
+        if (Math.abs(dy) > 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.2,.7,.2,1)' });
+      }
+      before = null;
+    };
+    const show = () => {
+      const open = items.findIndex((d) => d.open);
+      root.dataset.open = String(open);
+      root.style.setProperty('--art-o', String(open < 0 ? 1 : 2 * open + 1));
+      glide();
+    };
+    root.addEventListener('click', (e) => {
+      if (!narrow.matches || calm.matches || !(e.target as Element).closest('summary')) return;
+      before = new Map(moving.map((el) => [el, el.getBoundingClientRect().top]));
+    }, true);
+    for (const d of items) d.addEventListener('toggle', () => {
+      if (d.open) for (const o of items) if (o !== d) o.open = false;
+      show();
+    });
+    show();
+  });
+</script>
+
+<style>
+  .fq { position: relative; margin-top: 24px; }
+  @media (min-width: 960px) { .fq { margin-top: 48px; min-height: 600px; display: flex; align-items: center; justify-content: flex-end; } }
+  .fq__art { position: relative; height: 260px; border-radius: var(--r-xl); overflow: hidden; }
+  @media (min-width: 960px) { .fq__art { position: absolute; left: 0; top: 0; width: calc(860 / 1264 * 100%); height: 100%; } }
+  .fq__v { position: absolute; inset: 0; background: var(--gray-100); opacity: 0; transition: opacity 0.5s ease; }
+  .fq__v--base, .fq__v[data-i='0'] { opacity: 1; }
+  .fq__v--dark { background: var(--black); }
+  .fq__vin { position: absolute; inset: 24px 40px 70px; display: flex; align-items: center; justify-content: center; }
+  /* Bei langen Listen wächst die Fläche, das Bild bleibt in ruhiger Grösse mittig. */
+  @media (min-width: 960px) { .fq__vin { inset: 0 260px 0 90px; margin: auto 0; height: min(420px, calc(100% - 180px)); } }
+  .fq__vin :global(svg), .fq__vin img { display: block; width: 100%; height: 100%; max-width: none; object-fit: contain; }
+  .fq__year { width: 86%; height: 70%; }
+  .fq__tel { font-family: var(--font-display); font-size: 34px; font-weight: 600; fill: var(--ink); letter-spacing: -1px; }
+  .fq__pulse { transform-box: fill-box; transform-origin: center; animation: fq-pulse 2.4s ease-out 2; }
+  @keyframes fq-pulse { 0% { transform: scale(0.5); opacity: 0.45; } 100% { transform: scale(2.4); opacity: 0; } }
+  /* Mit Skript: das Bild der offenen Frage. */
+  .fq[data-open] .fq__v:not(.fq__v--base) { opacity: 0; }
+  .fq[data-open='0'] .fq__v[data-i='0'], .fq[data-open='1'] .fq__v[data-i='1'],
+  .fq[data-open='2'] .fq__v[data-i='2'], .fq[data-open='3'] .fq__v[data-i='3'],
+  .fq[data-open='4'] .fq__v[data-i='4'], .fq[data-open='5'] .fq__v[data-i='5'],
+  .fq[data-open='6'] .fq__v[data-i='6'], .fq[data-open='7'] .fq__v[data-i='7'],
+  .fq[data-open='8'] .fq__v[data-i='8'], .fq[data-open='9'] .fq__v[data-i='9'] { opacity: 1; }
+
+  .fq__list { position: relative; display: grid; gap: 10px; margin: -48px 8px 0; }
+  /* Schmal: Bild und Fragen in einer Spalte; das Bild steht vor der offenen Frage (--art-o). */
+  @media (max-width: 959px) {
+    .fq { display: flex; flex-direction: column; gap: 10px; }
+    .fq__list { display: contents; }
+    .fq__art { order: var(--art-o, 1); margin-bottom: -58px; }
+    .fq__item { position: relative; order: var(--o); margin-inline: 8px; }
+  }
+  @media (min-width: 960px) { .fq__list { width: 520px; margin: 0; } }
+  .fq__item { border-radius: 14px; }
+  .fq__q { list-style: none; display: flex; align-items: center; gap: 12px; padding: 16px 20px; cursor: pointer; }
+  .fq__q::-webkit-details-marker { display: none; }
+  .fq__q :global(.fq__chev) { flex: none; transition: transform 0.35s var(--ease); }
+  .fq__item[open] .fq__q :global(.fq__chev) { transform: rotate(180deg); }
+  .fq__q :global(.fq__title) { font-family: var(--font-sans); font-size: 0.9375rem; font-weight: 500; line-height: 1.4; letter-spacing: -0.006em; color: var(--ink); transition: color 0.2s var(--ease); }
+  @media (min-width: 960px) { .fq__q :global(.fq__title) { font-size: 1.0625rem; } }
+  /* Nur mit Maus: auf dem Handy bliebe der Hover nach dem Antippen rot hängen. */
+  @media (hover: hover) and (pointer: fine) { .fq__q:hover :global(.fq__title) { color: var(--red-hover); } }
+  .fq__a { padding: 0 22px 18px 50px; display: grid; gap: 8px; }
+  .fq__a :global(p) { font-size: 0.875rem; line-height: 1.6; color: var(--ink-2); }
+  @media (min-width: 960px) { .fq__a :global(p) { font-size: 0.9375rem; } }
+  @supports (interpolate-size: allow-keywords) {
+    @media (prefers-reduced-motion: no-preference) {
+      .fq__list { interpolate-size: allow-keywords; }
+      .fq__item::details-content { height: 0; overflow: clip; transition: height 450ms var(--ease), content-visibility 450ms allow-discrete; }
+      .fq__item[open]::details-content { height: auto; }
+    }
+  }
+</style>

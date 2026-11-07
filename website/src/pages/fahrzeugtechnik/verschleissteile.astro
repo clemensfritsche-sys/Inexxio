@@ -1,0 +1,62 @@
+---
+/**
+ * /fahrzeugtechnik/verschleissteile – eigenes Layout nach dem Muster von Speziallösungen
+ * (Oktober 2026): Kopf wie Porsche → Katalog (#katalog, Bildkarten; «Teil anfragen» öffnet die
+ * Anfrage mit dem Teil schon eingetragen) → Marken → Bestellt in drei Schritten (Weg) → Fragen → Anfrage.
+ * Keine Preise, kein «ab Lager». Texte: content/fahrzeugtechnik.ts, config/catalog.mjs.
+ */
+import Base from '../../layouts/Base.astro';
+import StageHero from '../../components/StageHero.astro';
+import PartCatalog from '../../components/PartCatalog.astro';
+import FaqStage from '../../components/FaqStage.astro';
+import ContactSection from '../../components/ContactSection.astro';
+import Rich from '../../components/Rich.astro';
+import { areaOf } from '../../config/site.mjs';
+import SolutionPath from '../../components/spezial/SolutionPath.astro';
+import BrandBand from '../../components/fahrzeug/BrandBand.astro';
+import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
+import { plain } from '../../lib/text.mjs';
+import { pageTitle } from '../../lib/titles';
+import { verschleissteile as page, partsCatalog as c, partsOrder as o } from '../../content/fahrzeugtechnik';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const area = areaOf(page.area);
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+];
+const titel = pageTitle('/fahrzeugtechnik/verschleissteile');
+---
+<Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
+  <StageHero
+    word="Verschleissteile"
+    image={titel}
+    alt="Fahrmischer als Konstruktionszeichnung, davor Trichter, Rinne und Spiralschutz echt und rot"
+    title={page.hero.h1}
+    lead={page.hero.lead}
+    primary={page.hero.primary}
+    secondary={{ label: 'Zum Katalog', href: '#katalog' }}
+  />
+
+  <section class="v4-section" id="katalog" aria-labelledby="katalog-title">
+    <div class="wrap">
+      <header class="v4-head--center">
+        <h2 class="v4-h2" id="katalog-title">{c.title}</h2>
+        <Rich as="p" class="v4-sub" text={c.lead} />
+      </header>
+      <div class="vt-cat"><PartCatalog /></div>
+    </div>
+  </section>
+
+  <BrandBand />
+
+  <SolutionPath title={o.title} start={o.start} end={o.end} items={o.items} />
+
+  <FaqStage items={page.faq} illo={'menu/verschleissteile'} />
+
+  <ContactSection />
+</Base>
+
+<style>
+  .vt-cat { margin-top: 40px; }
+</style>

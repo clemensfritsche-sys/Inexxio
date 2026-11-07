@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 200" width="380" height="200">
+                    <rect x="0" y="187" width="380" height="2" fill="var(--line-2)"></rect>
+                    <rect x="12" y="176" width="140" height="6" rx="1" fill="var(--ink-3)"></rect>
+                    <circle cx="26" cy="185" r="3.5" fill="var(--ink)"></circle>
+                    <circle cx="138" cy="185" r="3.5" fill="var(--ink)"></circle>
+                    <rect x="208" y="176" width="60" height="11" fill="var(--line-2)" stroke="var(--ink-4)" stroke-width="1"></rect>
+                    <rect x="224" y="172" width="28" height="4" fill="var(--ink)"></rect>
+                    <path d="M226 172 L232 160 M250 172 L244 160" stroke="var(--ink)" stroke-width="2"></path>
+                    <rect x="232" y="96" width="12" height="76" fill="var(--ink-4)" stroke="var(--ink)" stroke-width="2"></rect>
+                    <path d="M235.5 98 V170 M240.5 98 V170" stroke="var(--ink-3)" stroke-width="1"></path>
+                    <rect x="228" y="92" width="20" height="5" rx="1" fill="var(--ink)"></rect>
+                    <path data-outline="1" d="M238 88 L368 93 L368 97 L238 102 Z" fill="none" stroke="var(--ink-3)" stroke-width="1.5" stroke-dasharray="4 4" opacity="0"></path>
+                    <g data-dims="1" opacity="0">
+                      <line x1="244" y1="116" x2="368" y2="116" stroke="var(--ink-3)" stroke-width="1"></line>
+                      <line x1="368" y1="110" x2="368" y2="122" stroke="var(--ink-3)" stroke-width="1"></line>
+                      <text x="306" y="130" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="10" fill="var(--ink-3)">nach Mass</text>
+                    </g>
+                  </svg>

@@ -1,0 +1,133 @@
+---
+/**
+ * Speziallösungen (v4): eine offene Bühne ohne Kasten – das Bild steht gross auf der Seite (Startseite: drei
+ * KI-Bilder auf Weiss, grau gezeichnet, rot und echt, was wir dazubauen). Ein Umschalter wählt
+ * «Für Krane · Fahrzeuge · Baumaschinen»; Zeichnung und Satz blenden über. Die Legende sagt
+ * die Bildregel: «Grau: die Serie · Rot: was wir dazubauen». «Aufgabe schildern» steht unter
+ * der Bühne (breit rechts unten). Reines CSS (Optionsfelder) – kein Skript, ohne JS bedienbar.
+ * Auch auf dem Trommeltausch («Tauschen · Überholen · Neu kaufen») und bei den Bauformen der
+ * Heukrananlagen (vier Felder): dort kommen Zeichnungen und Legende als `art` und `legend` herein.
+ */
+import Icon from '../Icon.astro';
+import Rich from '../Rich.astro';
+import { plain } from '../../lib/text.mjs';
+import { illustration } from '../../lib/illustrations';
+import { Picture } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import krane from '../../assets/illustrations/spezial-krane-bild.jpg';
+import fahrzeuge from '../../assets/illustrations/spezial-fahrzeuge-bild.jpg';
+import baumaschinen from '../../assets/illustrations/spezial-baumaschinen-bild.jpg';
+
+/** `tab`: kurzer Name im Umschalter, wenn der Titel zu lang ist. */
+interface Item { title: string; text: string; tab?: string }
+interface Props {
+  title: string;
+  lead: string;
+  /** Die Felder (höchstens vier) – Titel und Satz, auf der Startseite die drei «Für …» (content/spezialloesungen.ts). */
+  items: Item[];
+  cta: { label: string; href: string };
+  /** Überschrift als H1 (eigene Seite) oder H2 (Abschnitt). */
+  level?: 'h1' | 'h2';
+  id?: string;
+  /** Je Feld die Zeichnung (Schlüssel in src/assets/illustrations) oder ein freigestelltes Bild (`image`)
+      und der Alt-Text; sonst die drei Bilder der Speziallösungen (grau gezeichnet, rot und echt, was wir dazubauen). */
+  art?: { illo?: string; image?: ImageMetadata; alt: string }[];
+  /** Die Bildregel in zwei Teilen: was grau ist, was rot ist. */
+  legend?: { grey: string; red: string };
+}
+const {
+  title, lead, items, cta, level = 'h2', id = 'spezial',
+  art = [
+    { image: krane, alt: 'Säulenschwenkkran als Zeichnung, nur der Rohrgreifer am Haken ist echt und rot' },
+    { image: fahrzeuge, alt: 'Dreiachs-Lastwagen als Zeichnung, nur die Kippbrücke ist echt und rot' },
+    { image: baumaschinen, alt: 'Minibagger als Zeichnung, nur die Anbau-Rüttelplatte ist echt und rot' },
+  ],
+  legend = { grey: 'Grau: die Serie', red: 'Rot: was wir dazubauen' },
+} = Astro.props;
+const H = level;
+const shown = items.slice(0, Math.min(4, art.length));
+---
+<section class="v4-section sp-sec" id={id} aria-labelledby={`${id}-title`}>
+  <div class="wrap" data-hero={level === 'h1' ? true : undefined}>
+    <H class="v4-h2" id={`${id}-title`}>{plain(title)}</H>
+    <Rich as="p" class="v4-sub" text={lead} />
+    <div class="sp">
+      {shown.map((_, i) => (
+        <input class="sp__in" type="radio" name={`${id}-feld`} id={`${id}-${i}`} checked={i === 0} />
+      ))}
+      <div class="sp__stage">
+        <div class="sp__tabs glass-tabs" role="presentation">
+          {shown.map((it, i) => <label for={`${id}-${i}`} data-i={i}>{it.tab ?? it.title}</label>)}
+        </div>
+        <div class="sp__art">
+          {shown.map((_, i) => {
+            const a = art[i];
+            return a.image
+              ? <Picture src={a.image} alt={a.alt} data-i={i} formats={['avif', 'webp']} widths={[640, 1100]} sizes="(min-width: 960px) 1100px, 100vw" fallbackFormat="webp" loading="lazy" decoding="async" />
+              : <img src={illustration(a.illo ?? '', 'Bühne')} alt={a.alt} data-i={i} width="1000" height="560" loading="lazy" decoding="async" />;
+          })}
+        </div>
+        <p class="sp__legend" aria-hidden="true"><span><i class="sp__sw sp__sw--grey"></i>{legend.grey}</span><span><i class="sp__sw"></i>{legend.red}</span></p>
+        <div class="sp__texts sp__texts--in">
+          {shown.map((it, i) => <div class="sp__text" data-i={i}><p class="sp__t">{it.title}</p><Rich as="p" class="sp__s" text={it.text} /></div>)}
+        </div>
+      </div>
+      <div class="sp__texts sp__texts--out" aria-hidden="true">
+        {shown.map((it, i) => <div class="sp__text" data-i={i}><p class="sp__t">{it.title}</p><Rich as="p" class="sp__s" text={it.text} /></div>)}
+      </div>
+      <a class="btn btn--primary sp__cta" href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sp { position: relative; margin-top: 20px; }
+  @media (min-width: 960px) { .sp { margin-top: 40px; } }
+  .sp__in { position: absolute; opacity: 0; pointer-events: none; }
+  .sp__stage { position: relative; height: 400px; }
+  @media (min-width: 960px) { .sp__stage { height: 660px; } }
+  .sp__tabs {
+    position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; white-space: nowrap;
+    background: var(--gray-100);
+  }
+  @media (min-width: 960px) { .sp__tabs { top: 28px; } }
+  .sp__tabs label {
+    padding: 8px 9px; border-radius: 999px; font-size: 0.78125rem; font-weight: 600; color: var(--ink); cursor: pointer;
+    transition: background-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+  }
+  @media (min-width: 600px) { .sp__tabs label { padding: 10px 20px; font-size: 0.9375rem; } }
+  .sp__art { position: absolute; left: -8px; right: -8px; top: 60px; bottom: 0; }
+  @media (min-width: 960px) { .sp__art { left: 0; right: 0; top: 84px; bottom: 120px; } }
+  .sp__art :global(img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transform: scale(0.94) translateY(12px); transition: opacity 0.6s ease, transform 0.9s var(--ease); }
+  .sp__legend { position: absolute; left: 0; top: 32px; display: none; gap: 16px; font-size: 0.8125rem; color: var(--ink-3); }
+  @media (min-width: 960px) { .sp__legend { display: inline-flex; } }
+  .sp__legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sp__sw { width: 10px; height: 10px; border-radius: 2px; background: var(--red); }
+  .sp__sw--grey { background: var(--ink-4); }
+  .sp__texts { position: relative; }
+  .sp__texts--in { display: none; position: absolute; left: 0; bottom: 8px; width: 560px; height: 80px; }
+  @media (min-width: 960px) { .sp__texts--in { display: block; } .sp__texts--out { display: none; } }
+  .sp__texts--out { margin: 8px 0 0; height: 104px; }
+  .sp__text { position: absolute; left: 0; right: 0; bottom: 0; opacity: 0; transition: opacity 0.5s ease; }
+  .sp__t { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; letter-spacing: -0.02em; color: var(--ink); }
+  @media (min-width: 960px) { .sp__t { font-size: 1.625rem; } }
+  .sp__text :global(.sp__s) { margin-top: 6px; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
+  @media (min-width: 960px) { .sp__text :global(.sp__s) { font-size: 1rem; } }
+  .sp__cta { display: flex; margin-top: 16px; --btn-h: 52px; padding: 0 24px; font-size: 1rem; font-weight: 600; }
+  @media (min-width: 960px) { .sp__cta { position: absolute; right: 0; bottom: 16px; margin: 0; } }
+
+  /* Gewählt: Knopf weiss, Zeichnung und Satz sichtbar. */
+  .sp:has(.sp__in:nth-of-type(1):checked) :global([data-i='0']),
+  .sp:has(.sp__in:nth-of-type(2):checked) :global([data-i='1']),
+  .sp:has(.sp__in:nth-of-type(3):checked) :global([data-i='2']),
+  .sp:has(.sp__in:nth-of-type(4):checked) :global([data-i='3']) { opacity: 1; transform: none; }
+  .sp:has(.sp__in:nth-of-type(1):checked) label[data-i='0'],
+  .sp:has(.sp__in:nth-of-type(2):checked) label[data-i='1'],
+  .sp:has(.sp__in:nth-of-type(3):checked) label[data-i='2'],
+  .sp:has(.sp__in:nth-of-type(4):checked) label[data-i='3'] { background: var(--white); box-shadow: 0 2px 8px rgba(10, 10, 11, 0.12); }
+  .sp:has(.sp__in:nth-of-type(1):focus-visible) label[data-i='0'],
+  .sp:has(.sp__in:nth-of-type(2):focus-visible) label[data-i='1'],
+  .sp:has(.sp__in:nth-of-type(3):focus-visible) label[data-i='2'],
+  .sp:has(.sp__in:nth-of-type(4):focus-visible) label[data-i='3'] { outline: 2px solid var(--ink); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .sp__art :global(img), .sp__text { transition: none; } }
+</style>

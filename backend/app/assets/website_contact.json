@@ -1,0 +1,113 @@
+{
+  "_comment": "Generiert aus website/src/config (site.mjs, inquiry.mjs, newsletter.mjs) mit «npm run export:erp» – nicht von Hand ändern.",
+  "brand": {
+    "name": "INEXXIO",
+    "formerly": "ehemals HS Steiner",
+    "full": "INEXXIO (ehemals HS Steiner)"
+  },
+  "phone": {
+    "display": "052 378 22 47",
+    "e164": "+41523782247"
+  },
+  "email": "fahrzeug-kranbau@hs-steiner.ch",
+  "pages": {
+    "thanks": "/kontakt/danke"
+  },
+  "photos": {
+    "max": 3,
+    "maxTotalBytes": 10485760,
+    "accept": "image/jpeg,image/png,image/webp",
+    "extensions": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp"
+    ]
+  },
+  "minSeconds": 3,
+  "limits": {
+    "message": 4000,
+    "name": 120,
+    "company": 160,
+    "phone": 40,
+    "email": 160
+  },
+  "labels": [
+    [
+      "message",
+      "Anliegen"
+    ],
+    [
+      "name",
+      "Name"
+    ],
+    [
+      "company",
+      "Firma"
+    ],
+    [
+      "phone",
+      "Telefon"
+    ],
+    [
+      "email",
+      "E-Mail"
+    ]
+  ],
+  "sourceLabel": "Seite",
+  "messages": {
+    "message": "Bitte beschreiben Sie kurz Ihr Anliegen.",
+    "name": "Bitte geben Sie Ihren Namen an.",
+    "emailMissing": "Bitte geben Sie Ihre E-Mail-Adresse an – dorthin geht unsere Antwort.",
+    "phone": "Diese Telefonnummer sieht unvollständig aus.",
+    "email": "Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).",
+    "tooLong": "Dieser Text ist zu lang – höchstens {max} Zeichen.",
+    "photosCount": "Bitte höchstens {max} Dateien auswählen (jetzt {count}).",
+    "photosType": "«{name}» ist kein Bild im Format JPG, PNG oder WEBP.",
+    "photosSize": "Die Dateien sind zusammen {size} gross – erlaubt sind {max}.",
+    "tooFast": "Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal."
+  },
+  "patterns": {
+    "email": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$",
+    "phone": "^[+()\\d][\\d\\s/().-]{5,}$"
+  },
+  "subject": {
+    "word": "Anfrage",
+    "max": 60
+  },
+  "mail": {
+    "confirmSubject": "Angekommen – danke für Ihre Anfrage",
+    "confirmIntro": "Danke für Ihre Nachricht. Sie liegt jetzt nicht in einem Stapel, sondern bei den Menschen, die sich damit auskennen.",
+    "confirmNext": "Wir melden uns innert kurzer Zeit.",
+    "confirmMore": "Fällt Ihnen noch etwas ein? Antworten Sie einfach auf diese E-Mail – es landet am selben Ort.",
+    "kicker": "Anfrage erhalten",
+    "copyTitle": "Ihre Angaben",
+    "factCompany": "Firma",
+    "factPhone": "Rückruf an",
+    "factPhotos": "Fotos",
+    "photoOne": "1 Bild",
+    "photoMany": "{n} Bilder",
+    "nextTitle": "So geht es weiter",
+    "received": "Angekommen",
+    "urgent": "Eilt es? Dann rufen Sie uns direkt an:"
+  },
+  "newsletter": {
+    "name": "Post von INEXXIO",
+    "consent": "Ja, schicken Sie mir ab und zu «Post von INEXXIO» – unseren Newsletter, nur wenn es etwas zu erzählen gibt. Abmelden geht jederzeit mit einem Klick.",
+    "confirmSubject": "Ein Klick noch: Post von INEXXIO",
+    "confirmLead": "Sie möchten «Post von INEXXIO» erhalten, unseren Newsletter. Damit niemand Sie ohne Ihr Wissen anmeldet, bestätigen Sie es bitte mit einem Klick.",
+    "confirmIgnore": "Waren Sie das nicht? Dann ignorieren Sie diese Mail einfach – ohne Bestätigung schicken wir nichts.",
+    "confirmButton": "Ja, ich bin dabei",
+    "kicker": "Newsletter",
+    "inviteTitle": "Post von INEXXIO",
+    "inviteAsked": "Sie möchten unseren Newsletter – bitte bestätigen Sie es noch mit einem Klick.",
+    "inviteOffer": "Ab und zu erzählen wir, was bei uns entsteht. Wenn Sie mögen, genügt ein Klick – abmelden geht genauso schnell.",
+    "inviteButton": "Ja, gerne",
+    "footer": "Sie erhalten «Post von INEXXIO», weil Sie sich dafür angemeldet haben.",
+    "unsubscribe": "Abmelden",
+    "unsubscribeTitle": "Vom Newsletter abmelden?",
+    "unsubscribeLead": "Ein Klick, und Sie erhalten keine «Post von INEXXIO» mehr.",
+    "unsubscribeButton": "Abmelden",
+    "invalid": "Dieser Link ist abgelaufen oder unvollständig."
+  }
+}

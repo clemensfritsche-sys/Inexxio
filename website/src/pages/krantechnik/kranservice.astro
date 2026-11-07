@@ -1,0 +1,75 @@
+---
+/**
+ * /krantechnik/kranservice – eigenes Layout (Oktober 2026), reduziert: Kopf wie Porsche → Drei Stufen als
+ * Treppe (#stufen, INEXXIO 365 oben #inexxio-365) → Garantien → Prüfen, warten, modernisieren (zwei
+ * Bildkarten, #pruefen, #modernisierung) → Prüfpflicht in drei Sätzen → Fragen → Anfrage.
+ * Texte: content/krantechnik.ts. Einzelheiten zur Prüfpflicht stehen im Ratgeber, nicht hier.
+ * Nicht behaupten, dass INEXXIO Kranexperten-Kontrollen durchführt oder von der Suva anerkannt ist.
+ */
+import Base from '../../layouts/Base.astro';
+import StageHero from '../../components/StageHero.astro';
+import ServiceTiers from '../../components/ServiceTiers.astro';
+import Guarantees from '../../components/home/Guarantees.astro';
+import PhotoCard from '../../components/PhotoCard.astro';
+import FactGrid from '../../components/FactGrid.astro';
+import FaqStage from '../../components/FaqStage.astro';
+import ContactSection from '../../components/ContactSection.astro';
+import Rich from '../../components/Rich.astro';
+import { areaOf } from '../../config/site.mjs';
+import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
+import { plain } from '../../lib/text.mjs';
+import { pageTitle } from '../../lib/titles';
+import { kranservice as page, serviceTiers as t, serviceWork as w, inspectionDuty as d } from '../../content/krantechnik';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const area = areaOf(page.area);
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+];
+const titel = pageTitle('/krantechnik/kranservice');
+---
+<Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
+  <StageHero
+    word="Kranservice"
+    image={titel}
+    alt="Halle mit Brückenkran als Konstruktionszeichnung, davor ein rotes Hubwerk mit Haken und ein offener roter Werkzeugkoffer"
+    title={page.hero.h1}
+    lead={page.hero.lead}
+    primary={page.hero.primary}
+    secondary={{ label: 'Die drei Stufen', href: '#stufen' }}
+  />
+
+  <section class="v4-section" id="stufen" aria-labelledby="stufen-title">
+    <div class="wrap">
+      <header class="v4-head--center">
+        <h2 class="v4-h2" id="stufen-title">{t.title}</h2>
+        <Rich as="p" class="v4-sub" text={t.lead} />
+      </header>
+      <ServiceTiers />
+    </div>
+  </section>
+
+  <Guarantees garantieHref="#fragen" />
+
+  <section class="v4-section" aria-labelledby="arbeit-title">
+    <div class="wrap">
+      <header class="v4-head--center"><h2 class="v4-h2" id="arbeit-title">{w.title}</h2></header>
+      <ul role="list" class="ks-work">
+        {w.items.map((it) => <li id={it.id}><PhotoCard photo={it.photo} label={it.label} title={it.title} text={it.text} cta={it.cta} /></li>)}
+      </ul>
+    </div>
+  </section>
+
+  <FactGrid id="pruefpflicht" title={d.title} lead={d.lead} items={d.items} />
+
+  <FaqStage items={page.faq} illo={'menu/kranservice'} />
+
+  <ContactSection />
+</Base>
+
+<style>
+  .ks-work { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
+  .ks-work > li { scroll-margin-top: calc(var(--header-h) + 24px); }
+  @media (min-width: 960px) { .ks-work { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 56px; } }
+</style>

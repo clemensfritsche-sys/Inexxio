@@ -1,0 +1,77 @@
+---
+/**
+ * ►►► Der Kontaktbereich – EINER für die ganze Website. ◄◄◄
+ * v4 (Vorlage «Startseite v4»): die Karte ist der Grund, links darüber Titel, die Anfrage in
+ * zwei Schritten (ein Glasfeld, «Weiter», dann der Rest) und die Kontaktliste. Auf /kontakt
+ * mit H1, sonst am Ende jeder Seite mit H2.
+ * Telefon, E-Mail und Anschrift kommen aus dem ERP (ContactPanel → scripts/contact.ts).
+ * `hint`: eine Foto-Hilfe direkt unter dem Formular (welche Fotos uns am meisten helfen) – je Seite.
+ */
+import InquiryForm from './InquiryForm.astro';
+import ContactPanel from './ContactPanel.astro';
+import LocationMap from './LocationMap.astro';
+import Icon from './Icon.astro';
+import Rich from './Rich.astro';
+import { kontakt } from '../content/kontakt';
+
+interface Props {
+  level?: 'h1' | 'h2';
+  hint?: { title: string; items: string[]; note?: string };
+}
+const { level = 'h2', hint } = Astro.props;
+const main = level === 'h1';
+---
+<section class:list={['contact', main && 'contact--main']} id="anfrage" aria-labelledby="anfrage-title" data-hero={main ? true : undefined}>
+  <div class="contact__map contact__map--wide" aria-hidden={main ? undefined : 'true'}><LocationMap fill /></div>
+  <div class="contact__map contact__map--narrow" aria-hidden="true"><LocationMap fill compact /></div>
+  <div class="contact__veil" aria-hidden="true"></div>
+  <div class="wrap contact__in">
+    <div class="contact__col">
+      <header class="contact__head">
+        <Rich as={level} id="anfrage-title" class="v4-h2" text={kontakt.h1} />
+        <Rich as="p" class="v4-sub" text={kontakt.lead} />
+      </header>
+      <div class="contact__form"><InquiryForm resultLevel={main ? 2 : 3} /></div>
+      {hint && (
+        <aside class="contact__hint" aria-label={hint.title}>
+          <span class="contact__hint-ic"><Icon name="camera" size={20} /></span>
+          <div>
+            <p class="contact__hint-title">{hint.title}</p>
+            <ul role="list">{hint.items.map((i) => <li>{i}</li>)}</ul>
+            {hint.note && <Rich as="p" class="contact__hint-note" text={hint.note} />}
+          </div>
+        </aside>
+      )}
+      <ContactPanel />
+    </div>
+  </div>
+</section>
+
+<style>
+  .contact { position: relative; overflow: hidden; background: var(--white); }
+  .contact__map { position: absolute; inset: 0; }
+  .contact__map--narrow { display: none; }
+  .contact__veil { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.75) 38%, rgba(255, 255, 255, 0) 62%); }
+  .contact__in { position: relative; padding-block: 112px; }
+  /* /kontakt: der Bereich füllt den Bildschirm unter dem Kopf – der Fuss erscheint erst beim Scrollen. */
+  .contact--main { min-height: calc(100svh - var(--header-h)); display: flex; align-items: center; }
+  .contact--main .contact__in { width: 100%; }
+  .contact__col { max-width: 580px; }
+  .contact__form { margin-top: 32px; min-height: 250px; }
+  .contact__col :global(.cpanel) { margin-top: 36px; }
+  .contact__hint { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; margin-top: 0; padding: 18px; border-radius: 16px; background: rgba(255, 255, 255, 0.85); border: 1px solid var(--line); }
+  .contact__hint-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--gray-100); color: var(--ink); }
+  .contact__hint-title { font-weight: 600; font-size: 0.9375rem; color: var(--ink); }
+  .contact__hint ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .contact__hint li { padding: 4px 10px; border-radius: 6px; background: var(--gray-100); font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); }
+  .contact__hint :global(.contact__hint-note) { margin-top: 10px; font-size: 0.8125rem; color: var(--ink-3); }
+  /* Schmal: die Karte als Streifen zwischen Titel und Formular. */
+  @media (max-width: 959px) {
+    .contact__in { padding-block: 64px; }
+    .contact__map { inset: 150px 0 auto; height: 340px; }
+    .contact__map--wide { display: none; }
+    .contact__map--narrow { display: block; }
+    .contact__veil { inset: 380px 0 auto; height: 120px; background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--white)); }
+    .contact__form { margin-top: 250px; }
+  }
+</style>

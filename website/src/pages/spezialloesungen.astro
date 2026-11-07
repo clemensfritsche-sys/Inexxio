@@ -1,0 +1,88 @@
+---
+/**
+ * /spezialloesungen – eigenes Layout (Entwurf «Speziallösungen», Oktober 2026):
+ * Kopf wie Porsche (StageHero) → Drei Felder, ein Prinzip (Karten) → Serienmaschinen sind für
+ * den Durchschnitt gebaut (Bild + drei Gewinne) → Vom Problem zur Lösung (Weg) → Wer
+ * dahintersteht → Garantien (Baustein der Startseite) → Fragen → Anfrage.
+ * Texte: content/spezialloesungen.ts. Hintergrund überall weiss.
+ */
+import Base from '../layouts/Base.astro';
+import StageHero from '../components/StageHero.astro';
+import FieldCards from '../components/spezial/FieldCards.astro';
+import SeriesGap from '../components/spezial/SeriesGap.astro';
+import SolutionPath from '../components/spezial/SolutionPath.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Photo from '../components/Photo.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import Guarantees from '../components/home/Guarantees.astro';
+import FaqStage, { type FaqVisual } from '../components/FaqStage.astro';
+import ContactSection from '../components/ContactSection.astro';
+import { faqPage, service as serviceNode } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+import { pageTitle } from '../lib/titles';
+import {
+  spezialloesungen as page, specialPrinciple as pr, specialFields as fields,
+  specialSteps as s, specialBackground as b,
+} from '../content/spezialloesungen';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+];
+/** Das Bild je Frage: die drei Felder der Reihe nach, dann Garantie und Betreuung. */
+const looks: { visual?: FaqVisual; illo?: string }[] = [
+  { illo: 'spezial-baumaschinen' }, { illo: 'spezial-fahrzeuge' }, { illo: 'spezial-krane' }, { visual: 'garantie' }, { visual: 'inexxio365' },
+];
+const faq = page.faq.map((f, i) => ({ ...f, ...looks[i] }));
+const cta = { label: page.hero.primary.label, href: '#anfrage' };
+const titel = pageTitle('/spezialloesungen');
+---
+<Base title={page.title} description={page.description} crumbs={[{ name: page.crumb, path: page.path }]} og="spezialloesungen" jsonLd={nodes}>
+  <StageHero
+    word="Speziallösungen"
+    image={titel}
+    alt="Lastwagen mit Ladekran als Konstruktionszeichnung, nur der Sondergreifer ist echt und rot"
+    title={page.hero.h1}
+    lead={page.hero.lead}
+    primary={cta}
+    secondary={{ label: 'So läuft es ab', href: '#ablauf' }}
+  />
+
+  <FieldCards title={fields.title} lead={fields.lead} items={fields.items} />
+
+  <SeriesGap title={pr.title} lead={pr.lead} alt={pr.alt} gains={pr.gains} />
+
+  <SolutionPath title={s.title} start={s.start} end={s.end} items={s.items} />
+
+  <section class="section sx-bg-sec" aria-labelledby="hintergrund">
+    <div class="wrap grid sx-bg">
+      <div class="col-4 sx-bg__fig"><Photo id="portraet-clemens" sizes="(min-width: 960px) 30vw, 70vw" /></div>
+      <div class="col-7 sx-bg__text">
+        <SectionHead title={b.title} id="hintergrund" class="head--flush" />
+        <Rich as="p" text={b.text} />
+        <ul role="list" class="checklist">
+          {b.facts.map((f) => <li><Icon name="check" size={20} /><Rich as="span" text={f} /></li>)}
+        </ul>
+        <a class="arrow-link" href="/ueber-uns">Mehr über uns <Icon name="arrow-right" size={18} /></a>
+      </div>
+    </div>
+  </section>
+
+  <Guarantees garantieHref="#fragen" />
+
+  <FaqStage items={faq} illo={'spezial-baumaschinen'} />
+
+  <ContactSection />
+</Base>
+
+<style>
+  .head--flush { margin-bottom: 0; }
+  .sx-bg-sec { margin-top: 48px; }
+  .sx-bg { align-items: center; }
+  /* Das freigestellte Porträt läuft unten weich aus – kein harter Schnitt an der Bildkante. */
+  .sx-bg__fig :global(img) { -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 98%); mask-image: linear-gradient(180deg, #000 55%, transparent 98%); }
+  @media (min-width: 960px) { .sx-bg__text { grid-column: 6 / span 7; } }
+  .sx-bg__text { display: grid; gap: var(--s-4); justify-items: start; }
+</style>

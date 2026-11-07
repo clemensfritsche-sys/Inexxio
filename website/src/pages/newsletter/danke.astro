@@ -1,0 +1,24 @@
+---
+/** /newsletter/danke – Ziel nach einem Schritt des Newsletters (der Server leitet mit 303 hierher). */
+import Base from '../../layouts/Base.astro';
+import Icon from '../../components/Icon.astro';
+import Rich from '../../components/Rich.astro';
+import { newsletterPages as n } from '../../content/newsletter';
+const p = n.pending;
+---
+<Base title={p.title} description={n.description} crumbs={[{ name: 'Newsletter', path: '/newsletter' }, { name: p.title, path: '/newsletter/danke' }]} noindex>
+  <section class="section nl" data-hero>
+    <div class="wrap"><div class="nl__wrap">
+      <Icon name="check" size={32} class="nl__icon" />
+      <h1 class="nl__title">{p.title}</h1>
+      <Rich as="p" class="lead" text={p.lead} />
+      <a class="arrow-link" href="/">Zur Startseite <Icon name="arrow-right" size={18} /></a>
+    </div></div>
+  </section>
+</Base>
+
+<style>
+  .nl__wrap { display: grid; gap: var(--s-4); justify-items: start; max-width: 760px; }
+  .nl__icon { color: var(--ok); }
+  .nl__title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
+</style>

@@ -8,6 +8,78 @@
     ],
     "cleanUrls": true,
     "trailingSlash": false,
+    "redirects": [
+      {
+        "regex": "(?i)^/heuentnahmekran/kran-dem-geb(?:ä|ae|a|%c3%a4)ude-angepasst(?:/.*)?$",
+        "destination": "/krantechnik/krane-nach-mass",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/heuentnahmekran/matagematerial(?:/.*)?$",
+        "destination": "/krantechnik/kranservice",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/(?:heuentnahmekran|forst-und-landwirtschaft|drehkran-hydraulisch|bruecken-kran|einschienen-kran)(?:/.*)?$",
+        "destination": "/krantechnik/heukrananlagen",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/application/files/.*$",
+        "destination": "/krantechnik/heukrananlagen",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/betonfordertechnik/euro-k(?:ö|oe|o|%c3%b6)?pper(?:/.*)?$",
+        "destination": "/fahrzeugtechnik#reparatur",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/betonfordertechnik/verschleissteile(?:/.*)?$",
+        "destination": "/fahrzeugtechnik/verschleissteile",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/betonfordertechnik(?:/.*)?$",
+        "destination": "/fahrzeugtechnik/trommeltausch",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/antrieb-und-steuerung(?:/.*)?$",
+        "destination": "/krantechnik/kranservice",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/baumaschinen(?:/.*)?$",
+        "destination": "/spezialloesungen",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/wahrschaftes/gelaender-und-verglasung(?:/.*)?$",
+        "destination": "/ueber-uns",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/wahrschaftes(?:/.*)?$",
+        "destination": "/spezialloesungen",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/sachtransporter-anhanger/reparaturen(?:/.*)?$",
+        "destination": "/fahrzeugtechnik#reparatur",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/(?:haus-und-garten|kleintransporter-pw|hebebuhnen|sachtransporter-anhanger|camping)(?:/.*)?$",
+        "destination": "/ueber-uns",
+        "type": 301
+      },
+      {
+        "regex": "(?i)^/unsere-einsatzorte(?:/.*)?$",
+        "destination": "/ueber-uns",
+        "type": 301
+      }
+    ],
     "headers": [
       {
         "source": "**",
@@ -30,19 +102,33 @@
           },
           {
             "key": "Permissions-Policy",
-            "value": "camera=(self), microphone=(), geolocation=(), payment=()"
+            "value": "camera=(self), microphone=(), geolocation=(self), payment=(self \"https://js.stripe.com\")"
           },
           {
             "key": "Strict-Transport-Security",
             "value": "max-age=31536000; includeSubDomains; preload"
           },
           {
-            "key": "X-XSS-Protection",
-            "value": "1; mode=block"
-          },
-          {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebaseapp.com https://*.googleapis.com https://cdn.firebase.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://storage.googleapis.com https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://inexxio-dev.web.app https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com; frame-src 'self' https://*.firebaseapp.com https://inexxio-dev.web.app https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+            "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebaseapp.com https://*.googleapis.com https://apis.google.com https://cdn.firebase.com https://www.gstatic.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://storage.googleapis.com https://lh3.googleusercontent.com https://*.stripe.com; connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://apis.google.com https://api.stripe.com https://maps.googleapis.com; frame-src 'self' blob: https://*.firebaseapp.com https://accounts.google.com https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+          }
+        ]
+      },
+      {
+        "source": "/beleg",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/dokument",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
           }
         ]
       },
@@ -56,24 +142,11 @@
         ]
       },
       {
-        "source": "**/*.@(jpg|jpeg|gif|png|svg|ico|webp|avif)",
+        "source": "**/*.@(jpg|jpeg|gif|png|svg|ico|webp|avif|mp4)",
         "headers": [
           {
             "key": "Cache-Control",
             "value": "public, max-age=86400, stale-while-revalidate=604800"
-          }
-        ]
-      },
-      {
-        "source": "/(app|admin)/**",
-        "headers": [
-          {
-            "key": "X-Robots-Tag",
-            "value": "noindex, nofollow"
-          },
-          {
-            "key": "Cache-Control",
-            "value": "no-store, no-cache, must-revalidate"
           }
         ]
       }

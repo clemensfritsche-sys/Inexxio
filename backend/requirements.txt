@@ -1,20 +1,37 @@
-fastapi==0.115.5
-uvicorn[standard]==0.32.1
-sqlalchemy[asyncio]==2.0.36
-asyncpg==0.30.0
-psycopg2-binary==2.9.10
-alembic==1.14.0
-pydantic==2.10.2
-pydantic-settings==2.6.1
-email-validator==2.2.0
-python-jose[cryptography]==3.3.0
-firebase-admin==6.6.0
-httpx==0.28.0
-python-multipart==0.0.17
-pillow==11.0.0
-google-cloud-storage==2.19.0
-google-cloud-secret-manager==2.21.1
-stripe==11.2.0
-anthropic==0.40.0
-pytest==8.3.4
-pytest-asyncio==0.24.0
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+sqlalchemy==2.1.4
+psycopg2-binary==2.9.13
+alembic==1.20.1
+pydantic==2.14.1
+pydantic-settings==2.16.2
+firebase-admin==7.7.0
+# cryptography: verschlüsselt die Zugänge der Postfächer (Fernet, services/mailbox) – direkt
+# gelesen, also direkt gepinnt.
+cryptography==50.0.2
+# Datei-Ablage (services/attachments) – kommt ohnehin mit firebase-admin, hier gepinnt, weil der Code es direkt liest
+google-cloud-storage==3.17.1
+# Passkeys / WebAuthn (FIDO2): serverseitige Register-/Login-Zeremonien.
+webauthn==3.0.1
+# httpx: Gmail (services/mailbox), Feiertage (services/holidays) – und Starlettes TestClient.
+httpx==0.28.1
+tzdata==2026.6
+# python-multipart: FastAPI braucht es für UploadFile (Bild-Anhänge der Datenerfassung).
+python-multipart==0.0.32
+# pillow: verkleinert und normalisiert die aufgenommenen Bilder (services/attachments).
+pillow==13.0.0
+# stripe: der eine Zahlungsdienst (services/stripe_pay). **Optional zur Laufzeit** – ohne
+# STRIPE_SECRET_KEY wird das Modul nie importiert, und alles andere läuft unverändert:
+# eine Überweisung ist kein Fallback, sondern der B2B-Normalfall.
+stripe==16.0.0
+# segno: erzeugt die Matrix der **QR-Rechnung** (services/qrbill). Reines Python, keine
+# Systembibliothek – und **nur** die Matrix: Nutzlast, Schweizerkreuz und SVG schreiben
+# wir selbst, weil die einunddreissig Zeilen der Spezifikation unsere Sache sind.
+segno==1.6.6
+# pypdfium2: zählt die Seiten eines PDF und zeichnet die erste als Vorschaubild
+# (services/documents). Ein Wheel ohne Systembibliothek.
+pypdfium2==5.14.0
+# anthropic: das KI-Tor (services/ai) – Lesen und Verfassen von Dokumenten. **Optional zur
+# Laufzeit**: ohne ANTHROPIC_API_KEY ruft niemand die KI, und alles andere läuft weiter.
+anthropic==2.3.0
+pytest==9.2.0

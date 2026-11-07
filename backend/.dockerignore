@@ -16,6 +16,9 @@ venv
 env
 ENV
 
+# Tests – laufen in der CI, nicht im Dienst
+tests/
+
 # Test artifacts
 .pytest_cache
 .coverage
@@ -49,3 +52,6 @@ alembic/versions/__pycache__
 dist/
 build/
 *.egg-info/
+
+# IP→Land-Tabelle: entsteht im Build vor `COPY . .` – eine lokale Fassung überschreibt sie nicht
+app/assets/geoip/

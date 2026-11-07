@@ -1,0 +1,37 @@
+---
+/**
+ * /newsletter – Anmeldung zu «Post von INEXXIO». Ohne JavaScript: der Server schickt
+ * die Bitte um Bestätigung und leitet mit 303 auf /newsletter/danke (Double Opt-in).
+ */
+import Base from '../../layouts/Base.astro';
+import Rich from '../../components/Rich.astro';
+import { newsletterPages as n } from '../../content/newsletter';
+import '../../styles/form.css';
+---
+<Base title="Newsletter" description={n.description} crumbs={[{ name: 'Newsletter', path: '/newsletter' }]} noindex>
+  <section class="section nl" data-hero>
+    <div class="wrap"><div class="nl__wrap">
+      <p class="eyebrow">{n.signup.eyebrow}</p>
+      <Rich as="h1" class="nl__title" text={n.signup.title} />
+      <Rich as="p" class="lead" text={n.signup.lead} />
+      <form class="nl__form" method="post" action="/api/v1/newsletter">
+        <div class="iform__hp" aria-hidden="true">
+          <label>Bitte leer lassen <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
+        </div>
+        <div class="field">
+          <label class="field__label" for="nl-email">{n.signup.label}</label>
+          <input class="input" id="nl-email" name="email" type="email" required maxlength="160" autocomplete="email" />
+        </div>
+        <button type="submit" class="btn btn--primary btn--lg">{n.signup.button}</button>
+      </form>
+      <p class="small muted">{n.signup.small} <a class="link" href="/datenschutz">Datenschutz</a>.</p>
+    </div></div>
+  </section>
+</Base>
+
+<style>
+  .nl__wrap { display: grid; gap: var(--s-4); justify-items: start; max-width: 640px; }
+  .nl__title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
+  .nl__form { display: grid; gap: var(--s-4); width: 100%; margin-top: var(--s-3); }
+  @media (min-width: 640px) { .nl__form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; } }
+</style>

@@ -1,0 +1,54 @@
+---
+/**
+ * /service – Notfall und Einstieg nach Anliegen auf EINER Seite, eigenes Layout v4 (Oktober 2026): Kopf wie
+ * Porsche → Notfall (#notfall, dunkle Karte mit der Nummer gross) → Saison-Aktion → Ihr Anliegen (drei
+ * Karten) → Garantien → Fragen → Anfrage. Texte: content/service.ts.
+ */
+import Base from '../layouts/Base.astro';
+import StageHero from '../components/StageHero.astro';
+import CallPanel from '../components/CallPanel.astro';
+import SeasonNotice from '../components/SeasonNotice.astro';
+import FieldCards from '../components/spezial/FieldCards.astro';
+import Guarantees from '../components/home/Guarantees.astro';
+import FaqStage from '../components/FaqStage.astro';
+import ContactSection from '../components/ContactSection.astro';
+import { faqPage, service as serviceNode } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+import { pageTitle } from '../lib/titles';
+import { service as s } from '../content/service';
+
+const titel = pageTitle(s.path);
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const nodes = [
+  serviceNode(siteUrl, { name: 'Service und Notfall', serviceType: 'Prüfung, Wartung, Reparatur und Notfall-Service bei Stillstand', path: s.path, description: plain(s.summary) }),
+  faqPage(s.faq),
+];
+const e = s.emergency;
+---
+<Base title={s.title} description={s.description} crumbs={[{ name: 'Service', path: s.path }]} jsonLd={nodes}>
+  <StageHero
+    word="Service"
+    image={titel}
+    alt="Roter Service-Transporter mit offener Schiebetür, darin Regale mit Werkzeug und Ersatzteilen; dahinter eine Halle als Zeichnung"
+    title={s.hero.h1}
+    lead={s.hero.lead}
+    primary={{ label: 'Anfrage stellen', href: '#anfrage' }}
+    secondary={{ label: 'Notfall', href: '#notfall' }}
+  />
+
+  <CallPanel id="notfall" label={e.label} title={e.title} text={e.text} phone items={e.items} note={e.note} />
+
+  <div class="wrap sv-season"><SeasonNotice page={s.path} /></div>
+
+  <FieldCards id="anliegen" title={s.offers.title} lead={s.offers.lead} items={s.offers.items} />
+
+  <Guarantees garantieHref="#fragen" />
+
+  <FaqStage items={s.faq} illo={'menu/service'} />
+
+  <ContactSection />
+</Base>
+
+<style>
+  .sv-season:empty { display: none; }
+</style>

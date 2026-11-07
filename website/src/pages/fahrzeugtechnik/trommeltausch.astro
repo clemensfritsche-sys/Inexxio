@@ -1,0 +1,62 @@
+---
+/**
+ * /fahrzeugtechnik/trommeltausch – das stärkste Angebot der Fahrzeugtechnik, eigenes Layout nach
+ * dem Muster von Speziallösungen (Oktober 2026): Kopf wie Porsche → Tauschen, überholen – oder neu?
+ * (#wahl, die Bühne der Startseite mit Umschalter) → Was zum Tausch gehört (Weg) → Im Winter (#winter, Ziel der
+ * Saison-Aktion) → Marken → Garantien → Fragen → Anfrage. Texte: content/fahrzeugtechnik.ts.
+ */
+import Base from '../../layouts/Base.astro';
+import StageHero from '../../components/StageHero.astro';
+import SpecialStage from '../../components/home/SpecialStage.astro';
+import SolutionPath from '../../components/spezial/SolutionPath.astro';
+import SeasonCalendar from '../../components/SeasonCalendar.astro';
+import BrandBand from '../../components/fahrzeug/BrandBand.astro';
+import Guarantees from '../../components/home/Guarantees.astro';
+import FaqStage from '../../components/FaqStage.astro';
+import ContactSection from '../../components/ContactSection.astro';
+import { areaOf } from '../../config/site.mjs';
+import { faqPage, product, service as serviceNode } from '../../lib/seo.mjs';
+import { plain } from '../../lib/text.mjs';
+import { pageTitle } from '../../lib/titles';
+import { trommeltausch as page, drumOptions as d, drumPath as p, winterSlot as w } from '../../content/fahrzeugtechnik';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const area = areaOf(page.area);
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+  product(siteUrl, {
+    name: 'Trommeltausch für Fahrmischer',
+    description: 'Neue Mischtrommel auf dem bestehenden Fahrgestell statt eines neuen Fahrmischers – für alle gängigen Marken.',
+    path: page.path,
+    category: 'Fahrmischer-Trommel',
+    og: 'fahrzeugtechnik',
+  }),
+];
+const titel = pageTitle('/fahrzeugtechnik/trommeltausch');
+---
+<Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
+  <StageHero
+    word="Trommeltausch"
+    image={titel}
+    alt="Fahrgestell als Konstruktionszeichnung, eine neue rote Trommel schwebt am Kranhaken darüber"
+    title={page.hero.h1}
+    lead={page.hero.lead}
+    primary={page.hero.primary}
+    secondary={{ label: 'Tauschen oder überholen?', href: '#wahl' }}
+  />
+
+  <SpecialStage id="wahl" title={d.title} lead={d.lead} items={d.items} art={d.items} legend={d.legend} cta={d.cta} />
+
+  <SolutionPath title={p.title} start={p.start} end={p.end} items={p.items} />
+
+  <SeasonCalendar {...w} />
+
+  <BrandBand />
+
+  <Guarantees garantieHref="#fragen" />
+
+  <FaqStage items={page.faq} illo={'menu/trommeltausch'} />
+
+  <ContactSection />
+</Base>

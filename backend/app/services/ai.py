@@ -1,0 +1,459 @@
+"""►►► **Das KI-Tor – die einzige Stelle, die die KI aufruft.** ◄◄◄
+
+1. **Zugriff:** Jeder Aufruf nennt den Akteur, in dessen Namen er läuft (Log, Kosten). Was die
+   KI zu sehen bekommt, ist über ``services/access`` gefiltert – **mit den Rechten, die jedes
+   Personal hat** (``ai_tools.reader``): nie mehr als die Person, nie Privates. Ihr Ergebnis
+   (Vorschlag, Hinweis) sehen alle vom Personal.
+2. **Aufgabe und Modell** stehen in EINER Tabelle (``TASKS``).
+3. **Feste Antwortform:** jede Aufgabe hat ein Pydantic-Schema; die Antwort wird dagegen
+   geprüft (structured outputs). Was nicht passt, gilt als Ausfall.
+4. **Die KI schreibt nie selbst.** Sie liefert Vorschläge; geschrieben wird über die
+   Fachdienste, nach dem Klick eines Menschen.
+5. **Deckel und Log:** jeder Aufruf ist ein Ereignis ``ai.call`` im Log (Handelnder ``ai`` im
+   Namen der Person) mit Aufgabe, Modell, Tokens und **Kosten in Franken** (``chf``); der
+   Tagesdeckel (``AI_DAILY_CAP_CHF``) zählt genau diese.
+6. **Lesen mit Werkzeugen** (``converse``): die KI schlägt im ERP nach – über die
+   Lese-Werkzeuge in ``services/ai_tools``, mit den Rechten jedes Personals. Auch Bedeutungs-Zahlen
+   (``embed``, Vertex AI) gehen durch diese Tür.
+
+**Ohne Schlüssel, am Deckel oder bei einem Fehler gibt es keinen Vorschlag – sonst nichts.**
+Alles geht auch ohne KI: Art und Name tippt der Mensch, gesucht wird in der Datenbank.
+**Warum es keinen gab, sagt** ``problem()`` in einem Satz (Schlüssel abgelehnt, Guthaben leer,
+Deckel …) – die Oberfläche zeigt ihn, damit ein Ausfall nie stumm bleibt.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import re
+import time as _time
+from contextvars import ContextVar
+from dataclasses import dataclass, field
+from datetime import datetime, time, timezone
+from html import unescape
+from typing import Any, Callable, Optional, TypeVar
+
+from pydantic import BaseModel
+from sqlalchemy import Float, cast, func
+from sqlalchemy.orm import Session
+
+from ..core import clock
+from ..core.config import get_settings
+from ..models import Log, UserProfile
+from . import log
+
+T = TypeVar("T", bound=BaseModel)
+
+#: Warum der letzte Aufruf in dieser Anfrage keinen Vorschlag brachte – leer, wenn er einen brachte.
+_PROBLEM: ContextVar[str] = ContextVar("ai_problem", default="")
+#: Bis wann (``time.monotonic``) alle Aufrufe in diesem Ablauf fertig sein müssen – ``ai.until``.
+_UNTIL: ContextVar[Optional[float]] = ContextVar("ai_until", default=None)
+
+
+class until:
+    """►► **Eine Zeitgrenze für alles, was in einem Ablauf an die KI geht** – ``with
+    ai.until(seconds):``. Eine Anfrage über Firebase Hosting bricht nach 60 s ab, ein Lauf des
+    Takts ebenso (Cloud Scheduler); jeder Aufruf darin (Ablegen, Bedeutungs-Zahlen, Folgen)
+    bekommt nur noch die Zeit, die bleibt – und **wiederholt nichts selbst** (``_retries``):
+    ein zweiter Versuch im SDK bräche die Grenze; wiederholen ist Sache des Takts. ◄◄"""
+
+    def __init__(self, seconds: float):
+        self.at = _time.monotonic() + seconds
+
+    def __enter__(self) -> "until":
+        current = _UNTIL.get()
+        self._token = _UNTIL.set(self.at if current is None else min(current, self.at))
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        _UNTIL.reset(self._token)
+
+
+def _left(limit: float) -> float:
+    """Wie lange ein Aufruf noch dauern darf – seine eigene Grenze oder die des Ablaufs."""
+    end = _UNTIL.get()
+    return limit if end is None else min(limit, end - _time.monotonic())
+
+
+def _retries(own: int) -> int:
+    """Wie oft ein Aufruf selbst wiederholt – unter einer Zeitgrenze (``until``) nie."""
+    return 0 if _UNTIL.get() is not None else own
+
+
+def problem() -> str:
+    """**Warum es keinen Vorschlag gab** – ein Satz, oder leer."""
+    return _PROBLEM.get()
+
+
+def problem_of(exc: Exception) -> str:
+    """Ein Fehler der Schnittstelle als ein Satz für den Menschen."""
+    status = getattr(exc, "status_code", None)
+    text = str(getattr(exc, "message", "") or exc)
+    if status == 401:
+        return "Der KI-Schlüssel wird abgelehnt (ungültig oder gelöscht) – bitte im Secret Manager ersetzen."
+    if status == 403:
+        return "Der KI-Schlüssel darf dieses Modell nicht nutzen."
+    if status == 404:
+        return "Das KI-Modell ist unbekannt."
+    if status == 400 and "credit" in text.lower():
+        return "Das Guthaben beim KI-Anbieter ist aufgebraucht – bitte in der Anthropic Console aufladen."
+    if status == 429:
+        return "Die KI ist gerade ausgelastet (zu viele Anfragen) – gleich noch einmal."
+    if status is not None and status >= 500:
+        return "Die KI antwortet gerade nicht – gleich noch einmal."
+    if status is not None:
+        return f"Die KI weist die Anfrage ab ({status}): {text[:200]}"
+    if "timeout" in type(exc).__name__.lower():
+        return "Die KI hat zu lange gebraucht – gleich noch einmal."
+    return "Die KI ist nicht erreichbar – gleich noch einmal."
+
+
+@dataclass(frozen=True)
+class Task:
+    model: str
+    max_tokens: int
+    #: Wie lange auf die Antwort gewartet wird (Sekunden) – bei ``converse`` für ALLE Runden
+    #: zusammen.
+    timeout: float = 90.0
+    #: Wie oft ein Fehler wiederholt wird (die Wartezeit zählt dann doppelt).
+    retries: int = 1
+    #: Wie viele Runden mit Werkzeugen höchstens (``converse``) – danach muss die Antwort kommen.
+    rounds: int = 1
+    #: Wie gründlich das Modell denkt (``low`` · ``medium`` · ``high``); leer = Vorgabe des Modells.
+    effort: Optional[str] = None
+
+
+#: ►►► **Die Aufgaben – und welches Modell sie macht.** ◄◄◄ Lesen ist Masse (jede Datei),
+#: also das schnelle, günstige Modell; Verfassen schreibt ein Papier von ein paar Seiten –
+#: das mittlere Modell reicht dafür, das grösste kostete ein Vielfaches für denselben Brief.
+#: Ablegen, Folgen und Hinweise brauchen Urteil (wohin gehört das, was folgt daraus) – das
+#: mittlere Modell, mit wenig Nachdenken, damit es schnell bleibt.
+#: **Jede Anfrage läuft über Firebase Hosting, und das bricht nach 60 s ab** – was im Weg einer
+#: Anfrage läuft (lesen, verfassen, ablegen, Hinweise), bleibt darunter und versucht es nicht
+#: ein zweites Mal; der Takt (``follow``) ebenso – auch er hat nur 60 s.
+TASKS: dict[str, Task] = {
+    # Lesen muss unter der Grenze von Firebase Hosting bleiben (60 s je Anfrage) – sonst bricht
+    # der Weg ab, bevor die Antwort kommt: 50 s, kein zweiter Versuch, eine kurze Antwort.
+    "read": Task(model="claude-haiku-5-5", max_tokens=6000, timeout=50.0, retries=0),
+    # Ein Papier von zwei, drei Seiten – ebenfalls unter den 60 s des Hostings.
+    "compose": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=55.0, retries=0),
+    # Eine Erfassung ablegen: nachschlagen (Werkzeuge), teilen, vorschlagen.
+    "file": Task(model="claude-sonnet-5-5", max_tokens=6000, timeout=45.0, retries=0,
+                 rounds=5, effort="low"),
+    # Was aus einer eingehenden Mail folgt – im Takt, der selbst nach 60 s abbricht: 45 s, kein
+    # zweiter Versuch (ein Fehlschlag kommt im nächsten Takt wieder, ``follow.TRIES``).
+    "follow": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=45.0, retries=0,
+                   rounds=5, effort="low"),
+    # Was an einem Datensatz jetzt wichtig ist («neu ansehen»).
+    "pin": Task(model="claude-sonnet-5-5", max_tokens=3000, timeout=45.0, retries=0,
+                rounds=3, effort="low"),
+}
+
+#: ►►► **Was ein Aufruf kostet** – USD je Million Tokens (Eingabe, Ausgabe), Stand der
+#: Preisliste 11/2026. Haiku 5.5 kostet über 100'000 Eingabe-Tokens je Aufruf das Fünffache
+#: (``LONG_PROMPT``). Ein Modell, das hier fehlt, zählt zum teuersten Preis – lieber zu früh
+#: am Deckel als unbemerkt darüber. ◄◄◄
+PRICES: dict[str, tuple[float, float]] = {
+    "claude-haiku-5-5": (0.10, 0.50),
+    "claude-sonnet-5-5": (2.00, 10.00),
+    "gemini-embedding-001": (0.15, 0.0),
+}
+LONG_PROMPT = {"claude-haiku-5-5": (100_000, (0.50, 2.50))}
+#: Franken je US-Dollar – fest; der Deckel ist ein Schutz, keine Buchhaltung.
+CHF_PER_USD = 0.80
+#: Ab diesem Anteil des Deckels steht ein Hinweis in «zu tun» des Admins.
+WARN_AT = 0.8
+
+
+def cost_chf(model: str, tokens_in: int, tokens_out: int) -> float:
+    """Was ein Aufruf in Franken kostet – aus den Tokens, die der Anbieter meldet."""
+    price = PRICES.get(model) or max(PRICES.values())
+    limit, dearer = LONG_PROMPT.get(model, (None, None))
+    if limit is not None and tokens_in > limit:
+        price = dearer
+    usd = (tokens_in * price[0] + tokens_out * price[1]) / 1_000_000
+    return round(usd * CHF_PER_USD, 6)
+
+
+#: Was die KI lesen kann – Bilder und PDF direkt, Text als Text.
+IMAGE_TYPES = ("image/jpeg", "image/png", "image/webp", "image/gif")
+
+
+def ready() -> bool:
+    return bool(get_settings().anthropic_api_key)
+
+
+def _day_start() -> datetime:
+    """Beginn des heutigen Tages in Europe/Zurich – der Deckel gilt je Schweizer Tag."""
+    return datetime.combine(clock.today(), time.min, tzinfo=clock.now().tzinfo).astimezone(timezone.utc)
+
+
+def spent_today(db: Session) -> float:
+    """Was die KI heute gekostet hat, in Franken (Summe der ``ai.call``)."""
+    total = (db.query(func.coalesce(func.sum(cast(Log.payload["chf"].astext, Float)), 0.0))
+             .filter(Log.event == "ai.call", Log.at >= _day_start()).scalar())
+    return float(total or 0.0)
+
+
+def cap_chf() -> float:
+    return float(get_settings().ai_daily_cap_chf or 0.0)
+
+
+def near_cap(db: Session) -> bool:
+    """Ist der Deckel zu ``WARN_AT`` erreicht? (Hinweis in «zu tun» des Admins)"""
+    cap = cap_chf()
+    return cap > 0 and spent_today(db) >= cap * WARN_AT
+
+
+def available(db: Session) -> bool:
+    """Gibt es heute noch eine KI? Ohne Schlüssel nie; am Deckel nicht mehr."""
+    if not ready():
+        return False
+    cap = cap_chf()
+    return cap <= 0 or spent_today(db) < cap
+
+
+def content_of(raw: bytes, mime: str) -> Optional[dict]:
+    """**Eine Datei als Eingabe der KI** – oder ``None``, wenn sie diese Sorte nicht liest
+    (Video, STEP, Office): dann tippt der Mensch Art und Name selbst."""
+    if mime == "application/pdf":
+        return {"type": "document", "source": {
+            "type": "base64", "media_type": "application/pdf",
+            "data": base64.standard_b64encode(raw).decode("ascii")}}
+    if mime in IMAGE_TYPES:
+        return {"type": "image", "source": {
+            "type": "base64", "media_type": mime,
+            "data": base64.standard_b64encode(raw).decode("ascii")}}
+    if mime.startswith("text/") or mime in ("application/json", "application/xml"):
+        text = raw.decode("utf-8", "replace")
+        if mime == "text/html":
+            text = unescape(re.sub(r"<[^>]+>", " ", re.sub(
+                r"<(script|style)[^>]*>.*?</\1>", " ", text, flags=re.S | re.I)))
+        return {"type": "text", "text": " ".join(text.split())[:60000]}
+    return None
+
+
+def _client(timeout: float = 90.0, retries: int = 1):
+    import anthropic
+    return anthropic.Anthropic(api_key=get_settings().anthropic_api_key, max_retries=retries,
+                               timeout=timeout)
+
+
+def _record(db: Session, task: str, model: str, actor: Optional[UserProfile],
+            usage: dict[str, Any]) -> None:
+    """Ein Aufruf ins Log – mit den Kosten in Franken (der Deckel zählt sie)."""
+    usage = {**usage, "chf": cost_chf(model, int(usage.get("in") or 0), int(usage.get("out") or 0))}
+    log.event(db, "ai.call", None, {"task": task, "model": model, **usage},
+              kind="ai", actor=actor.object_id if actor else None)
+
+
+def _gate() -> Optional[str]:
+    """Warum es gar keinen Aufruf gibt – oder ``None``."""
+    if not ready():
+        return "Kein KI-Schlüssel hinterlegt."
+    return None
+
+
+def ask(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
+        content: list[dict], schema: type[T]) -> Optional[T]:
+    """►►► **Ein Aufruf durch das Tor.** ◄◄◄ Gibt die geprüfte Antwort zurück – oder ``None``
+    (keine KI, Deckel erreicht, abgelehnt, Antwort unbrauchbar, Netz weg). Nie eine Ausnahme:
+    ein Ausfall der KI darf nie eine Handlung zerlegen."""
+    return converse(db, task=task, actor=actor, system=system, content=content, schema=schema)
+
+
+@dataclass(frozen=True)
+class Tool:
+    """**Ein Lese-Werkzeug der KI** – Name, ein Satz, die Form der Eingabe, und was es tut.
+    ``run`` bekommt die Eingabe und gibt Text zurück; es liest mit den Rechten des Akteurs
+    (``services/ai_tools``) und schreibt nie."""
+
+    name: str
+    description: str
+    properties: dict[str, Any]
+    run: Callable[[dict[str, Any]], str]
+    required: tuple[str, ...] = field(default=())
+
+    def spec(self) -> dict[str, Any]:
+        return {"name": self.name, "description": self.description, "strict": True,
+                "input_schema": {"type": "object", "properties": self.properties,
+                                 "required": list(self.required or self.properties),
+                                 "additionalProperties": False}}
+
+
+#: So viel Text gibt ein Werkzeug höchstens zurück.
+TOOL_TEXT = 8000
+
+
+def _use(tools: dict[str, Tool], block: Any) -> dict[str, Any]:
+    """Ein Werkzeug ausführen – ein Fehler ist eine Antwort an die KI, kein Absturz."""
+    tool = tools.get(block.name)
+    try:
+        if tool is None:
+            raise ValueError(f"Unbekanntes Werkzeug {block.name!r}.")
+        text, error = tool.run(dict(block.input or {}))[:TOOL_TEXT], False
+    except Exception as exc:                                   # noqa: BLE001
+        text, error = f"Fehler: {getattr(exc, 'detail', None) or exc}", True
+    return {"type": "tool_result", "tool_use_id": block.id, "content": text, "is_error": error}
+
+
+def _replay(content: list[Any]) -> list[dict[str, Any]]:
+    """Die Antwort des Modells, wie sie im nächsten Zug wieder hinein muss – unverändert
+    (auch das Nachdenken), ohne die geprüfte Fassung, die nur dieses SDK anhängt."""
+    out = []
+    for block in content:
+        d = block.to_dict()
+        d.pop("parsed_output", None)
+        out.append(d)
+    return out
+
+
+def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
+             content: list[dict], schema: type[T], tools: Optional[list[Tool]] = None
+             ) -> Optional[T]:
+    """►►► **Ein Gespräch mit Werkzeugen** – die KI darf nachschlagen (höchstens
+    ``Task.rounds`` Züge, alle zusammen in ``Task.timeout``), dann kommt die Antwort in fester
+    Form. Jeder Zug ist ein ``ai.call``; vor jedem Zug gilt der Deckel. Nie eine Ausnahme –
+    ``problem()`` sagt, warum nichts kam. ◄◄◄"""
+    _PROBLEM.set("")
+    blocked = _gate()
+    if blocked:
+        _PROBLEM.set(blocked)
+        return None
+    spec = TASKS[task]
+    by_name = {t.name: t for t in tools or []}
+    messages: list[dict[str, Any]] = [{"role": "user", "content": content}]
+    extra: dict[str, Any] = {}
+    if by_name:
+        extra["tools"] = [t.spec() for t in by_name.values()]
+    if spec.effort:
+        extra["output_config"] = {"effort": spec.effort}
+    deadline = _time.monotonic() + _left(spec.timeout)
+    for turn in range(1, max(1, spec.rounds) + 1):
+        if not available(db):
+            _PROBLEM.set("Der Tagesdeckel der KI ist erreicht – morgen wieder.")
+            return None
+        left = deadline - _time.monotonic()
+        if left < 3:
+            _PROBLEM.set("Die KI hat zu lange gebraucht – gleich noch einmal.")
+            return None
+        usage: dict[str, Any] = {"turn": turn}
+        try:
+            response = _client(left, _retries(spec.retries)).messages.parse(
+                model=spec.model, max_tokens=spec.max_tokens, system=system,
+                messages=messages, output_format=schema, **extra)
+            usage.update({"in": response.usage.input_tokens, "out": response.usage.output_tokens,
+                          "stop": response.stop_reason})
+        except Exception as exc:                               # noqa: BLE001
+            usage.update({"error": type(exc).__name__, "status": getattr(exc, "status_code", None)})
+            _record(db, task, spec.model, actor, usage)
+            _PROBLEM.set(problem_of(exc))
+            print(f"WARNING: ai.{task} failed: {exc!r}", flush=True)
+            return None
+        calls = [b for b in getattr(response, "content", None) or [] if getattr(b, "type", "") == "tool_use"]
+        usage["tools"] = [b.name for b in calls] or None
+        _record(db, task, spec.model, actor, usage)
+        if response.stop_reason == "tool_use" and calls:
+            messages.append({"role": "assistant", "content": _replay(response.content)})
+            results: list[dict[str, Any]] = [_use(by_name, b) for b in calls]
+            if turn == spec.rounds - 1:
+                results.append({"type": "text", "text": "Antworte jetzt – ohne weiteres Nachschlagen."})
+            messages.append({"role": "user", "content": results})
+            continue
+        result = response.parsed_output if response.stop_reason not in ("refusal", "max_tokens") else None
+        if result is None:
+            _PROBLEM.set("Die KI hat abgelehnt." if response.stop_reason == "refusal"
+                         else "Die Antwort der KI war unvollständig.")
+        return result
+    _PROBLEM.set("Die KI kam zu keinem Ergebnis (zu viel nachgeschlagen).")
+    return None
+
+
+# ─── Bedeutungs-Zahlen (Vertex AI) ───────────────────────────────────────────────────────
+
+#: Das Hilfsmodell für Bedeutungs-Zahlen und ihre Länge (``ai_memory.embedding``).
+EMBED_MODEL = "gemini-embedding-001"
+EMBED_DIMS = 768
+
+
+#: Nach einer Abweisung (nicht eingerichtet, kein Recht, Modell unbekannt) wird eine Stunde
+#: lang nicht mehr gefragt – sonst stünde jeder Takt einen Fehlversuch mehr im Log.
+_EMBED_PAUSE_S = 3600.0
+_embed_paused_until = 0.0
+
+
+def embed_ready() -> bool:
+    return bool(get_settings().vertex_project) and _time.monotonic() >= _embed_paused_until
+
+
+def _vertex_session():
+    """Die Sitzung zu Vertex AI – unter einer Zeitgrenze ohne zweiten Versuch (``_retries``)."""
+    import google.auth
+    from google.auth.transport.requests import AuthorizedSession
+    creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    return AuthorizedSession(creds, max_refresh_attempts=_retries(2))
+
+
+def _vertex_problem(status: Optional[int], text: str) -> str:
+    if status in (401, 403):
+        return ("Vertex AI ist nicht eingerichtet oder der Dienst darf es nicht nutzen "
+                "(einmal infra/setup-vertex.sh).")
+    if status == 404:
+        return "Das Modell für Bedeutungs-Zahlen gibt es in dieser Region nicht."
+    if status == 429:
+        return "Vertex AI ist gerade ausgelastet – gleich noch einmal."
+    return f"Vertex AI antwortet nicht ({status or 'kein Netz'}): {text[:160]}"
+
+
+def embed(db: Session, text: str, *, actor: Optional[UserProfile], query: bool = False
+          ) -> Optional[list[float]]:
+    """►►► **Die Bedeutungs-Zahlen eines Textes** (Vertex AI, Region ``VERTEX_REGION``) – oder
+    ``None`` (nicht eingerichtet, Deckel, Fehler; ``problem()`` sagt warum). ``query``: der Text
+    sucht (die Frage), sonst wird er gefunden (der Fall). Ein ``ai.call`` wie jeder Aufruf. ◄◄◄"""
+    _PROBLEM.set("")
+    settings = get_settings()
+    if not settings.vertex_project:
+        _PROBLEM.set("Bedeutungs-Zahlen sind nicht eingerichtet (VERTEX_PROJECT fehlt).")
+        return None
+    if not embed_ready():
+        _PROBLEM.set("Vertex AI hat eben abgewiesen – in einer Stunde wieder (infra/setup-vertex.sh).")
+        return None
+    cap = cap_chf()
+    if cap > 0 and spent_today(db) >= cap:
+        _PROBLEM.set("Der Tagesdeckel der KI ist erreicht – morgen wieder.")
+        return None
+    wait = _left(20.0)
+    if wait < 2:
+        _PROBLEM.set("Keine Zeit mehr für Bedeutungs-Zahlen – der Takt holt sie nach.")
+        return None
+    region = settings.vertex_region
+    url = (f"https://{region}-aiplatform.googleapis.com/v1/projects/{settings.vertex_project}"
+           f"/locations/{region}/publishers/google/models/{EMBED_MODEL}:predict")
+    body = {"instances": [{"content": text[:8000],
+                           "task_type": "RETRIEVAL_QUERY" if query else "RETRIEVAL_DOCUMENT"}],
+            "parameters": {"outputDimensionality": EMBED_DIMS, "autoTruncate": True}}
+    usage: dict[str, Any] = {}
+    values: Optional[list[float]] = None
+    try:
+        r = _vertex_session().post(url, data=json.dumps(body), timeout=wait,
+                                   headers={"Content-Type": "application/json"})
+        if r.status_code != 200:
+            usage = {"error": "http", "status": r.status_code}
+            _PROBLEM.set(_vertex_problem(r.status_code, r.text))
+            if r.status_code in (401, 403, 404):
+                global _embed_paused_until
+                _embed_paused_until = _time.monotonic() + _EMBED_PAUSE_S
+        else:
+            pred = r.json()["predictions"][0]["embeddings"]
+            values = [float(v) for v in pred["values"]]
+            usage = {"in": int(pred.get("statistics", {}).get("token_count") or len(text) // 4)}
+            if len(values) != EMBED_DIMS:
+                values = None
+                _PROBLEM.set("Vertex AI lieferte Zahlen in der falschen Länge.")
+    except Exception as exc:                                   # noqa: BLE001
+        usage = {"error": type(exc).__name__}
+        _PROBLEM.set(_vertex_problem(None, str(exc)))
+        print(f"WARNING: ai.embed failed: {exc!r}", flush=True)
+    _record(db, "embed", EMBED_MODEL, actor, usage)
+    return values

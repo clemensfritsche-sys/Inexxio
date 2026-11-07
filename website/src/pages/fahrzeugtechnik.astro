@@ -1,0 +1,58 @@
+---
+/**
+ * /fahrzeugtechnik – eigenes Layout nach dem Muster von Speziallösungen (Oktober 2026):
+ * Kopf wie Porsche (StageHero, Fahrmischer als Zeichnung, Trommel und Rinne echt und rot) → Alles für Ihren
+ * Fahrmischer (Karten: Trommeltausch · Verschleissteile · Reparatur #reparatur) → So läuft es ab (Weg) →
+ * Marken → Garantien → Fragen → Anfrage. Texte: content/fahrzeugtechnik.ts.
+ */
+import Base from '../layouts/Base.astro';
+import StageHero from '../components/StageHero.astro';
+import SeasonNotice from '../components/SeasonNotice.astro';
+import FieldCards from '../components/spezial/FieldCards.astro';
+import SolutionPath from '../components/spezial/SolutionPath.astro';
+import BrandBand from '../components/fahrzeug/BrandBand.astro';
+import Guarantees from '../components/home/Guarantees.astro';
+import FaqStage from '../components/FaqStage.astro';
+import ContactSection from '../components/ContactSection.astro';
+import { faqPage, service as serviceNode } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+import { pageTitle } from '../lib/titles';
+import { fahrzeugtechnik as page, vehicleOffers as o, vehiclePath as s } from '../content/fahrzeugtechnik';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const nodes = [
+  serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
+  faqPage(page.faq),
+];
+const titel = pageTitle('/fahrzeugtechnik');
+---
+<Base title={page.title} description={page.description} crumbs={[{ name: page.hero.eyebrow, path: page.path }]} og={page.id} jsonLd={nodes}>
+  <StageHero
+    word="Fahrzeugtechnik"
+    image={titel}
+    alt="Fahrmischer als Konstruktionszeichnung, nur Trommel und Rinne sind echt und rot"
+    title={page.hero.h1}
+    lead={page.hero.lead}
+    primary={page.hero.primary}
+    secondary={{ label: 'Unser Angebot', href: '#angebot' }}
+  />
+
+  <div class="wrap ft-season"><SeasonNotice page={page.path} /></div>
+
+  <FieldCards id="angebot" title={o.title} lead={o.lead} items={o.items} />
+
+  <SolutionPath title={s.title} start={s.start} end={s.end} items={s.items} />
+
+  <BrandBand />
+
+  <Guarantees garantieHref="#fragen" />
+
+  <FaqStage items={page.faq} illo={'menu/trommeltausch'} />
+
+  <ContactSection />
+</Base>
+
+<style>
+  .ft-season:empty { display: none; }
+  .ft-season { margin-top: 48px; }
+</style>

@@ -1,0 +1,157 @@
+---
+/**
+ * Drei Bereiche (v4): drei hohe Bildkarten, Text auf dem Bild. Beim Darüberfahren wird die
+ * Karte breiter (~27 %) und spielt die Kran-Szene ihres Bereichs – Heu einlagern (Greifer),
+ * Mischtrommel tauschen, Anbau montieren; die Laufkatze trägt das INEXXIO-Logo.
+ * Schmal: ein Karussell, die Karte in der Mitte spielt ihre Szene.
+ * Bewegung: scripts/trio.ts. Ohne JS oder bei reduzierter Bewegung bleibt das Foto stehen.
+ */
+import { areaOf } from '../../config/site.mjs';
+import { start } from '../../content/start';
+import Icon from '../Icon.astro';
+import Media from '../Media.astro';
+import Rich from '../Rich.astro';
+import greifer from '../../assets/crane/greifer.html?raw';
+import lastBale from '../../assets/crane/last-bale.svg?raw';
+import lastOld from '../../assets/crane/last-old.svg?raw';
+import lastNew from '../../assets/crane/last-new.svg?raw';
+import lastJib from '../../assets/crane/last-jib.svg?raw';
+import szeneKran from '../../assets/crane/szene-krantechnik.svg?raw';
+import szeneFahrzeug from '../../assets/crane/szene-fahrzeugtechnik.svg?raw';
+import szeneSonder from '../../assets/crane/szene-spezialloesungen.svg?raw';
+
+/** Lasten am Haken: Lage des Greifpunkts in der Zeichnung (Rand, Drehpunkt). */
+const L = {
+  bale: { svg: lastBale, w: 48, h: 32, mx: -24, my: -16, ox: 24, oy: 4 },
+  old: { svg: lastOld, w: 164, h: 91, mx: -83, my: -1, ox: 83, oy: 1 },
+  new: { svg: lastNew, w: 164, h: 91, mx: -83, my: -1, ox: 83, oy: 1 },
+  jib: { svg: lastJib, w: 150, h: 62, mx: -68, my: -6, ox: 68, oy: 6 },
+};
+const scenes: Record<string, { svg: string; done: string; loads: (keyof typeof L)[] }> = {
+  krantechnik: { svg: szeneKran, done: 'Heu eingelagert', loads: ['bale'] },
+  fahrzeugtechnik: { svg: szeneFahrzeug, done: 'Neue Trommel', loads: ['old', 'new'] },
+  spezialloesungen: { svg: szeneSonder, done: 'Anbau montiert', loads: ['jib'] },
+};
+const cards = start.areas.order.map((id) => ({ area: areaOf(id), scene: scenes[id], claim: start.entries[id], go: start.areas.go[id] }));
+---
+<section class="v4-section trio-sec" aria-labelledby="bereiche">
+  <div class="wrap"><h2 class="v4-h2" id="bereiche">{start.areas.h2}</h2></div>
+  <div class="trio-wrap" data-carousel data-carousel-mode="mobile" data-start="1">
+    <ul role="list" class="trio" data-rail>
+      {cards.map(({ area, scene, claim, go }) => (
+        <li class="trio__item" data-item>
+          <p class="trio__mtitle" aria-hidden="true">{area.label}</p>
+          <a class="sc" href={area.href} data-scene={area.id}>
+            <Media id={area.photo} sizes="(min-width: 960px) 40vw, 300px" />
+            <span class="stg" aria-hidden="true">
+              <span class="stg__rail"></span>
+              <span class="stg-in" set:html={scene.svg}></span>
+              {scene.loads.map((k) => (
+                <span class="ld" data-obj={k} set:html={L[k].svg}
+                  style={`width:${L[k].w}px;height:${L[k].h}px;margin:${L[k].my}px 0 0 ${L[k].mx}px;transform-origin:${L[k].ox}px ${L[k].oy}px`} />
+              ))}
+              <span class="trol">
+                <svg class="trol__cat" width="88" height="46" viewBox="0 0 88 46">
+                  <polygon points="20,7 68,7 60,22 28,22" fill="#0A0A0B" />
+                  <circle cx="22" cy="7" r="6" fill="#FFFFFF" stroke="#0A0A0B" stroke-width="3" /><circle cx="22" cy="7" r="1.6" fill="#0A0A0B" />
+                  <circle cx="66" cy="7" r="6" fill="#FFFFFF" stroke="#0A0A0B" stroke-width="3" /><circle cx="66" cy="7" r="1.6" fill="#0A0A0B" />
+                  <rect x="2" y="20" width="84" height="26" rx="4" fill="#0A0A0B" />
+                  <rect x="8" y="25" width="22" height="16" rx="3" fill="#44464A" />
+                  <path d="M12 25v16M16 25v16M20 25v16M24 25v16" stroke="#7A7C80" stroke-width="1" />
+                  <rect x="6" y="29" width="2" height="8" fill="#7A7C80" /><rect x="30" y="29" width="2" height="8" fill="#7A7C80" />
+                </svg>
+                <img class="trol__logo" src="/logo/inexxio-wortmarke-weiss.svg" alt="" width="45" height="12" loading="lazy" />
+                <span class="crope">
+                  <span class="cline"></span><span class="cblock"></span><span class="cshank"></span>
+                  <span class="ctool"><span class="cring" data-tool="ring"></span><Fragment set:html={greifer} /></span>
+                </span>
+              </span>
+              <span class="stg__done" data-b><Icon name="check" size={14} />{scene.done}</span>
+            </span>
+            <span class="sc__shade" aria-hidden="true"></span>
+            <span class="sc__text">
+              <span class="sc__copy">
+                <span class="sc__title">{area.label}</span>
+                <Rich as="span" class="sc__sub" text={claim} />
+              </span>
+              <span class="garrow" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>
+              <span class="sc__go" aria-hidden="true">{go} <Icon name="arrow-right" size={18} /></span>
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+    <div class="cdots" data-dots data-label="Bereich"></div>
+  </div>
+</section>
+
+<script>
+  import { initTrio } from '../../scripts/trio';
+  import { initCarousels } from '../../scripts/carousel';
+  initCarousels();
+  initTrio();
+</script>
+
+<style>
+  .trio-wrap { margin-top: 28px; }
+  @media (min-width: 960px) { .trio-wrap { margin-top: 40px; } }
+  /* Breit: eine Reihe, die Karte unter dem Zeiger wächst. */
+  .trio { list-style: none; padding: 0; }
+  @media (min-width: 960px) {
+    .trio { display: flex; gap: 16px; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
+    .trio__item { flex: 1 1 0; min-width: 0; transition: flex-grow 0.6s cubic-bezier(0.25, 0.8, 0.25, 1); contain: layout paint; }
+    .trio:hover .trio__item { flex-grow: 0.88; }
+    .trio .trio__item:hover { flex-grow: 1.3; }
+    .trio__mtitle, .sc .sc__go, .trio-wrap .cdots { display: none; }
+  }
+  /* Schmal: Karussell, die Karte in der Mitte trägt. */
+  @media (max-width: 959px) {
+    .trio { position: relative; display: flex; gap: 12px; padding: 0 calc(50% - 150px); overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+    .trio::-webkit-scrollbar { display: none; }
+    .trio__item { flex: 0 0 300px; scroll-snap-align: center; transition: opacity 0.4s var(--ease); }
+    :global(.js) .trio__item:not(.is-active) { opacity: 0.45; }
+    .trio__mtitle { text-align: center; font-family: var(--font-display); font-weight: 600; font-size: 1.625rem; letter-spacing: -0.02em; color: var(--ink); }
+    .sc { margin-top: 16px; height: 500px !important; }
+    .sc__title, .garrow { display: none !important; }
+    .sc__text { left: 20px !important; right: 20px !important; bottom: 20px !important; display: block !important; }
+  }
+  .sc { position: relative; display: block; contain: layout paint; height: 600px; border-radius: var(--r-xl); overflow: hidden; color: var(--white); text-decoration: none; background: var(--dark-2); isolation: isolate; }
+  .sc :global(.fill-media .photo) { transition: transform 1.2s var(--ease); }
+  .sc:hover :global(.fill-media .photo) { transform: scale(1.06); }
+  .sc__shade { position: absolute; left: 0; right: 0; bottom: 0; height: 220px; background: linear-gradient(180deg, rgba(10, 10, 11, 0) 0%, rgba(10, 10, 11, 0.72) 100%); z-index: 2; }
+  .sc__text { position: absolute; left: 32px; right: 32px; bottom: 32px; z-index: 3; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .sc__copy { min-width: 0; }
+  .sc__title { display: block; font-family: var(--font-display); font-weight: 600; font-size: 1.875rem; line-height: 1.05; letter-spacing: -0.025em; }
+  .sc__copy :global(.sc__sub) { display: block; margin-top: 6px; font-size: 0.9375rem; line-height: 1.4; color: rgba(255, 255, 255, 0.85); }
+  .sc__go {
+    margin-top: 12px; height: 46px; border-radius: var(--r-md); background: var(--white); color: var(--ink);
+    font-size: 0.9375rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+
+  /* ---------- Kran-Bühne (Punktraster), ausgeblendet bis zum Spiel ---------- */
+  .stg {
+    position: absolute; inset: 0; z-index: 1; opacity: 0; background-color: var(--paper);
+    background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0); background-size: 24px 24px;
+  }
+  .stg :global(svg) { max-width: none; }
+  .stg__rail { position: absolute; left: 0; right: 0; top: 16px; height: 24px; border-block: 4px solid var(--ink-2); background: repeating-linear-gradient(90deg, var(--line) 0 70px, var(--ink-4) 70px 72px); }
+  .stg-in { position: absolute; left: 0; top: 0; width: 380px; height: 200px; transform-origin: 0 0; }
+  .stg-in :global(svg) { display: block; overflow: visible; }
+  .ld { position: absolute; left: 0; top: 0; opacity: 0; }
+  .ld :global(svg) { display: block; overflow: visible; }
+  .trol { position: absolute; top: 22px; left: 0; width: 88px; height: 46px; transform: translateX(-200px); }
+  .trol__cat { position: absolute; inset: 0; overflow: visible; }
+  .trol__logo { position: absolute; left: 36px; top: 27px; width: 46px; height: 12px; object-fit: contain; }
+  .crope { position: absolute; left: 43px; top: 46px; width: 2px; }
+  .crope > span { display: block; }
+  .cline { width: 2px; height: 60px; background: var(--ink-3); }
+  .cblock { position: relative; left: -11px; width: 24px; height: 16px; border-radius: 3px; background: var(--red); }
+  .cshank { position: relative; left: -1px; width: 4px; height: 8px; background: var(--ink); }
+  .ctool { position: relative; left: -10px; width: 22px; height: 22px; }
+  .cring { position: absolute; inset: 0; border: 4px solid var(--ink); border-radius: 50%; }
+  .stg__done {
+    position: absolute; right: 14px; top: 54px; opacity: 0; display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 6px; background: var(--white); border: 1px solid var(--ok); color: var(--ok); font-size: 0.75rem; font-weight: 600;
+  }
+  @media (prefers-reduced-motion: reduce) { .trio__item { transition: none; } .sc:hover :global(.fill-media .photo) { transform: none; } }
+</style>

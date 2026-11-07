@@ -1,0 +1,13 @@
+---
+/**
+ * Funk statt Kabine (v4, Heukrananlagen, direkt nach dem Kopf) – gesetzt wie die Garantien (home/Stagger):
+ * hell die Hand mit dem Sender, dunkel der Blick hinauf zum Greifer, dazu das Foto. Texte: content/krantechnik.ts (`radioControl`).
+ */
+import Stagger from '../home/Stagger.astro';
+import sender from '../../assets/illustrations/funk-sender.webp';
+
+interface Card { label: string; title: string }
+interface Props { title: string; lead: string; photo: string; sight: string; a: Card; b: Card; c: Card }
+const { title, lead, photo, sight, a, b, c } = Astro.props;
+---
+<Stagger id="funk-title" anchor="funk" title={title} lead={lead} a={{ ...a, image: sender, alt: 'Hand hält einen gelben Funksender für den Kran, mit rotem Not-Halt' }} b={{ ...b, photo: sight }} c={{ ...c, photo }} />

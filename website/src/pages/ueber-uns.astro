@@ -1,0 +1,159 @@
+---
+/**
+ * /ueber-uns – eigenes Layout nach dem Muster von Startseite und Speziallösungen (Oktober 2026):
+ * Kopf wie Porsche (StageHero, Zeichnung des Betriebs) → ein Betrieb aus der Praxis (Zahlen) →
+ * drei Bereiche (Baustein der Startseite) → Geschichte als Weg (SolutionPath, Jahre statt
+ * Nummern) → die Übergabe (Heiri und Clemens) mit «Was bleibt / was neu ist» → Werte →
+ * Garantien (Baustein der Startseite) → mehr von uns (Ratgeber, Karriere) → Fragen → Anfrage.
+ * Der Standort steht im Kontaktbereich (Karte). Texte: content/ueber-uns.ts, content/uebergabe.ts.
+ * Soll auch bei «HS Steiner Tuttwil», «HS Steiner Nachfolge» und «HS Krananlagen» gefunden werden.
+ */
+import Base from '../layouts/Base.astro';
+import StageHero from '../components/StageHero.astro';
+import AreaTrio from '../components/home/AreaTrio.astro';
+import SolutionPath from '../components/spezial/SolutionPath.astro';
+import Guarantees from '../components/home/Guarantees.astro';
+import Photo from '../components/Photo.astro';
+import FaqStage from '../components/FaqStage.astro';
+import ContactSection from '../components/ContactSection.astro';
+import Icon from '../components/Icon.astro';
+import Rich from '../components/Rich.astro';
+import { site } from '../config/site.mjs';
+import { ueberUns as u } from '../content/ueber-uns';
+import { handover as h } from '../content/uebergabe';
+import { faqPage, owner } from '../lib/seo.mjs';
+import { plain } from '../lib/text.mjs';
+import { pageTitle } from '../lib/titles';
+import ratgeber from '../assets/illustrations/menu/ratgeber.svg?url';
+import karriere from '../assets/illustrations/menu/karriere.svg?url';
+
+const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
+const faq = [...h.faq, ...u.areaFaq];
+const ART = { ratgeber, karriere };
+const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plain(s.title) }));
+const titel = pageTitle('/ueber-uns');
+---
+<Base title={u.title} description={u.description} crumbs={[{ name: 'Über uns', path: '/ueber-uns' }]} jsonLd={[owner(siteUrl), faqPage(faq)]}>
+  <StageHero
+    word="Über uns"
+    image={titel}
+    alt="Rotes Hallentor mit halb geöffnetem Rolltor, dahinter die Halle mit Kran und Werkbänken als Zeichnung"
+    title={u.hero.h1}
+    lead={u.hero.lead}
+    primary={{ label: 'Kontakt aufnehmen', href: '#anfrage' }}
+    secondary={{ label: 'Unsere Geschichte', href: '#geschichte' }}
+    narrow
+  />
+
+  <section class="v4-section" aria-labelledby="wir">
+    <div class="wrap">
+      <div class="uu-team">
+        <h2 class="v4-h2" id="wir">{u.team.title}</h2>
+        <Rich as="p" class="uu-team__text" text={u.team.text} />
+      </div>
+      <dl class="uu-figs">
+        {u.team.figures.map((f) => (
+          <div class="uu-fig">
+            <dt class="uu-fig__num tnum">{plain(f.figure)}</dt>
+            <Rich as="dd" text={f.text} />
+          </div>
+        ))}
+      </dl>
+    </div>
+  </section>
+
+  <AreaTrio />
+
+  <SolutionPath id="geschichte" title={u.history.title} start={plain(u.history.start)} end={plain(u.history.end)} items={history} />
+
+  <section class="v4-section" id="uebergabe" aria-labelledby="uebergabe-title">
+    <div class="wrap uu-ho">
+      <!-- Bis das Foto «handschlag» da ist, steht hier Clemens freigestellt. -->
+      <figure class="uu-ho__fig"><Photo id="portraet-clemens" sizes="(min-width: 960px) 480px, 80vw" /></figure>
+      <h2 class="v4-h2 uu-ho__title" id="uebergabe-title">{u.people.title}</h2>
+      <figure class="uu-ho__quote">
+        <blockquote><p>«{u.people.quote}»</p></blockquote>
+        <figcaption><strong>{site.people.founder.name}</strong> · Gründer von HS Steiner{site.features.heiriAdvisory && ', in der Übergangszeit beratend dabei'}</figcaption>
+      </figure>
+      <p class="uu-ho__change"><span>Bleibt: <Rich as="span" text={u.people.stays} /></span><span>Neu: <Rich as="span" text={u.people.news} /></span></p>
+    </div>
+  </section>
+
+  <section class="v4-section" aria-labelledby="werte">
+    <div class="wrap">
+      <h2 class="uu-values__h" id="werte">{u.values.title}</h2>
+      <ul role="list" class="uu-values">
+        {u.values.items.map((v) => <li><strong>{v.title}</strong> <Rich as="span" text={v.text} /></li>)}
+      </ul>
+    </div>
+  </section>
+
+  <Guarantees garantieHref="#fragen" />
+
+  <section class="v4-section" aria-labelledby="mehr">
+    <div class="wrap">
+      <header class="v4-head--center"><h2 class="v4-h2" id="mehr">{u.more.title}</h2></header>
+      <ul role="list" class="uu-more">
+        {u.more.items.map((m) => (
+          <li><a class="uu-more__card" href={m.href}>
+            <img src={ART[m.illo]} alt="" width="320" height="200" loading="lazy" decoding="async" />
+            <span class="uu-more__title">{m.title}</span>
+            <Rich as="span" class="uu-more__text" text={m.text} />
+            <span class="garrow garrow--sm garrow--ink" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>
+          </a></li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <FaqStage items={faq} illo={'menu/ueber'} />
+
+  <ContactSection />
+</Base>
+
+<style>
+  /* Ein Betrieb aus der Praxis: oben Titel und Satz nebeneinander, darunter eine Reihe grosser Zahlen
+     mit Haarlinie (wie technische Daten); schmal 2 × 2. */
+  .uu-team { display: grid; gap: 16px; }
+  .uu-team :global(.uu-team__text) { font-size: clamp(1.125rem, 1rem + 0.5vw, 1.375rem); line-height: 1.5; color: var(--ink-2); max-width: 34em; }
+  .uu-figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 24px; margin: 48px 0 0; }
+  .uu-fig { display: grid; gap: 10px; align-content: start; padding-top: 20px; border-top: 1px solid var(--line-2); }
+  .uu-fig__num { font-family: var(--font-display); font-weight: 600; font-size: clamp(3rem, 2rem + 3.6vw, 6rem); line-height: 0.95; letter-spacing: -0.05em; color: var(--ink); }
+  .uu-fig :global(dd) { margin: 0; font-size: 0.9375rem; line-height: 1.45; color: var(--gray-500); max-width: 18em; }
+  @media (min-width: 960px) {
+    .uu-team { grid-template-columns: 5fr 7fr; gap: 80px; align-items: end; }
+    .uu-figs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; margin-top: 72px; }
+    .uu-fig { border-top-color: var(--ink); }
+  }
+
+  /* Die Übergabe: die Person freigestellt, unten weich ausgeblendet (wie auf den anderen Seiten), darunter
+     Titel und Heiris Zitat als Haupttext; was bleibt und was neu ist nur leise. */
+  .uu-ho { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .uu-ho__fig { width: min(420px, 78%); margin: 0; }
+  .uu-ho__fig :global(img) { display: block; -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 96%); mask-image: linear-gradient(180deg, #000 55%, transparent 96%); }
+  .uu-ho__title { margin-top: -24px; position: relative; }
+  .uu-ho__quote { margin: 28px 0 0; max-width: 900px; }
+  .uu-ho__quote blockquote { margin: 0; }
+  .uu-ho__quote p { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.375rem, 1.05rem + 1.3vw, 2.125rem); line-height: 1.25; letter-spacing: -0.025em; color: var(--ink-2); }
+  .uu-ho__quote figcaption { margin-top: 20px; font-size: 0.9375rem; color: var(--gray-500); }
+  .uu-ho__quote figcaption strong { color: var(--ink); }
+  .uu-ho__change { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 28px; margin-top: 40px; font-size: 0.8125rem; color: var(--gray-500); }
+
+  /* Werte, locker: grosse Zeilen – das Wort dunkel, der halbe Satz dahinter leise. Beim Zeigen wird der Satz dunkel. */
+  .uu-values__h { font-size: 0.9375rem; font-weight: 600; color: var(--gray-500); }
+  .uu-values { list-style: none; padding: 0; margin-top: 20px; display: grid; gap: 6px; }
+  .uu-values li { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.75rem, 1.1rem + 2.6vw, 3.5rem); line-height: 1.12; letter-spacing: -0.035em; color: var(--ink); }
+  .uu-values li :global(span) { color: var(--gray-500); transition: color 0.4s var(--ease); }
+  .uu-values li:hover :global(span) { color: var(--ink-2); }
+  @media (min-width: 960px) { .uu-values li:nth-child(even) { padding-left: 8%; } }
+
+  /* Mehr von uns: zwei graue Karten mit der Zeichnung aus dem Menü. */
+  .uu-more { list-style: none; padding: 0; display: grid; gap: 16px; margin-top: 40px; }
+  @media (min-width: 720px) { .uu-more { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; } }
+  .uu-more__card { position: relative; display: grid; gap: 6px; padding: 24px 28px 28px; border-radius: 24px; background: var(--gray-100); color: var(--ink); text-decoration: none; }
+  .uu-more__card img { width: 100%; height: 200px; object-fit: contain; margin-bottom: 12px; transition: transform 0.6s var(--ease); }
+  .uu-more__card:hover img { transform: translateY(-6px); }
+  .uu-more__title { font-family: var(--font-display); font-weight: 600; font-size: 1.625rem; letter-spacing: -0.02em; }
+  .uu-more__card :global(.uu-more__text) { color: var(--gray-500); padding-right: 56px; }
+  .uu-more__card .garrow { position: absolute; right: 24px; bottom: 24px; }
+</style>
