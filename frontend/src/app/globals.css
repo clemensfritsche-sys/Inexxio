@@ -665,6 +665,21 @@ fieldset:disabled .ix-editable.is-missing {
   font: 500 13px var(--font-body); color: var(--fg-1);
 }
 .erp-capture-chip:hover { background: var(--bg-2); }
+.erp-capture-row-warn { color: var(--danger); }
+/* Phase 4 · Aufnahme: Zeit, Pegel, Stopp (Mockup «Aufnahme»). */
+.erp-rec-time { font: 600 40px var(--font-mono); letter-spacing: -.02em; color: var(--fg-1); font-variant-numeric: tabular-nums; }
+.erp-rec-level { display: flex; align-items: center; justify-content: center; gap: 2px; height: 34px; margin: 16px 0 22px; }
+.erp-rec-level > span { width: 3px; border-radius: 2px; background: var(--fg-1); transition: height .1s linear; }
+.erp-rec-stop {
+  width: 76px; height: 76px; border-radius: 999px; border: none; cursor: pointer; display: grid; place-items: center;
+  background: var(--inexxio-red); color: #fff; box-shadow: 0 0 0 7px color-mix(in srgb, var(--inexxio-red) 13%, transparent);
+  transition: background .15s;
+}
+.erp-rec-stop:hover:not(:disabled) { background: var(--inexxio-red-deep); }
+.erp-rec-stop:disabled { cursor: default; opacity: .7; }
+.erp-rec-progress { height: 4px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
+.erp-rec-progress > span { display: block; height: 100%; background: var(--fg-1); transition: width .3s; }
+@media (prefers-reduced-motion: reduce) { .erp-rec-level > span, .erp-rec-progress > span { transition: none; } }
 
 /* ── Objektnummer: eine KENNUNG, die sich anfassen lässt ──────────────────────
    Testnotiz #784. Sie stand als blauer, unterstrichener Text da – die drei Marker,

@@ -25,7 +25,7 @@ type FeedList = (typeof FEED_LISTS)[number];
 /** Die Bereiche der Detailansichten – je einer ist das erste Glied ihrer Schlüssel. */
 export const DETAILS = ['order', 'instance', 'article', 'articleProcess', 'stock', 'units',
   'unitOptions', 'document', 'documentsOf', 'payments', 'history', 'senders', 'mailboxes',
-  'newsletter', 'company', 'proposals', 'pins', 'intake'] as const;
+  'newsletter', 'company', 'proposals', 'pins', 'intake', 'recordings'] as const;
 export type Detail = (typeof DETAILS)[number];
 type Area = FeedList | Detail;
 const AREAS: readonly Area[] = [...FEED_LISTS, ...DETAILS];
@@ -45,7 +45,8 @@ const API = '/api/v1';
  * Pfad (hinter `API`) → betroffene Bereiche; **der erste passende Eintrag gilt**, also das
  * Genauere zuerst. **Jede Änderung steht im Log** – darum lädt jeder Schreibvorgang auch
  * den Verlauf (`history`) nach. `=` am Anfang heisst «genau dieser Pfad», sonst ist es ein Präfix ganzer
- * Pfadteile (`erp/orders` trifft `erp/orders/…`, nicht `erp/ordersx`).
+ * Pfadteile (`erp/orders` trifft `erp/orders/…`, nicht `erp/ordersx`). `*` steht für genau einen
+ * Pfadteil (eine Nummer).
  */
 /**
  * **Was jede Änderung am Datensatz mitnimmt**: den Verlauf (jede Änderung steht im Log) und die
@@ -90,18 +91,29 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   ['erp/intake', ['people', 'todo', 'intake', ...LOGGED]],
   ['erp/proposals', ['todo', 'intake', ...LOGGED]],
   ['erp/pins', ['pins', 'history']],
+  // Phase 4 · Sprache: ein Stück (alle 30 s) ändert nichts, was eine Ansicht zeigt; «weiter
+  // abschreiben» kann die Erfassung anlegen (wie `erp/intake`); Start und Stopp ändern die
+  // offenen Aufnahmen und «zu tun».
+  ['=erp/recordings/*/chunks', []],
+  ['=erp/recordings/*/advance', ['people', 'todo', 'intake', 'recordings', ...LOGGED]],
+  ['erp/recordings', ['todo', 'recordings']],
 ];
+
+/** Trifft die Regel den Pfad? (`=` genau, sonst Präfix ganzer Pfadteile; `*` = ein Pfadteil.) */
+function hits(rule: string, bare: string): boolean {
+  const exact = rule.startsWith('=');
+  const want = (exact ? rule.slice(1) : rule).split('/');
+  const have = bare.split('/');
+  if (exact ? have.length !== want.length : have.length < want.length) return false;
+  return want.every((part, i) => (part === '*' ? !!have[i] : part === have[i]));
+}
 
 /** Welche Bereiche ein Schreibvorgang auf `path` ändert (unbekannt → alle). */
 export function touchedBy(path: string): readonly Area[] {
   const full = path.split('?')[0];
   if (!full.startsWith(`${API}/`)) return AREAS;
   const bare = full.slice(API.length + 1).replace(/\/$/, '');
-  for (const [rule, areas] of TOUCHES) {
-    const hit = rule.startsWith('=') ? bare === rule.slice(1)
-      : bare === rule || bare.startsWith(`${rule}/`);
-    if (hit) return areas;
-  }
+  for (const [rule, areas] of TOUCHES) if (hits(rule, bare)) return areas;
   return AREAS;
 }
 

@@ -39,6 +39,8 @@ export const qk = {
   pins: (objectId: number) => key('pins', objectId),
   /** Meine Erfassungen, die noch nicht abgelegt sind. */
   openIntakes: () => key('intake', 'open'),
+  /** Meine Aufnahmen, die noch nicht fertig sind (Phase 4). */
+  openRecordings: () => key('recordings', 'open'),
 };
 
 /** Die Dokumente an einem Datensatz – Kacheln, Rechtstexte. */
