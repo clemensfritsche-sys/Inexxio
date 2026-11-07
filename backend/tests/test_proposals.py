@@ -524,7 +524,13 @@ def test_todo_counts_proposals_my_intakes_and_the_cap(db, monkeypatch):
     assert items(admin, hans.object_id) == []                    # nur meine
     op = sites.find_operator(db) or new_firm(db, "Betreiber", own=True, is_operator=True)
     monkeypatch.setattr(ai, "near_cap", lambda db: True)
-    assert [i.label for i in items(admin, op.object_id)] == ["KI: 80 % des Tagesdeckels"]
+    monkeypatch.setattr(ai, "cap_chf", lambda: 10.0)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 8.2)
+    [warn] = items(admin, op.object_id)
+    assert warn.label == "heute 8.20 von 10.00 CHF (82 %)" and not warn.red
+    monkeypatch.setattr(ai, "spent_today", lambda db: 10.0)
+    [full] = items(admin, op.object_id)
+    assert full.red and full.label == "Deckel erreicht (10.00 CHF) – Erfassungen warten bis morgen"
     assert items(hans, op.object_id) == []
 
 

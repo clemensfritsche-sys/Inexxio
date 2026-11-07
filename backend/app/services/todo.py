@@ -59,6 +59,21 @@ def _documents(db: Session) -> list[tuple[int, str]]:
     return out
 
 
+def _chf(v: float) -> str:
+    """Franken wie auf dem Papier: «8.20»."""
+    return f"{v:.2f}"
+
+
+def _cap_item(spent: float, cap: float) -> TodoItem:
+    """►► **Der Hinweis zum Deckel der KI** – ab 80 % mit dem Betrag, am Deckel rot und mit
+    dem, was jetzt geschieht (Erfassungen bleiben roh, der Takt legt sie morgen ab). ◄◄"""
+    if spent >= cap:
+        return TodoItem(section="ki", count=1, red=True,
+                        label=f"Deckel erreicht ({_chf(cap)} CHF) – Erfassungen warten bis morgen")
+    return TodoItem(section="ki", count=1,
+                    label=f"heute {_chf(spent)} von {_chf(cap)} CHF ({round(spent / cap * 100)} %)")
+
+
 def _ai_items(db: Session, actor: UserProfile) -> list[tuple[int, TodoItem]]:
     """**Phase 3 · KI**: offene Vorschläge je Datensatz, **meine** offenen Erfassungen an meiner
     Person, und für den Admin am Betreiber der Hinweis, dass der Tagesdeckel der KI nahe ist."""
@@ -75,9 +90,7 @@ def _ai_items(db: Session, actor: UserProfile) -> list[tuple[int, TodoItem]]:
     if actor.role == "admin" and ai.near_cap(db):
         op = sites.find_operator(db)
         if op is not None and op.object_id:
-            out.append((op.object_id, TodoItem(
-                section="ki", count=1, red=not ai.available(db),
-                label=f"KI: {round(ai.WARN_AT * 100)} % des Tagesdeckels")))
+            out.append((op.object_id, _cap_item(ai.spent_today(db), ai.cap_chf())))
     return out
 
 

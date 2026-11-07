@@ -26,6 +26,8 @@ const SECTION: Record<string, string> = {
   person: 'Stammdaten',
   adressen: 'Adressen',
   feiertage: 'Feiertage',
+  // Der Deckel der KI (nur Admin, am Betreiber): ab 80 % mit dem Betrag, am Deckel rot.
+  ki: 'KI',
 };
 const ORDER = Object.keys(SECTION);
 
