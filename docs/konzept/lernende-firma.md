@@ -1,6 +1,6 @@
 # Projektakte «Die lernende Firma»
 
-> **Kopfstatus:** in Umsetzung · **Phase 1 (das Log) und Phase 2 (Fundament) gebaut** (06.11.2026) ·
+> **Kopfstatus:** in Umsetzung · **Phase 1 (das Log), Phase 2 (Fundament) und Phase 3 (KI) gebaut** (07.11.2026) ·
 > Lead: Claude · Entscheid: Clemens Fritsche · seit 03.11.2026
 > Mockup (1:1 im ERP): https://claude.ai/artifact/8jAy56JQ1jEESPwgRHPSSK
 > Diese Akte ist die **eine** Quelle für Ziel, Regeln, Plan und Entscheide – sie beschreibt den
@@ -216,7 +216,7 @@ gelöscht) · skaliert (Seiten, Indizes, Bedeutungssuche in der eigenen Datenban
 |---|---|---|
 | 1 | **Das Log** | gebaut (06.11.2026) |
 | 2 | **Fundament:** Feld-Baustein · Prüfsumme im Log · Kommunikation skalierbar · Notiz an jedem Datensatz · ein Verlauf · der Takt | gebaut (06.11.2026) |
-| 3 | **KI:** Lesen · Erfassen · Ablegen · Vorschläge · Angeheftetes · Lernen (Wissen + Erfahrung) · Deckel | als Nächstes |
+| 3 | **KI:** Lesen · Erfassen · Ablegen · Vorschläge · Angeheftetes · Lernen (Wissen + Erfahrung) · Deckel | gebaut (07.11.2026; Bauplan `docs/konzept/phase3-bauplan.md`) |
 | 4 | **Sprache:** Aufnehmen · Gemini · der Takt legt ab | offen |
 | danach | Lektionen (ab ~100 Fällen) · Fragen im Erfassen · Projekt «Aufgaben» (Zuständigkeit je Prozessschritt) | offen |
 | später | Suche in Inhalten · Website-Messung (BigQuery) · MCP-Zugang (nur für Clemens) | offen |

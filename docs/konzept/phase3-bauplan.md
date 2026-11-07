@@ -1,6 +1,6 @@
 # Phase 3 · KI – Bauplan (Vertrag zwischen Backend und Oberfläche)
 
-> **Kopfstatus:** in Umsetzung (07.11.2026) · gehört zur Projektakte
+> **Kopfstatus:** gebaut (07.11.2026) · gehört zur Projektakte
 > `docs/konzept/lernende-firma.md` (§4.3, §4.4, §6 «Phase 3»). Was hier steht, ist die
 > Schnittstelle, gegen die gebaut wird; ändert sie sich, wird sie hier geändert.
 
