@@ -372,6 +372,8 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
 - **Das «+» auf der Website** (`website/src/scripts/capture.ts`): nur für angemeldetes Personal,
   unten rechts; öffnet `/erp/erfassen` (dasselbe «+», eigene Anmeldung) in einem Rahmen – die
   Stecknadel zeigt auf die Website, Foto, Datei und «Neu anlegen» springen ins ERP (`?neu=`).
+  Schliesst man dort, während die KI arbeitet, geht nichts verloren (der Server bzw. der Takt
+  macht fertig, es steht im «+»), aber es meldet sich nicht – der Rahmen ist dann zu.
 - **Folgen aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person wird im
   Takt gelesen; was folgt, wird ein Vorschlag. Ein Fehlschlag zählt (`mail.follow_failed`),
   nach dem dritten gilt die Mail als geprüft (`mail.followed`); am Deckel kein Versuch.

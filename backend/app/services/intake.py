@@ -409,9 +409,14 @@ def file_with_ai(db: Session, it: Intake, actor: UserProfile) -> Optional[str]:
     if answer is None:
         return ai.problem() or "Die KI hat nichts abgelegt."
     source = source_of(it, actor)
-    # Während die KI las, kann die Person von Hand abgelegt (oder der Takt nachgeholt) haben –
-    # dann gibt es keinen zweiten ``file``-Vorschlag.
-    if not proposals.of_intake(db, it.id, "file"):
+    # Während die KI las, kann die Person von Hand abgelegt, **verworfen** (oder der Takt
+    # nachgeholt) haben – dann gibt es keinen zweiten ``file``-Vorschlag; und war sie verworfen,
+    # auch keine Folgen (sonst stünden sie verwaist an Datensätzen).
+    files = proposals.of_intake(db, it.id, "file")
+    if any(d.get("outcome") == "rejected"
+           for d in proposals.decided(db, [p.id for p in files]).values()):
+        return None
+    if not files:
         parts = (spoken_parts(db, answer, it, actor) if isinstance(answer, SpokenAnswer)
                  else _parts(db, answer, it, actor))
         proposals.propose(db, object_id=it.object_id, kind="file", source=source,

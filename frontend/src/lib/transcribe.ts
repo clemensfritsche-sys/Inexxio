@@ -1,4 +1,4 @@
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { notify, tell } from '@/lib/notice';
 import type { Recording } from '@/types';
 
@@ -39,6 +39,12 @@ async function loop(id: number, run: Run): Promise<Recording> {
       r = await api.advanceRecording(id);
     } catch (e) {
       tell('Aufnahme', 'Nicht abgeschrieben')(e);
+      // Weist der Server ab (abgemeldet, die Aufnahme gibt es nicht), hilft kein neuer Versuch:
+      // hier aufhören – der Takt schreibt sie zu Ende, sie steht im «+». Sonst (Netz, Zeit)
+      // wieder versuchen.
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) {
+        return { ...r, state: 'failed', problem: `${e.message} – sie wird im Hintergrund weiter abgeschrieben.` };
+      }
       await pause(RETRY_MS);
       continue;
     }

@@ -858,3 +858,24 @@ def test_a_capture_drops_control_characters(db):
     act(db, "person", hans.object_id, "ui")
     it = intake.capture(db, "Stelle: «Frei\x00geben»\n\tText\x07", None, hans)
     assert intake.get(db, it.id).text == "Stelle: «Freigeben»\n\tText"
+
+
+def test_an_ai_answer_after_discard_proposes_nothing(db, api, monkeypatch):
+    """Die KI liest noch, da wird verworfen: ihre Antwort darf keine Vorschläge mehr
+    hinterlassen. Bug-Form: «Telefon …» steht danach verwaist am Datensatz, obwohl die Erfassung
+    verworfen ist."""
+    firm, hans, meier, admin = _montage(db)
+    act(db, "person", hans.object_id, "ui")
+    it = intake.capture(db, NOTE, firm.object_id, hans)
+    script = _Script(_file_answer([(firm.object_id, "Schlauch ersetzt.", "Schlauch")],
+                                  [_change(meier.object_id, "phone", "079 123 45 67")]))
+    answer = script.messages.parse
+
+    def discard_while_reading(**kw):
+        intake.discard(db, it.id, hans)          # in einem anderen Fenster «Verwerfen»
+        return answer(**kw)
+    script.messages = SimpleNamespace(parse=discard_while_reading)
+    _ready(monkeypatch, script)
+    assert intake.file_with_ai(db, it, hans) is None
+    assert proposals.open_for(db, meier.object_id, admin) == []
+    assert it.id not in intake.open_ids(db, hans)

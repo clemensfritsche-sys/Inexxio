@@ -447,4 +447,7 @@ html[data-site]::-webkit-scrollbar-thumb:hover { background-color: rgba(10, 10, 
 }
 .ix-capture-frame.is-ready { visibility: visible; }
 html.ix-capture-open { overflow: hidden; }
-html.ix-capture-open .ix-capture-fab { visibility: hidden; }
+html.ix-capture-ready .ix-capture-fab { visibility: hidden; }
+.ix-capture-fab[aria-busy='true'] { cursor: progress; animation: ix-capture-wait 1.2s ease-in-out infinite; }
+@keyframes ix-capture-wait { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .ix-capture-fab[aria-busy='true'] { animation: none; opacity: .7; } }

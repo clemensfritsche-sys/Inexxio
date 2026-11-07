@@ -18,8 +18,9 @@
 const FRAME_ID = 'ix-capture-frame';
 const FAB_ID = 'ix-capture-fab';
 const SOURCE = 'inexxio-capture';
-/** So lange darf die eingebettete Seite brauchen, bis sie bereit ist. */
-const READY_MS = 12_000;
+/** So lange darf die eingebettete Seite brauchen, bis sie bereit ist – auch nach einem
+ *  Kaltstart des Dienstes (der beim Start erst die Datenbank prüft). */
+const READY_MS = 45_000;
 
 function staff(): boolean {
   return document.documentElement.dataset.account === 'staff';
@@ -27,7 +28,8 @@ function staff(): boolean {
 
 function close(): void {
   document.getElementById(FRAME_ID)?.remove();
-  document.documentElement.classList.remove('ix-capture-open');
+  document.documentElement.classList.remove('ix-capture-open', 'ix-capture-ready');
+  document.getElementById(FAB_ID)?.removeAttribute('aria-busy');
   document.getElementById(FAB_ID)?.focus();
 }
 
@@ -42,6 +44,8 @@ function open(): void {
   frame.allow = 'microphone; camera; screen-wake-lock';
   document.body.appendChild(frame);
   document.documentElement.classList.add('ix-capture-open');
+  // Bis die Seite bereit ist, sagt der Knopf, dass er lädt – ein Tipp ist nie still.
+  document.getElementById(FAB_ID)?.setAttribute('aria-busy', 'true');
   // Meldet sich die Seite nicht (abgemeldet, kein Netz), nicht unsichtbar hängen bleiben: ins
   // ERP – dort geht es zur Anmeldung oder es sagt, was fehlt.
   window.setTimeout(() => {
@@ -56,8 +60,14 @@ function onMessage(e: MessageEvent): void {
   if (e.origin !== location.origin) return;
   const data = e.data as { source?: string; what?: string } | null;
   if (!data || data.source !== SOURCE) return;
-  const frame = document.getElementById(FRAME_ID);
-  if (data.what === 'ready' && frame) frame.classList.add('is-ready');
+  const frame = document.getElementById(FRAME_ID) as HTMLIFrameElement | null;
+  // Nur unser Rahmen spricht hier – kein anderes Fenster desselben Ursprungs.
+  if (!frame || e.source !== frame.contentWindow) return;
+  if (data.what === 'ready') {
+    frame.classList.add('is-ready');
+    document.documentElement.classList.add('ix-capture-ready');
+    document.getElementById(FAB_ID)?.removeAttribute('aria-busy');
+  }
   if (data.what === 'close') close();
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, ArrowUp, Camera, ChevronRight, FileText, Mic, MapPin, PenLine, X } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { notify, tell } from '@/lib/notice';
 import { when } from '@/lib/when';
 import { TYPE_META } from '@/lib/erp-record';
@@ -61,8 +61,9 @@ type Phase =
  * Was gerade nicht geht, wird blass – nichts verschwindet, nichts springt.
  *
  * Schliessen (daneben tippen, Esc) geht immer, **ausser während einer Aufnahme** (der Weg hinaus
- * ist Stopp). Schliesst man, während die KI arbeitet, läuft es weiter und meldet sich; es steht
- * dann im «+» unter «Nicht abgelegt» (die Zahl am Knopf).
+ * ist Stopp). Schliesst man, während die KI arbeitet, läuft es weiter und meldet sich (eingebettet
+ * auf der Website nicht – der Rahmen ist dann zu; fertig wird es trotzdem); es steht dann im «+»
+ * unter «Nicht abgelegt» (die Zahl am Knopf).
  */
 export function CaptureSheet({ hint, onClose, onCreate, onFiles, onFileJump, onScan, host }: {
   hint: CaptureHint | null;
@@ -96,8 +97,8 @@ export function CaptureSheet({ hint, onClose, onCreate, onFiles, onFileJump, onS
     return () => window.removeEventListener('keydown', onKey);
   }, [dismiss, picking]);
 
-  const reset = () => { setPhase({ k: 'idle' }); setPlace(''); setAbout(hint); setProblem(''); setHomeless(''); };
-  const pin = usePin({ host, hint, setPicking, setPlace, setAbout, setHomeless });
+  const { pin, forget } = usePin({ host, hint, setPicking, setPlace, setAbout, setHomeless });
+  const reset = () => { forget(); setPhase({ k: 'idle' }); setPlace(''); setAbout(hint); setProblem(''); setHomeless(''); };
 
   /** Text an die KI – kommt die Antwort, nachdem das «+» zu ist, meldet es sich. */
   async function send(text: string): Promise<boolean> {
@@ -113,7 +114,12 @@ export function CaptureSheet({ hint, onClose, onCreate, onFiles, onFileJump, onS
       tell('Erfassung', 'Nicht abgelegt')(e);
       if (alive.current) {
         setPhase({ k: 'idle' });
-        setProblem(e instanceof Error ? e.message : 'Nicht abgelegt.');
+        // Abgewiesen (4xx): nichts ist gespeichert. Sonst (Zeitgrenze, Netz) kann die Erfassung
+        // schon angekommen sein – der Text kommt trotzdem zurück (nichts geht verloren), aber
+        // mit dem Hinweis, erst nachzusehen (sonst stünde sie zweimal da).
+        const refused = e instanceof ApiError && e.status >= 400 && e.status < 500;
+        const why = e instanceof Error ? e.message : 'Nicht abgelegt.';
+        setProblem(refused ? why : `${why} Vielleicht ist sie trotzdem angekommen – bitte zuerst unter «Nicht abgelegt» nachsehen, dann erst noch einmal senden.`);
       }
       return false;
     }
@@ -124,13 +130,15 @@ export function CaptureSheet({ hint, onClose, onCreate, onFiles, onFileJump, onS
     setProblem('');
   }
 
-  if (picking) return null;
+  // Beim Zeigen tritt das «+» nur beiseite (unsichtbar, nicht ausgehängt) – der getippte Text,
+  // die Aufnahme, das Warten bleiben, wie sie sind.
   return createPortal(
-    <div className="erp-capture-scrim" onClick={dismiss}>
+    <div className="erp-capture-scrim" onClick={dismiss}
+      style={picking ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}>
       <div role="dialog" aria-modal="true" aria-label="Erfassen" className="erp-capture-sheet"
         {...{ [PIN_UI]: 'true' }} onClick={(e) => e.stopPropagation()}>
         <div className="erp-capture-body">
-          <Composer phase={phase} place={place} about={about} onDropPlace={() => { setPlace(''); setAbout(hint); setHomeless(''); }}
+          <Composer phase={phase} place={place} about={about} onDropPlace={() => { forget(); setPlace(''); setAbout(hint); setHomeless(''); }}
             onSend={send} onScan={() => onScan(about)} onFiles={(f) => onFiles(f, about)} onFileJump={onFileJump} onPin={pin}
             onRecord={() => { setProblem(''); setPhase({ k: 'recording' }); }}
             onStopped={transcribe} onMicFailed={(why) => { setPhase({ k: 'idle' }); setProblem(why); }} />
@@ -168,27 +176,41 @@ function usePin({ host, hint, setPicking, setPlace, setAbout, setHomeless }: {
   host?: PinHost; hint: CaptureHint | null; setPicking: (b: boolean) => void;
   setPlace: (s: string) => void; setAbout: (h: CaptureHint | null) => void; setHomeless: (s: string) => void;
 }) {
-  return () => {
+  // Das laufende Zeigen (zum Aufräumen) und eine Nummer je Zeigen: eine späte Antwort der Suche
+  // nach dem Artikel gilt nur, solange niemand die Stelle wieder entfernt oder neu gezeigt hat.
+  const stopRef = useRef<() => void>(() => undefined);
+  const turn = useRef(0);
+  // Wird das «+» mitten im Zeigen entfernt: Listener, Fadenkreuz und Leiste gehen mit.
+  useEffect(() => () => stopRef.current(), []);
+  const pin = () => {
     const where = host ?? { doc: document, win: window, hide: () => undefined, show: () => undefined };
+    const mine = ++turn.current;
     setPicking(true);
     where.hide();
-    const back = () => { where.show(); setPicking(false); };
+    let offEsc: () => void = () => undefined;
+    const back = () => { offEsc(); stopRef.current = () => undefined; where.show(); setPicking(false); };
     // Erst nach diesem Klick zeigen – sonst wählte der Klick auf 📌 schon die Stelle.
     window.setTimeout(() => {
-      pickPlace(where.doc, (el) => {
+      const stop = pickPlace(where.doc, (el) => {
         setPlace(describePlace(el, hint?.objectId, where.win));
         back();
         const name = pinHome(where.win.location.pathname);
         void homeOf(name).then((home) => {
+          if (turn.current !== mine) return;
           setAbout(home);
           setHomeless(home ? '' : `Den Artikel «${name}» gibt es noch nicht – die KI legt es ab, wo es passt.`);
-        }, (e: unknown) => {
-          tell(`Artikel «${name}»`, 'Nicht gefunden')(e);
-          setAbout(null);
-        });
+        }, tell(`Artikel «${name}»`, 'Nicht gefunden'));
       }, back);
+      stopRef.current = () => { stop(); back(); };
+      // Eingebettet bleibt der Fokus in diesem (unsichtbaren) Fenster – Esc auch hier hören.
+      if (where.doc !== document) {
+        const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') stopRef.current(); };
+        document.addEventListener('keydown', esc, true);
+        offEsc = () => document.removeEventListener('keydown', esc, true);
+      }
     }, 0);
   };
+  return { pin, forget: () => { turn.current += 1; } };
 }
 
 /** Der Artikel, der die Software ist («ERP», «Website») – gesucht wie jedes Referenzfeld. */
