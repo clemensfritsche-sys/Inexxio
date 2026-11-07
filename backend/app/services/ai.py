@@ -1,8 +1,9 @@
 """►►► **Das KI-Tor – die einzige Stelle, die die KI aufruft.** ◄◄◄
 
-1. **Zugriff:** Jeder Aufruf nennt den Akteur, in dessen Namen er läuft. Was die KI zu sehen
-   bekommt, hat der Aufrufer vorher über ``services/access`` gefiltert – sie sieht nie mehr
-   als dieser Mensch.
+1. **Zugriff:** Jeder Aufruf nennt den Akteur, in dessen Namen er läuft (Log, Kosten). Was die
+   KI zu sehen bekommt, ist über ``services/access`` gefiltert – **mit den Rechten, die jedes
+   Personal hat** (``ai_tools.reader``): nie mehr als die Person, nie Privates. Ihr Ergebnis
+   (Vorschlag, Hinweis) sehen alle vom Personal.
 2. **Aufgabe und Modell** stehen in EINER Tabelle (``TASKS``).
 3. **Feste Antwortform:** jede Aufgabe hat ein Pydantic-Schema; die Antwort wird dagegen
    geprüft (structured outputs). Was nicht passt, gilt als Ausfall.
@@ -12,7 +13,7 @@
    Namen der Person) mit Aufgabe, Modell, Tokens und **Kosten in Franken** (``chf``); der
    Tagesdeckel (``AI_DAILY_CAP_CHF``) zählt genau diese.
 6. **Lesen mit Werkzeugen** (``converse``): die KI schlägt im ERP nach – über die
-   Lese-Werkzeuge in ``services/ai_tools``, mit den Rechten des Akteurs. Auch Bedeutungs-Zahlen
+   Lese-Werkzeuge in ``services/ai_tools``, mit den Rechten jedes Personals. Auch Bedeutungs-Zahlen
    (``embed``, Vertex AI) gehen durch diese Tür.
 
 **Ohne Schlüssel, am Deckel oder bei einem Fehler gibt es keinen Vorschlag – sonst nichts.**
@@ -54,7 +55,8 @@ class until:
     """►► **Eine Zeitgrenze für alles, was in einem Ablauf an die KI geht** – ``with
     ai.until(seconds):``. Eine Anfrage über Firebase Hosting bricht nach 60 s ab, ein Lauf des
     Takts ebenso (Cloud Scheduler); jeder Aufruf darin (Ablegen, Bedeutungs-Zahlen, Folgen)
-    bekommt nur noch die Zeit, die bleibt. ◄◄"""
+    bekommt nur noch die Zeit, die bleibt – und **wiederholt nichts selbst** (``_retries``):
+    ein zweiter Versuch im SDK bräche die Grenze; wiederholen ist Sache des Takts. ◄◄"""
 
     def __init__(self, seconds: float):
         self.at = _time.monotonic() + seconds
@@ -72,6 +74,11 @@ def _left(limit: float) -> float:
     """Wie lange ein Aufruf noch dauern darf – seine eigene Grenze oder die des Ablaufs."""
     end = _UNTIL.get()
     return limit if end is None else min(limit, end - _time.monotonic())
+
+
+def _retries(own: int) -> int:
+    """Wie oft ein Aufruf selbst wiederholt – unter einer Zeitgrenze (``until``) nie."""
+    return 0 if _UNTIL.get() is not None else own
 
 
 def problem() -> str:
@@ -124,7 +131,7 @@ class Task:
 #: mittlere Modell, mit wenig Nachdenken, damit es schnell bleibt.
 #: **Jede Anfrage läuft über Firebase Hosting, und das bricht nach 60 s ab** – was im Weg einer
 #: Anfrage läuft (lesen, verfassen, ablegen, Hinweise), bleibt darunter und versucht es nicht
-#: ein zweites Mal; was der Takt tut (``follow``), darf länger.
+#: ein zweites Mal; der Takt (``follow``) ebenso – auch er hat nur 60 s.
 TASKS: dict[str, Task] = {
     # Lesen muss unter der Grenze von Firebase Hosting bleiben (60 s je Anfrage) – sonst bricht
     # der Weg ab, bevor die Antwort kommt: 50 s, kein zweiter Versuch, eine kurze Antwort.
@@ -134,8 +141,9 @@ TASKS: dict[str, Task] = {
     # Eine Erfassung ablegen: nachschlagen (Werkzeuge), teilen, vorschlagen.
     "file": Task(model="claude-sonnet-5-5", max_tokens=6000, timeout=45.0, retries=0,
                  rounds=5, effort="low"),
-    # Was aus einer eingehenden Mail folgt – im Takt, darf länger.
-    "follow": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=90.0, retries=1,
+    # Was aus einer eingehenden Mail folgt – im Takt, der selbst nach 60 s abbricht: 45 s, kein
+    # zweiter Versuch (ein Fehlschlag kommt im nächsten Takt wieder, ``follow.TRIES``).
+    "follow": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=45.0, retries=0,
                    rounds=5, effort="low"),
     # Was an einem Datensatz jetzt wichtig ist («neu ansehen»).
     "pin": Task(model="claude-sonnet-5-5", max_tokens=3000, timeout=45.0, retries=0,
@@ -332,7 +340,7 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
             return None
         usage: dict[str, Any] = {"turn": turn}
         try:
-            response = _client(left, spec.retries).messages.parse(
+            response = _client(left, _retries(spec.retries)).messages.parse(
                 model=spec.model, max_tokens=spec.max_tokens, system=system,
                 messages=messages, output_format=schema, **extra)
             usage.update({"in": response.usage.input_tokens, "out": response.usage.output_tokens,
@@ -380,10 +388,11 @@ def embed_ready() -> bool:
 
 
 def _vertex_session():
+    """Die Sitzung zu Vertex AI – unter einer Zeitgrenze ohne zweiten Versuch (``_retries``)."""
     import google.auth
     from google.auth.transport.requests import AuthorizedSession
     creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-    return AuthorizedSession(creds)
+    return AuthorizedSession(creds, max_refresh_attempts=_retries(2))
 
 
 def _vertex_problem(status: Optional[int], text: str) -> str:

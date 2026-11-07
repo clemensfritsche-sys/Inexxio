@@ -5610,7 +5610,8 @@ export interface components {
         };
         /**
          * ProposalSource
-         * @description Woher ein Vorschlag kommt («Notiz von Hans-Peter, 06.11.»), kurz.
+         * @description Woher ein Vorschlag kommt («Erfassung von Hans-Peter», «Mail von Vreni Kunz: …»), kurz –
+         *     nie die Worte einer Erfassung.
          */
         ProposalSource: {
             /**

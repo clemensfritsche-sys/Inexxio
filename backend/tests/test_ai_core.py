@@ -57,7 +57,7 @@ def test_the_ai_looks_up_with_a_tool_and_then_answers(db, monkeypatch):
                      _answer(parsed=Out(answer="ok")))
     _ready(monkeypatch, script)
     got = ai.converse(db, task="file", actor=staff, system="s", schema=Out,
-                      content=[{"type": "text", "text": "x"}], tools=ai_tools.tools_for(db, staff))
+                      content=[{"type": "text", "text": "x"}], tools=ai_tools.tools_for(db))
     assert got == Out(answer="ok")
     result = script.seen[1]["messages"][-1]["content"][0]
     assert result["type"] == "tool_result" and result["tool_use_id"] == "t1"
@@ -74,7 +74,7 @@ def test_a_failing_tool_is_an_answer_not_a_crash(db, monkeypatch):
     script = _Script(_answer(stop="tool_use", content=[call]), _answer(parsed=Out(answer="x")))
     _ready(monkeypatch, script)
     assert ai.converse(db, task="file", actor=staff, system="s", schema=Out, content=[],
-                       tools=ai_tools.tools_for(db, staff)) == Out(answer="x")
+                       tools=ai_tools.tools_for(db)) == Out(answer="x")
     assert script.seen[1]["messages"][-1]["content"][0]["is_error"] is True
 
 
@@ -85,7 +85,7 @@ def test_endless_looking_up_ends_without_an_answer(db, monkeypatch):
         _Block(type="tool_use", id=f"t{i}", name="find", input={"q": "x"})]) for i in range(rounds)])
     _ready(monkeypatch, script)
     assert ai.converse(db, task="file", actor=staff, system="s", schema=Out, content=[],
-                       tools=ai_tools.tools_for(db, staff)) is None
+                       tools=ai_tools.tools_for(db)) is None
     assert "keinem Ergebnis" in ai.problem() and len(script.seen) == rounds
 
 

@@ -1,7 +1,14 @@
-"""►►► **Die Lese-Werkzeuge der KI – sie sieht nie mehr als die Person, für die sie arbeitet.** ◄◄◄
-(Projektakte «Die lernende Firma» §4.3, Schritt 3.1)
+"""►►► **Die Lese-Werkzeuge der KI – sie liest, was jedes Personal sehen darf: nie mehr als die
+Person, nie Privates.** ◄◄◄ (Projektakte «Die lernende Firma» §4.3, Schritt 3.1)
 
-Drei Werkzeuge, alle **nur lesend** und alle mit dem Akteur als Betrachter:
+Was die KI findet, wird ein Vorschlag oder Hinweis – und den sieht **jedes** Personal. Darum
+liest sie nie mit den Rechten der Person, für die sie gerade arbeitet (oft ein Admin oder wer das
+Postfach verbunden hat), sondern immer als ``reader``: ein gemeinsamer Betrachter mit der Rolle
+``employee`` und **ohne eigene Nummer** – also ohne eigene Zeiterfassung und ohne private
+Dokumentteile (``access.may``, ``history.page`` filtern das). Wer handelt, steht trotzdem im Log
+(``ai.call`` mit Kosten, Vorschlag und Hinweis im Namen der Person).
+
+Drei Werkzeuge, alle **nur lesend** und alle mit ``reader`` als Betrachter (``tools_for``):
 
 * ``find`` – «welchen Datensatz meinst du?»: Nummer ODER Name (``records.search``, dieselbe
   Suche wie jedes Referenzfeld);
@@ -12,7 +19,7 @@ Drei Werkzeuge, alle **nur lesend** und alle mit dem Akteur als Betrachter:
   Betrachter: Dokumente nach ``access``, die Zeiterfassung nur selbst/Admin).
 
 Es gibt keinen eigenen Weg an den Regeln vorbei: jedes Werkzeug fragt dieselben Dienste wie die
-Oberfläche. Was der Akteur nicht sehen darf, gibt es für die KI nicht («nicht gefunden»).
+Oberfläche. Was ``reader`` nicht sehen darf, gibt es für die KI nicht («nicht gefunden»).
 """
 
 from __future__ import annotations
@@ -170,8 +177,16 @@ def find(db: Session, viewer: UserProfile, q: Any) -> str:
     return "\n".join(f"{r.object_id} · {r.label}" for r in found)
 
 
-def tools_for(db: Session, viewer: UserProfile) -> list[Tool]:
-    """►►► **Die Werkzeuge für einen Aufruf** – gebunden an ``viewer``. ◄◄◄"""
+def reader() -> UserProfile:
+    """►►► **Der gemeinsame Betrachter der KI** – die Rechte, die jedes Personal hat: Rolle
+    ``employee``, keine eigene Nummer (nichts ist «seins»), nie gespeichert. ◄◄◄"""
+    return UserProfile(role="employee")
+
+
+def tools_for(db: Session) -> list[Tool]:
+    """►►► **Die Werkzeuge für einen Aufruf** – gebunden an ``reader()``, nie an die Person, in
+    deren Namen die KI arbeitet (ihr Ergebnis sehen alle). ◄◄◄"""
+    viewer = reader()
     return [
         Tool("find", "Sucht Datensätze (Personen, Firmen, Aufträge, Artikel, Instanzen) nach "
                      "Objektnummer oder Name. Gibt «Nummer · Typ · Name» je Treffer.",

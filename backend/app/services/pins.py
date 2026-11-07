@@ -9,6 +9,10 @@ Im Verlauf eines Datensatzes, unten beim Neuesten:
 
 «Neu ansehen» ersetzt nur die Hinweise – **nie einen offenen Vorschlag**: die stehen nicht im
 ``pin``, sie werden bei jedem Lesen aus dem Log abgeleitet.
+
+Die Hinweise sieht jedes Personal – darum liest die KI dafür nur, was jedes Personal sehen darf
+(``ai_tools.reader``), auch wenn ein Admin «neu ansehen» drückt: ein Arztzeugnis im Verlauf
+einer Person kennt sie nicht. Einen Datensatz, den nicht jedes Personal sieht, sieht sie nicht an.
 """
 
 from __future__ import annotations
@@ -78,6 +82,7 @@ def pinned(db: Session, object_id: int, viewer: UserProfile, *,
 
 def _content(db: Session, object_id: int, viewer: UserProfile,
              entries: list[Any]) -> list[dict[str, Any]]:
+    """Was die KI zum Datensatz bekommt – gelesen mit ``viewer`` = ``ai_tools.reader()``."""
     from . import ai_tools
     lines = ["Der Datensatz, der gerade offen ist:", ai_tools.record(db, viewer, object_id), "",
              "Sein Verlauf, die neuesten zuerst:"]
@@ -89,17 +94,25 @@ def _content(db: Session, object_id: int, viewer: UserProfile,
     return [{"type": "text", "text": "\n".join(lines)}]
 
 
+#: Ein Datensatz, den nicht jedes Personal sieht (ein privates Dokument): keine Hinweise.
+PRIVATE = "Diesen Datensatz sieht nicht jedes Personal – die KI sieht ihn nicht an."
+
+
 def refresh(db: Session, object_id: int, viewer: UserProfile) -> PinnedOut:
     """►►► **«Neu ansehen»** – die KI liest den Datensatz und seinen Verlauf (mit den Rechten
-    von ``viewer``) und wählt die Hinweise: ein neues ``pin``, auch ein leeres. Ohne KI bleibt
-    alles, wie es war, und ``problem`` sagt warum. ◄◄◄"""
+    jedes Personals, ``ai_tools.reader``; ``viewer`` handelt) und wählt die Hinweise: ein neues
+    ``pin``, auch ein leeres. Ohne KI bleibt alles, wie es war, und ``problem`` sagt warum. ◄◄◄"""
     from . import ai_tools
     from .intake import system_text
     history.assert_visible(db, object_id, viewer)
-    entries = history.page(db, object_id, viewer, limit=ENTRIES).entries
-    content = _content(db, object_id, viewer, entries) if ai.available(db) else []
+    reader = ai_tools.reader()
+    try:
+        entries = history.page(db, object_id, reader, limit=ENTRIES).entries
+    except HTTPException:
+        return pinned(db, object_id, viewer, problem=PRIVATE)
+    content = _content(db, object_id, reader, entries) if ai.available(db) else []
     answer = ai.converse(db, task="pin", actor=viewer, system=system_text(PIN_FORMAT),
-                         content=content, schema=PinAnswer, tools=ai_tools.tools_for(db, viewer))
+                         content=content, schema=PinAnswer, tools=ai_tools.tools_for(db))
     if answer is None:
         return pinned(db, object_id, viewer, problem=ai.problem() or "Die KI hat nichts gezeigt.")
     items = []

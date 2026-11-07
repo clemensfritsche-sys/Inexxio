@@ -57,7 +57,8 @@ class DraftOut(BaseModel):
 
 
 class ProposalSource(BaseModel):
-    """Woher ein Vorschlag kommt («Notiz von Hans-Peter, 06.11.»), kurz."""
+    """Woher ein Vorschlag kommt («Erfassung von Hans-Peter», «Mail von Vreni Kunz: …»), kurz –
+    nie die Worte einer Erfassung."""
 
     text: str = ""
     object_id: Optional[int] = None

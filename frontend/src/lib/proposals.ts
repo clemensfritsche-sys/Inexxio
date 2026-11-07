@@ -5,6 +5,7 @@ import { QueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { tell } from '@/lib/notice';
+import { isSettled, markSettled } from '@/lib/settled';
 import type { Pinned, Proposal } from '@/types';
 
 /**
@@ -26,11 +27,10 @@ const idleClient = () => (idle ??= new QueryClient());
 
 /**
  * **Was lokal schon entschieden ist** («Übernehmen», ✕) – verschwindet sofort, auch wenn eine
- * Antwort, die vor dem Speichern unterwegs war, ihn noch als offen nennt. Die Nummern sind
- * Log-Nummern: einmalig, die Menge wächst nur um das, was jemand in dieser Sitzung entscheidet.
+ * Antwort, die vor dem Speichern unterwegs war, ihn noch als offen nennt; nach 30 s zählt
+ * wieder der Server (`lib/settled`): scheiterte das Speichern, ist der Vorschlag wieder da.
  */
-const settled = new Set<number>();
-const stillOpen = (list: Proposal[]) => list.filter((p) => !settled.has(p.id));
+const stillOpen = (list: Proposal[]) => list.filter((p) => !isSettled(p.id));
 /** Das Angeheftete ohne das, was lokal schon entschieden ist – auch für die Antwort einer
  *  Handlung («neu ansehen», «lösen»). */
 export const pinnedOpen = (p: Pinned): Pinned => ({ ...p, proposals: stillOpen(p.proposals) });
@@ -70,7 +70,7 @@ export function useOpenIntakes() {
 
 /** Den Vorschlag lokal schliessen – in beiden Antworten, in denen er steht. */
 function settle(client: QueryClient | null, p: Proposal): void {
-  settled.add(p.id);
+  markSettled(p.id);
   if (!client) return;
   client.setQueryData<Proposal[]>(qk.proposals(p.object_id), (l) => l?.filter((x) => x.id !== p.id));
   client.setQueryData<Pinned>(qk.pins(p.object_id),

@@ -333,35 +333,44 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
 
 ## Die KI (Phase 3, Projektakte `docs/konzept/lernende-firma.md`, Vertrag `docs/konzept/phase3-bauplan.md`)
 
-- **Die KI liest mit den Rechten der Person und schreibt nie** – sie schlägt vor, ein Mensch
-  entscheidet. Eine Tür: `services/ai.py` (`converse` mit Werkzeugen, feste Antwortform, je
-  Zug ein `ai.call` mit Kosten in Franken; `ai.until` hält jede Anfrage und jeden Takt unter
-  60 s). Lese-Werkzeuge `services/ai_tools.py` (`find` · `record` · `history`) fragen dieselben
-  Dienste wie die Oberfläche (`access`, `history.page`). Der Auftrag an die KI steht wörtlich in
+- **Die KI liest, was jedes Personal sehen darf – nie mehr als die Person, nie Privates –
+  und schreibt nie**: sie schlägt vor, ein Mensch entscheidet. Ihr Ergebnis (Vorschlag,
+  Hinweis, Quelle) sieht jedes Personal, darum lesen die Werkzeuge immer als gemeinsamer
+  Betrachter (`ai_tools.reader`: Rolle `employee`, ohne eigene Nummer – keine Zeiterfassung,
+  keine privaten Dokumentteile), auch wenn ein Admin handelt; der Handelnde steht im Log
+  (`ai.call`, Kosten). Eine Tür: `services/ai.py` (`converse` mit Werkzeugen, feste Antwortform,
+  je Zug ein `ai.call` mit Kosten in Franken; `ai.until` hält jede Anfrage und jeden Takt unter
+  60 s und schaltet die Wiederholung im SDK ab). Lese-Werkzeuge `services/ai_tools.py` (`find` ·
+  `record` · `history`) fragen dieselben Dienste wie die Oberfläche (`access`, `history.page`). Der Auftrag an die KI steht wörtlich in
   `backend/app/assets/ai/auftrag.md`.
 - **Alles sind Ereignisse im Log**, keine Tabelle: `intake` (die rohe Erfassung), `proposal`
   (`change` ein Feld · `create` etwas anlegen · `file` eine Erfassung ablegen),
-  `proposal.decided`, `pin`/`pin.solved`. **Offen ist abgeleitet** (`services/proposals.py`): ✕
+  `proposal.decided` (**genau einer je Vorschlag**, eindeutiger Index `ix_log_decided`; ein
+  zweiter ist 409), `pin`/`pin.solved`. **Offen ist abgeleitet** (`services/proposals.py`): ✕
   verwirft; eine spätere Änderung genau dieses Feldes im Log erledigt ihn (gleich →
   übernommen, anders → selbst geändert) – **Übernehmen = Tippen**; der Takt schreibt die
-  Entscheide fest. Ein Vorschlag darf nur Felder aus `proposals.FIELDS` ändern. Im Verlauf
+  Entscheide fest (liest nur ableitbare Kandidaten per SQL); «zu tun» zählt mit EINER Abfrage. Ein Vorschlag darf nur Felder aus `proposals.FIELDS` ändern. Im Verlauf
   stehen diese Ereignisse nicht (`history.HIDDEN_EVENTS`) – sie haben «Abgelegt» und das
   Angeheftete.
 - **Erfassen** (`services/intake.py`, «+» im Feed): Schreiben → die KI teilt in Teile mit je
   einer Heimat und schlägt vor, was folgt → «Abgelegt» → «Stimmt so» legt je Teil eine Notiz
-  an. Fällt die KI aus, bleibt die Eingabe roh, der Mensch legt von Hand ab, der Takt holt nach.
-  Foto und Datei öffnen den Dokument-Entwurf. Eine Erfassung sieht nur, wer sie machte (und der
-  Admin).
+  an (Notizen und Entscheid in einer Transaktion). Fällt die KI aus, bleibt die Eingabe roh,
+  der Mensch legt von Hand ab, der Takt holt nach. Foto und Datei öffnen den Dokument-Entwurf.
+  Eine Erfassung sieht nur, wer sie machte (und der Admin); die Quelle eines Vorschlags daraus
+  heisst nur «Erfassung von <Name>», ohne ihre Worte.
 - **Folgen aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person wird im
-  Takt einmal gelesen; was folgt, wird ein Vorschlag.
+  Takt gelesen; was folgt, wird ein Vorschlag. Ein Fehlschlag zählt (`mail.follow_failed`),
+  nach dem dritten gilt die Mail als geprüft (`mail.followed`); am Deckel kein Versuch.
 - **Das Angeheftete** (`services/pins.py`, `components/erp/pinned.tsx`) unten im Verlauf: offene
   Vorschläge immer und zuerst, dann höchstens drei Hinweise der KI auf Abruf («neu ansehen»).
   **Vorschlag am Feld:** `useField` kennt die offenen Vorschläge seines Datensatzes und zeigt
   das Zeichen wie «zu tun» (`form/proposal-mark.tsx`); offene Vorschläge und Erfassungen zählen
   in «zu tun».
-- **Lernen** (`services/memory.py`, Migration 170): jeder Vorschlag bekommt Bedeutungs-Zahlen
-  (Vertex AI, `ai_memory`, pgvector); vor dem Ablegen und Folgen gehen die ähnlichsten
-  **entschiedenen** Fälle mit Entscheid in die Anfrage. Ohne Vertex keine Fälle, sonst nichts.
+- **Lernen** (`services/memory.py`, Migration 170): jeder **entschiedene** Fall, dessen
+  Inhalt jedes Personal sehen darf (`change`/`create`; `file` nur abgelegt), bekommt beim
+  Entscheid Bedeutungs-Zahlen (Vertex AI, `ai_memory`, pgvector; der Takt holt nach); vor dem
+  Ablegen und Folgen gehen die ähnlichsten mit Entscheid in die Anfrage. Ohne Vertex keine
+  Fälle, sonst nichts.
 - **Deckel in Franken** (`AI_DAILY_CAP_CHF`, 10 je Schweizer Tag, Preise in `ai.PRICES`); ab 80 %
   ein Hinweis in «zu tun» des Admins (am Betreiber); am Deckel bleibt die Eingabe roh.
 

@@ -8,26 +8,32 @@ Die KI wird nachgebildet (``_Script``/``_Block`` wie in ``tests/test_ai_core.py`
 Aufruf. Jeder Wächter steht neben der Fehlerform, die er fängt.
 """
 
+import random
 import re
 import time
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
 from app.core.actor import act
+from app.core.config import get_settings
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.main import app
 from app.models import Log, Mailbox, Message, MessageParty
 from app.schemas.admin import CompanySettingsUpdate, ErpAdminUpdate
-from app.services import ai, follow, intake, people, proposals, sites, tick, todo
+from app.services import (ai, ai_tools, documents as docs, follow, history, intake, log,
+                          people, proposals, sites, tick, todo)
 from app.services.communication import write
 from app.services.intake import AiPart, AiProposal, AiValue, FileAnswer
 from app.services.pins import AiHint, PinAnswer
 from tests.factories import new_firm, new_person
-from tests.test_ai_core import _Block, _Script, _answer, _ready
+from tests.test_ai_core import PDF, _Block, _Script, _answer, _ready
 
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
 DETAIL = {"user": FRONTEND / "user-detail.tsx", "organization": FRONTEND / "organization-detail.tsx"}
@@ -139,7 +145,9 @@ def test_montage_note_files_to_the_firm_and_proposes_the_phone(db, api, monkeypa
     (prop,) = got["proposals"]
     assert prop["kind"] == "change" and prop["field"] == "phone" and prop["label"] == "Telefon"
     assert prop["value"] == "+41 79 123 45 67" and prop["current"] is None   # wie das Feld speichert
-    assert prop["object_id"] == meier.object_id and "Hans-Peter" in prop["source"]["text"]
+    assert prop["object_id"] == meier.object_id
+    # Die Quelle steht für jedes Personal da – ohne die Worte der Erfassung (die sieht nur Hans).
+    assert prop["source"]["text"] == "Erfassung von Hans-Peter Keller"
     assert prop["source"]["intake"] == got["id"]
     # Die rohe Eingabe zuerst, die Vorschläge im Namen der Person durch die KI.
     (raw,) = _events(db, "intake", text=NOTE)
@@ -183,9 +191,9 @@ def test_typed_differently_is_changed_and_x_is_rejected(db, api):
     firm, hans, meier, admin = _montage(db)
     src = {"text": "Notiz"}
     a = proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
-                          value="079 111 11 11", source=src, actor=hans.object_id, remember=False)
+                          value="079 111 11 11", source=src, actor=hans.object_id)
     b = proposals.propose(db, object_id=meier.object_id, kind="change", field="last_name",
-                          value="Meier-Huber", source=src, actor=hans.object_id, remember=False)
+                          value="Meier-Huber", source=src, actor=hans.object_id)
     _type_phone(db, admin, meier, "079 222 22 22")
     assert proposals.outcome(db, proposals.get(db, a)) == ("changed", "+41 79 222 22 22")
     r = api.as_(admin).post(f"/api/v1/erp/proposals/{b}/reject")
@@ -203,12 +211,11 @@ def test_two_at_once_both_stand_in_the_log_and_both_are_decided(db):
     firm, hans, meier, admin = _montage(db)
     src = {"text": "x"}
     a = proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
-                          value="079 333 33 33", source=src, actor=hans.object_id, remember=False)
+                          value="079 333 33 33", source=src, actor=hans.object_id)
     b = proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
-                          value="079 444 44 44", source=src, actor=hans.object_id, remember=False)
+                          value="079 444 44 44", source=src, actor=hans.object_id)
     twin = proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
-                             value="+41 79 444 44 44", source=src, actor=hans.object_id,
-                             remember=False)
+                             value="+41 79 444 44 44", source=src, actor=hans.object_id)
     assert a != b and twin == b
     assert len(_events(db, "proposal")) >= 2
     assert {p.id for p in proposals.open_for(db, meier.object_id, admin)} == {a, b}
@@ -236,18 +243,16 @@ def test_what_is_no_proposal(db):
         trouble = proposals.problem(db, object_id=oid, kind="change", field=field, value=value)
         assert trouble and why in trouble, (field, trouble)
         assert proposals.propose(db, object_id=oid, kind="change", field=field, value=value,
-                                 source={"text": "x"}, actor=hans.object_id, remember=False) is None
+                                 source={"text": "x"}, actor=hans.object_id) is None
     ok = proposals.propose(db, object_id=meier.object_id, kind="change", field="date_of_birth",
-                           value="3.5.1980", source={"text": "x"}, actor=hans.object_id,
-                           remember=False)
+                           value="3.5.1980", source={"text": "x"}, actor=hans.object_id)
     assert proposals.get(db, ok).payload["value"] == "1980-05-03"
 
 
 def test_the_record_is_gone(db):
     firm, hans, meier, admin = _montage(db)
     pid = proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
-                            value="079 666 66 66", source={"text": "x"}, actor=hans.object_id,
-                            remember=False)
+                            value="079 666 66 66", source={"text": "x"}, actor=hans.object_id)
     meier.is_active = False
     db.flush()
     assert proposals.outcome(db, proposals.get(db, pid)) == ("gone", None)
@@ -262,7 +267,7 @@ def test_a_create_proposal_closes_when_the_record_is_made(db):
                                                               "last_name": "Roth",
                                                               "email": "rita@muster.ch",
                                                               "iban": "nie"}},
-                            source={"text": "x"}, actor=hans.object_id, remember=False)
+                            source={"text": "x"}, actor=hans.object_id)
     p = proposals.get(db, pid)
     assert p.payload["draft"]["values"] == {"first_name": "Rita", "last_name": "Roth",
                                             "email": "rita@muster.ch"}
@@ -272,7 +277,7 @@ def test_a_create_proposal_closes_when_the_record_is_made(db):
     assert proposals.outcome(db, p)[0] == "accepted"
     assert proposals.propose(db, object_id=firm.object_id, kind="create",
                              draft={"type": "user", "values": {"email": meier.email}},
-                             source={"text": "x"}, actor=hans.object_id, remember=False) is None
+                             source={"text": "x"}, actor=hans.object_id) is None
 
 
 # ─── (b) Meeting Heiri ─────────────────────────────────────────────────────────────────
@@ -461,8 +466,7 @@ def test_refresh_never_takes_away_an_open_proposal(db, api, monkeypatch):
     wenn die KI nichts zeigt. Ein Hinweis zeigt auf seinen Eintrag im Verlauf und lässt sich lösen."""
     firm, hans, meier, admin = _montage(db)
     pid = proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
-                            value="079 888 88 88", source={"text": "x"}, actor=hans.object_id,
-                            remember=False)
+                            value="079 888 88 88", source={"text": "x"}, actor=hans.object_id)
     first = api.as_(hans).get(f"/api/v1/erp/pins/{meier.object_id}").json()
     assert [p["id"] for p in first["proposals"]] == [pid] and first["hints"] == []
     assert first["refreshed_at"] is None
@@ -494,8 +498,7 @@ def test_refresh_never_takes_away_an_open_proposal(db, api, monkeypatch):
 def test_refresh_without_ai_keeps_everything(db, api, monkeypatch):
     firm, hans, meier, admin = _montage(db)
     pid = proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
-                            value="079 999 99 99", source={"text": "x"}, actor=hans.object_id,
-                            remember=False)
+                            value="079 999 99 99", source={"text": "x"}, actor=hans.object_id)
     monkeypatch.setattr(ai, "ready", lambda: False)
     r = api.as_(hans).post(f"/api/v1/erp/pins/{meier.object_id}/refresh").json()
     assert [p["id"] for p in r["proposals"]] == [pid] and r["problem"] == "Kein KI-Schlüssel hinterlegt."
@@ -508,7 +511,7 @@ def test_todo_counts_proposals_my_intakes_and_the_cap(db, monkeypatch):
     firm, hans, meier, admin = _montage(db)
     for value in ("079 100 00 00", "079 200 00 00"):
         proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
-                          value=value, source={"text": "x"}, actor=hans.object_id, remember=False)
+                          value=value, source={"text": "x"}, actor=hans.object_id)
     act(db, "person", hans.object_id, "ui")
     intake.capture(db, "noch abzulegen", None, hans)
     act(db, "system", None, "test")
@@ -528,8 +531,7 @@ def test_todo_counts_proposals_my_intakes_and_the_cap(db, monkeypatch):
 def test_the_tick_writes_the_decisions_and_logs_what_it_did(db, monkeypatch):
     firm, hans, meier, admin = _montage(db)
     pid = proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
-                            value="079 300 00 00", source={"text": "x"}, actor=hans.object_id,
-                            remember=False)
+                            value="079 300 00 00", source={"text": "x"}, actor=hans.object_id)
     _type_phone(db, admin, meier, "079 300 00 00")
     act(db, "system", None, "test")
     monkeypatch.setattr(ai, "ready", lambda: False)
@@ -545,3 +547,239 @@ def test_no_ai_call_outside_the_gate():
     for name in ("proposals.py", "intake.py", "pins.py", "follow.py"):
         source = (services / name).read_text("utf-8")
         assert "anthropic" not in source and "_client(" not in source, name
+
+
+# ─── Befunde der Prüfung (Phase 3) ─────────────────────────────────────────────────────
+
+def _sick_note(db, owner):
+    """Ein Arztzeugnis am Nachweis einer Absenz – sehen dürfen es nur die Person und der Admin."""
+    act(db, "person", owner.object_id, "ui")
+    doc, _ = docs.file(db, raw=PDF + str(random.random()).encode(), filename="z.pdf",
+                       mime="application/pdf", art="Arztzeugnis", name="Zeugnis Grippe",
+                       source="file", refs=[], actor=owner)
+    doc.text = "Diagnose: geheim"
+    docs.set_field(db, document_object_id=doc.object_id, object_id=owner.object_id,
+                   part="time:42", field="time.proof", actor=owner)
+    db.flush()
+    return doc
+
+
+def test_1_an_admin_refresh_reads_only_what_every_staff_may_see(db, api, monkeypatch):
+    """►► **Die KI liest, was jedes Personal sehen darf** – auch wenn ein Admin «neu ansehen»
+    drückt: ihre Hinweise sieht jedes Personal. Das Arztzeugnis der Person steht weder in der
+    Anfrage noch liefern es die Werkzeuge. Bug-Form: die Werkzeuge lesen mit dem Admin. ◄◄"""
+    owner, admin = new_person(db, "employee"), new_person(db, "admin")
+    doc = _sick_note(db, owner)
+    assert "Zeugnis Grippe" in ai_tools.history(db, admin, owner.object_id)    # der Admin sähe es
+    look = [_Block(type="tool_use", id="t1", name="record", input={"object_id": doc.object_id}),
+            _Block(type="tool_use", id="t2", name="history", input={"object_id": owner.object_id})]
+    script = _Script(_answer(stop="tool_use", content=look),
+                     _answer(parsed=PinAnswer(hints=[AiHint(text="Nichts Besonderes.", entry=None)])))
+    _ready(monkeypatch, script)
+    r = api.as_(admin).post(f"/api/v1/erp/pins/{owner.object_id}/refresh")
+    assert r.status_code == 200, r.text
+    asked = script.seen[0]["messages"][0]["content"][0]["text"]
+    record, history = script.seen[1]["messages"][-1]["content"][:2]
+    assert "Zeugnis" not in asked and "geheim" not in asked
+    assert "nicht gefunden" in record["content"] and "Zeugnis" not in history["content"]
+    assert _events(db, "pin")[-1].actor_id == admin.object_id               # der Admin handelt
+    # Ein Datensatz, den nicht jedes Personal sieht, sieht die KI gar nicht erst an.
+    private = api.as_(admin).post(f"/api/v1/erp/pins/{doc.object_id}/refresh").json()
+    assert "nicht jedes Personal" in private["problem"]
+
+
+def test_1_follow_with_an_admins_mailbox_reads_like_every_staff(db, monkeypatch):
+    """Folgen aus der Mail im Postfach eines Admins: die Werkzeuge lesen gleich (ohne Privates)."""
+    own = new_firm(db, "Inexxio", own=True)
+    admin = new_person(db, "admin")
+    db.add(Mailbox(channel=f"c{own.object_id}", address="info3@inexxio.test",
+                   owner_object_id=admin.object_id, token="x"))
+    customer = new_person(db, "user", first_name="Rosa", last_name="Graf")
+    customer.created_at = datetime.now(timezone.utc) - timedelta(days=30)
+    doc = _sick_note(db, new_person(db, "employee"))
+    act(db, "system", None, "test")
+    monkeypatch.setattr(db, "commit", db.flush)
+    if follow.start(db) is None:
+        follow.due(db)
+    mail = _mail(db, customer, own, "Bitte Zeugnis prüfen")
+    script = _Script(_answer(stop="tool_use", content=[_Block(
+        type="tool_use", id="t1", name="record", input={"object_id": doc.object_id})]),
+        _answer(parsed=follow.FollowAnswer(proposals=[])))
+    _ready(monkeypatch, script)
+    monkeypatch.setattr(follow, "due", lambda db, limit=5: [mail.id])
+    follow.run(db, time.monotonic() + 30)
+    assert "nicht gefunden" in script.seen[1]["messages"][-1]["content"][0]["content"]
+    assert ai_tools.record(db, admin, doc.object_id).startswith("Dokument")  # der Admin sähe es
+
+
+def _old_open(db, person, n):
+    """``n`` alte offene Vorschläge – nichts im Log erledigt sie."""
+    return [log.event(db, "proposal", person.object_id, {
+        "kind": "change", "field": "last_name", "label": "Nachname", "value": f"Alt {i}",
+        "source": {"text": "x"}}) for i in range(n)]
+
+
+def test_3_settle_never_hangs_behind_old_open_proposals(db):
+    """3 alte offene + 1 übernommener → ``settle(limit=3)`` schreibt den Entscheid. Bug-Form:
+    der Takt liest die ältesten Unentschiedenen und kommt nie über sie hinaus."""
+    firm, hans, meier, admin = _montage(db)
+    _old_open(db, meier, 3)
+    pid = proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
+                            value="079 400 00 00", source={"text": "x"}, actor=hans.object_id)
+    _type_phone(db, admin, meier, "079 400 00 00")
+    act(db, "system", None, "job")
+    assert proposals.settle(db, limit=3) >= 1
+    assert _events(db, "proposal.decided", proposal=pid)[0].payload["outcome"] == "accepted"
+
+
+class _Count:
+    """Zählt die SQL-Anweisungen an der Verbindung der Sitzung."""
+
+    def __init__(self, db):
+        self.engine, self.n = db.get_bind(), 0
+
+    def _hit(self, *a, **kw):
+        self.n += 1
+
+    def __enter__(self):
+        event.listen(self.engine, "before_cursor_execute", self._hit)
+        return self
+
+    def __exit__(self, *exc):
+        event.remove(self.engine, "before_cursor_execute", self._hit)
+
+
+def test_4_todo_costs_a_fixed_number_of_queries_however_many_proposals(db):
+    """«zu tun» mit 50 offenen Vorschlägen braucht so viele Abfragen wie mit einem – und die
+    Vorschläge zählt EINE. Bug-Form: je Vorschlag neun Abfragen (ableiten einzeln)."""
+    firm, hans, meier, admin = _montage(db)
+    _old_open(db, meier, 1)
+    with _Count(db) as one:
+        todo.todo(db, hans)
+    _old_open(db, meier, 49)
+    with _Count(db) as fifty:
+        found = {t.object_id: t for t in todo.todo(db, hans)}[meier.object_id]
+    assert fifty.n == one.n
+    assert [i.count for i in found.items if i.section == "vorschlaege"] == [50]
+    with _Count(db) as counts:
+        proposals.open_counts(db)
+    assert counts.n == 1
+    # Was das Log schon erledigt hat, zählt nicht mehr – auch ohne Takt.
+    proposals.propose(db, object_id=meier.object_id, kind="change", field="phone",
+                      value="079 500 00 00", source={"text": "x"}, actor=hans.object_id)
+    assert proposals.open_counts(db)[meier.object_id] == 51
+    _type_phone(db, admin, meier, "079 500 00 00")
+    assert proposals.open_counts(db)[meier.object_id] == 50
+
+
+class _Overloaded:
+    """Eine KI, die mit 529 antwortet (ausgelastet)."""
+
+    def __init__(self):
+        self.messages = SimpleNamespace(parse=self._parse)
+
+    def _parse(self, **kw):
+        err = Exception("overloaded")
+        err.status_code = 529
+        raise err
+
+
+def test_5_a_passing_error_does_not_throw_a_mail_away(db, monkeypatch):
+    """529 zählt als Fehlschlag (``mail.follow_failed``), die Mail kommt wieder; erst nach dem
+    dritten gilt sie als geprüft. Am Deckel kein Versuch, kein Zählen. Bug-Form: der erste
+    Fehler schreibt ``mail.followed`` – die Mail ist für immer verloren."""
+    own = new_firm(db, "Inexxio", own=True)
+    staff = new_person(db, "employee")
+    db.add(Mailbox(channel=f"c{own.object_id}", address="info4@inexxio.test",
+                   owner_object_id=staff.object_id, token="x"))
+    customer = new_person(db, "user")
+    customer.created_at = datetime.now(timezone.utc) - timedelta(days=30)
+    db.flush()
+    monkeypatch.setattr(db, "commit", db.flush)
+    if follow.start(db) is None:
+        follow.due(db)
+    mail = _mail(db, customer, own, "Neue Nummer 079 999 00 00")
+    monkeypatch.setattr(get_settings(), "ai_daily_cap_chf", 10.0)
+    _ready(monkeypatch, _Overloaded(), spent=10.0)
+    assert follow.follow_one(db, mail.id) is None                       # am Deckel: nichts
+    assert _events(db, "mail.follow_failed", message=mail.id) == []
+    _ready(monkeypatch, _Overloaded())
+    for n in range(1, follow.TRIES + 1):
+        assert mail.id in follow.due(db, 100)
+        assert follow.follow_one(db, mail.id) == 0
+        assert len(_events(db, "mail.follow_failed", message=mail.id)) == n
+        assert len(_events(db, "mail.followed", message=mail.id)) == (1 if n == follow.TRIES else 0)
+    assert mail.id not in follow.due(db, 100)
+    (done,) = _events(db, "mail.followed", message=mail.id)
+    assert "antwortet gerade nicht" in done.payload["problem"]
+    assert "mail.follow_failed" in history.HIDDEN_EVENTS
+
+
+def test_6_under_a_time_limit_the_sdk_never_retries(db, monkeypatch):
+    """Unter ``ai.until`` bekommt der Client keinen zweiten Versuch – wiederholen ist Sache des
+    Takts. Bug-Form: das SDK wiederholt einen 529 und bricht die 60 s."""
+    staff = new_person(db, "employee")
+    seen = []
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
+    monkeypatch.setattr(ai, "_client", lambda timeout, retries: seen.append(retries) or _Script(
+        _answer(parsed=FileAnswer(parts=[], proposals=[]))))
+    monkeypatch.setitem(ai.TASKS, "slow", ai.Task(model="claude-sonnet-5-5", max_tokens=10,
+                                                  timeout=30.0, retries=2))
+    ai.converse(db, task="slow", actor=staff, system="s", schema=FileAnswer, content=[])
+    with ai.until(40):
+        ai.converse(db, task="slow", actor=staff, system="s", schema=FileAnswer, content=[])
+    assert seen == [2, 0]
+    assert ai.TASKS["follow"].retries == 0 and ai.TASKS["follow"].timeout <= 45
+
+
+def test_7_proposals_of_a_record_need_the_right_to_see_it(db, api):
+    """``GET /proposals?object_id=`` prüft die Sichtbarkeit wie das Angeheftete. Bug-Form: eine
+    Kollegin liest die Vorschläge an einem Arztzeugnis."""
+    owner, colleague = new_person(db, "employee"), new_person(db, "employee")
+    doc = _sick_note(db, owner)
+    url = "/api/v1/erp/proposals"
+    assert api.as_(owner).get(url, params={"object_id": doc.object_id}).status_code == 200
+    r = api.as_(colleague).get(url, params={"object_id": doc.object_id})
+    assert r.status_code == 404 and f"«{doc.object_id}»" in r.json()["detail"]
+
+
+def test_8_twice_stimmt_so_is_one_note_per_part(db, api, monkeypatch):
+    """Zwei «Stimmt so», die beide noch nichts Abgelegtes sahen (zwei Fenster): der eindeutige
+    Entscheid weist den zweiten ab (409) – und nimmt seine Notizen mit zurück. Bug-Form: zwei
+    Entscheide, jede Notiz doppelt."""
+    me = new_person(db, "employee")
+    monkeypatch.setattr(ai, "ready", lambda: False)
+    got = api.as_(me).post("/api/v1/erp/intake", json={"text": "Zweimal abgelegt"}).json()
+    parts = {"parts": [{"object_id": me.object_id, "text": "Zweimal abgelegt", "subject": "Zweimal"}]}
+    url = f"/api/v1/erp/intake/{got['id']}/file"
+    assert api.as_(me).post(url, json=parts).status_code == 200
+    real = proposals.decided
+    monkeypatch.setattr(proposals, "decided", lambda db, ids: {})   # das zweite Fenster
+    again = api.as_(me).post(url, json=parts)
+    monkeypatch.setattr(proposals, "decided", real)
+    assert again.status_code == 409 and "schon entschieden" in again.json()["detail"]
+    assert db.query(Message).filter(Message.subject == "Zweimal").count() == 1
+    (fp,) = proposals.of_intake(db, got["id"], "file")
+    assert len(_events(db, "proposal.decided", proposal=fp.id)) == 1
+    with pytest.raises(HTTPException) as twice:
+        proposals.decide(db, fp, "rejected")
+    assert twice.value.status_code == 409
+
+
+def test_8_filed_by_hand_while_the_ai_reads_leaves_no_second_file(db, monkeypatch):
+    """Legt die Person von Hand ab, während die KI liest, schreibt die KI danach keinen
+    ``file``-Vorschlag mehr. Bug-Form: zwei ``file`` zu einer Erfassung."""
+    me = new_person(db, "employee")
+    act(db, "person", me.object_id, "ui")
+    it = intake.capture(db, "Während die KI liest", None, me)
+
+    class _Meanwhile(_Script):
+        def _parse(self, **kw):
+            intake.file(db, it.id, [SimpleNamespace(object_id=me.object_id, text="von Hand",
+                                                    subject="Hand")], me)
+            return super()._parse(**kw)
+    _ready(monkeypatch, _Meanwhile(_file_answer([(me.object_id, "von der KI", "KI")])))
+    assert intake.file_with_ai(db, it, me) is None
+    (only,) = proposals.of_intake(db, it.id, "file")
+    assert only.payload["parts"][0]["text"] == "Während die KI liest"      # der rohe Teil

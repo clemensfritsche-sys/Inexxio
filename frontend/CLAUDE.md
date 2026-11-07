@@ -166,7 +166,7 @@ Skill `inexxio-design-system`.
   Zahlungen, Verlauf (`qk.history`, `useInfiniteQuery` – jeder Schreibvorgang lädt ihn nach), Absender, Postfach, Newsletter, Gesellschaft;
   **Phase 3** `qk.proposals` · `qk.pins` · `qk.openIntakes` (`lib/proposals.ts`; `feed.LOGGED` =
   Verlauf + Vorschläge + Angeheftetes lädt jede Änderung am Datensatz nach – offen ist abgeleitet).
-  Was lokal entschieden ist («Übernehmen», ✕), bleibt weg, bis der Server es auch weiss. Die Antwort einer Handlung
+  Was lokal entschieden ist («Übernehmen», ✕), bleibt 30 s weg (`lib/settled.ts`), danach zählt wieder der Server. Die Antwort einer Handlung
   geht per `setQueryData` in den Cache. **Prüfen und Vorschau** (Auftrag, Artikel,
   Zeiterfassung) über `useDebouncedQuery`: Eingabe 250 ms entprellt und Teil des Schlüssels,
   `keepPreviousData`, überholte Anfragen brechen ab (`api.get/post(…, { signal })`).

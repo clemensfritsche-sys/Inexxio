@@ -3,13 +3,19 @@
 * ``capture`` – die rohe Eingabe **sofort** ins Log (Ereignis ``intake``, am Datensatz, der dabei
   offen war, sonst an der Person). Was danach auch geschieht: sie ist da.
 * ``file_with_ai`` – die KI legt ab (``ai.converse``, Aufgabe ``file``, mit den Lese-Werkzeugen
-  der Person): Teile mit je einer Heimat + was daraus folgt. Das Ergebnis ist ein **Vorschlag**
+  ``ai_tools.tools_for`` – was jedes Personal sehen darf): Teile mit je einer Heimat + was
+  daraus folgt. Das Ergebnis ist ein **Vorschlag**
   ``file`` (die Teile) und die übrigen Vorschläge (``change``/``create``). Ungültige Nummern und
   Felder verwirft der Code, nicht die KI. Ohne KI: kein Vorschlag, ein roher Teil und ``problem``;
   der Takt holt nach (``catch_up``).
 * ``file`` – «Stimmt so»: je Teil eine **Notiz** an seinem Datensatz (``communication.create``,
   Kanal ``note``), dann der Entscheid über den ``file``-Vorschlag (``accepted``, wenn unverändert,
-  sonst ``changed``).
+  sonst ``changed``) – Notizen und Entscheid in EINER Transaktion: kam ein zweites «Stimmt so»
+  zuvor, ist das 409 und keine Notiz bleibt.
+
+**Die Worte einer Erfassung sieht nur, wer erfasst hat** – bis «Stimmt so» sie als Notiz ablegt.
+Die Quelle eines ``change``/``create`` nennt darum nur «Erfassung von <Name>» (``source_of``),
+nie den Text.
 
 Eine Erfassung gehört der Person, die erfasst hat: nur sie (oder ein Admin) sieht sie offen und
 legt sie ab (``may_see`` ↔ ``assert_may``).
@@ -36,9 +42,6 @@ AUFTRAG = (Path(__file__).resolve().parents[1] / "assets" / "ai" / "auftrag.md")
 
 #: So lang ist eine Erfassung höchstens (wie eine Nachricht).
 MAX_TEXT = 20000
-#: Nach so vielen Sekunden im Weg einer Anfrage kommen keine Bedeutungs-Zahlen mehr dazu
-#: (der Takt holt sie nach) – die Antwort muss unter den 60 s von Firebase Hosting bleiben.
-REMEMBER_WITHIN = 30.0
 #: Der Takt: so viele Erfassungen je Lauf, so alt höchstens, so oft höchstens versucht.
 CATCH_UP = 3
 CATCH_UP_DAYS = 7
@@ -253,56 +256,52 @@ def _parts(db: Session, answer: FileAnswer, it: Intake, actor: UserProfile) -> l
 
 
 def follow_up(db: Session, items: list[AiProposal], *, home: int, source: dict[str, Any],
-              actor: UserProfile, remember: bool = True) -> list[int]:
+              actor: UserProfile) -> list[int]:
     """Die Vorschläge der KI festhalten – was nicht gilt, verwirft ``proposals.propose``."""
     made = []
     for item in items:
         if item.kind == "change":
             pid = proposals.propose(db, object_id=item.object_id, kind="change", field=item.field,
-                                    value=item.value, source=source, actor=actor.object_id,
-                                    remember=remember)
+                                    value=item.value, source=source, actor=actor.object_id)
         else:
             where = item.object_id if valid_target(db, item.object_id, actor) else home
             pid = proposals.propose(db, object_id=where, kind="create", source=source,
                                     draft={"type": item.type,
                                            "values": {v.key: v.value for v in item.values}},
-                                    actor=actor.object_id, remember=remember)
+                                    actor=actor.object_id)
         if pid is not None and pid not in made:
             made.append(pid)
     return made
 
 
 def source_of(it: Intake, actor: UserProfile) -> dict[str, Any]:
-    return {"text": f"Notiz von {actor.display_name}: {first_words(it.text, 12)}",
-            "object_id": it.hint, "intake": it.id, "at": it.at}
+    """►►► **Die Quelle eines Vorschlags aus einer Erfassung – ohne ihre Worte.** ◄◄◄ Ein
+    ``change``/``create`` steht für jedes Personal da; der Text der Erfassung gehört bis «Stimmt
+    so» nur der Person, die erfasst hat."""
+    return {"text": f"Erfassung von {actor.display_name}", "object_id": it.hint,
+            "intake": it.id, "at": it.at}
 
 
 def file_with_ai(db: Session, it: Intake, actor: UserProfile) -> Optional[str]:
     """►►► **Die KI legt ab** – ein ``file``-Vorschlag mit den Teilen, dazu die übrigen
     Vorschläge. Gibt ``None`` zurück, wenn es klappte, sonst warum nicht (``ai.problem``). ◄◄◄"""
+    from . import ai_tools
     if proposals.of_intake(db, it.id, "file"):
         return None
-    started = time.monotonic()
     # Ohne KI kein Nachschlagen der Fälle (auch das kostet) – ``converse`` sagt dann nur warum.
     content = _prompt(db, it, actor) if ai.available(db) else []
     answer = ai.converse(db, task="file", actor=actor, system=system_text(FILE_FORMAT),
-                         content=content, schema=FileAnswer,
-                         tools=_tools(db, actor))
+                         content=content, schema=FileAnswer, tools=ai_tools.tools_for(db))
     if answer is None:
         return ai.problem() or "Die KI hat nichts abgelegt."
-    remember = time.monotonic() - started < REMEMBER_WITHIN
     source = source_of(it, actor)
-    proposals.propose(db, object_id=it.object_id, kind="file", source=source,
-                      parts=_parts(db, answer, it, actor), actor=actor.object_id,
-                      remember=remember)
-    follow_up(db, answer.proposals, home=it.object_id, source=source, actor=actor,
-              remember=remember)
+    # Während die KI las, kann die Person von Hand abgelegt (oder der Takt nachgeholt) haben –
+    # dann gibt es keinen zweiten ``file``-Vorschlag.
+    if not proposals.of_intake(db, it.id, "file"):
+        proposals.propose(db, object_id=it.object_id, kind="file", source=source,
+                          parts=_parts(db, answer, it, actor), actor=actor.object_id)
+    follow_up(db, answer.proposals, home=it.object_id, source=source, actor=actor)
     return None
-
-
-def _tools(db: Session, actor: UserProfile):
-    from . import ai_tools
-    return ai_tools.tools_for(db, actor)
 
 
 # ─── Ablegen («Stimmt so») ─────────────────────────────────────────────────────────────
@@ -344,20 +343,22 @@ def file(db: Session, intake_id: int, parts: list[Any], actor: UserProfile) -> I
     open_files = [p for p in files if p.id not in done]
     if not open_files:
         pid = proposals.propose(db, object_id=it.object_id, kind="file", parts=[raw_part(it)],
-                                source=source_of(it, actor), actor=actor.object_id, ai=False,
-                                remember=False)
+                                source=source_of(it, actor), actor=actor.object_id, ai=False)
         open_files = proposals.load(db, [pid]) if pid else []
-    notes = []
-    for p in clean:
-        msg = communication.create(db, MessageIn(channel=dc.NOTE, about=[p["object_id"]],
-                                                 subject=p["subject"], body=p["text"]), actor)
-        notes.append({"object_id": p["object_id"], "message_id": msg.id})
-    chosen = open_files[-1]
-    kept = _unchanged(chosen.payload.get("parts") or [], clean)
-    proposals.decide(db, chosen, "accepted" if kept else "changed", notes=notes,
-                     **({} if kept else {"parts": clean}))
-    for other in open_files[:-1]:
-        proposals.decide(db, other, "gone")
+    # Notizen und Entscheid in EINER Transaktion: kam ein anderes «Stimmt so» zuvor, weist der
+    # eindeutige Entscheid ab (409) und der Savepoint nimmt auch die Notizen zurück.
+    with db.begin_nested():
+        notes = []
+        for p in clean:
+            msg = communication.create(db, MessageIn(channel=dc.NOTE, about=[p["object_id"]],
+                                                     subject=p["subject"], body=p["text"]), actor)
+            notes.append({"object_id": p["object_id"], "message_id": msg.id})
+        chosen = open_files[-1]
+        kept = _unchanged(chosen.payload.get("parts") or [], clean)
+        proposals.decide(db, chosen, "accepted" if kept else "changed", notes=notes,
+                         **({} if kept else {"parts": clean}))
+        for other in open_files[:-1]:
+            proposals.decide(db, other, "gone")
     return it
 
 

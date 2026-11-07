@@ -7,7 +7,8 @@
   gelöscht; die Zeile hier darf neu entstehen).
 * Der Index (HNSW, Kosinus) trägt «die ähnlichsten Fälle» auch bei vielen tausend Fällen.
 * ``ix_log_decided``: der Entscheid zu einem Vorschlag (``proposal.decided`` → ``proposal``) –
-  «ist er offen?» und «wie wurde entschieden?» lesen genau das.
+  «ist er offen?» und «wie wurde entschieden?» lesen genau das. **Eindeutig**: je Vorschlag
+  genau ein Entscheid (zwei Klicks, zwei Fenster, der Takt – der zweite wird abgewiesen).
 
 Revision ID: 170
 Revises: 169
@@ -34,7 +35,7 @@ CREATE TABLE ai_memory (
 )""")
     op.execute("CREATE INDEX ix_ai_memory_embedding ON ai_memory "
                "USING hnsw (embedding vector_cosine_ops)")
-    op.execute("CREATE INDEX ix_log_decided ON log (((payload ->> 'proposal')::bigint)) "
+    op.execute("CREATE UNIQUE INDEX ix_log_decided ON log (((payload ->> 'proposal')::bigint)) "
                "WHERE event = 'proposal.decided'")
 
 

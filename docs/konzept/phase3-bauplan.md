@@ -6,7 +6,8 @@
 
 ## Grundsätze (aus der Akte, verbindlich)
 
-- Die KI **liest** mit den Rechten der Person, **schreibt nie** – sie schlägt vor, ein Mensch
+- Die KI **liest, was jedes Personal sehen darf – nie mehr als die Person, nie Privates**
+  (ihr Ergebnis sieht jedes Personal), **schreibt nie** – sie schlägt vor, ein Mensch
   entscheidet. Jeder Aufruf geht durch **eine Tür** (`services/ai.py`), ein Deckel, ein Log.
 - **Keine neue Insel:** eine Erfassung, ein Vorschlag, ein Entscheid, ein Hinweis sind
   **Ereignisse im Log** (`services/log.event`). Eine Notiz ist eine Nachricht (Kanal `note`).
@@ -40,11 +41,13 @@
 - `file` – eine Erfassung ablegen: `parts = [{object_id, text, subject}]`; offen, bis «Stimmt
   so» (`accepted`/`changed`, je nachdem ob der Mensch Teile änderte) oder ✕.
 
-`source = {text, object_id?, message_id?, intake?}` – woher der Vorschlag kommt («Notiz von
-Hans-Peter, 06.11.»), kurz.
+`source = {text, object_id?, message_id?, intake?}` – woher der Vorschlag kommt («Erfassung
+von Hans-Peter», «Mail von Vreni Kunz: Betreff»), kurz; **nie die Worte einer Erfassung** (die
+sieht bis «Stimmt so» nur, wer erfasst hat).
 
 Der Takt schreibt die abgeleiteten Entscheide fest (`proposal.decided`, Handelnder System),
-damit jeder Vorschlag mit Entscheid ein **Fall** ist, aus dem gelernt wird.
+damit jeder Vorschlag mit Entscheid ein **Fall** ist, aus dem gelernt wird. Je Vorschlag gibt
+es **genau einen** Entscheid (eindeutiger Index `ix_log_decided`; ein zweiter ist 409).
 
 ## API (`/api/v1/erp`, Personal)
 
@@ -88,10 +91,12 @@ Pinned   = { proposals: Proposal[] /* immer, zuerst */,
 - `ai.converse(db, *, task, actor, system, content, schema, tools)` – eine Schleife mit
   Werkzeugen (höchstens `Task.rounds`), Antwort in fester Form (structured outputs), jeder
   Aufruf ein `ai.call`; nie eine Ausnahme, `ai.problem()` sagt warum nichts kam.
-- **Lese-Werkzeuge** (`ai_tools.TOOLS`, alle mit den Rechten des Akteurs):
-  `find(q)` – Datensätze nach Nummer oder Name · `record(object_id)` – das Wichtigste eines
-  Datensatzes · `history(object_id)` – die neuesten Einträge seines Verlaufs (`history.page`
-  mit dem Akteur als Betrachter). Was der Akteur nicht sehen darf, gibt es für die KI nicht.
+- **Lese-Werkzeuge** (`ai_tools.tools_for(db)`, alle mit dem gemeinsamen Betrachter
+  `ai_tools.reader()`: Rolle `employee`, ohne eigene Nummer): `find(q)` – Datensätze nach
+  Nummer oder Name · `record(object_id)` – das Wichtigste eines Datensatzes ·
+  `history(object_id)` – die neuesten Einträge seines Verlaufs (`history.page`). Was nicht
+  jedes Personal sehen darf (Zeiterfassung, private Dokumentteile), gibt es für die KI nicht –
+  auch wenn ein Admin handelt; er steht im Log (`ai.call`).
 - **Deckel in Franken** (`AI_DAILY_CAP_CHF`, Vorgabe 10): Kosten je Aufruf aus den Tokens
   (Preise je Modell in `ai.PRICES`, USD → CHF fest), Summe des Tages aus den `ai.call`;
   ab 80 % ein Hinweis in «zu tun» des Admins; am Deckel kein Aufruf mehr (die Eingabe bleibt
@@ -108,16 +113,19 @@ Pinned   = { proposals: Proposal[] /* immer, zuerst */,
 - `ai_memory` (`log_id` → der Vorschlag, `embedding vector(768)`, `text`) – pgvector in der
   eigenen Datenbank. Bedeutungs-Zahlen von **Vertex AI** (`gemini-embedding-001`, 768
   Dimensionen, Region `VERTEX_REGION`, Vorgabe `europe-west3`), über `ai.embed`.
-- Jeder neue Vorschlag bekommt seine Zahlen (im Takt nachgeholt, wenn es nicht gleich ging).
-- Vor `file`/`follow`: `memory.similar(db, text, k=5)` – die ähnlichsten **entschiedenen**
-  Fälle (Quelle, Vorschlag, Entscheid, ggf. geänderter Wert) gehen in die Anfrage.
+- Jeder **entschiedene** Fall, dessen Inhalt jedes Personal sehen darf (`change`/`create`;
+  `file` nur `accepted`/`changed`, dann steht er als Notiz da), bekommt seine Zahlen beim
+  Entscheid (im Takt nachgeholt, wenn es nicht gleich ging, und für die Entscheide des Takts).
+- Vor `file`/`follow`: `memory.similar(db, text, k=5)` – die ähnlichsten Fälle (Quelle,
+  Vorschlag, Entscheid, ggf. geänderter Wert) gehen in die Anfrage.
 - Ohne Vertex (nicht eingerichtet, Fehler): keine ähnlichen Fälle – sonst nichts.
 
 ## Der Takt (`services/tick.TASKS`, neue Aufgabe `ai`)
 
 Entscheide festschreiben · offene Erfassungen ohne Vorschlag nachholen · neue eingehende Mails
-(bekannte Person, keine Massenpost, ab Einführung) auf Folgen prüfen (`follow`) · fehlende
-Bedeutungs-Zahlen nachholen. Je Lauf begrenzt; am Deckel nur das, was keine KI braucht.
+(bekannte Person, keine Massenpost, ab Einführung) auf Folgen prüfen (`follow`; ein Fehlschlag
+zählt als `mail.follow_failed`, nach dem dritten ist die Mail geprüft) · fehlende
+Bedeutungs-Zahlen nachholen. Unter der Zeitgrenze des Takts wiederholt das SDK nichts. Je Lauf begrenzt; am Deckel nur das, was keine KI braucht.
 
 ## Oberfläche
 

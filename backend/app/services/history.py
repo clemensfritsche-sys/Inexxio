@@ -52,7 +52,8 @@ HIDDEN = frozenset({"messages", "message_parties", "objects", "webauthn_challeng
 #:    Hinweis im Angehefteten; was abgelegt wird, steht danach als Notiz da. Im Verlauf wären sie
 #:    dieselbe Sache ein zweites Mal – und der rohe Text einer Erfassung für jeden lesbar. ◄◄
 HIDDEN_EVENTS = frozenset({"intake", "intake.failed", "proposal", "proposal.decided", "pin",
-                           "pin.solved", "mail.followed", "follow.start"})
+                           "pin.solved", "mail.followed", "mail.follow_failed",
+                           "follow.start"})
 _EVENTS = sorted(HIDDEN_EVENTS)
 #: Die Zeiterfassung einer Person sieht nur sie selbst und der Admin.
 PRIVATE = frozenset({"time_entries", "time_contracts"})

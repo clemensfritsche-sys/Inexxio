@@ -8,11 +8,15 @@ sie zu übernehmen (``ai.converse``, Aufgabe ``follow``, im Takt). Geprüft wird
   entsteht erst beim Abgleich aus der Mail; Massenpost legt der Abgleich gar nicht erst an),
 * **nach der Einführung** – der Startpunkt ist ein Ereignis (``follow.start``, die höchste
   Nachrichtennummer beim ersten Lauf), keine Spalte; ältere Mails bleiben, wie sie sind,
-* **je Mail einmal** – Ereignis ``mail.followed`` (mit der Nummer der Nachricht).
+* **je Mail einmal** – Ereignis ``mail.followed`` (mit der Nummer der Nachricht), geschrieben
+  bei Erfolg oder nach dem ``TRIES``-ten Fehlschlag; ein vorübergehender Fehler (529, Netz,
+  Zeitgrenze) zählt als ``mail.follow_failed`` und die Mail kommt im nächsten Takt wieder. Am
+  Deckel kein Versuch und kein Zählen.
 
 Ergebnis sind Vorschläge (``change``/``create``) mit der Mail als Quelle; geschrieben wird erst
-nach dem Klick eines Menschen. Gelesen wird mit den Rechten der Person, die das Postfach
-verbunden hat.
+nach dem Klick eines Menschen. Gelesen wird, was jedes Personal sehen darf
+(``ai_tools.tools_for``); im Log handelt die KI im Namen der Person, die das Postfach verbunden
+hat.
 """
 
 from __future__ import annotations
@@ -30,6 +34,8 @@ from .intake import AiProposal, follow_up, system_text
 
 #: So viele Mails je Lauf des Takts.
 PER_RUN = 5
+#: So oft wird eine Mail höchstens versucht – danach gilt sie als geprüft (mit dem Grund).
+TRIES = 3
 
 
 class FollowAnswer(BaseModel):
@@ -102,9 +108,17 @@ def _content(db: Session, msg: Message, sender: UserProfile, reader: UserProfile
     return [{"type": "text", "text": head + ("\n\n" + cases if cases else "") + "\n\n" + body}]
 
 
+def failures(db: Session, message_id: int) -> int:
+    """Wie oft das Prüfen dieser Mail schon scheiterte (``mail.follow_failed``)."""
+    return int(db.execute(text(
+        "SELECT count(*) FROM log WHERE event = 'mail.follow_failed' "
+        "AND (payload ->> 'message')::bigint = :m"), {"m": message_id}).scalar() or 0)
+
+
 def follow_one(db: Session, message_id: int) -> Optional[int]:
     """►►► **Eine Mail auf ihre Folgen prüfen** – gibt die Zahl der Vorschläge zurück, oder
-    ``None``, wenn die KI gerade nicht da ist (dann kommt die Mail im nächsten Lauf wieder). ◄◄◄"""
+    ``None``, wenn die KI gerade nicht da ist (dann kommt die Mail im nächsten Lauf wieder). Ein
+    Fehlschlag zählt; erst der ``TRIES``-te schliesst die Mail ab. ◄◄◄"""
     msg = db.get(Message, message_id)
     sender = db.query(UserProfile).filter(UserProfile.object_id == msg.sender_object_id).first()
     reader = _reader(db, msg)
@@ -117,21 +131,27 @@ def follow_one(db: Session, message_id: int) -> Optional[int]:
     from . import ai_tools
     answer = ai.converse(db, task="follow", actor=reader, system=system_text(FOLLOW_FORMAT),
                          content=_content(db, msg, sender, reader), schema=FollowAnswer,
-                         tools=ai_tools.tools_for(db, reader))
-    if answer is None and not ai.available(db):
-        return None
+                         tools=ai_tools.tools_for(db))
+    if answer is None:
+        if not ai.available(db):
+            return None
+        trouble = ai.problem() or "Die KI hat nichts geliefert."
+        log.event(db, "mail.follow_failed", sender.object_id, {"message": msg.id, "problem": trouble})
+        if failures(db, msg.id) < TRIES:
+            return 0
+        log.event(db, "mail.followed", sender.object_id, {"message": msg.id, "proposals": 0,
+                                                          "problem": trouble})
+        return 0
     source = {"text": f"Mail von {sender.display_name}: {msg.subject or ''}"[:300],
               "object_id": sender.object_id, "message_id": msg.id, "at": msg.at}
-    made = follow_up(db, answer.proposals, home=sender.object_id, source=source,
-                     actor=reader) if answer is not None else []
-    log.event(db, "mail.followed", sender.object_id,
-              {"message": msg.id, "proposals": len(made),
-               **({"problem": ai.problem()} if answer is None else {})})
+    made = follow_up(db, answer.proposals, home=sender.object_id, source=source, actor=reader)
+    log.event(db, "mail.followed", sender.object_id, {"message": msg.id, "proposals": len(made)})
     return len(made)
 
 
 def run(db: Session, deadline: float, limit: int = PER_RUN) -> tuple[int, int]:
-    """Der Takt: die fälligen Mails, je eine Transaktion. Gibt (Mails, Vorschläge) zurück."""
+    """Der Takt: die fälligen Mails, je eine Transaktion. Gibt (Mails, Vorschläge) zurück –
+    «Mails» zählt auch die gescheiterten Versuche."""
     mails = made = 0
     for mid in due(db, limit):
         if time.monotonic() >= deadline:

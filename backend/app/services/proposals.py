@@ -15,8 +15,9 @@ Ein Vorschlag ist ein **Ereignis im Log** (``proposal``), sein Entscheid auch
 
 **Offen wird abgeleitet** (``outcome``): ein Entscheid wird nie «gesetzt», ausser ✕
 (``reject``) und «Stimmt so». Der Takt schreibt die abgeleiteten Entscheide fest (``settle``,
-Handelnder System, einmal je Vorschlag) – so wird jeder Vorschlag ein **Fall**, aus dem gelernt
-wird (``services/memory``).
+Handelnder System) – **je Vorschlag genau ein Entscheid** (eindeutiger Index ``ix_log_decided``)
+– so wird jeder Vorschlag ein **Fall**, aus dem gelernt wird (``services/memory``, erst nach dem
+Entscheid).
 
 Zwei Formen einer Regel in diesem Modul: ``problem`` (warum es diesen Vorschlag nicht gibt) ↔
 ``propose`` (legt nur an, was ``problem`` durchlässt); ``decision_problem`` ↔ ``_assert_open``.
@@ -31,6 +32,7 @@ from typing import Any, Iterable, Optional
 
 from fastapi import HTTPException
 from sqlalchemy import func, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..models import CompanySettings, UserProfile
@@ -258,11 +260,14 @@ def decided(db: Session, ids: Iterable[int]) -> dict[int, dict[str, Any]]:
     return {r.proposal: r.payload or {} for r in db.execute(_DECIDED, {"i": ids})}
 
 
+#: Kein Entscheid festgeschrieben (``ix_log_decided``).
+_NOT_DECIDED = """NOT EXISTS (SELECT 1 FROM log d WHERE d.event = 'proposal.decided'
+                     AND (d.payload ->> 'proposal')::bigint = p.id)"""
+
 _UNDECIDED = text(f"""
 SELECT {_COLS} FROM log p
  WHERE p.event = 'proposal' AND (CAST(:o AS bigint) IS NULL OR p.object_id = :o)
-   AND NOT EXISTS (SELECT 1 FROM log d WHERE d.event = 'proposal.decided'
-                     AND (d.payload ->> 'proposal')::bigint = p.id)
+   AND {_NOT_DECIDED}
  ORDER BY p.id LIMIT :n""")
 
 
@@ -342,14 +347,31 @@ def open_list(db: Session, object_id: Optional[int] = None) -> list[Proposal]:
     return [p for p in undecided(db, object_id) if derive(db, p) is None]
 
 
+#: ►►► **Ein ``change``, über den das Log schon entschieden hat – als SQL.** ◄◄◄ Dieselbe Regel
+#: wie ``_derive_change``: eine spätere Änderung genau dieses Feldes an genau diesem Datensatz
+#: (``ix_log_object_at``), oder der Datensatz ist weg bzw. inaktiv. ``settle`` liest nur solche,
+#: «zu tun» zieht sie ab – beide ohne je Vorschlag nachzufragen.
+_CHANGE_DONE = f"""(p.payload ->> 'kind' = 'change' AND (
+    EXISTS (SELECT 1 FROM log c
+             WHERE c.object_id = p.object_id AND c.id > p.id
+               AND c.table_name IN ({", ".join(f"'{t}'" for t in TABLES.values())})
+               AND c.action IN ('insert', 'update') AND c.changes ? (p.payload ->> 'field'))
+    OR NOT EXISTS (SELECT 1 FROM user_profiles u WHERE u.object_id = p.object_id AND u.is_active)
+       AND NOT EXISTS (SELECT 1 FROM company_settings s
+                        WHERE s.object_id = p.object_id AND s.is_active)))"""
+
+_OPEN_COUNTS = text(f"""
+SELECT p.object_id, count(*) AS n FROM log p
+ WHERE p.event = 'proposal' AND p.payload ->> 'kind' IN ('change', 'create')
+   AND {_NOT_DECIDED} AND NOT {_CHANGE_DONE}
+ GROUP BY p.object_id""")
+
+
 def open_counts(db: Session) -> dict[int, int]:
-    """Je Datensatz, wie viele ``change``/``create`` offen sind (``file`` zählt als Erfassung
-    bei der Person, die erfasst hat)."""
-    out: dict[int, int] = {}
-    for p in open_list(db):
-        if p.kind != "file":
-            out[p.object_id] = out.get(p.object_id, 0) + 1
-    return out
+    """►►► Je Datensatz, wie viele ``change``/``create`` offen sind – **EINE Abfrage**. ◄◄◄
+    (``file`` zählt als Erfassung bei der Person, die erfasst hat.) Ein ``create``, dessen
+    Datensatz schon entstand, zählt bis zum nächsten Takt mit (``settle`` schreibt ihn fest)."""
+    return {int(r.object_id): int(r.n) for r in db.execute(_OPEN_COUNTS)}
 
 
 # ─── Schreiben ─────────────────────────────────────────────────────────────────────────
@@ -367,21 +389,25 @@ def _open_twin(db: Session, object_id: int, payload: dict[str, Any]) -> Optional
     return None
 
 
-def _remember(db: Session, pid: int, payload: dict[str, Any], actor: Optional[int]) -> None:
-    """Die Bedeutungs-Zahlen gleich mitnehmen – scheitert still (der Takt holt nach)."""
-    from . import memory
+def _remember(db: Session, p: Proposal, decided: dict[str, Any]) -> None:
+    """Die Bedeutungs-Zahlen des Falls gleich beim Entscheid – scheitert still (der Takt holt
+    nach, ``memory.missing``). Ohne Vertex wird gar nicht erst gefragt."""
+    from . import ai, memory
+    if not ai.embed_ready() or not memory.shareable(p.payload, decided):
+        return
     try:
-        person = db.query(UserProfile).filter(UserProfile.object_id == actor).first() if actor else None
+        person = (db.query(UserProfile).filter(UserProfile.object_id == p.actor_id).first()
+                  if p.actor_id else None)
         with db.begin_nested():
-            memory.remember(db, pid, payload, actor=person)
+            memory.remember(db, p.id, p.payload, decided=decided, actor=person)
     except Exception as exc:                                   # noqa: BLE001
-        print(f"WARNING: memory.remember({pid}) failed: {exc!r}", flush=True)
+        print(f"WARNING: memory.remember({p.id}) failed: {exc!r}", flush=True)
 
 
 def propose(db: Session, *, object_id: int, kind: str, source: dict[str, Any],
             actor: Optional[int], field: Optional[str] = None, value: Any = None,
             draft: Any = None, parts: Optional[list[dict[str, Any]]] = None,
-            ai: bool = True, remember: bool = True) -> Optional[int]:
+            ai: bool = True) -> Optional[int]:
     """►►► **Einen Vorschlag festhalten** – oder keinen (``problem`` sagt warum; die KI liefert
     nur Daten, ungültige verwirft der Code). Ein offener Zwilling (gleiches Feld, gleicher Wert)
     ist derselbe Vorschlag: es gibt keinen zweiten. Handelnder ist die KI im Namen von
@@ -406,11 +432,8 @@ def propose(db: Session, *, object_id: int, kind: str, source: dict[str, Any],
     twin = _open_twin(db, object_id, payload) if kind != "file" else None
     if twin is not None:
         return twin
-    pid = log.event(db, "proposal", object_id, payload,
-                    **({"kind": "ai", "actor": actor} if ai else {}))
-    if remember:
-        _remember(db, pid, payload, actor)
-    return pid
+    return log.event(db, "proposal", object_id, payload,
+                     **({"kind": "ai", "actor": actor} if ai else {}))
 
 
 def decision_problem(db: Session, p: Proposal) -> Optional[str]:
@@ -427,11 +450,21 @@ def _assert_open(db: Session, p: Proposal) -> None:
 
 
 def decide(db: Session, p: Proposal, result: str, value: Optional[str] = None,
-           **extra: Any) -> int:
-    """Einen Entscheid festschreiben (wer handelt, sagt die Sitzung)."""
+           *, remember: bool = True, **extra: Any) -> int:
+    """►►► **Einen Entscheid festschreiben** (wer handelt, sagt die Sitzung) – **einmal je
+    Vorschlag**: ``ix_log_decided`` ist eindeutig; kam ein anderer zuvor (zwei Klicks, zwei
+    Fenster, der Takt), ist das 409 und nichts geschrieben. Dann bekommt der Fall seine
+    Bedeutungs-Zahlen (``remember``; der Takt holt nach). ◄◄◄"""
     payload = {"proposal": p.id, "outcome": result, **({"value": value} if value is not None else {}),
                **extra}
-    return log.event(db, "proposal.decided", p.object_id, payload)
+    try:
+        with db.begin_nested():
+            did = log.event(db, "proposal.decided", p.object_id, payload)
+    except IntegrityError:
+        raise HTTPException(409, detail=f"Vorschlag «{p.id}» ist schon entschieden.") from None
+    if remember:
+        _remember(db, p, payload)
+    return did
 
 
 def reject(db: Session, proposal_id: int, actor: UserProfile) -> Proposal:
@@ -446,15 +479,34 @@ def reject(db: Session, proposal_id: int, actor: UserProfile) -> Proposal:
     return p
 
 
+_SETTLEABLE = text(f"""
+(SELECT {_COLS} FROM log p
+  WHERE p.event = 'proposal' AND {_NOT_DECIDED} AND {_CHANGE_DONE}
+  ORDER BY p.id LIMIT :n)
+UNION ALL
+(SELECT {_COLS} FROM log p
+  WHERE p.event = 'proposal' AND p.payload ->> 'kind' = 'create' AND {_NOT_DECIDED}
+  ORDER BY p.id DESC LIMIT :c)""")
+#: So viele unentschiedene ``create`` prüft ein Lauf (die neuesten) – sie sind selten.
+CREATES = 50
+
+
 def settle(db: Session, limit: int = 200) -> int:
     """►►► **Die abgeleiteten Entscheide festschreiben** (der Takt, Handelnder System) – je
-    Vorschlag einmal; was noch offen ist, bleibt offen. Gibt zurück, wie viele es waren. ◄◄◄"""
+    Vorschlag einmal. Gelesen werden nur **ableitbare** Kandidaten (``_CHANGE_DONE`` in SQL,
+    dazu die neuesten ``create``; ein ``file`` entscheidet nur der Mensch) – ein alter offener
+    Vorschlag hält nie die übrigen auf. Kam ein Entscheid zuvor, wird still übersprungen.
+    Gibt zurück, wie viele es waren; die Bedeutungs-Zahlen holt der Takt danach nach. ◄◄◄"""
     n = 0
-    for p in undecided(db, limit=limit):
+    for p in _of(db.execute(_SETTLEABLE, {"n": limit, "c": CREATES})):
         found = derive(db, p)
-        if found is not None:
-            decide(db, p, found[0], found[1])
-            n += 1
+        if found is None:
+            continue
+        try:
+            decide(db, p, found[0], found[1], remember=False)
+        except HTTPException:
+            continue
+        n += 1
     return n
 
 
@@ -501,5 +553,8 @@ def visible(db: Session, found: list[Proposal], viewer: UserProfile) -> list[Pro
 
 
 def open_for(db: Session, object_id: int, viewer: UserProfile) -> list[AiProposal]:
-    """►►► **Die offenen Vorschläge an einem Datensatz** – für Feld, Angeheftetes, «zu tun». ◄◄◄"""
+    """►►► **Die offenen Vorschläge an einem Datensatz** – für Feld und Angeheftetes. Nur, wer
+    den Datensatz öffnen darf (``history.assert_visible``, dieselbe Regel wie beim Verlauf). ◄◄◄"""
+    from . import history
+    history.assert_visible(db, object_id, viewer)
     return out(db, visible(db, open_list(db, object_id), viewer))
