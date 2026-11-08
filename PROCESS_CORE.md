@@ -1367,9 +1367,10 @@ davon weiter gilt, steht in §9.15.
 
 > Schlüssel `beleg`. Fachkern `domain/voucher.py`, Dienst `services/voucher.py` (`VERBS`,
 > `can`, `situation`), Papiere `services/voucher_docs.py` + `services/document.py`,
-> Kundenseite `routers/beleg.py`, Liste `services/payment_list.py`, Karte
+> Seite nach aussen `routers/public_documents.py` (die eine Dokumentseite), Liste `services/payment_list.py`, Karte
 > `components/erp/beleg-work.tsx`. Tabellen `vouchers` · `voucher_lines` · `voucher_quotes`
-> · `voucher_entries` · `voucher_documents`. Entstehung und frühere Fassungen §9.15a–s:
+> · `voucher_entries`; jedes Papier ist ein Dokument (Feld `voucher.doc`) mit Link je
+> Partei (`document_links`). Entstehung und frühere Fassungen §9.15a–s:
 > `docs/history/2026-10-process-core-9-15-chronik.md`.
 
 **Geld mit einer zweiten Partei, in beide Richtungen EIN Modul.** Einnahme ↔ Ausgabe ist
@@ -1494,8 +1495,8 @@ Veranlagungsverfügung + ihr Dokument (Feld `voucher.export`).
   vorher (`voucher_docs.preview`, zurückgerollter Lauf). Auftragsbestätigung und Quittung
   **stehen an** (`papers_due`, «zu tun») und gehen mit «Prüfen und freigeben» (`release`),
   nie von selbst (`AUTO_RELEASE` ist leer).
-- Hinaus geht es per Mail über das Postfach der Gesellschaft mit einem Link `/beleg?t=…`;
-  dort handelt die Partei mit denselben Verben (annehmen, ablehnen, bezahlen).
+- Hinaus geht es per Mail über das Postfach der Gesellschaft mit einem Link `/dokument?t=…`
+  (dieselbe Seite wie jedes Dokument); dort handelt die Partei mit denselben Verben (annehmen, ablehnen, bezahlen).
 - **Die Zahlungen-Liste** (`GET /erp/payments`) ist eine Ableitung an jeder Person und an
   jeder eigenen Gesellschaft.
 

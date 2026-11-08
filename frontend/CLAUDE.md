@@ -23,7 +23,7 @@ setzt Klassen zusammen, mischt keine).
 - Startseite und alle öffentlichen Seiten liefert `website/` (Astro); die CI kopiert dessen
   Ausgabe in `frontend/out`. Hier bleiben die ERP-Pfade – welche, steht EINMAL in
   `website/src/config/site.mjs` (`erpPaths`: `/erp`, `/konto`, `/login`, `/abmelden`,
-  `/beleg`, `/dokument`, `/agb`, `/datenschutz`, `/impressum`, `/vendor`). Links auf
+  `/dokument`, `/agb`, `/datenschutz`, `/impressum`, `/vendor`). Links auf
   Website-Seiten sind schlichte `<a>`.
 - **Kopf und Fuss SIND die der Website** (WEBSITE_PLAN Entscheid 60). Der Website-Build legt
   HTML, Skript und ein auf `.ix-shell` beschränktes Stylesheet nach `website/dist/_shell/`;
@@ -144,7 +144,7 @@ Skill `inexxio-design-system`.
 ## Typen und generierte Quellen
 - `src/types/api.ts` – aus `backend/openapi.json` (`npm run generate:types`). Gelesen wird er
   über die Aliase in `src/types/index.ts` (z. B. `CompanySettings` =
-  `CompanySettingsResponse`, `CompanySettingsUpdate`, `BelegView`, `PublicDocument`) – kein
+  `CompanySettingsResponse`, `CompanySettingsUpdate`, `PublicDocument`, `Deal`) – kein
   `components['schemas'][…]` an der Aufrufstelle, kein handgeschriebener Typ oder Mapper
   daneben: das Frontend spricht die Feldnamen des Backends (`street_nr`, `zip_code`,
   `uid_number`).
@@ -291,7 +291,7 @@ Die Karte ist von der ersten Zeile an ein **Beleg**: oben die vier **Stationen**
 dann ruhige Abschnitte mit Titeln vom Server – **Parteien** (Von · An, je Rechnung und
 Versand/Lieferung) → **Positionen** mit Summe → **Konditionen** (+ «Es gelten unsere AGB vom
 …») → **Angebote** → **Rechnung** (Geld-Zeilen, Saldo mit den Entscheiden) → **Dokumente**
-(eingefroren, Link auf `/beleg?t=…`) – und unten **eine graue Leiste** (`footer.tsx`).
+(eingefroren, Link auf `/dokument?t=…`) – und unten **eine graue Leiste** (`footer.tsx`).
 - **Kein `if` auf die Richtung**: Wörter, Verben und Titel reisen fertig mit; die Karte kennt
   weder «Kunde» noch «Lieferant». Wer handeln darf, sagt `can`.
 - **Die Leiste ist `state`** (`voucher.situation`): Punkt + Wort, Satz und Datum
@@ -313,16 +313,16 @@ Versand/Lieferung) → **Positionen** mit Summe → **Konditionen** (+ «Es gelt
   stehen an (`paper_due`) und gehen mit «Prüfen und freigeben» (Verb `release`).
 - **Bezahlen** (`pay-online.tsx`): unsere Karte, vom Dienst nur die Eingabefelder; die Karte
   sagt «ausgeführt», gebucht wird vom Webhook.
-- **Kundenseite** (`app/(public)/beleg`, `components/beleg/`): das eingefrorene Dokument in
-  einem `iframe srcdoc`, darüber die Stationen und die Handlungen der Partei
-  (`api.publicBeleg` · `acceptBeleg` · `declineBeleg` · `prepareBelegPayment`); `/agb` zeigt
-  das A4-Dokument vom Server (`api.publicLegal('agb')`; ebenso `/datenschutz`, `/impressum`).
+- `/agb` zeigt das A4-Dokument vom Server (`api.publicLegal('agb')`; ebenso `/datenschutz`, `/impressum`).
 - API: `updateVoucher` · `previewVoucher` · `prepareVoucherPayment` · `voucherTransfer` ·
   `refundVoucherPayment` · `paymentsOf`. Vorgaben des Moduls im Editor:
   `MONEY_FORM` in `lib/modules.ts` (Spiegel getestet).
-- **Seite eines Dokuments** (`app/(public)/dokument`, `components/beleg/document-page.tsx`): das
-  Papier mit Unterschriften, Unterschreiben (dieselbe Fläche wie `signature-pad.tsx`,
-  `onSigned`) oder Ablehnen; gelöscht → ein Satz (410).
+- **Die eine Seite nach aussen** (`app/(public)/dokument`, `components/beleg/document-page.tsx`):
+  jedes Dokument über seinen Link – das Papier (A4-HTML in einem `iframe srcdoc`, PDF, Bild),
+  Unterschreiben (dieselbe Fläche wie `signature-pad.tsx`, `onSigned`) oder Ablehnen; ist es ein
+  Papier eines Belegs (`view.deal`), darüber die Stationen und die Handlungen der Partei
+  (`components/beleg/deal.tsx`; `api.agreeDocument` · `rejectDocument` ·
+  `prepareDocumentPayment`); gelöscht → ein Satz (410).
 - **Scanner** (`components/scan/doc-scanner.tsx`): OpenCV.js unter `/vendor/opencv-<Version>.js`
   (`scripts/vendor-opencv.mjs` legt es vor `dev`/`build` ab, nicht im Repo), erst beim Scannen
   geladen; ohne OpenCV ein Fotoapparat. Die Blatterkennung (`lib/doc-scan.detect`): drei Karten

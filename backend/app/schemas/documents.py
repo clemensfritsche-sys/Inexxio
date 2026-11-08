@@ -177,8 +177,41 @@ class PublicSigner(BaseModel):
     declined_at: Optional[datetime] = None
 
 
+class StationOut(BaseModel):
+    who: str
+    title: str
+    text: str
+    #: ``done`` · ``active`` · ``ahead``
+    state: str
+
+
+class NoteOut(BaseModel):
+    """Ein Satz statt einer Handlung – abgelaufen, überholt, storniert."""
+    kind: str
+    title: str
+    text: str
+    link: Optional[str] = None
+
+
+class DealOut(BaseModel):
+    """**Ist das Dokument ein Papier eines Belegs** (Offerte, Rechnung …), steht hier der
+    Vorgang: der Weg, was die Partei jetzt tun kann, was offen ist."""
+    #: Der Link des gezeigten Papiers (ist ein neueres da, ist es dessen).
+    token: str
+    kind: str
+    word: str
+    number: Optional[str] = None
+    note: Optional[NoteOut] = None
+    #: ``agree`` · ``reject`` · ``pay_online`` – was die Partei jetzt tun kann.
+    actions: list[str] = Field(default_factory=list)
+    stations: list[StationOut] = Field(default_factory=list)
+    open: Optional[str] = None
+    currency: str = "CHF"
+    agb: Optional[str] = None
+
+
 class PublicDocument(BaseModel):
-    """Was die Seite eines Links zeigt."""
+    """Was die Seite eines Links zeigt – jedes Dokument, ein Papier eines Belegs ebenso."""
     art: str
     name: str
     status: str
@@ -189,6 +222,8 @@ class PublicDocument(BaseModel):
     signers: list[PublicSigner] = []
     #: ``sign`` · ``decline`` – was der Empfänger jetzt tun kann.
     actions: list[str] = []
+    #: Der Vorgang, wenn das Dokument ein Papier eines Belegs ist – sonst leer.
+    deal: Optional[DealOut] = None
 
 
 class SignIn(BaseModel):

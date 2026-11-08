@@ -154,7 +154,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **147 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **146 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -217,11 +217,10 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `/api/v1/erp/documents/template` | admin (im Dienst) | AGB/Datenschutz einer eigenen Gesellschaft «aus Vorlage» |
 | GET | `/api/v1/public/document/{token}` | – (Token) | **Seite eines Dokuments**: Papier mit Unterschriften, wer unterschreibt, Handlungen; gelöscht → 410 |
 | POST | `/api/v1/public/document/{token}/sign` · `/decline` | – (Token) | Unterschreiben (PNG) / ablehnen mit Grund – endgültig |
+| POST | `/api/v1/public/document/{token}/agree` · `/reject` · `/payment` | – (Token) | Ist es ein Papier eines Belegs (`deal`: Stationen, Hinweis überholt/abgelaufen/storniert, Handlungen aus `can` der Partei): Offerte annehmen / ablehnen / Kartenzahlung vorbereiten (`voucher_docs.public_act`); sonst 409 |
 | GET | `/api/v1/attachments/{token}/preview` | – | Vorschaubild der ersten Seite (PDF, Bild), abgeleitet |
 | GET | `/api/v1/erp/messages/{id}/attachments/{index}` | staff | Ein Anhang für den Entwurf – aus Gmail geholt bzw. aus dem Korb (`mailbox.attachment`) |
 | POST | `…/steps/{step_id}/voucher/preview` | staff | **Vorschau → Freigeben**: die Papiere, die diese Handlung hinausgäbe (zurückgerollter Lauf, `voucher_docs.preview`) |
-| GET | `/api/v1/public/beleg/{token}` | – (Token) | **Kundenseite** eines Dokuments: eingefrorenes A4-HTML, Hinweis (überholt/abgelaufen/storniert), Handlungen aus `can` der Partei |
-| POST | `/api/v1/public/beleg/{token}/accept` · `/decline` · `/payment` | – (Token) | Offerte annehmen / ablehnen / Kartenzahlung vorbereiten (`voucher_docs.public_act`) |
 | GET | `/api/v1/public/legal/{kind}?country=` | – | AGB (der Gesellschaft zum Land des Besuchers) · Datenschutz · Impressum (des Betreibers) als A4-Dokument oder als Link auf die Datei (`legal.for_visitor`) |
 | GET | `/api/v1/erp/payments?person=\|company=` | staff | **Zahlungen** einer Person oder eigenen Gesellschaft (Ableitung, `services/payment_list`) |
 | GET | `/api/v1/attachments/{token}` | – | Bild ausliefern (unerratbarer Token) |
@@ -278,7 +277,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
   nicht – gebucht wird nur vom Webhook (`record_payment`). Nach jeder Handlung (`_after`)
   entsteht, was dazugehört (Quittung), und die Stücke ziehen weiter
   (`process.advance_payments` → `confirm_step(auto=True)`). Ein Dokument entsteht nur über
-  `voucher_docs.issue` (eingefroren in `voucher_documents`, Mail im Postfach der
+  `voucher_docs.issue` (ein Dokument im Feld `voucher.doc` mit Link je Partei, Mail im Postfach der
   Gesellschaft, gesendet nach dem Commit über `send_pending`).
 - **Ein Lesepfad, der schreibt, behält**: die Positionen werden beim Anzeigen aus dem
   Prozess nachgezogen (`voucher.sync_lines`); committet wird an der Transaktionsgrenze

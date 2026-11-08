@@ -422,39 +422,3 @@ class VoucherEntry(Base, TimestampMixin):
         ForeignKey("voucher_entries.id", ondelete="SET NULL"), nullable=True)
     #: Die IBAN, von der das Geld kam bzw. an die es zurückging (Überweisung).
     iban: Mapped[Optional[str]] = mapped_column(String(34), nullable=True)
-
-
-class VoucherDocument(Base, TimestampMixin):
-    """►►► **Ein Dokument, so wie es hinausging** – eingefroren, unveränderlich. ◄◄◄
-
-    Offerte, Auftragsbestätigung, Rechnung, Quittung, Stornierung, Gutschrift, Mahnung: bei
-    jedem Versand wird das Papier als HTML abgelegt (``services/document``). Der Online-Beleg
-    und der Download zeigen genau diese Fassung (10 Jahre, OR 958f). Der **Token** ist der
-    unerratbare Link für die Partei – je Dokument einer.
-    """
-
-    __tablename__ = "voucher_documents"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    voucher_id: Mapped[int] = mapped_column(
-        ForeignKey("vouchers.id", ondelete="CASCADE"), index=True, nullable=False)
-    #: ``offer`` · ``confirmation`` · ``invoice`` · ``receipt`` · ``storno`` · ``credit`` ·
-    #: ``reminder`` (``domain/voucher.DOCUMENTS``).
-    kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    #: Die Mahnstufe (1–3) – nur bei ``reminder``.
-    level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    #: Die Nummer, die auf dem Papier steht.
-    number: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
-    #: An wen es ging – die Objektnummer der Person.
-    party_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
-    token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    #: **Das Papier ist ein Dokument** (``documents.id``, Feld ``voucher.doc``) – die eine
-    #: Ablage. Hier steht nur noch, wie es hinausging (Link, Partei, Mail).
-    document_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("documents.id"), nullable=True, index=True)
-
-    #: Das Datum der AGB, die angehängt sind («2026-01-01»).
-    agb: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
-    #: Die Mail, mit der es hinausging (``messages.id``).
-    message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-

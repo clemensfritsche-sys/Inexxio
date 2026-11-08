@@ -318,9 +318,9 @@ export const site = {
    * Datei ab (`scripts/check-site.mjs`, `scripts/merge-hosting.mjs`), auf eine `page` darf sie
    * verlinken (check-site), und robots.txt sperrt jede `private` in jedem Modus
    * (`privatePaths`). Offen bleiben die AGB (öffentlich) und die Bundles des ERP – ohne sie
-   * lässt sich keine seiner Seiten darstellen. `/beleg` ist die Seite eines Belegs über
-   * seinen unerratbaren Link (`/beleg?t=…`) – privat je Link, darum gesperrt und `noindex`;
-   * ebenso `/dokument` (ein Dokument zum Ansehen und Unterschreiben, `/dokument?t=…`).
+   * lässt sich keine seiner Seiten darstellen. `/dokument` ist die Seite jedes Dokuments, das
+   * hinausgeht (`/dokument?t=…`: ansehen, unterschreiben, eine Offerte annehmen, bezahlen) –
+   * privat je Link, darum gesperrt und `noindex`.
    * @type {{ path: string, page: boolean, private: boolean }[]}
    */
   erpPaths: [
@@ -328,7 +328,6 @@ export const site = {
     { path: '/konto', page: true, private: true },
     { path: '/login', page: true, private: true },
     { path: '/abmelden', page: true, private: true },
-    { path: '/beleg', page: true, private: true },
     { path: '/dokument', page: true, private: true },
     { path: '/agb', page: true, private: false },
     { path: '/datenschutz', page: true, private: false },

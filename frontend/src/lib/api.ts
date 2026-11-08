@@ -35,7 +35,7 @@ import type {
   PaymentSetup,
   TransferInfo,
   DocumentSummary, DocumentDetail, DocumentProposal, DocumentTarget, RecordRef,
-  CompanySettingsUpdate, PublicDocument, BelegView, LegalText, VoucherPapers, ComposeResult, UploadResult,
+  CompanySettingsUpdate, PublicDocument, LegalText, VoucherPapers, ComposeResult, UploadResult,
   Talk, TalkFile, Handgriff, HandgriffOperation, HandgriffRun, HandgriffProbe, Pinned, Recording,
 } from '@/types';
 import type {
@@ -314,8 +314,8 @@ class ApiClient {
     return this.post('/api/v1/auth/passkeys/login/verify', { credential });
   }
 
-  // ─── Öffentlich: die Seite eines Belegs (`/beleg?t=…`) und die AGB (`/agb`) ──
-  // Ohne Anmeldung: der unerratbare Link IST die Berechtigung (`routers/beleg.py`). Ist
+  // ─── Öffentlich: die Seite eines Dokuments (`/dokument?t=…`) und die AGB (`/agb`) ──
+  // Ohne Anmeldung: der unerratbare Link IST die Berechtigung (`routers/public_documents.py`). Ist
   // jemand angemeldet, reist sein Token mit – die Routen fragen nicht danach.
 
   /** **Ein Dokument über seinen Link** – das eingefrorene Papier, der Weg, die Handlungen. */
@@ -331,24 +331,20 @@ class ApiClient {
     return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/decline`, { reason });
   }
 
-  publicBeleg(token: string): Promise<BelegView> {
-    return this.get(`/api/v1/public/beleg/${encodeURIComponent(token)}`);
-  }
-
-  /** **Die Offerte annehmen** – als die Partei; die Antwort ist die neue Ansicht. */
-  acceptBeleg(token: string): Promise<BelegView> {
-    return this.post(`/api/v1/public/beleg/${encodeURIComponent(token)}/accept`, {});
+  /** **Die Offerte annehmen** – als die Partei eines Belegs; die Antwort ist die neue Ansicht. */
+  agreeDocument(token: string): Promise<PublicDocument> {
+    return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/agree`, {});
   }
 
   /** **Die Offerte ablehnen** – als die Partei; die Antwort ist die neue Ansicht. */
-  declineBeleg(token: string): Promise<BelegView> {
-    return this.post(`/api/v1/public/beleg/${encodeURIComponent(token)}/decline`, {});
+  rejectDocument(token: string): Promise<PublicDocument> {
+    return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/reject`, {});
   }
 
   /** **Mit Karte bezahlen** – die Zahlungsabsicht über den offenen Betrag (wie
    *  `prepareVoucherPayment`); gebucht wird vom Webhook. */
-  prepareBelegPayment(token: string): Promise<PaymentSetup> {
-    return this.post(`/api/v1/public/beleg/${encodeURIComponent(token)}/payment`, {});
+  prepareDocumentPayment(token: string): Promise<PaymentSetup> {
+    return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/payment`, {});
   }
 
   /** **Ein Rechtstext, wie er heute gilt** (AGB · Datenschutz · Impressum) – als A4-Dokument. */

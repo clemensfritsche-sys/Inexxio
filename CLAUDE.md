@@ -229,14 +229,14 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   `voucher.export`) – beide über `components/erp/document-field.tsx`. Teilbetrag je Position. Mahnung 3 Stufen à 10 Tage, von Hand. **Jedes Papier**
   (Offerte, AB, Rechnung, Quittung, Stornierung, Gutschrift, Mahnung) entsteht aus **einer
   A4-Vorlage** (`services/document.py`), nennt je Position die **Seriennummer** (Instanznummer,
-  `voucher.serials_of`), ist ein **Dokument** (Feld `voucher.doc`, nie löschbar;
-  `voucher_documents` hält nur Link, Partei, Mail), trägt die
+  `voucher.serials_of`), ist ein **Dokument** (Feld `voucher.doc`, nie löschbar; Art, Nummer,
+  Stufe in seinen Angaben, je Partei ein gewöhnlicher Link `document_links`), trägt die
   AGB der stellenden Gesellschaft auf eigenen A4-Seiten. **Vorschau → Freigeben**: was ein Papier
   hinausgibt (`voucher.PAPER_VERBS`), zeigt die Karte vorher (`voucher_docs.preview`,
   zurückgerollter Lauf); **AB und Quittung stehen an** (`voucher.papers_due`, «zu tun») und
   gehen mit «Prüfen und freigeben» (Verb `release`), nie von selbst (`AUTO_RELEASE` leer). Es geht
-  mit Link `/beleg?t=…` per Mail hinaus; auf dieser Seite handelt die Partei mit denselben
-  Verben. Steuer je Position (MWSTG Art. 26), gerundet je Satz auf der Summe; **eine Währung
+  mit Link `/dokument?t=…` per Mail hinaus – **dieselbe Seite wie jedes Dokument**; ist es ein
+  Papier eines Belegs, handelt die Partei dort mit denselben Verben. Steuer je Position (MWSTG Art. 26), gerundet je Satz auf der Summe; **eine Währung
   je Vorgang**. Drei Wege zum Geld: bar · Überweisung (Swiss QR-Rechnung) · Karte (Stripe,
   gebucht nur vom Webhook; zurück auf die Karte nur, was geschuldet ist).
 - **Zahlungen-Liste** (`services/payment_list.py`, `GET /erp/payments`): eine Ableitung an
@@ -634,7 +634,7 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   (`<use>` in Kopf, Menü, Fuss). Wörter «Fixpreis» und «Werkstatt» bricht `check-site` ab;
   das Budget zählt das Video mit.
 - **Dieselbe Hosting-Site wie das ERP** (`scripts/merge-hosting.mjs`, bricht bei Kollision
-  ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`, `/beleg`,
+  ab). Die Website besitzt «/»; das ERP `/erp`, `/konto`, `/login`, `/abmelden`,
   `/dokument`, `/agb`, `/datenschutz`, `/impressum`, `/vendor`.
 - **Rechtstexte**: **AGB und Datenschutz sind Dokumente jeder eigenen Gesellschaft**
   (Pflichtfelder `company.agb` · `company.privacy`, Karte «Rechtstexte», «Aus Vorlage
@@ -764,7 +764,7 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
 - **Beleg** (Modul «Zahlung») vollständig nach MWSTG Art. 26, Incoterms 2020, Gutschriften,
   Bezahlkarte, Swiss QR-Rechnung; Stücke ziehen von selbst weiter, am Ziel «Verkauft»; jedes
   Papier als Dokument (A4-HTML, AGB als letzte Seiten), vorher als Vorschau, per Mail mit Link
-  auf die Kundenseite `/beleg` (annehmen, ablehnen, bezahlen); Zahlungen-Liste an Person und
+  auf die eine Dokumentseite `/dokument` (annehmen, ablehnen, bezahlen); Zahlungen-Liste an Person und
   Gesellschaft.
 - **Zeiterfassung** im Personendatensatz: Wischknopf, Stundenkonto und Ferien in Stunden,
   Monat und Tag mit «Erfassen», Verträge und Buchungen (Admin), Feiertage mit Vorschlag

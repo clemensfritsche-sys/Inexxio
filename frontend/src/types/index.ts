@@ -230,9 +230,9 @@ export type Mailbox = components['schemas']['MailboxOut'];
  *  aus den Zahlungsmodulen (`services/payments`). */
 export type PaymentRow = components['schemas']['PaymentRow'];
 
-// ─── Öffentliche Seiten: Beleg, Dokument, Rechtstexte ───────────────────────
-/** Die Kundenseite eines Belegs (`/beleg?t=…`) – Papier, Weg, Handlungen der Partei. */
-export type BelegView = components['schemas']['BelegView'];
+// ─── Öffentliche Seiten: Dokument, Rechtstexte ──────────────────────────────
+/** Der Vorgang eines Belegs auf der Seite seines Papiers – Weg, Handlungen der Partei. */
+export type Deal = components['schemas']['DealOut'];
 export type BelegNote = components['schemas']['NoteOut'];
 /** Eine Station des Wegs (Angebot · Auftrag · Rechnung · Bezahlt). */
 export type Station = components['schemas']['StationOut'];

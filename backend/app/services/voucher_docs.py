@@ -2,9 +2,10 @@
 
 Bei jedem Schritt, den die Partei sehen soll (Offerte, Auftragsbestätigung, Rechnung,
 Quittung, Stornierung, Gutschrift, Mahnung), entsteht **ein Dokument**: das Papier aus der
-einen Vorlage (``services/document``), **eingefroren** (``voucher_documents``, 10 Jahre), mit
-einem unerratbaren Link für die Partei – und **eine Mail** über das Postfach der
-Gesellschaft, mit diesem Link. Die Mail steht im Verlauf der Person wie jede andere.
+einen Vorlage (``services/document``), eingefroren in der Ablage (Pflichtfeld ``voucher.doc``,
+10 Jahre; was es ist, steht in ``facts``), mit **einem gewöhnlichen Link** an die Partei
+(``document_links`` – derselbe wie für jedes gesendete Dokument, Seite ``/dokument``) und **eine
+Mail** über das Postfach der Gesellschaft. Die Mail steht im Verlauf der Person wie jede andere.
 
 Nur, wo **wir** den Beleg stellen (``Direction.collects``): eine Lieferantenrechnung schreibt
 niemand für den Lieferanten.
@@ -29,7 +30,7 @@ from ..domain import communication as dc
 from ..domain import currency as cur
 from ..domain import incoterms as inc
 from ..domain import voucher as vo
-from ..models import Message, Order, UserProfile, Voucher, VoucherDocument
+from ..models import Document, DocumentLink, DocumentRef, Message, Order, UserProfile, Voucher
 from . import address, document, legal, mail_layout, sites
 from . import voucher as vs
 from . import voucher_actions as va
@@ -326,7 +327,7 @@ def quietly() -> Iterator[None]:
 
 def issue(db: Session, *, row: Voucher, kind: str, actor: Optional[UserProfile] = None,
           party_id: Optional[int] = None, level: Optional[int] = None
-          ) -> Optional[VoucherDocument]:
+          ) -> Optional[vs.Paper]:
     """►►► **Ein Dokument hinausgeben** – Papier einfrieren, Link, Mail. ◄◄◄ Nur, wo wir den
     Beleg stellen; ohne Adressaten (mehrere angefragt, niemand gewählt) gibt es keinen."""
     if not vo.of(row.direction).collects:
@@ -336,17 +337,15 @@ def issue(db: Session, *, row: Voucher, kind: str, actor: Optional[UserProfile] 
         return None
     doc = build(db, row=row, kind=kind, party=party, actor=actor, level=level)
     paper = _file(db, row=row, kind=kind, level=level, doc=doc, party=party, actor=actor)
-    rec = VoucherDocument(voucher_id=row.id, kind=kind, level=level, number=doc.number,
-                          party_id=party, token=secrets.token_urlsafe(24),
-                          document_id=paper.id,
-                          agb=doc.terms_of.key if doc.terms_of else None)
-    db.add(rec)
+    link = DocumentLink(token=secrets.token_urlsafe(24), document_id=paper.id,
+                        person_object_id=party)
+    db.add(link)
     db.flush()
-    msg = None if _QUIET.get() else _mail(db, row=row, rec=rec, doc=doc, kind=kind,
+    msg = None if _QUIET.get() else _mail(db, row=row, token=link.token, doc=doc, kind=kind,
                                           party=party, actor=actor, level=level)
-    rec.message_id = msg.id if msg is not None else None
+    link.message_id = msg.id if msg is not None else None
     db.flush()
-    return rec
+    return vs.paper_of_link(link, paper)
 
 
 def _reminder_text(row: Voucher, level: Optional[int], number: str) -> str:
@@ -371,22 +370,22 @@ def _file(db: Session, *, row: Voucher, kind: str, level: Optional[int], doc: do
         db, raw=document.render(doc).encode("utf-8"), filename=f"{word} {doc.number}.html",
         mime="text/html", art=word, name=name or word, source="voucher", refs=refs,
         actor=actor if actor is not None and actor.role in STAFF_ROLES else None,
-        facts={"kind": kind, "number": doc.number})
+        facts={"kind": kind, "number": doc.number, "level": level,
+               "agb": doc.terms_of.key if doc.terms_of else None})
     if existed:
         documents.add_refs(db, paper, refs, None)
     return paper
 
 
-def paper_of(db: Session, rec: VoucherDocument) -> str:
+def paper_of(db: Session, rec: vs.Paper) -> str:
     """**Das Papier, wie es hinausging** – aus seinem Dokument."""
-    from ..models import Document
     from . import documents
     doc = db.query(Document).filter(Document.id == rec.document_id).first()
     raw = documents.raw_of(db, doc)
     return raw.decode("utf-8", "replace") if raw is not None else ""
 
 
-def _mail(db: Session, *, row: Voucher, rec: VoucherDocument, doc: document.Doc, kind: str,
+def _mail(db: Session, *, row: Voucher, token: str, doc: document.Doc, kind: str,
           party: int, actor: Optional[UserProfile], level: Optional[int]) -> Optional[Message]:
     """**Die Mail zum Dokument** – über das Postfach der Gesellschaft, im Verlauf der Person.
     Ohne verbundenes Postfach wird sie nur erfasst (wie jede Mail des Hauses)."""
@@ -417,7 +416,7 @@ def _mail(db: Session, *, row: Voucher, rec: VoucherDocument, doc: document.Doc,
         stations=list(STATIONS), at=AT.get(kind),
         rows=[(ln.qty, ln.name, ln.amount) for ln in doc.lines],
         total_label=f"{doc.total_label} {doc.currency}", total=doc.total,
-        label=label, url=vs.public_link(rec.token),
+        label=label, url=vs.public_link(token),
         tax=(doc.sums[1] if len(doc.sums) == 2 and kind != vo.REMINDER_DOC else None))
     staff = actor is not None and actor.role in STAFF_ROLES and actor.object_id
     signer = mail_layout.Signer(name=actor.display_name) if staff else None
@@ -458,7 +457,7 @@ def preview(db: Session, *, order: Order, step: Any, action: str, payload: dict[
 
 
 # ---------------------------------------------------------------------------
-# Die Seite der Partei – ein Dokument über seinen Link, ohne Anmeldung
+# Die Seite der Partei – ein Papier über seinen Link, ohne Anmeldung (``/dokument``)
 # ---------------------------------------------------------------------------
 
 #: Die Stationen, wie die Partei sie liest – wer dran ist und was geschieht.
@@ -468,31 +467,43 @@ WAY = (("Sie", "Offerte", "Sie prüfen die Positionen und nehmen die Offerte an.
        ("Erledigt", "Bezahlt", "Alles beglichen. Die Quittung bleibt hier abrufbar."))
 
 
-def by_token(db: Session, token: str) -> Optional[VoucherDocument]:
-    """Das Dokument zu einem Link – oder ``None``."""
-    if not token or len(token) > 64:
+def deal_of(db: Session, link: DocumentLink) -> Optional[tuple[Voucher, vs.Paper]]:
+    """►► **Ist das Dokument hinter dem Link ein Papier eines Belegs?** – dann der Beleg und das
+    Papier, sonst ``None``. Erkannt am Pflichtfeld ``voucher.doc`` (``step:<Modul>``), nicht an
+    einer eigenen Tabelle: jedes Papier ist ein gewöhnliches Dokument mit gewöhnlichem Link. ◄◄"""
+    ref = (db.query(DocumentRef)
+           .filter(DocumentRef.document_id == link.document_id,
+                   DocumentRef.field == "voucher.doc", DocumentRef.is_active.is_(True))
+           .first())
+    kind, _, step = (ref.part or "").partition(":") if ref is not None else ("", "", "")
+    if kind != "step" or not step.isdigit():
         return None
-    return (db.query(VoucherDocument)
-            .filter(VoucherDocument.token == token)
-            .first())
+    row = db.query(Voucher).filter(Voucher.step_id == int(step)).first()
+    doc = db.query(Document).filter(Document.id == link.document_id).first()
+    if row is None or doc is None:
+        return None
+    return row, vs.paper_of_link(link, doc)
 
 
-def party_user(db: Session, rec: VoucherDocument) -> Optional[UserProfile]:
-    """**Wer den Link hat, handelt als die Partei, an die das Dokument ging** – dieselben
+def party_user(db: Session, rec: vs.Paper) -> Optional[UserProfile]:
+    """**Wer den Link hat, handelt als die Partei, an die das Papier ging** – dieselben
     Verben wie im ERP, dieselbe Antwort von ``can``."""
     return (db.query(UserProfile).filter(UserProfile.object_id == rec.party_id).first()
             if rec.party_id is not None else None)
 
 
-def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
-    """►►► **Was die Seite der Partei zeigt** – das eingefrorene Papier, der Weg, die
+#: Was die Partei auf der Seite tun kann – und welches Verb des Belegs es ist.
+PUBLIC_VERBS = {"agree": "agree", "reject": "decline"}
+
+
+def public_view(db: Session, row: Voucher, rec: vs.Paper) -> dict[str, Any]:
+    """►►► **Was die Seite zu einem Papier zeigt** – das eingefrorene Papier, der Weg, die
     Handlungen (aus ``can``, als die Partei) und, wo nötig, ein Satz. ◄◄◄
 
     **Ein überholter Link** (eine neuere Offerte an dieselbe Partei) zeigt sein Papier mit
     «nicht mehr gültig» und dem Link zur aktuellen Fassung – angenommen werden kann nur
-    sie. Ist der Beleg weiter, zeigt ein alter Link das neueste Dokument.
+    sie. Ist der Beleg weiter, zeigt ein alter Link das neueste Papier.
     """
-    row = db.query(Voucher).filter(Voucher.id == rec.voucher_id).first()
     newest = [d for d in vs.documents_of(db, row)
               if d.party_id == rec.party_id and d.kind != vo.REMINDER_DOC]
     latest = newest[-1] if newest else rec
@@ -511,7 +522,7 @@ def public_view(db: Session, rec: VoucherDocument) -> dict[str, Any]:
     actions: list[str] = []
     current = note is None and shown.id == latest.id
     if current and shown.kind == vo.OFFER_DOC:
-        actions += [a for a in ("agree", "decline") if a in allowed]
+        actions += [a for a, verb in PUBLIC_VERBS.items() if verb in allowed]
     if current and "pay_online" in allowed:
         actions.append("pay_online")
     if row.stage == vo.OFFER and vs.expired(db, row) and shown.kind == vo.OFFER_DOC:
@@ -574,17 +585,16 @@ def _stations(db: Session, row: Voucher, *, closed: bool = False) -> list[dict[s
             for i, (w, t, x) in enumerate(WAY)]
 
 
-def public_act(db: Session, rec: VoucherDocument, action: str) -> None:
+def public_act(db: Session, row: Voucher, rec: vs.Paper, action: str) -> None:
     """**Annehmen oder ablehnen – als die Partei**, über dieselbe Tür wie im ERP
-    (``voucher_actions.apply``). Nur am aktuellen Dokument; ``can`` entscheidet."""
+    (``voucher_actions.apply``). Nur am aktuellen Papier; ``can`` entscheidet."""
     from fastapi import HTTPException
     from ..models import ProcessStep
-    view = public_view(db, rec)
-    if action not in view["actions"] or view["token"] != rec.token:
+    view = public_view(db, row, rec)
+    if action not in view["actions"] or action not in PUBLIC_VERBS or view["token"] != rec.token:
         raise HTTPException(status_code=409, detail=(
             "Das geht hier nicht mehr – laden Sie die Seite neu, sie zeigt den aktuellen Stand."))
-    row = db.query(Voucher).filter(Voucher.id == rec.voucher_id).first()
     order = db.query(Order).filter(Order.id == row.order_id).first()
     step = db.query(ProcessStep).filter(ProcessStep.id == row.step_id).first()
-    va.apply(db, order=order, step=step, action=action,
+    va.apply(db, order=order, step=step, action=PUBLIC_VERBS[action],
              payload={"party": rec.party_id}, actor=party_user(db, rec))

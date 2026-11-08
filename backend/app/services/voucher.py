@@ -13,7 +13,8 @@ dieser Richtung und ohne Rückweg: ``voucher_head`` (Belegkopf, Anschrift, Posit
 """
 
 from contextlib import contextmanager
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Callable, Iterator, Optional
 
@@ -26,8 +27,8 @@ from ..domain import currency as cur
 from ..domain import modules
 from ..domain import voucher as vo
 from ..models import (
-    Instance, InstanceUnit, Order, OrderUnit, ProcessEvent, ProcessStep,
-    UserProfile, Voucher, VoucherDocument, VoucherEntry, VoucherLine, VoucherQuote,
+    Document, DocumentLink, DocumentRef, Instance, InstanceUnit, Order, OrderUnit, ProcessEvent,
+    ProcessStep, UserProfile, Voucher, VoucherEntry, VoucherLine, VoucherQuote,
 )
 from ..models.process_event import KIND_START, KIND_STEP
 from . import sites
@@ -128,15 +129,44 @@ def quotes_of(db: Session, row: Voucher) -> list[VoucherQuote]:
         .all())))
 
 
-def documents_of(db: Session, row: Voucher, kind: Optional[str] = None
-                 ) -> list[VoucherDocument]:
-    """**Die Dokumente, so wie sie hinausgingen** – älteste zuerst."""
+@dataclass(frozen=True)
+class Paper:
+    """►► **Ein Papier des Belegs, wie es hinausging** – ein Link an die Partei auf ein Dokument
+    im Pflichtfeld ``voucher.doc`` des Moduls. Was es ist (Art, Nummer, Mahnstufe, AGB), steht am
+    Dokument (``facts``); es gibt keine eigene Tabelle dafür. ◄◄"""
+    id: int                       # der Link (``document_links``)
+    kind: str
+    level: Optional[int]
+    number: Optional[str]
+    party_id: Optional[int]
+    token: str
+    created_at: datetime
+    message_id: Optional[int]
+    agb: Optional[str]
+    document_id: int
+
+
+def paper_of_link(link: DocumentLink, doc: Document) -> Paper:
+    facts = doc.facts or {}
+    return Paper(id=link.id, kind=str(facts.get("kind") or ""), level=facts.get("level"),
+                 number=facts.get("number"), party_id=link.person_object_id, token=link.token,
+                 created_at=link.created_at, message_id=link.message_id, agb=facts.get("agb"),
+                 document_id=doc.id)
+
+
+def documents_of(db: Session, row: Voucher, kind: Optional[str] = None) -> list[Paper]:
+    """**Die Papiere, so wie sie hinausgingen** – älteste zuerst."""
     rows = once(db, ("documents", row.id), lambda: (
-        db.query(VoucherDocument)
-        .filter(VoucherDocument.voucher_id == row.id)
-        .order_by(VoucherDocument.id)
+        db.query(DocumentLink, Document)
+        .join(Document, Document.id == DocumentLink.document_id)
+        .join(DocumentRef, (DocumentRef.document_id == Document.id)
+              & (DocumentRef.field == "voucher.doc")
+              & (DocumentRef.part == f"step:{row.step_id}")
+              & DocumentRef.is_active.is_(True))
+        .order_by(DocumentLink.id)
         .all()))
-    return [d for d in rows if kind is None or d.kind == kind]
+    papers = [paper_of_link(link, doc) for link, doc in rows]
+    return [p for p in papers if kind is None or p.kind == kind]
 
 
 def lines_of(db: Session, row: Voucher) -> list[VoucherLine]:
@@ -453,7 +483,7 @@ def deviation(db: Session, row: Voucher) -> Optional[Decimal]:
     return diff if abs(diff) > vo.SETTLED_TOLERANCE else None
 
 
-def reminders(db: Session, row: Voucher) -> list[VoucherDocument]:
+def reminders(db: Session, row: Voucher) -> list[Paper]:
     """Die gesendeten Mahnungen – ihre Zahl IST die Mahnstufe."""
     return documents_of(db, row, vo.REMINDER_DOC)
 
@@ -735,7 +765,7 @@ def amount_text(value: Optional[Decimal], code: str) -> Optional[str]:
 def public_link(token: str) -> str:
     """**Der Link der Partei** – die Seite, die das Dokument zeigt (ohne Anmeldung)."""
     from ..core.config import get_settings
-    return f"{get_settings().frontend_base_url.rstrip('/')}/beleg?t={token}"
+    return f"{get_settings().frontend_base_url.rstrip('/')}/dokument?t={token}"
 
 
 def named(db: Session, numbers: list[Optional[int]]) -> list[dict[str, Any]]:

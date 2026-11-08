@@ -1757,9 +1757,70 @@ export interface paths {
         put?: never;
         /**
          * Decline
-         * @description **Ablehnen** – mit Grund; danach unterschreibt niemand mehr.
+         * @description **Die Unterschrift ablehnen** – mit Grund; danach unterschreibt niemand mehr.
          */
         post: operations["decline_api_v1_public_document__token__decline_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/document/{token}/agree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Agree
+         * @description **Die Offerte annehmen** – als die Partei; die Auftragsbestätigung geht hinaus.
+         */
+        post: operations["agree_api_v1_public_document__token__agree_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/document/{token}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject
+         * @description **Die Offerte ablehnen** – als die Partei.
+         */
+        post: operations["reject_api_v1_public_document__token__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/document/{token}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Payment
+         * @description **Mit Karte bezahlen** – die Zahlungsabsicht über den offenen Betrag. Gebucht wird
+         *     erst, wenn der Zahlungsdienst es meldet.
+         */
+        post: operations["payment_api_v1_public_document__token__payment_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1789,88 +1850,6 @@ export interface paths {
          *     sondern ein fremder Absender.
          */
         post: operations["webhook_api_v1_payments_webhook_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/public/beleg/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * View
-         * @description Ein Dokument ansehen – das Papier, wie es hinausging, und was jetzt möglich ist.
-         *     **Geöffnet** steht im Log (``voucher.viewed``) – die Partei hat es gesehen.
-         */
-        get: operations["view_api_v1_public_beleg__token__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/public/beleg/{token}/accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Accept
-         * @description **Die Offerte annehmen** – als die Partei; die Auftragsbestätigung geht hinaus.
-         */
-        post: operations["accept_api_v1_public_beleg__token__accept_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/public/beleg/{token}/decline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Decline
-         * @description **Die Offerte ablehnen** – als die Partei.
-         */
-        post: operations["decline_api_v1_public_beleg__token__decline_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/public/beleg/{token}/payment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Payment
-         * @description **Mit Karte bezahlen** – die Zahlungsabsicht über den offenen Betrag. Gebucht wird
-         *     erst, wenn der Zahlungsdienst es meldet.
-         */
-        post: operations["payment_api_v1_public_beleg__token__payment_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3294,36 +3273,6 @@ export interface components {
             /** Mime */
             mime?: string | null;
         };
-        /**
-         * BelegView
-         * @description **Was die Seite zeigt** – das eingefrorene Papier, der Weg, die Handlungen.
-         */
-        BelegView: {
-            /** Token */
-            token: string;
-            /** Kind */
-            kind: string;
-            /** Word */
-            word: string;
-            /** Number */
-            number?: string | null;
-            /** Html */
-            html: string;
-            note?: components["schemas"]["NoteOut"] | null;
-            /** Actions */
-            actions?: string[];
-            /** Stations */
-            stations?: components["schemas"]["StationOut"][];
-            /** Open */
-            open?: string | null;
-            /**
-             * Currency
-             * @default CHF
-             */
-            currency: string;
-            /** Agb */
-            agb?: string | null;
-        };
         /** Body_add_file_api_v1_erp_assistant_files_post */
         Body_add_file_api_v1_erp_assistant_files_post: {
             /** File */
@@ -3878,6 +3827,35 @@ export interface components {
              */
             stamps: components["schemas"]["StampOut"][];
             absence?: components["schemas"]["AbsenceOut"] | null;
+        };
+        /**
+         * DealOut
+         * @description **Ist das Dokument ein Papier eines Belegs** (Offerte, Rechnung …), steht hier der
+         *     Vorgang: der Weg, was die Partei jetzt tun kann, was offen ist.
+         */
+        DealOut: {
+            /** Token */
+            token: string;
+            /** Kind */
+            kind: string;
+            /** Word */
+            word: string;
+            /** Number */
+            number?: string | null;
+            note?: components["schemas"]["NoteOut"] | null;
+            /** Actions */
+            actions?: string[];
+            /** Stations */
+            stations?: components["schemas"]["StationOut"][];
+            /** Open */
+            open?: string | null;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** Agb */
+            agb?: string | null;
         };
         /** DeclineIn */
         DeclineIn: {
@@ -5868,7 +5846,7 @@ export interface components {
         };
         /**
          * PublicDocument
-         * @description Was die Seite eines Links zeigt.
+         * @description Was die Seite eines Links zeigt – jedes Dokument, ein Papier eines Belegs ebenso.
          */
         PublicDocument: {
             /** Art */
@@ -5895,6 +5873,7 @@ export interface components {
              * @default []
              */
             actions: string[];
+            deal?: components["schemas"]["DealOut"] | null;
         };
         /** PublicSigner */
         PublicSigner: {
@@ -10690,6 +10669,99 @@ export interface operations {
             };
         };
     };
+    agree_api_v1_public_document__token__agree_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_api_v1_public_document__token__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payment_api_v1_public_document__token__payment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSetup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     webhook_api_v1_payments_webhook_post: {
         parameters: {
             query?: never;
@@ -10708,130 +10780,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    view_api_v1_public_beleg__token__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BelegView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    accept_api_v1_public_beleg__token__accept_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BelegView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    decline_api_v1_public_beleg__token__decline_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BelegView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    payment_api_v1_public_beleg__token__payment_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaymentSetup"];
                 };
             };
             /** @description Validation Error */

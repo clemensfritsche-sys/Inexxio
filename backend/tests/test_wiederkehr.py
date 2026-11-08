@@ -252,7 +252,6 @@ def test_a_promised_loop_offers_and_agrees_by_itself_quietly(db):
     Schlaufe – die Offerte entsteht als Dokument, eine Mail nicht. Die Offerte des ersten
     Auftrags nennt die Wiederholung."""
     from app.domain import voucher as vo
-    from app.models import VoucherDocument
     from app.services import loop, voucher_docs
     art, numbers = _units(db)
     draft, who = _with_payment(db, art, numbers)
@@ -268,7 +267,8 @@ def test_a_promised_loop_offers_and_agrees_by_itself_quietly(db):
     second = loop.create_next(db, first)
     step2, row2 = _beleg(db, second)
     assert row2.stage == vo.AGREED
-    docs = db.query(VoucherDocument).filter(VoucherDocument.voucher_id == row2.id).all()
+    from app.services import voucher as svc
+    docs = svc.documents_of(db, row2)
     assert docs and all(d.message_id is None for d in docs), "Hinaus geht nichts von selbst."
     view = loop.view(db, second)
     assert view["agreed_from"] == first.object_id and view["agreed_on"]

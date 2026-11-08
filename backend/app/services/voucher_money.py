@@ -10,14 +10,14 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core import clock
 from ..domain import voucher as vo
 from ..models import (
-    Order, ProcessStep,
-    UserProfile, Voucher, VoucherDocument, VoucherEntry,
+    Document, DocumentRef, Order, ProcessStep, UserProfile, Voucher, VoucherEntry,
 )
 from . import qrbill
 from .voucher import (
@@ -131,9 +131,11 @@ def paper_candidates(db: Session) -> list[tuple[Voucher, int]]:
     wir stellen sie, zugesagt oder gestellt, und es fehlt die Auftragsbestätigung bzw. (gestellt)
     die Quittung. Ob es wirklich ansteht, sagt ``papers_due`` – die Regel steht nur dort. ◄◄◄"""
     def missing(kind: str):
-        return ~(db.query(VoucherDocument.id)
-                 .filter(VoucherDocument.voucher_id == Voucher.id,
-                         VoucherDocument.kind == kind)
+        return ~(db.query(DocumentRef.id)
+                 .join(Document, Document.id == DocumentRef.document_id)
+                 .filter(DocumentRef.field == "voucher.doc",
+                         DocumentRef.part == func.concat("step:", Voucher.step_id),
+                         Document.facts["kind"].astext == kind)
                  .exists())
     rows = (db.query(Voucher, Order.object_id).join(Order, Order.id == Voucher.order_id)
             .filter(Voucher.direction == vo.IN,

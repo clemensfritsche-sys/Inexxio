@@ -18,7 +18,7 @@ from ..domain import modules
 from ..domain import voucher as vo
 from ..models import (
     Order, OrderUnit, ProcessEvent, ProcessStep,
-    UserProfile, Voucher, VoucherDocument, VoucherEntry, VoucherQuote,
+    UserProfile, Voucher, VoucherEntry, VoucherQuote,
 )
 from ..models.process_event import KIND_STEP
 from . import sites
@@ -29,7 +29,7 @@ from .voucher import (
     credited, delivery_date, deviation, documents_of, due_days_of, entries_of, expired,
     inbound, is_billed, lead_days_of, minus, named, next_reminder, of_step, overdue,
     ownership_of, party_of, possible_parties, priced_dicts, public_link, quotes_of,
-    reading, reminders, units_problem, valid_days_of, valid_until,
+    reading, reminders, units_problem, valid_days_of, valid_until, Paper,
 )
 from .voucher_head import (
     billing_of, document_head, embed_lines, has_goods, incoterm_place_of, is_done,
@@ -527,7 +527,7 @@ def _entry_out(e: VoucherEntry, row: Voucher, *, refundable: bool,
     }
 
 
-def _document_out(d: VoucherDocument) -> dict[str, Any]:
+def _document_out(d: Paper) -> dict[str, Any]:
     """Ein Dokument in der Liste der Karte – Art, Wort, Nummer, Zeitpunkt, Link."""
     word = vo.document_word(d.kind, d.level)
     return {"id": d.id, "kind": d.kind, "label": word, "number": d.number,

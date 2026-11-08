@@ -50,7 +50,7 @@ test('Personen, Firmen, Dokumente, Zeit – je ihre Listen', () => {
 test('Prüfen, Vorschau-Lesen und ein leerer Abgleich ändern keine Liste', () => {
   for (const p of ['/api/v1/erp/orders/validate', '/api/v1/erp/articles/validate',
     '/api/v1/erp/documents/read', '/api/v1/erp/documents/compose', '/api/v1/erp/messages/sync',
-    '/api/v1/auth/passkeys/register/verify', `/api/v1/public/beleg/${token}/accept`]) {
+    '/api/v1/auth/passkeys/register/verify', `/api/v1/public/document/${token}/agree`]) {
     assert.deepEqual(touched(p), [], p);
   }
   // Genau DIESER Pfad – ein Dokument neu lesen lassen ist eine Änderung am Dokument.

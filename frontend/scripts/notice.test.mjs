@@ -63,7 +63,7 @@ const ALLOWED = new Map([
   ['components/scan/use-camera.ts', 'Kamera: Autoplay-Politik, Geräteliste, Lampe – das Bild sagt selbst, was geht'],
   ['components/scan/use-barcode-scanner.ts', 'ein unlesbares Bild – der nächste Takt zählt'],
   ['components/auth/passkey-nudge.tsx', 'localStorage voll oder gesperrt – nur eine Erinnerung'],
-  ['components/beleg/beleg-page.tsx', 'Nachfragen nach der Zahlung – der nächste Versuch kommt'],
+  ['components/beleg/document-page.tsx', 'Nachfragen nach der Zahlung – der nächste Versuch kommt'],
   ['components/beleg/paper.tsx', 'die Schriften des Papiers – gemessen wird trotzdem'],
   ['app/(auth)/abmelden/page.tsx', 'Abmelden – es geht in jedem Fall zur Startseite'],
   ['lib/api.ts', 'der Client selbst: Token-Abruf und ein Fehlerkörper ohne JSON'],

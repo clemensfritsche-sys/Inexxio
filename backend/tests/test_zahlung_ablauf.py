@@ -179,7 +179,7 @@ def test_documents_are_mailed_into_the_history(db):
     doc = svc.documents_of(db, row, vo.OFFER_DOC)[0]
     msg = db.query(Message).filter(Message.id == doc.message_id).first()
     assert msg is not None and msg.subject.startswith("Ihre Offerte")
-    assert f"/beleg?t={doc.token}" in msg.html, "Die Mail trägt den Link zum Online-Beleg."
+    assert f"/dokument?t={doc.token}" in msg.html, "Die Mail trägt den Link zur Seite des Papiers."
     assert db.query(MessageParty).filter(MessageParty.message_id == msg.id,
                                          MessageParty.object_id == who.object_id
                                          ).count()
@@ -703,20 +703,20 @@ def test_public_page_accepts_only_the_current_offer(db):
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     old = svc.documents_of(db, row, vo.OFFER_DOC)[-1]
-    view = docs.public_view(db, old)
-    assert view["actions"] == ["agree", "decline"] and view["word"] == "Offerte"
+    view = docs.public_view(db, row, old)
+    assert view["actions"] == ["agree", "reject"] and view["word"] == "Offerte"
     lines = svc.lines_of(db, row)
     _do(db, order, step, "price", lines=[{"id": lines[0].id, "price": "300.00"}])
     _do(db, order, step, "ask")
-    stale = docs.public_view(db, old)
+    stale = docs.public_view(db, row, old)
     assert stale["note"]["kind"] == "outdated" and not stale["actions"]
     new = svc.documents_of(db, row, vo.OFFER_DOC)[-1]
-    docs.public_act(db, new, "agree")
+    docs.public_act(db, row, new, "agree")
     assert row.stage == vo.AGREED
-    after = docs.public_view(db, new)
+    after = docs.public_view(db, row, new)
     assert after["stations"][1]["state"] == "active" and not after["actions"]
     _do(db, order, step, "release", kind="confirmation")
-    after = docs.public_view(db, new)
+    after = docs.public_view(db, row, new)
     assert after["word"] == "Auftragsbestätigung", "Ein alter Link zeigt das neueste Papier."
     # Der Empfänger steht wie im ERP: Firma, darunter genau ein «z. H.».
     paper = voucher_docs.paper_of(db, svc.documents_of(db, row, vo.CONFIRM_DOC)[-1])
@@ -736,12 +736,12 @@ def test_the_other_party_sees_the_offer_closed_like_a_storno(db):
     _do(db, order, step, "ask")
     offers = {d.party_id: d for d in svc.documents_of(db, row, vo.OFFER_DOC)}
     assert set(offers) == {a.object_id, b.object_id}
-    docs.public_act(db, offers[a.object_id], "agree")
-    lost = docs.public_view(db, offers[b.object_id])
+    docs.public_act(db, row, offers[a.object_id], "agree")
+    lost = docs.public_view(db, row, offers[b.object_id])
     assert lost["note"]["kind"] == "cancelled" and not lost["actions"]
     assert all(s["state"] != "active" for s in lost["stations"]), "Kein Fortschritt der anderen."
     _do(db, order, step, "release", kind="confirmation")
-    won = docs.public_view(db, svc.documents_of(db, row, vo.CONFIRM_DOC)[-1])
+    won = docs.public_view(db, row, svc.documents_of(db, row, vo.CONFIRM_DOC)[-1])
     assert won["note"] is None and won["stations"][1]["state"] == "active"
 
 
@@ -754,7 +754,7 @@ def test_public_page_says_when_the_offer_expired(db):
     for q in svc.quotes_of(db, row):
         q.sent_on = clock.today() - timedelta(days=40)
     db.flush()
-    view = docs.public_view(db, svc.documents_of(db, row, vo.OFFER_DOC)[-1])
+    view = docs.public_view(db, row, svc.documents_of(db, row, vo.OFFER_DOC)[-1])
     assert view["note"]["kind"] == "expired" and "agree" not in view["actions"]
 
 
@@ -1052,7 +1052,7 @@ def test_the_party_cannot_accept_what_we_could_not_confirm(db):
     _ready(db, order, step, row)
     _do(db, order, step, "ask")
     offer = svc.documents_of(db, row, vo.OFFER_DOC)[-1]
-    assert "agree" not in docs.public_view(db, offer)["actions"]
+    assert "agree" not in docs.public_view(db, row, offer)["actions"]
     with pytest.raises(HTTPException) as exc:
         _do(db, order, step, "agree", actor=docs.party_user(db, offer), party=who.object_id)
     assert exc.value.status_code == 400 and "UID" in exc.value.detail
@@ -1141,3 +1141,43 @@ def test_the_card_gets_its_sums_from_the_server(db):
     assert split and seen["total"] is not None
     assert Decimal(seen["total"]) == sum(Decimal(v["net"]) + Decimal(v["tax"]) for v in split)
     assert Decimal(seen["total"]) == Decimal(seen["net"]) + Decimal(seen["tax"])
+
+
+def test_a_paper_is_an_ordinary_document_with_one_link_and_one_page(db):
+    """Stufe 4b – **ein Link für jedes Papier**: die Offerte ist ein gewöhnliches Dokument mit
+    gewöhnlichem Link (``document_links``); dieselbe Seite (``/public/document``) zeigt den
+    Vorgang und nimmt an. Bug-Formen: eine zweite Linkart; die Seite kennt den Vorgang nicht; ein
+    gesendetes Dokument ohne Beleg bekommt einen Vorgang angedichtet."""
+    from app.core.actor import act
+    from app.domain import voucher as vo
+    from app.models import DocumentLink
+    from app.routers import public_documents as page
+    from app.services import voucher as svc
+    order, step, row, who = _scene(db, first=True)
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    offer = svc.documents_of(db, row, vo.OFFER_DOC)[-1]
+    link = db.query(DocumentLink).filter(DocumentLink.token == offer.token).one()
+    assert link.person_object_id == who.object_id and link.document_id == offer.document_id
+    act(db, "external", None, "link")
+    shown = page.view(offer.token, db=db)
+    assert shown["deal"]["word"] == "Offerte" and shown["deal"]["actions"] == ["agree", "reject"]
+    assert "Offerte" in shown["html"]
+    page.agree(offer.token, db=db)
+    assert row.stage == vo.AGREED, "Angenommen über dieselbe Seite wie jedes Dokument."
+    plain = _plain_link(db, who)
+    act(db, "external", None, "link")
+    assert page.view(plain, db=db).get("deal") is None, "Ein gesendetes Dokument ist kein Vorgang."
+
+
+def _plain_link(db, who) -> str:
+    """Ein gewöhnliches Dokument, gesendet an ``who`` – ohne Beleg."""
+    import uuid
+    from app.core.actor import act
+    from app.services import documents, signing
+    staff = _staff(db)
+    act(db, "person", staff.object_id, "ui")
+    doc, _ = documents.file(db, raw=b"<p>Hallo</p>" + uuid.uuid4().hex.encode(), filename="h.html",
+                            mime="text/html", art="Brief", name="Hallo", source="file", refs=[],
+                            actor=staff)
+    return signing.send(db, doc, [who.object_id], "", staff)[0].token

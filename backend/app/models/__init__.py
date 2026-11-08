@@ -8,7 +8,7 @@ from .order_line import OrderLine
 from .order_unit import OrderUnit
 from .process_step import ProcessStep
 from .voucher import (
-    Voucher, VoucherDocument, VoucherEntry, VoucherLine, VoucherQuote,
+    Voucher, VoucherEntry, VoucherLine, VoucherQuote,
 )
 from .article_process_step import ArticleProcessStep
 from .process_event import ProcessEvent
@@ -30,7 +30,7 @@ from .recording_chunk import RecordingChunk
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Address", "Article",
     "Order", "OrderLine", "OrderUnit", "ProcessStep", "ArticleProcessStep", "ProcessEvent",
-    "Voucher", "VoucherQuote", "VoucherDocument", "VoucherLine", "VoucherEntry",
+    "Voucher", "VoucherQuote", "VoucherLine", "VoucherEntry",
     "Instance", "InstanceUnit", "Capture",
     "Attachment", "Document", "DocumentRef", "DocumentSignature", "DocumentLink",
     "WebAuthnCredential", "WebAuthnChallenge",

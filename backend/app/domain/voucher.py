@@ -377,7 +377,7 @@ DOCUMENTS: dict[str, str] = {
 }
 
 #: ►►► **Die Mahnstufen** – drei, je zehn Tage Abstand, nichts geht von selbst. ◄◄◄ Die
-#: Stufe ist die Zahl der gesendeten Mahnungen (``voucher_documents``), keine Spalte.
+#: Stufe ist die Zahl der gesendeten Mahnungen (Papiere im Feld ``voucher.doc``), keine Spalte.
 REMIND_DAYS = 10
 REMIND_LEVELS: tuple[str, ...] = ("Zahlungserinnerung", "2. Mahnung", "Letzte Mahnung")
 

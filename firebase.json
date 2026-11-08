@@ -115,15 +115,6 @@
         ]
       },
       {
-        "source": "/beleg",
-        "headers": [
-          {
-            "key": "X-Robots-Tag",
-            "value": "noindex, nofollow"
-          }
-        ]
-      },
-      {
         "source": "/dokument",
         "headers": [
           {

@@ -18,7 +18,7 @@ from .domain import log as log_domain
 from .domain import statuses as st
 from .domain import timekeeping as timekeeping_domain
 from .routers import (
-    admin, articles, assistant, attachments, auth, beleg, communication, contact, documents, erp,
+    admin, articles, assistant, attachments, auth, communication, contact, documents, erp, legal,
     health, history, internal, website,
     instances, newsletter, orders, passkey, payments, payments_list, places,
     public_documents, recordings, timekeeping,
@@ -272,7 +272,7 @@ app.include_router(attachments.router)
 app.include_router(documents.router)
 app.include_router(public_documents.router)
 app.include_router(payments.router)
-app.include_router(beleg.router)
+app.include_router(legal.router)
 app.include_router(payments_list.router)
 app.include_router(communication.router)
 app.include_router(communication.callback_router)

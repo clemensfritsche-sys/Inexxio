@@ -9,7 +9,7 @@ Rechnung darunter der Schweizer Zahlteil. Die AGB folgen als letzte Seite – di
 
 Wie ``mail_layout.compose`` für Mails: die Daten kommen aus dem Beleg (``voucher_docs``),
 hier steht nur, wie sie auf Papier aussehen. **Das Ergebnis ist eigenständiges HTML** – es
-wird eingefroren (``voucher_documents.html``), im Browser gezeigt und von ihm als PDF
+wird als Dokument eingefroren (Feld ``voucher.doc``), im Browser gezeigt und von ihm als PDF
 gedruckt (A4-Druckstil, keine PDF-Bibliothek).
 """
 

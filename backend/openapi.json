@@ -4530,7 +4530,7 @@
           "public"
         ],
         "summary": "Decline",
-        "description": "**Ablehnen** – mit Grund; danach unterschreibt niemand mehr.",
+        "description": "**Die Unterschrift ablehnen** – mit Grund; danach unterschreibt niemand mehr.",
         "operationId": "decline_api_v1_public_document__token__decline_post",
         "parameters": [
           {
@@ -4577,6 +4577,135 @@
         }
       }
     },
+    "/api/v1/public/document/{token}/agree": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Agree",
+        "description": "**Die Offerte annehmen** – als die Partei; die Auftragsbestätigung geht hinaus.",
+        "operationId": "agree_api_v1_public_document__token__agree_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicDocument"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/document/{token}/reject": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Reject",
+        "description": "**Die Offerte ablehnen** – als die Partei.",
+        "operationId": "reject_api_v1_public_document__token__reject_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicDocument"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/document/{token}/payment": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Payment",
+        "description": "**Mit Karte bezahlen** – die Zahlungsabsicht über den offenen Betrag. Gebucht wird\nerst, wenn der Zahlungsdienst es meldet.",
+        "operationId": "payment_api_v1_public_document__token__payment_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/payments/webhook": {
       "post": {
         "tags": [
@@ -4603,178 +4732,6 @@
             "content": {
               "application/json": {
                 "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/public/beleg/{token}": {
-      "get": {
-        "tags": [
-          "public"
-        ],
-        "summary": "View",
-        "description": "Ein Dokument ansehen – das Papier, wie es hinausging, und was jetzt möglich ist.\n**Geöffnet** steht im Log (``voucher.viewed``) – die Partei hat es gesehen.",
-        "operationId": "view_api_v1_public_beleg__token__get",
-        "parameters": [
-          {
-            "name": "token",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BelegView"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/public/beleg/{token}/accept": {
-      "post": {
-        "tags": [
-          "public"
-        ],
-        "summary": "Accept",
-        "description": "**Die Offerte annehmen** – als die Partei; die Auftragsbestätigung geht hinaus.",
-        "operationId": "accept_api_v1_public_beleg__token__accept_post",
-        "parameters": [
-          {
-            "name": "token",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BelegView"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/public/beleg/{token}/decline": {
-      "post": {
-        "tags": [
-          "public"
-        ],
-        "summary": "Decline",
-        "description": "**Die Offerte ablehnen** – als die Partei.",
-        "operationId": "decline_api_v1_public_beleg__token__decline_post",
-        "parameters": [
-          {
-            "name": "token",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BelegView"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/public/beleg/{token}/payment": {
-      "post": {
-        "tags": [
-          "public"
-        ],
-        "summary": "Payment",
-        "description": "**Mit Karte bezahlen** – die Zahlungsabsicht über den offenen Betrag. Gebucht wird\nerst, wenn der Zahlungsdienst es meldet.",
-        "operationId": "payment_api_v1_public_beleg__token__payment_post",
-        "parameters": [
-          {
-            "name": "token",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaymentSetup"
-                }
               }
             }
           },
@@ -8385,97 +8342,6 @@
         ],
         "title": "Attachment"
       },
-      "BelegView": {
-        "properties": {
-          "token": {
-            "type": "string",
-            "title": "Token"
-          },
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "word": {
-            "type": "string",
-            "title": "Word"
-          },
-          "number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Number"
-          },
-          "html": {
-            "type": "string",
-            "title": "Html"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NoteOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "actions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Actions"
-          },
-          "stations": {
-            "items": {
-              "$ref": "#/components/schemas/StationOut"
-            },
-            "type": "array",
-            "title": "Stations"
-          },
-          "open": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Open"
-          },
-          "currency": {
-            "type": "string",
-            "title": "Currency",
-            "default": "CHF"
-          },
-          "agb": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Agb"
-          }
-        },
-        "type": "object",
-        "required": [
-          "token",
-          "kind",
-          "word",
-          "html"
-        ],
-        "title": "BelegView",
-        "description": "**Was die Seite zeigt** – das eingefrorene Papier, der Weg, die Handlungen."
-      },
       "Body_add_file_api_v1_erp_assistant_files_post": {
         "properties": {
           "file": {
@@ -9770,6 +9636,92 @@
           "credit"
         ],
         "title": "DayOut"
+      },
+      "DealOut": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "word": {
+            "type": "string",
+            "title": "Word"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoteOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions"
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/StationOut"
+            },
+            "type": "array",
+            "title": "Stations"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "agb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agb"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "kind",
+          "word"
+        ],
+        "title": "DealOut",
+        "description": "**Ist das Dokument ein Papier eines Belegs** (Offerte, Rechnung …), steht hier der\nVorgang: der Weg, was die Partei jetzt tun kann, was offen ist."
       },
       "DeclineIn": {
         "properties": {
@@ -13981,6 +13933,16 @@
             "type": "array",
             "title": "Actions",
             "default": []
+          },
+          "deal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DealOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -13991,7 +13953,7 @@
           "mime"
         ],
         "title": "PublicDocument",
-        "description": "Was die Seite eines Links zeigt."
+        "description": "Was die Seite eines Links zeigt – jedes Dokument, ein Papier eines Belegs ebenso."
       },
       "PublicSigner": {
         "properties": {
