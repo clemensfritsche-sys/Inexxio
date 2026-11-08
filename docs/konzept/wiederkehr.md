@@ -1,7 +1,7 @@
 # Projektakte «Wiederkehrende Aufträge»
 
 > **Kopfstatus:** in Klärung · **nichts gebaut** · Lead: Claude · Entscheid: Clemens Fritsche ·
-> seit 06.11.2026 · zuletzt 08.11.2026 (sechste Runde)
+> seit 06.11.2026 · zuletzt 08.11.2026 (siebte Runde)
 > Bild (Ist-Stand 1:1, Schlaufe, Abo): https://claude.ai/artifact/Lk5AKy8G1CTWi68ZxA57uj
 > Diese Akte ist die **eine** Quelle für Ziel, Grundsätze, Vorschläge und Entscheide. Das Bild
 > zeigt, die Akte hält fest. Was hier nicht als entschieden steht, ist nicht entschieden.
@@ -25,9 +25,10 @@
    höchstens einer, nacheinander. Aufträge von Hand gehen jederzeit und verschieben nichts.
 5. **Zahlung wie bei jedem Auftrag:** Was im Modul vorgegeben ist (Partei, Eigentum, Fristen,
    neu auch Positionen mit Preis), kommt mit. Was beim Ausführen gewählt wird (Anschrift, ein
-   offener Preis), wird beim Ausführen gewählt, mit dem neuesten Stand. **Einzige Besonderheit:**
-   Hat die Partei die Wiederholung zugesagt und sind alle Preise vorgegeben, beginnt jede
-   Wiederholung zugesagt; es bleibt «Rechnung stellen» (mit «Prüfen und freigeben»).
+   offener Preis), wird beim Ausführen gewählt, mit dem neuesten Stand. **Immer dieselben
+   Schritte:** Offerte → Zusage → Rechnung. Hat die Partei die Wiederholung schon zugesagt und
+   sind alle Preise vorgegeben, **macht das System Offerte und Zusage selbst** und schreibt
+   dazu, worauf es sich stützt. Die Rechnung geht mit «Prüfen und freigeben».
 6. **Beenden** jederzeit, von jedem Auftrag der Schlaufe aus, endgültig. Was läuft, läuft fertig.
    Weiter geht es mit einem neuen Auftrag. Setzen und beenden darf jede Person mit ERP-Zugang.
 
@@ -36,8 +37,9 @@
   weiter nur «Freigegeben».
 - **«Automatisch angelegt wird nie etwas»** wird zu **«Nichts entsteht ohne Entscheid eines
   Menschen»**; die Schlaufe ist dieser Entscheid, im Voraus.
-- **Die Zahlung kennt die Schlaufe** an einer Stelle: Die Offerte nennt die Wiederholung, die
-  Zusage gilt weiter (PROCESS_CORE §13.6 wird angepasst). Dazu, allgemein und nicht nur für die
+- **Die Zahlung kennt die Schlaufe** an einer Stelle: Die Offerte nennt die Wiederholung; in
+  einer Wiederholung führt das System Offerte und Zusage mit denselben Verben aus, die sonst ein
+  Mensch auslöst (PROCESS_CORE §13.6 wird angepasst). Dazu, allgemein und nicht nur für die
   Schlaufe: **Positionen mit Preis als Vorgabe im Zahlungsmodul.**
 - **Keine neue Tabelle.** Die Schlaufe besteht aus drei Ereignissen im Log (§4b). Fällig,
   nächster, wartet: alles abgeleitet.
@@ -174,8 +176,11 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
   gewöhnlicher Auftrag; was in ihr passiert (Abzweigung, Rückführung, gekappte Rückführung,
   «Abgebrochen»), passiert wie in jedem Auftrag. Die Schlaufe liest davon nur eines: ob die
   Stücke für die **nächste** Periode frei sind. Ein Abweichungsauftrag selbst trägt nie eine
-  Schlaufe (Grundsatz 3). Im Bild bekommt die Schlaufe die äusserste Spur, eine Abweichung liegt
-  innen. Gefunden: kein Konflikt.
+  Schlaufe (Grundsatz 3). Gefunden: kein Konflikt.
+- **Wo die Schlaufe gezeichnet wird:** links. Im Prozessbild stehen Herkunfts-Aufträge links und
+  Abweichungen rechts (`process-columns`). Ein Auftrag mit Schlaufe ist immer regulär, hat also
+  nie Herkunfts-Aufträge: **die linke Seite ist immer frei.** Schlaufe und Abweichung kreuzen
+  sich darum nie. Bild: Teil 3, «mit Abweichung».
 - **Vorbild für «nie doppelt» im Log:** `ix_log_decided` (Migration 170) ist ein eindeutiger
   Index auf einem Feld der Nutzlast eines Ereignisses (je Vorschlag genau ein Entscheid).
 - **Was es sonst schon gibt:** einen Auftragsentwurf mit vorgewählten Stücken und Ablauf
@@ -184,7 +189,10 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
 
 ## 4b · Speicherung: keine neue Tabelle (Vorschlag 08.11.2026)
 
-Die Schlaufe ist, was geschieht, also steht sie im Log, wie die Vorschläge der KI:
+Die Schlaufe ist ein Entscheid, der geschieht («ab 14.11. jährlich», gesetzt von wem, wann),
+also steht sie im Log, wie die Vorschläge und Entscheide der KI. Das Log ist ohnehin
+unveränderlich und schreibt Handelnden und Zeit selbst; eine eigene Tabelle müsste genau das
+nachbauen.
 
 | Ereignis | an | Nutzlast | wann |
 |---|---|---|---|
@@ -199,13 +207,16 @@ Die Schlaufe ist, was geschieht, also steht sie im Log, wie die Vorschläge der 
   «gehört zur Schlaufe» = der Auftrag hat ein `loop.created`.
 - **Unveränderlich** ist das Log ohnehin; «nur anhängen» braucht keinen eigenen Trigger.
 - **Gestrichen:** die Anzeige «2 Aufträge bisher». Sie braucht niemand, der Verlauf zeigt die
-  Aufträge.
+  Aufträge. Bräuchte man sie, wäre sie eine Zählung von `loop.created` im Log.
+- **Die Alternative**, falls Einstellungen im Log stören: eine kleine Tabelle mit append-only
+  Zeilen wie `time_contracts`, dazu eine Spalte am Auftrag für (Schlaufe, Periode) mit
+  eindeutigem Index. Funktioniert genauso, ist eine Tabelle und eine Spalte mehr.
 - Alles, was die Schlaufe tut, steht damit im Log: einschalten, jede Wiederholung, beenden; dazu
   `tick.loop` (nur wenn etwas getan wurde) und die Freigabe des Auftrags wie bei jedem Auftrag.
 
 ## 5 · Vorschläge
 
-- **V1 · `Verkauft` wird ein regulärer Start** (Richtung entschieden). Umsetzung siehe §4.
+- **V1 · `Verkauft` wird ein regulärer Start** (entschieden 08.11.2026). Umsetzung siehe §4.
 - **V2 · Anlegen, nicht anbieten** (entschieden). Die Wiederkehr IST der Entscheid des
   Menschen, nur im Voraus getroffen. Der Grundsatz «automatisch angelegt wird nie etwas» wird
   genauer gefasst: **Nichts entsteht ohne Entscheid eines Menschen.** Anlegen heisst Freigeben,
@@ -224,9 +235,8 @@ Die Schlaufe ist, was geschieht, also steht sie im Log, wie die Vorschläge der 
     Annahme teuer wäre: wer z. B. zwölf Kartuschen von Hand wählt und «gleiche Einzelinstanzen» bekäme,
     würde nächsten Monat dieselben, schon verkauften Kartuschen noch einmal liefern.
   - **FIFO nimmt weiter nur `Freigegeben`**, «gleiche Einzelinstanzen» darf auch `Verkauft` (V1).
-  - **Neben einer Abweichung:** Die Schlaufe ist ein Zug wie jede Querlinie und bekommt ihre
-    Spur aus `process-flow.channels`. Sie reicht über die ganze Spalte, also bekommt sie die
-    äusserste Spur, und eine Abweichung daneben liegt innen.
+  - **Neben einer Abweichung:** Die Schlaufe läuft links (§4), die Abweichung wie heute rechts.
+    Gezeichnet mit demselben Liniengenerator (`polyPath`).
   - **Gespeichert** als Ereignisse im Log (§4b). Wiederholt wird die eingefrorene Definition
     des Vorlage-Auftrags (Module und Zeilen).
 - **V4 · Nie doppelt.** Je Schlaufe und Periode höchstens ein Auftrag, eindeutiger Index im Log
@@ -240,23 +250,28 @@ Die Schlaufe ist, was geschieht, also steht sie im Log, wie die Vorschläge der 
 
 ## 6 · Offen
 
-- **O1 · Die Zahlung in der Schlaufe** – präzisiert 08.11.2026: **wie bei jedem Auftrag**, mit
-  genau einer Besonderheit.
+- **O1 · Die Zahlung in der Schlaufe** – präzisiert 08.11.2026: **immer dieselben Schritte,
+  nur manchmal automatisch, und immer dokumentiert.**
   - Eine Wiederholung ist ein neuer Auftrag aus derselben eingefrorenen Definition, das
     Zahlungsmodul eingeschlossen. **Was im Modul vorgegeben ist**, kommt mit (Partei, Eigentum,
     Fristen, Lieferbedingung). **Was beim Ausführen gewählt wird**, wird beim Ausführen gewählt,
     mit dem neuesten Stand (die Anschrift aus dem Adressbuch, ein offener Preis).
   - **Neu, allgemein:** Positionen mit Preis als Vorgabe im Zahlungsmodul, neben den heutigen
-    `VOUCHER_PRESETS`. Das nützt jedem Auftrag, nicht nur der Schlaufe. Steht ein Preis da, ist er
-    «vorher definiert»; fehlt er, ist er offen und wird wie heute in der Offerte gesetzt.
-  - **Die eine Besonderheit, die Zusage:** Die Offerte der Vorlage nennt die Wiederholung (aus
-    `loop.set` gelesen: «jährlich, ab 14.11.2027, bis auf Widerruf»). Hat die Partei sie
-    angenommen und sind **alle** Preise vorgegeben, beginnt der Beleg jeder Wiederholung auf
-    «zugesagt». Sonst beginnt er bei der Offerte wie jeder Beleg.
-  - **Wo:** eine Funktion an einer Stelle, dort wo der Beleg eines Auftrags entsteht. Sie fragt
-    das Log (`loop.created` → Vorlage → deren Zusage). Der übrige Beleg kennt keine Schlaufe,
-    kein `if` in Verben, Stufen oder Papieren.
-  - Die Rechnung geht nicht von selbst hinaus (O12): «Prüfen und freigeben» in «zu tun».
+    `VOUCHER_PRESETS`. Das nützt jedem Auftrag, nicht nur der Schlaufe.
+  - **Der Beleg geht jedes Mal Offerte → Zusage → Rechnung.** Kein Schritt wird übersprungen,
+    keine Stufe wird gesetzt. Die Offerte der Vorlage nennt die Wiederholung (aus `loop.set`:
+    «jährlich, ab 14.11.2027, bis auf Widerruf»). Hat die Partei sie angenommen und sind **alle**
+    Preise vorgegeben, führt das System in jeder Wiederholung **Anbieten und Zusagen selbst aus –
+    mit denselben Verben** (`VERBS`), die sonst ein Mensch auslöst, als Handelnder «System» im
+    Namen der Person, mit dem Vermerk «gestützt auf die Zusage vom 28.10.2026 zu Auftrag
+    100004812». In der Karte stehen die Stationen darum ✓ Offerte ✓ Auftragsbestätigung, mit
+    diesem Satz; im Log stehen beide Handlungen wie sonst auch.
+  - Fehlt ein Preis, hält der Automat bei der Offerte an, und ein Mensch macht weiter, wie bei
+    jedem Beleg.
+  - Die Papiere (Offerte, AB) entstehen wie immer als Dokumente; hinaus geht nichts von selbst.
+    Die Rechnung geht mit «Prüfen und freigeben» (O12).
+  - **Wo:** eine Funktion an einer Stelle (Takt, nach dem Anlegen). Der Beleg selbst kennt
+    keine Schlaufe, kein `if` in Verben, Stufen oder Papieren.
   - PROCESS_CORE §13.6 («die Zahlung muss von ihr nichts wissen») wird an dieser einen Stelle
     angepasst.
 - **O2 · Ein fremdes Stück aufnehmen** – entschieden 07.11.2026: **nichts Besonderes.** Ein
@@ -311,13 +326,13 @@ Die Schlaufe ist, was geschieht, also steht sie im Log, wie die Vorschläge der 
 - **O12 · Geht die Abo-Rechnung von selbst hinaus?** – ok 07.11.2026: zuerst «Prüfen und
   freigeben» in «zu tun»; automatisch (`voucher.AUTO_RELEASE`) erst, wenn es sich bewährt hat.
 
-- **O13 · Ein Stück der Schlaufe ist endgültig weg** (Vorschlag 08.11.2026, bitte bestätigen).
-  Beim Anlegen einer Wiederholung gilt: es gehen nur Einzelinstanzen hinein, die `Freigegeben`
-  oder `Verkauft` sind (regulärer Start).
-  - **endgültig weg** (`Verschrottet`): fällt aus dieser und allen weiteren Wiederholungen weg,
-    mit Eintrag im Log (`loop.dropped`) und als Satz in «zu tun». Sind alle weg: «geht nicht mehr».
+- **O13 · Ein Stück der Schlaufe ist endgültig weg** – entschieden 08.11.2026. Beim Anlegen
+  einer Wiederholung gehen nur Einzelinstanzen hinein, die `Freigegeben` oder `Verkauft` sind.
+  - **endgültig weg** (`Verschrottet`): die Schlaufe **geht nicht mehr**. Sie läuft nie mit einem
+    Teil weiter, auch nicht mit Vermerk; das wäre eine harte Regel, verbogen. Ein Mensch beendet
+    sie und legt einen neuen Auftrag an (Grundsatz 18).
   - **gerade nicht frei** (in einem Auftrag, gesperrt, verbaut): die Wiederholung **wartet**, bis
-    es frei ist. Sie läuft nicht mit einem Teil.
+    es frei ist.
   - Was danach im laufenden Auftrag passiert, ist Sache des Auftrags (Abweichungen wie überall).
 
 ## 6a · Sackgassen-Prüfung (07.11.2026)
@@ -328,7 +343,7 @@ Gefragt: Gibt es einen Zustand, aus dem man nicht mehr herauskommt?
 |---|---|---|---|
 | Stück steckt in einem Auftrag, der nie fertig wird | Wiederholung wartet, «zu tun» nennt den Auftrag | den Auftrag fertig machen oder abbrechen (Abweichung mit gekappter Rückführung) | nein |
 | Stück verschrottet, Artikel ersetzt | «geht nicht mehr» | Beenden, dann ein neuer Auftrag | nein |
-| Service-Vertrag über 3 Krane, einer verschrottet | Vorschlag 08.11.2026 (O13): der verschrottete fällt weg, mit Eintrag im Log; die Wiederholung läuft mit 2 | keiner nötig | nein |
+| Service-Vertrag über 3 Krane, einer verschrottet | «geht nicht mehr» (O13) | beenden, neuer Auftrag mit den 2 übrigen | nein |
 | Prüfung durchgefallen, Kran `Gesperrt` | wäre eine Abweichung → wartet (O3) | Kran instand stellen (ein Auftrag hebt die Sperre auf) | nein |
 | Zwei Schlaufen am selben Kran (Prüfung jährlich, Wartung halbjährlich) am selben Tag | Exklusivität: eine wartet auf die andere | keiner nötig, läuft nacheinander | nein. Beides in einem Besuch ist ein eigener Wunsch für später |
 | Lange blockiert, mehrere Perioden fällig | entstehen der Reihe nach, keine geht verloren (Grundsatz 5) | wer das nicht will: beenden | nein, aber es kann eine Reihe von Aufträgen nacheinander geben, z. B. zwei Prüfungen kurz hintereinander |
