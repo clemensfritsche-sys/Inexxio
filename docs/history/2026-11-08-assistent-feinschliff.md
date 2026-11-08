@@ -40,6 +40,7 @@ Auslöser: Clemens' erster Test auf dev («Artikel ERP und Website anlegen», ge
   `incomplete`, ohne Gespräch an der Aufnahme, ohne Stopp-Prüfung → rot).
 - Echter Server mit nachgebildeter KI: Stream Zeile für Zeile, Zwischenspeicher gelesen, CORS der
   direkten Adresse für `inexxio-dev.web.app`.
+- CSP: `connect-src` erlaubt `https://*.a.run.app` (Clemens: Weg 1 – eine Zeile statt einer Adresse je Umgebung).
 - Browser: Schritte live mit «Stopp», Karte «Fehlt noch», Ausführen gesperrt, «Entwurf öffnen» →
   Artikel-Entwurf mit «ERP».
 - Frontend: Typen, Lint, 79 Tests.
