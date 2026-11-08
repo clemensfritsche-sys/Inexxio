@@ -121,4 +121,3 @@ def test_the_order_process_is_a_stamped_copy_of_the_template(db):
     steps = db.query(ProcessStep).filter(ProcessStep.order_id == order.id).all()
     assert steps and all(s.source_article_id == article.id for s in steps), (
         "Der Auftrag trägt nicht die Herkunft seiner Schritte.")
-    assert all(s.source_version is not None for s in steps), "Der Versionsstempel fehlt."

@@ -103,7 +103,7 @@ def todo(db: Session, actor: UserProfile) -> list[TodoOut]:
         items[oid].append(TodoItem(section="zahlungen", count=n, red=True,
                                    label=f"{n} Rechnung{'en' if n != 1 else ''} überfällig"))
     for u in (db.query(UserProfile).options(selectinload(UserProfile.addresses))
-              .filter(UserProfile.object_id.isnot(None), UserProfile.is_active.is_(True)).all()):
+              .filter(UserProfile.object_id.isnot(None)).all()):
         for m in people.missing_fields(u):
             items[u.object_id].append(TodoItem(section=m["section"], count=1,
                                                label=f"{m['label']} fehlt"))

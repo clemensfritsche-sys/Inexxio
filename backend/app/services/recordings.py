@@ -295,7 +295,7 @@ def add_chunk(db: Session, rec_id: int, segment: int, seq: int, raw: bytes,
                                         f"abgeschrieben.")
     in_bucket = attachments.put_object(object_name(rec_id, segment, seq), raw, ai.audio_type(rec.mime))
     row = {"recording": rec_id, "segment": segment, "seq": seq, "byte_size": len(raw),
-           "data": None if in_bucket else raw, "is_active": True,
+           "data": None if in_bucket else raw,
            "created_at": _now(), "updated_at": _now()}
     stmt = insert(RecordingChunk).values(**row)
     db.execute(stmt.on_conflict_do_update(

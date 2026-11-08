@@ -114,7 +114,6 @@ def used_in(db: Session, article: Article) -> list[ArticleRef]:
         db.query(Article)
         .join(ArticleProcessStep, ArticleProcessStep.article_id == Article.id)
         .filter(
-            Article.is_active.is_(True),
             Article.object_id != mine,   # wer sich selbst nennt, ist kein Verwender
             ArticleProcessStep.config.contains(
                 cast({modules.Verbrauch.LINES: [{"article": mine}]}, JSONB)

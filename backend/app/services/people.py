@@ -209,7 +209,7 @@ def email_problem(db: Session, user: UserProfile, email: Optional[str]) -> Optio
     if key == normalize_email(user.email):
         return "Das ist bereits Ihre Anmelde-E-Mail."
     other = by_email(db, key)
-    if other is not None and other.id != user.id and other.is_active:
+    if other is not None and other.id != user.id:
         return f"«{key}» gehört bereits zu einem anderen Konto – bitte melden Sie sich bei uns."
     return None
 
@@ -257,7 +257,6 @@ def search(db: Session, q: str = "", *, staff: bool = False,
     return (
         query
         .filter(UserProfile.object_id.isnot(None),
-                UserProfile.is_active.is_(True),
                 lookup.matches(q, UserProfile.object_id, firm, UserProfile.first_name,
                                UserProfile.last_name, UserProfile.email))
         .order_by(UserProfile.object_id.desc())

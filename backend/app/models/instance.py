@@ -1,4 +1,3 @@
-from typing import Optional
 
 from sqlalchemy import BigInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -34,13 +33,12 @@ class Instance(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     # Jede Instanz hat eine Objektnummer – anders als die Einzelinstanz, deren Nummer
     # von dieser hier abgeleitet wird (``<object_id>-<suffix>``).
-    object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
+    object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
 
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
 
     kind: Mapped[str] = mapped_column(String(10), nullable=False)  # einzeln | batch
 
-    label: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
 
 KINDS = ("einzeln", "batch")

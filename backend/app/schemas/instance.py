@@ -94,12 +94,10 @@ class InstanceResponse(BaseModel):
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     kind: str
-    label: Optional[str] = None
     quantity: int
     states: list[StockState] = []
     created_at: datetime
     updated_at: datetime
-    is_active: bool
 
 
 class InstanceSummary(BaseModel):
@@ -114,12 +112,10 @@ class InstanceSummary(BaseModel):
     article_id: int
     article_name: Optional[str] = None
     kind: str
-    label: Optional[str] = None
     quantity: int
     states: list[StockState] = []
     created_at: datetime
     updated_at: datetime
-    is_active: bool
 
 
 class UnitPage(BaseModel):

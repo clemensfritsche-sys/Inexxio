@@ -98,8 +98,6 @@ def _free(db: Session, article_object_id: int):
         )
         .filter(
             Article.object_id == article_object_id,
-            InstanceUnit.is_active.is_(True),
-            Instance.is_active.is_(True),
             InstanceUnit.status == st.FREIGEGEBEN,
             OrderUnit.id.is_(None),
         )

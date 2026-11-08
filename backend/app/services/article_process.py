@@ -25,7 +25,6 @@ def steps_of(db: Session, article: Article) -> list[ArticleProcessStep]:
         db.query(ArticleProcessStep)
         .filter(
             ArticleProcessStep.article_id == article.id,
-            ArticleProcessStep.is_active.is_(True),
         )
         .order_by(ArticleProcessStep.position)
         .all()
@@ -46,7 +45,6 @@ def step_counts(db: Session, article_ids: list[int]) -> dict[int, int]:
         db.query(ArticleProcessStep.article_id, func.count(ArticleProcessStep.id))
         .filter(
             ArticleProcessStep.article_id.in_(article_ids),
-            ArticleProcessStep.is_active.is_(True),
         )
         .group_by(ArticleProcessStep.article_id)
         .all()
@@ -97,20 +95,16 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
          "status_after": s.status_after}
         for s in out
     ])
-    # Der Stempel zählt die Fassungen der Vorlage. Sie entsteht genau einmal – die 1 ist
-    # damit keine Zählung, sondern die Aussage «erste und einzige Fassung».
-    article.process_version = 1
     return out
 
 
 def mirror(db: Session, article: Article) -> list[dict[str, Any]]:
-    """Die Vorlage als **Kopie** – Werte, kein Verweis, mit Versionsstempel.
+    """Die Vorlage als **Kopie** – Werte, kein Verweis, mit ihrer Herkunft.
 
     Das Ergebnis geht unverändert in ``process_steps`` des Auftrags. Ist die Vorlage
     leer, ist das kein leeres Ergebnis, sondern ein Fehler beim Aufrufer: ein
     Erzeugungsauftrag ohne Prozess kann nichts erzeugen.
     """
-    version = int(article.process_version or 0)
     return [
         {
             "module_type": s.module_type,
@@ -121,7 +115,6 @@ def mirror(db: Session, article: Article) -> list[dict[str, Any]]:
             # nichts zu erfassen. Eine Kopie, die das Wesentliche weglässt, ist keine.
             "config": dict(s.config) if s.config else None,
             "source_article_id": article.id,
-            "source_version": version,
         }
         for s in steps_of(db, article)
     ]

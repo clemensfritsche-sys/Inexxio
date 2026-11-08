@@ -52,7 +52,7 @@ def _flatten_to_rgb(img):
     return img.convert("RGB")
 
 
-def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:
+def store_image(db: Session, raw: bytes, filename: str | None) -> Attachment:
     """Rohes Bild normalisieren (EXIF/Grösse/JPEG) und als ``Attachment`` ablegen (flush,
     kein commit – der Aufrufer schliesst ab). Wirft 400 bei ungültigem Bild, 413 zu gross.
 
@@ -86,7 +86,6 @@ def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | N
         width=img.width,
         height=img.height,
         byte_size=len(data),
-        created_by=actor_id,
     )
     keep(att, data)
     db.add(att)
@@ -99,8 +98,7 @@ def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | N
 MAX_FILE_BYTES = 25 * 1024 * 1024
 
 
-def store_raw(db: Session, raw: bytes, filename: str | None, mime: str,
-              actor_id: int | None) -> Attachment:
+def store_raw(db: Session, raw: bytes, filename: str | None, mime: str) -> Attachment:
     """**Eine Datei unverändert in den Korb** – für Dokumente (PDF, Bild, Tabelle, Video …).
     Ein Dokument ist das Original; verkleinert wird nichts."""
     if not raw:
@@ -108,7 +106,7 @@ def store_raw(db: Session, raw: bytes, filename: str | None, mime: str,
     if len(raw) > MAX_FILE_BYTES:
         raise HTTPException(413, detail="Datei zu gross (max. 25 MB)")
     att = Attachment(token=secrets.token_urlsafe(24), mime=(mime or "application/octet-stream")[:100],
-                     filename=(filename or None), byte_size=len(raw), created_by=actor_id)
+                     filename=(filename or None), byte_size=len(raw))
     keep(att, raw)
     db.add(att)
     db.flush()
@@ -117,7 +115,7 @@ def store_raw(db: Session, raw: bytes, filename: str | None, mime: str,
 
 def get_by_token(db: Session, token: str) -> Attachment:
     att = db.query(Attachment).filter(
-        Attachment.token == token, Attachment.is_active == True).first()
+        Attachment.token == token).first()
     if not att:
         raise HTTPException(404, detail="Bild nicht gefunden")
     return att

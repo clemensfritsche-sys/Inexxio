@@ -85,8 +85,7 @@ def add(db: Session, actor: UserProfile, object_id: int, items) -> None:
     for it in items:
         if it.day in taken:
             continue
-        db.add(Holiday(company_object_id=c.object_id, day=it.day, name=it.name.strip(),
-                       created_by=actor.id))
+        db.add(Holiday(company_object_id=c.object_id, day=it.day, name=it.name.strip()))
         taken.add(it.day)
     db.flush()
 

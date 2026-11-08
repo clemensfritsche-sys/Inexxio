@@ -34,7 +34,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
-from .base import TimestampMixin
+from .base import SoftDeleteMixin, TimestampMixin
 
 
 class Voucher(Base, TimestampMixin):
@@ -55,9 +55,7 @@ class Voucher(Base, TimestampMixin):
     __table_args__ = (
         # **Ein AKTIVER Beleg je Modul** – die Regel in der Datenbank, nicht nur im
         # Dienst: ``ensure`` ist idempotent, zwei gleichzeitige Freigaben sind es nicht.
-        # Partiell, weil ein zurückgenommener weiterhin als Zeile steht (Soft-Delete).
-        Index("uq_vouchers_step", "step_id", unique=True,
-              postgresql_where=text("is_active")),
+        Index("uq_vouchers_step", "step_id", unique=True),
         # **Unsere Nummern genau einmal** (Rechnung und Gutschrift, Migration 164); eine
         # Lieferantenrechnung trägt die Nummer der Gegenpartei und fällt nicht darunter.
         Index("uq_vouchers_our_number", "number", unique=True,
@@ -234,20 +232,17 @@ class Voucher(Base, TimestampMixin):
     #: **Ausgabe: die MWST-Nummer auf der Lieferantenrechnung** (MWSTG Art. 28 – ohne sie
     #: kein Vorsteuerabzug).
     party_uid: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
-    #: **Ausgabe: die Lieferantenrechnung** – die Nummer ihres Dokuments (Pflichtfeld
-    #: ``voucher.original``), Pflicht beim Erfassen, aufbewahrt wie der Beleg.
-    original_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     #: **Ausgabe: die Rechnung weicht von der Zusage ab, und sie wurde SO angenommen** –
     #: mit diesem Grund. Solange eine Abweichung ohne Grund dasteht, wird nicht bezahlt.
     deviation_note: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    #: **Der Ausfuhrnachweis** (Export): Nummer der Veranlagungsverfügung und die Nummer
-    #: ihres Dokuments (Pflichtfeld ``voucher.export``).
+    #: **Der Ausfuhrnachweis** (Export): Nummer der Veranlagungsverfügung; ihr Dokument steht
+    #: im Pflichtfeld ``voucher.export`` (``document_refs``), die Lieferantenrechnung ebenso
+    #: in ``voucher.original`` – nie ein zweites Mal hier.
     #: Ohne ihn gilt der Nullsatz nicht – erledigt ist der Beleg erst damit.
     export_number: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
-    export_photo_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
 
-class VoucherQuote(Base, TimestampMixin):
+class VoucherQuote(Base, TimestampMixin, SoftDeleteMixin):
     """**Eine Angebotszeile** – je angefragter Gegenpartei eine.
 
     ►►► **Eine Tabelle, keine Liste an einem Feld.** ◄◄◄
@@ -302,7 +297,7 @@ class VoucherQuote(Base, TimestampMixin):
     link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
 
-class VoucherLine(Base, TimestampMixin):
+class VoucherLine(Base, TimestampMixin, SoftDeleteMixin):
     """**Eine Position** – und es gibt sie genau in dieser einen Form.
 
     ►►► **Eingefroren wird durch die STUFE, nicht durch eine Kopie.** ◄◄◄ Solange der
@@ -389,10 +384,9 @@ class VoucherEntry(Base, TimestampMixin):
     __table_args__ = (
         # ►►► **Dieselbe Zahlung gibt es nur einmal** – die Regel in der Datenbank. ◄◄◄
         # Ein Zahlungsdienst stellt dieselbe Meldung mehrfach zu; zwei gleichzeitige
-        # Zustellungen prüft keine Abfrage davor. Partiell: ohne Referenz (bar) gilt sie
-        # nicht, und eine gegengebuchte Zeile bleibt stehen.
+        # Zustellungen prüft keine Abfrage davor. Partiell: ohne Referenz (bar) gilt sie nicht.
         Index("uq_voucher_entries_reference", "reference", unique=True,
-              postgresql_where=text("is_active AND reference IS NOT NULL")),
+              postgresql_where=text("reference IS NOT NULL")),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

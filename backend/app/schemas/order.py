@@ -546,7 +546,6 @@ class OrderResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
-    is_active: bool
 
     lines: list[OrderLineResponse] = Field(default_factory=list)
     steps: list[ProcessStepResponse] = Field(default_factory=list)
@@ -602,7 +601,6 @@ class OrderSummary(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
-    is_active: bool
     #: Kleines Label neben dem Zustand – **abgeleitet**, siehe ``OrderResponse``.
     is_deviation: bool = False
 

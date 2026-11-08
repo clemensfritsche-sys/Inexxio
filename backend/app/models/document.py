@@ -15,12 +15,12 @@ die heute schon jedes Bild trägt. ``file_id`` zeigt darauf; nach dem Löschen i
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, LargeBinary, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
-from .base import TimestampMixin
+from .base import SoftDeleteMixin, TimestampMixin
 
 
 class Document(Base, TimestampMixin):
@@ -56,7 +56,7 @@ class Document(Base, TimestampMixin):
     delete_reason: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
 
 
-class DocumentRef(Base, TimestampMixin):
+class DocumentRef(Base, TimestampMixin, SoftDeleteMixin):
     """►►► **Die Referenz – die EINE Verbindung zwischen Dokument und Datensatz.** ◄◄◄
 
     ``object_id`` ist der Datensatz, an dem das Dokument erscheint. ``part`` nennt einen Teil
@@ -66,6 +66,14 @@ class DocumentRef(Base, TimestampMixin):
     leer wird sie nie. Entfernt wird mit ``is_active = false``."""
 
     __tablename__ = "document_refs"
+    __table_args__ = (
+        # **Ein Pflichtfeld trägt genau ein Dokument** – in der Datenbank, nicht nur im Dienst:
+        # zwei gleichzeitige «In das Feld» liessen sonst zwei aktive Referenzen stehen. Nur
+        # ``voucher.doc`` sammelt: jedes Papier des Moduls (Offerte, AB, Rechnung …) steht dort.
+        Index("uq_document_refs_field", "object_id", text("coalesce(part, '')"), "field",
+              unique=True, postgresql_where=text(
+                  "is_active AND field IS NOT NULL AND field <> 'voucher.doc'")),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     document_id: Mapped[int] = mapped_column(
@@ -73,7 +81,6 @@ class DocumentRef(Base, TimestampMixin):
     object_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     part: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
     field: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
 
 class DocumentSignature(Base, TimestampMixin):
@@ -106,4 +113,3 @@ class DocumentLink(Base, TimestampMixin):
         ForeignKey("documents.id", ondelete="CASCADE"), index=True, nullable=False)
     person_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)

@@ -87,7 +87,6 @@ def of_vouchers(db: Session) -> list[Requirement]:
     # **Nur, wo etwas fehlen kann**: eine bestellte Ausgabe (Lieferantenrechnung) oder eine
     # gestellte Einnahme ohne Ausfuhrnachweis – ob es wirklich fehlt, sagt die Schleife.
     rows = (db.query(Voucher).filter(
-        Voucher.is_active.is_(True),
         ((Voucher.direction == vo.OUT) & (Voucher.stage == vo.AGREED))
         | ((Voucher.direction == vo.IN) & (Voucher.stage == vo.BILLED)
            & Voucher.export_number.is_(None))).all())

@@ -27,5 +27,3 @@ def test_the_login_email_changes_only_to_a_free_address(monkeypatch):
     assert "keine E-Mail-Adresse" in people.email_problem(None, me, "neu-beispiel")
     assert "bereits Ihre" in people.email_problem(None, me, "ALT@beispiel.ch")
     assert "«belegt@beispiel.ch»" in people.email_problem(None, me, "belegt@beispiel.ch")
-    other.is_active = False
-    assert people.email_problem(None, me, "belegt@beispiel.ch") is None

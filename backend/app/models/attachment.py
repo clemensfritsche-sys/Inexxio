@@ -27,5 +27,3 @@ class Attachment(Base, TimestampMixin):
     width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     byte_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    # created_at / updated_at / is_active kommen aus TimestampMixin.

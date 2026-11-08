@@ -73,7 +73,7 @@ def send(db: Session, doc: Document, person_ids: list[int], note: str,
             raise HTTPException(status_code=400, detail=(
                 f"{person.display_name if person else oid} hat keine E-Mail – so geht es nicht hinaus."))
         link = DocumentLink(token=secrets.token_urlsafe(24), document_id=doc.id,
-                            person_object_id=oid, created_by=actor.id)
+                            person_object_id=oid)
         db.add(link)
         db.flush()
         msg = _mail(db, doc, person, link, note, actor)
@@ -121,7 +121,7 @@ def _mail(db: Session, doc: Document, person: UserProfile, link: DocumentLink, n
 # ---------------------------------------------------------------------------
 
 def by_token(db: Session, token: str) -> DocumentLink:
-    link = (db.query(DocumentLink).filter(DocumentLink.token == token, DocumentLink.is_active.is_(True))
+    link = (db.query(DocumentLink).filter(DocumentLink.token == token)
             .first() if token and len(token) <= 64 else None)
     if link is None:
         raise HTTPException(status_code=404, detail="Diesen Link gibt es nicht.")

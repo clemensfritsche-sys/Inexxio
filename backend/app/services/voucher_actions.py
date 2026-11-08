@@ -857,7 +857,7 @@ def _record_original(db: Session, row: Voucher, data: dict[str, Any],
     """►►► **Die Lieferantenrechnung, wie sie auf dem Papier steht.** ◄◄◄ Das Dokument ist
     Pflicht (Feld ``voucher.original``); die MWST-Nummer, sobald Steuer darauf steht (ohne
     sie kein Vorsteuerabzug)."""
-    original = _module_document(db, row, data, "voucher.original", (
+    _module_document(db, row, data, "voucher.original", (
         "Ohne die Rechnung als Dokument geht es nicht – sie ist der Beleg, aufbewahrt zehn "
         "Jahre."))
     taxed = any(Decimal(r.get("tax") or "0") != 0 for r in split)
@@ -866,7 +866,6 @@ def _record_original(db: Session, row: Voucher, data: dict[str, Any],
         raise HTTPException(status_code=400, detail=(
             "Ohne MWST-Nummer des Lieferanten gibt es keinen Vorsteuerabzug "
             "(MWSTG Art. 28) – sie steht auf seiner Rechnung."))
-    row.original_id = original
     row.party_uid = uid
 
 
@@ -889,7 +888,7 @@ def correction_problem(db: Session, row: Voucher,
     und nie eine Gutschrift (damit kann keine Kette und kein Kreis entstehen). Zwei Formen
     einer Regel: ``_assert_correction`` ist das Tor, ``correctable`` filtert mit ihr.
     """
-    if target is None or not target.is_active:
+    if target is None:
         return "Diesen Beleg gibt es nicht."
     if target.id == row.id:
         return "Ein Beleg korrigiert nicht sich selbst."
@@ -1045,8 +1044,8 @@ def _export(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     number = _text(data.get("reference"), 60)
     if not number:
         raise HTTPException(status_code=400, detail=message)
-    photo = _module_document(db, row, data, "voucher.export", message)
-    row.export_number, row.export_photo_id = number, photo
+    _module_document(db, row, data, "voucher.export", message)
+    row.export_number = number
 
 
 def _release(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -1200,7 +1199,7 @@ def _party(db: Session, *, step: ProcessStep, value: Any,
                     + ", ".join(str(n) for n in allowed) + "."))
     found = (
         db.query(UserProfile)
-        .filter(UserProfile.object_id == number, UserProfile.is_active.is_(True))
+        .filter(UserProfile.object_id == number)
         .first()
     )
     if found is None:

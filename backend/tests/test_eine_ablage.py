@@ -108,7 +108,7 @@ def test_a_form_photo_opens_as_the_file_it_was(db):
     from fastapi import HTTPException
     from app.models import Message
     from app.services import attachments, mailbox
-    att = attachments.store_raw(db, b"\xff\xd8\xff" + uuid.uuid4().bytes, "a.jpg", "image/jpeg", None)
+    att = attachments.store_raw(db, b"\xff\xd8\xff" + uuid.uuid4().bytes, "a.jpg", "image/jpeg")
     msg = Message(sender_object_id=1, channel="c1", subject="x", body="",
                   attachments=[{"name": "a.jpg", "size": 3, "url": attachments.public_url(att)}])
     db.add(msg)
@@ -132,7 +132,7 @@ def test_a_file_is_private_unless_the_website_shows_it(db):
     from app.services import attachments
     buf = io.BytesIO()
     Image.new("RGB", (8, 8), "white").save(buf, "PNG")
-    att = attachments.store_image(db, buf.getvalue(), "zeugnis.png", None)
+    att = attachments.store_image(db, buf.getvalue(), "zeugnis.png")
     app = FastAPI()
     app.include_router(router.router)
     app.dependency_overrides[get_db] = lambda: db
@@ -149,3 +149,29 @@ def test_a_file_is_private_unless_the_website_shows_it(db):
         DocumentRef.field == legal.FIELD_OF[legal.AGB]).first()
     token = db.query(Attachment.token).filter(Attachment.id == agb.file_id).scalar()
     assert client.get(f"/api/v1/attachments/{token}").headers["cache-control"].startswith("public")
+
+
+def test_a_mandatory_field_holds_exactly_one_document(db):
+    """Bug-Form: zwei gleichzeitige «In das Feld» lassen zwei aktive Referenzen stehen – das
+    Feld hätte zwei Dokumente, gelesen würde zufällig das jüngste. Die Datenbank weist die
+    zweite ab; nur ``voucher.doc`` sammelt (jedes Papier des Moduls)."""
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+
+    house = _house(db)
+    docs = [documents.file(db, raw=b"%PDF-1.4\n" + uuid.uuid4().bytes, filename=f"{i}.pdf",
+                           mime="application/pdf", art="AGB", name=f"AGB {i}", source="file",
+                           refs=[], actor=None)[0] for i in range(2)]
+    for d in docs:
+        db.add(DocumentRef(document_id=d.id, object_id=house.object_id, field="voucher.doc",
+                           part="step:1"))
+    db.flush()
+    part = f"unit:{uuid.uuid4().hex[:12]}"
+    db.add(DocumentRef(document_id=docs[0].id, object_id=house.object_id, field="capture.photo",
+                       part=part))
+    db.flush()
+    db.add(DocumentRef(document_id=docs[1].id, object_id=house.object_id, field="capture.photo",
+                       part=part))
+    with pytest.raises(IntegrityError):
+        with db.begin_nested():
+            db.flush()

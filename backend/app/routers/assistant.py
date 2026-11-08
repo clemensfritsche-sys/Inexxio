@@ -70,7 +70,7 @@ def add_file(file: UploadFile = File(...), db: Session = DB,
              user: UserProfile = Depends(require_employee)):
     """Eine Datei ins Gespräch (Foto, PDF) – sie liegt im Korb, bis sie ein Dokument wird."""
     raw = file.file.read()
-    att = attachments.store_raw(db, raw, file.filename, file.content_type or "", user.id)
+    att = attachments.store_raw(db, raw, file.filename, file.content_type or "")
     return FileRef(token=att.token, name=file.filename or "Datei", mime=att.mime)
 
 

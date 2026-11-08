@@ -105,8 +105,7 @@ def of_person(db: Session, object_id: int) -> list[dict[str, Any]]:
     """Jede Zahlung, in der diese Person Partei ist – sie steht im Angebotsspiegel."""
     ids = {v for (v,) in db.query(VoucherQuote.voucher_id).filter(
         VoucherQuote.party_id == object_id, VoucherQuote.is_active.is_(True)).all()}
-    rows = (db.query(Voucher).filter(Voucher.id.in_(ids or {0}),
-                                     Voucher.is_active.is_(True)).all())
+    rows = (db.query(Voucher).filter(Voucher.id.in_(ids or {0})).all())
     return _sorted(db, rows, object_id)
 
 
@@ -114,7 +113,7 @@ def of_company(db: Session, object_id: int) -> list[dict[str, Any]]:
     """Alle Zahlungen, die im Namen dieser eigenen Gesellschaft laufen – mit der Partei je
     Zeile. Ohne Angabe am Beleg stellt ihn der Betreiber."""
     operator = sites.find_operator(db)
-    q = db.query(Voucher).filter(Voucher.is_active.is_(True))
+    q = db.query(Voucher)
     if operator is not None and operator.object_id == object_id:
         q = q.filter((Voucher.issuer_company_id == object_id)
                      | Voucher.issuer_company_id.is_(None))
@@ -129,8 +128,7 @@ def overdue_counts(db: Session) -> dict[int, int]:
     """**Überfällige Rechnungen je Person** – für die Zahl am Symbol. In SQL vorgefiltert
     (gestellt, fällig vor heute); ob noch etwas offen ist, sagt ``voucher.overdue``."""
     out: dict[int, int] = {}
-    rows = (db.query(Voucher).filter(Voucher.is_active.is_(True),
-                                     Voucher.stage == vo.BILLED,
+    rows = (db.query(Voucher).filter(Voucher.stage == vo.BILLED,
                                      Voucher.due_on < clock.today()).all())
     with vs.reading(db):
         for row in rows:

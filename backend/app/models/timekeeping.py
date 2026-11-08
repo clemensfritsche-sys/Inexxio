@@ -19,7 +19,7 @@ from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Index, Integer, N
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
-from .base import TimestampMixin
+from .base import SoftDeleteMixin, TimestampMixin
 
 
 class TimeContract(Base, TimestampMixin):
@@ -79,7 +79,7 @@ class TimeEntry(Base, TimestampMixin):
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger)
 
 
-class Holiday(Base, TimestampMixin):
+class Holiday(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "holidays"
     __table_args__ = (
         Index("uq_holidays_company_day", "company_object_id", "day", unique=True,
@@ -90,4 +90,3 @@ class Holiday(Base, TimestampMixin):
     company_object_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     day: Mapped[date] = mapped_column(Date, nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger)

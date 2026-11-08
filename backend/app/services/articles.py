@@ -54,13 +54,7 @@ def may_create(article: Article) -> Optional[str]:
     nur ``replaced_by_id``; der Zustand ist seine Projektion (``Article.status``), und
     diese Prüfung liest die Quelle.
 
-    **Warum die Funktion nach der Regel heisst und nicht nach einem Zustand.** Der Fehler,
-    aus dem sie entstanden ist, war eine Verwechslung zweier Achsen, die beide «aktiv»
-    heissen: ``is_active`` ist der **Soft-Delete** (Datensatz ausgeblendet), ``status``
-    war der **fachliche** Zustand. Geprüft wurde die erste, gemeint war die zweite — und
-    weil die erste im ganzen Prozessbereich **nie** gesetzt wird, konnte die Prüfung gar
-    nichts abweisen. Ein Name wie ``is_article_active`` hätte dieselbe Falle nur eine
-    Ebene weiter aufgestellt; ``may_create`` benennt die Frage.
+    Die Funktion heisst nach der Frage (``may_create``), nicht nach einem Zustand.
 
     **Zwei Formen derselben Regel** (wie ``release.pick_problem``/``unpickable``): sie gibt
     den Grund zurück, statt zu werfen. Die Freigabe bricht damit ab, die Auswahl-Liste

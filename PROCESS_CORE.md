@@ -812,8 +812,8 @@ Neben «Spezifikation» trägt der Artikel den Reiter «Erzeugungsprozess»:
   mehr änderbar.
 
 **Kopie, nicht Verweis.** Bei der Freigabe eines Erzeugungsauftrags wird die Liste in
-`process_steps` **kopiert** und mit `Article.process_version` gestempelt
-(`process_steps.source_article_id`/`source_version`). Ein Verweis hiesse, dass eine
+`process_steps` **kopiert** und nennt ihren Artikel (`process_steps.source_article_id`; ein
+Artikel ändert sich nie, die Nummer IST die Fassung). Ein Verweis hiesse, dass eine
 spätere Artikeländerung laufende Aufträge rückwirkend umschreibt — das widerspricht
 «eingefroren» (§6.4).
 

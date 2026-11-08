@@ -94,14 +94,11 @@ def _resolve_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfi
             raise HTTPException(status.HTTP_403_FORBIDDEN,
                                 detail=UNVERIFIED.format(email=email or "ohne Adresse"))
         user = people.by_email(db, email)
-        if user is not None and user.is_active:
+        if user is not None:
             user.firebase_uid = uid
             db.flush()
     if user is None:
         return _create_user(db, uid, email, decoded)
-    if not user.is_active:
-        raise HTTPException(status.HTTP_403_FORBIDDEN,
-                            detail="Dieses Konto wurde deaktiviert. Bitte an die Administration wenden.")
     return user
 
 

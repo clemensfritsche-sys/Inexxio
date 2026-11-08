@@ -38,7 +38,7 @@ def bucket(monkeypatch):
 
 
 def test_a_file_goes_to_the_bucket_and_comes_back(db, bucket):
-    att = attachments.store_raw(db, b"%PDF-1.4 hallo", "a.pdf", "application/pdf", None)
+    att = attachments.store_raw(db, b"%PDF-1.4 hallo", "a.pdf", "application/pdf")
     db.flush()
     assert att.data is None and bucket.store[att.token] == b"%PDF-1.4 hallo"
     assert attachments.bytes_of(att) == b"%PDF-1.4 hallo"
@@ -47,19 +47,19 @@ def test_a_file_goes_to_the_bucket_and_comes_back(db, bucket):
 def test_a_broken_bucket_keeps_the_file_in_the_row(db, monkeypatch):
     broken = _Bucket(fail=True)
     monkeypatch.setattr(attachments, "bucket", lambda: broken)
-    att = attachments.store_raw(db, b"abc", "a.txt", "text/plain", None)
+    att = attachments.store_raw(db, b"abc", "a.txt", "text/plain")
     assert att.data == b"abc" and not broken.store
     assert attachments.bytes_of(att) == b"abc"
 
 
 def test_a_run_that_rolls_back_writes_nothing_to_the_bucket(db, bucket):
     with attachments.in_database():
-        att = attachments.store_raw(db, b"vorschau", "v.html", "text/html", None)
+        att = attachments.store_raw(db, b"vorschau", "v.html", "text/html")
     assert att.data == b"vorschau" and not bucket.store
 
 
 def test_discard_removes_the_object_only_after_the_commit(db, bucket):
-    att = attachments.store_raw(db, b"weg", "w.txt", "text/plain", None)
+    att = attachments.store_raw(db, b"weg", "w.txt", "text/plain")
     db.flush()
     attachments.discard(db, att)
     db.flush()

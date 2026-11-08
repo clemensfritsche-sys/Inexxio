@@ -32,7 +32,7 @@ def upload_attachment(
 ):
     """Ein Bild ablegen, das kein Dokument ist (die gezeichnete Unterschrift) – jede andere Datei wird ein Dokument."""
     raw = file.file.read()
-    att = attachments_svc.store_image(db, raw, file.filename, user.id)
+    att = attachments_svc.store_image(db, raw, file.filename)
     db.flush()
     return UploadResult(id=att.id, url=attachments_svc.public_url(att), width=att.width, height=att.height)
 

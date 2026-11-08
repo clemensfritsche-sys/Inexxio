@@ -81,7 +81,7 @@ def search(db: Session, q: str, *, limit: int = SEARCH_LIMIT) -> list[Record]:
                            for u in people.search(db, q, limit=limit)]
     found += [Record(c.object_id, "organization", sites.legal_name(c) or "")
               for c in sites.search(db, q, limit=limit)]
-    orders = db.query(Order).filter(lookup.matches(q, Order.object_id, Order.name)).limit(limit).all()
+    orders = db.query(Order).filter(lookup.matches(q, Order.object_id)).limit(limit).all()
     found += [Record(o.object_id, "order", o.name or "") for o in orders]
     arts = (db.query(Article).filter(Article.object_id.isnot(None), lookup.matches(
         q, Article.object_id, Article.name)).limit(limit).all())

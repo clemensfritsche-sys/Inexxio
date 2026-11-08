@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, String
+from sqlalchemy import BigInteger
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -30,7 +30,9 @@ class Order(Base, TimestampMixin):
     __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
-    #: Bei der Freigabe gesetzt: «Auftrag <Objektnummer>». Er entsteht im selben Zug wie
-    #: die Objektnummer – vorher gibt es keine, nachher wäre er ein zweiter Schreibweg.
-    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
+
+    @property
+    def name(self) -> str:
+        """«Auftrag <Objektnummer>» – abgeleitet, keine Spalte: er sagt nie etwas anderes."""
+        return f"Auftrag {self.object_id}"

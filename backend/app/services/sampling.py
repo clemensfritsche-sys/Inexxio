@@ -103,7 +103,6 @@ def _population(db: Session, order: Order) -> list[InstanceUnit]:
             .where(
                 OrderUnit.order_id == order.id,
                 OrderUnit.released_at.is_(None),
-                InstanceUnit.is_active.is_(True),
             )
         ).all()
     ]

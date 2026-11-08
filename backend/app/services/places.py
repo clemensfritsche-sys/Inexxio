@@ -119,13 +119,13 @@ def stations_for(db: Session, object_ids: Iterable[int]) -> dict[int, Station]:
     out: dict[int, Station] = {}
 
     rows = (
-        db.query(Instance.object_id, Instance.label, Article.name)
+        db.query(Instance.object_id, Article.name)
         .join(Article, Article.id == Instance.article_id)
         .filter(Instance.object_id.in_(ids))
         .all()
     )
-    for object_id, label, article_name in rows:
-        out[object_id] = Station(object_id, "instance", label or article_name or "Instanz")
+    for object_id, article_name in rows:
+        out[object_id] = Station(object_id, "instance", article_name or "Instanz")
 
     for user in db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all():
         out[user.object_id] = Station(user.object_id, "user", user.display_name)
@@ -156,7 +156,7 @@ def unit_stations(db: Session, unit_ids: Iterable[int]) -> dict[int, Station]:
     return {
         unit.id: Station(
             instance.object_id, UNIT,
-            instance.label or article_name or "Einzelinstanz",
+            article_name or "Einzelinstanz",
             number=unit_number(instance, unit),
         )
         for unit, instance, article_name in rows
@@ -204,18 +204,15 @@ def search(db: Session, query: str, *, limit: int = SEARCH_LIMIT) -> list[Statio
     # **Dieselbe Bedingung wie jedes andere Referenzfeld** (``services/lookup``) – hier
     # nur dreimal angewandt, weil ein Halter dreierlei sein kann.
     rows = (
-        db.query(Instance.object_id, Instance.label, Article.name)
+        db.query(Instance.object_id, Article.name)
         .join(Article, Article.id == Instance.article_id)
-        .filter(
-            Instance.is_active.is_(True),
-            lookup.matches(q, Instance.object_id, Instance.label, Article.name),
-        )
+        .filter(lookup.matches(q, Instance.object_id, Article.name))
         .order_by(Instance.object_id.desc())
         .limit(limit)
         .all()
     )
-    for object_id, label, article_name in rows:
-        out.append(Station(object_id, "instance", label or article_name or "Instanz"))
+    for object_id, article_name in rows:
+        out.append(Station(object_id, "instance", article_name or "Instanz"))
 
     # Personen über die EINE Personensuche – dieselbe Bedingung wie jedes Personenfeld.
     out.extend(Station(u.object_id, "user", u.display_name)

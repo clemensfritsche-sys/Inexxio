@@ -243,7 +243,7 @@ def complete_authentication(db: Session, request: Request, credential: dict) -> 
 
     user = (
         db.query(UserProfile)
-        .filter(UserProfile.id == row.user_id, UserProfile.is_active == True)
+        .filter(UserProfile.id == row.user_id)
         .first()
     )
     if not user:

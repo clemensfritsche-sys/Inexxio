@@ -296,7 +296,6 @@ class ArticleResponse(BaseModel):
     replaces: Optional[ArticleLink] = None
     #: Die geplante Stückliste – **nur am Detail** (``None`` = nicht geladen).
     bom: Optional[ArticleBom] = None
-    is_active: bool
     created_at: datetime
     updated_at: datetime
 
@@ -340,10 +339,7 @@ class ArticleProcessStepResponse(ModuleFacts):
 
 
 class ArticleProcess(BaseModel):
-    """Der Erzeugungsprozess eines Artikels samt Versionsstempel.
+    """Der Erzeugungsprozess eines Artikels – eingefroren: ein Artikel ändert sich nie, eine
+    Änderung ist ein neuer Artikel. Die Kopie im Auftrag nennt ihn (``source_article_id``)."""
 
-    ``version`` ist der Stand, der bei einer Freigabe auf die Kopie geschrieben wird –
-    er macht an einem laufenden Auftrag ablesbar, welche Fassung er fährt."""
-
-    version: int
     steps: list[ArticleProcessStepResponse] = Field(default_factory=list)

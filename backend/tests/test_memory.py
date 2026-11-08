@@ -95,3 +95,31 @@ def test_remembering_twice_is_once_and_without_vertex_nothing_fails(db, monkeypa
     assert memory.catch_up(db, time.monotonic() + 30) == 0
     assert memory.as_prompt([]) == ""
     assert db.query(Message).count() >= 0
+
+
+def test_a_deleted_document_is_no_case_anymore(db, monkeypatch):
+    """(e) Ein gelöschtes Dokument bekommt keine Zahlen mehr – und schon vorhandene finden
+    nichts mehr: die Datei und das Gelesene sind weg, die Erinnerung daran auch."""
+    import uuid
+
+    from app.services import documents
+    _fake_vertex(monkeypatch)
+    staff = new_person(db, "employee")
+    act(db, "person", staff.object_id, "ui")
+    doc, _ = documents.file(db, raw=b"%PDF-1.4\n" + uuid.uuid4().bytes, filename="p.pdf",
+                            mime="application/pdf", art="Prüfbericht", name="Pumpe P3 undicht",
+                            source="file", refs=[], actor=staff, text="Pumpe tropft")
+    db.flush()
+    memory.catch_up(db, time.monotonic() + 30)
+    def found() -> set[int]:
+        return {f.ref_id for f in memory.search(db, "Die Pumpe tropft", actor=None,
+                                                 kinds=("document",))}
+    assert doc.object_id in found(), "vorher"
+    documents.delete(db, doc, "falsch abgelegt", staff)
+    db.flush()
+    assert doc.object_id not in found(), "(e) ein gelöschtes Dokument wird noch gefunden"
+    db.query(AiMemory).filter(AiMemory.kind == "document").delete()
+    memory.catch_up(db, time.monotonic() + 30)
+    assert not db.query(AiMemory).filter(AiMemory.kind == "document",
+                                         AiMemory.ref_id == doc.object_id).count(), \
+        "(e) ein gelöschtes Dokument bekommt wieder Zahlen"

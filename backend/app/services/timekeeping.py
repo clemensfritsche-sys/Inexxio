@@ -84,7 +84,7 @@ class Book:
 def load(db: Session, person: UserProfile) -> Book:
     oid = person.object_id
     contracts = (db.query(TimeContract)
-                 .filter(TimeContract.person_object_id == oid, TimeContract.is_active.is_(True))
+                 .filter(TimeContract.person_object_id == oid)
                  .order_by(TimeContract.valid_from).all())
     rows = (db.query(TimeEntry).filter(TimeEntry.person_object_id == oid)
             .order_by(TimeEntry.id).all())

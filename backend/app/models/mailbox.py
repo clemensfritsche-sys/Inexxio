@@ -12,10 +12,10 @@ from sqlalchemy import BigInteger, DateTime, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
-from .base import TimestampMixin
+from .base import SoftDeleteMixin, TimestampMixin
 
 
-class Mailbox(Base, TimestampMixin):
+class Mailbox(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "mailboxes"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

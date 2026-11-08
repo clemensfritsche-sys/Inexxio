@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Numeric, String
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -34,20 +34,13 @@ class Article(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     object_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, unique=True, nullable=True, index=True
+        BigInteger, unique=True, nullable=True
     )
 
     # **Kein ``status``-Mapping** (Testnotiz #773): der Zustand fällt aus
     # ``replaced_by_id`` heraus – siehe die Eigenschaft ``status`` unten. Die Spalte steht
     # noch in der Datenbank (``NOT NULL`` gelöst, Migration ``121``) bis zu ihrem Drop.
 
-    # Versionsstempel des **Erzeugungsprozesses** (``article_process_steps``). Er zählt
-    # bei jeder Änderung der Vorlage hoch und wird auf die Kopie im Auftrag geschrieben.
-    # Damit ist an einem laufenden Auftrag ablesbar, welchen Stand er fährt – und eine
-    # spätere Artikeländerung kann ihn nicht rückwirkend umschreiben (PROCESS_CORE.md §6.4).
-    process_version: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0", nullable=False,
-    )
 
     # Stammdaten. Pflicht ist einzig der **Name**; Einheit/Serialisierung tragen einen
     # Default (Stk / unit), Grösse & Gewicht sind optional (physische Attribute, die z. B.

@@ -212,7 +212,7 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
     refs = _check_refs(db, refs)
     mime = sniff(raw, mime)
     by = actor.id if actor is not None else None
-    att = stored if stored is not None else attachments.store_raw(db, raw, filename, mime, by)
+    att = stored if stored is not None else attachments.store_raw(db, raw, filename, mime)
     doc = Document(object_id=objects.next_object_id(db, "document"), art=art, name=name,
                    source=source, file_id=att.id, mime=mime, filename=filename or None,
                    byte_size=len(raw), sha256=digest, created_by=by,
@@ -222,7 +222,7 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
     db.flush()
     for r in refs:
         db.add(DocumentRef(document_id=doc.id, object_id=r.object_id, part=r.part,
-                           field=r.field, created_by=by))
+                           field=r.field))
     db.flush()
     return doc, False
 
@@ -234,7 +234,7 @@ def add_refs(db: Session, doc: Document, refs: list[RefIn], actor: Optional[User
     for r in _check_refs(db, refs):
         if (r.object_id, r.part, r.field) not in have:
             db.add(DocumentRef(document_id=doc.id, object_id=r.object_id, part=r.part,
-                               field=r.field, created_by=actor.id if actor else None))
+                               field=r.field))
     db.flush()
 
 
@@ -266,7 +266,7 @@ def attach(db: Session, doc: Document, object_id: int, actor: UserProfile) -> Do
         DocumentRef.is_active.is_(True)).first())
     if found is not None:
         return found
-    ref = DocumentRef(document_id=doc.id, object_id=object_id, created_by=actor.id)
+    ref = DocumentRef(document_id=doc.id, object_id=object_id)
     db.add(ref)
     db.flush()
     return ref
@@ -303,8 +303,7 @@ def set_field(db: Session, *, document_object_id: int, object_id: int, part: Opt
         return doc
     for r in old:
         r.is_active = False
-    db.add(DocumentRef(document_id=doc.id, object_id=object_id, part=part, field=field,
-                       created_by=actor.id if actor else None))
+    db.add(DocumentRef(document_id=doc.id, object_id=object_id, part=part, field=field))
     db.flush()
     return doc
 

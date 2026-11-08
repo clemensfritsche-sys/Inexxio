@@ -6,10 +6,10 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
-from .base import TimestampMixin
+from .base import SoftDeleteMixin, TimestampMixin
 
 
-class WebAuthnCredential(Base, TimestampMixin):
+class WebAuthnCredential(Base, TimestampMixin, SoftDeleteMixin):
     """Ein registrierter Passkey (FIDO2/WebAuthn-Credential) eines Benutzers.
 
     Die Anmeldung läuft passwortlos über den Authenticator des Geräts (Face/Touch ID,
@@ -28,7 +28,7 @@ class WebAuthnCredential(Base, TimestampMixin):
     # Wem gehört der Passkey (UserProfile.id – interner PK, nicht die Objektnummer).
     user_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     # Credential-ID (base64url) – vom Authenticator vergeben, global eindeutig.
-    credential_id: Mapped[str] = mapped_column(String(512), unique=True, nullable=False, index=True)
+    credential_id: Mapped[str] = mapped_column(String(512), unique=True, nullable=False)
     # Öffentlicher Schlüssel (COSE-kodiert) – gegen ihn wird die Signatur geprüft.
     public_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     # Signatur-Zähler (Klon-Erkennung): steigt bei jeder Anmeldung.
@@ -61,7 +61,7 @@ class WebAuthnChallenge(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     # Die Challenge selbst (base64url) – Schlüssel für den Nachschlag beim Verifizieren.
-    challenge: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    challenge: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     # 'register' | 'authenticate'.
     purpose: Mapped[str] = mapped_column(String(16), nullable=False)
     # Bei 'register' der Benutzer, für den registriert wird (bei 'authenticate' NULL –

@@ -29,10 +29,10 @@ from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
-from .base import TimestampMixin
+from .base import SoftDeleteMixin, TimestampMixin
 
 
-class Address(Base, TimestampMixin):
+class Address(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "addresses"
     __table_args__ = (
         Index("uq_addresses_default_delivery_account", "owner_id", "account", unique=True,

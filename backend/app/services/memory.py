@@ -85,7 +85,7 @@ SELECT d.object_id AS ref_id, d.created_at AS at, d.object_id,
        concat(d.art, ' · ', d.name, E'\\n', coalesce(d.keywords::text, ''), E'\\n',
               left(coalesce(d.text, ''), {DOC_TEXT})) AS text
   FROM documents d
- WHERE d.is_active"""
+ WHERE d.deleted_at IS NULL"""
 
 _SOURCES = {"handgriff": _HANDGRIFFE, "note": _NOTES, "document": _DOCUMENTS}
 
@@ -134,7 +134,7 @@ def catch_up(db: Session, deadline: float, limit: int = PER_RUN) -> int:
 _NEAREST = text("""
 SELECT m.kind, m.ref_id, m.text, m.at, (m.embedding <=> CAST(:q AS vector)) AS distance
   FROM ai_memory m
- WHERE m.is_active AND m.kind = ANY(:kinds)
+ WHERE m.kind = ANY(:kinds)
  ORDER BY m.embedding <=> CAST(:q AS vector)
  LIMIT :k""")
 
@@ -154,9 +154,12 @@ def _where(db: Session, rows: list[Any]) -> dict[tuple[str, int], int]:
         for hid, oid in db.execute(text("SELECT id, object_id FROM log WHERE id = ANY(:ids)"),
                                    {"ids": cases}):
             out[("handgriff", hid)] = oid
-    for r in rows:
-        if r.kind == "document":
-            out[("document", r.ref_id)] = r.ref_id
+    docs = [r.ref_id for r in rows if r.kind == "document"]
+    if docs:
+        # Ein gelöschtes Dokument ist kein Fall mehr – auch wenn seine Zahlen schon da sind.
+        for (oid,) in db.execute(text("SELECT object_id FROM documents WHERE deleted_at IS NULL "
+                                      "AND object_id = ANY(:ids)"), {"ids": docs}):
+            out[("document", oid)] = oid
     return out
 
 

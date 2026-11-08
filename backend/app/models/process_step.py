@@ -52,10 +52,9 @@ class ProcessStep(Base, TimestampMixin):
     status_after: Mapped[str] = mapped_column(String(30), nullable=False)
     config: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
 
-    # Herkunftsstempel der **Kopie** (PROCESS_CORE.md §6.4, Auftragspunkt §6): stammt diese
-    # Zeile aus dem Erzeugungsprozess eines Artikels, steht hier dessen id und der
-    # ``process_version``-Stand von damals. Beide ``None`` = im Auftrag von Hand modelliert.
+    # Herkunft der **Kopie** (PROCESS_CORE.md §6.4): stammt diese Zeile aus dem
+    # Erzeugungsprozess eines Artikels, steht hier dessen id (ein Artikel ändert sich nie –
+    # die id IST die Fassung). ``None`` = im Auftrag von Hand modelliert.
     # Ein **Verweis** auf die Vorlage statt einer Kopie hiesse, dass eine spätere
     # Artikeländerung laufende Aufträge rückwirkend umschreibt – genau das darf nicht sein.
     source_article_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("articles.id", ondelete="RESTRICT"), nullable=True)
-    source_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

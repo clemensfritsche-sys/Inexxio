@@ -201,7 +201,6 @@ def _to_response(db: Session, order: Order, *,
         status=order_state.order_status(db, order),
         created_at=order.created_at,
         updated_at=order.updated_at,
-        is_active=order.is_active,
         steps=_steps(db, order, viewer=viewer, only=mine),
         active_step_id=active if mine is None or active in mine else None,
         is_deviation=order_state.deviation_flags(db, [order.id]).get(order.id, False),
@@ -365,7 +364,7 @@ def list_orders(
     return [
         OrderSummary(
             id=o.id, object_id=o.object_id, name=o.name, status=states[o.id],
-            created_at=o.created_at, updated_at=o.updated_at, is_active=o.is_active,
+            created_at=o.created_at, updated_at=o.updated_at,
             is_deviation=flags.get(o.id, False),
         )
         for o in rows
@@ -393,8 +392,7 @@ def article_options(
     Wunsch genau **den einen** gewählten (``object_id``), damit im Feld sein Name steht
     und nicht seine Ziffern.
     """
-    q = db.query(Article).filter(
-        Article.is_active.is_(True), Article.object_id.isnot(None))
+    q = db.query(Article).filter(Article.object_id.isnot(None))
     if object_id is not None:
         q = q.filter(Article.object_id == object_id)
     else:
@@ -467,15 +465,10 @@ def unit_options(
     Stück steht darum weiterhin in der Liste (das Greifen IST der Ausbau), aber nie im
     Vorschlag: es steckt in etwas anderem und müsste erst ausgebaut werden.
     """
-    mine = (
-        InstanceUnit.is_active.is_(True),
-        Instance.is_active.is_(True),
-    )
     base = (
         db.query(InstanceUnit, Instance, Article)
         .join(Instance, Instance.id == InstanceUnit.instance_id)
         .outerjoin(Article, Article.id == Instance.article_id)
-        .filter(*mine)
     )
     if article is not None:
         base = base.filter(Article.object_id == article)
@@ -486,7 +479,7 @@ def unit_options(
         for s, n in db.query(InstanceUnit.status, func.count(InstanceUnit.id))
         .join(Instance, Instance.id == InstanceUnit.instance_id)
         .outerjoin(Article, Article.id == Instance.article_id)
-        .filter(*mine, *( (Article.object_id == article,) if article is not None else () ))
+        .filter(*((Article.object_id == article,) if article is not None else ()))
         .group_by(InstanceUnit.status)
         .all()
     }

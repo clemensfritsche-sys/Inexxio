@@ -18,7 +18,7 @@ Modul, und dort steht auch, was erfasst wurde.
 Die Zeilen selbst bleiben – sie sind der Nachweis, nicht die Ansicht.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -38,7 +38,6 @@ def record_for_step(
     step: ProcessStep,
     units: list[InstanceUnit],
     captures: dict[int, dict[str, Any]],
-    actor_id: Optional[int],
 ) -> dict[int, Capture]:
     """Die Erfassungen festhalten — **je Einzelinstanz einen eigenen Wertesatz**.
 
@@ -89,7 +88,6 @@ def record_for_step(
             step_id=step.id,
             values=dict(values),
             result=capture_types.verdict(points, values),
-            captured_by=actor_id,
         )
         db.add(entry)
         out[unit.id] = entry

@@ -43,7 +43,7 @@ def of_step(db: Session, step_id: int) -> Optional[Voucher]:
     """Der aktive Beleg eines Moduls – oder ``None``. **Die eine Lesestelle.**"""
     return (
         db.query(Voucher)
-        .filter(Voucher.step_id == step_id, Voucher.is_active.is_(True))
+        .filter(Voucher.step_id == step_id)
         .first()
     )
 
@@ -118,7 +118,7 @@ def entries_of(db: Session, row: Voucher) -> list[VoucherEntry]:
     gültigen. Die Forderung ist keine davon: sie ist der Beleg selbst (``billed_on`` & Co.)."""
     return list(once(db, ("entries", row.id), lambda: (
         db.query(VoucherEntry)
-        .filter(VoucherEntry.voucher_id == row.id, VoucherEntry.is_active.is_(True))
+        .filter(VoucherEntry.voucher_id == row.id)
         .order_by(VoucherEntry.booked_on, VoucherEntry.id)
         .all())))
 
@@ -137,7 +137,7 @@ def documents_of(db: Session, row: Voucher, kind: Optional[str] = None
     """**Die Dokumente, so wie sie hinausgingen** – älteste zuerst."""
     rows = once(db, ("documents", row.id), lambda: (
         db.query(VoucherDocument)
-        .filter(VoucherDocument.voucher_id == row.id, VoucherDocument.is_active.is_(True))
+        .filter(VoucherDocument.voucher_id == row.id)
         .order_by(VoucherDocument.id)
         .all()))
     return [d for d in rows if kind is None or d.kind == kind]
@@ -519,7 +519,6 @@ def sold_units(db: Session, unit_ids: list[int]) -> set[int]:
         .join(Voucher, Voucher.step_id == ProcessEvent.step_id)
         .filter(ProcessEvent.instance_unit_id.in_(unit_ids),
                 ProcessEvent.kind == KIND_STEP,
-                Voucher.is_active.is_(True),
                 Voucher.stage != vo.CANCELLED)
         .order_by(ProcessEvent.instance_unit_id, ProcessEvent.id.desc())
         .all()

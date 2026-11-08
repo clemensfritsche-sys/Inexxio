@@ -153,7 +153,7 @@ def _draft(db: Session, order: Order, loop: dict[str, Any]) -> tuple[dict[str, A
     «Neu» wie im Vorgänger. Die Module als Kopie der eingefrorenen Schritte."""
     from . import consumption
     rows = (db.query(OrderLine, Article).join(Article, Article.id == OrderLine.article_id)
-            .filter(OrderLine.order_id == order.id, OrderLine.is_active.is_(True))
+            .filter(OrderLine.order_id == order.id)
             .order_by(OrderLine.position).all())
     takes = loop.get("lines") or []
     lines: list[dict[str, Any]] = []

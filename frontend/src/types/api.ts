@@ -3121,14 +3121,10 @@ export interface components {
         };
         /**
          * ArticleProcess
-         * @description Der Erzeugungsprozess eines Artikels samt Versionsstempel.
-         *
-         *     ``version`` ist der Stand, der bei einer Freigabe auf die Kopie geschrieben wird –
-         *     er macht an einem laufenden Auftrag ablesbar, welche Fassung er fährt.
+         * @description Der Erzeugungsprozess eines Artikels – eingefroren: ein Artikel ändert sich nie, eine
+         *     Änderung ist ein neuer Artikel. Die Kopie im Auftrag nennt ihn (``source_article_id``).
          */
         ArticleProcess: {
-            /** Version */
-            version: number;
             /** Steps */
             steps?: components["schemas"]["ArticleProcessStepResponse"][];
         };
@@ -3242,8 +3238,6 @@ export interface components {
             replaced_by?: components["schemas"]["ArticleLink"] | null;
             replaces?: components["schemas"]["ArticleLink"] | null;
             bom?: components["schemas"]["ArticleBom"] | null;
-            /** Is Active */
-            is_active: boolean;
             /**
              * Created At
              * Format: date-time
@@ -4557,8 +4551,6 @@ export interface components {
             article_name?: string | null;
             /** Kind */
             kind: string;
-            /** Label */
-            label?: string | null;
             /** Quantity */
             quantity: number;
             /**
@@ -4576,8 +4568,6 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
-            /** Is Active */
-            is_active: boolean;
         };
         /**
          * InstanceSummary
@@ -4597,8 +4587,6 @@ export interface components {
             article_name?: string | null;
             /** Kind */
             kind: string;
-            /** Label */
-            label?: string | null;
             /** Quantity */
             quantity: number;
             /**
@@ -4616,8 +4604,6 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
-            /** Is Active */
-            is_active: boolean;
         };
         /**
          * InstanceUnitResponse
@@ -5225,8 +5211,6 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
-            /** Is Active */
-            is_active: boolean;
             /** Lines */
             lines?: components["schemas"]["OrderLineResponse"][];
             /** Steps */
@@ -5288,8 +5272,6 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
-            /** Is Active */
-            is_active: boolean;
             /**
              * Is Deviation
              * @default false
@@ -6902,8 +6884,6 @@ export interface components {
              * @default 0
              */
             passkey_count: number;
-            /** Is Active */
-            is_active: boolean;
             /**
              * Created At
              * Format: date-time

@@ -65,12 +65,10 @@ def _detail(db: Session, instance: Instance) -> InstanceResponse:
         article_object_id=article.object_id if article else None,
         article_name=article.name if article else None,
         kind=instance.kind,
-        label=instance.label,
         quantity=sum(by_status.values()),
         states=stock_states(by_status),
         created_at=instance.created_at,
         updated_at=instance.updated_at,
-        is_active=instance.is_active,
     )
 
 
@@ -98,10 +96,9 @@ def list_instances(
         db.query(Instance)
         .join(Article, Article.id == Instance.article_id, isouter=True)
         .filter(
-            Instance.is_active.is_(True),
             # **Dieselbe Bedingung wie überall** (`services/lookup`) – vorher hier
             # ausgeschrieben, und damit die Stelle, an der die Artikel-Suche abwich.
-            lookup.matches(search or "", Instance.object_id, Article.name, Instance.label),
+            lookup.matches(search or "", Instance.object_id, Article.name),
         )
     )
     rows = q.order_by(Instance.object_id.desc()).limit(limit).offset(offset).all()
@@ -115,10 +112,9 @@ def list_instances(
         InstanceSummary(
             id=i.id, object_id=i.object_id, article_id=i.article_id,
             article_name=names.get(i.article_id), kind=i.kind,
-            label=i.label,
             quantity=sum(by_instance.get(i.id, {}).values()),
             states=stock_states(by_instance.get(i.id, {})),
-            created_at=i.created_at, updated_at=i.updated_at, is_active=i.is_active,
+            created_at=i.created_at, updated_at=i.updated_at,
         )
         for i in rows
     ]

@@ -41,7 +41,7 @@ from .ai import Tool
 #: Spalten, die keine Angabe für die KI sind: Schlüssel, Technik, Zeitstempel der Zeile.
 _SKIP = frozenset({"id", "firebase_uid", "photo_url", "created_at", "updated_at", "is_active",
                    "file_id", "sha256", "uid_key", "name_key", "article_id",
-                   "process_version", "replaces_object_id"}) | SECRET_COLUMNS
+                   "replaces_object_id"}) | SECRET_COLUMNS
 
 #: Je Typ das Modell, dessen Zeile die Nummer trägt.
 _MODELS: dict[str, Any] = {"user": UserProfile, "organization": CompanySettings,

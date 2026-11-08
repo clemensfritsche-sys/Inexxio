@@ -473,7 +473,7 @@ def by_token(db: Session, token: str) -> Optional[VoucherDocument]:
     if not token or len(token) > 64:
         return None
     return (db.query(VoucherDocument)
-            .filter(VoucherDocument.token == token, VoucherDocument.is_active.is_(True))
+            .filter(VoucherDocument.token == token)
             .first())
 
 

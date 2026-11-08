@@ -137,7 +137,7 @@ def quantity(db: Session, instance: Instance) -> int:
     """Menge der Instanz = Anzahl ihrer aktiven Einzelinstanzen."""
     return int(
         db.query(func.count(InstanceUnit.id))
-        .filter(InstanceUnit.instance_id == instance.id, InstanceUnit.is_active.is_(True))
+        .filter(InstanceUnit.instance_id == instance.id)
         .scalar() or 0
     )
 
@@ -158,7 +158,7 @@ def states(db: Session, instance_ids: Iterable[int]) -> dict[int, dict[str, int]
         return {}
     rows = (
         db.query(InstanceUnit.instance_id, InstanceUnit.status, func.count(InstanceUnit.id))
-        .filter(InstanceUnit.instance_id.in_(ids), InstanceUnit.is_active.is_(True))
+        .filter(InstanceUnit.instance_id.in_(ids))
         .group_by(InstanceUnit.instance_id, InstanceUnit.status)
         .all()
     )
@@ -185,11 +185,7 @@ def article_states(db: Session, *, article_id: int) -> dict[str, int]:
     rows = (
         db.query(InstanceUnit.status, func.count(InstanceUnit.id))
         .join(Instance, Instance.id == InstanceUnit.instance_id)
-        .filter(
-            Instance.article_id == article_id,
-            Instance.is_active.is_(True),
-            InstanceUnit.is_active.is_(True),
-        )
+        .filter(Instance.article_id == article_id)
         .group_by(InstanceUnit.status)
         .all()
     )
@@ -213,7 +209,7 @@ def units_page(db: Session, instance: Instance, *, statuses: Optional[list[str]]
     niemand aus Versehen wieder benutzen.
     """
     q = db.query(InstanceUnit).filter(
-        InstanceUnit.instance_id == instance.id, InstanceUnit.is_active.is_(True))
+        InstanceUnit.instance_id == instance.id)
     if statuses:
         q = q.filter(InstanceUnit.status.in_(statuses))
     total = int(q.with_entities(func.count(InstanceUnit.id)).scalar() or 0)
@@ -226,8 +222,7 @@ def units_page(db: Session, instance: Instance, *, statuses: Optional[list[str]]
 # ---------------------------------------------------------------------------
 
 def create_instances(db: Session, *, article: Article, kind: str,
-                     instance_count: int, units_each: int,
-                     label: Optional[str] = None) -> list[Instance]:
+                     instance_count: int, units_each: int) -> list[Instance]:
     """``instance_count`` Instanzen mit je ``units_each`` Einzelinstanzen.
 
     **Die eine Erzeugungsstelle.** Einzelserialisierung und Charge sind hier keine zwei
@@ -254,7 +249,7 @@ def create_instances(db: Session, *, article: Article, kind: str,
     db.execute(
         insert(Instance),
         [
-            {"object_id": oid, "article_id": article.id, "kind": kind, "label": label}
+            {"object_id": oid, "article_id": article.id, "kind": kind}
             for oid in object_ids
         ],
     )

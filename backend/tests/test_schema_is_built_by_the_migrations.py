@@ -113,8 +113,10 @@ def gaps(insp) -> list[str]:
         indexes = {tuple(i["column_names"]) for i in insp.get_indexes(name)} | {
             tuple(u["column_names"]) for u in insp.get_unique_constraints(name)} | {
             tuple(insp.get_pk_constraint(name)["constrained_columns"])}
+        # Ein Index über einen **Ausdruck** hat keine reinen Spalten – er zählt nach Namen.
+        names = {i["name"] for i in insp.get_indexes(name)}
         found += [f"Index {i.name}" for i in table.indexes
-                  if tuple(c.name for c in i.columns) not in indexes]
+                  if tuple(c.name for c in i.columns) not in indexes and i.name not in names]
         fks = {(tuple(f["constrained_columns"]), f["referred_table"])
                for f in insp.get_foreign_keys(name)}
         found += [f"Fremdschlüssel {name}.{fk.parent.name} → {fk.column.table.name}"
@@ -142,7 +144,43 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 #:    für **einen** Deploy noch da – ihr Drop würde die noch laufende Vorgänger-Revision
 #:    treffen (Migration 090). Sie gehört dann **hierher** (``"tabelle.spalte"``) und in
 #:    ``docs/backlog.md``; der Eintrag geht mit ihrem Drop.
-PENDING_DROP: set[str] = set()
+PENDING_DROP: set[str] = {
+    # Aufräumen 1 (Migration 175 entmappt, 176 droppt):
+    "ai_memory.is_active",
+    "article_process_steps.is_active",
+    "articles.is_active",
+    "attachments.is_active",
+    "captures.is_active",
+    "document_links.is_active",
+    "document_signatures.is_active",
+    "documents.is_active",
+    "instance_units.is_active",
+    "instances.is_active",
+    "newsletter_consents.is_active",
+    "order_lines.is_active",
+    "order_units.is_active",
+    "orders.is_active",
+    "process_steps.is_active",
+    "recording_chunks.is_active",
+    "time_contracts.is_active",
+    "time_entries.is_active",
+    "user_profiles.is_active",
+    "voucher_documents.is_active",
+    "voucher_entries.is_active",
+    "vouchers.is_active",
+    "webauthn_challenges.is_active",
+    "attachments.created_by",
+    "document_refs.created_by",
+    "document_links.created_by",
+    "holidays.created_by",
+    "captures.captured_by",
+    "articles.process_version",
+    "process_steps.source_version",
+    "orders.name",
+    "instances.label",
+    "vouchers.original_id",
+    "vouchers.export_photo_id",
+}
 
 #: Dasselbe für ganze **Tabellen** (zuletzt ``audit_log``, ``process_events``: Migration 167).
 PENDING_DROP_TABLES: set[str] = set()

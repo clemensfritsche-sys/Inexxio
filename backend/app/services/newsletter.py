@@ -57,8 +57,7 @@ def latest(db: Session, oids: Iterable[int]) -> dict[int, NewsletterConsent]:
         return {}
     last = (db.query(NewsletterConsent.person_object_id,
                      func.max(NewsletterConsent.id).label("id"))
-            .filter(NewsletterConsent.person_object_id.in_(ids),
-                    NewsletterConsent.is_active.is_(True))
+            .filter(NewsletterConsent.person_object_id.in_(ids))
             .group_by(NewsletterConsent.person_object_id).subquery())
     rows = db.query(NewsletterConsent).join(last, NewsletterConsent.id == last.c.id).all()
     return {r.person_object_id: r for r in rows}
@@ -71,8 +70,7 @@ def subscribed(db: Session, oids: Iterable[int]) -> set[int]:
 
 def history(db: Session, oid: int) -> list[NewsletterConsent]:
     return (db.query(NewsletterConsent)
-            .filter(NewsletterConsent.person_object_id == oid,
-                    NewsletterConsent.is_active.is_(True))
+            .filter(NewsletterConsent.person_object_id == oid)
             .order_by(NewsletterConsent.id.desc()).all())
 
 

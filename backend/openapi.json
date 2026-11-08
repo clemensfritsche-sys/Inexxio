@@ -7984,10 +7984,6 @@
       },
       "ArticleProcess": {
         "properties": {
-          "version": {
-            "type": "integer",
-            "title": "Version"
-          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/ArticleProcessStepResponse"
@@ -7997,11 +7993,8 @@
           }
         },
         "type": "object",
-        "required": [
-          "version"
-        ],
         "title": "ArticleProcess",
-        "description": "Der Erzeugungsprozess eines Artikels samt Versionsstempel.\n\n``version`` ist der Stand, der bei einer Freigabe auf die Kopie geschrieben wird –\ner macht an einem laufenden Auftrag ablesbar, welche Fassung er fährt."
+        "description": "Der Erzeugungsprozess eines Artikels – eingefroren: ein Artikel ändert sich nie, eine\nÄnderung ist ein neuer Artikel. Die Kopie im Auftrag nennt ihn (``source_article_id``)."
       },
       "ArticleProcessStepResponse": {
         "properties": {
@@ -8278,10 +8271,6 @@
               }
             ]
           },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -8301,7 +8290,6 @@
           "name",
           "unit",
           "serialization",
-          "is_active",
           "created_at",
           "updated_at"
         ],
@@ -11309,17 +11297,6 @@
             "type": "string",
             "title": "Kind"
           },
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          },
           "quantity": {
             "type": "integer",
             "title": "Quantity"
@@ -11341,10 +11318,6 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
           }
         },
         "type": "object",
@@ -11355,8 +11328,7 @@
           "kind",
           "quantity",
           "created_at",
-          "updated_at",
-          "is_active"
+          "updated_at"
         ],
         "title": "InstanceResponse",
         "description": "Instanz – die Gruppe, mit ihrer Menge und ihrer Aufstellung.\n\n``quantity`` ist **gezählt**, nicht gespeichert – die Instanz hat keine Mengen-Spalte.\n\nEinen ``status`` trägt sie nicht: eine Gruppe hat keinen Zustand, nur ihre Stücke\nhaben einen (Testnotiz #675). ``states`` zählt darum auf, statt zu behaupten.\n\n**Die Nummern der Stücke stehen nicht drin.** Sie kommen seitenweise über\n``GET /erp/instances/{id}/units`` – eine 5000er-Charge hier vollständig mitzuliefern\nhiesse, jedes Öffnen der Instanz so teuer zu machen wie die ganze Charge, und die\nOberfläche müsste 5000 Zeilen auf einmal zeichnen."
@@ -11390,17 +11362,6 @@
             "type": "string",
             "title": "Kind"
           },
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          },
           "quantity": {
             "type": "integer",
             "title": "Quantity"
@@ -11422,10 +11383,6 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
           }
         },
         "type": "object",
@@ -11436,8 +11393,7 @@
           "kind",
           "quantity",
           "created_at",
-          "updated_at",
-          "is_active"
+          "updated_at"
         ],
         "title": "InstanceSummary",
         "description": "Feed-Zeile: ohne die Einzelinstanzen, aber mit ihrer Anzahl **und Aufstellung**.\n\n``quantity`` ist die Summe über ``states`` – dieselbe Abfrage, zwei Lesarten. Die\nZeile behauptet damit keinen Zustand (den hat eine Gruppe nicht), sondern zählt auf."
@@ -12703,10 +12659,6 @@
             "format": "date-time",
             "title": "Updated At"
           },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/OrderLineResponse"
@@ -12803,8 +12755,7 @@
           "name",
           "status",
           "created_at",
-          "updated_at",
-          "is_active"
+          "updated_at"
         ],
         "title": "OrderResponse"
       },
@@ -12836,10 +12787,6 @@
             "format": "date-time",
             "title": "Updated At"
           },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
           "is_deviation": {
             "type": "boolean",
             "title": "Is Deviation",
@@ -12853,8 +12800,7 @@
           "name",
           "status",
           "created_at",
-          "updated_at",
-          "is_active"
+          "updated_at"
         ],
         "title": "OrderSummary",
         "description": "Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail.\n\nGenau deshalb lädt das Detailfenster seinen Auftrag **selbst** nach: was hier fehlt,\nkann es nicht anzeigen, und eine Feed-Zeile als Detail zu rendern hiess, einen\nlaufenden Prozess als leer darzustellen."
@@ -16119,10 +16065,6 @@
             "title": "Passkey Count",
             "default": 0
           },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -16256,7 +16198,6 @@
           "email",
           "photo_url",
           "role",
-          "is_active",
           "created_at",
           "updated_at",
           "first_name",

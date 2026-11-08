@@ -61,7 +61,6 @@ def _original(db: Session, actor: UserProfile, doc: Document, object_id: int,
                 raise HTTPException(status_code=400, detail=(
                     "Der Betrag weicht vom gebuchten ab – so annehmen geht nur mit Grund."))
             row.deviation_note = note
-        row.original_id = doc.object_id
 
 
 def _export(db: Session, actor: UserProfile, doc: Document, object_id: int,
@@ -70,8 +69,6 @@ def _export(db: Session, actor: UserProfile, doc: Document, object_id: int,
     _order, _step, row = _voucher(db, object_id, part)
     if row.stage != vo.BILLED:
         raise HTTPException(status_code=409, detail="Der Ausfuhrnachweis kommt nach der Rechnung.")
-    if row.export_number:
-        row.export_photo_id = doc.object_id
 
 
 def _proof(db: Session, actor: UserProfile, doc: Document, object_id: int,

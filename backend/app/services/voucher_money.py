@@ -62,7 +62,7 @@ def follow_up(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
 def booked_as(db: Session, reference: str) -> Optional[VoucherEntry]:
     """Die gültige Geld-Zeile mit dieser Referenz – oder ``None``."""
     return (db.query(VoucherEntry)
-            .filter(VoucherEntry.reference == reference, VoucherEntry.is_active.is_(True))
+            .filter(VoucherEntry.reference == reference)
             .first())
 
 
@@ -133,10 +133,10 @@ def paper_candidates(db: Session) -> list[tuple[Voucher, int]]:
     def missing(kind: str):
         return ~(db.query(VoucherDocument.id)
                  .filter(VoucherDocument.voucher_id == Voucher.id,
-                         VoucherDocument.kind == kind, VoucherDocument.is_active.is_(True))
+                         VoucherDocument.kind == kind)
                  .exists())
     rows = (db.query(Voucher, Order.object_id).join(Order, Order.id == Voucher.order_id)
-            .filter(Voucher.is_active.is_(True), Voucher.direction == vo.IN,
+            .filter(Voucher.direction == vo.IN,
                     Voucher.stage.in_((vo.AGREED, vo.BILLED)),
                     missing(vo.CONFIRM_DOC)
                     | ((Voucher.stage == vo.BILLED) & missing(vo.RECEIPT_DOC)))
@@ -165,8 +165,7 @@ def refunded_on(db: Session, entry: VoucherEntry) -> Decimal:
     if not entry.reference:
         return Decimal("0")
     rows = (db.query(VoucherEntry)
-            .filter(VoucherEntry.is_active.is_(True),
-                    VoucherEntry.reference.startswith(refund_reference(entry.reference, ""),
+            .filter(VoucherEntry.reference.startswith(refund_reference(entry.reference, ""),
                                                       autoescape=True))
             .all())
     # **Eine gescheiterte Erstattung ging nie hinaus** – sie und ihre Gegenbuchung zählen nicht.

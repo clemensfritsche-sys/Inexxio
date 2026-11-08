@@ -187,7 +187,7 @@ def article_stock(
     from ..models import Instance  # lokal: der Artikel-Router kennt sonst kein Bestandsobjekt
 
     article = _get(db, object_id)
-    mine = (Instance.article_id == article.id, Instance.is_active.is_(True))
+    mine = (Instance.article_id == article.id,)
     total_instances = db.query(func.count(Instance.id)).filter(*mine).scalar() or 0
     rows = (
         db.query(Instance)
@@ -206,10 +206,10 @@ def article_stock(
         instances=[
             InstanceSummary(
                 id=i.id, object_id=i.object_id, article_id=i.article_id,
-                article_name=article.name, kind=i.kind, label=i.label,
+                article_name=article.name, kind=i.kind,
                 quantity=sum(by_instance.get(i.id, {}).values()),
                 states=stock_states(by_instance.get(i.id, {})),
-                created_at=i.created_at, updated_at=i.updated_at, is_active=i.is_active,
+                created_at=i.created_at, updated_at=i.updated_at,
             )
             for i in rows
         ],
@@ -235,7 +235,6 @@ def get_process(
     """Der eingefrorene Erzeugungsprozess eines Artikels (nur lesen)."""
     article = _get(db, object_id)
     return ArticleProcess(
-        version=int(article.process_version or 0),
         steps=[
             ArticleProcessStepResponse.model_validate(s)
             for s in tpl_svc.steps_of(db, article)

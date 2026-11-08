@@ -235,7 +235,6 @@ class UserProfileResponse(BaseModel):
     # (google.com | password | emailLink | custom = Passkey). Rein deskriptiv.
     last_sign_in_provider: Optional[str] = None
     passkey_count: int = 0
-    is_active: bool
     created_at: datetime
     updated_at: datetime
 

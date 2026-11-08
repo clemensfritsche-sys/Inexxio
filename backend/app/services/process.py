@@ -430,7 +430,7 @@ def _record(db: Session, *, order: Order, step: ProcessStep, units: list[Instanc
     drawn = [u for u in units if u.id in drawn_ids]
     by_unit = _captures_for(db, step=step, drawn=drawn, values=values)
     captures = capture_svc.record_for_step(
-        db, order=order, step=step, units=drawn, captures=by_unit, actor_id=actor_id,
+        db, order=order, step=step, units=drawn, captures=by_unit,
     )
     if captures:
         log.process_events(db, [

@@ -241,8 +241,7 @@ def correctable(db: Session, row: Voucher, step: ProcessStep, *,
         return []
     q = (
         db.query(Voucher)
-        .filter(Voucher.is_active.is_(True),
-                Voucher.direction == row.direction,
+        .filter(Voucher.direction == row.direction,
                 Voucher.billed_on.isnot(None),
                 Voucher.corrects_id.is_(None),
                 Voucher.id != row.id)
@@ -473,14 +472,11 @@ def _embed_invoice(v: _View) -> dict[str, Any]:
         "corrects_suggested": (suggested_corrections(db, row, v.order)
                                if v.internal and row.stage == vo.OFFER else []),
         "party_uid": row.party_uid if won else None,
-        "original": ((row.original_id or _field_doc(db, row, v.order, "voucher.original"))
-                     if won else None),
+        "original": _field_doc(db, row, v.order, "voucher.original") if won else None,
         "deviation": amount_text(deviation(db, row), row.currency) if won else None,
         "deviation_note": row.deviation_note if won else None,
         "export_number": row.export_number if won else None,
-        "export_photo": ((row.export_photo_id
-                          or _field_doc(db, row, v.order, "voucher.export"))
-                         if won else None),
+        "export_photo": _field_doc(db, row, v.order, "voucher.export") if won else None,
     }
 
 
@@ -539,8 +535,7 @@ def _document_out(d: VoucherDocument) -> dict[str, Any]:
 
 
 def _field_doc(db: Session, row: Voucher, order: Order, field: str) -> Optional[int]:
-    """Das Dokument, das schon im Feld des Moduls steht (vor dem Buchen) – die Maske übernimmt
-    es, statt danach zu fragen."""
+    """Das Dokument im Feld des Moduls – die EINE Stelle, an der es steht (``document_refs``)."""
     from . import documents
     found = documents.field_document(db, order.object_id, field, f"step:{row.step_id}")
     return found.object_id if found is not None else None
@@ -566,7 +561,7 @@ def suggested_corrections(db: Session, row: Voucher, order: Order) -> list[dict[
     if not steps:
         return []
     found = (db.query(Voucher)
-             .filter(Voucher.step_id.in_(steps), Voucher.is_active.is_(True),
+             .filter(Voucher.step_id.in_(steps),
                      Voucher.direction == row.direction, Voucher.billed_on.isnot(None),
                      Voucher.corrects_id.is_(None))
              .order_by(Voucher.billed_on.desc(), Voucher.id.desc()).limit(10).all())

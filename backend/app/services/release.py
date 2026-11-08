@@ -81,7 +81,7 @@ def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
             db.query(Article).filter(Article.object_id == object_id).first()
             if object_id else None
         )
-        if article is None or not article.is_active:
+        if article is None:
             raise HTTPException(
                 status_code=404, detail=f"Zeile {position}: Artikel {object_id} gibt es nicht.",
             )
@@ -299,7 +299,7 @@ def _resolve_units(db: Session, numbers: list[str], *, seen: set[str]) -> list[t
             )
         seen.add(number)
         unit = found.get(number)
-        if unit is None or not unit.is_active:
+        if unit is None:
             raise HTTPException(
                 status_code=404, detail=f"Einzelinstanz {number} gibt es nicht.",
             )
@@ -544,7 +544,7 @@ def _write_definition(db: Session, lines: list[_Line],
 
     object_id = next_object_id(db, "order")
     # Der Name entsteht im selben Zug wie die Nummer – vorher gibt es keine.
-    order = Order(object_id=object_id, name=f"Auftrag {object_id}")
+    order = Order(object_id=object_id)
     db.add(order)
     db.flush()
     for ln in lines:
@@ -555,7 +555,6 @@ def _write_definition(db: Session, lines: list[_Line],
             order_id=order.id, position=position, module_type=step["module_type"],
             status_before=step["status_before"], status_after=step["status_after"],
             config=step.get("config"), source_article_id=step.get("source_article_id"),
-            source_version=step.get("source_version"),
         )
         for position, step in enumerate(steps, start=1)
     ]

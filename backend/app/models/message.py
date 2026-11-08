@@ -28,10 +28,10 @@ from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from ..core.database import Base
 from ..domain.communication import topic as _topic_of
-from .base import TimestampMixin, utcnow
+from .base import SoftDeleteMixin, TimestampMixin, utcnow
 
 
-class Message(Base, TimestampMixin):
+class Message(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "messages"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

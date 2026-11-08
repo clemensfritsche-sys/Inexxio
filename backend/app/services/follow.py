@@ -66,7 +66,7 @@ SELECT m.id FROM messages m
   JOIN user_profiles u ON u.object_id = m.sender_object_id
  WHERE m.id > :after AND m.is_active AND m.created_by IS NULL AND m.gmail_id IS NOT NULL
    AND m.channel ~ '^c[0-9]+$' AND NOT m.outgoing
-   AND u.role <> ALL(:staff) AND u.is_active AND u.created_at < m.at
+   AND u.role <> ALL(:staff) AND u.created_at < m.at
    AND NOT EXISTS (SELECT 1 FROM log l WHERE l.event = 'mail.followed'
                      AND l.object_id = m.sender_object_id
                      AND (l.payload ->> 'message')::bigint = m.id)

@@ -809,16 +809,12 @@ function ReplacesPicker({ value, onChange }: {
             (a): a is Article & { object_id: number } => a.object_id != null && !a.replaced_by_id))}
         onChange={(_nr, opt) => { onChange(opt); if (!opt) setOpen(false); }}
       />
-      {/* **Der Satz nennt beide Hälften** (Notiz #766). Er sagte nur, dass der Vorgänger
-          ausser Betrieb geht – und genau daraus entstand die Sorge, das sei endgültig.
-          «Ausser Betrieb» ist am Artikel ein **gewöhnlicher Zustand** in beide
-          Richtungen (`Status`), und die Reihe (`replaced_by_id`) hängt nicht daran: wer
-          den Vorgänger als Ersatzteil weiterlaufen lässt, setzt ihn schlicht wieder
-          aktiv. Was fehlte, war nicht die Möglichkeit, sondern ihr Satz. */}
+      {/* Was die Ablösung bewirkt – und was nicht (`articles.may_create`): «inaktiv» ist die
+          Folge von `replaced_by_id`, kein Schalter; Stücke ab Lager bleiben verwendbar. */}
       <span style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)' }}>
         Der abgelöste Artikel geht mit der Freigabe ausser Betrieb – er erzeugt danach
-        nichts Neues mehr, seine Stücke laufen weiter. Als Ersatzteil lässt er sich
-        jederzeit wieder aktiv setzen; die Reihe bleibt dabei bestehen.
+        nichts Neues mehr. Seine vorhandenen Stücke laufen weiter und lassen sich ab Lager
+        weiter verwenden, auch als Ersatzteil.
       </span>
     </div>
   );

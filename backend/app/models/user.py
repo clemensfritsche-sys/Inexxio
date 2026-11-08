@@ -16,9 +16,9 @@ class UserProfile(Base, TimestampMixin):
     __tablename__ = "user_profiles"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
-    firebase_uid: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
+    firebase_uid: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     photo_url: Mapped[Optional[str]] = mapped_column(Text)
     # Wie sich die Person zuletzt angemeldet hat (aus dem Firebase-ID-Token:
     # google.com | password | emailLink | custom = Passkey). Rein deskriptiv – die

@@ -52,8 +52,7 @@ export const ROLE_CFG: Record<string, StatusCfg> = {
   user: { label: 'Benutzer', ...TONE.done, icon: UserCircle },
 };
 
-export function userStatus(u: Pick<UserProfile, 'role'> & { is_active?: boolean }): StatusCfg {
-  if (u.is_active === false) return INACTIVE;
+export function userStatus(u: Pick<UserProfile, 'role'>): StatusCfg {
   return ROLE_CFG[u.role] ?? ROLE_CFG.user;
 }
 
@@ -84,8 +83,7 @@ export function articleStatus(a: Pick<Article, 'status'>): StatusCfg {
  * dabei – Freigeben ist die Aktion, mit der der Auftrag entstanden ist, kein Zustand
  * (Testnotiz #669).
  */
-export function orderStatus(o: { is_active?: boolean; status?: string }): StatusCfg {
-  if (o.is_active === false) return INACTIVE;
+export function orderStatus(o: { status?: string }): StatusCfg {
   return statusCfg(o.status ?? '');
 }
 
