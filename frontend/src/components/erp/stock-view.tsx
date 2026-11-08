@@ -16,39 +16,18 @@ import { Skeleton } from './skeleton';
 const PAGE = 50;
 
 /**
- * **Was habe ich, in welchem Zustand, unter welcher Nummer?**
+ * **Was habe ich, in welchem Zustand, unter welcher Nummer?** EIN Modul, zwei Umfänge:
+ * am **Artikel** sind die Zeilen seine Instanzen, an der **Instanz** direkt ihre
+ * Einzelinstanzen – dieselbe Darstellung.
  *
- * EIN Modul, zwei Aufrufe. Der Unterschied ist ausschliesslich der **Umfang der Daten**,
- * nie die Darstellung:
- *
- *   - am **Artikel**  → alles davon; die Zeilen sind seine Instanzen, aufklappbar zu den
- *     Nummern ihrer Einzelinstanzen
- *   - an der **Instanz** → diese eine Gruppe; die Zeilen sind direkt ihre Einzelinstanzen
- *
- * Die Ansicht an der Instanz ist damit exakt der Teilbaum, den man am Artikel aufklappt –
- * dieselbe Leiste, dieselben Beschriftungen, dasselbe Verhalten beim Klick auf ein
- * Segment. Eine zweite Fassung «nur für die Instanz» hätte beim ersten neuen Zustand
- * anders ausgesehen.
- *
- * **Kein Filter.** Ein Filter versteckt, was er nicht zeigt; hier ist die Aufteilung
- * selbst das Bedienelement – ein Segment anklicken heisst «zeig mir diese Nummern», der
- * Rest bleibt in der Leiste sichtbar.
- *
- * **Niemals alles auf einmal.** Instanzen kommen seitenweise, Nummern erst auf Klick und
- * auch dann seitenweise. Die Leiste oben gilt trotzdem für den **ganzen** Umfang: sie
- * kommt aus einer eigenen Aggregation und ändert ihre Länge nicht, wenn man blättert.
- *
- * **Ein Sonderfall für Einzelserialisierung existiert nicht** (PROCESS_CORE.md §2): eine
- * Einzelinstanz ist eine Instanz mit Menge 1 – dieselbe Zeile, dieselbe Leiste.
+ * **Kein Filter**: die Leiste ist das Bedienelement, der Rest bleibt sichtbar. **Niemals
+ * alles auf einmal**: Instanzen seitenweise, Nummern erst auf Klick; die Leiste gilt für
+ * den ganzen Umfang (eigene Aggregation). Kein Sonderfall für Einzelserialisierung (§2).
  */
 type StockScope =
   /** Alles von diesem Artikel – die Aggregation holt der Endpunkt. */
   | { kind: 'article'; objectId: number }
-  /**
-   * Diese eine Gruppe. Der Datensatz **liegt schon vor** (das Fenster zeigt ihn ja) und
-   * trägt seine Aufstellung mit – ihn hier ein zweites Mal zu holen wäre dieselbe Frage
-   * an dieselbe Stelle.
-   */
+  /** Diese eine Gruppe – der Datensatz liegt schon vor und trägt seine Aufstellung mit. */
   | { kind: 'instance'; record: Instance };
 
 export function StockView({ scope }: { scope: StockScope }) {
@@ -70,12 +49,7 @@ export function StockView({ scope }: { scope: StockScope }) {
   const rows = query.data?.pages.flatMap((p) => p.instances) ?? [];
   const busy = query.isFetchingNextPage;
   const err = !stock && query.error ? query.error.message : null;
-  /**
-   * **Welcher Zustand offen ist – genau einer, und keiner zu Beginn** (#716/#789). Eine
-   * Gruppe, die von selbst offensteht, entscheidet für den Betrachter, was ihn
-   * interessiert; die Mengen in der Leiste sagen ihm, ob sich das Öffnen lohnt. Ein
-   * zweiter Klick schliesst wieder – dasselbe Bedienelement, beide Richtungen.
-   */
+  /** **Welcher Zustand offen ist – genau einer, keiner zu Beginn**; ein zweiter Klick schliesst. */
   const [picked, setPicked] = useState<string | null>(null);
   const toggle = (status: string) =>
     setPicked((cur) => (cur === status ? null : status));
@@ -97,10 +71,6 @@ export function StockView({ scope }: { scope: StockScope }) {
   if (total === 0) {
     return (
       <StockCard>
-        {/* ►►► **«Kein Bestand» ist die Auskunft** (Testnotiz #1030). ◄◄◄ Der Satz
-            daneben erklärte, *woher* Einzelinstanzen kommen – eine Belehrung über das
-            Datenmodell an der Stelle, an der jemand eine Zahl sucht. Wer einen Auftrag
-            anlegt, lernt es dort. */}
         <p className="text-sm text-fg-3">Kein Bestand</p>
       </StockCard>
     );
@@ -112,17 +82,9 @@ export function StockView({ scope }: { scope: StockScope }) {
 
   return (
     <StockCard>
-      {/* ►►► **Die Leiste IST das Bedienelement** (Testnotiz #789). ◄◄◄
-
-          Darunter stand eine aufklappbare Sektion je Zustand – jede mit Chevron, Punkt,
-          Wort und Menge im Kopf, also Zeile für Zeile das, was die Leiste eine Zeile
-          höher schon zeigte, nur zwanzigmal höher. Bei vier Zuständen war der halbe
-          Bildschirm Kopfzeilen ohne Inhalt.
-
-          Geblieben ist **eine** Fassung: die Leiste mit ihren Beschriftungen (die die
-          Farbe allein nicht leisten kann – drei Ampeltöne für sechs Zustände), und genau
-          **ein** Ausschnitt darunter. Kein Filter: was man nicht anklickt, steht
-          weiterhin in der Leiste. */}
+      {/* ►►► **Die Leiste IST das Bedienelement** ◄◄◄ – mit Beschriftungen, darunter genau
+          **ein** Ausschnitt. Welche Zustände es gibt, sagt `states` vom Server (Reihenfolge
+          des `CATALOG`); zwei gleichzeitig offen gibt es nicht. */}
       <StockBar states={states} height={10} onPick={toggle} active={picked} />
 
       {unknown.length > 0 && (
@@ -132,8 +94,7 @@ export function StockView({ scope }: { scope: StockScope }) {
       {open && (
         <section className="mt-3 flex flex-col border-t border-border-1 pt-1">
           {scope.kind === 'instance' ? (
-            // An der Instanz sind die Zeilen direkt die Einzelinstanzen – dieselbe
-            // Komponente, die am Artikel eine Instanz-Zeile aufklappt.
+            // An der Instanz direkt die Einzelinstanzen – dieselbe Komponente wie am Artikel.
             <UnitNumbers
               objectId={scope.record.object_id}
               statuses={[open.status]}
@@ -164,15 +125,7 @@ export function StockView({ scope }: { scope: StockScope }) {
 
 const sum = (states: StockState[]) => states.reduce((n, s) => n + s.quantity, 0);
 
-/**
- * Die Karte – dieselbe Anatomie wie die Spezifikation (Karte + Kopf + Inhalt).
- *
- * **Ohne die eine grosse Zahl.** Sie stand rechts im Kopf und summierte alles – auch
- * Verschrottetes. Damit war sie zugleich irreführend (das ist kein Bestand) und
- * uninformativ (sie sagte nicht, wovon). Was sie beantworten sollte, beantworten jetzt
- * die Leiste und die Gruppen darunter: je Zustand eine Zahl, in der Reihenfolge des
- * Lebenszyklus.
- */
+/** Die Karte – wie die Spezifikation; **ohne eine Gesamtzahl** (sie zählte auch Historie). */
 function StockCard({ children }: { children: React.ReactNode }) {
   return (
     <div style={SPEC.card}>
@@ -183,11 +136,8 @@ function StockCard({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * **Ein Zustand ohne Zuordnung ist ein Fehler, kein Sonderfall.** Er dürfte nicht
- * existieren: `domain/statuses.py` weist beim Import jeden Einzelinstanz-Zustand ab, der
- * nicht sagt, ob er zum Bestand oder zur Historie zählt. Taucht er trotzdem auf (Altdaten,
- * ein von Hand geschriebener Wert), wird er **benannt** – ihn in einen Block zu raten
- * wäre eine Behauptung, ihn wegzulassen ein stiller Verlust.
+ * **Ein Zustand ohne Zuordnung ist ein Fehler** (`domain/statuses.py` lässt ihn nicht zu) –
+ * taucht er doch auf, wird er **benannt**, nicht geraten und nicht weggelassen.
  */
 function UnknownStates({ states }: { states: StockState[] }) {
   return (
@@ -204,38 +154,10 @@ function UnknownStates({ states }: { states: StockState[] }) {
   );
 }
 
-/*
- * **Es gibt hier keine Gruppen-Sektionen mehr** (Testnotiz #789).
- *
- * Sie standen untereinander – je Zustand ein Kopf mit Chevron, Punkt, Wort und Menge,
- * darunter der aufgeklappte Inhalt. Der Kopf sagte damit dasselbe wie das Segment der
- * Leiste eine Zeile höher, nur zwanzigmal höher; bei vier Zuständen war der halbe
- * Bildschirm Kopfzeilen ohne Inhalt.
- *
- * Was sie konnten, kann jetzt die Leiste selbst: sie **nennt** ihre Zustände (Punkt,
- * Wort, Menge – die Farbe allein kann es nicht, drei Ampeltöne tragen sechs Zustände)
- * und ist zugleich die Auswahl. Was sie **nicht** konnte und weiterhin niemand kann:
- * zwei Zustände gleichzeitig offen halten – das war der Grund, warum es Sektionen gab,
- * und es war nie eine Frage, die jemand hatte.
- *
- * **Kein Status wird dabei aufgezählt.** Welche Zustände es gibt, sagt `states` vom
- * Server; die Reihenfolge ist die des `CATALOG` (= Lebenszyklus), die Farbe der
- * Ampelton. Ein neuer Zustand erscheint ohne eine Zeile Code an seiner Stelle.
- */
-
 /**
- * Eine Zeile je Instanz **innerhalb einer Zustands-Gruppe**: Objektnummer, Menge.
- *
- * Sie zeigt nur, was sie in **diesem** Zustand hat – eine Charge mit drei freigegebenen
- * und einem verschrotteten Stück steht darum in zwei Gruppen, jedes Mal mit ihrer
- * dortigen Menge. Das ist die Auskunft, die eine Gruppe je Zustand überhaupt erst
- * möglich macht: die Instanz hat keinen Zustand, ihre Stücke haben einen.
- *
- * Aufklappen zeigt die **Nummern dieses Zustands** – eine Leiste braucht es dafür nicht
- * mehr: die Gruppe darüber IST die Auswahl.
- *
- * **Die Objektnummer führt zum Datensatz** (bestehende Navigation, kein eigener Weg) –
- * und weil `ObjId` den Klick abfängt, kollidiert das nicht mit dem Aufklappen.
+ * Eine Zeile je Instanz **innerhalb einer Zustands-Gruppe**: Objektnummer und ihre Menge in
+ * **diesem** Zustand (die Instanz hat keinen Zustand, ihre Stücke schon). Aufklappen zeigt
+ * die Nummern dieses Zustands; die Objektnummer (`ObjId`) führt zum Datensatz.
  */
 function InstanceRow({ row, status }: { row: InstanceSummary; status: string }) {
   const [shown, setShown] = useState(false);
@@ -243,10 +165,7 @@ function InstanceRow({ row, status }: { row: InstanceSummary; status: string }) 
 
   const toggle = () => setShown((v) => !v);
 
-  // **Die Trennlinie schliesst die Zeile ab, sie eröffnet sie nicht** – die eröffnende
-  // gehört dem Ausschnitt selbst (`section`). Mit `border-t` an der Zeile stünden am
-  // Anfang der Liste zwei Haarlinien 4 px übereinander; solange darüber noch ein
-  // Gruppen-Kopf stand, fiel das nicht auf.
+  // Die Trennlinie schliesst die Zeile ab; die eröffnende gehört dem Ausschnitt (`section`).
   return (
     <div className="border-b border-border-1">
       <div
@@ -267,9 +186,7 @@ function InstanceRow({ row, status }: { row: InstanceSummary; status: string }) 
 
       {shown && (
         <div className="pb-3 pl-6">
-          {/* Genau der Zustand dieser Gruppe – nie «alle»: die Nummern der anderen
-              stehen in ihrer eigenen Gruppe, und zweimal dieselbe Nummer zu zeigen
-              hiesse, die Aufteilung wieder aufzuheben. */}
+          {/* Genau der Zustand dieser Gruppe – nie «alle». */}
           <UnitNumbers
             objectId={row.object_id}
             statuses={[status]}

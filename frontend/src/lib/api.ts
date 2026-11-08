@@ -46,10 +46,7 @@ import type {
 } from '@simplewebauthn/browser';
 import { DATA_CHANGED } from '@/lib/feed';
 
-/**
- * Ein Fehler der API – mit **Status** und dem rohen `detail`. `message` bleibt der lesbare
- * Text (jede bestehende Aufrufstelle liest ihn unverändert weiter).
- */
+/** Ein Fehler der API – mit **Status** und dem rohen `detail`; `message` ist der lesbare Text. */
 export class ApiError extends Error {
   status: number;
   detail?: unknown;
@@ -62,11 +59,8 @@ export class ApiError extends Error {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-/**
- * **«Gibt es das?» – 404 ist die Antwort Nein, alles andere ein Fehler.** Für `.catch` an
- * einer Frage nach einer Nummer (`exists` eines Scan-Schritts): ein Ausfall des Servers ist
- * nicht «nicht im ERP», er wird weitergereicht und nennt sich selbst.
- */
+/** **«Gibt es das?» – 404 ist Nein, alles andere ein Fehler**, der weitergereicht wird
+ *  (ein Ausfall ist nicht «nicht im ERP»). */
 export function absentOn404(e: unknown): false {
   if (e instanceof ApiError && e.status === 404) return false;
   throw e;
@@ -84,22 +78,16 @@ export function assetUrl(path: string): string {
 /** Der gezeigte Monat der Zeiterfassung als Query («month=2026-10»), leer = der aktuelle. */
 const monthQuery = (month?: string) => (month ? `month=${month}` : '');
 
-/** Was eine lesende Anfrage mitnimmt: das Signal, mit dem React Query eine überholte
- *  Anfrage abbricht (bis `fetch` durchgereicht). */
+/** Das Signal, mit dem React Query eine überholte Anfrage abbricht. */
 export interface Req { signal?: AbortSignal }
 
-/** Abgebrochen ist abgebrochen – das wird nicht wiederholt und nicht gemeldet. */
 function aborted(options: RequestInit): boolean {
   return !!options.signal?.aborted;
 }
 
 /**
- * **«Ich habe Daten geändert» – an EINER Stelle gesagt** (Testnotizen #685/#688).
- *
- * Der ERP-Feed hört auf `DATA_CHANGED` (`lib/feed.ts`) und invalidiert die Listen, die der
- * **Pfad** betrifft (`feedsTouchedBy`). Gefeuert wird nach **jeder erfolgreichen Anfrage,
- * die kein GET ist** – so kann ein Aufrufer es nicht vergessen, und ein zweiter Melde-Weg
- * kann nicht entstehen.
+ * **«Ich habe Daten geändert» – an EINER Stelle gesagt**: nach jeder erfolgreichen Anfrage,
+ * die kein GET ist. Der Feed (`lib/feed.ts`) invalidiert, was der **Pfad** betrifft.
  */
 function notifyDataChanged(path: string) {
   if (typeof window === 'undefined') return;
@@ -108,18 +96,15 @@ function notifyDataChanged(path: string) {
 
 class ApiClient {
   /**
-   * **Jede Methode ist an ihren Client gebunden** (Testnotiz #927): eine Methode, die als
-   * **Wert** weitergereicht wird (`search={api.searchPeople}`), behält ihr `this`.
-   * Ohne das warf `this.get`, und das Suchfeld blieb stumm. Gebunden wird über den
-   * **Prototyp**, nicht über eine Namensliste – die vergässe den nächsten Endpunkt.
+   * **Jede Methode ist an ihren Client gebunden**: als Wert weitergereicht
+   * (`search={api.searchPeople}`) behält sie ihr `this`. Über den Prototyp, nicht über
+   * eine Namensliste – die vergässe den nächsten Endpunkt.
    */
   constructor() {
     const proto = Object.getPrototypeOf(this) as object;
     for (const name of Object.getOwnPropertyNames(proto)) {
       if (name === 'constructor') continue;
-      // Über den **Deskriptor**, nicht über den Zugriff: ein `get foo()` würde beim
-      // blossen Lesen ausgeführt – hier gibt es keinen, und genau darum darf es auch
-      // später keinen Unfall geben.
+      // Über den Deskriptor: ein Getter würde beim blossen Lesen ausgeführt.
       const desc = Object.getOwnPropertyDescriptor(proto, name);
       if (typeof desc?.value === 'function') {
         (this as unknown as Record<string, unknown>)[name] = desc.value.bind(this);
@@ -128,12 +113,9 @@ class ApiClient {
   }
 
   /**
-   * **Woher der Token kommt** – je Anfrage gefragt, nie als Schnappschuss gehalten. Die
-   * Auth-Schicht (`lib/firebase.ts`) registriert ihn, damit `api.ts` frei von Firebase
-   * bleibt. Firebase hält den Token selbst vor und erneuert ihn erst kurz vor Ablauf –
-   * eine Anfrage kostet also keinen Abruf. `force` erzwingt einen frischen (nach einem 401:
-   * im Hintergrund-Tab oder im Ruhezustand läuft Firebases Erneuerungs-Timer nicht).
-   * Ohne Anmeldung liefert er `null`, und die Anfrage geht ohne Token (öffentliche Seiten).
+   * **Woher der Token kommt** – je Anfrage gefragt, registriert von `lib/firebase.ts` (so
+   * bleibt `api.ts` frei von Firebase). `force` erzwingt einen frischen (nach einem 401);
+   * ohne Anmeldung `null`, die Anfrage geht ohne Token.
    */
   private tokenProvider: ((force: boolean) => Promise<string | null>) | null = null;
 
@@ -142,11 +124,8 @@ class ApiClient {
   }
 
   /**
-   * **Das eigene Profil – EIN Abruf für alle, die es gleichzeitig fragen.** Beim Öffnen des
-   * ERP fragten Layout, Kopf-Cache und Feed je selbst (mehrere gleiche Anfragen).
-   * Gehalten wird die laufende bzw. jüngste Antwort für `ME_TTL`; jede schreibende Anfrage
-   * und jeder Wechsel der Anmeldung (`forgetMe`) verwirft sie, ein Fehler wird nicht
-   * gehalten.
+   * **Das eigene Profil – EIN Abruf für alle, die es gleichzeitig fragen**, gehalten für
+   * `ME_TTL`; jede schreibende Anfrage und `forgetMe` verwerfen es, ein Fehler wird nicht gehalten.
    */
   private me: { at: number; promise: Promise<UserProfile> } | null = null;
 
@@ -155,13 +134,9 @@ class ApiClient {
     this.me = null;
   }
 
-  // Transiente Transportfehler (Kaltstart / Skalierung / kurz nach einem Deploy)
-  // äussern sich als 502/503 oder als abgewiesene Verbindung – die Anfrage
-  // erreicht die App dann GAR NICHT und wird kurz erneut versucht (auch
-  // schreibende, da der Server sie nie verarbeitet hat → keine Doppelanlage).
-  // 500/504 hingegen nur bei LESENDEN (idempotenten) Anfragen wiederholen.
+  // 502/503 und abgewiesene Verbindungen erreichen die App nie → auch schreibende Anfragen
+  // werden wiederholt; 500/504 nur lesende (idempotente).
   private async request<T>(path: string, options: RequestInit = {}, as: 'json' | 'blob' = 'json'): Promise<T> {
-    // (Der Erfolgspfad unten meldet die Änderung – siehe ``notifyDataChanged``.)
     // Eine Datei geht als `FormData` – den Typ samt Grenze setzt dann der Browser selbst.
     const headers: Record<string, string> = {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -182,7 +157,6 @@ class ApiClient {
         response = await fetch(`${API_BASE}${path}`, { ...options, headers });
       } catch (e) {
         if (aborted(options)) throw e;
-        // Keine Antwort erhalten → Anfrage kam nicht an, sicher wiederholbar.
         lastError = new Error('Keine Verbindung zum Server');
         if (attempt < MAX_ATTEMPTS) { await this.backoff(attempt); continue; }
         throw lastError;
@@ -194,10 +168,7 @@ class ApiClient {
         return (as === 'blob' ? response.blob() : response.json()) as Promise<T>;
       }
 
-      // 401 = Token abgelaufen (typisch nach längerer Pause / Ruhezustand). EINMAL einen
-      // frischen Token holen und dieselbe Anfrage wiederholen, statt den Fehler nach oben
-      // zu geben (wo er bisher als «keine Daten» endete). Kostet im Normalfall NICHTS –
-      // der Pfad läuft nur, wenn tatsächlich ein 401 kam.
+      // 401 = Token abgelaufen: EINMAL einen frischen holen und dieselbe Anfrage wiederholen.
       if (response.status === 401 && !refreshed && this.tokenProvider) {
         refreshed = true;
         const fresh = await this.tokenProvider(true).catch(() => null);
@@ -219,12 +190,8 @@ class ApiClient {
     throw lastError;
   }
 
-  /**
-   * Fehler mit **Struktur**: die Meldung bleibt der `Error.message` (jede Aufrufstelle liest
-   * ihn unverändert), das JSON-`detail` hängt zusätzlich daran. Gebraucht dort, wo die
-   * Oberfläche mit dem Fehler weiterarbeitet statt ihn nur anzuzeigen – etwa bei der
-   * Unterdeckungs-Frage, die die betroffenen Aufträge benennt (Notizen #386/#387).
-   */
+  /** Fehler mit **Struktur**: `message` lesbar, dazu das JSON-`detail` für Oberflächen, die
+   *  mit dem Fehler weiterarbeiten. */
   private async apiError(response: Response): Promise<ApiError> {
     const body = (await response.clone().json().catch(() => null)) as { detail?: unknown } | null;
     const err = new ApiError(await this.errorMessage(response), response.status) ;
@@ -236,8 +203,7 @@ class ApiClient {
     return new Promise((resolve) => setTimeout(resolve, attempt === 1 ? 500 : 1200));
   }
 
-  // Fehlermeldung aufbereiten: bevorzugt das JSON-`detail` der API, sonst der
-  // echte HTTP-Status (statt eines undurchsichtigen «Netzwerkfehler»).
+  // Bevorzugt das JSON-`detail` der API, sonst der HTTP-Status.
   private async errorMessage(response: Response): Promise<string> {
     const body = (await response.clone().json().catch(() => null)) as
       { detail?: unknown; error?: string } | null;
@@ -296,8 +262,7 @@ class ApiClient {
   }
 
   // ─── Das Adressbuch – im Konto die eigene Person, im ERP ein Datensatz ──────
-  // Dieselben Funktionen im Dienst (`services/address_book`); die Antwort ist jedes Mal
-  // der ganze Benutzer, damit kein Aufrufer eine Liste nachführen muss.
+  // `services/address_book`; die Antwort ist jedes Mal der ganze Benutzer.
 
   /** `null` = die eigene Person (Konto), sonst die Objektnummer (ERP). */
   addAddress(owner: number | null, data: AddressInput): Promise<UserProfile> {
@@ -400,9 +365,7 @@ class ApiClient {
   }
 
   // ─── Admin: Unternehmen (Gesellschaften) ───────────────────────────────────
-  // EIN gleichrangiger Datensatztyp (`organization`), jede Zeile eine vollständige
-  // juristische Einheit (eigene Rechtsidentität). Eigene anlegen/ändern nur Admin, fremde
-  // jedes Personal. Feldnamen wie im Backend (`CompanySettingsResponse`) – keine Übersetzung.
+  // Eigene anlegen/ändern nur Admin, fremde jedes Personal; Feldnamen wie im Backend.
 
   getCompanies(): Promise<CompanySettings[]> {
     return this.get('/api/v1/admin/companies');
@@ -504,39 +467,25 @@ class ApiClient {
     return this.post('/api/v1/erp/documents/template', { company, kind });
   }
 
-  /**
-   * **Eine Zahlung über den offenen Betrag vorbereiten** – für unsere eigene Karte.
-   *
-   * Sie ändert am Beleg **nichts**; gebucht wird erst, wenn das Geld da ist – und das
-   * meldet der Webhook, nicht dieser Browser. Je Modul gibt es eine Rechnung, und sie
-   * **ist** der Beleg – darum braucht es keine Rechnungsnummer.
-   */
+  /** **Eine Zahlung über den offenen Betrag vorbereiten** (Karte) – ändert am Beleg nichts;
+   *  gebucht wird vom Webhook. */
   prepareVoucherPayment(objectId: number, stepId: number): Promise<PaymentSetup> {
     return this.post(
       `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/payment`, {});
   }
 
-  /**
-   * **Wie man diese Rechnung überweist** – Bankverbindung, Referenz und, wo er gilt, die
-   * **QR-Rechnung** als fertiges Bild. Erzeugt wird sie im Backend: die Nutzlast ist eine
-   * Liste von einunddreissig Zeilen in fester Reihenfolge.
-   */
+  /** **Wie man diese Rechnung überweist** – Bankverbindung, Referenz, QR-Rechnung als Bild. */
   voucherTransfer(objectId: number, stepId: number): Promise<TransferInfo> {
     return this.get(
       `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/transfer`);
   }
 
   /**
-   * ►►► **Welche Rechnung mindert dieser Beleg?** ◄◄◄
-   *
-   * Gesucht wird über **alle Aufträge** – das ist der Kern: eine Gutschrift gehört in den
-   * Auftrag, in dem die Ware **zurückkommt**, nicht in den, der sie geliefert hat.
+   * ►►► **Welche Rechnung mindert dieser Beleg?** ◄◄◄ Gesucht über **alle Aufträge** (auf dem
+   * Server): eine Gutschrift gehört in den Auftrag, in dem die Ware zurückkommt.
    */
   voucherCorrectable(objectId: number, stepId: number,
                      search = ''): Promise<VoucherCorrectable[]> {
-    // **Gesucht wird auf dem Server** (#1050): dieselbe Bauart wie jede Referenz-Suche im
-    // Haus – eine fertige Liste war bei einer Handvoll Belegen richtig und ist es beim
-    // hundertsten nicht mehr.
     const q = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
     return this.get(
       `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/correctable${q}`);
@@ -560,7 +509,6 @@ class ApiClient {
   searchPeople(search?: string, limit = 20, staff = false): Promise<VoucherParty[]> {
     const params = new URLSearchParams({ limit: String(limit) });
     if (search?.trim()) params.set('search', search.trim());
-    // Nur Mitarbeiter – die Empfänger einer internen Nachricht.
     if (staff) params.set('staff', 'true');
     return this.get(`/api/v1/erp/people?${params}`);
   }
@@ -840,8 +788,7 @@ class ApiClient {
 
   // ─── ERP Articles ──────────────────────────────────────────────────────────
 
-  /** Der Artikel-Feed. `search` sucht im Namen – dieselbe Regel wie im Feed selbst,
-   *  damit ein Auswahlfeld nicht zweihundert Artikel laden muss, um acht zu zeigen. */
+  /** Der Artikel-Feed; `search` sucht im Namen. */
   getArticles(search?: string, limit?: number): Promise<Article[]> {
     const params = new URLSearchParams();
     if (search?.trim()) params.set('search', search.trim());
@@ -866,8 +813,7 @@ class ApiClient {
     return this.post('/api/v1/erp/articles', data);
   }
 
-  // Intelligente Namensvorschläge beim Anlegen (bereits verwendete/ähnliche Namen –
-  // Dubletten vermeiden). Leere Eingabe → die häufigsten bestehenden Namen.
+  // Namensvorschläge gegen Dubletten; leer → die häufigsten bestehenden Namen.
   articleNameSuggestions(q: string, limit = 8): Promise<ArticleNameSuggestion[]> {
     const params = new URLSearchParams({ q, limit: String(limit) });
     return this.get(`/api/v1/erp/articles/name-suggestions?${params.toString()}`);
@@ -964,9 +910,7 @@ class ApiClient {
     return this.get(`/api/v1/erp/articles/${objectId}/stock?${p}`, req);
   }
 
-  // Ebene 3: die Nummern der Einzelinstanzen – seitenweise, auf Klick.
-  // `statuses` ist eine Menge, keine Einzelwahl: ein Block der Bestandsansicht kann
-  // mehrere Zustände umfassen, ein angeklicktes Segment genau einen.
+  // Ebene 3: die Nummern der Einzelinstanzen – seitenweise, auf Klick; `statuses` ist eine Menge.
   getInstanceUnits(objectId: number, opts: {
     statuses?: readonly string[]; limit?: number; offset?: number;
   } = {}, req?: Req): Promise<UnitPage> {
@@ -977,19 +921,14 @@ class ApiClient {
     return this.get(`/api/v1/erp/instances/${objectId}/units?${p}`, req);
   }
 
-  /**
-   * **Woraus besteht ein Stück – und worin steckt es?** Beides abgeleitet aus dem
-   * Ereignis-Log (`services/genealogy`), kein gespeichertes Feld.
-   *
-   * Erst auf Klick, wie die Nummern selbst: eine Baugruppe kann hunderte Teile haben.
-   */
+  /** **Woraus besteht ein Stück – und worin steckt es?** Abgeleitet aus dem Log
+   *  (`services/genealogy`); erst auf Klick. */
   getUnitGenealogy(objectId: number, suffix: number, req?: Req): Promise<Genealogy> {
     return this.get(`/api/v1/erp/instances/${objectId}/units/${suffix}/genealogy`, req);
   }
 
   // ─── Auftrag ───────────────────────────────────────────────────────────────
-  // Es gibt KEINEN Entwurfs-Endpunkt: der Entwurf lebt im Browser, bis er speicherbar
-  // ist. Erst `createOrder` legt ihn an – und erst dabei entsteht die Objektnummer.
+  // Kein Entwurfs-Endpunkt: der Entwurf lebt im Browser, erst `createOrder` legt ihn an.
 
   getOrders(limit = 0, offset = 0): Promise<OrderSummary[]> {
     const p = new URLSearchParams();
@@ -1003,8 +942,7 @@ class ApiClient {
     return this.get(`/api/v1/erp/orders/${objectId}`, req);
   }
 
-  /** Wäre dieser Entwurf speicherbar? Legt nichts an und zieht keine Nummer – die
-   *  Oberfläche fragt damit dieselbe Regel ab, die auch das Speichern anlegt. */
+  /** Wäre dieser Entwurf speicherbar? Dieselbe Regel wie beim Anlegen, legt nichts an. */
   validateOrder(draft: OrderDraft, req?: Req): Promise<OrderValidation> {
     return this.post('/api/v1/erp/orders/validate', draft, req);
   }
@@ -1020,12 +958,8 @@ class ApiClient {
     return this.post(`/api/v1/erp/orders/${objectId}/loop/end`, {});
   }
 
-  /** **Eine Seite wählbarer Einzelinstanzen** (#740) – nicht die Liste. Gesperrte kommen
-   *  mit: die Oberfläche zeigt den Grund, statt eine Zeile stumm verschwinden zu lassen.
-   *
-   *  `preselect` bittet den Server um die FIFO-Vorauswahl: sie aus einer gekappten Seite
-   *  zu ziehen war der Fehler – sind die ersten Stücke verbaut, fände die Oberfläche
-   *  nichts, obwohl freie da sind. */
+  /** **Eine Seite wählbarer Einzelinstanzen** – Gesperrte kommen mit (die Oberfläche nennt
+   *  den Grund). `preselect`: die FIFO-Vorauswahl rechnet der Server, nie eine gekappte Seite. */
   getUnitOptions(opts: {
     articleObjectId?: number; search?: string; status?: string[];
     preselect?: number; limit?: number; offset?: number;
@@ -1041,9 +975,8 @@ class ApiClient {
     return this.get(`/api/v1/erp/orders/unit-options${q ? `?${q}` : ''}`, req);
   }
 
-  /** Welche Artikel kann eine Definitionszeile aufnehmen? **Gesucht, nicht geladen**
-   *  (#738): passend zur Eingabe, oder genau der eine gewählte (`objectId`) – damit im
-   *  Feld sein Name steht. `template_steps` fährt mit, damit «Neu» begründet gesperrt wird. */
+  /** Welche Artikel kann eine Definitionszeile aufnehmen? **Gesucht, nicht geladen** –
+   *  passend zur Eingabe oder genau der gewählte (`objectId`). */
   getArticleOptions(opts: { search?: string; objectId?: number; limit?: number } = {}):
     Promise<ArticleOption[]> {
     const p = new URLSearchParams();
@@ -1054,8 +987,7 @@ class ApiClient {
     return this.get(`/api/v1/erp/orders/article-options${q ? `?${q}` : ''}`);
   }
 
-  /** Die Stücke **einer Kante** des Prozessbildes – dieselbe Position, die die Pille
-   *  zählt; erst wenn jemand aufklappt (das Bild rechnet mit Zahlen, nicht Zeilen). */
+  /** Die Stücke **einer Kante** des Prozessbildes – erst beim Aufklappen. */
   getOrderUnits(objectId: number, edge: string,
                 limit = 100, offset = 0): Promise<OrderUnitPage> {
     const p = new URLSearchParams({ edge, limit: String(limit), offset: String(offset) });
@@ -1063,26 +995,20 @@ class ApiClient {
   }
 
   // ─── Erzeugungsprozess des Artikels (Vorlage) ──────────────────────────────
-  // Sie kann nichts ausführen: es gibt hier keinen Aufruf, der ein Stück bewegt.
+  // Die Vorlage führt nichts aus und hat keinen Schreib-Endpunkt (entsteht mit dem Artikel).
 
   getArticleProcess(objectId: number, req?: Req): Promise<ArticleProcess> {
     return this.get(`/api/v1/erp/articles/${objectId}/process`, req);
   }
 
-  // Es gibt KEINEN Schreib-Endpunkt auf die Vorlage: sie entsteht mit dem Artikel
-  // (`createArticle`) und ist ab da eingefroren.
-
-  /** Was sich modellieren lässt – Modultypen und Erfassungspunkt-Typen. Beides sind
-   *  geschlossene Listen im Backend; die Oberfläche holt sie, statt sie nachzubauen. */
+  /** Was sich modellieren lässt – Modultypen und Erfassungspunkt-Typen, vom Backend. */
   getModuleCatalog(): Promise<ModuleCatalog> {
     return this.get('/api/v1/erp/orders/module-catalog');
   }
 
   /**
-   * «Bestätigen» – der eine Ausführungs-Endpunkt, für jedes Modul derselbe, **für genau
-   * eine Instanz**. `values` ist zweistufig: Nummer der Einzelinstanz → (Punkt-`key` →
-   * Wert) – der Scan verifiziert die Instanz, erfasst wird je Stück. Wie verifiziert
-   * wurde (`scan` | `manual`), reist mit.
+   * «Bestätigen» – der eine Ausführungs-Endpunkt, **für genau eine Instanz**. `values`:
+   * Nummer der Einzelinstanz → (Punkt-`key` → Wert); `verification` = `scan` | `manual`.
    */
   confirmStep(objectId: number, stepId: number, values: Record<string, Record<string, unknown>> = {},
               instanceObjectId?: number | null, verification?: string,
@@ -1091,24 +1017,16 @@ class ApiClient {
       values,
       instance_object_id: instanceObjectId ?? null,
       verification: verification ?? null,
-      // **Woraus verbaut wird** – die Instanzen, die der Lagerist gescannt hat. Leer
-      // heisst «der ganze freie Bestand, älteste zuerst»; der Server rät nie mehr als das.
+      // Woraus verbaut wird; leer = der freie Bestand, älteste zuerst.
       sources,
-      // **Wohin bewegt wurde** – die gescannte Ziel-Objektnummer. Bei einem Modul mit
-      // festgelegtem Ziel ist sie die Verifikation, sonst die Wahl; bei jedem anderen
-      // Modultyp bleibt sie `null` und wird verworfen.
+      // Wohin bewegt wurde: Verifikation eines festen Ziels, sonst die Wahl.
       place,
     });
   }
 
   /**
    * Die Nummern **einer Gruppe dieser Instanz an diesem Modul** – erst auf Klick.
-   *
-   * `sample` sind die **gezogenen**: für jede ist ein eigener Wertesatz zu erfassen.
-   * `failed`/`rest` sind die Vorauswahl der Entscheidung nach einem «nicht bestanden».
-   *
-   * Keine davon steht in der Auftrags-Antwort: bei einer 6000er-Charge wären es
-   * tausende Nummern bei jedem Öffnen. Die Zahlen der Vorschau kommen aus `step_work`.
+   * `sample` = die gezogenen (je ein Wertesatz); `failed`/`rest` = Vorauswahl nach «nicht bestanden».
    */
   stepHold(objectId: number, stepId: number, instance: number,
            group: 'sample' | 'failed' | 'rest'): Promise<{ numbers: string[] }> {
@@ -1117,21 +1035,15 @@ class ApiClient {
       + `?instance=${instance}&group=${group}`);
   }
 
-  /**
-   * **Was an diesem Modul passiert ist** – lückenlos, je Einzelinstanz (#717).
-   *
-   * Erst auf Klick: bei einer 6000er-Charge wären es tausende Vorgänge. Die Regel gilt
-   * für **alle** Module und wird serverseitig aus dem Ereignis-Log abgeleitet
-   * (`services/record`) – hier steht keine zweite.
-   */
+  /** **Was an diesem Modul passiert ist** – je Einzelinstanz, aus dem Log (`services/record`),
+   *  erst auf Klick. */
   stepRecord(objectId: number, stepId: number, limit = 200, offset = 0): Promise<StepRecord> {
     return this.get(
       `/api/v1/erp/orders/${objectId}/steps/${stepId}/record`
       + `?limit=${limit}&offset=${offset}`);
   }
 
-  // Instanz-Feed (server-seitig durchsuchbar/paginierbar, neueste Objektnummer zuerst).
-  // Liefert Zusammenfassungen: die Einzelinstanzen stehen im Detail, nicht in der Liste.
+  // Instanz-Feed: Zusammenfassungen, durchsucht und seitenweise auf dem Server.
   getInstances(limit = 0, offset = 0, search = ''): Promise<InstanceSummary[]> {
     const p = new URLSearchParams();
     if (limit) p.set('limit', String(limit));
@@ -1146,25 +1058,13 @@ class ApiClient {
     return this.get(`/api/v1/erp/objects/${objectId}`);
   }
 
-  /**
-   * **Kann diese Objektnummer etwas halten?** Dann: was sie ist und wie sie heisst.
-   *
-   * Ein 404 ist hier eine **Antwort** («das ist kein Ort»), kein Ausfall – Artikel und
-   * Aufträge tragen ebenfalls Objektnummern, sind aber keine Halter. Genau daran
-   * erkennt der Scanner einen Fehlgriff, bevor er ihn quittiert.
-   */
+  /** **Kann diese Objektnummer etwas halten?** 404 ist die Antwort «kein Ort», kein Ausfall. */
   getPlace(objectId: number): Promise<PlaceRef> {
     return this.get(`/api/v1/erp/places/${objectId}`);
   }
 
-  /**
-   * **Halter suchen** – nach Objektnummer-Teil oder Namen («001», «Clemens», «Regal»).
-   *
-   * Die eine Vorschlagsquelle für jede Zielort-Eingabe: das Feld im Editor und der
-   * Zielort-Scan zur Laufzeit fragen dieselbe Stelle. Angeboten wird nur, was auch
-   * Halter sein **kann** – eine Liste, die etwas vorschlägt, das die Prüfung danach
-   * abweist, wäre schlimmer als keine.
-   */
+  /** **Halter suchen** – Nummer oder Name; die eine Quelle jeder Zielort-Eingabe, angeboten
+   *  wird nur, was Halter sein kann. */
   searchPlaces(query: string): Promise<PlaceRef[]> {
     return this.get(`/api/v1/erp/places?search=${encodeURIComponent(query)}`);
   }

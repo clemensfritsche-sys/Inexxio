@@ -12,21 +12,9 @@ import { Skeleton } from './skeleton';
 import { errorText } from '@/lib/use-action';
 
 /**
- * ►►► **Ein abgeschlossenes Modul zeigt lückenlos, was in ihm passiert ist.** ◄◄◄
- *
- * Die Regel gilt für **alle** Module – heute und künftig (Testnotiz #717). Darum steht
- * sie an genau einer Stelle: hier, und im Server als **eine** Ableitung über den
- * Ereignis-Log (`services/record`). Ein Protokoll je Modultyp wäre dieselbe Ansicht
- * n-mal, und die (n+1)-te fehlte beim nächsten Typ – genau die Sorte Lücke, die man erst
- * bemerkt, wenn jemand einen Nachweis braucht.
- *
- * **Ein Eintrag ist ein Vorgang, kein Stück.** Ein Stück kann dasselbe Modul mehrfach
- * passieren (nach einem «nicht bestanden» wird erneut erfasst) – beides ist passiert,
- * also steht beides da. Zusammengefasst überschriebe die Wiederholung die Vergangenheit.
- *
- * **Erst auf Klick, nie auf Vorrat.** Die Karte rendert ihren Inhalt nur aufgeklappt;
- * geladen wird darum genau dann. Bei einer 6000er-Charge wären es tausende Einträge in
- * jeder Auftrags-Antwort.
+ * ►►► **Ein abgeschlossenes Modul zeigt lückenlos, was in ihm passiert ist** ◄◄◄ – für alle
+ * Module eine Ansicht, im Server eine Ableitung aus dem Log (`services/record`). **Ein
+ * Eintrag ist ein Vorgang, kein Stück** (Wiederholungen stehen alle da). Erst auf Klick.
  */
 export function StepRecord({ orderObjectId, stepId }: {
   orderObjectId: number;
@@ -58,15 +46,7 @@ export function StepRecord({ orderObjectId, stepId }: {
 
   return (
     <div className="flex flex-col">
-      {/* ►►► **Die Liste sagt, WAS sie ist** (Testnotiz #801). ◄◄◄
-          Ohne Überschrift stand hier eine Einzelinstanz mit einem Namen und einer
-          Uhrzeit – und die Frage «warum steht die hier?» war völlig berechtigt: sie ist
-          der **Nachweis** dieses Moduls, aber nichts sagte das. Bei einem Modul, das am
-          Stück nichts ändert (ein Geldvorgang), bleibt genau das übrig: wer wann was
-          bestätigt hat. Das ist die Aussage – man muss sie nur lesen können.
-
-          Sie steht als Versalien-Mikro-Label über der Liste, wie jede Abschnitts-Marke
-          im Haus, und nennt die Gesamtzahl statt sie zu verschweigen. */}
+      {/* ►►► **Die Liste sagt, WAS sie ist** ◄◄◄ – der Nachweis des Moduls, mit Gesamtzahl. */}
       <div className="flex items-baseline gap-2" style={{ marginBottom: 4 }}>
         <span style={MICRO_LABEL}>Was hier passiert ist</span>
         <span className="ix-tnum text-[11px]" style={{ color: 'var(--fg-4)' }}
@@ -87,10 +67,7 @@ export function StepRecord({ orderObjectId, stepId }: {
 
 /** Ein Vorgang: **wer, wann, womit bestätigt** – und darunter jede erfasste Angabe. */
 function Row({ entry, first }: { entry: RecordEntry; first: boolean }) {
-  // **Nur eine Änderung ist eine Aussage** (Testnotiz #726). Ein Durchläufer
-  // (Datenerfassung, Bewegen) führt «Im Prozess» → «Im Prozess»; in jeder Zeile stünde
-  // dasselbe Wort. Gefragt wird nach den **Daten**, nicht nach dem Modultyp – die
-  // Oberfläche muss nicht wissen, welcher Typ was tut.
+  // **Nur eine Änderung ist eine Aussage** – gefragt wird nach den Daten, nicht dem Modultyp.
   const changed = !!entry.status_after && entry.status_after !== entry.status_before;
   const cfg = changed && entry.status_after ? statusCfg(entry.status_after) : null;
   const values = entry.values ?? [];
@@ -99,8 +76,7 @@ function Row({ entry, first }: { entry: RecordEntry; first: boolean }) {
       style={first ? undefined : { borderTop: '1px solid var(--border-1)' }}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <UnitNumber value={entry.number} />
-        {/* **Wie bestätigt wurde**, sagt ein Symbol – ohne den Vermerk wäre die Tastatur
-            von der Kamera hinterher nicht zu unterscheiden (§4.4). */}
+        {/* **Wie bestätigt wurde** (Kamera oder Tastatur), sagt ein Symbol (§4.4). */}
         {entry.verification === 'scan' && (
           <ScanLine size={12} style={{ color: 'var(--fg-4)' }} data-tip="Gescannt" />
         )}
@@ -144,7 +120,7 @@ function Row({ entry, first }: { entry: RecordEntry; first: boolean }) {
         </div>
       )}
 
-      {/* **Die Aussage steht da, die Tatsache im Hover** (`lib/when`, #992). */}
+      {/* **Die Aussage steht da, die Tatsache im Hover** (`lib/when`). */}
       <span className="text-[11px]" style={{ color: 'var(--fg-4)' }}
         {...(whenTitle(entry.at) ? { 'data-tip': whenTitle(entry.at) } : {})}>
         {[entry.actor, when(entry.at)].filter(Boolean).join(' · ')}
@@ -153,10 +129,7 @@ function Row({ entry, first }: { entry: RecordEntry; first: boolean }) {
   );
 }
 
-/**
- * Ein erfasster Wert – **mit seiner Frage**. Bild und Unterschrift stehen als Bild da:
- * ein Nachweis, der als Pfad geschrieben ist, ist keiner, den man liest.
- */
+/** Ein erfasster Wert – **mit seiner Frage**; Bild und Unterschrift als Bild. */
 function Value({ value }: { value: RecordValue }) {
   const tone = value.ok === false ? 'var(--danger)'
     : value.ok === true ? 'var(--success)' : 'var(--fg-2)';

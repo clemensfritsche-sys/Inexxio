@@ -7,46 +7,19 @@ import type { PaymentSetup } from '@/types';
 import { errorText } from '@/lib/use-action';
 
 /**
- * **Bezahlen — in UNSERER Karte, nicht auf einer fremden Seite** (§9.13): kein Zahllink;
- * die Fläche, die Wörter, der Knopf und die Rückmeldung gehören uns.
+ * **Bezahlen — in UNSERER Karte, nicht auf einer fremden Seite** (§9.13).
  *
- * ## Was trotzdem vom Dienst kommt — und warum genau das
- *
- * Die **Eingabefelder** selbst (ein *Payment Element* in einem iframe). Das ist kein
- * Kompromiss, sondern ihr Sinn: so berührt **keine Kartennummer je unseren Server**, und
- * das ist der Unterschied zwischen «wir nehmen Karten an» und «wir sind PCI-pflichtig».
- * Die **3-D-Secure-Abfrage** gehört der Bank; sie liesse sich gar nicht nachbauen.
- *
- * Damit man den Unterschied nicht sieht, kommt das **Aussehen aus unseren Tokens**
- * (`appearance` unten liest die CSS-Variablen des Hauses aus) – nicht aus einer geratenen
- * Farbliste, die beim nächsten Design-Wechsel stehen bleibt.
- *
- * ## Was wir wissen, fragen wir nicht
- *
- * Name, E-Mail und Rechnungsadresse stehen im ERP und reisen mit der Vorbereitung mit
- * (`PaymentSetup.billing`). Was davon dasteht, wird dem Element als **feste Angabe**
- * übergeben (`fields: 'never'` + `payment_method_data`) – der Zahlende tippt es nicht ein
- * zweites Mal ab. Und **nur, was wirklich dasteht**: fehlt die Adresse, fragt das Element
- * sie; eine halbe Vorbelegung wäre schlechter als die Frage.
- *
- * ## Gebucht wird hier NICHTS
- *
- * Der Browser ist keine Quelle: wer ihn nach der Zahlung schliesst, darf keine Buchung
- * verschlucken. Die Zeile entsteht, wenn der Dienst sie meldet (Webhook →
- * `voucher.record_payment`, idempotent über die Referenz). Diese Karte sagt darum «ausgeführt»
- * und nicht «gebucht» – und lädt den Auftrag nach, damit die Zeile erscheint, sobald sie
- * da ist.
+ * Vom Dienst kommen nur die **Eingabefelder** (Payment Element im iframe – keine
+ * Kartennummer berührt unseren Server) und 3-D Secure; das Aussehen aus unseren Tokens.
+ * **Was wir wissen, fragen wir nicht**: vorhandene Angaben aus `PaymentSetup.billing` gehen
+ * fest mit (`fields: 'never'`). **Gebucht wird hier NICHTS** – nur vom Webhook
+ * (`voucher.record_payment`); die Karte sagt «ausgeführt».
  */
 export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClose }: {
   orderObjectId: number;
   stepId: number;
-  /**
-   * **Welches Modul bezahlt wird, sagt der Aufrufer** (#959): die Karte kennt keinen
-   * Endpunkt. Übergeben wird eine **prototypgebundene** Methode des Clients
-   * (`api.prepareVoucherPayment`) – eine stabile Referenz; eine hier gebaute
-   * Pfeilfunktion wäre bei jedem Rendern neu und liesse die Vorbereitung endlos laufen.
-   * Eine Rechnungsnummer braucht es nicht: je Modul gibt es eine, und sie ist der Beleg.
-   */
+  /** **Welches Modul bezahlt wird, sagt der Aufrufer** – eine stabile Referenz
+   *  (`api.prepareVoucherPayment`); eine Pfeilfunktion liesse die Vorbereitung endlos laufen. */
   prepare: (objectId: number, stepId: number) => Promise<PaymentSetup>;
   /** Das Wort des Servers («Jetzt bezahlen») – die Karte hält keine eigene Konstante. */
   label: string;
@@ -61,8 +34,7 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // **Die Vorbereitung ist ein Aufruf, kein Zustand.** Sie erzeugt beim Dienst eine
-  // Absicht über den offenen Betrag und ändert an unserem Vorgang keine Zeile.
+  // Die Vorbereitung erzeugt beim Dienst eine Absicht und ändert an unserem Vorgang nichts.
   useEffect(() => {
     let dead = false;
     prepare(orderObjectId, stepId)
@@ -71,8 +43,7 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
     return () => { dead = true; };
   }, [prepare, orderObjectId, stepId]);
 
-  // **Das SDK kommt erst auf Klick** (`await import`) – dieselbe Regel wie beim Decoder
-  // des Scanners: was niemand öffnet, kostet niemanden etwas.
+  // Das SDK kommt erst auf Klick (`await import`).
   useEffect(() => {
     if (!setup || !host.current) return;
     let dead = false;
@@ -118,9 +89,7 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
     const { error: err } = await ready.stripe.confirmPayment({
       elements: ready.elements,
       confirmParams: {
-        // **Die Rückkehr-Adresse braucht jede Zahlungsart, die den Browser verlässt**
-        // (TWINT, Banküberweisungen im Ausland). Eine Karte bleibt hier –
-        // `redirect: 'if_required'` schickt nur weg, wen der Weg wirklich wegführt.
+        // Rückkehr-Adresse für Zahlungsarten, die den Browser verlassen (`if_required`).
         return_url: window.location.href,
         payment_method_data: {
           billing_details: {
@@ -142,8 +111,7 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
       redirect: 'if_required',
     });
     setBusy(false);
-    // **Die Meldung des Dienstes ist die ehrlichere** – sie nennt die Karte, die Bank
-    // oder das fehlende Feld; ein eigener Satz daneben wäre eine Vermutung.
+    // Die Meldung des Dienstes nennt den Grund – kein eigener Satz.
     if (err) { setError(err.message ?? 'Die Zahlung ist nicht zustande gekommen.'); return; }
     setDone(true);
     onDone();
@@ -157,9 +125,7 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
           color: 'var(--fg-2)',
         }}>
         <Check size={14} style={{ color: 'var(--success)', flex: 'none' }} />
-        {/* **«Ausgeführt», nicht «gebucht».** Die Zeile entsteht, wenn der Dienst sie
-            meldet – ein Satz, der eine Buchung behauptet, die noch nicht dasteht, ist
-            beim nächsten Blick eine Lüge. */}
+        {/* «Ausgeführt», nicht «gebucht» – die Zeile entsteht mit der Meldung des Dienstes. */}
         Zahlung ausgeführt. Sie erscheint als Zeile, sobald der Zahlungsdienst sie
         bestätigt hat.
       </div>
@@ -178,9 +144,6 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
             {setup.amount} {setup.currency}
           </span>
         )}
-        {/* Die Rechnungsnummer steht nicht noch einmal hier (#891): die Karte klappt unter
-            der Zeile dieser Rechnung auf. Mitgeliefert wird sie trotzdem (`setup.invoice`,
-            Beschreibung und Metadaten beim Zahlungsdienst). */}
       </div>
 
       {/* Die Eingabefelder des Dienstes – in unserer Fläche, in unseren Farben. */}
@@ -208,24 +171,17 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
   );
 }
 
-/**
- * **Das Aussehen kommt aus unseren Tokens, nicht aus einer geratenen Farbliste.**
- *
- * Gelesen wird, was im Blatt wirklich steht (`getComputedStyle`) – damit die Felder des
- * Dienstes dieselbe Fläche, dieselbe Schrift und denselben Rahmen tragen wie das Feld
- * daneben, und zwar auch nach dem nächsten Design-Wechsel. Feste Farben hier wären die
- * zweite Farbsprache, die das Haus gerade abgeschafft hat.
- */
+/** **Das Aussehen kommt aus unseren Tokens** (`getComputedStyle`) – die Felder des Dienstes
+ *  sehen aus wie `inputCls`. */
 function appearance() {
   const css = getComputedStyle(document.documentElement);
-  // Ohne Rückfall-Farbe: die Tokens sind immer definiert (`colors_and_type.css`), und eine
-  // Hex-Zahl hier wäre genau die zweite Farbsprache von oben.
+  // Ohne Rückfall-Farbe: die Tokens sind immer definiert.
   const v = (name: string) => css.getPropertyValue(name).trim();
   return {
     theme: 'stripe' as const,
-    // Die Beschriftung steht über dem Feld (#892) – dieselbe Anatomie wie `controls.Label`.
+    // Die Beschriftung steht über dem Feld – wie `controls.Label`.
     labels: 'above' as const,
-    // Dichte Felder (#901).
+    // Dichte Felder.
     inputs: 'condensed' as const,
     variables: {
       colorPrimary: v('--accent'),
@@ -233,11 +189,9 @@ function appearance() {
       colorText: v('--fg-1'),
       colorDanger: v('--danger'),
       fontFamily: v('--font-body'),
-      // `inputCls` ist `rounded-ds-md` – 8 px. Ein Feld des Dienstes neben einem Feld des
-      // Hauses zeigt jede Abweichung sofort, weil sie **nebeneinander** stehen.
+      // Wie `inputCls` (`rounded-ds-md` = 8 px).
       borderRadius: '8px',
-      // Schrift und Raster wie `inputCls` (#901): `text-sm` = 14 px; das Haus rechnet in
-      // 8 px, die Hälfte davon ist 4.
+      // Schrift und Raster wie `inputCls` (`text-sm` = 14 px, 4-px-Schritte).
       fontSizeBase: '14px',
       spacingUnit: '4px',
     },

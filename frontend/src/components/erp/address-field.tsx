@@ -1,27 +1,11 @@
 'use client';
 
 /**
- * **Adresse = EIN Feld.** Die eine Adress-Eingabe für das ganze System.
- *
- * Vorher stand überall dieselbe Reihe aus fünf Eingaben (Strasse · Hausnummer · PLZ ·
- * Ort · Land) neben einem Suchfeld. Man *konnte* suchen, *musste* aber nicht – also
- * wurde getippt, und jede getippte Adresse ist eine Fehlerquelle (Tippfehler, falsche
- * PLZ, «Zürich»/«Zurich», Strasse ohne Hausnummer).
- *
- * Diese Komponente dreht das um, ohne den Nutzer einzusperren:
- *
- *   1. **Leer → nur ein Suchfeld.** Der einzige sichtbare Weg ist die Google-Suche.
- *      Ein Treffer füllt Strasse/Hausnummer, PLZ, Ort und Land in einem Zug.
- *   2. **Gefüllt → kompakte, NICHT editierbare Zusammenfassung** + «Ändern» (= neue
- *      Suche). Was einmal validiert ist, kann nicht versehentlich verfälscht werden.
- *   3. **«Adresse nicht gefunden?» → manuell erfassen.** Klein gesetzt, ein Klick, für
- *      die echten Ausnahmen (Neubau, Postfach, Industrieareal ohne Hausnummer).
- *
- * Gezwungen wird also über den **Standardweg**, nicht über gesperrte Felder – ein
- * hartes Read-only würde genau die Ausnahmen unbedienbar machen, die es real gibt.
- *
- * Ohne Google-Key oder bei Ladefehler startet die Komponente direkt im manuellen
- * Modus (mit Hinweis) – sie ist nie kaputt, nur weniger komfortabel.
+ * **Adresse = EIN Feld.** Die eine Adress-Eingabe für das ganze System:
+ *   1. **Leer → nur ein Suchfeld** (Google); ein Treffer füllt alles in einem Zug.
+ *   2. **Gefüllt → Zusammenfassung, nicht editierbar** + «Ändern» (= neue Suche).
+ *   3. **«Adresse nicht gefunden?» → manuell erfassen** für die echten Ausnahmen.
+ * Ohne Google-Key oder bei Ladefehler: manueller Modus mit Hinweis.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -43,12 +27,8 @@ export type Address = {
   lng?: number;
 };
 
-// Google liefert das Land als **ISO-2** (``short('country')``, z. B. «US»). Die Aufrufer
-// führen es teils als ISO-2 (Person: Wert «CH»), teils als Klarname (Firma: Wert «USA»).
-// Diese Normalisierung bringt beide auf ISO-2, damit ein Google-Treffer die richtige Option
-// trifft – ohne sie wurde «US» gegen «USA» verglichen, verworfen und das alte Land (Schweiz)
-// blieb stehen (der gemeldete Bug). Deckt die in den Dropdowns verwendeten Klarnamen +
-// gängige englische Google-Namen ab; ein reiner 2-Buchstaben-Code fällt unverändert durch.
+// Google liefert das Land als ISO-2, die Aufrufer führen ISO-2 (Person) oder Klarname
+// (Firma): beides auf ISO-2 bringen, damit ein Treffer die richtige Option trifft.
 const _TO_ISO2: Record<string, string> = {
   schweiz: 'CH', switzerland: 'CH', suisse: 'CH', svizzera: 'CH',
   deutschland: 'DE', germany: 'DE',
@@ -84,12 +64,7 @@ function parsePlace(place: google.maps.places.PlaceResult): PlacePick {
     street: [get('route'), get('street_number')].filter(Boolean).join(' ').trim(),
     zip: get('postal_code'),
     city: get('locality') || get('postal_town') || get('administrative_area_level_2'),
-    // ►►► **Die Region kam von Google nie an** (Testnotiz #1044). ◄◄◄ Sie stand als Feld
-    // im manuellen Modus, wurde aber hier **nicht gelesen** – ein Treffer liess sie
-    // unberührt, also blieb die des *vorherigen* Ortes stehen: die gemeldete «Region wird
-    // nicht korrekt befüllt». Das ist der Kanton bzw. Bundesstaat
-    // (`administrative_area_level_1`), und **kurz vor lang**: auf einer Anschrift steht
-    // «ZH» bzw. «CA», nicht «Zürich» oder «California».
+    // Region = Kanton bzw. Bundesstaat, kurz vor lang («ZH», nicht «Zürich»).
     region: short('administrative_area_level_1') || get('administrative_area_level_1'),
     country: short('country') || get('country'),
     lat: loc ? loc.lat() : undefined,
@@ -123,25 +98,9 @@ export function AddressField({
   const { loaded, error } = useGoogleMaps(apiKey);
   const usable = loaded && !error;
   /**
-   * ►►► **Der Modus ist eine ABLEITUNG, kein Einbahn-Schalter** (Testnotiz #1044). ◄◄◄
-   *
-   * *«Die Adresse wird manchmal mit dem Google-Maps-Suchdesign gerendert und manchmal
-   * wechselt sie zu einem einfachen Eingabeformular.»* – Und das war ein **Wettlauf**,
-   * kein Zufall: `apiKey` kommt aus den Einstellungen und ist beim **ersten** Rendern
-   * `null` (`useMapsApiKey` lädt ihn und cacht ihn modulweit). `useGoogleMaps` meldet
-   * dafür zu Recht `no-key` – und ein Effekt setzte daraufhin `manual = true`, **für
-   * immer**. Traf der Schlüssel danach ein, wurde die Suche nutzbar, aber niemand nahm
-   * den Schalter zurück. Wer den Datensatz als Erstes in der Sitzung öffnete, bekam das
-   * Formular; beim zweiten Mal (Schlüssel gecacht) die Suche.
-   *
-   * Darum trägt der Zustand jetzt nur noch die **Wahl des Menschen**, und der Modus folgt
-   * daraus: *manuell ist, wer es will – oder wer keine Suche hat.* Wird die Suche
-   * nutzbar, ist sie wieder der Standardweg, ohne dass es jemand zurücksetzen muss.
-   *
-   * **Und solange die Antwort fehlt, wird nicht entschieden** (`pending`): die Suche ist
-   * der Standardweg, also steht sie da – das Eingabefeld ist dasselbe, der Autocomplete
-   * hängt sich an, sobald er kann. Erst wenn feststeht, dass es keinen Schlüssel gibt,
-   * wechselt die Ansicht ein einziges Mal; auf einem eingerichteten System nie.
+   * ►►► **Der Modus ist eine ABLEITUNG, kein Einbahn-Schalter** ◄◄◄ – der Schlüssel kommt
+   * später an. Manuell ist, wer es will oder wer keine Suche hat; solange offen ist, ob es
+   * einen Schlüssel gibt (`pending`), steht die Suche da.
    */
   const [wantsManual, setWantsManual] = useState(false);
   const pending = !loaded && !error;
@@ -165,14 +124,7 @@ export function AddressField({
     </span>
   );
 
-  /**
-   * **Standort verwenden** (Testnotiz #306): GPS → Adresse, in einem Griff.
-   *
-   * Der Browser liefert Koordinaten, Googles Geocoder macht daraus dieselbe Trefferform
-   * wie die Suche (`parsePlace`) – also läuft die Übernahme durch **denselben** Zweig wie
-   * ein gewählter Vorschlag, statt einen zweiten Weg ins Formular aufzumachen. Nützlich
-   * genau dort, wo man steht: eine Aussenstelle vor Ort erfassen.
-   */
+  /** **Standort verwenden**: GPS → Geocoder → derselbe Zweig wie ein Suchtreffer (`applyPlace`). */
   function useMyLocation() {
     if (!usable || !navigator.geolocation) return;
     setLocating(true); setLocateError(null);
@@ -202,16 +154,13 @@ export function AddressField({
   /** Ein Google-Treffer (Vorschlag ODER GPS-Rückwärtssuche) → Adressfelder. EINE Stelle. */
   function applyPlace(place: google.maps.places.PlaceResult | google.maps.GeocoderResult) {
     const p = parsePlace(place as google.maps.places.PlaceResult);
-    // Den Google-Code (ISO-2) über die Normalisierung gegen die Optionen matchen und –
-    // bei Treffer – den **Options-Wert** übernehmen (Klarname «USA» bzw. ISO «US», je nach
-    // Aufrufer). Kein Treffer: den Google-Code trotzdem übernehmen (NIE still das alte Land
-    // behalten – genau das war der Bug); nur wenn Google gar nichts liefert, bleibt der Wert.
+    // Den Options-Wert übernehmen, der dem Google-Land entspricht; sonst den Google-Code –
+    // nie still das alte Land.
     const matched = countryOptions.find(([v]) => toIso2(v) === toIso2(p.country));
     onChangeRef.current({
       ...valueRef.current,
       street: p.street, zip: p.zip, city: p.city,
-      // **Auch leer überschreibt** – wie Strasse, PLZ und Ort: ein Treffer ersetzt die
-      // ganze Anschrift, und eine stehengebliebene Region gehörte zur vorherigen.
+      // Auch leer überschreibt: ein Treffer ersetzt die ganze Anschrift.
       region: p.region,
       country: matched ? matched[0] : (p.country || valueRef.current.country),
       lat: p.lat, lng: p.lng,
@@ -220,8 +169,7 @@ export function AddressField({
     setQuery('');
   }
 
-  // `applyPlace` schliesst über Props/State – als Ref gehalten, damit der Autocomplete-
-  // Effekt nicht bei jedem Render neu aufgesetzt werden muss.
+  // Als Ref, damit der Autocomplete-Effekt nicht bei jedem Render neu aufgesetzt wird.
   const applyPlaceRef = useRef(applyPlace);
   applyPlaceRef.current = applyPlace;
 
@@ -299,8 +247,7 @@ export function AddressField({
             }}
           />
         </div>
-        {/* Zwei Auswege aus dem Tippen: der Standort, an dem man gerade steht (#306),
-            und – für die echten Ausnahmen – die manuelle Erfassung. */}
+        {/* Zwei Auswege: der eigene Standort und die manuelle Erfassung. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           {usable && typeof navigator !== 'undefined' && 'geolocation' in navigator && (
             <button type="button" onClick={useMyLocation} disabled={locating} style={S.locate}>
@@ -318,8 +265,7 @@ export function AddressField({
   }
 
   // ── Gefüllt: kompakte Zusammenfassung, nicht editierbar ────────────────────────
-  // Label über exakten Wert ODER ISO-2-Gleichheit (so zeigt ein gespeichertes «US» das
-  // Klarname-Label «USA», wenn die Optionen Klarnamen sind).
+  // Label über exakten Wert ODER ISO-2-Gleichheit («US» → «USA»).
   const countryLabel =
     countryOptions.find(([v]) => v === value.country)?.[1]
     ?? countryOptions.find(([v]) => toIso2(v) === toIso2(value.country))?.[1]
@@ -339,17 +285,11 @@ export function AddressField({
           <div style={S.line1}>{value.street}</div>
           {showStreet2 && value.street2 && <div style={S.line2}>{value.street2}</div>}
           <div style={S.line2}>{[value.zip, value.city].filter(Boolean).join(' ')}</div>
-          {/* ►►► **Die Region stand im Feld und fehlte in der Zusammenfassung**
-              (Testnotiz #1044). ◄◄◄ Wer sie erfasste, sah sie beim nächsten Blick nicht
-              mehr – was von einer nicht gespeicherten Angabe nicht zu unterscheiden ist.
-              Eine Zusammenfassung, die ein Feld verschweigt, ist keine. */}
           {showRegion && value.region && <div style={S.line2}>{value.region}</div>}
           <div style={S.line2}>{countryLabel}</div>
         </div>
       </div>
-      {/* Adresszusatz (c/o, Postfach, Stockwerk) ist die Ausnahme, nicht die Regel – er wird
-          real für Lieferetiketten gebraucht, soll aber nicht als leeres Dauerfeld Fläche kosten.
-          Darum: nur zeigen, wenn befüllt oder ausdrücklich gewünscht. */}
+      {/* Adresszusatz nur, wenn befüllt oder ausdrücklich gewünscht. */}
       {showStreet2 && (value.street2 || street2Open ? (
         <Line name="street2" kt={kt} label="Adresszusatz (c/o, Postfach)" value={value.street2 ?? ''} onChange={set('street2')} wide />
       ) : (

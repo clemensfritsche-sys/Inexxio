@@ -9,11 +9,8 @@ import { type LucideIcon } from 'lucide-react';
 // Symbol-Knopf im Feld (`FieldAction`). ◄◄◄
 
 /**
- * ►►► **EINE Form für jedes Eingabefeld** – ERP, Konto-Formulare im ERP, Zeiterfassung,
- * Spezifikation: 8 px Radius, Haarlinie, 14 px Schrift, 8 × 12 px Polsterung, Fokus als
- * leiser Ring in Slate. Was sich je Lage ändert, ist nur die Farbe (`inputClass`). ◄◄◄
- * Ein Wert auf dem Beleg ist kein Eingabefeld, sondern gedruckter Text mit `.ix-editable`
- * (`beleg/shared.DOC_FIELD`).
+ * ►►► **EINE Form für jedes Eingabefeld**; je Lage ändert sich nur die Farbe (`inputClass`). ◄◄◄
+ * Ein Wert auf dem Beleg ist gedruckter Text mit `.ix-editable` (`beleg/shared.DOC_FIELD`).
  */
 const INPUT_FORM = 'w-full rounded-ds-md border px-3 py-2 text-sm outline-none placeholder:text-fg-4 transition-colors focus:ring-[3px] focus:ring-accent-soft';
 const INPUT_TONE = {
@@ -30,32 +27,19 @@ export function inputClass(tone: keyof typeof INPUT_TONE = 'normal'): string {
 export const inputCls = inputClass();
 
 /**
- * **Schieber** für eine Wahl mit wenigen, einander ausschliessenden Optionen: EIN Gleis,
- * ein Reiter, der zur aktiven Option gleitet. Nebeneinanderstehende Knöpfe lassen offen,
- * dass sie sich ausschliessen – die Bewegung zeigt es ohne ein Wort Erklärung.
- *
- * Gesperrte Optionen bleiben sichtbar und nennen ihren Grund im Hover.
- *
- * **Der Hover kommt sofort** (Testnotiz #618): über `data-tip` wie überall sonst im ERP,
- * nicht über `title`. Der native Browser-Tooltip wartet rund eine Sekunde – wo das Symbol
- * die Bedeutung allein nicht trägt, ist das genau die Sekunde, in der man ratlos ist. Weil
- * es hier an EINER Stelle steht, gilt es für jeden Umschalter im Haus.
+ * **Schieber** für wenige, einander ausschliessende Optionen: ein Reiter gleitet zur aktiven.
+ * Gesperrte Optionen bleiben sichtbar und nennen ihren Grund im Hover (`data-tip`, nie `title`).
  */
 export function IconSwitch<T extends string>({ value, onChange, options, labelActiveOnly }: {
   value: T; onChange: (v: T) => void;
-  /** ``mark`` setzt einen dezenten Punkt an eine (nicht gewählte) Option – z. B. die
-   *  abgeleitete Empfehlung: sie markiert sich selbst, statt einen Erklärsatz zu brauchen. */
+  /** ``mark`` setzt einen dezenten Punkt an eine nicht gewählte Option (z. B. die Empfehlung). */
   options: { value: T; icon: ElementType; label: string; hint?: string; disabled?: boolean; mark?: boolean }[];
-  /** Nur die AKTIVE Option zeigt ihr Wort, die übrigen nur ihr Symbol – für Achsen mit
-   *  vielen Werten (Mengeneinheit): man sieht auf einen Blick, was gilt, ohne dass sechs
-   *  Wörter nebeneinander um Aufmerksamkeit ringen. */
+  /** Nur die AKTIVE Option zeigt ihr Wort – für Achsen mit vielen Werten (Mengeneinheit). */
   labelActiveOnly?: boolean;
 }) {
   const index = Math.max(0, options.findIndex((o) => o.value === value));
   const wrapRef = useRef<HTMLDivElement>(null);
-  // Der gleitende Reiter wird **gemessen**, nicht gerechnet: sobald die Optionen
-  // unterschiedlich breit sind (aktives Wort sichtbar, übrige nur Symbol), stimmt ein
-  // «100/N %»-Raster nicht mehr.
+  // Der Reiter wird **gemessen** – die Optionen sind unterschiedlich breit.
   const [thumb, setThumb] = useState<{ left: number; width: number } | null>(null);
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -71,8 +55,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, labelAc
   }, [index, options.length, labelActiveOnly]);
 
   return (
-    // ``labelActiveOnly`` hat naturgemäss ungleich breite Optionen – dann soll sich der
-    // Regler an seinen Inhalt schmiegen statt die ganze Spalte zu füllen (Notizen #224/#225).
+    // Mit ``labelActiveOnly`` schmiegt sich der Regler an seinen Inhalt.
     <div ref={wrapRef} style={{
       position: 'relative', display: labelActiveOnly ? 'inline-flex' : 'flex',
       alignSelf: 'flex-start', maxWidth: '100%', flexWrap: 'wrap',
@@ -92,8 +75,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, labelAc
         return (
           <button key={o.value} type="button" role="tab" aria-selected={active} data-ix-idx={i}
             aria-label={o.label}
-            // Der **Name** wächst im Hover heraus (siehe unten); die längere **Erklärung**
-            // bleibt der Tooltip – aber nur, wenn sie mehr sagt als der Name.
+            // Der Name wächst im Hover heraus; der Tooltip nur, wenn er mehr sagt.
             data-tip={o.hint && o.hint !== o.label ? o.hint : undefined} data-tip-pos="bottom"
             className="ix-seg"
             onClick={o.disabled ? undefined : () => onChange(o.value)} disabled={o.disabled}
@@ -107,10 +89,6 @@ export function IconSwitch<T extends string>({ value, onChange, options, labelAc
               color: active ? 'var(--accent-ink)' : 'var(--fg-3)', whiteSpace: 'nowrap',
             }}>
             <Icon size={14} />
-            {/* **Der Buttonname erscheint daneben** (Testnotiz #624) – dieselbe Geste wie an
-                der Palette. Wo das Wort ohnehin steht (aktive Option, voller Modus), gibt es
-                nichts einzublenden; sonst wächst es im Hover heraus. Der gleitende Reiter
-                wird ohnehin gemessen (ResizeObserver), also folgt er der neuen Breite. */}
             {showLabel ? o.label : (
               <span className="ix-seg-label"><span>{o.label}</span></span>
             )}
@@ -122,11 +100,8 @@ export function IconSwitch<T extends string>({ value, onChange, options, labelAc
   );
 }
 
-/**
- * **Dialog** – die EINE Fensterform für eine Entscheidung. Klick daneben und `Esc`
- * schliessen; ein × wäre ein zweiter Weg für dasselbe, ein «Abbrechen» ein dritter
- * (Notizen #153/#154). Der Inhalt ist die Entscheidung, sonst nichts.
- */
+/** **Dialog** – die EINE Fensterform für eine Entscheidung; Klick daneben und `Esc` schliessen
+ *  (kein ×, kein «Abbrechen»). */
 export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520, onClose, children }: {
   icon?: ElementType; title: string; tone?: string; width?: number;
   onClose: () => void; children: ReactNode;
@@ -169,11 +144,7 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
 /** Was im Dialog den Fokus nehmen kann – das erste davon bekommt ihn beim Öffnen. */
 const FOCUSABLE = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
-/**
- * **Eine Palette: Symbole in einer Reihe.** Mehr nicht – der Name steht im Hover des
- * einzelnen Symbols (#518). Der Baustein bleibt, damit dieselbe Geste an allen drei
- * Stellen (Module · Erfassungsfelder · Unterdeckung) gleich aussieht.
- */
+/** **Eine Palette: Symbole in einer Reihe**, der Name im Hover. */
 export function Palette({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
@@ -183,29 +154,19 @@ export function Palette({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Die EINE Regel für Zahlenfelder (Mengen, Perioden, Prozente): nur Ziffern, optional
- * EIN Dezimaltrenner. Das Komma wird zum Punkt – wer «2,5» tippt, meint 2.5, und das
- * Backend rechnet mit Punkt.
- *
- * Bewusst eine Filterfunktion statt `<input type="number">`: dessen Spinner, Scroll-Rad
- * und länderabhängige Trennzeichen sind in Formularen mehr Ärger als Hilfe – und ein
- * `type="number"` liefert bei ungültiger Eingabe einen LEEREN Wert, wodurch getippte
- * Zeichen spurlos verschwinden. Hier bleibt der Wert immer sichtbar und sauber.
+ * Die EINE Regel für Zahlenfelder: nur Ziffern, optional EIN Dezimaltrenner (Komma → Punkt).
+ * Bewusst statt `type="number"`, das bei ungültiger Eingabe einen leeren Wert liefert.
  */
 export function numericOnly(
   raw: string, opts: { decimals?: boolean | number; signed?: boolean } = {},
 ): string {
   const { decimals = true, signed = false } = opts;
-  // **Ein Minus ist an genau einer Stelle richtig: ganz vorn.** Wo negative Beträge eine
-  // Aussage sind (eine Gutschrift ist eine negative Rechnung), muss man es tippen können
-  // – aber nicht mittendrin, und nicht zweimal.
+  // Ein Minus nur ganz vorn (mit `signed`).
   const minus = signed && raw.trimStart().startsWith('-') ? '-' : '';
   const cleaned = raw.replace(',', '.').replace(/[^\d.]/g, '');
   if (decimals === false || decimals === 0) return minus + cleaned.replace(/\./g, '');
   const [head, ...rest] = cleaned.split('.');       // höchstens EIN Trenner
-  // ►►► **Wie viele Nachkommastellen erlaubt sind, sagt die WÄHRUNG** (Testnotiz #931).
-  // ◄◄◄ Nicht «immer zwei»: JPY hat null, KWD drei. `true` heisst «unbegrenzt» und bleibt
-  // richtig, wo kein Betrag getippt wird (eine Menge, ein Messwert).
+  // ►►► **Wie viele Nachkommastellen, sagt die WÄHRUNG** ◄◄◄ (JPY null, KWD drei); `true` = unbegrenzt.
   const tail = rest.join('');
   const kept = typeof decimals === 'number' ? tail.slice(0, decimals) : tail;
   return minus + (rest.length ? `${head}.${kept}` : head);
@@ -217,28 +178,14 @@ export const numericInputProps = { inputMode: 'decimal' as const, autoComplete: 
 export function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
     <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-4)', marginBottom: 4 }}>
-      {/* **Die Warnfarbe kommt aus dem Token**, nicht als Hex: eine zweite Rotstufe
-          neben `--danger` wäre eine zweite Farbsprache (Design-System §4). */}
       {children}{required && <span style={{ color: 'var(--danger)' }}> *</span>}
     </div>
   );
 }
 
 /**
- * ►►► **Eine Aktion sitzt IM Feld, nicht daneben** (Testnotizen #738/#1026). ◄◄◄
- *
- * *«Sollte hier nicht auch die global gültige UI/UX-Logik für Suchfelder angewendet
- * werden, welche nach Objektnummer suchen können?»* – Die Antwort stand schon im
- * Referenzfeld (`SearchSelect.action`): die Kamera ersetzt das Zierzeichen am rechten
- * Innenrand. Dass es eine Liste gibt, sagt der Klick; eine echte Aktion ist den Platz
- * wert. Ein eigener Knopf daneben sind **zwei Flächen für eine Frage**.
- *
- * Sie steht darum als **Bauteil** hier und nicht als Markup in `SearchSelect`: die
- * Stück-Auswahl (`StockPicker`) hatte ihre eigene Fassung daneben, und das ist genau die
- * Form, in der zwei Suchfelder unterschiedlich aussehen, obwohl sie dasselbe tun.
- *
- * `onMouseDown` verhindert, dass der Fokus ins Eingabefeld springt (das öffnete sonst
- * eine Liste, während sich der Dialog davorlegt).
+ * ►►► **Eine Aktion sitzt IM Feld, nicht daneben** ◄◄◄ (z. B. die Kamera am rechten
+ * Innenrand) – ein Bauteil für jedes Suchfeld. `onMouseDown` hält den Fokus aus dem Feld.
  */
 export function FieldAction({ icon, label, disabled, onClick }: {
   icon: ReactNode; label: string; disabled?: boolean; onClick: () => void;
@@ -259,31 +206,11 @@ export function FieldAction({ icon, label, disabled, onClick }: {
 }
 
 /**
- * **Eine Wahl aus wenigen Werten** – zwei bis vier Möglichkeiten nebeneinander, kein
- * Auswahlfeld.
- *
- * ►►► **Mit Symbol wird sie kompakt — das Wort bleibt** (Testnotizen #877/#878). ◄◄◄
- *
- * *«Kann man hier so einen Button machen wie bei der Auswahl der Module – also ein Icon
- * und beim Hover der Text dazu.»* – Gemeldet an den beiden Fristen: drei Blöcke à
- * `flex: 1` in einer 460 px schmalen Modulspalte, doppelt (Liefer- **und** Zahlungsfrist),
- * in 13 px/600. Das ist mehr Gewicht, als eine Frist verdient, und genau das ist behoben:
- * mit Symbol stehen die Möglichkeiten **auf ihrer Inhaltsbreite** nebeneinander statt
- * jede auf einem Drittel der Spalte.
- *
- * **Aber das Wort bleibt stehen**, und das ist die eine Abweichung vom Wortlaut der
- * Notiz. Ein Knopf ist eine **Handlung** – er hat keine Antwort, die dastehen müsste, und
- * wer wissen will, was er tut, zeigt darauf. Eine **Wahl** hat eine: «30 Tage» *ist* die
- * Sache, und eingeklappt stünden dort drei anonyme Quadrate, von denen man jedes einzeln
- * anzeigen müsste, um zu lesen, worunter man wählt – am schlimmsten in dem Zustand, in
- * dem man am meisten Hilfe braucht: **bevor** man gewählt hat.
- *
- * **Ohne Symbole bleibt alles wie bisher** – nicht jede Aufzählung hat ein Bild
- * (Bar ↔ Überweisung), und dort ist die gleichmässige Aufteilung richtig.
+ * **Eine Wahl aus wenigen Werten** – zwei bis vier Möglichkeiten nebeneinander. Mit Symbol
+ * stehen sie auf Inhaltsbreite, ohne gleichmässig verteilt; **das Wort bleibt immer** – bei
+ * einer Wahl ist es die Sache selbst (anders als bei einem Knopf).
  */
 export function Segmented({ value, onChange, options, disabled, tip }: {
-  // **Ohne Beschriftung darüber**: die Antworten sprechen für sich («Bar», «Überweisung»,
-  // «Karte»); ein Wort darüber sagte nur noch einmal, was darunter steht.
   value: string; onChange: (v: string) => void;
   options: { value: string; label: string; icon?: LucideIcon }[];
   /** Gesperrt – der Wert bleibt sichtbar, der Grund steht in ``tip`` (Hover). */
@@ -308,8 +235,6 @@ export function Segmented({ value, onChange, options, disabled, tip }: {
               style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 gap: 6,
-                // **Mit Symbol so breit wie ihr Inhalt** – ohne Symbol die gleichmässige
-                // Aufteilung von früher.
                 flex: tucked ? 'none' : 1,
                 padding: '6px 10px',
                 fontSize: 13, fontWeight: 600,

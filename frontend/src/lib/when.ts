@@ -1,35 +1,14 @@
 /**
- * **WANN — die eine Datums-Ausgabe des Hauses** (#992). Jede Datums-Anzeige im System läuft
- * hier durch; ein Wächter verbietet jede zweite Formatierung daneben.
+ * **WANN — die eine Datums-Ausgabe des Hauses.** Jede Datums-Anzeige läuft hier durch; ein
+ * Wächter verbietet jede zweite Formatierung.
  *
- * ## Zwei Fragen, zwei Funktionen — und das ist kein Widerspruch
- *
- * **`when()` beantwortet «wann war das?»** – die Aussage, nach der man wirklich fragt:
- * «gerade eben», «vor 12 Minuten», «vor 3 Stunden», «Gestern», «vor 3 Tagen», danach das
- * Datum. Sie steht überall dort, wo ein Zeitpunkt eine **Auskunft** ist (Log, Angebote,
- * letzter Login, angelegt/geändert).
- *
- * Innerhalb eines Tages zählt sie Stunden und Minuten (#1003), nicht die blosse Uhrzeit.
- *
- * **`day()` beantwortet «welcher Tag steht auf dem Papier?»** – die Tatsache. Auf einem
- * **Beleg** ist das Rechnungsdatum kein «vor 3 Tagen»: es ist die Angabe, die gedruckt
- * wird und über die Steuerperiode entscheidet (MWSTG Art. 26). Zwei Formen **einer**
- * Regel, an einer Stelle, mit einem Namensstamm – wie `pick_problem`/`unpickable` im
- * Backend. Zwei *Regeln* wären es nicht.
- *
- * ## Und die volle Tatsache steht IMMER im Hover
- *
- * `whenTitle()` liefert sie (`13.09.2026, 17:58`), und `formatWhen()` gibt beides in
- * einem Zug zurück, damit eine Aufrufstelle sie nicht vergessen kann. Eine Aussage ohne
- * ihre Tatsache ist eine Zahl, die man nicht nachprüfen kann.
- *
- * ## Die Wörter stehen HIER, nicht im ICU
- *
- * `toLocaleDateString('de-CH', { month: 'short' })` liefert je nach ICU-Fassung «Sep.»
- * oder «Sept.» – dieselbe Falle wie beim Tausender-Trenner in `formatAmount` (dort ein
- * typografisches `’` im Browser und ein gerades `'` in Node, gemessen). Dieselbe Angabe
- * darf nicht je nach Laufzeit anders aussehen: server- und clientseitig gerendert wirft
- * React die Seite weg. Also schreibt dieses Modul jede Zeichenkette selbst.
+ * - **`when()` – «wann war das?»**: die Auskunft («gerade eben», «vor 3 Stunden»,
+ *   «Gestern», danach das Datum).
+ * - **`day()` – «welcher Tag steht auf dem Papier?»**: die Tatsache (Beleg, MWSTG Art. 26).
+ *   Zwei Formen **einer** Regel, ein Namensstamm.
+ * - **Die volle Tatsache steht IMMER im Hover** (`whenTitle`, `formatWhen`).
+ * - **Die Wörter stehen HIER, nicht im ICU** – sonst sähe dieselbe Angabe je nach Laufzeit
+ *   anders aus («Sep.»/«Sept.»).
  */
 
 /** Die Monatskürzel – festgeschrieben, siehe oben. */
@@ -49,9 +28,8 @@ const DAY = 24 * HOUR;
 /** «gerade eben» – darunter ist jede Zahl eine erfundene Genauigkeit. */
 const JUST_NOW = 'gerade eben';
 
-/** Singular und Plural als **Angabe**, nicht als Rechnung: deutsche Beugung ist keine
- *  Zeichenkettenoperation, und eine Regel, die bei einem Wort zufällig stimmt, ist keine
- *  (die Lehre aus «Kundeen», #787). */
+/** Singular und Plural als **Angabe**, nicht als Rechnung – deutsche Beugung ist keine
+ *  Zeichenkettenoperation. */
 const MINUTES: [string, string] = ['Minute', 'Minuten'];
 const HOURS: [string, string] = ['Stunde', 'Stunden'];
 const DAYS: [string, string] = ['Tag', 'Tagen'];
@@ -82,12 +60,7 @@ function calendarDays(from: Date, to: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86_400_000);
 }
 
-/**
- * **Der Tag, wie er auf dem Papier steht** – «13.09.2026». Ohne Wert: «—».
- *
- * Für alles, wo das Datum die **Tatsache** ist: Rechnungs-, Leistungs- und Fälligkeitsdatum
- * auf einem Beleg, ein Eintrittsdatum, ein Vertragstag.
- */
+/** **Der Tag, wie er auf dem Papier steht** – «13.09.2026». Ohne Wert: «—». */
 export function day(value: string | Date | null | undefined): string {
   const d = parse(value);
   if (!d) return NOTHING;
@@ -120,21 +93,8 @@ export function whenTitle(value: string | Date | null | undefined): string | und
  * weiter voraus       `13. Sep.` bzw. `13. Sep. 2027`
  * ==================  ====================================================
  *
- * ►►► **Die Uhrzeit war eine Zahl, keine Aussage** (Testnotiz #1003). ◄◄◄ Für «heute»
- * stand hier `17:58` – und wer das liest, rechnet selbst aus, wie lange das her ist. Ein
- * Zeitpunkt beantwortet aber die Frage *wann war das*, und innerhalb eines Tages heisst
- * die Antwort «vor drei Stunden». Die **Tatsache** (Datum und Uhrzeit) steht unverändert
- * im Hover, wo man sie nachschlägt.
- *
- * **Die Kaskade ist eine Reihenfolge, kein Widerspruch**: was 20 Stunden her ist, war
- * gestern *und* ist «vor 20 Stunden» – die genauere Aussage gewinnt. «Gestern» beginnt
- * damit dort, wo Stunden zu zählen aufhört.
- *
- * **Ein reines Datum kennt keine Uhrzeit** – ein Fälligkeitstag *ist* heute, und «vor 7
- * Stunden» wäre eine erfundene Genauigkeit. Er sagt «Heute» und überspringt die Kaskade.
- *
- * `now` ist ein Parameter, damit die Funktion **rein** ist und sich prüfen lässt; ohne
- * ihn ist es der Moment des Renderns.
+ * Die genauere Aussage gewinnt («vor 20 Stunden» vor «Gestern»). **Ein reines Datum kennt
+ * keine Uhrzeit** – es sagt «Heute» und überspringt die Stunden. `now` macht die Funktion rein.
  */
 export function when(value: string | Date | null | undefined,
                      now: Date = new Date()): string {
@@ -170,15 +130,12 @@ export function whenDay(value: string | Date | null | undefined,
 }
 
 /**
- * **Beides in einem Zug** – die Aussage und die Tatsache dazu.
+ * **Beides in einem Zug** – die Aussage und die Tatsache für den Hover.
  *
  * ```tsx
  * const w = formatWhen(entry.created_at);
  * <span data-tip={w.title}>{w.text}</span>
  * ```
- *
- * Es gibt sie, damit eine Aufrufstelle den Hover **nicht vergessen kann**: wer nur `when`
- * ruft, schreibt eine Aussage hin, die niemand nachprüfen kann.
  */
 export function formatWhen(value: string | Date | null | undefined,
                            now: Date = new Date()): { text: string; title?: string } {
@@ -186,24 +143,13 @@ export function formatWhen(value: string | Date | null | undefined,
 }
 
 /**
- * ►►► **ZEIT zuerst, dann was passiert ist** (Testnotiz #1052). ◄◄◄
- *
- * *«Kann man das hier und sonst überall, wo diese Logik vorhanden ist, umdrehen und sagen:
- * Zeit und dann Status – beispielsweise ‹gerade eben zugesagt›.»*
- *
- * Es stand andersherum («offeriert · vor 3 Tagen»), und das ist keine Eigenschaft einer
- * Zeile, sondern die **Form einer Aussage über einen Vorgang**: man liest zuerst, wie
- * frisch sie ist, dann was es war. Also steht sie **hier**, bei der einen Datums-Ausgabe,
- * und nicht an drei Aufrufstellen.
+ * ►►► **ZEIT zuerst, dann was passiert ist** ◄◄◄ – die Form einer Aussage über einen Vorgang.
  *
  * ```tsx
  * const w = happened(quote.sent_at, 'offeriert');   // «Vor 3 Tagen offeriert»
  * ```
  *
- * **Der erste Buchstabe wird gross**, weil daraus ein Satzanfang wird: `when()` liefert
- * «vor 3 Tagen» klein (dort steht es hinter «fällig») und «Gerade eben» gross – ohne diese
- * eine Zeile stünden beide Formen nebeneinander. Gross geschrieben wird genau **ein
- * Zeichen**; bei einer Ziffer («13. Sep. offeriert») ändert sich nichts.
+ * Der erste Buchstabe wird gross (Satzanfang).
  */
 export function happened(value: string | Date | null | undefined, what: string,
                          now: Date = new Date()): { text: string; title?: string } {

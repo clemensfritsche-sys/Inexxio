@@ -11,10 +11,8 @@ function isReady(): boolean {
   return typeof google !== 'undefined' && !!google.maps;
 }
 
-// Google ruft diese globale Funktion bei einem Authentifizierungsfehler auf (ungültiger Key,
-// nicht freigeschaltete »Places API«, Referrer-/API-Restriktion). Ist sie definiert,
-// UNTERDRÜCKT Google das aufdringliche Overlay »Diese Seite kann Google Maps nicht richtig
-// laden« – wir schalten die betroffenen Felder still auf den reinen Text-/Karten-Fallback.
+// Google ruft diese Funktion bei einem Authentifizierungsfehler auf; definiert unterdrückt sie
+// das Google-Overlay, und die Felder fallen auf Texteingabe zurück.
 function installAuthHandler() {
   if (typeof window === 'undefined') return;
   const w = window as unknown as { gm_authFailure?: () => void };
@@ -46,16 +44,11 @@ function loadScript(apiKey: string): Promise<void> {
 }
 
 /**
- * Lädt die Google-Maps-JS-API einmalig. ``error === 'no-key'`` ohne Key, ``'auth'`` bei
- * Authentifizierungs-/Freischaltungsfehler (z. B. Places API nicht aktiviert oder der Key
- * per API-Restriktion auf »Maps JavaScript API« beschränkt). Bei ``'auth'`` fallen die
- * Adressfelder auf reine Texteingabe zurück – nie kaputt.
+ * Lädt die Google-Maps-JS-API einmalig. ``error``: ``'no-key'`` ohne Key, ``'auth'`` bei
+ * Authentifizierungs-/Freischaltungsfehler (dann Texteingabe).
  *
- * ►►► **Ein `undefined` ist keine Antwort** (Testnotiz #1044). ◄◄◄ Solange der Schlüssel
- * noch geladen wird, ist *weder* `loaded` *noch* `error` gesetzt – und genau das ist die
- * Auskunft: «frag später nochmal». Vorher traf dieser Fall dieselbe Antwort wie «es gibt
- * keinen Schlüssel», und der Aufrufer schaltete auf einen Rückfall, den er nie wieder
- * verliess.
+ * ►►► **Ein `undefined` ist keine Antwort** ◄◄◄ – solange der Schlüssel lädt, ist weder
+ * `loaded` noch `error` gesetzt: «frag später nochmal».
  */
 export function useGoogleMaps(apiKey: string | null | undefined): { loaded: boolean; error: string | null } {
   const [loaded, setLoaded] = useState(isReady());

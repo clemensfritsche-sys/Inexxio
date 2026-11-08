@@ -7,22 +7,13 @@ import { StatusDot } from '@/components/erp/fields';
 import { formatAmount } from '@/lib/utils';
 
 /**
- * **Die Bauteile, aus denen ein Prozessschrittmodul besteht** – die Fläche, der Kopf, ein
- * Abschnitt, die Zeile, der Betrag, die Leiste. Jedes künftige Modul baut darauf, statt
- * sie neu zu erfinden.
- *
- * Bewusst **kein neues Design-System**: jede Zahl kommt aus
- * `styles/design-system/colors_and_type.css`, jede Regel steht in
- * `docs/design-system/README.md`. Neu ist nur, dass sie hier **einmal** angewendet sind
- * statt an jeder Aufrufstelle mit leicht anderen Werten. Die Vorlage ist die
- * Detail-Ansicht eines Datensatzes (`detail-frame.SPEC`).
+ * **Die Bauteile, aus denen ein Prozessschrittmodul besteht** – Fläche, Kopf, Zeile, Betrag,
+ * Leiste. Kein eigenes Design-System: die Regeln aus `docs/design-system/README.md`, hier
+ * **einmal** angewendet (Vorlage `detail-frame.SPEC`).
  */
 
-/**
- * **Die Fläche einer Modul-Karte.** Weiss, Haarlinie, ein leiser Schatten – dieselbe
- * Karte wie `SPEC.card`, nur mit der Polsterung einer schmalen Prozessspalte. Die
- * Modulfarbe lebt in der **Marke**, nicht in der Fläche (Struktur vor Fläche).
- */
+/** **Die Fläche einer Modul-Karte** – wie `SPEC.card`, schmaler gepolstert; die Modulfarbe
+ *  lebt in der Marke, nicht in der Fläche. */
 export const MODULE_CARD: CSSProperties = {
   background: 'var(--bg-1)',
   border: '1px solid var(--border-1)',
@@ -31,10 +22,7 @@ export const MODULE_CARD: CSSProperties = {
   padding: '16px 18px',
 };
 
-/**
- * **Der Name des Moduls** – die eine laute Zeile der Karte, in der Display-Schrift des
- * Hauses (`SpecHead` eine Nummer kleiner, weil die Prozessspalte schmal ist).
- */
+/** **Der Name des Moduls** – `SpecHead` eine Nummer kleiner. */
 export const MODULE_TITLE: CSSProperties = {
   font: '700 16px var(--font-display)',
   letterSpacing: '-.01em',
@@ -48,24 +36,15 @@ export const MODULE_TITLE: CSSProperties = {
  */
 export const ACT_H = { row: 26, inline: 30, main: 34, stage: 42 } as const;
 
-/**
- * **Der Abstand zwischen zwei Feldern einer Formular-Zeile** (#987/#990). **Unter** der
- * Beschriftung gibt es keinen: `controls.Label` bringt seine 4 px mit.
- */
+/** **Der Abstand zwischen zwei Feldern einer Formular-Zeile**; unter der Beschriftung bringt
+ *  `controls.Label` seine 4 px mit. */
 export const FIELD_GAP = 12;
 
 /**
- * **Ein Knopf ist ein Symbol, und beim Zeigen klappt sein Name daneben auf** (#877–#896,
- * #900): `.ix-tuck` in `globals.css`. Die Geste braucht **Platz** – in einer umbrechenden
- * Zeile schwingt der Knopf (er wird breiter, die Zeile bricht um, der Zeiger fällt ab).
- * Darum steht er in `Actions` (bricht nicht um).
- *
- * **In einer Zeile (`RowActions`) klappt er NICHT aus** – gemessen schwang er dort bei
- * 375 px. Die Entscheidung trifft die Zeile über `InRow`, nicht jede Aufrufstelle; der
- * Name steht dann in der Blase, die am Layout nichts ändert.
- *
- * Der Grund (`tip`) hängt an einer Hülle, nicht am Knopf: `.ix-tuck` ist
- * `overflow: hidden` und schnitte ein `::after` weg (#790).
+ * **Ein Knopf ist ein Symbol, und beim Zeigen klappt sein Name daneben auf** (`.ix-tuck`) –
+ * nur in einer Leiste, die nicht umbricht (`Actions`). **In einer Zeile (`InRow`) klappt er
+ * nicht aus**, der Name steht in der Blase. Der `tip` hängt an einer Hülle, weil `.ix-tuck`
+ * `overflow: hidden` ist.
  */
 const InRow = createContext(false);
 
@@ -77,16 +56,9 @@ export function ActionButton({
   label: string;
   tone?: 'primary' | 'neutral' | 'danger';
   height?: number;
-  /**
-   * **Ein Quadrat in der Höhe, die daneben steht** (#957). Gesetzt über die CSS-Variable
-   * `--actbtn-w`, damit `.ix-tuck:hover { width: auto }` den Namen ausklappen kann – ein
-   * Inline-`width` gewönne gegen jede Regel.
-   */
+  /** **Ein Quadrat** – über `--actbtn-w`, weil ein Inline-`width` das Ausklappen verhinderte. */
   square?: boolean;
-  /**
-   * Ein **Grund**, keine zweite Beschriftung – er steht als Blase an der Hülle. Meist der
-   * Satz, warum es gerade nicht geht, oder was die Handlung nach sich zieht.
-   */
+  /** Ein **Grund**, keine zweite Beschriftung – als Blase an der Hülle. */
   tip?: string;
   disabled?: boolean;
   onClick: () => void;
@@ -103,14 +75,12 @@ export function ActionButton({
       {!steady && <span className="ix-tuck-name">{label}</span>}
     </button>
   );
-  // **In einer Zeile sagt die Blase den Namen** – und den Grund dahinter, wie überall.
   const bubble = steady ? (tip ? `${label} — ${tip}` : label) : tip;
   return bubble ? <span data-tip={bubble} className="inline-flex">{button}</span> : button;
 }
 
 /**
- * **DIE ZEILEN-GRAMMATIK — eine Zeile, fünf Plätze, immer dieselben** (#996–#1002,
- * #1011/#1012).
+ * **DIE ZEILEN-GRAMMATIK — eine Zeile, fünf Plätze, immer dieselben.**
  *
  * ```
  * [ Identifikator ] [ Meta ] ······ [ Aktion ] [ Datum ] [ Betrag ]
@@ -119,7 +89,7 @@ export function ActionButton({
  * * **Der Identifikator steht links** (Rechnungsnummer, Zahlungsart) – nichts davor.
  * * **Meta folgt in derselben Zeile** und gibt als Erstes Platz ab.
  * * **Die Aktionen** (`RowActions`) sind im Ruhezustand unsichtbar, bei Hover und Fokus
- *   da, auf einem Gerät ohne Zeiger dauerhaft (`.ix-row`/`.ix-rowactions`, #832) – und
+ *   da, auf einem Gerät ohne Zeiger dauerhaft (`.ix-row`/`.ix-rowactions`) – und
  *   **belegen ihren Platz immer** (`opacity`, kein `display`), sonst rutschte der Betrag
  *   unter dem Zeiger.
  * * **Das Datum** ist die zweite Zahl der Zeile und steht direkt links vom Betrag; es
@@ -140,7 +110,7 @@ export function LedgerRow({ ident, meta, actions, date, amount, tip }: {
   date?: ReactNode;
   /** Die Zahl. Sie steht rechts, tabellarisch, und rührt sich nie. */
   amount: ReactNode;
-  /** Die Erklärung am Betrag – dort trägt die Farbe den Zustand (#997). */
+  /** Die Erklärung am Betrag – dort trägt die Farbe den Zustand. */
   tip?: string;
 }) {
   return (
@@ -168,10 +138,7 @@ export function LedgerRow({ ident, meta, actions, date, amount, tip }: {
   );
 }
 
-/**
- * **Knöpfe, die ihre Breite behalten** – für eine Leiste, die umbrechen darf (#1224): der
- * Name steht in der Blase statt auszuklappen, sichtbar bleiben sie immer.
- */
+/** **Knöpfe, die ihre Breite behalten** – für eine Leiste, die umbrechen darf (Name in der Blase). */
 export function Steady({ children }: { children: ReactNode }) {
   return <InRow.Provider value>{children}</InRow.Provider>;
 }
@@ -187,21 +154,10 @@ export function RowActions({ children }: { children: ReactNode }) {
   );
 }
 
-/*
- * **Eine Rückfrage gibt es nicht** (#1022): die Sicherheit kommt aus den Guards, nicht aus
- * einem zusätzlichen Klick – ein Storno schreibt eine Gegenbuchung (eine zweite lehnt der
- * Dienst ab), eine Erstattung ist idempotent. Wo eine Handlung wirklich unumkehrbar wäre,
- * ist die Antwort ein Guard, keine Frage.
- */
+/* **Eine Rückfrage gibt es nicht**: die Sicherheit kommt aus den Guards, nicht aus einem
+ * zusätzlichen Klick. */
 
-/**
- * **Die Zeile, in der Handlungs-Knöpfe stehen.** Sie bricht **nicht** um – sonst schwingt
- * ein ausklappender Knopf (siehe `ActionButton`).
- */
-/**
- * **Die Handlung, die eine Sache eine Stufe weiterbringt** (#923): volle Breite, Fläche,
- * 42 px, 14 px Schrift – der Beleg («Rechnung stellen»), die Zeiterfassung («Erfassen»).
- */
+/** **Die Handlung, die eine Sache eine Stufe weiterbringt**: volle Breite, 42 px (Beleg, Zeiterfassung). */
 export function StageAction({ icon: Icon, label, disabled, onClick }: {
   icon: LucideIcon;
   label: string;
@@ -216,15 +172,14 @@ export function StageAction({ icon: Icon, label, disabled, onClick }: {
   );
 }
 
+/** **Die Zeile, in der Handlungs-Knöpfe stehen** – sie bricht nicht um (siehe `ActionButton`). */
 export function Actions({ children }: { children: ReactNode }) {
   return <div className="ix-actions">{children}</div>;
 }
 
 /**
- * **EIN Betrag — Zahl, Währung, Zustandsfarbe** (#1007). Die Währung ist ein **Kind** der
- * Zahl und erbt ihre Farbe (`color: inherit`) – sie kann keine andere haben; zurücktreten
- * tut sie über Grösse, Gewicht und Deckkraft. Formatiert wird hier, sonst nirgends.
- * `currency` darf ein **Knoten** sein: am Total ist der Code zugleich der Wähler (#917).
+ * **EIN Betrag — Zahl, Währung, Zustandsfarbe.** Die Währung ist ein Kind der Zahl und erbt
+ * ihre Farbe; formatiert wird hier, sonst nirgends. `currency` darf ein Knoten sein (Wähler).
  */
 export function Amount({ value, currency, decimals = 2, color, size = 13, weight = 600,
                          tip, children }: {
@@ -237,11 +192,7 @@ export function Amount({ value, currency, decimals = 2, color, size = 13, weight
   size?: number;
   weight?: number;
   tip?: string;
-  /**
-   * **Derselbe Betrag, nur eingegeben** (#1010/#1017): ein Eingabefeld tritt an die Stelle
-   * der Zahl, die Währung bleibt als Suffix in derselben Hülle (`Editable` liegt aussen).
-   * Keine Betrags-Ausgabe und kein Betrags-Feld ohne Währung.
-   */
+  /** **Derselbe Betrag, nur eingegeben**: ein Feld statt der Zahl, die Währung bleibt als Suffix. */
   children?: ReactNode;
 }) {
   return (
@@ -265,7 +216,7 @@ export function Amount({ value, currency, decimals = 2, color, size = 13, weight
  * die Zustände von Einzelinstanzen.
  *
  * - **Die Beschriftung gehört zur Leiste**: zwei gleichfarbige Segmente sind nur am
- *   **Wort** zu unterscheiden (#789).
+ *   **Wort** zu unterscheiden.
  * - **Eine Haarlinie zwischen den Segmenten** als `border`, nicht als `gap` – sonst
  *   summierten sich die Breiten über 100 %.
  * - **Der Gewählte tritt hervor, die anderen verschwinden nicht** – sonst wäre es ein Filter.
@@ -294,7 +245,6 @@ export function ValueBar({ segments, height = 10, onPick, active, legendHint }: 
   legendHint?: (open: boolean) => string | undefined;
 }) {
   const total = segments.reduce((n, s) => n + s.value, 0);
-  // Ist eines gewählt, treten die anderen zurück – das ersetzt einen Filter.
   const faded = (key: string) => active != null && active !== key;
   return (
     <div className="flex flex-col gap-2">
@@ -320,8 +270,7 @@ export function ValueBar({ segments, height = 10, onPick, active, legendHint }: 
           })}
         </div>
       )}
-      {/* Sie bricht um statt zu scrollen: seitwärts scrollen ist im ERP verboten, und bei
-          sechs Segmenten auf 375 px passen sie nicht in eine Zeile. */}
+      {/* Bricht um statt zu scrollen (seitwärts scrollen ist im ERP verboten). */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {segments.map((s) => (
           <SegmentMark key={s.key} seg={s} open={active === s.key}
@@ -332,12 +281,7 @@ export function ValueBar({ segments, height = 10, onPick, active, legendHint }: 
   );
 }
 
-/**
- * **Punkt · Wort · Zahl** – die kleinste vollständige Aussage über einen Anteil, und
- * dieselbe Anatomie, mit der das Haus jeden Status schreibt (Design System: Status =
- * Punkt + Wort). Die Zahl steht in Tabellenziffern daneben, damit untereinander stehende
- * Zeilen bündig bleiben.
- */
+/** **Punkt · Wort · Zahl** – wie jeder Status im Haus, die Zahl in Tabellenziffern. */
 function SegmentMark({ seg, open, dimmed, hint, onPick }: {
   seg: BarSegment; open: boolean; dimmed: boolean;
   hint?: (open: boolean) => string | undefined;

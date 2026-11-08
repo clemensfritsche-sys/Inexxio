@@ -2,13 +2,8 @@ import type { ChangeEvent, KeyboardEvent } from 'react';
 
 /**
  * ►►► **Die Logik eines Feldes – EINE Stelle für das ganze ERP** (Projektakte «Die lernende
- * Firma» §4.3, Schritt 2.1). ◄◄◄
- *
- * Das Speichern ist zentral (`lib/use-autosave`), das Feld war es nicht: rund dreissig
- * Dateien schrieben ihr `<input>` selbst – jedes mit seiner Fassung von «Enter», «Pflicht»
- * und «stimmt das Format?». Hier steht das einmal; das **Aussehen** bleibt frei
- * (`form/field.tsx`: `Field` ist die Standardform, `Input` · `Select` · `TextArea` tragen
- * dieselbe Logik in jedem Aussehen – der Beleg sieht aus wie gedrucktes Papier).
+ * Firma» §4.3). ◄◄◄ Das **Aussehen** bleibt frei (`form/field.tsx`: `Field` ist die
+ * Standardform, `Input` · `Select` · `TextArea` dieselbe Logik in freiem Aussehen).
  *
  * **Was das Feld weiss:**
  * - **Wert und Änderung** – `onChange` bekommt den Text, nicht das Ereignis. Ohne `onChange`
@@ -66,15 +61,8 @@ interface FieldState {
 }
 
 /**
- * **Weiche Format-Prüfung** (Testnotiz #326) – für Telefon und E-Mail.
- *
- * Warum weich: eine harte Telefon-Validierung ist der Klassiker unter den
- * Formular-Ärgernissen. Gültige Nummern gibt es in Dutzenden Schreibweisen (`+41 44 …`,
- * `0044 …`, mit Klammern, mit Durchwahl), und jede strenge Regex sperrt irgendwann eine
- * echte Nummer aus. Die verlässliche Lösung wäre libphonenumber – ~150 kB für ein Feld,
- * das niemand automatisiert wählt. Also: **melden statt blockieren.** Wer eine Nummer
- * tippt, die offensichtlich keine ist (zu wenige Ziffern, fremde Zeichen), sieht einen
- * Hinweis; gespeichert wird trotzdem, denn die Angabe ist informativ, nicht funktional.
+ * **Weiche Format-Prüfung** für Telefon und E-Mail – **melden statt blockieren**: jede strenge
+ * Regex sperrt irgendwann eine echte Nummer aus; gespeichert wird trotzdem.
  */
 function fieldFormatIssue(type: string, value: string): string | null {
   const v = value.trim();
@@ -96,7 +84,6 @@ export function useField(spec: FieldSpec): FieldState {
   const { value, onChange, type = 'text', required, readOnly, onEnter, error, hint } = spec;
   const empty = !!required && !value.trim();
   const issue = readOnly ? null : fieldFormatIssue(type, value);
-  // Der Hinweis meldet, blockiert aber nicht (#326) – gespeichert wird trotzdem.
   const note: FieldNote | null = error ? { text: error, tone: 'danger' }
     : issue ? { text: issue, tone: 'warning' }
       : hint ? { text: hint, tone: 'quiet' } : null;

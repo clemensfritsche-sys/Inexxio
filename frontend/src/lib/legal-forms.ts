@@ -1,22 +1,9 @@
 /**
- * **Rechtsformen je Land** (Testnotiz #303) – Vorschläge, keine Auswahlliste.
+ * **Rechtsformen je Land** – Vorschläge für ein **Freitextfeld** (`datalist`), keine
+ * Auswahlliste; träge Daten ohne brauchbare API, darum im Code.
  *
- * Eine brauchbare API dafür gibt es nicht: die einzige verbindliche Quelle ist die
- * ISO-20275-Liste der GLEIF («Entity Legal Forms»), ein Download mit ~2600 Einträgen ohne
- * Abfrage-Endpunkt – für eine Vorbelegung von acht Zeilen der falsche Preis. Die Liste ist
- * ausserdem träge (Rechtsformen ändern sich in Jahrzehnten, nicht in Wochen), also ist sie
- * im Code richtig aufgehoben.
- *
- * Es bleibt ein **Freitextfeld** mit `datalist`: die Vorschläge decken den Normalfall,
- * jede Exotik (Anstalt, SCE, Zweigniederlassung) bleibt tippbar.
- *
- * ►►► **EINE Liste, zwei Aufrufstellen** (Testnotiz #1042). ◄◄◄ Sie lag in
- * `organization-detail.tsx` – dort wird die Rechtsform **unserer** Gesellschaften
- * gepflegt. Seit ein Geschäftskonto am Benutzer dieselbe Angabe trägt, gibt es eine
- * zweite Stelle, die sie fragt; kopiert wäre sie die Liste, die beim nächsten Land
- * auseinanderläuft. *Sie steht darum hier und nicht im Backend: das System rechnet nie
- * mit der Rechtsform, es setzt sie an den Namen (`sites.legal_name`) – eine Liste von
- * Vorschlägen ist eine Eingabehilfe, kein Fachmodell.*
+ * ►►► **EINE Liste für jede Stelle, die die Rechtsform fragt.** ◄◄◄ Im Frontend, weil das
+ * System nie mit der Rechtsform rechnet, es setzt sie nur an den Namen (`sites.legal_name`).
  */
 
 import { toIso2 } from '@/components/erp/address-field';

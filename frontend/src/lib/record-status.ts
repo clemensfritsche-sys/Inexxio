@@ -4,47 +4,20 @@ import { TONE, type StatusCfg } from '@/lib/status-tone';
 import { FREIGEGEBEN, INAKTIV, statusCfg } from '@/lib/process-status';
 
 /**
- * **Der Zustand eines ERP-Datensatzes – EINE Regel für alle Typen.**
+ * **Der Zustand eines ERP-Datensatzes – EINE Regel für alle Typen**; Feed und Detail lesen
+ * dieselbe Funktion. Die Wörter stehen in `lib/process-status`; hier steht nur, *welchen*
+ * Status ein Typ zeigt:
  *
- * Ein Datensatz zeigt im ERP überall dasselbe: **Name · Objektnummer · Status**. Für den
- * *Namen* gibt es diese eine Ableitung längst (`record-name.ts`, Notiz #177) – für den
- * *Zustand* gab es sie nicht: der Feed baute die Badge selbst in einer fünfarmigen
- * Fallunterscheidung, jedes Detailfenster noch einmal. Zwei Stellen für dieselbe Aussage,
- * und sie sind auseinandergelaufen (Testnotiz #379).
- *
- * Darum steht die Ableitung hier, und **Feed wie Detail lesen dieselbe Funktion**.
- *
- * **Die Wörter selbst stehen nicht hier**, sondern in `lib/process-status` – der einen
- * Statusliste, die das Backend spiegelt (Testnotiz #669). Diese Datei sagt nur, *welchen*
- * Status ein Datensatztyp zeigt; *wie* er heisst und aussieht, ist überall dasselbe.
- * Vorher trug jede Achse ihre eigene Karte: derselbe Zustand hiess am Artikel
- * «Freigegeben», am Auftrag ebenfalls «Freigegeben» (obwohl das gar kein Zustand ist)
- * und an der Instanz «Neu».
- *
- * Die Ableitung je Typ:
- *
- * - **Benutzer** → deaktiviert ≻ seine **Rolle**. Solange die Person in Betrieb ist, sagt
- *   die Badge, wofür sie da ist (grün: ein aktiver Datensatz ist gültig – Grau läse sich
- *   als «aus»); ist sie ausser Betrieb, zählt genau das und nichts anderes.
- * - **Artikel** → Freigegeben · Inaktiv. Einen Entwurf gibt es nicht: der Artikel
- *   entsteht erst mit seiner Freigabe.
- * - **Auftrag** → Im Prozess · Abgeschlossen · Abgebrochen, **abgeleitet** aus dem
- *   Zustand seiner Einzelinstanzen (`process.order_status`). Der Server rechnet ihn –
- *   hier wird er nur angezeigt.
- * - **Instanz** → **keinen**. Eine Gruppe hat keinen Zustand; ihn aus ihren Stücken zu
- *   projizieren geht nur, solange genau eines darunter liegt, und bei einer Charge mit
- *   gemischten Zuständen gäbe es keine richtige Antwort (Testnotiz #675). Der Zustand
- *   steht an der **Einzelinstanz** – dort ist er eindeutig.
- * - **Unternehmen** → Freigegeben · Inaktiv, dieselben zwei Wörter wie überall (#364).
+ * - **Benutzer** → seine **Rolle** (grün: ein Datensatz in Betrieb ist gültig).
+ * - **Artikel** → Freigegeben · Inaktiv (einen Entwurf gibt es nicht).
+ * - **Auftrag** → Im Prozess · Abgeschlossen · Abgebrochen, vom Server abgeleitet.
+ * - **Instanz** → **keinen** – der Zustand steht an der Einzelinstanz.
+ * - **Unternehmen** → Freigegeben · Inaktiv.
  */
 
 /**
- * Rolle = Identität, nicht Ampel – aber ein aktiver Datensatz ist gültig, also grün.
- *
- * ►►► **Drei Werte, und sie sagen den ZUGANG** (Testnotiz #1043). ◄◄◄ «Lieferant» und
- * «Kunde» standen hier und behaupteten eine Eigenschaft der **Person**; sie ist eine des
- * **Vorgangs** – derselbe Mensch ist in einer Ausgabe Lieferant und in einer Einnahme
- * Kunde. «Benutzer» ist darum keine schwächere Aussage, sondern die einzige richtige.
+ * ►►► **Drei Rollen, und sie sagen den ZUGANG** ◄◄◄ – Lieferant ↔ Kunde ist eine Eigenschaft
+ * des Vorgangs, nicht der Person.
  */
 export const ROLE_CFG: Record<string, StatusCfg> = {
   admin: { label: 'Admin', ...TONE.done, icon: Shield },
@@ -57,13 +30,8 @@ export function userStatus(u: Pick<UserProfile, 'role'>): StatusCfg {
 }
 
 /**
- * ►►► **Darf diese Person ins ERP?** ◄◄◄ Die EINE Frage, die die Rolle beantwortet
- * (Testnotiz #1043) – und der Spiegel von `people.STAFF_ROLES`.
- *
- * Sie stand an vier Stellen ausgeschrieben (Navbar zweimal, ERP-Layout, ERP-Feed), und
- * eine davon war **verneinend** formuliert («ausser Kunden dürfen alle») – also liess sie
- * jeden Wert durch, den sie nicht kannte. Eine Aufzählung, die etwas erlaubt, ist die
- * robustere Form: ein neuer Rollenwert kommt nicht versehentlich herein.
+ * ►►► **Darf diese Person ins ERP?** ◄◄◄ Spiegel von `people.STAFF_ROLES` – erlaubend
+ * gefragt, damit ein unbekannter Rollenwert nicht hereinkommt.
  */
 export function isStaff(role: string | null | undefined): boolean {
   return role === 'admin' || role === 'employee';
@@ -76,13 +44,8 @@ export function articleStatus(a: Pick<Article, 'status'>): StatusCfg {
   return statusCfg(a.status);
 }
 
-/**
- * Der Auftragsstatus ist **abgeleitet** (`process.order_status`): Im Prozess, solange
- * Stücke unterwegs sind · Abgeschlossen, sobald eines das Ziel erreicht hat ·
- * Abgebrochen, wenn keines es mehr erreichen kann. «Freigegeben» ist bewusst nicht
- * dabei – Freigeben ist die Aktion, mit der der Auftrag entstanden ist, kein Zustand
- * (Testnotiz #669).
- */
+/** Der Auftragsstatus ist **abgeleitet** (`process.order_status`); «Freigegeben» ist eine
+ *  Aktion, kein Zustand. */
 export function orderStatus(o: { status?: string }): StatusCfg {
   return statusCfg(o.status ?? '');
 }
@@ -91,11 +54,8 @@ export function organizationStatus(c: Pick<CompanySettings, 'is_active'>): Statu
   return c.is_active === false ? INACTIVE : statusCfg(FREIGEGEBEN);
 }
 
-/**
- * Instanz-Typ → Beschriftung. Die Werte spiegeln `models/instance.KINDS`; der Abgleich
- * ist getestet (`tests/test_frontend_mirrors.py`), damit die Oberfläche keinen Typ
- * kennt, den es nicht gibt – und keinen übersieht.
- */
+/** Instanz-Typ → Beschriftung; Spiegel von `models/instance.KINDS` (getestet,
+ *  `tests/test_frontend_mirrors.py`). */
 export const KIND_LABEL: Record<string, string> = {
   'einzeln': 'Einzeln',
   'batch': 'Charge',

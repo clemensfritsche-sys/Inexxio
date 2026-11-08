@@ -107,7 +107,7 @@ function Doing(p: FooterProps) {
         <MainButton label={primary.label} icon={primary.icon} busy={busy}
           problem={primary.problem} onClick={primary.run} />
       )}
-      {/* Die Leiste bricht um – der Knopf behält seine Breite (#1224). */}
+      {/* Die Leiste bricht um – der Knopf behält seine Breite. */}
       {may(d, 'revoke') && (
         <Steady>
           <ActionButton icon={CircleSlash} label={d.undo ?? 'Stornieren'} tone="danger"
@@ -211,7 +211,7 @@ function remindOf(d: Filled): { label: string; problem: string | null } | null {
   };
 }
 
-/** **Was «Stornieren» hier bewirkt** – in klaren Worten, je nach Stufe (Chrome-Test). */
+/** **Was «Stornieren» hier bewirkt** – in klaren Worten, je nach Stufe. */
 function undoTip(d: Filled): string {
   if (d.stage === VOUCHER_STAGE.offer) return 'Zieht die Offerte zurück – sie gilt dann nicht mehr. Ein Grund ist möglich.';
   if (d.stage === VOUCHER_STAGE.agreed) return 'Hebt die Zusage auf – sie gilt dann nicht mehr. Ein Grund ist möglich.';

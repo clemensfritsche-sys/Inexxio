@@ -1,27 +1,13 @@
 'use client';
 
 /**
- * **Weltkarte der Gebietsaufteilung** (ADR 006). Seit Testnotiz #322 eine wirkliche, mit
- * Code gemalte Karte (`world-map.tsx`: 5°-Raster, nur Linien und Ecken) statt einer Reihe
- * von Kacheln – die Zuordnung will man **sehen**, nicht lesen. Darunter steht dieselbe
- * Aussage als Liste: die Karte zeigt die Geografie, die Liste die Zuweisung.
+ * **Weltkarte der Gebietsaufteilung** (ADR 006, Karte aus `world-map.tsx`). Jede Region
+ * gehört **genau EINER** Gesellschaft, nicht zugewiesene dem **Betreiber**. Ein Land kann
+ * abweichen (Land ≻ Region ≻ Betreiber); Ausnahme ist **abgeleitet**, kein Flag.
  *
- * Jede Region gehört **genau EINER** Gesellschaft – nicht zugewiesene Regionen dem
- * **Betreiber** (er besitzt die Welt per Default, andere «beissen sich» Regionen ab). So
- * gehört jeder Fleck der Erde jemandem (Totalität).
- *
- * **Ausnahmen je Land.** Ein einzelnes Land kann von seiner Region abweichen («Europa
- * gehört der GmbH, Liechtenstein aber der Schweizer AG»). Backend-seitig ist das derselbe
- * Anspruch in derselben Tabelle (Land ≻ Region ≻ Betreiber); hier ist es eine Liste unter
- * der Karte. Ein Land IST eine Ausnahme, wenn sein Besitzer vom Besitzer seiner Region
- * abweicht – **abgeleitet**, kein zweites Flag, das auseinanderlaufen könnte.
- *
- * Bedienung: Region auf der Karte ODER in der Liste anklicken → Gesellschafts-Chips
- * erscheinen → zuweisen. Der Chip der ohnehin zuständigen Gesellschaft setzt auf den
- * Standard zurück. `highlight` hebt die Gebiete der gerade geöffneten Gesellschaft hervor.
- *
- * Ländernamen kommen aus `Intl.DisplayNames` (im Browser eingebaut) – keine zweite
- * Länderliste im Repository, die von der des Backends abweichen könnte.
+ * Bedienung: Region anklicken → Gesellschaft wählen; die ohnehin zuständige setzt zurück.
+ * `highlight` hebt die Gebiete der geöffneten Gesellschaft hervor. Ländernamen aus
+ * `Intl.DisplayNames`.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -33,13 +19,8 @@ import { MICRO_LABEL } from '@/components/erp/fields';
 import { Skeleton } from './skeleton';
 import { errorText } from '@/lib/use-action';
 
-// Kategoriale Identitäts-Farben (KEINE Ampel – hier steht Farbe für «welche Gesellschaft»,
-// nicht für Status). Der Betreiber trägt den warmen Grundton der Unternehmens-Kachel; die
-// übrigen Gesellschaften bekommen je einen ruhigen, unterscheidbaren Ton nach Reihenfolge.
-//
-// **Drei Stärken je Ton, weil die Karte mehr Kontrast braucht als eine Zeile** (Notiz #340):
-// `dot` (voll, für Punkt/Kontur), `land` (mittel, die Landfläche – die blasse `bg` liess die
-// Kontinente im Hintergrund verschwinden) und `bg` (blass, für Chips und Zeilen).
+// Kategoriale Identitäts-Farben (KEINE Ampel): Farbe = «welche Gesellschaft». Drei Stärken
+// je Ton: `dot` (Punkt/Kontur), `land` (Landfläche), `bg` (Chips und Zeilen).
 const OPERATOR_TONE = { dot: '#A65A3C', land: '#D9B09C', bg: '#F7EEE9', ring: '#A65A3C' };
 const TONES = [
   { dot: '#0F766E', land: '#8FC9C1', bg: '#EAF7F4', ring: '#0F766E' },  // Teal
@@ -85,8 +66,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
   if (!data) return <Skeleton block={240} label="Gebietskarte wird geladen" style={{ padding: 16 }} />;
 
   const operatorId = data.operator_object_id ?? null;
-  // Ton je Gesellschaft: Betreiber = warmer Grundton, sonst nach Reihenfolge der (nicht-
-  // Betreiber-)Gesellschaften – stabil, damit die Karte sich beim Neuladen nicht umfärbt.
+  // Ton je Gesellschaft: Betreiber = warmer Grundton, sonst stabil nach Reihenfolge.
   const nonOp = data.companies.filter((c) => c.object_id !== operatorId);
   const toneOf = (objId: number | null | undefined) => {
     if (objId == null || objId === operatorId) return OPERATOR_TONE;
@@ -97,8 +77,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
     data.companies.find((c) => c.object_id === objId)?.name
     ?? data.companies.find((c) => c.object_id === operatorId)?.name ?? 'Betreiber';
 
-  // Ein Land ist eine **Ausnahme**, wenn sein Besitzer vom Besitzer seiner Region abweicht –
-  // abgeleitet aus den Daten, nicht als zweites Flag geführt.
+  // Ein Land ist eine **Ausnahme**, wenn sein Besitzer von dem seiner Region abweicht.
   const regionOwner = (code: string) => data.regions.find((r) => r.code === code)?.company_object_id ?? null;
   const countries = data.countries ?? [];
   const exceptions = countries.filter((c) => c.company_object_id !== regionOwner(c.region));
@@ -122,8 +101,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Eigener Titel nur ausserhalb einer Sektion – eingebettet (Stammdaten-Reiter, #299)
-          liefert die umgebende Sektion die Überschrift «Gebiete». */}
+      {/* Eigener Titel nur ausserhalb einer Sektion (`embedded`). */}
       {!embedded && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Globe2 size={16} style={{ color: 'var(--fg-3)' }} />
@@ -133,11 +111,8 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
         </div>
       )}
 
-      {/* ── Die Karte füllt den Container ────────────────────────────────────────
-          **Die Zuordnung wird am Ort gemanagt** (#342): jede Fläche trägt ihren Namen UND
-          die Gesellschaft, die sie fakturiert; ein Klick öffnet die Zuweisung direkt dort. */}
-      {/* Runde Ecken wie bei jeder anderen Karte im ERP (Notiz #363) – `overflow:hidden`
-          beschneidet die SVG-Fläche mit. */}
+      {/* **Die Zuordnung wird am Ort gemanagt**: jede Fläche trägt Namen und Gesellschaft,
+          ein Klick öffnet die Zuweisung dort. */}
       <div style={{ position: 'relative', border: '1px solid var(--border-1)',
         borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
         <WorldMap
@@ -150,8 +125,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
             const r = data.regions.find((x) => x.code === code);
             if (!r) return null;
             const exc = exceptions.filter((c) => c.region === code).length;
-            // Ist eine Gesellschaft geöffnet, treten die Gebiete der anderen zurück –
-            // «welche Welt gehört DIESEM Unternehmen» ist dann die Frage.
+            // Ist eine Gesellschaft geöffnet, treten die Gebiete der anderen zurück.
             const dim = highlight != null && r.company_object_id !== highlight;
             return {
               title: r.label,
@@ -201,9 +175,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
               })}
             </div>
 
-            {/* **Ausnahmen im selben Panel** (Notizen #343/#344): die Region ist die Regel,
-                ein Land darf abweichen – gepflegt wird nur, was tatsächlich abweicht. Steht
-                nichts da, steht auch nichts da (kein «Keine …»-Satz). */}
+            {/* Ausnahmen im selben Panel – nur, was tatsächlich abweicht. */}
             {selRegion && (
               <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {regionExceptions.map((c) => (

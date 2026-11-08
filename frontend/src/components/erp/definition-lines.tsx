@@ -20,32 +20,19 @@ import { Skeleton } from './skeleton';
 
 /**
  * **Der Definitionsbereich** – was dieser Auftrag bearbeitet, oberhalb des Start-Symbols.
- *
- * Eine Zeile beantwortet drei Fragen, und zwar **in dieser Reihenfolge**: welcher
- * Artikel, wie viele Einzelinstanzen, und woher sie kommen. Die Reihenfolge ist nicht
- * Geschmack – ohne Artikel ist die Menge nicht deutbar (Einzelserialisierung oder
- * Charge?), und ohne Menge ist die Herkunft nicht entscheidbar (welche Stücke denn?).
- * Darum ist jedes Feld gesperrt, bis das davor beantwortet ist.
- *
- * **Die Menge referenziert immer exakt Einzelinstanzen.** Menge 3 heisst: danach laufen
- * genau 3 Einzelinstanzen im Prozess. Was das an Datensätzen bedeutet, entscheidet die
- * Serialisierung des Artikels und steht als Satz unter der Zeile – geraten wird nichts.
+ * Eine Zeile fragt **in dieser Reihenfolge**: Artikel → Menge → Herkunft; jedes Feld ist
+ * gesperrt, bis das davor beantwortet ist. Die Menge zählt immer exakt Einzelinstanzen.
  */
 
-/** Wie viele Stücke eine Seite trägt. Genug, um zu blättern statt zu suchen – und
- *  wenig genug, dass eine 50 000er-Charge kein Problem der Oberfläche wird (#740). */
+/** Wie viele Stücke eine Seite trägt. */
 const PAGE = 60;
 
 export const NEU = 'neu';
 export const LAGER = 'lager';
 
 /**
- * **Ein gewähltes Stück – und wo es lag, als es gewählt wurde.**
- *
- * Ein Entwurf lebt im Browser, die Freigabe passiert später. Dazwischen kann jemand
- * anders dasselbe Stück nehmen. `fromOrder` ist darum die **Aussage** dieser Auswahl
- * («war frei» ↔ «kam aus Auftrag N»); der Server prüft sie bei der Freigabe und bricht
- * ab, statt still etwas anderes zu tun als gewollt.
+ * **Ein gewähltes Stück – und wo es lag, als es gewählt wurde.** `fromOrder` ist die
+ * Aussage der Auswahl; der Server prüft sie bei der Freigabe und bricht sonst ab.
  */
 export interface UnitPick {
   number: string;
@@ -58,25 +45,10 @@ export interface DefinitionLine {
   key: number;
   articleObjectId: number | null;
   quantity: number;
-  /**
-   * **Die Herkunft hat keinen dritten Wert** (Testnotiz zur Vorauswahl «Lager»).
-   *
-   * Sie war einmal `… | null`, angezeigt wurde aber `origin ?? LAGER`: der Regler stand
-   * auf «Lager», der Zustand sagte «nichts». Alles, was an `origin === LAGER` hing –
-   * die Instanz-Auswahl und damit die FIFO-Vorauswahl – lief deshalb nicht an, und die
-   * Zeile fiel beim Absenden aus dem Nutzdatensatz («keine Einzelinstanz gewählt»).
-   * Erreichbar wurde der Zustand nur über den Umweg *einmal umschalten und zurück*.
-   *
-   * Ein angezeigter Zustand, den es in den Daten nicht gibt, ist kein Vorzustand,
-   * sondern ein Widerspruch. Darum ist die Vorauswahl jetzt **der Wert selbst**.
-   */
+  /** **Die Herkunft hat keinen dritten Wert** – die Vorauswahl ist der Wert selbst. */
   origin: typeof NEU | typeof LAGER;
   units: UnitPick[];
-  /**
-   * **Die Rückführung** (Abweichungsauftrag §3.3/§3.4): kehrt ein Stück, das aus einem
-   * laufenden Auftrag kommt, dorthin zurück? Standard ja – das ist der Normalfall
-   * (nochmal kontrollieren, nacharbeiten). Aus ist die Aussonderung.
-   */
+  /** **Die Rückführung** (Abweichungsauftrag §3.3/§3.4): kehrt ein geliehenes Stück zurück? Standard ja. */
   returns: boolean;
 }
 
@@ -104,28 +76,15 @@ export function DefinitionLines({ lines, setLines, refreshKey = 0,
   lines: DefinitionLine[];
   setLines: (l: DefinitionLine[]) => void;
   /**
-   * **Dieselbe Zeile als Stückliste** – die Menge gilt dann **je Einzelinstanz**
-   * («4× Schraube M6 pro Getriebe»), und zwei der drei Fragen entfallen:
-   *
-   * *Herkunft* – eine Stückliste nennt keine Erzeugung; verbaut wird, was es gibt.
-   * *Welche Stücke* – **das ist keine Frage der Definition.** Ein Modul ist eine
-   * Vorlage: es läuft je Auftrag und je Produkt-Stück erneut, und ein hier
-   * festgenageltes Stück wäre nach dem ersten Mal verbraucht. Welche Kiste genommen
-   * wird, sagt der Lagerist beim Ausführen – dort ist es eine echte Wahl (§4).
+   * **Dieselbe Zeile als Stückliste** – Menge **je Einzelinstanz**, ohne Herkunft und ohne
+   * Stück-Auswahl: welche Stücke verbaut werden, wählt der Lagerist beim Ausführen (§4).
    */
   perUnit?: boolean;
-  /**
-   * **Die Auswahl neu gegen die Wirklichkeit halten.** Wird hochgezählt, wenn die
-   * Freigabe abbricht, weil ein gewähltes Stück inzwischen woanders läuft: dann holt der
-   * Picker die Stückliste neu und zieht die **beobachtete Herkunft** der gewählten Stücke
-   * nach. Der Mensch sieht damit, was sich geändert hat, und entscheidet erneut – statt
-   * dass die Freigabe still etwas anderes tut als gewollt.
-   */
+  /** Hochgezählt, wenn die Freigabe abbricht: der Picker lädt neu und zieht die
+   *  beobachtete Herkunft der gewählten Stücke nach. */
   refreshKey?: number;
 }) {
-  // **Nur die GEWÄHLTEN Artikel, nicht alle** (#738): gesucht wird beim Tippen
-  // (`ObjectSelect`); hier liegt, was eine Zeile bereits gewählt hat – die Angaben, die
-  // «Neu» sperren und begründen (`template_steps`, `create_problem`).
+  // Nur die gewählten Artikel – ihre Angaben sperren und begründen «Neu».
   const [chosen, setChosen] = useState<Record<number, ArticleOption>>({});
 
   const remember = useCallback((o: ArticleOption) => {
@@ -138,8 +97,6 @@ export function DefinitionLines({ lines, setLines, refreshKey = 0,
 
   const hasNew = lines.some((l) => l.origin === NEU);
 
-  // **Kein Container um den Container**: eine Zeile je Position, darunter der Knopf für
-  // die nächste – die Zeilen sind bereits Karten.
   return (
     <div className="flex flex-col gap-2">
       {lines.map((line) => (
@@ -156,11 +113,8 @@ export function DefinitionLines({ lines, setLines, refreshKey = 0,
         />
       ))}
 
-      {/* **«Neu» steht für sich allein** (Testnotiz #693): ein Erzeugungsauftrag fährt die
-          Vorlage genau dieses Artikels, und ihr Versionsstempel gilt nur für seine Stücke.
-          Die Regel liest sich von beiden Enden gleich – darum ist hier der Knopf weg, und
-          in der Zeile ist «Neu» gesperrt, sobald es eine zweite gibt. Durchgesetzt wird
-          sie serverseitig (`process._assert_single_new`); dies ist die Anzeige davon. */}
+      {/* **«Neu» steht für sich allein** (`process._assert_single_new`): kein Knopf für eine
+          zweite Zeile, und «Neu» ist gesperrt, sobald es eine zweite gibt. */}
       {(perUnit || !hasNew) && (
         <button
           type="button"
@@ -180,31 +134,15 @@ export function DefinitionLines({ lines, setLines, refreshKey = 0,
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * **Eine Menge, die nicht null werden kann** (Testnotiz #774).
- *
- * Das Feld schickte jeden Tastendruck weiter, und ein **geleertes** Feld hiess `0` – also
- * genau der Wert, den der Server als «ist zu klein» abweist. Das Löschen einer Ziffer ist
- * aber ein ganz normaler Schritt beim Ändern einer Zahl: die Meldung entstand nicht aus
- * einem Fehler, sondern aus dem Tippen.
- *
- * Statt die Meldung freundlicher zu formulieren, kann der Wert gar nicht mehr entstehen:
- * **während des Tippens lebt die Eingabe lokal** (leer ist erlaubt – es ist ein
- * Zwischenzustand, keine Aussage), **übernommen wird beim Verlassen**, und dabei gilt die
- * Untergrenze 1. Dieselbe Bauart wie überall im Haus, wo eine Zahl gekappt statt gemeldet
- * wird.
- *
- * **Nur die Untergrenze, keine Obergrenze.** Sie ist die, die man versehentlich trifft;
- * eine zu grosse Zahl ist eine Entscheidung, und dazu gehört der Satz des Servers
- * (`Verbrauch.MAX_PER_UNIT`). Eine zweite Grenze hier wäre der zweite Massstab – und der
- * mildere von beiden entschiede.
+ * **Eine Menge, die nicht null werden kann**: während des Tippens lebt die Eingabe lokal
+ * (leer erlaubt), übernommen wird beim Verlassen mit Untergrenze 1. Die Obergrenze nennt
+ * der Server (`Verbrauch.MAX_PER_UNIT`).
  */
 function QuantityInput({ value, disabled, onChange }: {
   value: number; disabled: boolean; onChange: (n: number) => void;
 }) {
   const [text, setText] = useState(String(value));
-  // Der Aufrufer ist die Wahrheit: ändert sich die Zeile von aussen (Artikelwechsel,
-  // vorbelegter Entwurf), folgt die Anzeige. Während des Tippens tut sie das nicht – dann
-  // stimmen beide ohnehin überein.
+  // Der Aufrufer ist die Wahrheit: ändert sich die Zeile von aussen, folgt die Anzeige.
   useEffect(() => { setText(String(value)); }, [value]);
 
   function commit() {
@@ -234,7 +172,7 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
   article: ArticleOption | null;
   /** Ein neu aufgelöster Artikel wandert nach oben: dort liegt die eine Ablage. */
   onArticle: (o: ArticleOption) => void;
-  /** Gibt es mehr als eine Zeile? Dann ist «Neu» keine Option mehr (#693). */
+  /** Gibt es mehr als eine Zeile? Dann ist «Neu» keine Option mehr. */
   multi: boolean;
   refreshKey: number;
   /** Stückliste: Menge je Einzelinstanz, keine Herkunft, keine Stück-Auswahl. */
@@ -242,9 +180,7 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
   onChange: (next: Partial<DefinitionLine>) => void;
   onRemove: () => void;
 }) {
-  // **Eine vorbelegte Nummer muss aufgelöst werden** – der Shortcut am Artikel öffnet den
-  // Entwurf mit einer Nummer, ohne dass jemand gesucht hat. Genau einmal, und nur, wenn
-  // die Angaben noch fehlen.
+  // Eine vorbelegte Nummer (Shortcut am Artikel) wird einmal aufgelöst.
   useEffect(() => {
     const nr = line.articleObjectId;
     if (nr == null || article) return;
@@ -262,23 +198,15 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
 
   const hasArticle = article !== null;
   const hasTemplate = (article?.template_steps ?? 0) > 0;
-  // **Warum «Neu» nicht geht, sagt der Server** (`articles.may_create`) – die Oberfläche
-  // formuliert den Satz nicht selbst. Zwei Formulierungen wären zwei Massstäbe, und der
-  // mildere stünde an dem Knopf, der beim Klick scheitert.
+  // **Warum «Neu» nicht geht, sagt der Server** (`articles.may_create`).
   const createProblem = article?.create_problem ?? null;
 
   return (
     <div className="rounded-ds-lg"
       style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 10 }}>
       <div className="flex flex-wrap items-end gap-2">
-        {/* 1 — Artikel. Sperrt alles Weitere, bis er steht.
-            **Dasselbe Referenzfeld wie überall** (`ObjectSelect`, #738): tippen sucht auf
-            dem Server – Nummer oder Name –, und die Kamera sitzt IM Feld. */}
-        {/* ►►► **Das Feld sagt selbst, wonach es fragt** (Testnotiz #1023). ◄◄◄ Über ihm
-            stand «Artikel» – und im Feld steht «Nummer oder Name». Zwei Zeilen für eine
-            Auskunft; die Sorte gehört in den Platzhalter, wo der Blick ohnehin ist
-            (dieselbe Regel wie im Scanner, #758). Sobald gewählt ist, sagt die Zeile es
-            ohnehin: «100000741 · Schraubendreher». */}
+        {/* 1 — Artikel (`ObjectSelect`); sperrt alles Weitere. Keine Beschriftung: das
+            Feld sagt selbst, wonach es fragt. */}
         <div className="flex-1" style={{ minWidth: perUnit ? 190 : 240 }}>
           <ObjectSelect<ArticleOption>
             value={line.articleObjectId}
@@ -290,21 +218,14 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
               if (opt) onArticle(opt);
               onChange({
                 articleObjectId: nr,
-                // Artikelwechsel verwirft die **Auswahl** – sie gehörte zum alten Artikel.
-                // Die **Herkunft** bleibt: sie ist eine Entscheidung über diese Zeile, nicht
-                // über den Artikel, und sie zurückzusetzen hiesse den Regler auf einen Wert
-                // zu stellen, den es nicht gibt.
+                // Artikelwechsel verwirft die Auswahl; die Herkunft gehört der Zeile und bleibt.
                 units: [],
               });
             }}
           />
         </div>
 
-        {/* 2 — Menge. Immer exakt Einzelinstanzen – in der Stückliste **je Stück**.
-            ►►► **Was die Zahl bedeutet, steht im Hover** (Testnotiz #1024). ◄◄◄ Eine
-            Beschriftung über einem Zahlenfeld von 96 px kostet eine ganze Zeile für ein
-            Wort; das Feld enthält eine Zahl und sonst nichts, und wonach sie zählt, ist
-            genau die Art Auskunft, die im Haus in die Blase gehört. */}
+        {/* 2 — Menge (in der Stückliste je Stück); was sie zählt, steht im Hover. */}
         <label style={{ width: perUnit ? 104 : 96 }}
           data-tip={perUnit
             ? 'Menge je Einzelinstanz – «4» heisst vier Stück je Erzeugnis'
@@ -316,13 +237,7 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
           />
         </label>
 
-        {/* 3 — Herkunft. **Derselbe Schiebe-Regler wie die Mengeneinheit am Artikel**
-            (Testnotiz #694): zwei sich ausschliessende Antworten, und dass sie einander
-            ausschliessen, zeigt die Bewegung des Reiters statt zweier gleich aussehender
-            Knöpfe. Dieselbe Komponente, nicht nachgebaut. */}
-        {/* **Und die dritte Beschriftung geht mit** – ein Regler mit Symbol und Wort je
-            Seite sagt selbst, was er fragt, und jede Seite hat ihren Hinweis. Eine
-            stehengelassene Beschriftung neben zwei entfallenen läse sich als Rest. */}
+        {/* 3 — Herkunft: derselbe Schiebe-Regler (`IconSwitch`) wie überall. */}
         <div style={{ display: perUnit ? 'none' : undefined }}>
           <IconSwitch<typeof NEU | typeof LAGER>
             value={line.origin}
@@ -332,8 +247,7 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
             options={[
               {
                 value: NEU,
-                // **Sprossen statt Karton** (#694): «Neu» heisst «entsteht hier», nicht
-                // «wird geliefert». Ein Paket-Symbol sagte dasselbe wie «Lager».
+                // Sprossen: «Neu» heisst «entsteht hier».
                 icon: Sprout,
                 label: 'Neu',
                 disabled: !hasArticle || !hasTemplate || multi || createProblem !== null,
@@ -372,9 +286,6 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
         </button>
       </div>
 
-      {/* Wie das System zählt (Instanzen, Suffixe), ist keine Auskunft für den Anwender
-          (#1033): wer «3» eintippt, will drei Stück. */}
-
       {!perUnit && hasArticle && line.origin === LAGER && (
         <StockPicker
           articleObjectId={article!.object_id}
@@ -393,23 +304,10 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * **FIFO als Vorschlag, nicht als Zwang.** Die ältesten Stücke, **die im Regal liegen**,
- * sind vorausgewählt – sichtbar und einzeln abwählbar. Eine unsichtbare Automatik wäre
- * hier das Schlimmste: man sähe erst nach der Freigabe, welche Stücke es getroffen hat.
- *
- * **Die Vorauswahl kommt vom Server** (Testnotiz #740). Sie aus der geladenen Seite zu
- * ziehen war der eigentliche Fehler: sind die ersten Stücke verbaut, findet die
- * Oberfläche **nichts**, obwohl freie da sind. FIFO ist eine Regel, keine Anzeige.
- *
- * **Zwei Fragen, nicht eine** (#739): `available` heisst «lässt sich nehmen» (ein
- * verbautes Stück ja – das Greifen IST der Ausbau), `in_stock` heisst «liegt im Regal»
- * (ein verbautes Stück nein). Vorgeschlagen wird nur, was **beides** erlaubt und in
- * keinem laufenden Auftrag steckt.
- *
- * **Gruppiert wie der Bestand** (PROCESS_CORE §10.3): eine Gruppe je vorkommendem
- * Zustand, Reihenfolge = Lebenszyklus, was zur Historie zählt startet zugeklappt. Damit
- * steht die Aussage im Bild statt in der Farbe – Verbaut bleibt grün, es hat sein Ziel
- * erreicht.
+ * **FIFO als Vorschlag, nicht als Zwang**: die ältesten Stücke im Regal sind vorausgewählt,
+ * sichtbar und einzeln abwählbar; die Vorauswahl rechnet der Server. `available` = lässt
+ * sich nehmen, `in_stock` = liegt im Regal – vorgeschlagen wird nur, was beides ist und in
+ * keinem laufenden Auftrag steckt. Gruppiert wie der Bestand (PROCESS_CORE §10.3).
  */
 function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }: {
   articleObjectId: number; quantity: number; chosen: UnitPick[]; refreshKey: number;
@@ -418,16 +316,12 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
   const [query, setQueryText] = useState('');
   const [group, setGroupKey] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  // Filter/Suche fangen wieder vorn an – eine Seite 3 einer anderen Menge ist keine. Im
-  // selben Schritt gesetzt, damit es EINE Frage ist, nicht eine mit altem und eine mit
-  // neuem Versatz.
+  // Filter/Suche fangen wieder vorn an – im selben Schritt, damit es EINE Frage ist.
   const setQuery = (q: string) => { setQueryText(q); setOffset(0); };
   const setGroup = (g: string | null) => { setGroupKey(g); setOffset(0); };
   const scan = useScan();
 
-  // **Eine Seite, nicht die Liste.** `preselect` bittet den Server um die FIFO-Auswahl –
-  // er kennt die Ordnung und den Filter, die Seite kennt beides nicht. Die Suche ist
-  // entprellt; bis die neue Seite da ist, steht die alte (kein Springen).
+  // Eine Seite, nicht die Liste; die Suche ist entprellt, die alte Seite steht bis zur neuen.
   const search = useSettled(query.trim());
   const opts = {
     articleObjectId, preselect: quantity, limit: PAGE, offset,
@@ -440,9 +334,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
     meta: { what: 'Stücke im Lager' },
   }).data ?? null;
 
-  // **Der Vorschlag hängt an seiner Grundlage, nicht an einem Ereignis.** Er entsteht nur
-  // ins Leere: was der Mensch gewählt hat, wird nie überschrieben (`chosen` ist bewusst
-  // keine Abhängigkeit).
+  // Der Vorschlag füllt nur eine leere Auswahl (`chosen` ist bewusst keine Abhängigkeit).
   const preselect = page?.preselect;
   useEffect(() => {
     if (!preselect?.length || chosen.length) return;
@@ -450,13 +342,8 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preselect]);
 
-  // **Die beobachtete Herkunft wird nachgezogen, die Auswahl nicht.** Kommt die Seite neu
-  // (Artikelwechsel, Freigabe-Abbruch), kann ein gewähltes Stück inzwischen woanders
-  // laufen. Dann ändert sich, was der Klick bewirken WÜRDE – und das gehört vor den Klick.
-  //
-  // **Nur was auf dieser Seite steht**: was gerade weggefiltert ist, ist nicht
-  // verschwunden. Die frühere Fassung sah die ganze Liste und durfte darum fallen lassen,
-  // was fehlte; seit es Seiten gibt, wäre das ein stilles Verwerfen der Auswahl.
+  // **Die beobachtete Herkunft wird nachgezogen, die Auswahl nicht** – nur für Stücke auf
+  // dieser Seite (weggefiltert ist nicht verschwunden).
   const units = page?.units;
   useEffect(() => {
     if (!units || !chosen.length) return;
@@ -476,37 +363,21 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
   const enough = chosen.length === quantity;
 
   /**
-   * ►►► **Offen ist, was noch nicht entschieden ist** (Testnotiz #1025). ◄◄◄
-   *
-   * *«Beim Selektieren der ersten Einzelinstanz schliesst sich das Auswahlfenster
-   * sofort; danach gehen die zweite und dritte problemlos.»* – Und der Grund lag nicht
-   * hier, sondern **um** diese Komponente herum: nimmt die Auswahl einem laufenden
-   * Auftrag ein Stück ab, wird aus dem Entwurfsbild eine Vorschau mit Spuren
-   * (`ProcessColumns`, §8.1c) – und ein React-Baum, der seine **Gestalt** wechselt,
-   * nimmt den Zustand seiner Kinder mit. Genau beim **ersten** geliehenen Stück ist das
-   * der Fall, danach nie wieder.
-   *
-   * Ein gemerktes «offen» überlebt das nicht. Eine **Ableitung** schon – und sie sagt
-   * dasselbe: solange die Auswahl unvollständig ist, wählt man. `touch` ist allein die
-   * Übersteuerung von Hand (zu- oder wieder aufklappen), und dass sie einen Neuaufbau
-   * nicht überlebt, ist richtig: danach gilt wieder die Lage.
+   * ►►► **Offen ist, was noch nicht entschieden ist** ◄◄◄ – abgeleitet (unvollständig = offen),
+   * weil der Baum beim ersten geliehenen Stück neu aufgebaut wird (`ProcessColumns`, §8.1c).
+   * `touched` ist nur die Übersteuerung von Hand.
    */
   const [touched, setTouched] = useState<boolean | null>(null);
   const open = touched ?? (page !== null && !enough && (page.total ?? 0) > 0);
-  // **Die Rückführung ist nur eine Frage, wenn es etwas zurückzugeben gibt.** Ein freies
-  // Stück kommt aus keinem Auftrag – eine Wahl anzubieten, die nichts bewirkt, wäre eine
-  // Behauptung, hier passiere etwas.
+  // Die Rückführung ist nur eine Frage, wenn es etwas zurückzugeben gibt.
   const borrowed = chosen.filter((u) => u.fromOrder !== null);
   const states = page?.states ?? [];
   const total = page?.total ?? 0;
 
   function toggle(o: UnitOption) {
-    // **Wer wählt, will weiterwählen** – auch wenn die Auswahl damit vollständig ist:
-    // das Fenster im Moment des letzten Klicks zuzuklappen wäre genau die Bewegung,
-    // aus der die Notiz entstand.
+    // Wer wählt, will weiterwählen – die Liste bleibt offen.
     setTouched(true);
-    // **Mehr als verlangt gibt es nicht** (Chrome-Test: «2 von 1»): ist die Auswahl voll,
-    // ersetzt der neue Klick das zuletzt gewählte Stück – bei einem Stück also ein Tausch.
+    // Mehr als verlangt gibt es nicht: ist die Auswahl voll, ersetzt der Klick das zuletzt gewählte.
     const keep = picked.has(o.number) ? chosen
       : chosen.length >= quantity ? chosen.slice(0, Math.max(0, quantity - 1)) : chosen;
     onChange(picked.has(o.number)
@@ -557,14 +428,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
         </span>
       </div>
 
-      {/*
-        **Ob es zurückgeht, steht am Bild – nicht hier** (Auftrag §5). Es war ein
-        Knopfpaar an dieser Stelle; die Aussage stand damit woanders als ihre Wirkung,
-        und man sah erst nach der Freigabe, was daraus wird. Jetzt steht der Quell-Auftrag
-        selbst in der linken Spur (Vorschau, §2), mit der Rückführungslinie, die entstehen
-        würde – ein Klick auf ihn schaltet sie an und aus. Hier bleibt die Tatsache, aus
-        der die Frage überhaupt entsteht.
-      */}
+      {/* Ob es zurückgeht, schaltet man am Bild (Rückführungslinie); hier steht nur die Tatsache. */}
       {borrowed.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-ds-lg px-2.5 py-2"
           style={{ background: 'var(--warning-bg)' }}>
@@ -578,13 +442,8 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
 
       {open && (
         <div className="mt-2" style={{ borderTop: '1px solid var(--border-1)' }}>
-          {/* ►►► **Die Kamera sitzt IM Feld** (Testnotiz #1026, dieselbe Bauart wie
-              `ObjectSelect`): sie stand als eigener Knopf daneben – zwei Flächen für
-              eine Frage, und ein Suchfeld, das anders aussieht als jedes andere im Haus.
-              Gescannt wird die **Instanz**: eine
-              Einzelinstanz zieht bewusst keine Objektnummer, es kann für sie gar kein
-              Etikett geben (PROCESS_CORE, Einzelinstanz-Regel). Der Treffer setzt die
-              Suche – die Stücke der Instanz stehen dann untereinander. */}
+          {/* ►►► **Die Kamera sitzt IM Feld** (wie `ObjectSelect`) ◄◄◄ – gescannt wird die
+              **Instanz** (Einzelinstanz-Regel); der Treffer setzt die Suche. */}
           <div className="py-2" style={{ position: 'relative' }}>
             {/* eslint-disable-next-line no-restricted-syntax -- Suchfeld: die Eingabe sucht eine Instanz, sie ist kein Wert des Datensatzes. */}
             <input
@@ -597,8 +456,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
             <FieldAction icon={<ScanLine size={15} />} label="Instanz scannen"
               onClick={() => scan({
                 steps: [{
-                  // Kein `label`: die Sorte kommt aus dem Typ (`scanKindLabel` →
-                  // `TYPE_META`), derselben Quelle wie Symbol und Feed-Wort.
+                  // Kein `label`: die Sorte kommt aus dem Typ (`TYPE_META`).
                   kind: 'instance',
                   suggest: (q: string) => api.getInstances(8, 0, q)
                     .then((rows) => rows
@@ -611,9 +469,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
               })} />
           </div>
 
-          {/* **Eine Gruppe je Zustand, mit der Menge aus dem Aggregat** – nicht aus der
-              Seite: eine gezählte Seite zeigte «60», wo fünfzigtausend liegen. Ein Klick
-              filtert; ein zweiter nimmt den Filter zurück. */}
+          {/* Eine Gruppe je Zustand, Menge aus dem Aggregat (nicht der Seite); Klick filtert. */}
           {states.length > 1 && (
             <div className="flex flex-wrap gap-1.5 pb-2">
               {states.map((s) => (
@@ -643,10 +499,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
             )}
             {(page?.units ?? []).map((o) => {
               const taken = picked.has(o.number);
-              // **Ein laufendes Stück ist wählbar** – daraus wird eine Abweichung
-              // (Abweichungsauftrag §3.5). **Ein verbautes ebenso** – das Greifen IST der
-              // Ausbau. Gesagt wird es trotzdem: was der Klick bewirkt, gehört vor den
-              // Klick, nicht danach.
+              // Laufende und verbaute Stücke sind wählbar (Abweichung, §3.5) – der Hover sagt es vorher.
               const why = o.in_order
                 ? `Läuft in Auftrag ${formatObjectId(o.in_order)} – daraus wird eine Abweichung`
                 : !o.available ? `Steht auf «${statusLabel(o.status)}»`
@@ -681,7 +534,6 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
             })}
           </div>
 
-          {/* **Blättern statt scrollen ins Nichts** – die Gesamtzahl sagt, wie weit es geht. */}
           {total > PAGE && (
             <div className="flex items-center justify-between py-1.5 text-[11px]"
               style={{ color: 'var(--fg-3)' }}>

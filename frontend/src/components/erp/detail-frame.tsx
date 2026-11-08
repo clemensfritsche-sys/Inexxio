@@ -18,11 +18,8 @@ import { MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
 // ─── Karte: der Container eines Formular-Abschnitts ──────────────────────────
 
 /**
- * Symbol + Titel + optionaler rechter Slot (Speicher-Anzeige), darunter der Inhalt –
- * die Anatomie der Profileinstellungen (Konto), des ERP-Benutzers (Notiz #294) und des
- * Unternehmens-Datensatzes. EINE Stelle für alle drei, damit sie nicht auseinanderlaufen.
- * `icon` ist optional: eine Überschrift braucht kein Symbol, wenn sie die Sache schon
- * benennt (Notizen #308/#311).
+ * Symbol (optional) + Titel + rechter Slot (Speicher-Anzeige), darunter der Inhalt – EINE
+ * Anatomie für Konto, Benutzer und Unternehmen.
  */
 export function Card({ icon: Icon, title, right, children, info, extra, unclipped, anchor }: {
   icon?: ElementType; title: string; right?: ReactNode; children: ReactNode;
@@ -54,32 +51,15 @@ export function Card({ icon: Icon, title, right, children, info, extra, unclippe
 }
 
 // ─── Spezifikations-Karte: die Lese-Ansicht eines Datensatzes ────────────────
-//
-// EINE Karte, in der die Angaben eines Datensatzes stehen – weisse Fläche, Haarlinie,
-// sanfter Schatten, mit dem Schirm wachsende Polsterung. Sie stand bisher nur im
-// Artikel; die Auftragsspezifikation trug stattdessen lose Kacheln nebeneinander
-// (Notiz #267). Jetzt teilen sich beide dieselbe Anatomie – Karte + Werteraster +
-// Lesefeld – damit die Spezifikation eines Auftrags aussieht wie die eines Artikels.
+// Karte + Werteraster + Lesefeld – dieselbe Anatomie für Artikel und Auftrag.
 
 /**
- * ►►► **Die Breite eines Datensatz-Fensters — EINE Zahl für alle.** ◄◄◄ (Notiz #763)
- *
- * Vorher gab es drei Antworten: Artikel und Instanz begrenzten auf 880, das Unternehmen
- * auf 760, der **Benutzer auf gar nichts** – sein Formular lief auf einem breiten Schirm
- * über die volle Fensterbreite auseinander, und eine Zeile wurde unlesbar lang.
- *
- * Die einzige Ausnahme ist das **Prozessbild**: es hat drei Spuren und misst seine Breite
- * selbst (`flow-line.metricsFor`). Das ist kein Ausrutscher, sondern eine andere Sache –
- * ein Formular liest man in einer Spalte, ein Diagramm braucht seine Bahnen.
+ * ►►► **Die Breite eines Datensatz-Fensters — EINE Zahl für alle.** ◄◄◄ Ausnahme ist das
+ * Prozessbild mit seinen drei Spuren – es misst seine Breite selbst.
  */
 export const DETAIL_MAXW = 880;
 
-/**
- * Der Inhalt eines Datensatz-Reiters: **zentriert, auf {@link DETAIL_MAXW} begrenzt**.
- *
- * Eine Komponente statt eines wiederholten `style` – sonst ist die nächste Ansicht wieder
- * die, die es vergisst.
- */
+/** Der Inhalt eines Datensatz-Reiters: **zentriert, auf {@link DETAIL_MAXW} begrenzt**. */
 export function DetailBody({ children, gap, style }: {
   children: ReactNode;
   /** Abstand zwischen den Karten; ohne ihn stapelt der Aufrufer selbst. */
@@ -109,18 +89,11 @@ export const SPEC = {
   } as React.CSSProperties,
 };
 
-/**
- * **Der Kopf einer Spezifikations-Karte**: grosses getöntes Symbol + Titel + optionaler
- * rechter Slot. Stand lokal im Artikel-Detail und war dort auf «Spezifikation»
- * festgenagelt – womit jede zweite Ansicht (Bestand, Instanz) sich einen eigenen Kopf
- * hätte bauen müssen und die Karten nur noch *ähnlich* ausgesehen hätten.
- */
+/** **Der Kopf einer Spezifikations-Karte**: getöntes Symbol + Titel + rechter Slot. */
 export function SpecHead({ icon: Icon, title, right }: {
   icon: ElementType; title: string; right?: ReactNode;
 }) {
-  // **Auf jede Überschrift folgt eine Haarlinie** (Notiz #762). Vorher trug nur der
-  // Abschnitts-Kopf eine, der Karten-Kopf nicht – dieselbe Sache in zwei Formen, und man
-  // sah der Karte an, dass ihre Gliederung aus zwei Zeiten stammt.
+  // Auf jede Überschrift folgt eine Haarlinie.
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
@@ -195,27 +168,8 @@ export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint
   );
 }
 
-/**
- * **Der EINE Kopf jedes Datensatz-Fensters** (Notiz #242).
- *
- * Alle Detail-Ansichten sahen sich ähnlich, aber keine zwei gleich: mal 26 px Titel, mal
- * 28 px, mal klebend, mal nicht, beim Benutzer sogar ein ganz anderes Layout (runder
- * Avatar, «Obj.-Nr.»-Block rechts). Diese Anatomie ist jetzt verbindlich – und sie ist
- * dieselbe Aussage wie im Feed:
- *
- *     [Symbol]  TYP (Eyebrow)
- *               **Name**
- *               Objektnummer · Symbol-Aktionen · Status-Aktionen        [Status rechts]
- *
- * Der Typ steht als Eyebrow, der **Name** als Titel, die Objektnummer als monospaced
- * Zeile darunter – und die Aktionen dort, wo sie hingehören: bei der Objektnummer. Rechts
- * bleibt allein der Zustand (plus optional die Speicher-Anzeige).
- */
-/** ►►► **Ein Zeichen am Symbol – eine Form für alle.** ◄◄◄ Unten rechts steht, was der
- *  Datensatz **ist** (eigene Gesellschaft, Abweichung), oben rechts, was **zu tun** ist
- *  (offene Nachrichten). Gleiche Grösse im Verhältnis zum Symbol, gleicher weisser Ring,
- *  gleiche Schrift – und zwei Ecken, also überdecken sie sich nie. Eine Zahl ab zehn
- *  heisst «9+»: die genaue Menge sagt die Blase. */
+/** ►►► **Ein Zeichen am Symbol – eine Form für alle.** ◄◄◄ Unten rechts, was der Datensatz
+ *  **ist** (eigene Gesellschaft, Abweichung), oben rechts, was **zu tun** ist; ab zehn «9+». */
 function IconMark({ corner, size, bg, tip, children, list, onClick }: {
   corner: 'top' | 'bottom'; size: number; bg: string; tip: string; children: ReactNode;
   /** Mehrzeiliger Hover (je Abschnitt eine Zeile). */
@@ -283,17 +237,9 @@ export function SectionSep({ label, todo, anchor, tip }: {
 }
 
 /**
- * **Das Symbol eines Datensatzes — EINE Komponente für Feed und Detail-Kopf** (#697/#699).
- *
- * Symbol, Farbfamilie und Form kommen aus `TYPE_META`; nur die **Grösse** unterscheidet
- * die beiden Orte. Ein Benutzer ist rund (ein Foto in einem Quadrat sieht falsch aus) –
- * diese eine Formregel steht **hier**, abgeleitet aus dem Typ, damit keine Aufrufstelle
- * sie neu erfinden kann.
- *
- * **Die Abweichung ist ein Zeichen am Symbol, kein Textlabel** (#699). Sie ist keine
- * Eigenschaft des Auftrags, sondern eine Auskunft über die Herkunft seiner Stücke – und
- * weil Feed und Kopf dieselbe Komponente benutzen, können sie nicht auseinanderlaufen
- * (genau der Fehler aus #688).
+ * **Das Symbol eines Datensatzes — EINE Komponente für Feed und Detail-Kopf.** Alles aus
+ * `TYPE_META`, nur die Grösse variiert; ein Benutzer ist rund. Die Abweichung ist ein
+ * Zeichen am Symbol, kein Textlabel.
  */
 export function RecordIcon({ type, size, photoUrl, initials, deviation, own, todo, onTodo }: {
   type: ErpRecordType;
@@ -304,9 +250,7 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own, tod
   /** Eine **unserer** Gesellschaften – dieselbe Form wie die Abweichung: ein Zeichen
    *  am Symbol, kein Text daneben. */
   own?: boolean;
-  /** **Was zu tun ist** (`lib/todo`) – eine eingekreiste Zahl **oben** rechts: offene
-   *  Nachrichten, Zeiterfassung, Pflichtangaben, Feiertage. Rot, sobald etwas dringend
-   *  ist, sonst orange; der Hover listet je Abschnitt. */
+  /** **Was zu tun ist** (`lib/todo`) – Zahl oben rechts, rot wenn dringend, Hover je Abschnitt. */
   todo?: Todo | null;
   /** Klick auf die Zahl (Kopf): zur ersten Stelle springen. */
   onTodo?: () => void;
@@ -352,26 +296,24 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own, tod
   );
 }
 
+/**
+ * **Der EINE Kopf jedes Datensatz-Fensters** – dieselbe Aussage wie im Feed:
+ *
+ *     [Symbol]  TYP (Eyebrow)
+ *               **Name**
+ *               Objektnummer · Symbol-Aktionen · Status-Aktionen        [Status rechts]
+ */
 export function DetailHeader({
   type, photoUrl, initials, deviation, own, todo, title, placeholder = 'Ohne Bezeichnung',
   objectId, objectIdText, objectIdHint, actions, status, right, onBack, children, tabs,
 }: {
-  /**
-   * **Der Datensatztyp — und sonst nichts** (Testnotiz #697).
-   *
-   * Symbol, Farbfamilie und Eyebrow kommen aus der EINEN Quelle (`lib/erp-record.TYPE_META`)
-   * und werden hier aufgelöst. Vorher reichte jede Ansicht sie einzeln herein: drei von
-   * fünf mit hart getippten Hex-Werten und einem zweiten Mal ausgeschriebenem Namen –
-   * dieselbe Aussage an zwei Orten, und der Feed konnte davon abweichen, ohne dass es
-   * jemandem auffiel. Was **variieren darf, ist der Inhalt**; Layout, Raster, Farben,
-   * Schriften und Logik dürfen es nicht, also lassen sie sich hier nicht mehr übergeben.
-   */
+  /** **Der Datensatztyp — und sonst nichts**: Symbol, Farbe und Eyebrow aus `TYPE_META`. */
   type: ErpRecordType;
   /** Rundes Foto statt des Symbol-Kastens (Benutzer). Die Geometrie steht hier. */
   photoUrl?: string | null;
   /** Fällt das Foto weg: Initialen im selben runden Kasten. */
   initials?: string;
-  /** **Abweichung** – ein Zeichen am Symbol, siehe `RecordIcon` (#699). */
+  /** **Abweichung** – ein Zeichen am Symbol, siehe `RecordIcon`. */
   deviation?: boolean;
   /** **Eigenes Unternehmen** – ein Zeichen am Symbol wie die Abweichung. */
   own?: boolean;
@@ -383,27 +325,19 @@ export function DetailHeader({
   objectId?: number | null;
   /** Ersetzt die formatierte Objektnummer (z. B. «—» beim Anlegen, solange es sie nicht gibt). */
   objectIdText?: string;
-  /** Erklärung dazu – im **Hover**, nicht in der Fläche (Notiz #389). */
+  /** Erklärung dazu – im **Hover**, nicht in der Fläche. */
   objectIdHint?: string;
   /** Symbol-/Status-Aktionen – stehen bei der Objektnummer. */
   actions?: ReactNode;
-  /** Der Zustand – **immer** als `StatusBadge` gerendert, damit er überall gleich gross
-   *  und gleich gesetzt ist (Notizen #264/#268); die Aufrufer können nicht abweichen. */
+  /** Der Zustand – **immer** als `StatusBadge`, überall gleich. */
   status?: StatusCfg;
   /** Rechte Spalte NEBEN dem Status (Speicher-Anzeige, «Abbrechen» beim Anlegen). */
   right?: ReactNode;
   onBack?: () => void;
   /** Banner unter der Kopfzeile. */
   children?: ReactNode;
-  /**
-   * Die **Reiter-Zeile** – Teil der Kopf-Anatomie, nicht beliebiges Kind (Notiz #595).
-   *
-   * Nur ihretwegen hat der Kopf `paddingBottom: 0`: der rote Aktiv-Balken eines Reiters
-   * soll genau auf der Kopf-Haarlinie liegen (#290). Wo es **keine** Reiter gibt – der
-   * Lieferant sieht keine –, klebte die Objektnummer-Zeile darum ohne jeden Abstand auf
-   * der Linie. Als eigener Slot entscheidet der Kopf das selbst, und die Aufrufer können
-   * beim Abstand nicht mehr auseinanderlaufen (sie trugen 10 px und 16 px).
-   */
+  /** Die **Reiter-Zeile** – ein eigener Slot: mit Reitern liegt der Aktiv-Balken auf der
+   *  Kopf-Haarlinie, ohne setzt der Kopf seinen Fussabstand selbst. */
   tabs?: ReactNode;
 }) {
   const meta = TYPE_META[type];
@@ -432,10 +366,7 @@ export function DetailHeader({
           <div style={DH.right}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {right}
-              {/* Etwas grösser als im Feed (Notiz #359): im Kopf ist der Zustand eine der
-                  drei Hauptaussagen (Typ · Name · Zustand) und darf neben einem 22-px-Titel
-                  nicht wie eine Fussnote wirken. Weil ihn NUR diese eine Stelle rendert,
-                  gilt die Grösse für jeden Datensatztyp gleich. */}
+              {/* Etwas grösser als im Feed: eine der drei Hauptaussagen des Kopfs. */}
               {status && <StatusBadge cfg={status} size={11.5} />}
             </div>
           </div>
@@ -447,14 +378,8 @@ export function DetailHeader({
   );
 }
 
-/**
- * Status-Aktion in der Kopf-Aktionszeile («Freigeben», «Reaktivieren»).
- *
- * Sie steht neben den 28-px-Symbolknöpfen und ist darum **exakt so hoch wie sie** (Notiz
- * #286): war sie höher, wuchs die ganze Zeile in dem Moment, in dem die Aktion erschien –
- * und schrumpfte wieder, sobald sie wegfiel. Beide Detail-Ansichten (Artikel, Auftrag)
- * hatten dieselbe Zeile zweimal ausgeschrieben; jetzt gibt es eine Stelle.
- */
+/** Status-Aktion in der Kopf-Aktionszeile – **exakt so hoch wie die 28-px-Symbolknöpfe**,
+ *  damit die Zeile nicht springt. */
 export function HeaderAction({ label, tone = 'primary', hint, disabled, onClick }: {
   label: string; tone?: StatusTone; hint?: string; disabled?: boolean; onClick: () => void;
 }) {
@@ -476,10 +401,7 @@ export function HeaderSep() {
 
 export const DH: Record<string, React.CSSProperties> = {
   head: {
-    // paddingBottom 0 **mit** Reitern: sie sitzen bündig an der Unterkante, sodass der rote
-    // Aktiv-Balken (2px border-bottom je Reiter) genau auf der Kopf-Haarlinie liegt – nicht
-    // mehr 20px darüber schwebend (Notiz #290). Ohne Reiter setzt `DetailHeader` den
-    // Fussabstand selbst (Notiz #595); der Wert hier ist darum nur der Ausgangspunkt.
+    // paddingBottom 0 mit Reitern (Aktiv-Balken auf der Haarlinie); ohne setzt `DetailHeader` ihn.
     padding: '20px clamp(14px, 4vw, 28px) 0', borderBottom: '1px solid var(--border-1)',
     background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0,
   },
@@ -489,16 +411,8 @@ export const DH: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6,
   },
   title: {
-    // **Einzelangaben, KEINE `font`-Kurzschreibweise** – und das ist kein Geschmack.
-    //
-    // Der Titel wird konditional überschrieben (`titleEmpty` setzt `fontWeight`/
-    // `fontStyle` für den Platzhalter). Fällt diese Überschreibung später weg – beim
-    // Auftrag passiert genau das, weil er als einziger Datensatztyp ohne Namen startet
-    // und ihn nachlädt –, entfernt React die Longhand, indem es sie auf `''` setzt. Der
-    // Wert aus der Kurzschreibweise kommt dabei **nicht** zurück: sie hat ihn in die
-    // Deklaration geschrieben, und das Löschen der Longhand löscht ihn daraus. Übrig
-    // bleibt der Initialwert – 400 statt 800. Als Einzelangabe steht 800 dagegen in
-    // jedem Zustand im Objekt und wird zurückgeschrieben.
+    // **Einzelangaben, KEINE `font`-Kurzschreibweise**: fällt die Überschreibung `titleEmpty`
+    // weg, setzt React die Longhand auf `''` – aus einer Kurzschreibweise käme der Wert nicht zurück.
     fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 26,
     letterSpacing: '-.03em', margin: 0, lineHeight: 1.05,
     color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
