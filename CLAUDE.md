@@ -251,7 +251,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   (`lib/record-status.ts`). **Lieferant ↔ Kunde ist eine Eigenschaft des Vorgangs**, nicht
   der Person. **Admin wird nur `initial_admin_email`** (beim Login), nie «wer zuerst
   kommt». Personen werden nicht deaktiviert; Personal kann eine Person anlegen
-  (`POST /erp/records`, Firebase-Konto sofort).
+  (`POST /erp/records`, das Anmeldekonto entsteht bei der ersten Anmeldung).
 - **Es bestellt immer eine Person**; die Firma ist höchstens Rechnungsempfänger «z. H.».
   **Eine fremde Firma ist ihre Identität** – Name, Rechtsform, UID (`sites.EXTERNAL_FIELDS`).
   Eigene Gesellschaften (`is_own`, nur Admin) tragen Anschrift, Bank, Währung, Gebiete und
