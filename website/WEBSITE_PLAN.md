@@ -45,8 +45,9 @@
 - **48/66 · Das «+» für Personal** (ersetzt die Testnotizen, November 2026): angemeldetes Personal
   sieht unten rechts dasselbe «+» wie im ERP – `src/scripts/capture.ts` öffnet `/erp/erfassen` in
   einem Rahmen (eigene Anmeldung, gleicher Ursprung; CSP `frame-src 'self'`). Die Stecknadel
-  zeigt auf die Website; Rückmeldungen werden Notizen am Artikel «Website». Alle anderen sehen
-  nichts, die Seite lädt dafür nichts.
+  zeigt auf die Website; Rückmeldungen werden Notizen am Artikel «Website». Seit Phase 5 ist es
+  der Assistent: das Gespräch (auch Foto und Datei) läuft im Rahmen, «Neu anlegen» und «Entwurf
+  öffnen» springen ins ERP. Alle anderen sehen nichts, die Seite lädt dafür nichts.
 
 ## 2. Kopf, Fuss und Konto (die Naht zum ERP)
 

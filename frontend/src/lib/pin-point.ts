@@ -33,7 +33,7 @@ const MAX = { label: 120, origin: 80, path: 120 };
  * ►►► **Nur Text, den eine Datenbank aufnimmt** (#943). ◄◄◄ PostgreSQL nimmt in `text` kein
  * NUL; was die Seite hergibt, entscheidet nicht, ob eine Erfassung speicherbar ist. Gekappt wird
  * jedes C0-Steuerzeichen ausser Tabulator und Zeilenumbruch (der Server putzt noch einmal,
- * `intake.clean`).
+ * `talk.clean`).
  */
 const clean = (s: string) => s.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
 const cut = (s: string, n: number) => {

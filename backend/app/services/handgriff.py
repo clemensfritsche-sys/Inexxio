@@ -307,11 +307,6 @@ def dumps(body: Any) -> str:
 #
 # Offen ist abgeleitet: ohne ``done`` und ohne ``dropped``.
 
-#: Diese Ereignisse am Datensatz sind keine «Änderung seit der Vorbereitung».
-_QUIET = ("handgriff", "handgriff.done", "handgriff.dropped", "talk", "ai.call", "pin",
-          "document.read", "document.viewed", "voucher.viewed")
-
-
 @dataclass
 class Handgriff:
     id: int
@@ -405,9 +400,11 @@ def _seen(db: Session, object_id: int) -> int:
                           {"o": object_id}).scalar() or 0)
 
 
+#: Geändert heisst: eine Zeile des Datensatzes wurde geändert oder gelöscht – was neu an ihm
+#: entsteht (eine Nachricht der Person, ein Dokument), ändert nicht, was vorbereitet wurde.
 _CHANGED = text("""
 SELECT table_name, event, changes FROM log
- WHERE object_id = :o AND id > :seen AND NOT (coalesce(event, '') = ANY(:quiet))
+ WHERE object_id = :o AND id > :seen AND action IN ('update', 'delete')
  ORDER BY id LIMIT 20""")
 
 
@@ -420,10 +417,9 @@ def changed_since(db: Session, h: Handgriff) -> list[str]:
         return []
     from ..domain.log import TABLE_WORDS
     out: list[str] = []
-    for r in db.execute(_CHANGED, {"o": oid, "seen": int(h.payload.get("seen") or 0),
-                                   "quiet": list(_QUIET)}):
-        word = r.event or TABLE_WORDS.get(r.table_name or "", r.table_name or "")
-        fields = ", ".join(sorted((r.changes or {}).keys())[:4]) if r.event is None else ""
+    for r in db.execute(_CHANGED, {"o": oid, "seen": int(h.payload.get("seen") or 0)}):
+        word = TABLE_WORDS.get(r.table_name or "", r.table_name or "")
+        fields = ", ".join(sorted((r.changes or {}).keys())[:4])
         line = f"{word}: {fields}" if fields else str(word)
         if line not in out:
             out.append(line)
@@ -558,8 +554,7 @@ def view(db: Session, found: list[Handgriff]) -> list[Any]:
         waits = [d for d in h.depends if d in open_ids]
         rec = names.get(h.object_id)
         out.append(HandgriffOut(
-            id=h.id, at=h.at, object_id=h.object_id,
-            label=f"{rec.label if rec else ''} {h.object_id}".strip(),
+            id=h.id, at=h.at, object_id=h.object_id, label=rec.name if rec else "",
             line=str(h.payload.get("line") or ""), method=h.payload.get("method") or "",
             path=h.payload.get("path") or "", body=h.payload.get("body"),
             state=state_of(h, bool(waits)), result=(h.done or {}).get("result"),

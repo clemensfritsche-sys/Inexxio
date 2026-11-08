@@ -13,10 +13,10 @@ const SOURCE = 'inexxio-capture';
  * (`website/src/scripts/capture.ts`) in einem Rahmen. ◄◄◄
  *
  * Es ist dasselbe «+» wie im ERP (`CaptureSheet`) mit derselben Anmeldung (ERP-Layout,
- * `AuthGate staffOnly`). Nur die Wege nach draussen gehen ins Fenster dahinter: die Stecknadel
- * zeigt auf die Website (gleicher Ursprung), Foto, Datei, «Neu anlegen», «Zum Feld» und
- * «Entwurf öffnen» öffnen das ERP (`/erp?neu=…`, `/erp?open=…`), schliessen meldet `close`. Kopf
- * und Fuss der Seite selbst sind aus (`html[data-embed]`, `globals.css`).
+ * `AuthGate staffOnly`) – das Gespräch, Foto und Datei laufen hier im Rahmen. Nur die Wege nach
+ * draussen gehen ins Fenster dahinter: die Stecknadel zeigt auf die Website (gleicher Ursprung),
+ * «Neu anlegen» und «Entwurf öffnen» öffnen das ERP (`/erp?neu=…&handgriff=…`, `/erp?open=…`),
+ * schliessen meldet `close`. Kopf und Fuss der Seite selbst sind aus (`html[data-embed]`).
  *
  * Ohne Rahmen (direkt aufgerufen) gibt es nichts einzubetten: dann geht es ins ERP.
  */
@@ -40,17 +40,15 @@ export default function EmbeddedCapture() {
     show: () => { window.frameElement?.removeAttribute('style'); },
   };
   const actions: CaptureActions = {
-    createDraft: (type, values) => go(`/erp?${new URLSearchParams({
-      neu: type === 'user' ? 'person' : 'company', werte: JSON.stringify(values) })}`),
+    openDraft: (d) => go(`/erp?${new URLSearchParams({
+      neu: d.kind === 'user' ? 'person' : d.kind === 'organization' ? 'company' : 'document',
+      werte: JSON.stringify(d.values), handgriff: String(d.handgriff) })}`),
   };
   return (
     <ErpNavContext.Provider value={(objectId) => go(`/erp?open=${objectId}`)}>
       <CaptureContext.Provider value={actions}>
         <CaptureSheet hint={null} host={host} onClose={() => tellParent('close')}
-          onCreate={(type) => go(`/erp?neu=${type}`)}
-          onFileJump={() => go('/erp?neu=document')}
-          onFiles={() => go('/erp?neu=document')}
-          onScan={() => go('/erp?neu=document&quelle=kamera')} />
+          onCreate={(type) => go(`/erp?neu=${type}`)} />
       </CaptureContext.Provider>
     </ErpNavContext.Provider>
   );

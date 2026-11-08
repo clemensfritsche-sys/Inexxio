@@ -201,7 +201,7 @@ def test_a_note_carries_no_control_characters():
     PostgreSQL nimmt in ``text`` **kein NUL** auf. Der Ausloeser war einmal ein Platzhalter mit
     NUL-Byte im Beleg – behoben –, und die Regel gehoert trotzdem an die Quelle: die Stecknadel
     liest Text aus der Seite (``lib/pin-point.ts``), und was die Seite hergibt, entscheidet nicht.
-    Serverseitig putzt ``intake.clean`` (Verhalten: ``test_capture_flow``).
+    Serverseitig putzt ``talk.clean``.
 
     Bug-Formen: (a) irgendeine Quelle im Frontend traegt wieder ein Steuerzeichen;
     (b) die Stecknadel putzt nicht, was sie aus der Seite liest.

@@ -27,7 +27,7 @@ class HandgriffOut(BaseModel):
     id: int
     at: datetime
     object_id: int
-    #: Name und Nummer des Datensatzes, den er betrifft.
+    #: Der Name des Datensatzes, den er betrifft (die Nummer ist ``object_id``).
     label: str
     #: Eine Zeile: was geschieht.
     line: str
@@ -122,4 +122,7 @@ class PinnedOut(BaseModel):
     #: ``POST …/refresh`` wählt neu (die Oberfläche ruft es von selbst).
     chosen_at: Optional[datetime] = None
     stale: bool = False
+    #: Der Stand des Umfelds (die jüngste Änderung, eine Log-Id) – je Stand fragt die Oberfläche
+    #: höchstens einmal neu.
+    mark: int = 0
     problem: Optional[str] = None

@@ -66,10 +66,11 @@ def pinned(db: Session, object_id: int, viewer: UserProfile, *,
     """Das Angeheftete, wie es ist – ohne die KI zu fragen."""
     history.assert_visible(db, object_id, viewer)
     pin = _latest(db, object_id)
-    stale, _mark = _stale(db, object_id, pin)
+    stale, mark = _stale(db, object_id, pin)
     items = [KnowledgeOut(**i) for i in ((pin.payload or {}).get("items") or [])] if pin else []
     return PinnedOut(handgriffe=handgriff.open_at(db, object_id, viewer), knowledge=items,
-                     chosen_at=pin.at if pin else None, stale=stale, problem=problem or None)
+                     chosen_at=pin.at if pin else None, stale=stale, mark=mark,
+                     problem=problem or None)
 
 
 #: Ein Datensatz, den nicht jedes Personal sieht (ein privates Dokument): kein Wissen.

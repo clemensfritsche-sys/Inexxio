@@ -16,15 +16,17 @@ import type { ErpRecordType } from '@/types';
  *   dem Server aufgelöst (geht auch, bevor der Feed geladen ist).
  * - `?neu=<person|company|article|order|document>` (das «+» auf der Website: «Neu anlegen»,
  *   📷 und 📄): öffnet denselben Entwurf wie das «+» im ERP; `&quelle=kamera` beginnt ihn mit
- *   der Kamera, `&werte=<JSON>` füllt ihn vor (ein Vorschlag «Entwurf öffnen»). Danach steht er
- *   nicht mehr in der Adresse – ein Neuladen legt nichts zweimal an.
+ *   der Kamera, `&werte=<JSON>` füllt ihn vor und `&handgriff=<Nr>` nennt den Handgriff, der mit
+ *   der Freigabe erledigt ist («Entwurf öffnen»). Danach steht er nicht mehr in der Adresse – ein
+ *   Neuladen legt nichts zweimal an.
  */
 const CREATABLE: readonly Creatable[] = ['person', 'company', 'article', 'order', 'document'];
 
 export function useUrlParams({ onType, onOpen, onCreate }: {
   onType: (type: ErpRecordType) => void;
   onOpen: (type: ErpRecordType, objectId: number) => void;
-  onCreate: (type: Creatable, camera: boolean, values: Record<string, string> | null) => void;
+  onCreate: (type: Creatable, camera: boolean, values: Record<string, string> | null,
+    handgriff: number | null) => void;
 }): void {
   const handlers = useRef({ onType, onOpen, onCreate });
   handlers.current = { onType, onOpen, onCreate };
@@ -34,9 +36,11 @@ export function useUrlParams({ onType, onOpen, onCreate }: {
     if (known) handlers.current.onType(known);
     const create = CREATABLE.find((t) => t === params.get('neu'));
     if (create) {
+      const hg = Number(params.get('handgriff'));
       handlers.current.onCreate(create, create === 'document' && params.get('quelle') === 'kamera',
-        valuesOf(params.get('werte')));
+        valuesOf(params.get('werte')), Number.isInteger(hg) && hg > 0 ? hg : null);
       params.delete('neu');
+      params.delete('handgriff');
       params.delete('quelle');
       params.delete('werte');
       const rest = params.toString();

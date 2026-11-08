@@ -34,11 +34,12 @@ export const qk = {
   mailboxes: (company: number) => key('mailboxes', company),
   newsletter: (person: number) => key('newsletter', person),
   company: (id: number) => key('company', id),
-  /** EIN Schlüssel je Datensatz: alle Felder fragen ihn, React Query fragt einmal. */
-  proposals: (objectId: number) => key('proposals', objectId),
+  /** Das Angeheftete eines Datensatzes (offene Handgriffe, Wissen). */
   pins: (objectId: number) => key('pins', objectId),
-  /** Meine Erfassungen, die noch nicht abgelegt sind. */
-  openIntakes: () => key('intake', 'open'),
+  /** Meine offenen Gespräche (die Zahl am «+»). */
+  openTalks: () => key('talks', 'open'),
+  /** Ein Gespräch. */
+  talk: (id: number) => key('talks', id),
   /** Meine Aufnahmen, die noch nicht fertig sind (Phase 4). */
   openRecordings: () => key('recordings', 'open'),
 };

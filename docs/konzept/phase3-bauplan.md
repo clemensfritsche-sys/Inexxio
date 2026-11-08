@@ -1,7 +1,8 @@
 # Phase 3 · KI – Bauplan (Vertrag zwischen Backend und Oberfläche)
 
-> **Kopfstatus:** gebaut (07.11.2026) · wird durch Phase 5 ersetzt (`docs/konzept/phase5-bauplan.md`:
-> Gespräch und Handgriff statt Erfassung und Vorschlag) · gehört zur Projektakte
+> **Kopfstatus:** **ersetzt** (08.11.2026) durch Phase 5 (`docs/konzept/phase5-bauplan.md`: Gespräch
+> und Handgriff statt Erfassung und Vorschlag) – Erfassung, Vorschläge, «Stimmt so», das Zeichen am
+> Feld und die Hinweise gibt es nicht mehr; Log, Tür, Deckel bleiben · gehört zur Projektakte
 > `docs/konzept/lernende-firma.md` (§4.3, §4.4, §6 «Phase 3»). Was hier steht, ist die
 > Schnittstelle, gegen die gebaut wird; ändert sie sich, wird sie hier geändert.
 

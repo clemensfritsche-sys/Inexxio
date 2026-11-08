@@ -24,6 +24,8 @@ export interface DetailHandlers {
   onCompanySaved: (c: CompanySettings) => void;
   onPersonCreated: (u: UserProfile) => void;
   onCompanyCreated: (c: CompanySettings) => void;
+  /** Ein Dokument ist freigegeben (aus dem Entwurf). */
+  onDocumentFiled: (objectId: number) => void;
   onRefreshArticles: () => void;
   onCreate: (type: Creatable, seed?: OrderSeed) => void;
   onOpen: (sel: { type: ErpRecordType; objectId: number }) => void;
@@ -41,7 +43,7 @@ export interface DetailHandlers {
 export function DetailPane({ show, creating, sel, activeRow, orderSeed, seeds, isAdmin, me, todos, h }: {
   show: boolean;
   creating: Creatable | null;
-  /** Was ein Entwurf schon mitbringt – aus «+» (Foto, Datei) oder einem Vorschlag
+  /** Was ein Entwurf schon mitbringt – aus «+» (Foto, Datei) oder einem Handgriff
    *  («Entwurf öffnen»); `no` zählt je Anlage hoch, damit ein neuer Entwurf neu beginnt. */
   seeds: { no: number; draft: DraftSeed | null; record: Record<string, string> | null };
   sel: { type: ErpRecordType; objectId: number } | null;
@@ -74,7 +76,7 @@ export function DetailPane({ show, creating, sel, activeRow, orderSeed, seeds, i
           )}
           {creating === 'document' && (
             <DocumentDraft key={`new-document-${seeds.no}`} seed={seeds.draft ?? undefined} onCancel={h.onCancelCreate}
-              onFiled={(d) => h.onOpen({ type: 'document', objectId: d.object_id })}
+              onFiled={(d) => h.onDocumentFiled(d.object_id)}
               onOpen={(oid) => h.onOpen({ type: 'document', objectId: oid })} />
           )}
         </ErpNavContext.Provider>

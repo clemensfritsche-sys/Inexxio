@@ -92,7 +92,7 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
 
           {step === 'form' && (
             <form onSubmit={submit} style={{ display: 'grid', gap: 12, marginTop: 16 }}>
-              <KtField id="kt-new-mail" name="email" objectId={profile.object_id} label="Neue E-Mail-Adresse" type="email" value={email}
+              <KtField id="kt-new-mail" name="email" label="Neue E-Mail-Adresse" type="email" value={email}
                 onChange={setEmail} placeholder="name@beispiel.ch" autoComplete="email" />
               <p className="kt-note">
                 Wir schicken einen Bestätigungslink an die <strong>neue</strong> Adresse. Erst

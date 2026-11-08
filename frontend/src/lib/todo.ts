@@ -17,9 +17,9 @@ export function todoChanged(): void {
 /** Die Abschnitte, in der Reihenfolge der Seite – und ihr Wort im Hover. */
 const SECTION: Record<string, string> = {
   kommunikation: 'Kommunikation',
-  // Offene Vorschläge der KI (und meine nicht abgelegten Erfassungen) – sie stehen im
-  // Angehefteten unten im Verlauf (`components/erp/pinned.tsx`, `data-todo="vorschlaege"`).
-  vorschlaege: 'Vorschläge',
+  // Offene Handgriffe aus Mails – sie stehen im Angehefteten unten im Verlauf
+  // (`components/erp/pinned.tsx`, `data-todo="handgriffe"`).
+  handgriffe: 'Handgriffe',
   zeiterfassung: 'Zeiterfassung',
   // Überfällige Rechnungen – keine eigene Mahnliste, sie zählen an der Person.
   zahlungen: 'Zahlungen',

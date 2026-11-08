@@ -5,8 +5,8 @@ import type { Recording } from '@/types';
 /**
  * ►►► **Eine Aufnahme zu Ende abschreiben lassen – auch wenn das «+» zu ist.** ◄◄◄
  *
- * Nach dem Stopp fragt die Oberfläche `POST …/advance`, bis die Aufnahme `done` (die Erfassung
- * gibt es) oder `failed` ist; jeder Aufruf arbeitet höchstens ~60 s. Die Schleife gehört
+ * Nach dem Stopp fragt die Oberfläche `POST …/advance`, bis die Aufnahme `done` (der Text steht
+ * im Gespräch) oder `failed` ist; jeder Aufruf arbeitet höchstens ~60 s. Die Schleife gehört
  * **nicht** dem Fenster: schliesst man das «+», läuft sie weiter, solange die Seite lebt – und
  * meldet sich, wenn es fertig ist («Aufnahme abgeschrieben …»). Je Aufnahme läuft **eine**
  * Schleife (`runs`): öffnet man sie wieder, hängt sich das Fenster an dieselbe. Ist die Seite
@@ -27,8 +27,8 @@ const RETRY_MS = 5_000;
 
 const pause = (ms: number) => new Promise<void>((r) => { setTimeout(r, ms); });
 
-/** Fertig im Sinn der Schleife: die Erfassung steht da, oder es ist gescheitert. */
-const finished = (r: Recording) => (r.state === 'done' && !!r.intake) || r.state === 'failed';
+/** Fertig im Sinn der Schleife: der Text steht im Gespräch, oder es ist gescheitert. */
+const finished = (r: Recording) => (r.state === 'done' && !!r.talk) || r.state === 'failed';
 
 async function loop(id: number, run: Run): Promise<Recording> {
   let r = run.last;
@@ -71,8 +71,8 @@ export function follow(rec: Recording, onUpdate: Listener): { promise: Promise<R
       runs.delete(rec.id);
       if (!fresh.listeners.size) {
         notify(done.state === 'failed'
-          ? `Aufnahme nicht abgeschrieben – ${done.problem ?? 'Grund unbekannt'}. Im «+» unter «Nicht abgelegt».`
-          : 'Aufnahme abgeschrieben – sie wartet im «+» auf «Stimmt so».', Date.now(),
+          ? `Aufnahme nicht abgeschrieben – ${done.problem ?? 'Grund unbekannt'}. Sie steht im «+».`
+          : 'Aufnahme abgeschrieben – das Gespräch steht im «+».', Date.now(),
         { tone: done.state === 'failed' ? 'warning' : 'info' });
       }
       return done;

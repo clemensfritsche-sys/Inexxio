@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, ArrowUp, Camera, ChevronRight, FileText, Mic, MapPin, PenLine, X } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { AlertCircle, ArrowUp, Camera, ChevronRight, FileText, Loader2, MessageSquare, Mic, MapPin, Plus, X } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { notify, tell } from '@/lib/notice';
 import { when } from '@/lib/when';
+import { qk } from '@/lib/queries';
 import { TYPE_META } from '@/lib/erp-record';
-import { useOpenIntakes, useOpenRecordings } from '@/lib/proposals';
+import { useOpenRecordings, useOpenTalks, useTalk } from '@/lib/assistant';
 import { canRecord } from '@/lib/use-recorder';
 import { runtime } from '@/lib/recorder';
 import { follow } from '@/lib/transcribe';
@@ -15,12 +17,12 @@ import { PIN_UI, describePlace, pickPlace, pinHome } from '@/lib/pin-point';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 import { TextArea } from '@/components/form/field';
-import { FiledBody } from '@/components/erp/capture/filed';
+import { HandgriffCard } from '@/components/erp/capture/handgriff-card';
 import { RecordingStrip, recordingWord } from '@/components/erp/capture/recorder';
 import type { Creatable } from '@/components/erp/feed-panel';
-import type { ErpRecordType, Intake, Recording } from '@/types';
+import type { ErpRecordType, Recording, Talk, TalkFile } from '@/types';
 
-/** Der Datensatz, der beim Erfassen offen ist – der erste Hinweis für die KI (nur seine Nummer). */
+/** Der Datensatz, der beim Sagen offen ist – der erste Hinweis für die KI (nur seine Nummer). */
 export interface CaptureHint { objectId: number; label: string }
 
 /** Wo die Stecknadel zeigt: im eigenen Fenster (ERP) oder im Fenster dahinter (Website). */
@@ -36,50 +38,40 @@ const CREATE: { type: Creatable; record: ErpRecordType; label: string }[] = [
 ];
 
 /**
- * Was das «+» gerade tut – EIN Zustand: bereit · nimmt auf · arbeitet (die KI legt ab, eine
- * Aufnahme wird abgeschrieben) · das Ergebnis («Abgelegt») · eine gescheiterte Aufnahme.
+ * Was das «+» gerade tut – EIN Zustand: bereit · nimmt auf · arbeitet (die KI antwortet, eine
+ * Aufnahme wird abgeschrieben) · eine gescheiterte Aufnahme.
  */
 type Phase =
   | { k: 'idle' }
   | { k: 'recording' }
   | { k: 'working'; recording?: Recording }
-  | { k: 'result'; intake: Intake }
   | { k: 'failed'; recording: Recording };
 
 /**
- * ►►► **«+» = Erfassen – EINE Ansicht, wie das Eingabefeld bei Claude.** ◄◄◄
+ * ►►► **«+» = der Assistent – EIN Gespräch, wie das Eingabefeld bei Claude.** ◄◄◄
+ * (Projektakte, Phase 5 §7.8)
  *
- * Oben die Eingabe: schreiben (Enter = ab an die KI, Umschalt+Enter = neue Zeile), 📷 Foto und
- * 📄 Datei (beide springen in den **Dokument-Entwurf** – Kamera mit Blatterkennung bzw.
- * Dateiwahl, der offene Datensatz als Referenz), 📌 Stecknadel (auf eine Stelle der Oberfläche
- * zeigen – eine Rückmeldung zur Software, Notiz am Artikel «ERP» bzw. «Website»), 🎤 Aufnehmen.
- * Darunter, was nicht abgelegt ist, und «Neu anlegen» wie bisher.
+ * Oben die Eingabe: schreiben (Enter = ab, Umschalt+Enter = neue Zeile), 📷 Foto und 📄 Datei
+ * (sie kommen **ins Gespräch** – die KI liest sie und bereitet das Dokument vor), 📌 Stecknadel
+ * (auf eine Stelle zeigen – Rückmeldung zur Software, am Artikel «ERP» bzw. «Website»),
+ * 🎤 Aufnehmen. Darunter das Gespräch: was ich sagte, was die KI antwortet, und die **Handgriffe**
+ * als Karten – jeder einzeln: Ausführen, Entwurf öffnen, Ändern, Weg. Dann «Offene Gespräche» und
+ * «Neu anlegen».
  *
- * **Das Fenster ändert sich nie** – man arbeitet nur darin: die Aufnahme läuft *im* Feld (Punkt,
- * Zeit, Pegel; Absenden wird Stopp), danach steht das Skeleton genau dort, wo «Abgelegt»
- * erscheint, und füllt sich. «Stimmt so» oder «Verwerfen», dann ist das Feld wieder frei.
- * Was gerade nicht geht, wird blass – nichts verschwindet, nichts springt.
- *
- * Schliessen (daneben tippen, Esc) geht immer, **ausser während einer Aufnahme** (der Weg hinaus
- * ist Stopp). Schliesst man, während die KI arbeitet, läuft es weiter und meldet sich (eingebettet
- * auf der Website nicht – der Rahmen ist dann zu; fertig wird es trotzdem); es steht dann im «+»
- * unter «Nicht abgelegt» (die Zahl am Knopf).
+ * **Das Fenster ändert sich nie** – man arbeitet nur darin: die Aufnahme läuft *im* Feld, während
+ * die KI antwortet, steht das Skeleton dort, wo die Antwort erscheint. Schliessen (daneben tippen,
+ * Esc) geht immer, **ausser während einer Aufnahme**; was offen ist, bleibt unter «Offene
+ * Gespräche» (die Zahl am «+»). Antwortet die KI erst nach dem Schliessen, meldet es sich.
  */
-export function CaptureSheet({ hint, onClose, onCreate, onFiles, onFileJump, onScan, host }: {
+export function CaptureSheet({ hint, onClose, onCreate, host }: {
   hint: CaptureHint | null;
   onClose: () => void;
   onCreate: (type: Creatable) => void;
-  /** Datei gewählt – der Dokument-Entwurf übernimmt (mit dem Hinweis als Referenz). */
-  onFiles: (files: File[], hint: CaptureHint | null) => void;
-  /** Statt der Dateiwahl hier gleich in den Entwurf springen (eingebettet: die Datei lässt sich
-   *  nicht ins ERP mitnehmen, also wird sie dort gewählt). */
-  onFileJump?: () => void;
-  /** Foto – der Dokument-Entwurf beginnt mit der Kamera. */
-  onScan: (hint: CaptureHint | null) => void;
   /** Wo die Stecknadel zeigt (Vorgabe: dieses Fenster). */
   host?: PinHost;
 }) {
   const [phase, setPhase] = useState<Phase>({ k: 'idle' });
+  const [talkId, setTalkId] = useState<number | null>(null);
   const [about, setAbout] = useState<CaptureHint | null>(hint);
   const [place, setPlace] = useState('');
   const [picking, setPicking] = useState(false);
@@ -87,6 +79,8 @@ export function CaptureSheet({ hint, onClose, onCreate, onFiles, onFileJump, onS
   /** Die Stecknadel fand den Artikel der Software nicht – leise gesagt, nicht verschwiegen. */
   const [homeless, setHomeless] = useState('');
   const alive = useAlive();
+  const client = useQueryClient();
+  const talk = useTalk(talkId).data ?? null;
   const locked = phase.k === 'recording';
   const dismiss = locked ? undefined : onClose;
 
@@ -98,36 +92,33 @@ export function CaptureSheet({ hint, onClose, onCreate, onFiles, onFileJump, onS
   }, [dismiss, picking]);
 
   const { pin, forget } = usePin({ host, hint, setPicking, setPlace, setAbout, setHomeless });
-  const reset = () => { forget(); setPhase({ k: 'idle' }); setPlace(''); setAbout(hint); setProblem(''); setHomeless(''); };
+  const keep = (t: Talk) => { client.setQueryData(qk.talk(t.id), t); setTalkId(t.id); };
+  const fresh = () => { forget(); setPhase({ k: 'idle' }); setTalkId(null); setPlace(''); setAbout(hint); setProblem(''); setHomeless(''); };
 
-  /** Text an die KI – kommt die Antwort, nachdem das «+» zu ist, meldet es sich. */
-  async function send(text: string): Promise<boolean> {
+  /** Text (und Dateien) an den Assistenten – antwortet er, nachdem das «+» zu ist, meldet es sich. */
+  async function send(text: string, files: TalkFile[]): Promise<boolean> {
     const body = place ? `${place}\n\n${text}` : text;
     setPhase({ k: 'working' });
     setProblem('');
     try {
-      const intake = await api.intake(body, about?.objectId);
-      if (alive.current) setPhase({ k: 'result', intake });
-      else notify('Erfassung abgelegt bereit – sie wartet im «+» auf «Stimmt so».', Date.now(), { tone: 'info' });
+      const t = await api.say(body, { talk: talkId, hint: talkId ? null : about?.objectId, files });
+      if (alive.current) { keep(t); setPlace(''); }
+      else notify('Der Assistent hat geantwortet – das Gespräch steht im «+».', Date.now(), { tone: 'info' });
       return true;
     } catch (e) {
-      tell('Erfassung', 'Nicht abgelegt')(e);
+      tell('Gespräch', 'Nicht gesendet')(e);
       if (alive.current) {
-        setPhase({ k: 'idle' });
-        // Abgewiesen (4xx): nichts ist gespeichert. Sonst (Zeitgrenze, Netz) kann die Erfassung
-        // schon angekommen sein – der Text kommt trotzdem zurück (nichts geht verloren), aber
-        // mit dem Hinweis, erst nachzusehen (sonst stünde sie zweimal da).
+        // Abgewiesen (4xx): nichts ist gespeichert. Sonst (Zeitgrenze, Netz) kann die Nachricht
+        // schon angekommen sein – der Text kommt trotzdem zurück, mit dem Hinweis, erst
+        // nachzusehen (sonst stünde sie zweimal da).
         const refused = e instanceof ApiError && e.status >= 400 && e.status < 500;
-        const why = e instanceof Error ? e.message : 'Nicht abgelegt.';
-        setProblem(refused ? why : `${why} Vielleicht ist sie trotzdem angekommen – bitte zuerst unter «Nicht abgelegt» nachsehen, dann erst noch einmal senden.`);
+        const why = e instanceof Error ? e.message : 'Nicht gesendet.';
+        setProblem(refused ? why : `${why} Vielleicht ist sie trotzdem angekommen – bitte zuerst unter «Offene Gespräche» nachsehen.`);
       }
       return false;
+    } finally {
+      if (alive.current) setPhase({ k: 'idle' });
     }
-  }
-
-  function transcribe(recording: Recording) {
-    setPhase({ k: 'working', recording });
-    setProblem('');
   }
 
   // Beim Zeigen tritt das «+» nur beiseite (unsichtbar, nicht ausgehängt) – der getippte Text,
@@ -135,23 +126,29 @@ export function CaptureSheet({ hint, onClose, onCreate, onFiles, onFileJump, onS
   return createPortal(
     <div className="erp-capture-scrim" onClick={dismiss}
       style={picking ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}>
-      <div role="dialog" aria-modal="true" aria-label="Erfassen" className="erp-capture-sheet"
+      <div role="dialog" aria-modal="true" aria-label="Assistent" className="erp-capture-sheet"
         {...{ [PIN_UI]: 'true' }} onClick={(e) => e.stopPropagation()}>
         <div className="erp-capture-body">
-          <Composer phase={phase} place={place} about={about} onDropPlace={() => { forget(); setPlace(''); setAbout(hint); setHomeless(''); }}
-            onSend={send} onScan={() => onScan(about)} onFiles={(f) => onFiles(f, about)} onFileJump={onFileJump} onPin={pin}
+          {talk && <TalkView talk={talk} working={phase.k === 'working'} onFresh={fresh}
+            onChanged={() => void client.invalidateQueries({ queryKey: qk.talk(talk.id) })} />}
+          {!talk && phase.k === 'working' && <Skeleton />}
+          <Composer phase={phase} place={place} about={talk ? null : about} talking={!!talk}
+            onDropPlace={() => { forget(); setPlace(''); setAbout(hint); setHomeless(''); }}
+            onSend={send} onPin={pin}
             onRecord={() => { setProblem(''); setPhase({ k: 'recording' }); }}
-            onStopped={transcribe} onMicFailed={(why) => { setPhase({ k: 'idle' }); setProblem(why); }} />
-          <HintLine about={about} onDrop={phase.k === 'idle' && about ? () => setAbout(null) : undefined} />
+            onStopped={(recording) => { setPhase({ k: 'working', recording }); setProblem(''); }}
+            onMicFailed={(why) => { setPhase({ k: 'idle' }); setProblem(why); }} />
+          {!talk && <HintLine about={about} onDrop={phase.k === 'idle' && about ? () => setAbout(null) : undefined} />}
           {homeless && <p className="erp-capture-hint" style={{ marginTop: -6 }}>{homeless}</p>}
           {problem && <p role="alert" className="erp-capture-problem"><AlertCircle size={15} aria-hidden />{problem}</p>}
-          <Work phase={phase} alive={alive} onDone={reset} onClose={onClose}
-            onResult={(intake) => setPhase({ k: 'result', intake })}
+          <Transcribing phase={phase} alive={alive}
+            onTalk={(t) => { keep(t); setPhase({ k: 'idle' }); }}
             onFailed={(recording) => setPhase({ k: 'failed', recording })} />
+          {phase.k === 'failed' && <FailedRecording recording={phase.recording} onDone={fresh} />}
           <div className="erp-capture-rest" aria-disabled={phase.k !== 'idle' || undefined}>
-            <OpenList onIntake={(intake) => setPhase({ k: 'result', intake })}
+            <OpenList current={talkId} onTalk={(t) => { keep(t); setPhase({ k: 'idle' }); }}
               onRecording={(r) => setPhase(r.state === 'failed' ? { k: 'failed', recording: r } : { k: 'working', recording: r })} />
-            <CreateTiles onCreate={onCreate} />
+            {!talk && <CreateTiles onCreate={onCreate} />}
           </div>
         </div>
       </div>
@@ -238,25 +235,43 @@ function HintLine({ about, onDrop }: { about: CaptureHint | null; onDrop?: () =>
 }
 
 /**
- * ►► **Die Eingabe** – Text, darunter die Leiste: 📷 📄 📌 … 🎤 ➤. Während einer Aufnahme ist
- * sie die Aufnahme (`RecordingStrip`); während die KI arbeitet, wartet sie leer. ◄◄
+ * ►► **Die Eingabe** – Text, darunter die Leiste: 📷 📄 📌 … 🎤 ➤. Foto und Datei kommen als
+ * Anhang in die nächste Nachricht (sie liegen dann im Korb). Während einer Aufnahme ist sie die
+ * Aufnahme (`RecordingStrip`); während die KI antwortet, wartet sie. ◄◄
  */
-function Composer({ phase, place, about, onDropPlace, onSend, onScan, onFiles, onFileJump, onPin, onRecord, onStopped, onMicFailed }: {
-  phase: Phase; place: string; about: CaptureHint | null; onDropPlace: () => void;
-  onSend: (text: string) => Promise<boolean>; onScan: () => void; onFiles: (f: File[]) => void; onFileJump?: () => void;
+function Composer({ phase, place, about, talking, onDropPlace, onSend, onPin, onRecord, onStopped, onMicFailed }: {
+  phase: Phase; place: string; about: CaptureHint | null; talking: boolean; onDropPlace: () => void;
+  onSend: (text: string, files: TalkFile[]) => Promise<boolean>;
   onPin: () => void; onRecord: () => void; onStopped: (r: Recording) => void; onMicFailed: (why: string) => void;
 }) {
   const [text, setText] = useState('');
+  const [files, setFiles] = useState<TalkFile[]>([]);
+  const [uploading, setUploading] = useState(0);
   const [mic] = useState(canRecord);
+  const photo = useRef<HTMLInputElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const idle = phase.k === 'idle';
-  const ready = idle && !!text.trim();
+  const ready = idle && !uploading && (!!text.trim() || files.length > 0);
+  async function attach(list: FileList | null) {
+    if (!list?.length) return;
+    const picked = Array.from(list);
+    setUploading((n) => n + picked.length);
+    for (const f of picked) {
+      try {
+        const ref = await api.addTalkFile(f, f.name || 'Foto');
+        setFiles((x) => [...x, ref]);
+      } catch (e) { tell(`Datei «${f.name}»`, 'Nicht angehängt')(e); }
+      finally { setUploading((n) => n - 1); }
+    }
+  }
   async function submit() {
     if (!ready) return;
     const sent = text.trim();
+    const with_ = files;
     setText('');
-    // Scheitert es, kommt der Text zurück ins Feld – verloren geht nichts.
-    if (!(await onSend(sent))) setText((t) => t || sent);
+    setFiles([]);
+    // Scheitert es, kommen Text und Dateien zurück ins Feld – verloren geht nichts.
+    if (!(await onSend(sent, with_))) { setText((t) => t || sent); setFiles((f) => (f.length ? f : with_)); }
   }
   if (phase.k === 'recording') {
     return <RecordingStrip hint={about?.objectId ?? null} context={place || null}
@@ -271,23 +286,39 @@ function Composer({ phase, place, about, onDropPlace, onSend, onScan, onFiles, o
           {idle && <button type="button" onClick={onDropPlace} aria-label="Stelle entfernen" className="erp-capture-x"><X size={13} /></button>}
         </div>
       )}
+      {(files.length > 0 || uploading > 0) && (
+        <div className="erp-composer-files">
+          {files.map((f) => (
+            <span key={f.token} className="erp-talk-file">
+              <FileText size={13} aria-hidden />{f.name}
+              <button type="button" onClick={() => setFiles((x) => x.filter((y) => y.token !== f.token))}
+                aria-label={`«${f.name}» entfernen`} className="erp-capture-x"><X size={12} /></button>
+            </span>
+          ))}
+          {uploading > 0 && <span className="erp-talk-file"><Loader2 size={13} className="animate-spin" />lädt …</span>}
+        </div>
+      )}
       <TextArea name="capture" value={text} onChange={setText} readOnly={!idle} autoFocus rows={2}
-        placeholder={idle ? 'Was gibt’s? Schreiben oder aufnehmen …' : ''} aria-label="Was festgehalten wird"
-        className="erp-composer-input"
+        placeholder={idle ? (talking ? 'Antworten …' : 'Was gibt’s? Schreiben oder aufnehmen …') : ''}
+        aria-label="Was ich dem Assistenten sage" className="erp-composer-input"
         onKeyDownCapture={(e) => {
           if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
           e.preventDefault();
           void submit();
         }} />
       <div className="erp-composer-bar">
-        <button type="button" disabled={!idle} onClick={onScan} className="erp-icbtn" aria-label="Foto" data-tip="Foto – ein Blatt wird erkannt"><Camera size={18} /></button>
-        <button type="button" disabled={!idle} onClick={() => (onFileJump ? onFileJump() : file.current?.click())} className="erp-icbtn" aria-label="Datei" data-tip="Datei"><FileText size={18} /></button>
+        <button type="button" disabled={!idle} onClick={() => photo.current?.click()} className="erp-icbtn" aria-label="Foto" data-tip="Foto – ins Gespräch"><Camera size={18} /></button>
+        <button type="button" disabled={!idle} onClick={() => file.current?.click()} className="erp-icbtn" aria-label="Datei" data-tip="Datei – ins Gespräch"><FileText size={18} /></button>
         <button type="button" disabled={!idle} onClick={onPin} className={place ? 'erp-icbtn erp-icbtn-on' : 'erp-icbtn'}
           aria-label="Stelle zeigen" data-tip="Auf eine Stelle zeigen – Rückmeldung zur Software"><MapPin size={18} /></button>
-        <input ref={file} type="file" hidden onChange={(e) => { if (e.target.files?.length) onFiles(Array.from(e.target.files)); }} />
+        {/* Dateiwahl: begründete Ausnahme von RAW_FIELD (eslint.config.mjs) */}
+        <input ref={photo} type="file" accept="image/*" capture="environment" hidden
+          onChange={(e) => { void attach(e.target.files); e.target.value = ''; }} />
+        <input ref={file} type="file" multiple hidden
+          onChange={(e) => { void attach(e.target.files); e.target.value = ''; }} />
         <span style={{ flex: 1 }} />
         {mic && <button type="button" disabled={!idle} onClick={onRecord} className="erp-icbtn" aria-label="Aufnehmen" data-tip="Aufnehmen"><Mic size={18} /></button>}
-        <button type="button" disabled={!ready} onClick={() => void submit()} aria-label="Ablegen" data-tip="Ablegen (Enter)"
+        <button type="button" disabled={!ready} onClick={() => void submit()} aria-label="Senden" data-tip="Senden (Enter)"
           className={ready ? 'erp-send erp-send-go' : 'erp-send'}><ArrowUp size={18} /></button>
       </div>
     </div>
@@ -295,12 +326,46 @@ function Composer({ phase, place, about, onDropPlace, onSend, onScan, onFiles, o
 }
 
 /**
- * ►► **Der Platz unter der Eingabe** – während die KI arbeitet das Skeleton in der Form von
- * «Abgelegt», dann «Abgelegt» selbst; bei einer gescheiterten Aufnahme ihr Grund. ◄◄
+ * ►► **Das Gespräch** – was ich sagte (rechts), was die KI antwortet (links), die Handgriffe als
+ * Karten, der Reihe nach. Oben «Neues Gespräch»; während die KI antwortet, das Skeleton. ◄◄
  */
-function Work({ phase, alive, onDone, onClose, onResult, onFailed }: {
-  phase: Phase; alive: RefObject<boolean>; onDone: () => void; onClose: () => void;
-  onResult: (i: Intake) => void; onFailed: (r: Recording) => void;
+function TalkView({ talk, working, onFresh, onChanged }: {
+  talk: Talk; working: boolean; onFresh: () => void; onChanged: () => void;
+}) {
+  const end = useRef<HTMLDivElement>(null);
+  useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }); }, [talk.messages.length, talk.handgriffe.length]);
+  const items = [
+    ...talk.messages.map((m) => ({ at: m.at, id: m.id, el: <Bubble key={`m${m.id}`} m={m} /> })),
+    ...talk.handgriffe.map((h) => ({ at: h.at, id: h.id, el: <HandgriffCard key={`h${h.id}`} h={h} onChanged={onChanged} /> })),
+  ].sort((a, b) => a.id - b.id);
+  return (
+    <div className="erp-talk">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <MessageSquare size={14} aria-hidden style={{ color: 'var(--fg-3)' }} />
+        <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)', flex: 1 }}>Gespräch{talk.hint_object_id ? <> · <ObjId value={talk.hint_object_id} /></> : null}</span>
+        <button type="button" onClick={onFresh} disabled={working} className="erp-actbtn erp-actbtn-neutral"
+          style={{ height: 28, padding: '0 10px', fontSize: 12 }}><Plus size={13} />Neues Gespräch</button>
+      </div>
+      {items.map((x) => x.el)}
+      {working && <Skeleton />}
+      {!working && talk.problem && <p className="erp-capture-hint" role="status">{talk.problem}</p>}
+      <div ref={end} />
+    </div>
+  );
+}
+
+function Bubble({ m }: { m: Talk['messages'][number] }) {
+  return (
+    <div className={m.by === 'person' ? 'erp-bubble erp-bubble-me' : 'erp-bubble'}>
+      <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.text}</span>
+      {(m.files ?? []).map((f) => <span key={f.token} className="erp-talk-file"><FileText size={13} aria-hidden />{f.name}</span>)}
+    </div>
+  );
+}
+
+/** Eine Aufnahme wird abgeschrieben – das «+» folgt ihr, bis der Text im Gespräch steht. */
+function Transcribing({ phase, alive, onTalk, onFailed }: {
+  phase: Phase; alive: { current: boolean }; onTalk: (t: Talk) => void; onFailed: (r: Recording) => void;
 }) {
   const recording = phase.k === 'working' ? phase.recording : undefined;
   useEffect(() => {
@@ -308,32 +373,28 @@ function Work({ phase, alive, onDone, onClose, onResult, onFailed }: {
     const run = follow(recording, () => undefined);
     run.promise.then((r) => {
       if (!alive.current) return;
-      if (r.state === 'done' && r.intake) onResult(r.intake); else onFailed(r);
+      if (r.state === 'done' && r.talk) onTalk(r.talk); else onFailed(r);
     }, tell('Aufnahme', 'Nicht abgeschrieben'));
     return run.leave;
     // Eine Schleife je Aufnahme – die Rückrufe ändern sich mit jedem Zeichnen, die Aufnahme nicht.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recording?.id]);
-  if (phase.k === 'working') return <Skeleton />;
-  if (phase.k === 'result') return <FiledBody intake={phase.intake} onDone={onDone} onLeave={onClose} />;
-  if (phase.k === 'failed') return <FailedRecording recording={phase.recording} onDone={onDone} />;
   return null;
 }
 
-/** Die Form von «Abgelegt», grau – ein Teil, ein Vorschlag, die zwei Knöpfe. */
+/** Die Form einer Antwort, grau – ein paar Zeilen, eine Karte. */
 function Skeleton() {
   return (
-    <div className="erp-capture-skel" aria-busy="true" aria-label="Die KI legt ab">
+    <div className="erp-capture-skel" aria-busy="true" aria-label="Der Assistent antwortet">
+      <span className="erp-skel" style={{ height: 12, width: '72%' }} />
+      <span className="erp-skel" style={{ height: 12, width: '54%' }} />
       <div className="erp-capture-part">
-        <span className="erp-skel" style={{ height: 22, width: '58%', borderRadius: 999 }} />
-        <span className="erp-skel" style={{ height: 12, width: '96%' }} />
-        <span className="erp-skel" style={{ height: 12, width: '88%' }} />
-        <span className="erp-skel" style={{ height: 12, width: '64%' }} />
-      </div>
-      <span className="erp-skel" style={{ height: 40, borderRadius: 10 }} />
-      <div style={{ display: 'flex', gap: 8 }}>
-        <span className="erp-skel" style={{ height: 44, flex: 1, borderRadius: 10 }} />
-        <span className="erp-skel" style={{ height: 44, flex: 1, borderRadius: 10 }} />
+        <span className="erp-skel" style={{ height: 14, width: '64%' }} />
+        <span className="erp-skel" style={{ height: 12, width: '40%' }} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <span className="erp-skel" style={{ height: 32, width: 110, borderRadius: 8 }} />
+          <span className="erp-skel" style={{ height: 32, width: 90, borderRadius: 8 }} />
+        </div>
       </div>
     </div>
   );
@@ -362,15 +423,17 @@ function FailedRecording({ recording, onDone }: { recording: Recording; onDone: 
   );
 }
 
-/** Was noch nicht abgelegt ist – je Zeile ein Knopf: antippen öffnet es hier, im selben Fenster. */
-function OpenList({ onIntake, onRecording }: { onIntake: (i: Intake) => void; onRecording: (r: Recording) => void }) {
-  const open = useOpenIntakes().data ?? [];
-  // Fertige stehen schon als offene Erfassung da.
+/** Offene Gespräche und Aufnahmen – je Zeile ein Knopf: antippen öffnet es hier, im selben Fenster. */
+function OpenList({ current, onTalk, onRecording }: {
+  current: number | null; onTalk: (t: Talk) => void; onRecording: (r: Recording) => void;
+}) {
+  const talks = (useOpenTalks().data ?? []).filter((t) => t.id !== current);
+  // Fertige stehen schon als Gespräch da.
   const recordings = (useOpenRecordings().data ?? []).filter((r) => r.state !== 'done');
-  if (!open.length && !recordings.length) return null;
+  if (!talks.length && !recordings.length) return null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)' }}>Nicht abgelegt</span>
+      <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)' }}>Offene Gespräche</span>
       {recordings.map((r) => (
         <button key={`r${r.id}`} type="button" onClick={() => onRecording(r)} data-tip={r.problem ?? undefined}
           className={r.state === 'failed' ? 'erp-capture-row erp-capture-row-warn' : 'erp-capture-row'}>
@@ -380,14 +443,19 @@ function OpenList({ onIntake, onRecording }: { onIntake: (i: Intake) => void; on
           <ChevronRight size={15} aria-hidden style={{ flex: 'none', color: 'var(--fg-4)' }} />
         </button>
       ))}
-      {open.map((i) => (
-        <button key={`i${i.id}`} type="button" onClick={() => onIntake(i)} className="erp-capture-row">
-          <PenLine size={15} style={{ flex: 'none', color: 'var(--fg-3)' }} />
-          <span className="truncate" style={{ flex: 1, minWidth: 0 }}>{i.parts[0]?.subject || i.text}</span>
-          <span className="tabular-nums erp-capture-when">{when(i.at)}</span>
-          <ChevronRight size={15} aria-hidden style={{ flex: 'none', color: 'var(--fg-4)' }} />
-        </button>
-      ))}
+      {talks.map((t) => {
+        const open = t.handgriffe.filter((h) => h.state === 'open' || h.state === 'waiting').length;
+        return (
+          <button key={`t${t.id}`} type="button" onClick={() => onTalk(t)} className="erp-capture-row">
+            <MessageSquare size={15} style={{ flex: 'none', color: 'var(--fg-3)' }} />
+            <span className="truncate" style={{ flex: 1, minWidth: 0 }}>{t.messages[0]?.text || 'Gespräch'}</span>
+            <span className="tabular-nums erp-capture-when">
+              {open ? `${open} Handgriff${open === 1 ? '' : 'e'} · ` : t.waiting ? 'wartet · ' : ''}{when(t.at)}
+            </span>
+            <ChevronRight size={15} aria-hidden style={{ flex: 'none', color: 'var(--fg-4)' }} />
+          </button>
+        );
+      })}
     </div>
   );
 }

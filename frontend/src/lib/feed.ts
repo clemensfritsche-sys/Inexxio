@@ -25,7 +25,7 @@ type FeedList = (typeof FEED_LISTS)[number];
 /** Die Bereiche der Detailansichten – je einer ist das erste Glied ihrer Schlüssel. */
 export const DETAILS = ['order', 'instance', 'article', 'articleProcess', 'stock', 'units',
   'unitOptions', 'document', 'documentsOf', 'payments', 'history', 'senders', 'mailboxes',
-  'newsletter', 'company', 'proposals', 'pins', 'intake', 'recordings'] as const;
+  'newsletter', 'company', 'pins', 'talks', 'recordings'] as const;
 export type Detail = (typeof DETAILS)[number];
 type Area = FeedList | Detail;
 const AREAS: readonly Area[] = [...FEED_LISTS, ...DETAILS];
@@ -49,11 +49,10 @@ const API = '/api/v1';
  * Pfadteil (eine Nummer).
  */
 /**
- * **Was jede Änderung am Datensatz mitnimmt**: den Verlauf (jede Änderung steht im Log) und die
- * offenen Vorschläge samt Angeheftetem – ob ein Vorschlag offen ist, wird aus dem Log
- * abgeleitet (wer das Feld selbst ändert, erledigt ihn).
+ * **Was jede Änderung am Datensatz mitnimmt**: den Verlauf (jede Änderung steht im Log) und das
+ * Angeheftete – ob sich im Umfeld etwas änderte, leitet der Server aus dem Log ab.
  */
-const LOGGED: readonly Area[] = ['history', 'proposals', 'pins'];
+const LOGGED: readonly Area[] = ['history', 'pins'];
 
 const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   // Prüfen, Vorschau, Lesen und Verfassen der KI legen nichts an.
@@ -86,16 +85,20 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   ['erp/messages', ['people', 'todo', ...LOGGED]],
   ['erp/time', ['todo', ...LOGGED]],
   ['admin', ['companies', 'todo', 'company', 'documentsOf', ...LOGGED]],
-  // Phase 3 · KI: eine Erfassung legt Notizen (Nachrichten) und Vorschläge an; ✕ entscheidet
-  // einen Vorschlag; das Angeheftete ändert nur sich (und den Verlauf: `pin.solved`).
-  ['erp/intake', ['people', 'todo', 'intake', ...LOGGED]],
-  ['erp/proposals', ['todo', 'intake', ...LOGGED]],
-  ['erp/pins', ['pins', 'history']],
+  // Phase 5 · Der Assistent: ein Handgriff kann ALLES ändern, was das ERP kann – er lädt
+  // alles nach (wie ein unbekannter Pfad). Sagen, Weglegen, eine Datei ändern nur Gespräche,
+  // «zu tun» und das Angeheftete; das Wissen neu wählen nur das Angeheftete.
+  ['=erp/assistant/handgriffe/*/run', AREAS],
+  ['=erp/assistant/handgriffe/*/done', AREAS],
+  ['=erp/assistant/handgriffe/*/probe', []],
+  ['=erp/assistant/files', []],
+  ['erp/assistant/pins', ['pins']],
+  ['erp/assistant', ['talks', 'todo', 'pins']],
   // Phase 4 · Sprache: ein Stück (alle 30 s) ändert nichts, was eine Ansicht zeigt; «weiter
-  // abschreiben» kann die Erfassung anlegen (wie `erp/intake`); Start und Stopp ändern die
-  // offenen Aufnahmen und «zu tun».
+  // abschreiben» bringt den Text ins Gespräch; Start und Stopp ändern die offenen Aufnahmen
+  // und «zu tun».
   ['=erp/recordings/*/chunks', []],
-  ['=erp/recordings/*/advance', ['people', 'todo', 'intake', 'recordings', ...LOGGED]],
+  ['=erp/recordings/*/advance', ['todo', 'talks', 'recordings']],
   ['erp/recordings', ['todo', 'recordings']],
 ];
 

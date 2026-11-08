@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health Check */
+        /**
+         * Health Check
+         * @description Läuft der Dienst, und steht die Datenbank auf dem Stand des Codes (``schema``: current · behind)?
+         */
         get: operations["health_check_health_get"];
         put?: never;
         post?: never;
@@ -28,14 +31,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Me */
+        /**
+         * Get Me
+         * @description Mein Profil – die angemeldete Person.
+         */
         get: operations["get_me_api_v1_auth_me_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Me */
+        /**
+         * Update Me
+         * @description Mein Profil ändern – derselbe Weg wie im ERP (``people.apply_profile_update``), nur für die eigenen Angaben.
+         */
         patch: operations["update_me_api_v1_auth_me_patch"];
         trace?: never;
     };
@@ -69,7 +78,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add My Address */
+        /**
+         * Add My Address
+         * @description Eine Anschrift in mein Adressbuch aufnehmen.
+         */
         post: operations["add_my_address_api_v1_auth_me_addresses_post"];
         delete?: never;
         options?: never;
@@ -87,11 +99,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove My Address */
+        /**
+         * Remove My Address
+         * @description Eine Anschrift aus meinem Adressbuch entfernen.
+         */
         delete: operations["remove_my_address_api_v1_auth_me_addresses__address_id__delete"];
         options?: never;
         head?: never;
-        /** Change My Address */
+        /**
+         * Change My Address
+         * @description Eine Anschrift in meinem Adressbuch ändern.
+         */
         patch: operations["change_my_address_api_v1_auth_me_addresses__address_id__patch"];
         trace?: never;
     };
@@ -226,7 +244,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Anfrage der Website (Formular, multipart) */
+        /**
+         * Anfrage der Website (Formular, multipart)
+         * @description Eine Anfrage von der Website – sie wird eine offene Nachricht im Postfach der Gesellschaft zum Land des Besuchers.
+         */
         post: operations["submit_inquiry_api_v1_contact_post"];
         delete?: never;
         options?: never;
@@ -241,7 +262,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Public Contact */
+        /**
+         * Public Contact
+         * @description Telefon, E-Mail und Anschrift der Gesellschaft zum Land des Besuchers (sonst des Betreibers).
+         */
         get: operations["public_contact_api_v1_public_contact_get"];
         put?: never;
         post?: never;
@@ -452,7 +476,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Erp Records */
+        /**
+         * List Erp Records
+         * @description Alle Personen für den Feed.
+         */
         get: operations["list_erp_records_api_v1_erp_records_get"];
         put?: never;
         /**
@@ -522,14 +549,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Erp Record */
+        /**
+         * Get Erp Record
+         * @description Eine Person mit ihren Angaben.
+         */
         get: operations["get_erp_record_api_v1_erp_records__object_id__get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Erp Record */
+        /**
+         * Update Erp Record
+         * @description Angaben einer Person ändern (Name, Kontakt, Firma, Rolle, Anstellung) – nur ein Admin.
+         */
         patch: operations["update_erp_record_api_v1_erp_records__object_id__patch"];
         trace?: never;
     };
@@ -542,7 +575,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add Record Address */
+        /**
+         * Add Record Address
+         * @description Eine Anschrift ins Adressbuch einer Person aufnehmen – nur ein Admin.
+         */
         post: operations["add_record_address_api_v1_erp_records__object_id__addresses_post"];
         delete?: never;
         options?: never;
@@ -560,11 +596,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove Record Address */
+        /**
+         * Remove Record Address
+         * @description Eine Anschrift aus dem Adressbuch einer Person entfernen – nur ein Admin.
+         */
         delete: operations["remove_record_address_api_v1_erp_records__object_id__addresses__address_id__delete"];
         options?: never;
         head?: never;
-        /** Change Record Address */
+        /**
+         * Change Record Address
+         * @description Eine Anschrift im Adressbuch einer Person ändern – nur ein Admin.
+         */
         patch: operations["change_record_address_api_v1_erp_records__object_id__addresses__address_id__patch"];
         trace?: never;
     };
@@ -595,7 +637,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Articles */
+        /**
+         * List Articles
+         * @description Alle Artikel für den Feed.
+         */
         get: operations["list_articles_api_v1_erp_articles_get"];
         put?: never;
         /**
@@ -643,7 +688,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Article */
+        /**
+         * Get Article
+         * @description Ein Artikel mit Spezifikation, Bestand und Nachfolger (es gibt kein Ändern).
+         */
         get: operations["get_article_api_v1_erp_articles__object_id__get"];
         put?: never;
         post?: never;
@@ -690,7 +738,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Process */
+        /**
+         * Get Process
+         * @description Der eingefrorene Erzeugungsprozess eines Artikels (nur lesen).
+         */
         get: operations["get_process_api_v1_erp_articles__object_id__process_get"];
         put?: never;
         post?: never;
@@ -1183,7 +1234,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Instance */
+        /**
+         * Get Instance
+         * @description Eine Instanz mit ihren Stücken, Orten und Zuständen.
+         */
         get: operations["get_instance_api_v1_erp_instances__object_id__get"];
         put?: never;
         post?: never;
@@ -1305,7 +1359,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload Attachment */
+        /**
+         * Upload Attachment
+         * @description Ein Bild ablegen, das kein Dokument ist (die gezeichnete Unterschrift) – jede andere Datei wird ein Dokument.
+         */
         post: operations["upload_attachment_api_v1_erp_attachments_post"];
         delete?: never;
         options?: never;
@@ -1320,7 +1377,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Serve Attachment */
+        /**
+         * Serve Attachment
+         * @description Ein abgelegtes Bild ausliefern – über seinen unerratbaren Schlüssel.
+         */
         get: operations["serve_attachment_api_v1_attachments__token__get"];
         put?: never;
         post?: never;
@@ -1573,7 +1633,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add Ref */
+        /**
+         * Add Ref
+         * @description Ein Dokument an einen weiteren Datensatz hängen (Referenz setzen).
+         */
         post: operations["add_ref_api_v1_erp_documents__object_id__refs_post"];
         delete?: never;
         options?: never;
@@ -1591,7 +1654,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove Ref */
+        /**
+         * Remove Ref
+         * @description Ein Dokument von einem Datensatz lösen (Referenz entfernen) – ein Pflichtfeld nie.
+         */
         delete: operations["remove_ref_api_v1_erp_documents__object_id__refs__ref_id__delete"];
         options?: never;
         head?: never;
@@ -1607,7 +1673,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Delete Document */
+        /**
+         * Delete Document
+         * @description Ein Dokument löschen, mit Grund – nur, was nirgends mehr hängt.
+         */
         post: operations["delete_document_api_v1_erp_documents__object_id__delete_post"];
         delete?: never;
         options?: never;
@@ -1858,7 +1927,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Channels */
+        /**
+         * List Channels
+         * @description Die Kanäle, aus denen ich schreiben kann (Postfächer, Anruf, intern, Notiz).
+         */
         get: operations["list_channels_api_v1_erp_messages_channels_get"];
         put?: never;
         post?: never;
@@ -1919,7 +1991,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Disconnect */
+        /**
+         * Disconnect
+         * @description Ein Postfach trennen – nur ein Admin; die Kontakt-E-Mail der Gesellschaft verschwindet mit.
+         */
         delete: operations["disconnect_api_v1_erp_messages_mailboxes__channel__delete"];
         options?: never;
         head?: never;
@@ -1979,7 +2054,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create */
+        /**
+         * Create
+         * @description Eine Nachricht anlegen – Mail, Rundschreiben, Newsletter, Anruf, intern, Notiz oder Erinnerung; eine Mail geht nach dem Speichern hinaus.
+         */
         post: operations["create_api_v1_erp_messages_post"];
         delete?: never;
         options?: never;
@@ -2037,9 +2115,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** My State */
+        /**
+         * My State
+         * @description Bin ich für den Newsletter angemeldet?
+         */
         get: operations["my_state_api_v1_auth_me_newsletter_get"];
-        /** Set Mine */
+        /**
+         * Set Mine
+         * @description Mich für den Newsletter an- oder abmelden (meine Adresse ist bestätigt).
+         */
         put: operations["set_mine_api_v1_auth_me_newsletter_put"];
         post?: never;
         delete?: never;
@@ -2055,7 +2139,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Person State */
+        /**
+         * Person State
+         * @description Newsletter einer Person: angemeldet oder nicht, mit dem Nachweis.
+         */
         get: operations["person_state_api_v1_erp_newsletter__object_id__get"];
         put?: never;
         post?: never;
@@ -2256,7 +2343,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add Holidays */
+        /**
+         * Add Holidays
+         * @description Feiertage einer eigenen Gesellschaft übernehmen – nur ein Admin.
+         */
         post: operations["add_holidays_api_v1_erp_time_companies__object_id__holidays_post"];
         delete?: never;
         options?: never;
@@ -2274,7 +2364,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove Holiday */
+        /**
+         * Remove Holiday
+         * @description Einen Feiertag einer eigenen Gesellschaft entfernen – nur ein Admin.
+         */
         delete: operations["remove_holiday_api_v1_erp_time_companies__object_id__holidays__holiday_id__delete"];
         options?: never;
         head?: never;
@@ -2289,7 +2382,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Set Rules */
+        /**
+         * Set Rules
+         * @description Kanton und Nachweis-Regeln einer eigenen Gesellschaft setzen – nur ein Admin.
+         */
         put: operations["set_rules_api_v1_erp_time_companies__object_id__rules_put"];
         post?: never;
         delete?: never;
@@ -2318,7 +2414,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/intake": {
+    "/api/v1/erp/assistant/talks": {
         parameters: {
             query?: never;
             header?: never;
@@ -2328,19 +2424,19 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Capture
-         * @description **Festhalten** – die rohe Eingabe steht sofort im Log (und bleibt, was auch geschieht);
-         *     dann legt die KI ab (höchstens ~45 s, unter der Grenze von Firebase Hosting). Klappt das
-         *     nicht, kommt ein Teil zurück und ``problem`` sagt warum – der Takt holt nach.
+         * Say
+         * @description **Dem Assistenten etwas sagen** – die Nachricht steht sofort; dann antwortet die KI und
+         *     bereitet Handgriffe vor (unter 50 s). Fällt sie aus, sagt ``problem`` warum; der Takt
+         *     antwortet nach.
          */
-        post: operations["capture_api_v1_erp_intake_post"];
+        post: operations["say_api_v1_erp_assistant_talks_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/intake/open": {
+    "/api/v1/erp/assistant/talks/open": {
         parameters: {
             query?: never;
             header?: never;
@@ -2348,10 +2444,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Open Intakes
-         * @description Meine Erfassungen, die noch nicht abgelegt sind.
+         * Open Talks
+         * @description Meine offenen Gespräche – die neuesten zuerst (die Zahl am «+»).
          */
-        get: operations["open_intakes_api_v1_erp_intake_open_get"];
+        get: operations["open_talks_api_v1_erp_assistant_talks_open_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2360,47 +2456,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/intake/{intake_id}/file": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * File
-         * @description **«Stimmt so»** – je Teil eine Notiz an seinem Datensatz, dann der Entscheid.
-         */
-        post: operations["file_api_v1_erp_intake__intake_id__file_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/intake/{intake_id}/discard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Discard
-         * @description **«Verwerfen»** – nicht ablegen; was aus ihr folgte, geht mit.
-         */
-        post: operations["discard_api_v1_erp_intake__intake_id__discard_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/proposals": {
+    "/api/v1/erp/assistant/talks/{talk_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2408,10 +2464,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Open Proposals
-         * @description Die offenen Vorschläge an diesem Datensatz.
+         * Get Talk
+         * @description Ein Gespräch – nur, wer es führt, und der Admin.
          */
-        get: operations["open_proposals_api_v1_erp_proposals_get"];
+        get: operations["get_talk_api_v1_erp_assistant_talks__talk_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2420,7 +2476,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/proposals/{proposal_id}/reject": {
+    "/api/v1/erp/assistant/files": {
         parameters: {
             query?: never;
             header?: never;
@@ -2430,17 +2486,138 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Reject
-         * @description ✕ – verworfen.
+         * Add File
+         * @description Eine Datei ins Gespräch (Foto, PDF) – sie liegt im Korb, bis sie ein Dokument wird.
          */
-        post: operations["reject_api_v1_erp_proposals__proposal_id__reject_post"];
+        post: operations["add_file_api_v1_erp_assistant_files_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/pins/{object_id}": {
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Handgriff
+         * @description Ein Handgriff, wie die Karte ihn zeigt.
+         */
+        get: operations["get_handgriff_api_v1_erp_assistant_handgriffe__handgriff_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/operation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Operation Of
+         * @description Die Handlung hinter einem Handgriff – ihre Felder für «Ändern» (aus der Route).
+         */
+        get: operations["operation_of_api_v1_erp_assistant_handgriffe__handgriff_id__operation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run
+         * @description **Ausführen** – genau einmal, mit meinen Rechten, durch die echte Route. ``body`` nur, wenn
+         *     ich die Werte geändert habe. Geht es nicht, sagt der Satz der Route warum (409/4xx).
+         */
+        post: operations["run_api_v1_erp_assistant_handgriffe__handgriff_id__run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe
+         * @description Eine geänderte Fassung prüfen («Ändern») – der Probelauf derselben Route, nichts bleibt.
+         */
+        post: operations["probe_api_v1_erp_assistant_handgriffe__handgriff_id__probe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/drop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Drop
+         * @description **Weg** – der Handgriff geschieht nicht.
+         */
+        post: operations["drop_api_v1_erp_assistant_handgriffe__handgriff_id__drop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Done
+         * @description **Von Hand erledigt** – ein Handgriff, der nur von Hand ging (Datei, Entwurf), ist getan.
+         */
+        post: operations["done_api_v1_erp_assistant_handgriffe__handgriff_id__done_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/assistant/pins/{object_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2449,9 +2626,10 @@ export interface paths {
         };
         /**
          * Pinned
-         * @description Das Angeheftete: offene Vorschläge (immer, zuerst), dann die Hinweise der KI.
+         * @description **Das Angeheftete** – offene Handgriffe (zuerst), dann das Wissen; ``stale`` = im Umfeld
+         *     hat sich seit der letzten Wahl etwas geändert.
          */
-        get: operations["pinned_api_v1_erp_pins__object_id__get"];
+        get: operations["pinned_api_v1_erp_assistant_pins__object_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2460,7 +2638,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/pins/{object_id}/refresh": {
+    "/api/v1/erp/assistant/pins/{object_id}/refresh": {
         parameters: {
             query?: never;
             header?: never;
@@ -2471,29 +2649,9 @@ export interface paths {
         put?: never;
         /**
          * Refresh
-         * @description «Neu ansehen» – die KI wählt die Hinweise neu; offene Vorschläge bleiben.
+         * @description Das Wissen neu wählen – nur, wenn sich im Umfeld etwas geändert hat (sonst kein Aufruf).
          */
-        post: operations["refresh_api_v1_erp_pins__object_id__refresh_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/pins/{object_id}/solve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Solve
-         * @description Einen Hinweis lösen.
-         */
-        post: operations["solve_api_v1_erp_pins__object_id__solve_post"];
+        post: operations["refresh_api_v1_erp_assistant_pins__object_id__refresh_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2775,46 +2933,6 @@ export interface components {
             is_default_delivery: boolean;
             /** Is Default Billing */
             is_default_billing: boolean;
-        };
-        /**
-         * AiProposal
-         * @description ►►► **Ein Vorschlag** – ``id`` ist die Nummer seines Ereignisses im Log. ◄◄◄
-         */
-        AiProposal: {
-            /** Id */
-            id: number;
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
-            /** Object Id */
-            object_id: number;
-            /**
-             * Object Label
-             * @default
-             */
-            object_label: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "change" | "create" | "file";
-            /** Field */
-            field?: string | null;
-            /**
-             * Label
-             * @default
-             */
-            label: string;
-            /** Value */
-            value?: string | null;
-            /** Current */
-            current?: string | null;
-            draft?: components["schemas"]["DraftOut"] | null;
-            /** Parts */
-            parts?: components["schemas"]["IntakePart"][] | null;
-            source: components["schemas"]["ProposalSource"];
         };
         /** ArtOut */
         ArtOut: {
@@ -3170,6 +3288,11 @@ export interface components {
             currency: string;
             /** Agb */
             agb?: string | null;
+        };
+        /** Body_add_file_api_v1_erp_assistant_files_post */
+        Body_add_file_api_v1_erp_assistant_files_post: {
+            /** File */
+            file: string;
         };
         /** Body_chunk_api_v1_erp_recordings__recording_id__chunks_post */
         Body_chunk_api_v1_erp_recordings__recording_id__chunks_post: {
@@ -3893,22 +4016,12 @@ export interface components {
             fields: string[];
         };
         /**
-         * DraftOut
-         * @description Der Entwurf eines ``create``-Vorschlags – vorausgefüllt in «Entwurf öffnen».
+         * DoneIn
+         * @description Von Hand erledigt (Entwurf freigegeben, Datei abgelegt) – was dabei entstand.
          */
-        DraftOut: {
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "user" | "organization";
-            /**
-             * Values
-             * @default {}
-             */
-            values: {
-                [key: string]: string;
-            };
+        DoneIn: {
+            /** Result */
+            result?: number | null;
         };
         /**
          * EmailCheck
@@ -4025,12 +4138,16 @@ export interface components {
             new?: string | null;
         };
         /**
-         * FileIn
-         * @description «Stimmt so» – die Teile, wie sie abgelegt werden (je Teil eine Notiz).
+         * FileRef
+         * @description Eine Datei im Gespräch – sie liegt im Korb (``attachments``), bis sie ein Dokument wird.
          */
-        FileIn: {
-            /** Parts */
-            parts: components["schemas"]["PartIn"][];
+        FileRef: {
+            /** Token */
+            token: string;
+            /** Name */
+            name: string;
+            /** Mime */
+            mime: string;
         };
         /**
          * FiledOut
@@ -4206,6 +4323,54 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HandgriffOut
+         * @description **Ein Handgriff, wie die Karte ihn zeigt.**
+         */
+        HandgriffOut: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Object Id */
+            object_id: number;
+            /** Label */
+            label: string;
+            /** Line */
+            line: string;
+            /** Method */
+            method: string;
+            /** Path */
+            path: string;
+            /** Body */
+            body?: unknown;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "open" | "waiting" | "done" | "dropped";
+            /** Result */
+            result?: number | null;
+            /** Source */
+            source: string;
+            /** Talk */
+            talk?: number | null;
+            /**
+             * Hand
+             * @default
+             */
+            hand: string;
+            /** Waits For */
+            waits_for?: number[];
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
         };
         /** HintOut */
         HintOut: {
@@ -4425,75 +4590,6 @@ export interface components {
             created_at: string;
         };
         /**
-         * IntakeIn
-         * @description **Etwas festhalten** – der Text und der Datensatz, der dabei offen war (Hinweis).
-         */
-        IntakeIn: {
-            /** Text */
-            text: string;
-            /** Hint Object Id */
-            hint_object_id?: number | null;
-        };
-        /**
-         * IntakeOut
-         * @description ►►► **Eine Erfassung** – ``id`` ist die Nummer ihres Ereignisses ``intake``. ◄◄◄
-         */
-        IntakeOut: {
-            /** Id */
-            id: number;
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
-            /** Text */
-            text: string;
-            /** Hint Object Id */
-            hint_object_id?: number | null;
-            /**
-             * Parts
-             * @default []
-             */
-            parts: components["schemas"]["IntakePart"][];
-            /**
-             * Proposals
-             * @default []
-             */
-            proposals: components["schemas"]["AiProposal"][];
-            /**
-             * Filed
-             * @default false
-             */
-            filed: boolean;
-            /**
-             * Notes
-             * @default []
-             */
-            notes: components["schemas"]["NoteRef"][];
-            /** Problem */
-            problem?: string | null;
-        };
-        /**
-         * IntakePart
-         * @description **Ein Teil einer Erfassung** – wohin er gehört (Datensatz), was dort steht, Betreff.
-         */
-        IntakePart: {
-            /** Object Id */
-            object_id: number;
-            /**
-             * Label
-             * @default
-             */
-            label: string;
-            /** Text */
-            text: string;
-            /**
-             * Subject
-             * @default
-             */
-            subject: string;
-        };
-        /**
          * IssuerOut
          * @description Eine unserer Gesellschaften, die den Beleg stellen kann.
          */
@@ -4521,6 +4617,20 @@ export interface components {
             name: string;
             /** Unit Count */
             unit_count: number;
+        };
+        /**
+         * KnowledgeOut
+         * @description Eine Aussage des Wissens am Datensatz – mit Datum und Quelle.
+         */
+        KnowledgeOut: {
+            /** Text */
+            text: string;
+            /** Source Object Id */
+            source_object_id?: number | null;
+            /** Source Message Id */
+            source_message_id?: number | null;
+            /** At */
+            at?: string | null;
         };
         /**
          * LegalOut
@@ -4982,16 +5092,6 @@ export interface components {
             link?: string | null;
         };
         /**
-         * NoteRef
-         * @description Eine Notiz, die beim Ablegen entstand.
-         */
-        NoteRef: {
-            /** Object Id */
-            object_id: number;
-            /** Message Id */
-            message_id: number;
-        };
-        /**
          * ObjectResolution
          * @description Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs).
          */
@@ -5000,6 +5100,24 @@ export interface components {
             object_id: number;
             /** Object Type */
             object_type: string;
+        };
+        /**
+         * OperationOut
+         * @description Eine Handlung des ERP – für «Ändern»: ihre Felder (JSON-Schema der Route).
+         */
+        OperationOut: {
+            /** Key */
+            key: string;
+            /** Summary */
+            summary: string;
+            /** Admin */
+            admin: boolean;
+            /** Hand */
+            hand: boolean;
+            /** Schema */
+            schema?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * OrderCreate
@@ -5184,18 +5302,6 @@ export interface components {
         PapersOut: {
             /** Papers */
             papers?: components["schemas"]["PaperOut"][];
-        };
-        /**
-         * PartIn
-         * @description Ein Teil, wie der Mensch ihn ablegt («Stimmt so»).
-         */
-        PartIn: {
-            /** Object Id */
-            object_id: number;
-            /** Text */
-            text: string;
-            /** Subject */
-            subject?: string | null;
         };
         /**
          * PasskeyLoginResult
@@ -5399,33 +5505,27 @@ export interface components {
             /** Email */
             email?: string | null;
         };
-        /** PinHint */
-        PinHint: {
-            /** Key */
-            key: string;
-            /** Text */
-            text: string;
-            /** Entry Key */
-            entry_key?: string | null;
-        };
         /**
          * PinnedOut
-         * @description ►►► **Das Angeheftete eines Datensatzes** – offene Vorschläge immer zuerst, dann die
-         *     Hinweise der KI (vom letzten «neu ansehen»), ohne die gelösten. ◄◄◄
+         * @description **Das Angeheftete** – offene Handgriffe (zuerst), dann das Wissen, das jetzt zählt.
          */
         PinnedOut: {
+            /** Handgriffe */
+            handgriffe: components["schemas"]["HandgriffOut"][];
+            /** Knowledge */
+            knowledge: components["schemas"]["KnowledgeOut"][];
+            /** Chosen At */
+            chosen_at?: string | null;
             /**
-             * Proposals
-             * @default []
+             * Stale
+             * @default false
              */
-            proposals: components["schemas"]["AiProposal"][];
+            stale: boolean;
             /**
-             * Hints
-             * @default []
+             * Mark
+             * @default 0
              */
-            hints: components["schemas"]["PinHint"][];
-            /** Refreshed At */
-            refreshed_at?: string | null;
+            mark: number;
             /** Problem */
             problem?: string | null;
         };
@@ -5446,6 +5546,24 @@ export interface components {
             label: string;
             /** Number */
             number?: string | null;
+        };
+        /**
+         * ProbeOut
+         * @description Der Probelauf einer geänderten Fassung: geht es – sonst der Satz der Route.
+         */
+        ProbeOut: {
+            /** Ok */
+            ok: boolean;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /**
+             * Hand
+             * @default
+             */
+            hand: string;
         };
         /**
          * ProcessEventResponse
@@ -5681,24 +5799,6 @@ export interface components {
             /** Requirement */
             requirement?: string | null;
         };
-        /**
-         * ProposalSource
-         * @description Woher ein Vorschlag kommt («Erfassung von Hans-Peter», «Mail von Vreni Kunz: …»), kurz –
-         *     nie die Worte einer Erfassung.
-         */
-        ProposalSource: {
-            /**
-             * Text
-             * @default
-             */
-            text: string;
-            /** Object Id */
-            object_id?: number | null;
-            /** Intake */
-            intake?: number | null;
-            /** At */
-            at?: string | null;
-        };
         /** ProposedRef */
         ProposedRef: {
             /** Object Id */
@@ -5835,8 +5935,8 @@ export interface components {
          * @description ►►► **Eine Aufnahme** – ``id`` ist die Nummer ihres ``recording.start`` im Log. ◄◄◄
          *
          *     ``state``: ``recording`` (kein Stopp, nicht abgebrochen) · ``transcribing`` (gestoppt,
-         *     Abschnitte fehlen) · ``filing`` (Text da, die Erfassung entsteht) · ``done`` (die Erfassung
-         *     gibt es, ``intake`` gesetzt) · ``failed`` (``problem``).
+         *     Abschnitte fehlen) · ``filing`` (Text da, die Nachricht entsteht) · ``done`` (die Nachricht
+         *     steht im Gespräch, ``talk`` gesetzt) · ``failed`` (``problem``).
          */
         Recording: {
             /** Id */
@@ -5870,7 +5970,7 @@ export interface components {
              * @default 0
              */
             seconds: number;
-            intake?: components["schemas"]["IntakeOut"] | null;
+            talk?: components["schemas"]["TalkOut"] | null;
             /** Problem */
             problem?: string | null;
         };
@@ -5952,6 +6052,20 @@ export interface components {
             replaced_by?: components["schemas"]["ArticleLink"] | null;
         };
         /**
+         * RunIn
+         * @description Ausführen – ``body`` nur, wenn die Person die Werte geändert hat («Ändern», Entwurf).
+         */
+        RunIn: {
+            /** Body */
+            body?: unknown | null;
+        };
+        /** RunOut */
+        RunOut: {
+            handgriff: components["schemas"]["HandgriffOut"];
+            /** Data */
+            data?: unknown;
+        };
+        /**
          * SendIn
          * @description Senden: an wen, ob sie unterschreiben sollen, und ein Satz dazu.
          */
@@ -5995,11 +6109,6 @@ export interface components {
             object_id: number;
             /** Name */
             name: string;
-        };
-        /** SolveIn */
-        SolveIn: {
-            /** Key */
-            key: string;
         };
         /** StampOut */
         StampOut: {
@@ -6211,6 +6320,71 @@ export interface components {
              * @default 0
              */
             sent: number;
+        };
+        /**
+         * TalkIn
+         * @description **Eine Nachricht an den Assistenten.** Ohne ``talk`` beginnt ein neues Gespräch – am
+         *     offenen Datensatz (``hint_object_id``), sonst an der Person.
+         */
+        TalkIn: {
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /** Talk */
+            talk?: number | null;
+            /** Hint Object Id */
+            hint_object_id?: number | null;
+            /** Files */
+            files?: components["schemas"]["FileRef"][];
+        };
+        /** TalkMessage */
+        TalkMessage: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * By
+             * @enum {string}
+             */
+            by: "person" | "ai";
+            /** Text */
+            text: string;
+            /** Files */
+            files?: components["schemas"]["FileRef"][];
+        };
+        /**
+         * TalkOut
+         * @description **Ein Gespräch** – seine Nachrichten und Handgriffe, der Reihe nach.
+         */
+        TalkOut: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Hint Object Id */
+            hint_object_id?: number | null;
+            /** Messages */
+            messages: components["schemas"]["TalkMessage"][];
+            /** Handgriffe */
+            handgriffe: components["schemas"]["HandgriffOut"][];
+            /** Open */
+            open: boolean;
+            /**
+             * Waiting
+             * @default false
+             */
+            waiting: boolean;
+            /** Problem */
+            problem?: string | null;
         };
         /**
          * TargetIn
@@ -11481,7 +11655,7 @@ export interface operations {
             };
         };
     };
-    capture_api_v1_erp_intake_post: {
+    say_api_v1_erp_assistant_talks_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11490,7 +11664,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IntakeIn"];
+                "application/json": components["schemas"]["TalkIn"];
             };
         };
         responses: {
@@ -11500,7 +11674,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IntakeOut"];
+                    "application/json": components["schemas"]["TalkOut"];
                 };
             };
             /** @description Validation Error */
@@ -11514,7 +11688,7 @@ export interface operations {
             };
         };
     };
-    open_intakes_api_v1_erp_intake_open_get: {
+    open_talks_api_v1_erp_assistant_talks_open_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -11529,23 +11703,149 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IntakeOut"][];
+                    "application/json": components["schemas"]["TalkOut"][];
                 };
             };
         };
     };
-    file_api_v1_erp_intake__intake_id__file_post: {
+    get_talk_api_v1_erp_assistant_talks__talk_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                intake_id: number;
+                talk_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TalkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_file_api_v1_erp_assistant_files_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_add_file_api_v1_erp_assistant_files_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileRef"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_handgriff_api_v1_erp_assistant_handgriffe__handgriff_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handgriff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandgriffOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    operation_of_api_v1_erp_assistant_handgriffe__handgriff_id__operation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handgriff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_api_v1_erp_assistant_handgriffe__handgriff_id__run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handgriff_id: number;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["FileIn"];
+                "application/json": components["schemas"]["RunIn"];
             };
         };
         responses: {
@@ -11555,7 +11855,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IntakeOut"];
+                    "application/json": components["schemas"]["RunOut"];
                 };
             };
             /** @description Validation Error */
@@ -11569,16 +11869,20 @@ export interface operations {
             };
         };
     };
-    discard_api_v1_erp_intake__intake_id__discard_post: {
+    probe_api_v1_erp_assistant_handgriffe__handgriff_id__probe_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                intake_id: number;
+                handgriff_id: number;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11586,7 +11890,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IntakeOut"];
+                    "application/json": components["schemas"]["ProbeOut"];
                 };
             };
             /** @description Validation Error */
@@ -11600,43 +11904,12 @@ export interface operations {
             };
         };
     };
-    open_proposals_api_v1_erp_proposals_get: {
-        parameters: {
-            query: {
-                object_id: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AiProposal"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reject_api_v1_erp_proposals__proposal_id__reject_post: {
+    drop_api_v1_erp_assistant_handgriffe__handgriff_id__drop_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                proposal_id: number;
+                handgriff_id: number;
             };
             cookie?: never;
         };
@@ -11648,7 +11921,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AiProposal"];
+                    "application/json": components["schemas"]["HandgriffOut"];
                 };
             };
             /** @description Validation Error */
@@ -11662,7 +11935,42 @@ export interface operations {
             };
         };
     };
-    pinned_api_v1_erp_pins__object_id__get: {
+    done_api_v1_erp_assistant_handgriffe__handgriff_id__done_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handgriff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoneIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandgriffOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pinned_api_v1_erp_assistant_pins__object_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -11693,7 +12001,7 @@ export interface operations {
             };
         };
     };
-    refresh_api_v1_erp_pins__object_id__refresh_post: {
+    refresh_api_v1_erp_assistant_pins__object_id__refresh_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11703,41 +12011,6 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PinnedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    solve_api_v1_erp_pins__object_id__solve_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SolveIn"];
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {

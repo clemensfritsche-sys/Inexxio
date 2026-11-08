@@ -24,9 +24,9 @@ export function KtSection({ id, title, text, aside, children }: {
 }
 
 /** Ein Feld: Beschriftung über einer ruhigen grauen Fläche; ein fehlender Pflichtwert sagt «· fehlt». */
-export function KtField({ id: given, name, objectId, label, value, onChange, onEnter, type = 'text', placeholder, missing, readOnly, autoComplete, list }: {
+export function KtField({ id: given, name, label, value, onChange, onEnter, type = 'text', placeholder, missing, readOnly, autoComplete, list }: {
   /** API-Schlüssel und Datensatz des Feldes (`useField`). */
-  name: string; objectId?: number | null;
+  name: string;
   id?: string; label: string; value: string; onChange?: (v: string) => void; onEnter?: () => void;
   type?: string; placeholder?: string; missing?: boolean; readOnly?: boolean; autoComplete?: string;
   /** Vorschläge (`<datalist>`), z. B. die Rechtsformen. */
@@ -38,7 +38,7 @@ export function KtField({ id: given, name, objectId, label, value, onChange, onE
     <div className="kt-f">
       <label htmlFor={id}>{label}{missing && <em> · fehlt</em>}</label>
       <Input
-        id={id} name={name} objectId={objectId} className="kt-input" type={type} value={value}
+        id={id} name={name} className="kt-input" type={type} value={value}
         placeholder={placeholder} readOnly={readOnly} autoComplete={autoComplete} list={list}
         onChange={onChange} onEnter={onEnter}
       />
@@ -73,8 +73,8 @@ function maskDate(raw: string): string {
  * Geburtstag liegt Jahrzehnte zurück, und dorthin blättert niemand gern. Weitergegeben wird
  * nur ein gültiger Tag (oder leer); bis dahin sagt die Beschriftung «· ungültig».
  */
-export function KtDate({ id, name, objectId, label, value, onChange, onEnter, missing }: {
-  name: string; objectId?: number | null;
+export function KtDate({ id, name, label, value, onChange, onEnter, missing }: {
+  name: string;
   id: string; label: string; value: string; onChange: (iso: string) => void; onEnter?: () => void;
   missing?: boolean;
 }) {
@@ -89,7 +89,7 @@ export function KtDate({ id, name, objectId, label, value, onChange, onEnter, mi
     <div className="kt-f">
       <label htmlFor={id}>{label}{invalid ? <em> · ungültig</em> : missing && !text && <em> · fehlt</em>}</label>
       <Input
-        id={id} name={name} objectId={objectId} className="kt-input" inputMode="numeric"
+        id={id} name={name} className="kt-input" inputMode="numeric"
         autoComplete="bday" placeholder="TT.MM.JJJJ" value={text}
         onChange={(raw) => {
           const next = maskDate(raw);

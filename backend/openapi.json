@@ -11,6 +11,7 @@
           "health"
         ],
         "summary": "Health Check",
+        "description": "Läuft der Dienst, und steht die Datenbank auf dem Stand des Codes (``schema``: current · behind)?",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
@@ -30,6 +31,7 @@
           "auth"
         ],
         "summary": "Get Me",
+        "description": "Mein Profil – die angemeldete Person.",
         "operationId": "get_me_api_v1_auth_me_get",
         "responses": {
           "200": {
@@ -54,6 +56,7 @@
           "auth"
         ],
         "summary": "Update Me",
+        "description": "Mein Profil ändern – derselbe Weg wie im ERP (``people.apply_profile_update``), nur für die eigenen Angaben.",
         "operationId": "update_me_api_v1_auth_me_patch",
         "requestBody": {
           "content": {
@@ -140,6 +143,7 @@
           "auth"
         ],
         "summary": "Add My Address",
+        "description": "Eine Anschrift in mein Adressbuch aufnehmen.",
         "operationId": "add_my_address_api_v1_auth_me_addresses_post",
         "requestBody": {
           "content": {
@@ -186,6 +190,7 @@
           "auth"
         ],
         "summary": "Change My Address",
+        "description": "Eine Anschrift in meinem Adressbuch ändern.",
         "operationId": "change_my_address_api_v1_auth_me_addresses__address_id__patch",
         "security": [
           {
@@ -241,6 +246,7 @@
           "auth"
         ],
         "summary": "Remove My Address",
+        "description": "Eine Anschrift aus meinem Adressbuch entfernen.",
         "operationId": "remove_my_address_api_v1_auth_me_addresses__address_id__delete",
         "security": [
           {
@@ -502,6 +508,7 @@
           "contact"
         ],
         "summary": "Anfrage der Website (Formular, multipart)",
+        "description": "Eine Anfrage von der Website – sie wird eine offene Nachricht im Postfach der Gesellschaft zum Land des Besuchers.",
         "operationId": "submit_inquiry_api_v1_contact_post",
         "responses": {
           "200": {
@@ -521,6 +528,7 @@
           "website"
         ],
         "summary": "Public Contact",
+        "description": "Telefon, E-Mail und Anschrift der Gesellschaft zum Land des Besuchers (sonst des Betreibers).",
         "operationId": "public_contact_api_v1_public_contact_get",
         "parameters": [
           {
@@ -1045,6 +1053,7 @@
           "erp"
         ],
         "summary": "List Erp Records",
+        "description": "Alle Personen für den Feed.",
         "operationId": "list_erp_records_api_v1_erp_records_get",
         "responses": {
           "200": {
@@ -1249,6 +1258,7 @@
           "erp"
         ],
         "summary": "Get Erp Record",
+        "description": "Eine Person mit ihren Angaben.",
         "operationId": "get_erp_record_api_v1_erp_records__object_id__get",
         "security": [
           {
@@ -1294,6 +1304,7 @@
           "erp"
         ],
         "summary": "Update Erp Record",
+        "description": "Angaben einer Person ändern (Name, Kontakt, Firma, Rolle, Anstellung) – nur ein Admin.",
         "operationId": "update_erp_record_api_v1_erp_records__object_id__patch",
         "security": [
           {
@@ -1351,6 +1362,7 @@
           "erp"
         ],
         "summary": "Add Record Address",
+        "description": "Eine Anschrift ins Adressbuch einer Person aufnehmen – nur ein Admin.",
         "operationId": "add_record_address_api_v1_erp_records__object_id__addresses_post",
         "security": [
           {
@@ -1408,6 +1420,7 @@
           "erp"
         ],
         "summary": "Change Record Address",
+        "description": "Eine Anschrift im Adressbuch einer Person ändern – nur ein Admin.",
         "operationId": "change_record_address_api_v1_erp_records__object_id__addresses__address_id__patch",
         "security": [
           {
@@ -1472,6 +1485,7 @@
           "erp"
         ],
         "summary": "Remove Record Address",
+        "description": "Eine Anschrift aus dem Adressbuch einer Person entfernen – nur ein Admin.",
         "operationId": "remove_record_address_api_v1_erp_records__object_id__addresses__address_id__delete",
         "security": [
           {
@@ -1583,6 +1597,7 @@
           "articles"
         ],
         "summary": "List Articles",
+        "description": "Alle Artikel für den Feed.",
         "operationId": "list_articles_api_v1_erp_articles_get",
         "security": [
           {
@@ -1755,6 +1770,7 @@
           "articles"
         ],
         "summary": "Get Article",
+        "description": "Ein Artikel mit Spezifikation, Bestand und Nachfolger (es gibt kein Ändern).",
         "operationId": "get_article_api_v1_erp_articles__object_id__get",
         "security": [
           {
@@ -1873,6 +1889,7 @@
           "articles"
         ],
         "summary": "Get Process",
+        "description": "Der eingefrorene Erzeugungsprozess eines Artikels (nur lesen).",
         "operationId": "get_process_api_v1_erp_articles__object_id__process_get",
         "security": [
           {
@@ -3196,6 +3213,7 @@
           "instances"
         ],
         "summary": "Get Instance",
+        "description": "Eine Instanz mit ihren Stücken, Orten und Zuständen.",
         "operationId": "get_instance_api_v1_erp_instances__object_id__get",
         "security": [
           {
@@ -3507,6 +3525,7 @@
           "attachments"
         ],
         "summary": "Upload Attachment",
+        "description": "Ein Bild ablegen, das kein Dokument ist (die gezeichnete Unterschrift) – jede andere Datei wird ein Dokument.",
         "operationId": "upload_attachment_api_v1_erp_attachments_post",
         "requestBody": {
           "content": {
@@ -3553,6 +3572,7 @@
           "attachments"
         ],
         "summary": "Serve Attachment",
+        "description": "Ein abgelegtes Bild ausliefern – über seinen unerratbaren Schlüssel.",
         "operationId": "serve_attachment_api_v1_attachments__token__get",
         "parameters": [
           {
@@ -4193,6 +4213,7 @@
           "documents"
         ],
         "summary": "Add Ref",
+        "description": "Ein Dokument an einen weiteren Datensatz hängen (Referenz setzen).",
         "operationId": "add_ref_api_v1_erp_documents__object_id__refs_post",
         "security": [
           {
@@ -4250,6 +4271,7 @@
           "documents"
         ],
         "summary": "Remove Ref",
+        "description": "Ein Dokument von einem Datensatz lösen (Referenz entfernen) – ein Pflichtfeld nie.",
         "operationId": "remove_ref_api_v1_erp_documents__object_id__refs__ref_id__delete",
         "security": [
           {
@@ -4306,6 +4328,7 @@
           "documents"
         ],
         "summary": "Delete Document",
+        "description": "Ein Dokument löschen, mit Grund – nur, was nirgends mehr hängt.",
         "operationId": "delete_document_api_v1_erp_documents__object_id__delete_post",
         "security": [
           {
@@ -4908,6 +4931,7 @@
           "communication"
         ],
         "summary": "List Channels",
+        "description": "Die Kanäle, aus denen ich schreiben kann (Postfächer, Anruf, intern, Notiz).",
         "operationId": "list_channels_api_v1_erp_messages_channels_get",
         "responses": {
           "200": {
@@ -5049,6 +5073,7 @@
           "communication"
         ],
         "summary": "Disconnect",
+        "description": "Ein Postfach trennen – nur ein Admin; die Kontakt-E-Mail der Gesellschaft verschwindet mit.",
         "operationId": "disconnect_api_v1_erp_messages_mailboxes__channel__delete",
         "security": [
           {
@@ -5171,6 +5196,7 @@
           "communication"
         ],
         "summary": "Create",
+        "description": "Eine Nachricht anlegen – Mail, Rundschreiben, Newsletter, Anruf, intern, Notiz oder Erinnerung; eine Mail geht nach dem Speichern hinaus.",
         "operationId": "create_api_v1_erp_messages_post",
         "requestBody": {
           "content": {
@@ -5332,6 +5358,7 @@
           "newsletter"
         ],
         "summary": "My State",
+        "description": "Bin ich für den Newsletter angemeldet?",
         "operationId": "my_state_api_v1_auth_me_newsletter_get",
         "responses": {
           "200": {
@@ -5356,6 +5383,7 @@
           "newsletter"
         ],
         "summary": "Set Mine",
+        "description": "Mich für den Newsletter an- oder abmelden (meine Adresse ist bestätigt).",
         "operationId": "set_mine_api_v1_auth_me_newsletter_put",
         "requestBody": {
           "content": {
@@ -5402,6 +5430,7 @@
           "newsletter"
         ],
         "summary": "Person State",
+        "description": "Newsletter einer Person: angemeldet oder nicht, mit dem Nachweis.",
         "operationId": "person_state_api_v1_erp_newsletter__object_id__get",
         "security": [
           {
@@ -6022,6 +6051,7 @@
           "timekeeping"
         ],
         "summary": "Add Holidays",
+        "description": "Feiertage einer eigenen Gesellschaft übernehmen – nur ein Admin.",
         "operationId": "add_holidays_api_v1_erp_time_companies__object_id__holidays_post",
         "security": [
           {
@@ -6095,6 +6125,7 @@
           "timekeeping"
         ],
         "summary": "Remove Holiday",
+        "description": "Einen Feiertag einer eigenen Gesellschaft entfernen – nur ein Admin.",
         "operationId": "remove_holiday_api_v1_erp_time_companies__object_id__holidays__holiday_id__delete",
         "security": [
           {
@@ -6167,6 +6198,7 @@
           "timekeeping"
         ],
         "summary": "Set Rules",
+        "description": "Kanton und Nachweis-Regeln einer eigenen Gesellschaft setzen – nur ein Admin.",
         "operationId": "set_rules_api_v1_erp_time_companies__object_id__rules_put",
         "security": [
           {
@@ -6265,19 +6297,19 @@
         ]
       }
     },
-    "/api/v1/erp/intake": {
+    "/api/v1/erp/assistant/talks": {
       "post": {
         "tags": [
-          "ki"
+          "assistent"
         ],
-        "summary": "Capture",
-        "description": "**Festhalten** – die rohe Eingabe steht sofort im Log (und bleibt, was auch geschieht);\ndann legt die KI ab (höchstens ~45 s, unter der Grenze von Firebase Hosting). Klappt das\nnicht, kommt ein Teil zurück und ``problem`` sagt warum – der Takt holt nach.",
-        "operationId": "capture_api_v1_erp_intake_post",
+        "summary": "Say",
+        "description": "**Dem Assistenten etwas sagen** – die Nachricht steht sofort; dann antwortet die KI und\nbereitet Handgriffe vor (unter 50 s). Fällt sie aus, sagt ``problem`` warum; der Takt\nantwortet nach.",
+        "operationId": "say_api_v1_erp_assistant_talks_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/IntakeIn"
+                "$ref": "#/components/schemas/TalkIn"
               }
             }
           },
@@ -6289,7 +6321,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IntakeOut"
+                  "$ref": "#/components/schemas/TalkOut"
                 }
               }
             }
@@ -6312,14 +6344,14 @@
         ]
       }
     },
-    "/api/v1/erp/intake/open": {
+    "/api/v1/erp/assistant/talks/open": {
       "get": {
         "tags": [
-          "ki"
+          "assistent"
         ],
-        "summary": "Open Intakes",
-        "description": "Meine Erfassungen, die noch nicht abgelegt sind.",
-        "operationId": "open_intakes_api_v1_erp_intake_open_get",
+        "summary": "Open Talks",
+        "description": "Meine offenen Gespräche – die neuesten zuerst (die Zahl am «+»).",
+        "operationId": "open_talks_api_v1_erp_assistant_talks_open_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -6327,10 +6359,10 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/IntakeOut"
+                    "$ref": "#/components/schemas/TalkOut"
                   },
                   "type": "array",
-                  "title": "Response Open Intakes Api V1 Erp Intake Open Get"
+                  "title": "Response Open Talks Api V1 Erp Assistant Talks Open Get"
                 }
               }
             }
@@ -6343,14 +6375,14 @@
         ]
       }
     },
-    "/api/v1/erp/intake/{intake_id}/file": {
-      "post": {
+    "/api/v1/erp/assistant/talks/{talk_id}": {
+      "get": {
         "tags": [
-          "ki"
+          "assistent"
         ],
-        "summary": "File",
-        "description": "**«Stimmt so»** – je Teil eine Notiz an seinem Datensatz, dann der Entscheid.",
-        "operationId": "file_api_v1_erp_intake__intake_id__file_post",
+        "summary": "Get Talk",
+        "description": "Ein Gespräch – nur, wer es führt, und der Admin.",
+        "operationId": "get_talk_api_v1_erp_assistant_talks__talk_id__get",
         "security": [
           {
             "HTTPBearer": []
@@ -6358,12 +6390,203 @@
         ],
         "parameters": [
           {
-            "name": "intake_id",
+            "name": "talk_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Intake Id"
+              "title": "Talk Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TalkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/assistant/files": {
+      "post": {
+        "tags": [
+          "assistent"
+        ],
+        "summary": "Add File",
+        "description": "Eine Datei ins Gespräch (Foto, PDF) – sie liegt im Korb, bis sie ein Dokument wird.",
+        "operationId": "add_file_api_v1_erp_assistant_files_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_add_file_api_v1_erp_assistant_files_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileRef"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}": {
+      "get": {
+        "tags": [
+          "assistent"
+        ],
+        "summary": "Get Handgriff",
+        "description": "Ein Handgriff, wie die Karte ihn zeigt.",
+        "operationId": "get_handgriff_api_v1_erp_assistant_handgriffe__handgriff_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handgriff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Handgriff Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandgriffOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/operation": {
+      "get": {
+        "tags": [
+          "assistent"
+        ],
+        "summary": "Operation Of",
+        "description": "Die Handlung hinter einem Handgriff – ihre Felder für «Ändern» (aus der Route).",
+        "operationId": "operation_of_api_v1_erp_assistant_handgriffe__handgriff_id__operation_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handgriff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Handgriff Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/run": {
+      "post": {
+        "tags": [
+          "assistent"
+        ],
+        "summary": "Run",
+        "description": "**Ausführen** – genau einmal, mit meinen Rechten, durch die echte Route. ``body`` nur, wenn\nich die Werte geändert habe. Geht es nicht, sagt der Satz der Route warum (409/4xx).",
+        "operationId": "run_api_v1_erp_assistant_handgriffe__handgriff_id__run_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handgriff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Handgriff Id"
             }
           }
         ],
@@ -6372,7 +6595,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FileIn"
+                "$ref": "#/components/schemas/RunIn"
               }
             }
           }
@@ -6383,7 +6606,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IntakeOut"
+                  "$ref": "#/components/schemas/RunOut"
                 }
               }
             }
@@ -6401,14 +6624,14 @@
         }
       }
     },
-    "/api/v1/erp/intake/{intake_id}/discard": {
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/probe": {
       "post": {
         "tags": [
-          "ki"
+          "assistent"
         ],
-        "summary": "Discard",
-        "description": "**«Verwerfen»** – nicht ablegen; was aus ihr folgte, geht mit.",
-        "operationId": "discard_api_v1_erp_intake__intake_id__discard_post",
+        "summary": "Probe",
+        "description": "Eine geänderte Fassung prüfen («Ändern») – der Probelauf derselben Route, nichts bleibt.",
+        "operationId": "probe_api_v1_erp_assistant_handgriffe__handgriff_id__probe_post",
         "security": [
           {
             "HTTPBearer": []
@@ -6416,22 +6639,32 @@
         ],
         "parameters": [
           {
-            "name": "intake_id",
+            "name": "handgriff_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Intake Id"
+              "title": "Handgriff Id"
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunIn"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IntakeOut"
+                  "$ref": "#/components/schemas/ProbeOut"
                 }
               }
             }
@@ -6449,66 +6682,14 @@
         }
       }
     },
-    "/api/v1/erp/proposals": {
-      "get": {
-        "tags": [
-          "ki"
-        ],
-        "summary": "Open Proposals",
-        "description": "Die offenen Vorschläge an diesem Datensatz.",
-        "operationId": "open_proposals_api_v1_erp_proposals_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AiProposal"
-                  },
-                  "title": "Response Open Proposals Api V1 Erp Proposals Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/proposals/{proposal_id}/reject": {
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/drop": {
       "post": {
         "tags": [
-          "ki"
+          "assistent"
         ],
-        "summary": "Reject",
-        "description": "✕ – verworfen.",
-        "operationId": "reject_api_v1_erp_proposals__proposal_id__reject_post",
+        "summary": "Drop",
+        "description": "**Weg** – der Handgriff geschieht nicht.",
+        "operationId": "drop_api_v1_erp_assistant_handgriffe__handgriff_id__drop_post",
         "security": [
           {
             "HTTPBearer": []
@@ -6516,12 +6697,12 @@
         ],
         "parameters": [
           {
-            "name": "proposal_id",
+            "name": "handgriff_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Proposal Id"
+              "title": "Handgriff Id"
             }
           }
         ],
@@ -6531,7 +6712,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AiProposal"
+                  "$ref": "#/components/schemas/HandgriffOut"
                 }
               }
             }
@@ -6549,14 +6730,72 @@
         }
       }
     },
-    "/api/v1/erp/pins/{object_id}": {
+    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/done": {
+      "post": {
+        "tags": [
+          "assistent"
+        ],
+        "summary": "Done",
+        "description": "**Von Hand erledigt** – ein Handgriff, der nur von Hand ging (Datei, Entwurf), ist getan.",
+        "operationId": "done_api_v1_erp_assistant_handgriffe__handgriff_id__done_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handgriff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Handgriff Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoneIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandgriffOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/assistant/pins/{object_id}": {
       "get": {
         "tags": [
-          "ki"
+          "assistent"
         ],
         "summary": "Pinned",
-        "description": "Das Angeheftete: offene Vorschläge (immer, zuerst), dann die Hinweise der KI.",
-        "operationId": "pinned_api_v1_erp_pins__object_id__get",
+        "description": "**Das Angeheftete** – offene Handgriffe (zuerst), dann das Wissen; ``stale`` = im Umfeld\nhat sich seit der letzten Wahl etwas geändert.",
+        "operationId": "pinned_api_v1_erp_assistant_pins__object_id__get",
         "security": [
           {
             "HTTPBearer": []
@@ -6597,14 +6836,14 @@
         }
       }
     },
-    "/api/v1/erp/pins/{object_id}/refresh": {
+    "/api/v1/erp/assistant/pins/{object_id}/refresh": {
       "post": {
         "tags": [
-          "ki"
+          "assistent"
         ],
         "summary": "Refresh",
-        "description": "«Neu ansehen» – die KI wählt die Hinweise neu; offene Vorschläge bleiben.",
-        "operationId": "refresh_api_v1_erp_pins__object_id__refresh_post",
+        "description": "Das Wissen neu wählen – nur, wenn sich im Umfeld etwas geändert hat (sonst kein Aufruf).",
+        "operationId": "refresh_api_v1_erp_assistant_pins__object_id__refresh_post",
         "security": [
           {
             "HTTPBearer": []
@@ -6621,64 +6860,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PinnedOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/pins/{object_id}/solve": {
-      "post": {
-        "tags": [
-          "ki"
-        ],
-        "summary": "Solve",
-        "description": "Einen Hinweis lösen.",
-        "operationId": "solve_api_v1_erp_pins__object_id__solve_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SolveIn"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7361,112 +7542,6 @@
           "is_default_billing"
         ],
         "title": "AddressOut"
-      },
-      "AiProposal": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "At"
-          },
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "object_label": {
-            "type": "string",
-            "title": "Object Label",
-            "default": ""
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "change",
-              "create",
-              "file"
-            ],
-            "title": "Kind"
-          },
-          "field": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Field"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "default": ""
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          },
-          "current": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current"
-          },
-          "draft": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DraftOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "parts": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/IntakePart"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parts"
-          },
-          "source": {
-            "$ref": "#/components/schemas/ProposalSource"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "at",
-          "object_id",
-          "kind",
-          "source"
-        ],
-        "title": "AiProposal",
-        "description": "►►► **Ein Vorschlag** – ``id`` ist die Nummer seines Ereignisses im Log. ◄◄◄"
       },
       "ArtOut": {
         "properties": {
@@ -8348,6 +8423,20 @@
         ],
         "title": "BelegView",
         "description": "**Was die Seite zeigt** – das eingefrorene Papier, der Weg, die Handlungen."
+      },
+      "Body_add_file_api_v1_erp_assistant_files_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_add_file_api_v1_erp_assistant_files_post"
       },
       "Body_chunk_api_v1_erp_recordings__recording_id__chunks_post": {
         "properties": {
@@ -10090,31 +10179,23 @@
         "title": "DocumentSummary",
         "description": "Eine Zeile im Feed bzw. eine Kachel unten im Datensatz."
       },
-      "DraftOut": {
+      "DoneIn": {
         "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "user",
-              "organization"
+          "result": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Type"
-          },
-          "values": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Values",
-            "default": {}
+            "title": "Result"
           }
         },
         "type": "object",
-        "required": [
-          "type"
-        ],
-        "title": "DraftOut",
-        "description": "Der Entwurf eines ``create``-Vorschlags – vorausgefüllt in «Entwurf öffnen»."
+        "title": "DoneIn",
+        "description": "Von Hand erledigt (Entwurf freigegeben, Datei abgelegt) – was dabei entstand."
       },
       "EmailCheck": {
         "properties": {
@@ -10475,22 +10556,29 @@
         "title": "FieldChange",
         "description": "``feld: alt → neu`` – roh, der Feldname bleibt, wie er in der Tabelle heisst. Bei einer\nneuen Zeile fehlt ``old``, bei einer gelöschten ``new``."
       },
-      "FileIn": {
+      "FileRef": {
         "properties": {
-          "parts": {
-            "items": {
-              "$ref": "#/components/schemas/PartIn"
-            },
-            "type": "array",
-            "title": "Parts"
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "mime": {
+            "type": "string",
+            "title": "Mime"
           }
         },
         "type": "object",
         "required": [
-          "parts"
+          "token",
+          "name",
+          "mime"
         ],
-        "title": "FileIn",
-        "description": "«Stimmt so» – die Teile, wie sie abgelegt werden (je Teil eine Notiz)."
+        "title": "FileRef",
+        "description": "Eine Datei im Gespräch – sie liegt im Korb (``attachments``), bis sie ein Dokument wird."
       },
       "FiledOut": {
         "properties": {
@@ -10773,6 +10861,109 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HandgriffOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "body": {
+            "title": "Body"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "waiting",
+              "done",
+              "dropped"
+            ],
+            "title": "State"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "talk": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Talk"
+          },
+          "hand": {
+            "type": "string",
+            "title": "Hand",
+            "default": ""
+          },
+          "waits_for": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Waits For"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "object_id",
+          "label",
+          "line",
+          "method",
+          "path",
+          "state",
+          "source"
+        ],
+        "title": "HandgriffOut",
+        "description": "**Ein Handgriff, wie die Karte ihn zeigt.**"
       },
       "HintOut": {
         "properties": {
@@ -11231,137 +11422,6 @@
         "title": "InstanceUnitResponse",
         "description": "Eine Einzelinstanz – das Arbeitsobjekt."
       },
-      "IntakeIn": {
-        "properties": {
-          "text": {
-            "type": "string",
-            "maxLength": 20000,
-            "title": "Text"
-          },
-          "hint_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hint Object Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "text"
-        ],
-        "title": "IntakeIn",
-        "description": "**Etwas festhalten** – der Text und der Datensatz, der dabei offen war (Hinweis)."
-      },
-      "IntakeOut": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "At"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "hint_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hint Object Id"
-          },
-          "parts": {
-            "items": {
-              "$ref": "#/components/schemas/IntakePart"
-            },
-            "type": "array",
-            "title": "Parts",
-            "default": []
-          },
-          "proposals": {
-            "items": {
-              "$ref": "#/components/schemas/AiProposal"
-            },
-            "type": "array",
-            "title": "Proposals",
-            "default": []
-          },
-          "filed": {
-            "type": "boolean",
-            "title": "Filed",
-            "default": false
-          },
-          "notes": {
-            "items": {
-              "$ref": "#/components/schemas/NoteRef"
-            },
-            "type": "array",
-            "title": "Notes",
-            "default": []
-          },
-          "problem": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Problem"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "at",
-          "text"
-        ],
-        "title": "IntakeOut",
-        "description": "►►► **Eine Erfassung** – ``id`` ist die Nummer ihres Ereignisses ``intake``. ◄◄◄"
-      },
-      "IntakePart": {
-        "properties": {
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "default": ""
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "subject": {
-            "type": "string",
-            "title": "Subject",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "object_id",
-          "text"
-        ],
-        "title": "IntakePart",
-        "description": "**Ein Teil einer Erfassung** – wohin er gehört (Datensatz), was dort steht, Betreff."
-      },
       "IssuerOut": {
         "properties": {
           "object_id": {
@@ -11408,6 +11468,54 @@
         ],
         "title": "JourneyNeighbour",
         "description": "Ein Nachbar-Auftrag in der Journey – **gruppiert**, nicht je Stück.\n\nBei 5000 Einzelinstanzen will niemand 5000 Verweise sehen; die Frage lautet «wie\nviele kamen woher», nicht «welche». Wer die einzelnen Stücke braucht, öffnet den\ngenannten Auftrag – dort stehen sie."
+      },
+      "KnowledgeOut": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "source_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Object Id"
+          },
+          "source_message_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Message Id"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "KnowledgeOut",
+        "description": "Eine Aussage des Wissens am Datensatz – mit Datum und Quelle."
       },
       "LegalOut": {
         "properties": {
@@ -12351,25 +12459,6 @@
         "title": "NoteOut",
         "description": "Ein Satz statt einer Handlung – abgelaufen, überholt, storniert."
       },
-      "NoteRef": {
-        "properties": {
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "message_id": {
-            "type": "integer",
-            "title": "Message Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "object_id",
-          "message_id"
-        ],
-        "title": "NoteRef",
-        "description": "Eine Notiz, die beim Ablegen entstand."
-      },
       "ObjectResolution": {
         "properties": {
           "object_id": {
@@ -12388,6 +12477,40 @@
         ],
         "title": "ObjectResolution",
         "description": "Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."
+      },
+      "OperationOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "admin": {
+            "type": "boolean",
+            "title": "Admin"
+          },
+          "hand": {
+            "type": "boolean",
+            "title": "Hand"
+          },
+          "schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Schema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "summary",
+          "admin",
+          "hand"
+        ],
+        "title": "OperationOut",
+        "description": "Eine Handlung des ERP – für «Ändern»: ihre Felder (JSON-Schema der Route)."
       },
       "OrderCreate": {
         "properties": {
@@ -12794,38 +12917,6 @@
         "type": "object",
         "title": "PapersOut",
         "description": "Was eine Handlung hinausgäbe – leer, wenn sie kein Papier erzeugt."
-      },
-      "PartIn": {
-        "properties": {
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "text": {
-            "type": "string",
-            "maxLength": 200000,
-            "title": "Text"
-          },
-          "subject": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject"
-          }
-        },
-        "type": "object",
-        "required": [
-          "object_id",
-          "text"
-        ],
-        "title": "PartIn",
-        "description": "Ein Teil, wie der Mensch ihn ablegt («Stimmt so»)."
       },
       "PasskeyLoginResult": {
         "properties": {
@@ -13251,54 +13342,23 @@
         "title": "PersonRef",
         "description": "Eine beteiligte Person – Nummer, Name und ob sie zu **uns** gehört."
       },
-      "PinHint": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "entry_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Entry Key"
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "text"
-        ],
-        "title": "PinHint"
-      },
       "PinnedOut": {
         "properties": {
-          "proposals": {
+          "handgriffe": {
             "items": {
-              "$ref": "#/components/schemas/AiProposal"
+              "$ref": "#/components/schemas/HandgriffOut"
             },
             "type": "array",
-            "title": "Proposals",
-            "default": []
+            "title": "Handgriffe"
           },
-          "hints": {
+          "knowledge": {
             "items": {
-              "$ref": "#/components/schemas/PinHint"
+              "$ref": "#/components/schemas/KnowledgeOut"
             },
             "type": "array",
-            "title": "Hints",
-            "default": []
+            "title": "Knowledge"
           },
-          "refreshed_at": {
+          "chosen_at": {
             "anyOf": [
               {
                 "type": "string",
@@ -13308,7 +13368,17 @@
                 "type": "null"
               }
             ],
-            "title": "Refreshed At"
+            "title": "Chosen At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "mark": {
+            "type": "integer",
+            "title": "Mark",
+            "default": 0
           },
           "problem": {
             "anyOf": [
@@ -13323,8 +13393,12 @@
           }
         },
         "type": "object",
+        "required": [
+          "handgriffe",
+          "knowledge"
+        ],
         "title": "PinnedOut",
-        "description": "►►► **Das Angeheftete eines Datensatzes** – offene Vorschläge immer zuerst, dann die\nHinweise der KI (vom letzten «neu ansehen»), ohne die gelösten. ◄◄◄"
+        "description": "**Das Angeheftete** – offene Handgriffe (zuerst), dann das Wissen, das jetzt zählt."
       },
       "PlaceRef": {
         "properties": {
@@ -13360,6 +13434,30 @@
         ],
         "title": "PlaceRef",
         "description": "Ein Halter: Objektnummer, Typ, Name.\n\n``kind`` ist **abgeleitet** (``objects.resolve_object_type``) und nicht gespeichert –\nes sagt der Oberfläche nur, welches Symbol sie zeichnet. ``label`` ist der Name des\nDatensatzes, nicht seine Nummer: die steht daneben und ist klickbar."
+      },
+      "ProbeOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          },
+          "hand": {
+            "type": "string",
+            "title": "Hand",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "ProbeOut",
+        "description": "Der Probelauf einer geänderten Fassung: geht es – sonst der Satz der Route."
       },
       "ProcessEventResponse": {
         "properties": {
@@ -13668,52 +13766,6 @@
         "type": "object",
         "title": "ProposalOut",
         "description": "Der Vorschlag für einen Entwurf – nichts davon ist gespeichert."
-      },
-      "ProposalSource": {
-        "properties": {
-          "text": {
-            "type": "string",
-            "title": "Text",
-            "default": ""
-          },
-          "object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Object Id"
-          },
-          "intake": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Intake"
-          },
-          "at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "At"
-          }
-        },
-        "type": "object",
-        "title": "ProposalSource",
-        "description": "Woher ein Vorschlag kommt («Erfassung von Hans-Peter», «Mail von Vreni Kunz: …»), kurz –\nnie die Worte einer Erfassung."
       },
       "ProposedRef": {
         "properties": {
@@ -14163,10 +14215,10 @@
             "title": "Seconds",
             "default": 0
           },
-          "intake": {
+          "talk": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/IntakeOut"
+                "$ref": "#/components/schemas/TalkOut"
               },
               {
                 "type": "null"
@@ -14193,7 +14245,7 @@
           "state"
         ],
         "title": "Recording",
-        "description": "►►► **Eine Aufnahme** – ``id`` ist die Nummer ihres ``recording.start`` im Log. ◄◄◄\n\n``state``: ``recording`` (kein Stopp, nicht abgebrochen) · ``transcribing`` (gestoppt,\nAbschnitte fehlen) · ``filing`` (Text da, die Erfassung entsteht) · ``done`` (die Erfassung\ngibt es, ``intake`` gesetzt) · ``failed`` (``problem``)."
+        "description": "►►► **Eine Aufnahme** – ``id`` ist die Nummer ihres ``recording.start`` im Log. ◄◄◄\n\n``state``: ``recording`` (kein Stopp, nicht abgebrochen) · ``transcribing`` (gestoppt,\nAbschnitte fehlen) · ``filing`` (Text da, die Nachricht entsteht) · ``done`` (die Nachricht\nsteht im Gespräch, ``talk`` gesetzt) · ``failed`` (``problem``)."
       },
       "RecordingIn": {
         "properties": {
@@ -14383,6 +14435,37 @@
         "title": "RetiredInput",
         "description": "Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels."
       },
+      "RunIn": {
+        "properties": {
+          "body": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "title": "RunIn",
+        "description": "Ausführen – ``body`` nur, wenn die Person die Werte geändert hat («Ändern», Entwurf)."
+      },
+      "RunOut": {
+        "properties": {
+          "handgriff": {
+            "$ref": "#/components/schemas/HandgriffOut"
+          },
+          "data": {
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "handgriff"
+        ],
+        "title": "RunOut"
+      },
       "SendIn": {
         "properties": {
           "to": {
@@ -14502,19 +14585,6 @@
           "name"
         ],
         "title": "SignerOut"
-      },
-      "SolveIn": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          }
-        },
-        "type": "object",
-        "required": [
-          "key"
-        ],
-        "title": "SolveIn"
       },
       "StampOut": {
         "properties": {
@@ -14855,6 +14925,157 @@
           "new"
         ],
         "title": "SyncOut"
+      },
+      "TalkIn": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Text",
+            "default": ""
+          },
+          "talk": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Talk"
+          },
+          "hint_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Object Id"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileRef"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "title": "TalkIn",
+        "description": "**Eine Nachricht an den Assistenten.** Ohne ``talk`` beginnt ein neues Gespräch – am\noffenen Datensatz (``hint_object_id``), sonst an der Person."
+      },
+      "TalkMessage": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "by": {
+            "type": "string",
+            "enum": [
+              "person",
+              "ai"
+            ],
+            "title": "By"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileRef"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "by",
+          "text"
+        ],
+        "title": "TalkMessage"
+      },
+      "TalkOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "hint_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Object Id"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/TalkMessage"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "handgriffe": {
+            "items": {
+              "$ref": "#/components/schemas/HandgriffOut"
+            },
+            "type": "array",
+            "title": "Handgriffe"
+          },
+          "open": {
+            "type": "boolean",
+            "title": "Open"
+          },
+          "waiting": {
+            "type": "boolean",
+            "title": "Waiting",
+            "default": false
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "messages",
+          "handgriffe",
+          "open"
+        ],
+        "title": "TalkOut",
+        "description": "**Ein Gespräch** – seine Nachrichten und Handgriffe, der Reihe nach."
       },
       "TargetIn": {
         "properties": {

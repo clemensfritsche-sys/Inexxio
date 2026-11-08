@@ -45,7 +45,7 @@ function CantonSelect({ v, company, onView }: {
   // Nach dem Auto-Save-Effekt (der den Stand eben vorgemerkt hat): sofort hinaus.
   useEffect(() => { void saveNow(); }, [canton, saveNow]);
   return (
-    <Select name="canton" objectId={company} value={canton} onChange={setCanton}
+    <Select name="canton" value={canton} onChange={setCanton}
       style={{ padding: '4px 8px', borderRadius: 8, border: '1px solid var(--border-1)', background: 'var(--bg-1)', fontSize: 13 }}>
       <option value="">–</option>
       {v.cantons.map(([c, name]) => <option key={c} value={c}>{c} · {name}</option>)}

@@ -1,6 +1,7 @@
 # Phase 5 · Der Assistent – Bauplan
 
-> **Kopfstatus:** entschieden (08.11.2026), noch nicht gebaut · gehört zur Projektakte
+> **Kopfstatus:** gebaut (08.11.2026, alle drei Durchläufe in einem Zug; Abweichungen vom Plan
+> in §11) · gehört zur Projektakte
 > `docs/konzept/lernende-firma.md` (§6 Phase 5). Mockup und Konzept (Runde 14):
 > https://claude.ai/artifact/8jAy56JQ1jEESPwgRHPSSK
 > **Ersetzt**, sobald gebaut: Erfassung, Vorschläge, «Stimmt so», das Zeichen am Feld und die
@@ -396,3 +397,31 @@ letzten Mal, wird neu gewählt.
 4. Doku nachziehen: `CLAUDE.md`, `backend/CLAUDE.md`, `frontend/CLAUDE.md`, diese Akte und
    `lernende-firma.md`; Rundenbericht nach `docs/history/`.
 5. Deploy auf dev auf das «deployen» von Clemens; prod bleibt unberührt.
+
+## 11 · Wie gebaut – Abweichungen vom Plan
+
+Gebaut in einem Zug (statt drei Deploys), auf Wunsch von Clemens. Wo die Umsetzung vom Plan
+abweicht, gilt der Code; hier steht, warum:
+
+- **Person anlegen ohne Migration:** eine Person ohne Anmeldekonto trägt schon heute die
+  Kennung `mail:<adresse>` (`people.contact_uid`); die erste Anmeldung übernimmt sie über die
+  bestätigte E-Mail. `firebase_uid` musste dafür nicht leer werden.
+- **Der Probelauf in eigener Sitzung**, nicht über einen Sicherungspunkt: einfacher und ohne
+  Wechselwirkung mit der Sitzung der Anfrage. Ein Speichern im Probelauf weist `core/outside` ab
+  (`NeedsHand`) – gleich wie ein Schritt nach aussen. Dateien bleiben im Probelauf in der Zeile
+  (`attachments._here`), statt «nur von Hand» zu sein.
+- **Mails nach dem Speichern über `send_due`** (`mailbox.send_after`): jede Stelle, die eine Mail
+  `outgoing` schreibt, meldet sich; der Versand läuft in eigener Sitzung nach dem Speichern. Das
+  frühere `voucher_docs.send_pending` ist weg.
+- **Kein eigener Typ `ObjectNr`:** «Ändern» erkennt ein Referenzfeld am Namen (`…object_id`) – das
+  ist im ganzen Schema schon die Regel; ein zweiter Weg wäre doppelt.
+- **«Inzwischen geändert»** zählt nur `update`/`delete` am Datensatz (der Rauchtest zeigte: eine
+  neue Nachricht der Person ist keine Änderung an ihr).
+- **Das Umfeld kommt aus dem Log**, nicht aus Fremdschlüsseln: viele Verweise im Schema sind
+  `…object_id` ohne Fremdschlüssel. Was in denselben Handlungen geschah und worauf die eigenen
+  Zeilen zeigen, ist dieselbe Stufe – abgeleitet, ohne Liste.
+- **Im Wissen suchen**: `ai_memory` neu (Art + Nummer), die alten Fälle (Vorschläge) sind weg; der
+  Takt baut die Zahlen für Notizen, Dokumente und Handgriffe auf.
+- **«Entwurf öffnen»** gibt es für Person, Firma und Dokument (die Entwürfe, die das ERP hat); jede
+  andere Handlung hat «Ändern» mit den Feldern der Route.
+

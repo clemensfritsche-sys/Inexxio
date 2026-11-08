@@ -5,8 +5,9 @@
  * Anzeige-Cache aus scripts/early.js), sieht unten rechts dasselbe «+» wie im ERP. Es ist kein
  * Nachbau: ein Tipp öffnet die ERP-Seite `/erp/erfassen` in einem Rahmen über der Seite – mit
  * ihrer eigenen Anmeldung und Prüfung (wer kein Personal ist, kommt dort nicht hinein). Die
- * Stecknadel zeigt von dort aus auf diese Seite (gleicher Ursprung); Foto, Datei und «Neu
- * anlegen» springen ins ERP.
+ * Stecknadel zeigt von dort aus auf diese Seite (gleicher Ursprung); das Gespräch mit dem
+ * Assistenten (auch Foto und Datei) läuft im Rahmen, «Neu anlegen» und «Entwurf öffnen» springen
+ * ins ERP.
  *
  * Alle anderen sehen nichts, und die Seite lädt dafür nichts. Nur auf der Website
  * (`html[data-site]`): Konto und ERP tragen dasselbe Skript als Teil des gemeinsamen Kopfs mit –
@@ -38,7 +39,7 @@ function open(): void {
   const frame = document.createElement('iframe');
   frame.id = FRAME_ID;
   frame.className = 'ix-capture-frame';
-  frame.title = 'Erfassen';
+  frame.title = 'Assistent';
   frame.src = '/erp/erfassen';
   // Aufnehmen (Mikrofon) und Fotografieren gehen im Rahmen nur mit ausdrücklicher Erlaubnis.
   frame.allow = 'microphone; camera; screen-wake-lock';
@@ -76,8 +77,8 @@ function fab(): HTMLButtonElement {
   b.id = FAB_ID;
   b.type = 'button';
   b.className = 'ix-capture-fab';
-  b.setAttribute('aria-label', 'Erfassen');
-  b.title = 'Erfassen – schreiben, aufnehmen, auf eine Stelle zeigen';
+  b.setAttribute('aria-label', 'Assistent');
+  b.title = 'Assistent – sagen, was ist, aufnehmen, auf eine Stelle zeigen';
   b.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
     + 'stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
   b.addEventListener('click', open);

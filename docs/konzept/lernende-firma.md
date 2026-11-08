@@ -1,7 +1,7 @@
 # Projektakte «Die lernende Firma»
 
 > **Kopfstatus:** in Umsetzung · **Phasen 1–4 gebaut** (Log, Fundament, KI, Sprache; 07.11.2026) ·
-> **Phase 5 «Der Assistent» entschieden** (08.11.2026, Bauplan `docs/konzept/phase5-bauplan.md`) ·
+> **Phase 5 «Der Assistent» gebaut** (08.11.2026, Bauplan `docs/konzept/phase5-bauplan.md`) ·
 > Lead: Claude · Entscheid: Clemens Fritsche · seit 03.11.2026
 > Mockup (1:1 im ERP): https://claude.ai/artifact/8jAy56JQ1jEESPwgRHPSSK
 > Diese Akte ist die **eine** Quelle für Ziel, Regeln, Plan und Entscheide – sie beschreibt den
@@ -219,7 +219,7 @@ gelöscht) · skaliert (Seiten, Indizes, Bedeutungssuche in der eigenen Datenban
 | 2 | **Fundament:** Feld-Baustein · Prüfsumme im Log · Kommunikation skalierbar · Notiz an jedem Datensatz · ein Verlauf · der Takt | gebaut (06.11.2026) |
 | 3 | **KI:** Lesen · Erfassen · Ablegen · Vorschläge · Angeheftetes · Lernen (Wissen + Erfahrung) · Deckel | gebaut (07.11.2026; Bauplan `docs/konzept/phase3-bauplan.md`) |
 | 4 | **Sprache:** Aufnehmen · Gemini · der Takt legt ab | gebaut (07.11.2026; Bauplan `docs/konzept/phase4-bauplan.md`) |
-| 5 | **Der Assistent:** Gespräch und Handgriff statt Erfassung und Vorschlag · Speichern an einer Stelle · Probelauf · Wissen bei jedem Öffnen · im Wissen suchen – in drei Durchläufen, nicht rückwärtskompatibel | entschieden (08.11.2026; Bauplan `docs/konzept/phase5-bauplan.md`) |
+| 5 | **Der Assistent:** Gespräch und Handgriff statt Erfassung und Vorschlag · Speichern an einer Stelle · Probelauf · Wissen bei jedem Öffnen · im Wissen suchen – nicht rückwärtskompatibel | gebaut (08.11.2026; Bauplan `docs/konzept/phase5-bauplan.md`) |
 | danach | Lektionen (ab ~100 Fällen) · Fragen im Erfassen · Projekt «Aufgaben» (Zuständigkeit je Prozessschritt) | offen |
 | später | Suche in Inhalten · Website-Messung (BigQuery) · MCP-Zugang (nur für Clemens) | offen |
 

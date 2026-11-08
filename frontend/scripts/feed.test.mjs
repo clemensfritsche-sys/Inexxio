@@ -93,31 +93,37 @@ test('die Detailansichten hängen an derselben Tabelle', () => {
   assert.deepEqual([...areaKey('orders')], ['feed', 'orders']);
 });
 
-test('Phase 3: wer ein Feld ändert, lädt die Vorschläge nach; Erfassen und ✕ laden, was sie ändern', () => {
+test('Phase 5: jede Änderung lädt das Angeheftete; ein Handgriff lädt alles, Sagen nur das Gespräch', () => {
   const areas = (p) => new Set(touchedBy(p));
-  // Ob ein Vorschlag offen ist, leitet der Server aus dem Log ab – jede Änderung am Datensatz
-  // kann ihn erledigen (Bug-Form: das Zeichen bliebe nach «Übernehmen» stehen).
+  // Ob sich im Umfeld etwas änderte, leitet der Server aus dem Log ab – jede Änderung am
+  // Datensatz lädt das Angeheftete nach.
   for (const p of [`${API}/erp/records/${oid}`, `${API}/admin/companies/${oid}`,
     `${API}/erp/orders/${oid}/steps/${step}/voucher`]) {
-    assert.ok(areas(p).has('proposals') && areas(p).has('pins'), p);
+    assert.ok(areas(p).has('pins') && areas(p).has('history'), p);
   }
-  for (const p of [`${API}/erp/intake`, `${API}/erp/intake/${oid}/file`, `${API}/erp/proposals/${oid}/reject`]) {
-    for (const d of ['proposals', 'pins', 'intake', 'todo', 'history']) assert.ok(areas(p).has(d), `${p} → ${d}`);
+  // Ein Handgriff kann alles, was das ERP kann – er lädt alles nach (Bug-Form: eine Notiz,
+  // eine Firma, ein Auftrag aus einem Handgriff stünde nicht im Feed).
+  for (const p of [`${API}/erp/assistant/handgriffe/${oid}/run`, `${API}/erp/assistant/handgriffe/${oid}/done`]) {
+    for (const d of DETAILS) assert.ok(areas(p).has(d), `${p} → ${d}`);
   }
-  // «neu ansehen» und «lösen» ändern nur das Angeheftete (und den Verlauf) – keine Liste.
-  assert.deepEqual(touched(`${API}/erp/pins/${oid}/refresh`), []);
-  assert.ok(areas(`${API}/erp/pins/${oid}/solve`).has('pins'));
-  // Prüfen bleibt ohne Folgen – auch für die Vorschläge.
+  for (const p of [`${API}/erp/assistant/talks`, `${API}/erp/assistant/handgriffe/${oid}/drop`]) {
+    for (const d of ['talks', 'todo', 'pins']) assert.ok(areas(p).has(d), `${p} → ${d}`);
+    assert.ok(!areas(p).has('orders'), p);
+  }
+  // Probelauf und eine Datei ändern nichts; das Wissen neu wählen nur das Angeheftete.
+  assert.deepEqual(touched(`${API}/erp/assistant/handgriffe/${oid}/probe`), []);
+  assert.deepEqual(touched(`${API}/erp/assistant/files`), []);
+  assert.deepEqual([...areas(`${API}/erp/assistant/pins/${oid}/refresh`)], ['pins']);
   assert.deepEqual([...areas(`${API}/erp/orders/validate`)], []);
 });
 
-test('Phase 4: ein Stück der Aufnahme lädt nichts nach, «weiter abschreiben» wie eine Erfassung', () => {
+test('Phase 4: ein Stück der Aufnahme lädt nichts nach, «weiter abschreiben» bringt das Gespräch', () => {
   const areas = (p) => new Set(touchedBy(p));
   const rec = 4711;
   // Alle 30 s ein Stück – lüde es alles nach (unbekannt → alle), liefe der Feed während eines
   // Meetings im Kreis.
   assert.deepEqual([...areas(`${API}/erp/recordings/${rec}/chunks`)], []);
-  for (const d of ['intake', 'recordings', 'todo', 'proposals', 'history']) {
+  for (const d of ['talks', 'recordings', 'todo']) {
     assert.ok(areas(`${API}/erp/recordings/${rec}/advance`).has(d), d);
   }
   for (const p of [`${API}/erp/recordings`, `${API}/erp/recordings/${rec}/stop`]) {

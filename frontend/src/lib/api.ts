@@ -36,7 +36,7 @@ import type {
   TransferInfo,
   DocumentSummary, DocumentDetail, DocumentProposal, DocumentTarget, RecordRef,
   CompanySettingsUpdate, PublicDocument, BelegView, LegalText, VoucherPapers, ComposeResult, UploadResult,
-  Intake, Proposal, Pinned, Recording,
+  Talk, TalkFile, Handgriff, HandgriffOperation, HandgriffRun, HandgriffProbe, Pinned, Recording,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -582,51 +582,71 @@ class ApiClient {
     return this.get('/api/v1/erp/todo');
   }
 
-  // ─── Phase 3 · KI: Erfassen, Vorschläge, Angeheftetes (docs/konzept/phase3-bauplan.md) ──
-  /** **Erfassen** («Schreiben» im «+»): die rohe Eingabe ist sofort abgelegt, dann legt die
-   *  KI ab (bis ~45 s). `hint` = der Datensatz, der dabei offen war. */
-  intake(text: string, hint?: number | null): Promise<Intake> {
-    return this.post('/api/v1/erp/intake', hint ? { text, hint_object_id: hint } : { text });
+  // ─── Phase 5 · Der Assistent: Gespräch, Handgriff, Angeheftet (docs/konzept/phase5-bauplan.md) ──
+  /** **Dem Assistenten etwas sagen** – ohne `talk` beginnt ein Gespräch (am offenen Datensatz
+   *  `hint`); die KI antwortet und bereitet Handgriffe vor (bis ~50 s). */
+  say(text: string, opts: { talk?: number | null; hint?: number | null; files?: TalkFile[] } = {}): Promise<Talk> {
+    return this.post('/api/v1/erp/assistant/talks', {
+      text, ...(opts.talk ? { talk: opts.talk } : {}), ...(opts.hint ? { hint_object_id: opts.hint } : {}),
+      ...(opts.files?.length ? { files: opts.files } : {}),
+    });
   }
 
-  /** Meine Erfassungen, die noch nicht abgelegt sind. */
-  openIntakes(req?: Req): Promise<Intake[]> {
-    return this.get('/api/v1/erp/intake/open', req);
+  /** Meine offenen Gespräche – die Zahl am «+». */
+  openTalks(req?: Req): Promise<Talk[]> {
+    return this.get('/api/v1/erp/assistant/talks/open', req);
   }
 
-  /** **«Stimmt so»** – je Teil eine Notiz an seinem Datensatz. */
-  fileIntake(id: number, parts: { object_id: number; text: string; subject?: string }[]): Promise<Intake> {
-    return this.post(`/api/v1/erp/intake/${id}/file`, { parts });
+  /** Ein Gespräch (nur, wer es führt, und der Admin). */
+  talk(id: number, req?: Req): Promise<Talk> {
+    return this.get(`/api/v1/erp/assistant/talks/${id}`, req);
   }
 
-  /** **«Verwerfen»** – nicht ablegen; was aus der Erfassung folgte, geht mit. */
-  discardIntake(id: number): Promise<Intake> {
-    return this.post(`/api/v1/erp/intake/${id}/discard`, {});
+  /** Eine Datei (Foto, PDF) ins Gespräch – sie liegt im Korb, bis sie ein Dokument wird. */
+  addTalkFile(file: Blob, name: string): Promise<TalkFile> {
+    const form = new FormData();
+    form.append('file', file, name);
+    return this.request('/api/v1/erp/assistant/files', { method: 'POST', body: form });
   }
 
-  /** Die offenen Vorschläge an einem Datensatz. */
-  proposals(objectId: number, req?: Req): Promise<Proposal[]> {
-    return this.get(`/api/v1/erp/proposals?object_id=${objectId}`, req);
+  /** Eine Datei aus dem Gespräch (im Korb) – für den Dokument-Entwurf. */
+  attachmentBlob(token: string): Promise<Blob> {
+    return this.request<Blob>(`/api/v1/attachments/${encodeURIComponent(token)}`, {}, 'blob');
   }
 
-  /** ✕ – den Vorschlag verwerfen (der einzige Entscheid, der gesetzt wird). */
-  rejectProposal(id: number): Promise<Proposal> {
-    return this.post(`/api/v1/erp/proposals/${id}/reject`, {});
+  /** Die Handlung hinter einem Handgriff – ihre Felder für «Ändern». */
+  handgriffOperation(id: number, req?: Req): Promise<HandgriffOperation> {
+    return this.get(`/api/v1/erp/assistant/handgriffe/${id}/operation`, req);
   }
 
-  /** **Das Angeheftete** eines Datensatzes: offene Vorschläge, dann die Hinweise. */
+  /** **Ausführen** – genau einmal, mit meinen Rechten; `body` nur mit geänderten Werten. */
+  runHandgriff(id: number, body?: unknown): Promise<HandgriffRun> {
+    return this.post(`/api/v1/erp/assistant/handgriffe/${id}/run`, body === undefined ? {} : { body });
+  }
+
+  /** Eine geänderte Fassung prüfen – der Probelauf derselben Route, nichts bleibt. */
+  probeHandgriff(id: number, body: unknown, req?: Req): Promise<HandgriffProbe> {
+    return this.post(`/api/v1/erp/assistant/handgriffe/${id}/probe`, { body }, req);
+  }
+
+  /** **Weg** – der Handgriff geschieht nicht. */
+  dropHandgriff(id: number): Promise<Handgriff> {
+    return this.post(`/api/v1/erp/assistant/handgriffe/${id}/drop`, {});
+  }
+
+  /** **Von Hand erledigt** (Entwurf freigegeben, Datei abgelegt) – `result` = was entstand. */
+  handgriffDone(id: number, result: number | null): Promise<Handgriff> {
+    return this.post(`/api/v1/erp/assistant/handgriffe/${id}/done`, { result });
+  }
+
+  /** **Das Angeheftete**: offene Handgriffe, dann das Wissen (`stale` = neu wählen lohnt sich). */
   pins(objectId: number, req?: Req): Promise<Pinned> {
-    return this.get(`/api/v1/erp/pins/${objectId}`, req);
+    return this.get(`/api/v1/erp/assistant/pins/${objectId}`, req);
   }
 
-  /** «neu ansehen» – die KI wählt die Hinweise neu (nur auf Abruf). */
+  /** Das Wissen neu wählen – nur, wenn sich im Umfeld etwas geändert hat. */
   refreshPins(objectId: number): Promise<Pinned> {
-    return this.post(`/api/v1/erp/pins/${objectId}/refresh`, {});
-  }
-
-  /** Einen Hinweis lösen. */
-  solvePin(objectId: number, key: string): Promise<Pinned> {
-    return this.post(`/api/v1/erp/pins/${objectId}/solve`, { key });
+    return this.post(`/api/v1/erp/assistant/pins/${objectId}/refresh`, {});
   }
 
   // ─── Phase 4 · Sprache: Aufnehmen (docs/konzept/phase4-bauplan.md) ─────────

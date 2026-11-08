@@ -19,7 +19,7 @@ import { type Creatable, FeedPanel } from '@/components/erp/feed-panel';
 import { DetailPane, type DetailHandlers } from '@/components/erp/detail-pane';
 import type { DraftSeed } from '@/components/erp/document-draft';
 import { CaptureSheet, type CaptureHint } from '@/components/erp/capture/capture-sheet';
-import { CaptureContext, type CaptureActions } from '@/components/erp/capture/capture-context';
+import { CaptureContext, type CaptureActions, type DraftFromHandgriff } from '@/components/erp/capture/capture-context';
 
 // Wie viele Vorschläge der Scanner höchstens anbietet (er zeigt ohnehin nur die ersten).
 const SUGGEST_LIMIT = 8;
@@ -29,6 +29,11 @@ const SUGGEST_LIMIT = 8;
  * (`DetailPane`), dazwischen die Auswahl. Die Listen hält `lib/use-feed-lists`; was nach
  * einer Anlage oder Änderung im Feed passiert, steht hier an EINER Stelle (`handlers`). ◄◄◄
  */
+/** Was ein Entwurf mitbringt (aus «+» oder einem Handgriff). */
+interface Seeds { no: number; draft: DraftSeed | null; record: Record<string, string> | null; handgriff: number | null }
+/** Welcher Entwurf zu welcher Anlage gehört – für «Entwurf öffnen» über die Adresse. */
+const KIND_OF: Partial<Record<Creatable, DraftFromHandgriff['kind']>> = { person: 'user', company: 'organization', document: 'document' };
+
 export default function ErpPage() {
   const [search, setSearch] = useState('');
   // **Die Suche, für die der Server gefragt wird** – entprellt (300 ms), leer sofort. Sie ist
@@ -53,9 +58,9 @@ export default function ErpPage() {
    * nichts – ein Entwurf lebt im Browser, bis er freigegeben wird (§6.1).
    */
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
-  /** Was ein Entwurf aus «+» oder einem Vorschlag mitbringt; `no` beginnt ihn neu. */
-  const [seeds, setSeeds] = useState<{ no: number; draft: DraftSeed | null; record: Record<string, string> | null }>(
-    { no: 0, draft: null, record: null });
+  /** Was ein Entwurf aus «+» oder einem Handgriff mitbringt; `no` beginnt ihn neu;
+   *  `handgriff` ist erledigt, sobald der Entwurf freigegeben ist. */
+  const [seeds, setSeeds] = useState<Seeds>({ no: 0, draft: null, record: null, handgriff: null });
   /** Das «+» (Erfassen) – offen oder zu. */
   const [capture, setCapture] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
@@ -68,8 +73,10 @@ export default function ErpPage() {
     setMobileView('detail');
   };
   useUrlParams({ onType: setTypeFilter, onOpen: open,
-    onCreate: (type, camera, values) => startCreate(type, undefined, {
-      ...(camera ? { draft: { start: 'scan' } } : {}), ...(values ? { record: values } : {}) }) });
+    onCreate: (type, camera, values, handgriff) => {
+      if (handgriff && values) { void openDraft({ kind: KIND_OF[type] ?? 'document', values, handgriff }); return; }
+      startCreate(type, undefined, { ...(camera ? { draft: { start: 'scan' } } : {}), ...(values ? { record: values } : {}) });
+    } });
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.type] = (acc[r.type] ?? 0) + 1;
@@ -154,10 +161,11 @@ export default function ErpPage() {
   }
 
   function startCreate(type: Creatable, seed?: OrderSeed,
-    more: { draft?: DraftSeed; record?: Record<string, string> } = {}) {
+    more: { draft?: DraftSeed; record?: Record<string, string>; handgriff?: number } = {}) {
     setSel(null);
     setOrderSeed(seed ?? null);
-    setSeeds((s) => ({ no: s.no + 1, draft: more.draft ?? null, record: more.record ?? null }));
+    setSeeds((s) => ({ no: s.no + 1, draft: more.draft ?? null, record: more.record ?? null,
+      handgriff: more.handgriff ?? null }));
     setCreating(type);
     setCapture(false);
     setMobileView('detail');
@@ -168,9 +176,29 @@ export default function ErpPage() {
     objectId: sel.objectId,
     label: (activeRow && rowTitle(activeRow)) || TYPE_META[sel.type]?.label || '',
   } : null;
-  const captureActions: CaptureActions = {
-    createDraft: (type, values) => startCreate(type === 'user' ? 'person' : 'company', undefined, { record: values }),
+  /** «Entwurf öffnen» aus einem Handgriff – Person und Firma vorausgefüllt, ein Dokument mit der
+   *  Datei aus dem Gespräch (`values.file` = ihr Schlüssel im Korb). */
+  async function openDraft(d: DraftFromHandgriff) {
+    if (d.kind !== 'document') {
+      startCreate(d.kind === 'user' ? 'person' : 'company', undefined, { record: d.values, handgriff: d.handgriff });
+      return;
+    }
+    const file = d.values.file ? await api.attachmentBlob(d.values.file).catch((e: unknown) => {
+      tell('Datei aus dem Gespräch', 'Nicht geladen')(e);
+      return null;
+    }) : null;
+    startCreate('document', undefined, { handgriff: d.handgriff, draft: {
+      ...(file ? { files: [file], source: 'file' as const } : {}), art: d.values.art, name: d.values.name,
+    } });
+  }
+  /** Der Entwurf eines Handgriffs ist freigegeben – der Handgriff ist erledigt. */
+  const settle = (objectId: number | null | undefined) => {
+    const id = seeds.handgriff;
+    if (!id) return;
+    setSeeds((s) => ({ ...s, handgriff: null }));
+    api.handgriffDone(id, objectId ?? null).catch(tell(`Handgriff ${id}`, 'Nicht als erledigt vermerkt'));
   };
+  const captureActions: CaptureActions = { openDraft: (d) => void openDraft(d) };
   const select = (s: { type: ErpRecordType; objectId: number | null }) => {
     setCreating(null);
     if (s.objectId != null) setSel({ type: s.type, objectId: s.objectId });
@@ -196,12 +224,18 @@ export default function ErpPage() {
       if (s.is_operator) feed.refresh('companies');
     },
     onPersonCreated: (u: UserProfile) => {
+      settle(u.object_id);
       patchList<UserProfile>('people', (list) => [...list, u]);
       select({ type: 'user', objectId: u.object_id });
     },
     onCompanyCreated: (c: CompanySettings) => {
+      settle(c.object_id);
       patchList<CompanySettings>('companies', (list) => [...list, c]);
       select({ type: 'organization', objectId: c.object_id ?? null });
+    },
+    onDocumentFiled: (objectId: number) => {
+      settle(objectId);
+      select({ type: 'document', objectId });
     },
     onRefreshArticles: () => feed.refresh('articles'),
     onCreate: startCreate,
@@ -229,14 +263,7 @@ export default function ErpPage() {
           </div>
         </div>
         {capture && (
-          <CaptureSheet hint={hint} onClose={() => setCapture(false)}
-            onCreate={(t) => startCreate(t)}
-            onFiles={(files, about) => startCreate('document', undefined, { draft: {
-              files, source: 'file', refs: about ? [{ object_id: about.objectId, label: about.label }] : undefined,
-            } })}
-            onScan={(about) => startCreate('document', undefined, { draft: {
-              start: 'scan', refs: about ? [{ object_id: about.objectId, label: about.label }] : undefined,
-            } })} />
+          <CaptureSheet hint={hint} onClose={() => setCapture(false)} onCreate={(t) => startCreate(t)} />
         )}
       </CaptureContext.Provider>
     </ErpNavContext.Provider>

@@ -67,7 +67,7 @@ src/components/
 ├── auth/      ← login-dialog, passkey-nudge, auth-gate (Schutz von /erp und /konto, `staffOnly`)
 ├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label,
 │                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)
-├── form/      ← field + use-field (**der Feld-Baustein**, siehe unten), proposal-mark (Zeichen + Fenster eines Vorschlags), save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
+├── form/      ← field + use-field (**der Feld-Baustein**, siehe unten), save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
 └── layout/    ← site-shell, account-sync
 src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.ts (generiert) ·
                  process-status.ts · status-tone.ts · record-status.ts (isStaff) · account-cache.ts ·
@@ -77,7 +77,8 @@ src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.
                  Funktionen) · web-link.ts · notice.ts · recorder.ts (Aufnehmen ohne
                  Browser: Abschnitte, Stücke, Warteschlange – Wächter `scripts/recorder.test.mjs`,
                  der Anschluss `scripts/use-recorder.test.mjs`) · transcribe.ts (eine Aufnahme
-                 zu Ende abschreiben lassen, auch wenn das «+» zu ist) · pin-point.ts (die
+                 zu Ende abschreiben lassen, auch wenn das «+» zu ist) · assistant.ts (Gespräche,
+                 Aufnahmen, das Angeheftete – die Queries des Assistenten) · pin-point.ts (die
                  Stecknadel: auf eine Stelle zeigen, «Stelle: …», Artikel «ERP»/«Website»)
                  … und **alle Hooks** als `use-*.ts`
                  (use-autosave, use-search, use-profile-completion, use-google-maps,
@@ -102,9 +103,9 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `history.tsx` | **Der Verlauf** – EINE Komponente an jeder Detailansicht (Person, Firma, Auftrag, Artikel, Instanz, Dokument): `useHistory` (`useInfiniteQuery`, Seiten vom Server, «ältere laden» beim Rollen), Nachrichten als Blasen, Dokumente als Zeile, Änderungen je Handlung technisch (`feld: alt → neu`, Festbreite) |
 | `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter «Verlauf»): die Ansicht (`communication.tsx`: Postfach, `History`, Eingabe) · `timeline` (die Blase einer Nachricht, Tagestrenner, die wartende Mail) · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – Spiegel `DELIVERIES`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |
-| `new-record.tsx` | Person und Firma anlegen (Entwurf; `initial` = vorausgefüllt aus einem Vorschlag) |
-| `capture/` | **«+» = Erfassen – EINE Ansicht wie das Eingabefeld bei Claude**: `capture-sheet` (die Eingabe: Text, Enter = ab an die KI; 📷 → Dokument-Entwurf mit Kamera, 📄 → Dateiwahl → Entwurf, 📌 Stecknadel (`lib/pin-point`), 🎤 Aufnahme im Feld; darunter Skeleton → «Abgelegt» an derselben Stelle; dann «Nicht abgelegt» (Knöpfe) und «Neu anlegen»; was nicht geht, wird blass; während einer Aufnahme nicht schliessbar; `host` = wo die Stecknadel zeigt) · `recorder` (`RecordingStrip`: Punkt, Zeit, Pegel, Stopp – im Feld; `recordingWord`) · `filed` (`FiledBody`: je Teil Datensatz-Chip → `ObjectSelect`, Text, Vorschläge «Zum Feld»/«Entwurf öffnen», «Verwerfen» · «Stimmt so») · `proposal-card` (ein Vorschlag als Zeile, auch im Angehefteten) · `capture-context` (`createDraft` – gehalten von der Feed-Seite bzw. `/erp/erfassen`) |
-| `pinned.tsx` | **Das Angeheftete** unten im Verlauf (`History`): offene Vorschläge (`change` «Zum Feld», `create` «Entwurf öffnen», ✕ – eine Erfassung, die auf «Stimmt so» wartet, steht im «+»), dann die Hinweise mit «neu ansehen» und «lösen»; Sprungziel `data-todo="vorschlaege"` |
+| `new-record.tsx` | Person und Firma anlegen (Entwurf; `initial` = vorausgefüllt aus einem Handgriff) |
+| `capture/` | **«+» = der Assistent – EIN Gespräch wie bei Claude** (Phase 5): `capture-sheet` (die Eingabe: Text, Enter = senden; 📷/📄 hängen die Datei an die Nachricht (Korb), 📌 Stecknadel (`lib/pin-point`), 🎤 Aufnahme im Feld; darüber das Gespräch – Blasen und Handgriff-Karten, Skeleton während die KI antwortet, «Neues Gespräch»; darunter «Offene Gespräche» und «Neu anlegen»; während einer Aufnahme nicht schliessbar; `host` = wo die Stecknadel zeigt) · `handgriff-card` (**ein Handgriff** – Zeile, Datensatz, Quelle, Werte; Ausführen/Ablegen · Entwurf öffnen · Ändern (Felder aus dem Schema der Route, Probelauf) · Weg · Öffnen; dieselbe Karte im Angehefteten) · `recorder` (`RecordingStrip`; `recordingWord`) · `capture-context` (`openDraft` – «Entwurf öffnen», gehalten von der Feed-Seite bzw. `/erp/erfassen`) |
+| `pinned.tsx` | **Das Angeheftete** unten im Verlauf (`History`): offene Handgriffe (dieselbe Karte), dann das Wissen, das jetzt zählt (Datum, Quelle); neu gewählt still im Hintergrund, wenn sich im Umfeld etwas änderte (`lib/assistant.usePinned`); Sprungziel `data-todo="handgriffe"` |
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |
 | `loop-card.tsx` | **Die Wiederholung** unter dem Ende: im Entwurf einschalten und einstellen (`LoopDraftCard`, Nutzlast `loopPayload`), am laufenden Auftrag Zustand + Satz + «Beenden» (`LoopRunCard`, `api.endLoop`); die Linie links zurück zum Start ist `process-columns.LoopLine` (Zeile `loop` in `columnRows`) |
 | `flow-column.tsx`, `module-card.tsx`, `process-columns.tsx`, `process-flow.tsx` | Prozessbild: die Spalte (`FlowColumn`, Achse, Zustände, Herkunft) · die Modul-Karte (`ModuleShell`, `StepCard`, `ModuleMark`) · drei Spuren · **ein** Liniengenerator (`polyPath`); die reinen Funktionen in `lib/process-graph.ts` (Wächter `scripts/process-graph.test.mjs`) |
@@ -171,9 +172,9 @@ Skill `inexxio-design-system`.
   `feed.DETAILS`): Auftrag, Instanz, Dokument, Artikel (Umfeld), Erzeugungsprozess, Bestand
   und Nummern (`useInfiniteQuery`), Dokumente an einem Datensatz (`useDocumentsOf`),
   Zahlungen, Verlauf (`qk.history`, `useInfiniteQuery` – jeder Schreibvorgang lädt ihn nach), Absender, Postfach, Newsletter, Gesellschaft;
-  **Phase 4** `qk.openRecordings` (`useOpenRecordings`); **Phase 3** `qk.proposals` · `qk.pins` · `qk.openIntakes` (`lib/proposals.ts`; `feed.LOGGED` =
-  Verlauf + Vorschläge + Angeheftetes lädt jede Änderung am Datensatz nach – offen ist abgeleitet).
-  Was lokal entschieden ist («Übernehmen», ✕), bleibt 30 s weg (`lib/settled.ts`), danach zählt wieder der Server. Die Antwort einer Handlung
+  **Phase 4/5** `qk.openRecordings` · `qk.openTalks` · `qk.talk` · `qk.pins` (`lib/assistant.ts`; `feed.LOGGED` =
+  Verlauf + Angeheftetes lädt jede Änderung am Datensatz nach – offen ist abgeleitet; ein
+  ausgeführter Handgriff lädt **alles** nach, er kann alles, was das ERP kann). Die Antwort einer Handlung
   geht per `setQueryData` in den Cache. **Prüfen und Vorschau** (Auftrag, Artikel,
   Zeiterfassung) über `useDebouncedQuery`: Eingabe 250 ms entprellt und Teil des Schlüssels,
   `keepPreviousData`, überholte Anfragen brechen ab (`api.get/post(…, { signal })`).
@@ -220,12 +221,9 @@ Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-s
   Eingabefeld, nichts verschwindet während eines Auto-Saves; was erst mit der Serverantwort
   entsteht, hat seinen Platz von Anfang an.
 - **Ein Feld = der Feld-Baustein** (`components/form/use-field.ts` + `field.tsx`): die Logik
-  steht EINMAL in `useField` (Wert, Pflicht, weiche Format-Prüfung, Meldung, Enter = fertig,
-  und der **Vorschlag**: `objectId` + `name` → `lib/proposals.useProposals`, ein Schlüssel je
-  Datensatz, nur im ERP über `ProposalClient`; «Übernehmen» = `onChange(value)`, nach dem
-  Render `onEnter` wie die Taste; Zeichen und Fenster `form/proposal-mark.tsx` – an
-  `Field`/`SelectField` neben der Beschriftung, in freiem Aussehen schwebend an der Ecke, per
-  Portal, ohne die Geometrie des Feldes zu ändern); `Field` · `SelectField`
+  steht EINMAL in `useField` (Wert, Pflicht, weiche Format-Prüfung, Meldung, Enter = fertig;
+  was die KI an einem Feld ändern will, ist ein Handgriff im Angehefteten – das Feld trägt kein
+  Zeichen); `Field` · `SelectField`
   sind die Standardform, `Input` · `Select` · `TextArea` dieselbe Logik in freiem Aussehen (Beleg,
   Konto, Prozess-Editor). Ein loses `<input>`/`<select>`/`<textarea>` unter
   `components/{erp,account,beleg}` weist ESLint ab (`RAW_FIELD`); die Ausnahmen (Suchfelder,

@@ -335,74 +335,76 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 
 Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, `POST /api/v1/internal/tick` – was nicht
 von einem offenen Browser abhängen darf. **Die Aufgaben stehen an einer Stelle**
-(`services/tick.TASKS`): Siegel des Logs · Wiederholungen anlegen (`loop`) · Mails holen und senden · die KI (Entscheide
-festschreiben, Erfassungen nachholen, Folgen aus Mails, Bedeutungs-Zahlen; alles unter 50 s,
-`ai.until`). Je Aufgabe eigene Sitzung
+(`services/tick.TASKS`): Siegel des Logs · Wiederholungen anlegen (`loop`) · Mails holen und senden · Aufnahmen
+(`voice`) · die KI (Gespräche nachholen, auf die sie nicht antwortete, Handgriffe aus Mails,
+Bedeutungs-Zahlen für «im Wissen suchen»; alles unter 50 s, `ai.until`). Je Aufgabe eigene Sitzung
 (das System, `job`), Advisory-Lock (läuft sie anderswo: übersprungen), Zeitgrenze, ein
 Fehlschlag hält die übrigen nicht auf (Antwort 500 → Alarm). Getanes steht im Log
 (`tick.<name>`), Leerlauf nicht. Anmeldung: Google-Token (OIDC) des Dienstkontos `inexxio-tick@`, geprüft
 in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingerichtet im Deploy
 (Job «Takt»), einmal je Projekt `infra/setup-takt.sh` (Dienstkonto, Rechte, Alarm per Mail).
 
-## Die KI (Phase 3, Projektakte `docs/konzept/lernende-firma.md`, Vertrag `docs/konzept/phase3-bauplan.md`)
+## Der Assistent (Phase 5, Projektakte `docs/konzept/lernende-firma.md`, Bauplan `docs/konzept/phase5-bauplan.md`)
 
-- **Die KI liest, was jedes Personal sehen darf – nie mehr als die Person, nie Privates –
-  und schreibt nie**: sie schlägt vor, ein Mensch entscheidet. Ihr Ergebnis (Vorschlag,
-  Hinweis, Quelle) sieht jedes Personal, darum lesen die Werkzeuge immer als gemeinsamer
-  Betrachter (`ai_tools.reader`: Rolle `employee`, ohne eigene Nummer – keine Zeiterfassung,
-  keine privaten Dokumentteile), auch wenn ein Admin handelt; der Handelnde steht im Log
-  (`ai.call`, Kosten). Eine Tür: `services/ai.py` (`converse` mit Werkzeugen, feste Antwortform,
-  je Zug ein `ai.call` mit Kosten in Franken; `ai.until` hält jede Anfrage und jeden Takt unter
-  60 s und schaltet die Wiederholung im SDK ab). Lese-Werkzeuge `services/ai_tools.py` (`find` ·
-  `record` · `history`) fragen dieselben Dienste wie die Oberfläche (`access`, `history.page`). Der Auftrag an die KI steht wörtlich in
-  `backend/app/assets/ai/auftrag.md`.
-- **Alles sind Ereignisse im Log**, keine Tabelle: `intake` (die rohe Erfassung), `proposal`
-  (`change` ein Feld · `create` etwas anlegen · `file` eine Erfassung ablegen),
-  `proposal.decided` (**genau einer je Vorschlag**, eindeutiger Index `ix_log_decided`; ein
-  zweiter ist 409), `pin`/`pin.solved`. **Offen ist abgeleitet** (`services/proposals.py`): ✕
-  verwirft; eine spätere Änderung genau dieses Feldes im Log erledigt ihn (gleich →
-  übernommen, anders → selbst geändert) – **Übernehmen = Tippen**; der Takt schreibt die
-  Entscheide fest (liest nur ableitbare Kandidaten per SQL); «zu tun» zählt mit EINER Abfrage. Ein Vorschlag darf nur Felder aus `proposals.FIELDS` ändern. Im Verlauf
-  stehen diese Ereignisse nicht (`history.HIDDEN_EVENTS`) – sie haben «Abgelegt» und das
-  Angeheftete.
-- **Erfassen = das «+»** (`services/intake.py`, `components/erp/capture/`): **EINE Ansicht wie
-  das Eingabefeld bei Claude** – schreiben (Enter = ab an die KI), 📷 Foto und 📄 Datei (springen
-  in den **Dokument-Entwurf**, Kamera mit Blatterkennung bzw. Dateiwahl, der offene Datensatz als
-  Referenz), 📌 Stecknadel, 🎤 Aufnehmen (läuft *im* Feld). Darunter das Skeleton und an seiner
-  Stelle «Abgelegt»: je Teil eine Heimat, die Vorschläge («Zum Feld», «Entwurf öffnen»), dann
-  **«Stimmt so»** (je Teil eine Notiz, Notizen und Entscheid in einer Transaktion) oder
-  **«Verwerfen»** (`intake.discard`: nichts abgelegt, was aus ihr folgte, geht mit). Darunter
-  «Nicht abgelegt» und «Neu anlegen». Das Fenster ändert sich nie; was nicht geht, wird blass.
-  **Was nicht abgelegt ist, ist die Zahl am «+»** (`useUnfiled`), nicht «zu tun» an der Person
-  und nicht im Angehefteten. Fällt die KI aus, bleibt die Eingabe roh, der Mensch legt von Hand
-  ab, der Takt holt nach; schliesst man, während sie arbeitet, meldet es sich, wenn es fertig ist.
-  Eine Erfassung sieht nur, wer sie machte (und der Admin); die Quelle eines Vorschlags daraus
-  heisst nur «Erfassung von <Name>», ohne ihre Worte.
+- **Zwei Dinge: Gespräch und Handgriff.** Im «+» sagt die Person, was ist (Text, Sprache, Foto,
+  Datei, Stecknadel); die KI redet mit und bereitet **Handgriffe** vor – alles, was das ERP kann.
+  **Ausgeführt wird nur, was die Person tippt oder sagt** (Ausführen/Ablegen · Entwurf öffnen ·
+  Ändern · Weg, je Handgriff einzeln; kein «Alles übernehmen»). **Wissen** ist das Ergebnis:
+  Notizen und Dokumente am richtigen Datensatz.
+- **Ein Handgriff ist die echte Route** (`services/handgriff.py`): Methode, Pfad, Werte; ausgeführt
+  im selben Prozess über ASGI, **mit den Rechten der Person** (`core/auth.ACTING`) und denselben
+  Prüfungen – kein zweiter Weg. Welche Handlungen ein Handgriff sein können, **folgt aus den
+  Routen** (`handgriff.operations`: schreibt, verlangt Personal, nimmt JSON; mit Datei → nur von
+  Hand; nichts aus `routers/assistant`) – **keine Liste, keine Regel, nur Rechte**. Die KI schlägt
+  Handlungen nach (`handlungen`, `handlung`), statt alle in jeder Anfrage mitzubekommen.
+- **Vorbereiten = Probelauf** in eigener Sitzung, dann verworfen (Regel 1: nach aussen erst nach
+  dem Speichern, `core/outside`); was nicht geht, wird keine Karte, die KI erfährt den Satz der
+  Route. **Ausführen genau einmal** (`handgriff.done`, eindeutiger Index `ix_log_handgriff_done`),
+  ganz oder gar nicht. **Aufeinander aufbauen:** `{"$handgriff": n}` in den Werten, die Karte
+  wartet, das ERP setzt die Nummer ein. **Inzwischen geändert:** steht die Nummer im Pfad und
+  wurde der Datensatz seit der Vorbereitung geändert (`update`/`delete` im Log), weist Ausführen
+  ab und nennt die Änderung; mit geänderten Werten («Ändern») geht es. **Ändern** = die Felder
+  aus dem Schema der Route, geprüft per Probelauf (`…/probe`).
+- **Alles sind Ereignisse im Log**, keine Tabelle: `talk` (eine Nachricht, `by` person · ai; die
+  erste IST das Gespräch), `handgriff`, `handgriff.done`, `handgriff.dropped`, `talk.failed`,
+  `pin`. **Offen ist abgeleitet.** Ein Gespräch ist **privat** (wer es führt, und der Admin), offen,
+  solange ein Handgriff offen ist oder die KI nicht geantwortet hat; abgeschlossen wird es nicht
+  mehr gezeigt. Diese Ereignisse stehen nicht im Verlauf (`history.HIDDEN_EVENTS`).
+- **Das «+»** (`components/erp/capture/capture-sheet.tsx`): Eingabe wie bei Claude, darüber das
+  Gespräch (Blasen, Handgriff-Karten `handgriff-card.tsx`), darunter «Offene Gespräche» und «Neu
+  anlegen». 📷/📄 legen die Datei in den Korb und hängen sie an die Nachricht – die KI liest sie
+  und bereitet das Dokument vor («Entwurf öffnen» öffnet den Dokument-Entwurf mit der Datei; mit
+  der Freigabe ist der Handgriff erledigt, `…/done`). Die Zahl am «+» = meine offenen Gespräche und
+  Aufnahmen (`lib/assistant.useUnfinished`).
 - **Die Stecknadel = Rückmeldung zur Software** (`lib/pin-point.ts`): auf eine Stelle zeigen →
   «Stelle: Seite · Datensatz · Herkunft (`data-where-*`) · Element» vor dem Text; der Hinweis ist
-  der Artikel **«ERP»** (auf `/erp`) bzw. **«Website»** – eine gewöhnliche Notiz, Teil der
-  lernenden Firma. Eigene Testnotizen gibt es nicht mehr (Migration 172).
-- **Das «+» auf der Website** (`website/src/scripts/capture.ts`): nur für angemeldetes Personal,
-  unten rechts; öffnet `/erp/erfassen` (dasselbe «+», eigene Anmeldung) in einem Rahmen – die
-  Stecknadel zeigt auf die Website, Foto, Datei und «Neu anlegen» springen ins ERP (`?neu=`).
-  Schliesst man dort, während die KI arbeitet, geht nichts verloren (der Server bzw. der Takt
-  macht fertig, es steht im «+»), aber es meldet sich nicht – der Rahmen ist dann zu.
-- **Folgen aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person wird im
-  Takt gelesen; was folgt, wird ein Vorschlag. Ein Fehlschlag zählt (`mail.follow_failed`),
-  nach dem dritten gilt die Mail als geprüft (`mail.followed`); am Deckel kein Versuch.
+  der Artikel **«ERP»** (auf `/erp`) bzw. **«Website»**.
+- **Das «+» auf der Website** (`website/src/scripts/capture.ts`): nur für angemeldetes Personal;
+  öffnet `/erp/erfassen` (dasselbe «+») in einem Rahmen – das Gespräch läuft dort, die Stecknadel
+  zeigt auf die Website, «Neu anlegen» und «Entwurf öffnen» springen ins ERP (`?neu=…&handgriff=…`).
+- **Handgriffe aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person liest die
+  KI im Takt und bereitet Handgriffe am Datensatz vor (Probelauf mit den Rechten der Person, die
+  das Postfach verbunden hat); sie stehen im Angehefteten und zählen dort in «zu tun» – wer ihn
+  öffnet, entscheidet. Ein Fehlschlag zählt (`mail.follow_failed`), nach dem dritten gilt die Mail
+  als geprüft.
 - **Das Angeheftete** (`services/pins.py`, `components/erp/pinned.tsx`) unten im Verlauf: offene
-  Vorschläge immer und zuerst, dann höchstens drei Hinweise der KI auf Abruf («neu ansehen»).
-  **Vorschlag am Feld:** `useField` kennt die offenen Vorschläge seines Datensatzes und zeigt
-  das Zeichen wie «zu tun» (`form/proposal-mark.tsx`); offene Vorschläge zählen in «zu tun»
-  (eine Erfassung, die auf «Stimmt so» wartet, steht im «+»).
-- **Lernen** (`services/memory.py`, Migration 170): jeder **entschiedene** Fall, dessen
-  Inhalt jedes Personal sehen darf (`change`/`create`; `file` nur abgelegt), bekommt beim
-  Entscheid Bedeutungs-Zahlen (Vertex AI, `ai_memory`, pgvector; der Takt holt nach); vor dem
-  Ablegen und Folgen gehen die ähnlichsten mit Entscheid in die Anfrage. Ohne Vertex keine
-  Fälle, sonst nichts.
+  Handgriffe (aus Mails für jedes Personal, aus Gesprächen nur die eigenen), dann **das Wissen, das
+  jetzt zählt** (höchstens drei Aussagen mit Datum und Quelle). Neu gewählt **nur, wenn sich im
+  Umfeld etwas geändert hat** (`services/surroundings`: was in denselben Handlungen geschah und
+  worauf die eigenen Zeilen zeigen, eine Stufe, höchstens 50; die Marke ist die jüngste Log-Id) –
+  beim Öffnen kommt sofort der letzte Stand, die Oberfläche fragt je Stand des Umfelds höchstens
+  einmal neu. Am Deckel bleibt der letzte Stand.
+- **Im Wissen suchen** (`services/memory.py`, Migration 174): Notizen, Dokumente und entschiedene
+  Handgriffe (aus Gesprächen nur ausgeführte) bekommen Bedeutungs-Zahlen (Vertex AI, `ai_memory`,
+  pgvector; der Takt holt nach). Werkzeug `wissen` der KI; gefunden wird nur, was jedes Personal
+  sehen darf. Ohne Vertex keine Suche nach Bedeutung, sonst nichts.
+- **Die KI liest, was jedes Personal sehen darf** (`ai_tools.reader`: Rolle `employee`, ohne eigene
+  Nummer) – auch wenn ein Admin spricht. Eine Tür: `services/ai.py` (`converse` mit Werkzeugen,
+  Aufgaben `talk` · `follow` · `pin` · `read` · `compose`, je Zug ein `ai.call` mit Kosten; `ai.until`
+  hält jede Anfrage unter 60 s). Der Auftrag steht wörtlich in `backend/app/assets/ai/auftrag.md`.
+  Fällt die KI aus, bleibt das Gespräch Text; der Takt antwortet nach (`talk.catch_up`).
 - **Deckel in Franken** (`AI_DAILY_CAP_CHF`, 10 je Schweizer Tag, Preise in `ai.PRICES`); ab 80 %
-  ein Hinweis in «zu tun» des Admins (am Betreiber, mit Betrag; am Deckel rot); am Deckel bleibt
-  die Eingabe roh.
+  ein Hinweis in «zu tun» des Admins (am Betreiber, mit Betrag; am Deckel rot).
 - **Sprache** (Phase 4, `docs/konzept/phase4-bauplan.md`, `services/recordings.py`,
   `components/erp/capture/recorder.tsx`): «Aufnehmen» im «+» (Zeit, Pegel, Stopp; Bildschirm
   bleibt an). Der Browser schickt **alle 30 s ein Stück**, je **5 Minuten ein Abschnitt** (eine
@@ -410,15 +412,14 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   Abweisung); fällt das Mikrofon aus, endet die Aufnahme sauber. Bricht sie ab, gilt sie nach
   **30 Minuten Ruhe** als gestoppt – nichts bis dahin geht verloren. **Gemini** (Vertex AI, `ai.transcribe`, `gemini-3.5-flash`, dieselbe Tür
   und derselbe Deckel) schreibt je Abschnitt ab – Hochdeutsch in Schweizer Schreibweise, auch bei
-  Mundart; der Text wird **eine Erfassung im Namen der Person**, danach wie beim Schreiben.
-  Was sich nicht abschreiben lässt (kein Stück 0, über 15 MB, zweimal abgelehnt, sechsmal
-  gescheitert), wird **mit Vermerk** «[Abschnitt n: …]» übersprungen. Aus einer Aufnahme legt die
-  KI in **Bereichen nummerierter Absätze** ab; den Text baut der Code wörtlich
-  (`intake.spoken_parts`). **Vom Gesprochenen bleibt nur der Text:** die Stücke
+  Mundart; der Text wird **eine Nachricht im Gespräch im Namen der Person**, danach wie beim
+  Schreiben. Was sich nicht abschreiben lässt (kein Stück 0, über 15 MB, zweimal abgelehnt,
+  sechsmal gescheitert), wird **mit Vermerk** «[Abschnitt n: …]» übersprungen. **Vom Gesprochenen
+  bleibt nur der Text:** die Stücke
   (`recording_chunks`, Bytes über `attachments.put_object` in einem **eigenen Bucket ohne Soft
   Delete** `RECORDINGS_BUCKET`, sonst in der Zeile – nie im Datei-Bucket; nicht im Log) gehen nach
   der Abschrift, spätestens nach einem Tag (Takt `voice`; dazu die Regel im Bucket,
-  `infra/setup-sprache.sh`) – was bis dahin abgeschrieben ist, bleibt als Erfassung. Gescheiterte
+  `infra/setup-sprache.sh`) – was bis dahin abgeschrieben ist, kommt ins Gespräch. Gescheiterte
   Aufnahmen stehen sieben Tage mit Grund im «+». `recordings.advance` treibt eine Aufnahme so weit, wie
   die Zeit reicht – in der Anfrage («schreibt ab …») und im Takt. Eine Aufnahme sieht nur, wer
   aufnahm (und der Admin).
@@ -464,7 +465,8 @@ Gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine** Implementierung
 `people.search` hinter `GET /erp/people`) · `services/address_book.py` · `services/places.py`
 (Orte, Halter) · `services/lookup.py` («welchen Datensatz meinst du», Nummer ODER Name) ·
 `services/sites.py` (Gesellschaften) · `objects.obj_nr` (Objektnummer) ·
-`services/documents.py` (jede Datei, `file` ist die einzige Anlage) · `services/ai.py` (jeder
+`services/documents.py` (jede Datei, `file` ist die einzige Anlage) · `services/handgriff.py` (jede
+Handlung der KI – die echte Route) · `core/outside.py` (alles nach aussen) · `services/ai.py` (jeder
 KI-Aufruf) · `components/erp/document-draft.tsx` (jeder Entwurf) ·
 `components/form/field.tsx` + `use-field.ts` (jedes Eingabefeld, ESLint-Wächter) ·
 `components/erp/address-field.tsx` · `object-select.tsx` (jedes Referenzfeld) ·
@@ -497,6 +499,9 @@ Oberfläche und Dienst garantiert dasselbe.
 
 ## Konventionen
 - DB-Felder snake_case, Englisch · API `/api/v1/{resource}` · Timestamps UTC in der DB.
+- **Speichern am Ende der Anfrage** (`core/database.DB`, `scope="function"`): kein Router und
+  kein Dienst einer Anfrage ruft `commit` (`flush` genügt für eine Nummer; Wächter
+  `test_handgriff`); Hintergrundarbeit (Takt, Abgleich, Abschreiben) speichert je Einheit.
 - **Soft-Delete**: nie hard delete, nur `is_active=false`. `is_active` (Soft-Delete) und
   `status` (fachlich) sind zwei Achsen – nicht verwechseln.
 - **Fehler** strukturiert, mit einem Satz, der die Sache **nennt** (Nummer oder Name in «»).
@@ -752,11 +757,15 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   (Blatterkennung, mehrere Seiten → PDF) · Datei · Verfassen (KI); Lesen, Stichworte und
   Zuordnung durch die KI als Vorschlag; Pflichtfelder in Zahlung, Zeiterfassung, Datenerfassung
   und Gesellschaft; Senden je Empfänger mit Link ohne Ablauf, Unterschreiben auf `/dokument`.
-- **Die KI** (Phasen 3 und 4): das «+» als eine Eingabe wie bei Claude (Schreiben, Aufnehmen im
-  Feld, Foto, Datei, Stecknadel; auch auf der Website für Personal), Ablegen in Teilen mit
-  «Stimmt so» oder «Verwerfen», die Zahl am «+», Vorschläge am Feld und im Angehefteten, Folgen
-  aus Mails, Hinweise auf Abruf, Lernen aus entschiedenen Fällen, Deckel in Franken (siehe «Die
-  KI»); Rückmeldungen zur Software als Notiz an den Artikeln «ERP» und «Website».
+- **Der Assistent** (Phasen 3–5): das «+» als Gespräch wie bei Claude (Schreiben, Aufnehmen im
+  Feld, Foto, Datei, Stecknadel; auch auf der Website für Personal); die KI bereitet Handgriffe
+  vor – alles, was das ERP kann, mit Probelauf, ausgeführt nur von der Person, genau einmal;
+  Handgriffe aus Mails am Datensatz; das Angeheftete mit dem Wissen, das jetzt zählt; im Wissen
+  suchen nach Bedeutung; Deckel in Franken (siehe «Der Assistent»); Rückmeldungen zur Software
+  als Notiz an den Artikeln «ERP» und «Website».
+- **Speichern an einer Stelle**: jede Anfrage speichert einmal, am Ende (`core/database.get_db`,
+  ganz oder gar nicht); was nach aussen geht (Mails, Dateien, Zahlung, KI), geschieht erst danach
+  bzw. nie in einem Probelauf (`core/outside`).
 
 **Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): Shop, Module
 Beschaffen/Verkauf/Ausliefern, «Zahlung (alt)», das alte Dokumentmodul (neu gebaut, siehe
@@ -771,8 +780,9 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 - Zeiterfassung: Export für die Lohnbuchhaltung, Schichtpläne (`docs/zeiterfassung-spezifikation.md` §12).
 - Dokumente: automatische Freigabe einzelner Papiere (`voucher.AUTO_RELEASE`); Zugriff von
   aussen auf Dokumente (heute nur über einen Link).
-- Die KI: Lektionen (ab ~100 Fällen) ·
-  «Notiz gehört woandershin» als Handlung (`communication.move_note` steht bereit).
+- Der Assistent: Lektionen (ab ~100 Fällen) · «Notiz gehört woandershin» als Handlung
+  (`communication.move_note` steht bereit) · MCP-Zugang mit denselben Werkzeugen · Massenänderungen
+  (eine eigene Handlung im ERP, dann kann die KI sie) · Schwärzen der Bedeutungs-Zahlen.
 - Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop
   (`docs/backlog.md`), offene-Posten-Liste je Partner, TOTP-MFA.
 

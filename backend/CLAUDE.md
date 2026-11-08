@@ -132,8 +132,8 @@ scripts/
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen) |
 | Der Takt | `tick.py` (`TASKS`: Siegel, Wiederholungen (`loop`), Mails, Aufnahmen (`voice`), KI – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
-| KI (Phase 3, `docs/konzept/phase3-bauplan.md`) | `ai.py` (die Tür: `converse` mit Werkzeugen, Deckel in Franken), `ai_tools.py` (Lese-Werkzeuge mit den Rechten der Person), `memory.py` (ähnliche Fälle, pgvector), `proposals.py` (Vorschläge `proposal`/`proposal.decided` im Log; `FIELDS`, offen = abgeleitet, `settle`), `intake.py` (Erfassen → `intake`, die KI legt ab → `file`-Vorschlag, «Stimmt so» → Notizen, «Verwerfen» → `discard`; `clean` putzt Steuerzeichen), `pins.py` (das Angeheftete: offene Vorschläge + Hinweise `pin`), `follow.py` (was aus einer eingehenden Mail folgt, im Takt; Start `follow.start`, je Mail `mail.followed`) |
-| Sprache (Phase 4, `docs/konzept/phase4-bauplan.md`) | `recordings.py` (EINE Stelle: `start`, `add_chunk`, `stop`, `advance` – Abschnitte der Reihe nach über `ai.transcribe` → `recording.segment`, dann EINE Erfassung im Namen der Person → `recording.done`, Stücke weg; `due`/`sweep` für den Takt, `dismiss` verwirft eine gescheiterte; `context` = die Stecknadel vor dem Text), `ai.py` (`transcribe`, Gemini über `_vertex` – dieselbe Stelle wie `embed`), Stücke in `recording_chunks` (nicht im Log), Bytes über `attachments.put_object` (eigener Bucket `RECORDINGS_BUCKET`, sonst die Zeile); aus einer Aufnahme legt die KI in **Bereichen nummerierter Absätze** ab, den Text baut `intake.spoken_parts` wörtlich |
+| Der Assistent (Phase 5, `docs/konzept/phase5-bauplan.md`) | `handgriff.py` (Handlungen aus den Routen `operations`, `call` über ASGI mit den Rechten der Person – Probelauf oder Ausführen genau einmal; der vorbereitete Handgriff im Log: `prepare` mit Probelauf, `run` (wartet auf · inzwischen geändert), `probe`, `drop`, `settle`, `open_at`, `open_mail_counts`), `talk.py` (das Gespräch: `say`, die KI `answer` mit Werkzeugen lesen · nachschlagen · vorbereiten · weglegen · ausführen auf ein Wort, `catch_up` im Takt; `clean` putzt Steuerzeichen), `ai.py` (die Tür: `converse` mit Werkzeugen, Deckel in Franken), `ai_tools.py` (Lese-Werkzeuge als gemeinsamer Betrachter, dazu `wissen`), `memory.py` (im Wissen suchen: Notizen, Dokumente, entschiedene Handgriffe, pgvector), `pins.py` (das Angeheftete: offene Handgriffe + Wissen, neu gewählt nur bei Änderung im Umfeld), `surroundings.py` (das Umfeld aus dem Log, die Marke), `follow.py` (Handgriffe aus einer eingehenden Mail, im Takt), `core/outside.py` (nach aussen erst nach dem Speichern; im Probelauf `NeedsHand`) |
+| Sprache (Phase 4, `docs/konzept/phase4-bauplan.md`) | `recordings.py` (EINE Stelle: `start`, `add_chunk`, `stop`, `advance` – Abschnitte der Reihe nach über `ai.transcribe` → `recording.segment`, dann EINE Nachricht im Gespräch im Namen der Person → `recording.done`, Stücke weg; `due`/`sweep` für den Takt, `dismiss` verwirft eine gescheiterte; `context` = die Stecknadel vor dem Text), `ai.py` (`transcribe`, Gemini über `_vertex` – dieselbe Stelle wie `embed`), Stücke in `recording_chunks` (nicht im Log), Bytes über `attachments.put_object` (eigener Bucket `RECORDINGS_BUCKET`, sonst die Zeile) |
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
@@ -154,7 +154,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **140 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **145 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -232,7 +232,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |
 | POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
 | POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) – solange das ERP offen ist; ohne Browser tut es der Takt |
-| POST | `/api/v1/internal/tick` | – (Google-Token, `core/oidc`) | **Der Takt** (Cloud Scheduler, alle 5 Min.): jede Aufgabe aus `tick.TASKS` (Siegel des Logs, Mails holen und senden, Aufnahmen aufräumen und zu Ende abschreiben, KI: Entscheide festschreiben, Erfassungen nachholen, Mails auf Folgen prüfen, Bedeutungs-Zahlen); je `ok` · `skipped` · `failed`, 500 wenn eine scheitert; ohne `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` 503 |
+| POST | `/api/v1/internal/tick` | – (Google-Token, `core/oidc`) | **Der Takt** (Cloud Scheduler, alle 5 Min.): jede Aufgabe aus `tick.TASKS` (Siegel des Logs, Mails holen und senden, Aufnahmen aufräumen und zu Ende abschreiben, KI: Gespräche nachholen, Handgriffe aus Mails, Bedeutungs-Zahlen); je `ok` · `skipped` · `failed`, 500 wenn eine scheitert; ohne `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` 503 |
 | GET | `/api/v1/mail/callback` | – (signierter `state`) | Rückkehr von Google → `/erp?mail=…` |
 | POST | `/api/v1/newsletter` | – | Anmeldung von der Website (E-Mail → Bitte um Bestätigung, legt keine Person an); Honigtopf, 5/h je IP |
 | GET · POST | `/api/v1/newsletter/confirm?t=` | – (signierter Link) | GET zeigt einen Knopf, POST bestätigt → angemeldet (Quelle aus dem Link; ohne Person entsteht sie jetzt) → `/newsletter/bestaetigt` |
@@ -240,20 +240,19 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET · PUT | `/api/v1/auth/me/newsletter` | user | Mein Newsletter (Konto) – direkt an/ab, die Adresse ist bestätigt |
 | GET | `/api/v1/erp/newsletter/{object_id}` | staff | Zustand und Nachweis einer Person |
 | POST | `/api/v1/erp/newsletter/{object_id}/invite` · `/unsubscribe` | staff | Bitte um Bestätigung schicken / abmelden (anmelden kann das ERP niemanden) |
-| POST | `/api/v1/erp/intake` | staff | **Festhalten** (`{text, hint_object_id?}`): rohe Eingabe sofort als `intake`, dann legt die KI ab (≤ 45 s) → Erfassung mit Teilen, Vorschlägen, `problem` (`services/intake`) |
-| GET | `/api/v1/erp/intake/open` | staff | Meine Erfassungen, die noch nicht abgelegt sind |
-| POST | `/api/v1/erp/intake/{id}/file` | staff (selbst · Admin) | **«Stimmt so»** – je Teil eine Notiz an seinem Datensatz, Entscheid `accepted`/`changed` |
-| POST | `/api/v1/erp/intake/{id}/discard` | staff (selbst · Admin) | **«Verwerfen»** – nichts abgelegt (`file` → `rejected`, ohne KI erst roh angelegt), was aus ihr folgte, geht mit; zweimal ist einmal, nach «Stimmt so» 409 (`intake.discard`) |
+| POST | `/api/v1/erp/assistant/talks` | staff | **Dem Assistenten etwas sagen** (`{text, talk?, hint_object_id?, files?}`): die Nachricht steht sofort, dann antwortet die KI und bereitet Handgriffe vor (≤ 50 s) → `TalkOut`; fällt sie aus, `problem` (`services/talk`) |
+| GET | `/api/v1/erp/assistant/talks/open` · `/talks/{id}` | staff (selbst · Admin) | Meine offenen Gespräche (die Zahl am «+») · ein Gespräch |
+| POST | `/api/v1/erp/assistant/files` | staff | Eine Datei ins Gespräch (multipart) – in den Korb (`attachments.store_raw`) |
+| GET | `/api/v1/erp/assistant/handgriffe/{id}` · `/operation` | staff (Gespräch: selbst · Admin) | Ein Handgriff · die Felder seiner Handlung (JSON-Schema der Route, für «Ändern») |
+| POST | `/api/v1/erp/assistant/handgriffe/{id}/run` | staff (Gespräch: selbst · Admin) | **Ausführen** – genau einmal, mit meinen Rechten, durch die echte Route; `body` nur mit geänderten Werten; 409 wartet auf · inzwischen geändert · schon ausgeführt · nur von Hand |
+| POST | `/api/v1/erp/assistant/handgriffe/{id}/probe` · `/drop` · `/done` | staff (Gespräch: selbst · Admin) | Probelauf einer geänderten Fassung · **Weg** · von Hand erledigt (Entwurf freigegeben, `result`) |
+| GET · POST | `/api/v1/erp/assistant/pins/{object_id}` · `/refresh` | staff | **Das Angeheftete**: offene Handgriffe + Wissen, `stale` und `mark` (Umfeld) · das Wissen neu wählen (nur bei Änderung im Umfeld, sonst kein Aufruf) |
 | POST | `/api/v1/erp/recordings` | staff | **Aufnahme beginnen** (`{hint_object_id?, mime, context?}`; `context` = die Stecknadel, steht vor dem Text) → `recording.start`; `Recording` (`services/recordings`) |
 | POST | `/api/v1/erp/recordings/{id}/chunks` | staff (nur wer aufnimmt) | **Ein Stück** (multipart `segment`, `seq`, `file`; ≤ 4 MB; dasselbe Stück ersetzt es; nach Ende 409) |
 | POST | `/api/v1/erp/recordings/{id}/stop` | staff (nur wer aufnimmt) | **Stopp** (`{segments}`) → `recording.stop` |
-| POST | `/api/v1/erp/recordings/{id}/advance` | staff (selbst · Admin) | **Weiter abschreiben**, so weit die Zeit reicht (`ai.until(50)`): Abschnitte → Erfassung → `done`; `problem` sagt, warum nicht |
-| GET | `/api/v1/erp/recordings/open` | staff | Meine Aufnahmen, die nicht fertig sind (mit der Liste `/intake/open` die Zahl am «+») |
+| POST | `/api/v1/erp/recordings/{id}/advance` | staff (selbst · Admin) | **Weiter abschreiben**, so weit die Zeit reicht (`ai.until(50)`): Abschnitte → Nachricht im Gespräch → `done`; `problem` sagt, warum nicht |
+| GET | `/api/v1/erp/recordings/open` | staff | Meine Aufnahmen, die nicht fertig sind (mit `/assistant/talks/open` die Zahl am «+») |
 | POST | `/api/v1/erp/recordings/{id}/dismiss` | staff (selbst · Admin) | **Verwerfen** einer gescheiterten Aufnahme → `recording.dismissed`, weg aus dem «+» |
-| GET | `/api/v1/erp/proposals?object_id=` | staff | Offene Vorschläge an einem Datensatz (`file` nur für wen erfasst hat) |
-| POST | `/api/v1/erp/proposals/{id}/reject` | staff | ✕ – verworfen (`proposal.decided` `rejected`) |
-| GET | `/api/v1/erp/pins/{object_id}` | staff | **Das Angeheftete**: offene Vorschläge (immer, zuerst) + ungelöste Hinweise (`services/pins`) |
-| POST | `/api/v1/erp/pins/{object_id}/refresh` · `/solve` | staff | «Neu ansehen» (KI → Ereignis `pin`) · einen Hinweis lösen (`pin.solved`) |
 | GET | `/api/v1/erp/todo` | staff | **Was zu tun ist** je Datensatz – die Zahl am Symbol (offene Nachrichten, Zeiterfassung nur eigene/Admin, Pflichtangaben, Feiertage nur Admin; `services/todo`) |
 | GET | `/api/v1/erp/time/{object_id}?month=` | staff (selbst · Admin) | **Zeiterfassung** einer Person: Konto, Ferien, Verträge, Buchungen, ein Monat (`services/time_view`) |
 | POST | `/api/v1/erp/time/{object_id}/swipe` | staff (selbst · Admin) | Kommen ↔ Gehen, Serverzeit, ein Schlüssel je Wisch (idempotent, 60-s-Sperre) |
@@ -301,6 +300,13 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 - UTC-Timestamps; Pydantic v2 (`model_validate`, `model_dump`,
   `ConfigDict(from_attributes=True)`); SQLAlchemy 2.1 (`Mapped[T]`, `mapped_column`).
 - Fehler: `HTTPException(status_code=…, detail="…")` mit einem Satz, der die Sache nennt.
+- **Gespeichert wird am Ende der Anfrage** (`core/database.get_db` über `DB` =
+  `Depends(get_db, scope="function")`: ohne Fehler `commit`, sonst `rollback`, vor der Antwort).
+  Kein Router und kein Dienst einer Anfrage ruft `commit` – `flush` genügt für eine Nummer;
+  Hintergrundarbeit (Takt, Abgleich, Abschreiben) hat eigene Sitzungen und speichert je Einheit.
+  Was nach aussen geht, meldet sich bei `core/outside.after` (läuft nach dem Speichern) bzw. ruft
+  `outside.now` (im Probelauf eines Handgriffs `NeedsHand`). Jede Route beschreibt sich im
+  Docstring in einem Satz – daraus kennt die KI die Handlungen (Wächter `test_handgriff`).
 - **Das Log schreibt die Datenbank** (`domain/log`, `docs/konzept/lernende-firma.md` §1): kein
   Dienst protokolliert Zeilen-Änderungen selbst. Ein Dienst schreibt nur **Ereignisse**, die
   keine Zeile ändern (`services/log.event`). **Jede Route mit Datenbank setzt einen

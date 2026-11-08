@@ -5,7 +5,7 @@ import { Loader2, Plus, ScanLine, Search, X } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { FILTER_TYPES, TYPE_META } from '@/lib/erp-record';
 import { type Row, rowStatus, rowTitle } from '@/lib/use-feed-lists';
-import { useUnfiled } from '@/lib/proposals';
+import { useUnfinished } from '@/lib/assistant';
 import { RecordIcon } from '@/components/erp/detail-frame';
 import { StatusBadge } from '@/components/erp/fields';
 import { userInitials } from '@/components/erp/user-detail';
@@ -135,16 +135,16 @@ function TypeChips({ typeFilter, onTypeFilter, count }: {
 }
 
 /**
- * **«+» = Erfassen** – öffnet das «+» (`capture/capture-sheet.tsx`): oben die Eingabe, darunter
- * was nicht abgelegt ist, unten neu anlegen. Er schwebt über der Liste (Schatten der schwebenden
- * Ebene); der rote Schatten ist nur der Hover-Akzent des roten Knopfs (Design-System §3).
- * **Die Zahl daran** ist, was ich erfasst, aber nicht abgelegt habe (`useUnfiled`) – gelb,
- * rot bei einer gescheiterten Aufnahme; an meiner Person zählt es nicht.
+ * **«+» = der Assistent** – öffnet das «+» (`capture/capture-sheet.tsx`): oben die Eingabe, darunter
+ * das Gespräch und die offenen Gespräche, unten neu anlegen. Er schwebt über der Liste (Schatten
+ * der schwebenden Ebene); der rote Schatten ist nur der Hover-Akzent des roten Knopfs.
+ * **Die Zahl daran** sind meine offenen Gespräche und Aufnahmen (`useUnfinished`) – gelb, rot bei
+ * einer gescheiterten Aufnahme; an meiner Person zählt es nicht.
  */
 function CaptureButton({ onCapture }: { onCapture: () => void }) {
-  const unfiled = useUnfiled();
+  const unfiled = useUnfinished();
   const tip = unfiled.count
-    ? `Erfassen · ${unfiled.count} nicht abgelegt` : 'Erfassen oder neu anlegen';
+    ? `Assistent · ${unfiled.count} offen` : 'Assistent – sagen, was ist, oder neu anlegen';
   return (
     <div className="absolute right-5 bottom-5 z-20">
       <button

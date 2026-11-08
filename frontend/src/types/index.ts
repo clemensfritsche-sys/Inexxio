@@ -277,16 +277,18 @@ export type ComposeResult = components['schemas']['ComposeOut'];
 /** Ein hochgeladenes Bild, das kein Dokument ist (die gezeichnete Unterschrift). */
 export type UploadResult = components['schemas']['UploadResult'];
 
-// ─── Phase 3 · KI (docs/konzept/phase3-bauplan.md, Abschnitt «API») ─────────
+// ─── Phase 5 · Der Assistent (docs/konzept/phase5-bauplan.md) ─────────────────
 
-/** **Phase 3 («KI»)** – Erfassung, Vorschlag, Angeheftetes; aus `api.ts` (Backend
- *  `schemas/proposals.py`). Ein Vorschlag ist ein Ereignis `proposal` im Log; offen ist
- *  abgeleitet. */
-export type IntakePart = components['schemas']['IntakePart'];
-export type Proposal = components['schemas']['AiProposal'];
-export type Intake = components['schemas']['IntakeOut'];
+/** **Gespräch und Handgriff** – Backend `schemas/assistant.py`. Beides sind Ereignisse im Log;
+ *  offen ist abgeleitet. */
+export type Talk = components['schemas']['TalkOut'];
+export type TalkFile = components['schemas']['FileRef'];
+export type Handgriff = components['schemas']['HandgriffOut'];
+export type HandgriffOperation = components['schemas']['OperationOut'];
+export type HandgriffRun = components['schemas']['RunOut'];
+export type HandgriffProbe = components['schemas']['ProbeOut'];
 export type Pinned = components['schemas']['PinnedOut'];
 
-/** Eine **Aufnahme** (Phase 4): Nummer = Log-Id von `recording.start`; `intake`, sobald
- *  abgelegt bereit (`docs/konzept/phase4-bauplan.md`). */
+/** Eine **Aufnahme** (Phase 4): Nummer = Log-Id von `recording.start`; `talk`, sobald der Text
+ *  im Gespräch steht (`docs/konzept/phase4-bauplan.md`). */
 export type Recording = components['schemas']['Recording'];
