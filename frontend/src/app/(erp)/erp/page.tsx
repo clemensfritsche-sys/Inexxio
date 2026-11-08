@@ -201,6 +201,9 @@ export default function ErpPage() {
   const captureActions: CaptureActions = { openDraft: (d) => void openDraft(d) };
   const select = (s: { type: ErpRecordType; objectId: number | null }) => {
     setCreating(null);
+    // Wer den Entwurf eines Handgriffs verlässt, lässt ihn offen – eine spätere Anlage erledigt
+    // ihn nicht.
+    setSeeds((x) => (x.handgriff ? { ...x, handgriff: null } : x));
     if (s.objectId != null) setSel({ type: s.type, objectId: s.objectId });
   };
   const replace = <T extends { id: number }>(x: T) => (list: T[]) =>

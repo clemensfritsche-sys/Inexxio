@@ -142,8 +142,15 @@ def operation(key: str) -> Optional[Operation]:
     return next((o for o in operations() if o.key == key), None)
 
 
+#: Ein Pfad mit Punkt-Teilen, Abfrage, Anker oder Kodierung könnte nach dem Normalisieren eine
+#: andere Route treffen als die geprüfte – er ist keine Handlung.
+_UNSAFE = re.compile(r"(^|/)\.{1,2}(/|$)|//|[?#%\\]")
+
+
 def operation_for(method: str, path: str) -> Optional[Operation]:
     """Die Handlung zu einem konkreten Aufruf (``POST /api/v1/erp/messages``)."""
+    if _UNSAFE.search(path):
+        return None
     for o in operations():
         pattern = "^" + re.sub(r"\{[^}]+\}", "[^/]+", o.path) + "$"
         if o.method == method.upper() and re.match(pattern, path):
@@ -229,14 +236,27 @@ def _place(ref: int, results: dict[int, int]) -> str:
     return str(results[ref])
 
 
+#: So lange wartet ein Handgriff höchstens auf eine Sperre – danach ist es ein klarer 409, nie ein
+#: Hängen (die Anfrage, die ihn startet, wartet auf ihn).
+LOCK_TIMEOUT = "8s"
+#: Der Raum der Advisory-Sperre «dieser Handgriff läuft gerade» (je Handgriff ein Schlüssel).
+_LOCK_SPACE = 5051
+
+
+def _busy(detail: str) -> bool:
+    return "lock timeout" in detail.lower() or "LockNotAvailable" in detail
+
+
 def call(person_id: int, steps: list[Step], *, probe: bool, results: Optional[dict[int, int]] = None,
-         done: Optional[Callable[[Session, Any], None]] = None) -> Outcome:
+         done: Optional[Callable[[Session, Any], None]] = None, once: Optional[int] = None) -> Outcome:
     """►►► **Handlungen aufrufen – als diese Person, in eigener Sitzung, der Reihe nach.** ◄◄◄
 
     ``probe``: danach wird alles verworfen. Sonst wird gespeichert – zusammen mit ``done``
     (``handgriff.done``), oder gar nicht. Was ein Schritt anlegt, setzen die folgenden für
     ``{"$handgriff": ref}`` ein. Die Antwort ist die des letzten Schritts – scheitert einer
-    davor, seine. Nur Handlungen aus ``operations``."""
+    davor, seine. Nur Handlungen aus ``operations``. ``once`` = der Handgriff, der genau einmal
+    läuft: seine Sperre wird vor dem ersten Schritt genommen und «schon ausgeführt?» danach
+    geprüft – ein zweiter Klick wartet und läuft dann nicht mehr (auch nichts nach aussen)."""
     from ..core.auth import ACTING
     for st in steps:
         if operation_for(st.method, st.path) is None:
@@ -247,9 +267,13 @@ def call(person_id: int, steps: list[Step], *, probe: bool, results: Optional[di
         db.close()
         return Outcome(404, detail="Diese Person gibt es nicht.")
     act(db, "person", person.object_id, "handgriff")
+    db.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"))
     tokens = (AMBIENT.set(db), ACTING.set(person))
     known = dict(results or {})
     try:
+        if once is not None and _taken(db, once):
+            db.rollback()
+            return Outcome(409, detail=f"Handgriff «{once}» ist nicht mehr offen.")
         out = Outcome(400, detail="Nichts zu tun.")
         for st in steps:
             try:
@@ -263,7 +287,11 @@ def call(person_id: int, steps: list[Step], *, probe: bool, results: Optional[di
             else:
                 res = _request(st.method, path, body)
             data, detail, hand = _detail(res)
-            out = Outcome(res.status_code, data, detail, hand)
+            if res.status_code >= 500 and _busy(detail):
+                detail, status = "Der Datensatz ist gerade in Arbeit – bitte gleich noch einmal.", 409
+            else:
+                status = res.status_code
+            out = Outcome(status, data, detail, hand)
             if not out.ok:
                 break
             if st.ref is not None and result_of(data) is not None:
@@ -282,6 +310,23 @@ def call(person_id: int, steps: list[Step], *, probe: bool, results: Optional[di
         AMBIENT.reset(tokens[0])
         ACTING.reset(tokens[1])
         db.close()
+
+
+def _taken(db: Session, hid: int) -> bool:
+    """Sperre auf diesen Handgriff (bis zum Ende der Transaktion), dann: ist er noch offen?"""
+    db.execute(text("SELECT pg_advisory_xact_lock(:s, :k)"),
+               {"s": _LOCK_SPACE, "k": hid & 0x7FFF_FFFF})
+    return bool(db.execute(text(
+        "SELECT EXISTS (SELECT 1 FROM log WHERE event IN ('handgriff.done', 'handgriff.dropped') "
+        "AND (payload ->> 'handgriff')::bigint = :h)"), {"h": hid}).scalar())
+
+
+def release(db: Session) -> None:
+    """►► **Was die Anfrage bis hier schrieb, ist gespeichert, bevor ein Handgriff läuft.** ◄◄
+    Ein Handgriff läuft in eigener Sitzung, während die Anfrage auf ihn wartet; hielte sie noch
+    eine Sperre (die Anmeldung schreibt die Person), warteten beide aufeinander. Die eine bewusste
+    Ausnahme von «einmal am Ende» – und nur hier."""
+    db.commit()
 
 
 def result_of(data: Any) -> Optional[int]:
@@ -440,20 +485,22 @@ def prepare(db: Session, person: UserProfile, *, method: str, path: str, body: A
     op = operation_for(method, re.sub(r"\{\$handgriff:\d+\}", "100000001", path))
     if op is None:
         return None, Outcome(400, detail=f"«{method} {path}» ist keine Handlung des ERP.")
-    deps = [int(d) for d in depends or []]
-    before = [d for d in load(db, deps) if d.is_open]
-    known = {d.id: int(d.done.get("result")) for d in load(db, deps)
-             if d.done and d.done.get("result")}
+    # Worauf er wartet, muss die Person sehen dürfen – sonst gäbe es keine Kette, nur ein Leck.
+    mine = [d for d in load(db, [int(x) for x in depends or []]) if may(d, person)]
+    deps = [d.id for d in mine]
+    before = [d for d in mine if d.is_open]
+    known = {d.id: int(d.done.get("result")) for d in mine if d.done and d.done.get("result")}
     steps = [Step(d.payload["method"], d.payload["path"], d.payload.get("body"), d.id)
              for d in before] + [Step(method, path, body)]
     out = Outcome(200) if op.hand else call(person.id, steps, probe=True, results=known)
+    # Ging der Probelauf nach aussen (KI, Zahlung), ist er bis dorthin gelungen – der echte Lauf
+    # darf es; nur eine Datei braucht die Hand.
     if not out.ok and not out.hand and not op.hand:
         return None, out
     target = target_of(path, body, home)
     payload: dict[str, Any] = {
         "method": method, "path": path, "body": body, "line": " ".join(line.split())[:300],
-        "depends": deps, "seen": _seen(db, target),
-        "hand": out.hand or ("Datei" if op.hand else "")}
+        "depends": deps, "seen": _seen(db, target), "hand": "Datei" if op.hand else ""}
     if talk is not None:
         payload["talk"] = talk
     if mail is not None:
@@ -496,7 +543,8 @@ def run(db: Session, viewer: UserProfile, hid: int, body: Any = None) -> tuple[H
     def done(s: Session, data: Any) -> None:
         log.event(s, "handgriff.done", h.object_id, {"handgriff": h.id, "result": result_of(data)})
     step = Step(h.payload["method"], h.payload["path"], h.payload.get("body") if body is None else body)
-    out = call(viewer.id, [step], probe=False, results=known, done=done)
+    release(db)
+    out = call(viewer.id, [step], probe=False, results=known, done=done, once=h.id)
     db.expire_all()
     return get(db, hid), out
 
@@ -505,6 +553,7 @@ def probe(db: Session, viewer: UserProfile, hid: int, body: Any) -> Outcome:
     """Eine geänderte Fassung prüfen («Ändern») – derselbe Probelauf, dieselbe Meldung der Route."""
     h = assert_may(db, hid, viewer)
     known, _waiting = _results(db, h.depends)
+    release(db)
     return call(viewer.id, [Step(h.payload["method"], h.payload["path"], body)], probe=True,
                 results=known)
 

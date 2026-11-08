@@ -7,14 +7,15 @@ Unten im Verlauf jedes Datensatzes, zwei Teile:
 * **das Wissen, das jetzt zählt** – höchstens ``MAX`` Aussagen, jede mit Datum und Quelle (eine
   Notiz, ein Dokument). Gewählt von der KI, als Ereignis ``pin`` mit der **Marke des Umfelds**
   (``surroundings.mark``). Beim Öffnen kommt sofort der letzte Stand; hat sich im Umfeld seither
-  etwas geändert (``stale``), wählt ``refresh`` neu – sonst nicht (kein Aufruf, keine Kosten). Am
-  Deckel oder ohne KI bleibt der letzte Stand.
+  etwas geändert (``stale``), wählt ``refresh`` neu – sonst nicht (kein Aufruf, keine Kosten), und
+  höchstens einmal je ``QUIET``. Am Deckel oder ohne KI bleibt der letzte Stand.
 
 Die KI liest dafür, was jedes Personal sehen darf (``ai_tools.reader``).
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import HTTPException
@@ -30,6 +31,9 @@ from . import ai, handgriff, history, log, surroundings
 MAX = 3
 #: So viele Einträge des Verlaufs gehen in die Anfrage (die KI kann weiter nachschlagen).
 ENTRIES = 20
+#: Höchstens so oft wird das Wissen eines Datensatzes neu gewählt – wer tippt, ändert alle paar
+#: Sekunden etwas (Auto-Save); die KI fragt trotzdem nur einmal in dieser Zeit.
+QUIET = timedelta(minutes=15)
 
 
 class AiKnowledge(BaseModel):
@@ -98,7 +102,7 @@ def refresh(db: Session, object_id: int, viewer: UserProfile) -> PinnedOut:
     history.assert_visible(db, object_id, viewer)
     pin = _latest(db, object_id)
     stale, mark = _stale(db, object_id, pin)
-    if not stale:
+    if not stale or (pin is not None and datetime.now(timezone.utc) - pin.at < QUIET):
         return pinned(db, object_id, viewer)
     reader = ai_tools.reader()
     try:

@@ -230,9 +230,29 @@ def _transcript(db: Session, talk_id: int, person: UserProfile) -> list[dict[str
     return blocks
 
 
-def tools(db: Session, person: UserProfile, talk_id: int, home: int) -> list[ai.Tool]:
+def _mine(db: Session, talk_id: int, hid: int) -> handgriff.Handgriff:
+    """Ein Handgriff **dieses** Gesprächs – die KI greift nie nach einem anderen (einer Mail,
+    einem fremden Gespräch)."""
+    h = handgriff.get(db, hid)
+    if h.talk != talk_id:
+        raise HTTPException(403, detail=f"Handgriff «{hid}» gehört nicht zu diesem Gespräch.")
+    return h
+
+
+def _last_said(db: Session, talk_id: int) -> int:
+    """Die letzte Nachricht der Person in diesem Gespräch (Log-Id)."""
+    return int(db.execute(text(
+        "SELECT coalesce(max(id), 0) FROM log WHERE event = 'talk' AND payload ->> 'by' = 'person' "
+        "AND (id = :t OR (payload ->> 'talk')::bigint = :t)"), {"t": talk_id}).scalar() or 0)
+
+
+def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
+          live: bool = False) -> list[ai.Tool]:
     """Lesen wie jedes Personal (``ai_tools``), dazu die Handlungen des ERP: nachschlagen,
-    vorbereiten (mit Probelauf), weglegen, ausführen (nur auf ein Wort der Person)."""
+    vorbereiten (mit Probelauf), weglegen. **Ausführen** gibt es nur, wenn die Person gerade
+    spricht (``live``) – und nur für einen Handgriff dieses Gesprächs, den sie vor ihrer letzten
+    Nachricht schon sah. Im Takt (niemand da) und aus Mails nie: das ist eine Regel im Code, nicht
+    nur ein Satz an die KI."""
     from . import ai_tools
 
     def find_ops(a: dict[str, Any]) -> str:
@@ -260,11 +280,16 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int) -> list[ai.
         return f"Vorbereitet als Handgriff {hid}" + (f" – geht nur von Hand ({out.hand})." if out.hand else ".")
 
     def drop(a: dict[str, Any]) -> str:
-        h = handgriff.drop(db, person, int(a.get("handgriff") or 0), by="ai")
+        h = _mine(db, talk_id, int(a.get("handgriff") or 0))
+        handgriff.drop(db, person, h.id, by="ai")
         return f"Handgriff {h.id} ist weggelegt."
 
     def execute(a: dict[str, Any]) -> str:
-        h, out = handgriff.run(db, person, int(a.get("handgriff") or 0))
+        h = _mine(db, talk_id, int(a.get("handgriff") or 0))
+        if h.id > _last_said(db, talk_id):
+            return ("Nicht ausgeführt: diesen Handgriff hat die Person noch nicht gesehen – "
+                    "sie entscheidet an der Karte oder mit ihrer nächsten Nachricht.")
+        h, out = handgriff.run(db, person, h.id)
         return f"Ausgeführt ({h.id})." if out.ok else f"Nicht ausgeführt: {out.detail or out.hand}"
 
     int_list = {"type": "array", "items": {"type": "integer"}}
@@ -281,21 +306,23 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int) -> list[ai.
                     {"handlung": {"type": "string"}, "pfad": {"type": "string"},
                      "werte_json": {"type": "string"}, "zeile": {"type": "string"},
                      "wartet_auf": int_list}, prepare),
-            ai.Tool("weglegen", "Einen Handgriff weglegen (die Person will ihn nicht, oder du "
-                    "ersetzt ihn durch einen neuen).", {"handgriff": {"type": "integer"}}, drop),
-            ai.Tool("ausfuehren", "Einen Handgriff ausführen – NUR, wenn die Person es in ihrer "
-                    "letzten Nachricht ausdrücklich sagt («ja, ausführen», «leg es ab»).",
-                    {"handgriff": {"type": "integer"}}, execute)]
+            ai.Tool("weglegen", "Einen Handgriff dieses Gesprächs weglegen (die Person will ihn "
+                    "nicht, oder du ersetzt ihn durch einen neuen).",
+                    {"handgriff": {"type": "integer"}}, drop),
+            *([ai.Tool("ausfuehren", "Einen Handgriff dieses Gesprächs ausführen – NUR, wenn die "
+                       "Person es in ihrer letzten Nachricht ausdrücklich sagt («ja, ausführen», "
+                       "«leg es ab»).", {"handgriff": {"type": "integer"}}, execute)] if live else [])]
 
 
-def answer(db: Session, talk_id: int, person: UserProfile) -> Optional[str]:
+def answer(db: Session, talk_id: int, person: UserProfile, *, live: bool = False) -> Optional[str]:
     """►►► **Die KI antwortet** – liest, schlägt nach, bereitet vor, antwortet. ``None`` = sie
-    hat geantwortet, sonst warum nicht (``ai.problem``). ◄◄◄"""
+    hat geantwortet, sonst warum nicht (``ai.problem``). ``live`` = die Person hat eben selbst
+    geschrieben (nur dann darf ein Wort von ihr ausführen). ◄◄◄"""
     first = _first(db, talk_id)
     content = _transcript(db, talk_id, person) if ai.available(db) else []
     said = ai.converse(db, task="talk", actor=person, system=AUFTRAG + "\n" + FORMAT,
                        content=content, schema=Answer,
-                       tools=tools(db, person, talk_id, first.object_id))
+                       tools=tools(db, person, talk_id, first.object_id, live=live))
     if said is None:
         return ai.problem() or "Die KI hat nicht geantwortet."
     _reply(db, person, talk_id, said.text or "Erledigt.", first.object_id)
@@ -307,8 +334,8 @@ def converse(db: Session, person: UserProfile, body: str, *, talk: Optional[int]
     """Sagen und antworten lassen – in EINER Anfrage (``ai.until``). Fällt die KI aus, steht
     die Nachricht trotzdem; ``problem`` sagt warum, der Takt antwortet nach."""
     tid = say(db, person, body, talk=talk, hint=hint, files=files)
-    db.flush()
-    trouble = answer(db, tid, person)
+    handgriff.release(db)       # die Nachricht steht – auch wenn die KI danach scheitert
+    trouble = answer(db, tid, person, live=True)
     if trouble and ai.available(db):
         log.event(db, "talk.failed", None, {"talk": tid, "problem": trouble})
     return view(db, tid, problem=trouble)

@@ -37,7 +37,7 @@ def after_save(db) -> None:
     from app.models import Message
     from app.services import mailbox
     db.flush()
-    for fn in db.info.pop("outside_after", []):
+    for _, fn in db.info.pop("outside_after", []):
         if fn is not mailbox._send_due_alone:
             fn()
             continue

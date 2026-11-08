@@ -256,6 +256,8 @@ def test_the_pinned_knowledge_asks_the_ai_only_after_a_change(db, house, monkeyp
     boss, _staff, firm = house
     script = _Script(_answer(parsed=pins.PinAnswer(items=[])), _answer(parsed=pins.PinAnswer(items=[])))
     _ready(monkeypatch, script)
+    from datetime import timedelta
+    monkeypatch.setattr(pins, "QUIET", timedelta(0))      # die Ruhezeit prüft der nächste Test
     assert pins.pinned(db, firm.object_id, boss).stale
     pins.refresh(db, firm.object_id, boss)
     assert not pins.pinned(db, firm.object_id, boss).stale
@@ -282,3 +284,79 @@ def test_a_handgriff_needing_the_hand_is_opened_not_run(db, house):
         handgriff.run(db, boss, hid)
     assert e.value.status_code == 409
     assert handgriff.settle(db, boss, hid, None).done is not None
+
+
+def test_while_someone_types_the_knowledge_is_chosen_at_most_once_in_a_while(db, house, monkeypatch):
+    """Auto-Save ändert alle paar Sekunden etwas – die KI wählt trotzdem nur einmal je ``QUIET``
+    (Bug-Form: jeder Tastendruck kostet einen Aufruf und frisst den Deckel)."""
+    boss, _staff, firm = house
+    script = _Script(_answer(parsed=pins.PinAnswer(items=[])), _answer(parsed=pins.PinAnswer(items=[])))
+    _ready(monkeypatch, script)
+    pins.refresh(db, firm.object_id, boss)
+    act(db, "person", boss.object_id, "ui")
+    log.event(db, "test.change", firm.object_id, {})
+    pins.refresh(db, firm.object_id, boss)
+    assert len(script.seen) == 1
+
+
+def test_the_ai_executes_only_what_the_person_saw_and_said_here(db, api, house, monkeypatch):
+    """(a) «ausführen» gibt es nur, wenn die Person gerade spricht, nur für einen Handgriff
+    **dieses** Gesprächs, den sie vor ihrer letzten Nachricht sah – nie einen aus einer Mail, nie
+    im selben Zug, in dem er entstand, nie im Takt. Eine Regel im Code, nicht nur ein Satz."""
+    boss, staff, firm = house
+    msg = Message(sender_object_id=firm.object_id, channel="note", subject="Mail", body="x")
+    db.add(msg)
+    db.flush()
+    mailed, _ = handgriff.prepare(db, boss, method="POST", path="/api/v1/erp/messages",
+                                  body=_note(firm.object_id), line="aus Mail", home=firm.object_id,
+                                  mail=msg.id)
+    body = f"Sofort ({random.randint(1, 10**9)})"
+    script = _turns(_prepare(1, "POST /api/v1/erp/messages", "/api/v1/erp/messages",
+                             _note(firm.object_id, body), "Notiz"),
+                    _tool("ausfuehren", 2, handgriff=mailed))
+    _ready(monkeypatch, script)
+    t = _say(api, staff, "Leg alles ab.")
+    (mine,) = t["handgriffe"]
+    # Ein Handgriff aus einer Mail: nicht dieses Gespräch – abgewiesen, nichts geschieht.
+    result = script.seen[2]["messages"][-1]["content"][0]["content"]
+    assert "gehört nicht zu diesem Gespräch" in result, "(a) eine Mail"
+    assert handgriff.get(db, mailed).is_open
+    assert db.query(Message).filter(Message.body == body).count() == 0
+    # Im nächsten Zug, auf ihr Wort: jetzt geht es.
+    script2 = _turns(_tool("ausfuehren", 4, handgriff=mine["id"]))
+    _ready(monkeypatch, script2)
+    t = _say(api, staff, "Ja, ablegen.", talk=t["id"])
+    assert next(h for h in t["handgriffe"] if h["id"] == mine["id"])["state"] == "done"
+    # Im Takt ist niemand da – es gibt das Werkzeug gar nicht.
+    names = [x.name for x in talk.tools(db, staff, t["id"], firm.object_id)]
+    assert "ausfuehren" not in names and "vorbereiten" in names
+
+
+def test_a_rolled_back_savepoint_keeps_the_mails_of_the_request(db):
+    """Nach dem Speichern läuft, was vorher angemeldet war – ein verworfener Sicherungspunkt nimmt
+    nur seine eigenen Haken mit (Bug-Form: eine Vorschau im Sicherungspunkt löschte den Versand
+    der ganzen Anfrage)."""
+    from app.core import outside
+    from app.core.database import SessionLocal
+    s = SessionLocal()
+    ran = []
+    try:
+        outside.after(s, lambda: ran.append("vorher"))
+        sp = s.begin_nested()
+        outside.after(s, lambda: ran.append("verworfen"))
+        sp.rollback()
+        with s.begin_nested():
+            outside.after(s, lambda: ran.append("behalten"))
+        s.commit()
+    finally:
+        s.close()
+    assert ran == ["vorher", "behalten"]
+
+
+def test_a_crafted_path_is_no_handgriff():
+    """Punkt-Teile, Abfrage, Kodierung: nach dem Normalisieren träfe der Pfad eine andere Route
+    als die geprüfte – keine Handlung."""
+    for path in ("/api/v1/erp/messages/../assistant/talks", "/api/v1/erp/messages?x=1",
+                 "/api/v1/erp/records/%2e%2e/1", "/api/v1/erp//messages"):
+        assert handgriff.operation_for("POST", path) is None, path
+    assert handgriff.operation_for("POST", "/api/v1/erp/messages") is not None

@@ -64,11 +64,24 @@ def now(what: str) -> None:
 
 
 def after(db: Session, fn: Callable[[], None]) -> None:
-    """``fn()`` nach dem nächsten Speichern dieser Sitzung – nie, wenn verworfen wird. Dieselbe
-    Funktion zweimal angemeldet läuft einmal."""
+    """``fn()`` nach dem nächsten Speichern dieser Sitzung – nie, wenn verworfen wird (auch nicht,
+    wenn nur der Sicherungspunkt verworfen wird, in dem sie angemeldet wurde). Dieselbe Funktion
+    zweimal angemeldet läuft einmal."""
+    if db.get_transaction() is None:
+        db.connection()                 # die Transaktion beginnt jetzt – an sie hängt sich fn
+    where = db.get_nested_transaction() or db.get_transaction()
     waiting = db.info.setdefault(_AFTER, [])
-    if fn not in waiting:
-        waiting.append(fn)
+    if all(f is not fn for _, f in waiting):
+        waiting.append((where, fn))
+
+
+def _within(tx, gone) -> bool:
+    """Gehört ``tx`` zu ``gone`` (oder darunter)?"""
+    while tx is not None:
+        if tx is gone:
+            return True
+        tx = tx.parent
+    return False
 
 
 @event.listens_for(SessionLocal, "before_commit")
@@ -81,7 +94,7 @@ def _no_commit_in_probe(session: Session) -> None:
 def _run_after(session: Session) -> None:
     if session.in_nested_transaction():
         return      # nur ein Sicherungspunkt – gespeichert ist erst die ganze Transaktion
-    for fn in session.info.pop(_AFTER, []):
+    for _, fn in session.info.pop(_AFTER, []):
         try:
             fn()
         except Exception as exc:        # noqa: BLE001 – gespeichert ist gespeichert
@@ -89,6 +102,10 @@ def _run_after(session: Session) -> None:
                         getattr(fn, "__name__", fn), exc)
 
 
-@event.listens_for(SessionLocal, "after_rollback")
-def _drop_after(session: Session) -> None:
-    session.info.pop(_AFTER, None)
+@event.listens_for(SessionLocal, "after_soft_rollback")
+def _drop_after(session: Session, previous_transaction) -> None:
+    """Verworfen wird nur, was in der verworfenen Transaktion (oder ihrem Sicherungspunkt)
+    angemeldet wurde – ein Sicherungspunkt nimmt nicht die Mails der ganzen Anfrage mit."""
+    waiting = session.info.get(_AFTER)
+    if waiting:
+        session.info[_AFTER] = [(tx, fn) for tx, fn in waiting if not _within(tx, previous_transaction)]

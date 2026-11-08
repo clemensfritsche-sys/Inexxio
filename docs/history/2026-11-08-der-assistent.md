@@ -36,7 +36,7 @@ Vorschlag in `useField` und `objectId` an jedem Feld.
 
 ## Geprüft
 
-- Backend 870 Tests grün (gegen ein Schema nur aus den Migrationen), darunter neu
+- Backend 870 Tests grün (vor dem Gegenlesen) (gegen ein Schema nur aus den Migrationen), darunter neu
   `test_handgriff.py` (Probelauf hinterlässt nichts und geht nie hinaus – Netz gesperrt; Rechte;
   halbe Anfrage hinterlässt nichts; jede Route beschreibt sich; kein `commit` in Routern) und
   `test_assistant.py` (vorbereiten ≠ ausführen, genau einmal, aufeinander aufbauen, inzwischen
@@ -51,6 +51,29 @@ Vorschlag in `useField` und `objectId` an jedem Feld.
   «sieht nach …» blieb nach einem Fehlschlag stehen, das Angeheftete fragte nach jedem Nachladen
   neu (jetzt je Stand des Umfelds höchstens einmal, `mark`).
 - Frontend: Typen, Lint, 79 Tests, Build.
+
+## Gegengelesen (unabhängig) – gefunden und behoben
+
+1. **Hoch:** die KI hätte über «ausführen» jeden sichtbaren Handgriff ausführen können (auch aus
+   einer Mail, im selben Zug, im Takt). Jetzt im Code: nur im Gespräch, das die Person gerade
+   führt, nur ein Handgriff **dieses** Gesprächs, den sie vor ihrer letzten Nachricht sah; im Takt
+   und aus Mails gibt es das Werkzeug nicht.
+2. Ein verworfener Sicherungspunkt verwarf alle Haken «nach dem Speichern» der Anfrage – jetzt je
+   Transaktion (`outside._within`).
+3. Anfrage und Handgriff hätten aufeinander warten können (die Anmeldung schreibt die Person, der
+   Handgriff sperrt sie) – `handgriff.release` speichert vorher, dazu `lock_timeout` als Netz.
+4. Zwei Klicks: die Route lief zweimal (der zweite scheiterte erst am Ende) – jetzt eine Sperre je
+   Handgriff vor dem ersten Schritt.
+5. Jede Änderung (Auto-Save) hätte die KI das Wissen neu wählen lassen – höchstens einmal je 15
+   Minuten (`pins.QUIET`).
+6. «Entwurf öffnen» und dann weg: eine spätere Anlage hätte den Handgriff erledigt – die Verbindung
+   fällt beim Wegnavigieren.
+7. Ein Probelauf, der nach aussen ging, machte den Handgriff zu «nur von Hand» – nur eine Datei
+   braucht die Hand.
+8. Abhängigkeiten werden gegen die Rechte der Person geprüft.
+9. Pfade mit Punkt-Teilen, Abfrage oder Kodierung sind keine Handlung.
+
+Danach 874 Backend-Tests grün; die neuen Wächter gegen ihre Fehlerform gegengeprüft.
 
 ## Bewusst nicht
 
