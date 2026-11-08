@@ -5,6 +5,7 @@ Bis zur Zusage eine Ableitung, danach eingefroren (``freeze``). Liest nur den Ke
 (``services/voucher``).
 """
 
+from decimal import Decimal
 from typing import Any, Optional
 
 from sqlalchemy import text
@@ -30,6 +31,26 @@ from .voucher import (
 # ►► DIE POSITIONEN — und was aus der Anschrift folgt
 # ---------------------------------------------------------------------------
 
+def preset_prices(db: Session, row: Voucher,
+                  step: Optional[ProcessStep] = None) -> dict[int, Decimal]:
+    """►►► **Die vom Modul vorgegebenen Einzelpreise** – Artikel (``id``) → Preis, netto. ◄◄◄
+
+    Die eine Lesestelle für Beleg, Ansicht und Verben (``modules.Beleg.prices_of``). Das
+    Modul nennt Objektnummern; der Beleg rechnet mit ``article_id`` – übersetzt wird hier.
+    Nur, wo **wir** den Preis nennen: bei einer Ausgabe gibt es keine Vorgabe.
+    """
+    if vo.of(row.direction).quoted_by != vo.BY_US:
+        return {}
+    if step is None:
+        step = db.query(ProcessStep).filter(ProcessStep.id == row.step_id).first()
+    by_number = modules.Beleg.prices_of(step.config if step is not None else None)
+    if not by_number:
+        return {}
+    ids = dict(db.query(Article.object_id, Article.id)
+               .filter(Article.object_id.in_(list(by_number))).all())
+    return {ids[n]: price for n, price in by_number.items() if n in ids}
+
+
 def sync_lines(db: Session, row: Voucher, order: Order,
                step: Optional[ProcessStep] = None) -> list[VoucherLine]:
     """►►► **Die Positionen aus dem Prozess nachziehen — nur bis zum ersten Hinausgehen.** ◄◄◄
@@ -41,7 +62,8 @@ def sync_lines(db: Session, row: Voucher, order: Order,
 
     **Was ein Mensch eingetragen hat, überlebt** (Preis, Satz, Leistung, Teilbetrag, Zoll):
     nachgezogen werden Artikel und Menge. Eine neue Zeile bekommt die **Leistung aus dem
-    Modul** vorbelegt («Was ist zu tun?»).
+    Modul** vorbelegt («Was ist zu tun?»). **Gibt das Modul einen Preis vor**
+    (``preset_prices``), steht er fest – auch an einer Zeile, die es schon gab.
 
     **Zwei gleichzeitige Anzeigen legen dieselbe Zeile nicht zweimal an**:
     ``ON CONFLICT DO NOTHING`` gegen ``uq_voucher_lines_article``.
@@ -56,6 +78,7 @@ def sync_lines(db: Session, row: Voucher, order: Order,
         return rows
     counts = dict(process_lines(db, order))
     order_index = {a: i for i, a in enumerate(counts)}
+    fixed = preset_prices(db, row, step)
     known = {r.article_id for r in rows if r.article_id is not None}
     missing = [a for a in counts if a not in known]
     if missing:
@@ -64,7 +87,7 @@ def sync_lines(db: Session, row: Voucher, order: Order,
             pg_insert(VoucherLine)
             .values([{"voucher_id": row.id, "article_id": a, "quantity": counts[a],
                       "vat": vo.DEFAULT_VAT, "position": order_index[a],
-                      "text": task or None} for a in missing])
+                      "price": fixed.get(a), "text": task or None} for a in missing])
             .on_conflict_do_nothing(index_elements=["voucher_id", "article_id"],
                                     index_where=text("is_active"))
         )
@@ -77,6 +100,8 @@ def sync_lines(db: Session, row: Voucher, order: Order,
         if found is not None:
             found.quantity = n
             found.position = order_index[article]
+            if article in fixed and found.price != fixed[article]:
+                found.price = fixed[article]
     for article, found in list(by_article.items()):
         if article not in counts:
             # **Soft-Delete wie überall im Haus** – ein Beleg, der einmal eine Zeile
@@ -213,6 +238,7 @@ def embed_lines(db: Session, row: Voucher) -> list[dict[str, Any]]:
         if ids else {}
     frozen = (row.head or {}).get("names") or {}
     delivery, seat = destination(db, row)
+    fixed = preset_prices(db, row)
     out: list[dict[str, Any]] = []
     for ln in rows:
         art = found.get(ln.article_id) if ln.article_id is not None else None
@@ -251,6 +277,8 @@ def embed_lines(db: Session, row: Voucher) -> list[dict[str, Any]]:
             # **Ein Betrag verlässt den Dienst in der Stelligkeit seiner Währung** – die
             # Spalte hat vier Stellen, die Währung meist zwei (JPY null, KWD drei).
             "price": amount_text(ln.price, row.currency),
+            # **Im Modul vorgegeben** – fest, punktiert, Grund im Hover (``fixed_hint``).
+            "fixed_price": ln.article_id in fixed,
             "vat": vo.assert_vat(ln.vat),
             "vat_rate": str(vo.vat_of(ln.vat)),
             "vat_label": vo.vat_label(ln.vat),

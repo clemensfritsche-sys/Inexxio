@@ -2,18 +2,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Columns2, Grid2x2, Layers, Lock, Percent, Trash2,
+  Columns2, Grid2x2, Layers, Lock, Percent, Plus, Trash2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ModuleCatalog, VoucherParty } from '@/types';
+import type { ArticleOption, ModuleCatalog, VoucherParty } from '@/types';
 import {
   CAPTURE_ICON, VOUCHER_DIRECTION, VOUCHER_ORDER_REF, VOUCHER_ORDER_REF_HINT, VOUCHER_PARTY,
   VOUCHER_TASK, VOUCHER_TASK_HINT, voucherDirection,
   VOUCHER_PRESETS, VOUCHER_PRESET_OPEN, VOUCHER_PRESETS_HINT, VOUCHER_OWNERSHIP, INCOTERMS, type VoucherPresetKey,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
   SAMPLE_PRESETS, blankModule, moduleTone,
-  type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
+  type DisposalMode, type ModuleDraft, type PointDraft, type PricePreset, type SampleDraft,
+  type SampleMode,
 } from '@/lib/modules';
 
 /** Symbol je Kurzweg. Die Wörter stehen daneben – ein Anteil hat kein Bild (#636). */
@@ -464,6 +465,60 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
           onChange={(v) => onChange({ instruction: v })} />
       </div>
       <MoneyPresets module={m} onChange={onChange} />
+      {voucherDirection(m.direction).weQuote && <PricePresets module={m} onChange={onChange} />}
+    </div>
+  );
+}
+
+/**
+ * **Vorgegebene Preise** – je Artikel ein Einzelpreis, netto, in der Hauswährung
+ * (`Beleg.PRICES`). Nur bei einer Einnahme: bei einer Ausgabe nennt die Partei den Preis.
+ * Was hier steht, steht im Beleg fest; ein Artikel ohne Vorgabe wird in der Offerte bepreist.
+ * Den **Steuersatz** gibt es hier nicht – ihn entscheidet die Anschrift.
+ */
+function PricePresets({ module: m, onChange }: {
+  module: ModuleDraft; onChange: (next: Partial<ModuleDraft>) => void;
+}) {
+  const rows = m.prices;
+  const set = (i: number, next: Partial<PricePreset>) =>
+    onChange({ prices: rows.map((r, j) => (j === i ? { ...r, ...next } : r)) });
+  const find = useCallback(
+    (q: string) => api.getArticleOptions({ search: q, limit: 20 }), []);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="inline-flex items-center gap-1.5" style={MICRO_LABEL}>
+        Preise
+        <InfoHint text="Ein Einzelpreis je Artikel, netto – steht im Beleg fest. Ohne Vorgabe wird der Preis in der Offerte gesetzt. Den Steuersatz bestimmt die Anschrift." />
+      </span>
+      {rows.map((r, i) => (
+        <div key={i} className="flex items-center gap-2" style={{ minWidth: 0 }}>
+          <div className="flex-1" style={{ minWidth: 0 }}>
+            <ObjectSelect<ArticleOption>
+              value={r.article}
+              selected={r.article !== null
+                ? { object_id: r.article, name: r.name } as ArticleOption : null}
+              find={find}
+              kind="article"
+              scanLabel="Artikel"
+              onChange={(nr, opt) => set(i, { article: nr, name: opt?.name ?? '' })}
+            />
+          </div>
+          <div className="flex items-center gap-1.5" style={{ flex: 'none' }}>
+            <Input name={`prices.${i}`} className={inputCls} value={r.price} {...numericInputProps}
+              aria-label="Einzelpreis, netto" placeholder="Preis"
+              style={{ width: 110, textAlign: 'right' }}
+              onChange={(v) => set(i, { price: numericOnly(v, { decimals: 2 }) })} />
+          </div>
+          <RowDelete label="Preis entfernen"
+            onClick={() => onChange({ prices: rows.filter((_, j) => j !== i) })} />
+        </div>
+      ))}
+      <button type="button"
+        onClick={() => onChange({ prices: [...rows, { article: null, name: '', price: '' }] })}
+        className="self-start inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+        style={{ border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}>
+        <Plus size={12} /> Preis vorgeben
+      </button>
     </div>
   );
 }

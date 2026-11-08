@@ -529,10 +529,12 @@ def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
 def deviation_flags(db: Session, order_ids: list[int]) -> dict[int, bool]:
     """Welche dieser Aufträge sind **Abweichungen**? — die Frage aus §2.
 
-    **Ein Auftrag ist eine Abweichung, wenn sein Start vom Regelstart abwich.** Der
-    Regelstart ist genau ein Zustand (``statuses.START_BEFORE`` = *Freigegeben*): so
-    beginnt ein Stück, das regulär verfügbar war. Alles andere ist ein Zugriff auf
-    Material, das gerade nicht zur Verfügung stand – und genau das ist dokumentationspflichtig.
+    **Ein Auftrag ist eine Abweichung, wenn sein Start vom Regelstart abwich.** Regulär
+    beginnt, was **ruht** (``statuses.REGULAR_STARTS``: *Freigegeben* bei uns, *Verkauft* bei
+    der Partei). Alles andere ist ein Zugriff auf Material, das gerade nicht zur Verfügung
+    stand – einem Auftrag entzogen, gesperrt, verbaut – und genau das ist
+    dokumentationspflichtig. Eine Retoure ist keine Abweichung: sie ist eine Eigentumsfrage
+    und steht in ihrer Zahlung («geht an uns»).
 
     Die Regel **nennt darum keinen Status**: auch ein **gesperrtes** Stück wieder in Betrieb
     zu nehmen ist eine Abweichung – in der Qualitätssicherung der Musterfall einer
@@ -555,7 +557,7 @@ def deviation_flags(db: Session, order_ids: list[int]) -> dict[int, bool]:
         .filter(
             ProcessEvent.order_id.in_(order_ids),
             ProcessEvent.kind == KIND_START,
-            ProcessEvent.status_before != st.START_BEFORE,
+            ProcessEvent.status_before.notin_(st.REGULAR_STARTS),
         )
         .distinct()
         .all()

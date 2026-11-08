@@ -700,14 +700,14 @@ def test_a_deviation_order_is_a_regular_order():
         "«Abweichung» kommt nicht aus dem Log – dann ist es irgendwo gespeichert."
     )
 
-    # **Und die Regel nennt keinen einzelnen Status.** Sie vergleicht gegen den EINEN
-    # Regelstart (``START_BEFORE``): alles, was anders beginnt, ist ein Zugriff auf
-    # Material, das nicht regulär verfügbar war – und genau das ist auszuweisen. Stünde
-    # hier ein Status, wäre die Frage «ist das eine Abweichung?» eine Liste, die beim
+    # **Und die Regel nennt keinen einzelnen Status.** Sie vergleicht gegen die EINE Menge
+    # der regulären Starts (``REGULAR_STARTS``: was ruht): alles, was anders beginnt, ist ein
+    # Zugriff auf Material, das nicht regulär verfügbar war – und genau das ist auszuweisen.
+    # Stünde hier ein Status, wäre die Frage «ist das eine Abweichung?» eine Liste, die beim
     # nächsten Zustand jemand nachziehen muss; ein vergessener Eintrag hiesse: kein
     # Nachweis, und zwar stillschweigend.
-    assert "START_BEFORE" in body, (
-        "Die Abweichungsregel vergleicht nicht mit dem Regelstart."
+    assert "REGULAR_STARTS" in body, (
+        "Die Abweichungsregel vergleicht nicht mit den regulären Starts."
     )
     for named in ("IM_PROZESS", "GESPERRT", "VERSCHROTTET"):
         assert named not in body, (

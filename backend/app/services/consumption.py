@@ -10,11 +10,11 @@ Stücke genommen würden. Geschrieben wird an der einen Stelle, an der jeder Sta
 geschrieben wird (``process._enter_at_step`` / ``process._pass``) – ein zweiter
 Schreibweg wäre genau das, was es hier nicht geben darf.
 
-**Genommen wird nur, was frei ist** – Zustand ``Freigegeben`` und keine offene
-Zugehörigkeit. Das ist keine zusätzliche Regel, sondern dieselbe, aus der auch
-``deviation_flags`` liest: wer am Regelstart steht, war regulär verfügbar. Damit macht
-ein Verbrauch einen Auftrag nie stillschweigend zur Abweichung, und ein gesperrtes Stück
-kann nicht versehentlich verbaut werden.
+**Genommen wird nur, was frei bei uns ist** – Zustand ``Freigegeben`` und keine offene
+Zugehörigkeit. Bewusst **nicht** ``statuses.REGULAR_STARTS``: ein verkauftes Stück beginnt
+zwar regulär (Service beim Kunden), gehört aber der Partei und wird nie verbaut. Damit macht
+ein Verbrauch einen Auftrag nie stillschweigend zur Abweichung, und weder ein gesperrtes noch
+ein verkauftes Stück kann versehentlich verbaut werden.
 """
 
 from dataclasses import dataclass, field
@@ -80,7 +80,7 @@ class Need:
 def _free(db: Session, article_object_id: int):
     """Die **freien** Stücke eines Artikels – als Abfrage, noch nicht geladen.
 
-    Frei heisst zweierlei: am Regelstart (``Freigegeben``) **und** ohne offene
+    Frei heisst zweierlei: bei uns (``Freigegeben``) **und** ohne offene
     Zugehörigkeit. Beides zusammen ist die Aussage «regulär verfügbar»; die zweite Hälfte
     deckt ein Stück ab, dessen Zustand an der Schreibstelle vorbei verstellt wurde.
 
@@ -100,7 +100,7 @@ def _free(db: Session, article_object_id: int):
             Article.object_id == article_object_id,
             InstanceUnit.is_active.is_(True),
             Instance.is_active.is_(True),
-            InstanceUnit.status == st.START_BEFORE,
+            InstanceUnit.status == st.FREIGEGEBEN,
             OrderUnit.id.is_(None),
         )
     )

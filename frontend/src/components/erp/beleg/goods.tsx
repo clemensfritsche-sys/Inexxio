@@ -9,7 +9,7 @@ import { Input } from '@/components/form/field';
 import { Amount } from '@/components/erp/module-ui';
 import { useAutosaveSignature } from '@/lib/use-autosave';
 import {
-  DOC_FIELD, DocPick, Editable, LABEL, Section, may,
+  DOC_FIELD, DocPick, Editable, FixedValue, LABEL, Section, may,
 } from './shared';
 import type { Filled, Send } from './shared';
 
@@ -112,8 +112,8 @@ function LineRow({ d, line, busy, onAction }: {
             style={{ gap: '2px 10px', flex: '0 1 auto', minWidth: 0 }}>
             <VatPick d={d} line={line} on={priced} value={draft.vat}
               onChange={(vat) => set({ vat })} />
-            <Price d={d} on={priced} value={draft.price} shown={line.price}
-              onChange={(price) => set({ price })} onDone={now} />
+            <Price d={d} on={priced} fixed={!!line.fixed_price} value={draft.price}
+              shown={line.price} onChange={(price) => set({ price })} onDone={now} />
           </div>
         )}
       </div>
@@ -231,10 +231,21 @@ function VatPick({ d, line, on, value, onChange }: {
 }
 
 /** **Der Einzelpreis, netto** – mit Währung und der Stellenzahl der Währung. */
-function Price({ d, on, value, shown, onChange, onDone }: {
-  d: Filled; on: boolean; value: string; shown?: string | null;
+function Price({ d, on, fixed, value, shown, onChange, onDone }: {
+  d: Filled; on: boolean;
+  /** **Im Modul vorgegeben** – fest, punktiert, der Grund im Hover (wie jede Vorgabe). */
+  fixed: boolean;
+  value: string; shown?: string | null;
   onChange: (v: string) => void; onDone: () => void;
 }) {
+  if (fixed) {
+    return (
+      <FixedValue hint={d.fixed_hint}>
+        <Amount value={shown} currency={d.currency} decimals={d.currency_decimals}
+          size={13} weight={400} />
+      </FixedValue>
+    );
+  }
   if (!on) {
     return <Amount value={shown} currency={d.currency} decimals={d.currency_decimals}
       size={15} weight={400} />;

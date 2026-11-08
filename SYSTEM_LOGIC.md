@@ -137,7 +137,7 @@ Zustand falsch.
 | T7b | `im_prozess` | `verbaut` | **step** | Modul «Verbrauch», für die **genannten Artikel**. Der Rest passiert dasselbe Modul unverändert (T5) – der Ausgang gilt je Stück, nicht je Modul. |
 | T7c | `verbaut` | `im_prozess` | **start** | Auftragsfreigabe, verbautes Stück wird gegriffen → **Demontage**, ebenfalls eine Abweichung. |
 | T7d | `im_prozess` | `verkauft` | **end** | Das Stück passiert das Ende-Objekt, kehrt nirgends zurück und **gehört einer anderen Partei** (jüngstes nicht storniertes Zahlungsmodul: «geht an die Partei», `voucher.sold_units`). Der Ort bleibt. |
-| T7e | `verkauft` | `im_prozess` | **start** | Auftragsfreigabe, verkauftes Stück wird gegriffen → **Retoure**, ebenfalls eine Abweichung. |
+| T7e | `verkauft` | `im_prozess` | **start** | Auftragsfreigabe, verkauftes Stück wird gegriffen – **Service** beim Kunden oder **Retoure**. Ein **regulärer Start** (`statuses.REGULAR_STARTS`), keine Abweichung; ob es danach uns gehört, sagt allein die Zahlung (T7d). |
 | T8 | `im_prozess` | `freigegeben` | **end** | Das Stück passiert das Ende-Objekt, kehrt **nirgends** zurück und gehört uns. Der Wert ist der `end_status` des Auftrags (heute immer `freigegeben`, an einer Stelle hinterlegt). |
 | T9 | `im_prozess` | `im_prozess` | **end** | Das Stück passiert das Ende-Objekt und **kehrt in seinen Quell-Auftrag zurück**. Es bleibt im Prozess — es ist ja in einem. |
 
@@ -349,7 +349,7 @@ Als prüfbare Sätze. Jeder ist so formuliert, dass ein Test ihn widerlegen kön
 | U5 | `im_prozess`, Modul **gesperrt** (wartet auf Rückführung) | Die ausstehende Rückführung abschliessen — dann fällt die Sperre von selbst. Oder: in der Abweichung wird ausgesondert, dann endet die Wartekette. |
 | U6 | `gesperrt`, keine offene Zugehörigkeit — **gesperrter Bestand** | Ein **ganz gewöhnlicher** Auftrag greift es (T4). Das Greifen IST das Aufheben; es gibt bewusst keinen Entsperren-Endpunkt. |
 | U6b | `verbaut` — steckt in einem anderen Stück | Ein **ganz gewöhnlicher** Auftrag greift es (T7c). Das Greifen IST der Ausbau; es gibt bewusst keinen «demontieren»-Endpunkt. **Die Stückliste des Produkts verliert es dabei nicht** – sie kommt aus dem Log, und was verbaut *war*, bleibt verbaut gewesen. |
-| U6c | `verkauft` — beim Kunden | Ein **ganz gewöhnlicher** Auftrag greift es (T7e). Das Greifen IST die Rücknahme; es gibt bewusst keinen «Retoure annehmen»-Endpunkt. Der Auftrag ist dabei automatisch eine Abweichung – **die Farbe spielt keine Rolle**, verglichen wird mit dem Regelstart. |
+| U6c | `verkauft` — beim Kunden | Ein **ganz gewöhnlicher** Auftrag greift es (T7e), für Service oder Retoure – ein **regulärer Start**. Es gibt bewusst keinen «Retoure annehmen»-Endpunkt: zurück in den Bestand kommt es nur über eine Zahlung «geht an uns». FIFO und Verbrauch nehmen es nie (`test_sold_units_are_never_offered_or_consumed`). **Die Farbe spielt keine Rolle** – auch `verbaut` ist grün und bleibt eine Abweichung. |
 | U7 | `verschrottet` | **Kein Ausgang — ausdrücklich terminal.** Das ist die Zusage, keine Sackgasse. |
 
 **Unmögliche Kombinationen** (sie dürfen nicht vorkommen, und ihr Auftreten ist ein
@@ -547,6 +547,23 @@ am Ende-Objekt wird ein Stück, das der Partei gehört, `verkauft` (T7d).
 
 
 ---
+
+### 5.10 Wiederkehrende Aufträge – Soll, vorher notiert (Runde 2)
+
+Projektakte `docs/konzept/wiederkehr.md`. Diese Sätze sind das **Soll** der Tests, die mit der
+Schlaufe kommen; gebaut ist davon heute nur der reguläre Start von `verkauft` (T7e, U6c).
+
+| | Satz |
+|---|---|
+| W1 | Eine Schlaufe wird nur im **Entwurf** eingeschaltet; nach der Freigabe kommt keine dazu. |
+| W2 | Ein Auftrag hat **höchstens einen Nachfolger** (eindeutig in der Datenbank). |
+| W3 | Ein Nachfolger ist eine **1:1-Kopie** (Module, Zeilen nach der Wahl «gleiche Einzelinstanzen» · «FIFO» · «Neu», Schlaufe) und entsteht über **dieselbe Prüfung wie «Freigeben»**. |
+| W4 | Ein Nachfolger startet nie als Abweichung; er geht nie mit einem Teil der Stücke los. |
+| W5 | Fehlt gerade etwas, **wartet** er; keine Periode geht verloren. |
+| W6 | Ist eine Einzelinstanz der Schlaufe **verschrottet**, «geht nicht mehr» – nur Beenden. |
+| W7 | Beendet wird am **neuesten** Auftrag der Kette, auch wenn er abgeschlossen ist; der Auftrag selbst ändert sich dabei nicht. |
+| W8 | Eine Abweichung trägt nie eine Schlaufe; was **in** einer Wiederholung passiert, stört die nächste nur, wenn ihre Stücke nicht frei sind. |
+| W9 | Die Zahlung geht in jeder Wiederholung Offerte → Zusage → Rechnung; automatisch nur mit allen Preisen vorgegeben und einer Zusage zur Schlaufe, dokumentiert. |
 
 ## 6. Die Testbarkeitsregel
 

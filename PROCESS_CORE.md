@@ -1704,20 +1704,26 @@ damit auch hier die Stelle, an der die Regel nicht umgangen werden kann.
 
 > **Ein Auftrag ist eine Abweichung, wenn sein Start vom Regelstart abwich.**
 
-Der Regelstart ist genau **ein** Zustand (`statuses.START_BEFORE` = *Freigegeben*, §4.1):
-so beginnt ein Stück, das regulär verfügbar war. Alles andere ist ein Zugriff auf
-Material, das gerade **nicht** zur Verfügung stand. Genau diese Frage steht im Log:
+Regulär beginnt, was **ruht** (`statuses.REGULAR_STARTS`): *Freigegeben* – bei uns – oder
+*Verkauft* – bei der Partei; der Service am Kran des Kunden ist kein Ausnahmefall. Alles
+andere ist ein Zugriff auf Material, das gerade **nicht** zur Verfügung stand. Genau diese
+Frage steht im Log:
 
 ```sql
-kind = 'start' AND status_before <> 'freigegeben'
+kind = 'start' AND status_before NOT IN ('freigegeben', 'verkauft')
 ```
 
-**Die Regel nennt keinen Status.** «Einem laufenden Auftrag entzogen» wäre zu eng: ein
+**Die Regel nennt keinen Einzelfall.** «Einem laufenden Auftrag entzogen» wäre zu eng: ein
 **gesperrtes** Stück wieder in Betrieb zu nehmen ist der Musterfall einer
-**Sonderfreigabe**, ebenso Demontage (`Verbaut`) und Retoure (`Verkauft`). Der Zweck des
-Labels ist die **Nachweisbarkeit**.
+**Sonderfreigabe**, ebenso die Demontage (`Verbaut`). Der Zweck des Labels ist die
+**Nachweisbarkeit**. Eine **Retoure** (`Verkauft` → Zahlung «geht an uns») gehört nicht dazu:
+sie ist eine Eigentumsfrage und steht in ihrer Zahlung (`voucher.sold_units`). Seit
+08.11.2026 (Projektakte `docs/konzept/wiederkehr.md` V1).
 
-Als Vergleich gegen den einen Regelstart ist sie zugleich die **einfachere** Regel und die
+**Regulär starten heisst nicht «frei bei uns»**: FIFO und Verbrauch nehmen weiterhin nur
+`Freigegeben` – ein Kundenstück wird nie vorgeschlagen und nie verbaut.
+
+Als Vergleich gegen die eine Menge der regulären Starts ist sie zugleich die **einfachere** Regel und die
 haltbarere: ein künftiger Zustand ist automatisch eine Abweichung, ohne dass ihn jemand
 hier einträgt. Die Richtung stimmt – wer zu viel ausweist, dokumentiert; wer zu wenig
 ausweist, verliert den Nachweis. Ein **terminales** Stück kommt dabei nie vor: es lässt

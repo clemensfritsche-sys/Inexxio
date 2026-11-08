@@ -1,6 +1,7 @@
 # Projektakte «Wiederkehrende Aufträge»
 
-> **Kopfstatus:** in Klärung · **nichts gebaut** · Lead: Claude · Entscheid: Clemens Fritsche ·
+> **Kopfstatus:** **Runde 1 gebaut** (08.11.2026: `Verkauft` regulär, Preise als Vorgabe; Bericht
+> `docs/history/2026-11-08-wiederkehr-runde1.md`) · Runde 2 (die Schlaufe) offen · Lead: Claude · Entscheid: Clemens Fritsche ·
 > seit 06.11.2026 · zuletzt 08.11.2026 (neunte Runde) · Bauplan in §8
 > Bild (Ist-Stand 1:1, Schlaufe, Abo): https://claude.ai/artifact/Lk5AKy8G1CTWi68ZxA57uj
 > Diese Akte ist die **eine** Quelle für Ziel, Grundsätze, Vorschläge und Entscheide. Das Bild

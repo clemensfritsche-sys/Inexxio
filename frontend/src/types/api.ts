@@ -7280,6 +7280,11 @@ export interface components {
             /** Price */
             price?: string | null;
             /**
+             * Fixed Price
+             * @default false
+             */
+            fixed_price: boolean;
+            /**
              * Vat
              * @default normal
              */

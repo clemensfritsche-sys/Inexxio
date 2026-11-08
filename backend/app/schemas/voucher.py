@@ -143,6 +143,8 @@ class VoucherLineOut(BaseModel):
     origin_country: Optional[str] = None
     #: Der Einzelpreis, **netto**. ``None`` heisst «noch kein Preis genannt».
     price: Optional[str] = None
+    #: **Im Modul vorgegeben** (``Beleg.PRICES``) – am Beleg fest, nicht änderbar.
+    fixed_price: bool = False
     #: Der **Schlüssel** der Katalogzeile – nicht die Zahl.
     vat: str = "normal"
     #: Zahl und Name daneben, damit die Anzeige nichts auflösen muss.

@@ -122,15 +122,15 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   Im Prozess · Gesperrt · Verbaut · Verkauft · Verschrottet. **Verschrottet ist endgültig**,
   durchgesetzt in `_pass` **und** per DB-Trigger `trg_instance_units_terminal` – ohne
   Umgehung. **`Verkauft`** schreibt das Ziel des Auftrags: was einer anderen Partei gehört,
-  wird dort «Verkauft» statt «Freigegeben» – Historie wie Verbaut (kein Bestand, kein FIFO,
-  greifen nur als Abweichung).
+  wird dort «Verkauft» statt «Freigegeben» – Historie wie Verbaut (kein Bestand, kein FIFO, kein
+  Verbrauch), aber ein **regulärer Start** (Service beim Kunden, Retoure).
 - **Auftragsstatus** (Im Prozess · Abgeschlossen · Abgebrochen) ist abgeleitet (`_derive`),
   nie gesetzt. **Abgeschlossen** = den definierten Weg zu Ende gegangen (auch über einen
   Ausgang). Es gibt **keine Abbruch-Funktion**: der Abbruch ist eine Abweichung mit gekappter
   Rückführung.
 - **Abweichungen sind ganz gewöhnliche Aufträge** (PROCESS_CORE §12): wer Stücke greift, die
-  nicht auf dem Regelstart (`Freigegeben`) stehen, ist automatisch eine dokumentierte
-  Abweichung. Ob ein Stück zurückkehrt, ist eine Eigenschaft der **Verbindung**
+  nicht regulär starten (`statuses.REGULAR_STARTS`: `Freigegeben`, `Verkauft`), ist
+  automatisch eine dokumentierte Abweichung (entzogen, gesperrt, verbaut). Ob ein Stück zurückkehrt, ist eine Eigenschaft der **Verbindung**
   (`order_units.return_to_order_id`). Solange eine Rückführung aussteht, ist das Modul
   gesperrt (durchgesetzt in `process.confirm_step`). **Das Greifen IST das Aufheben**
   (Gesperrt, Verbaut, Verkauft) – kein «entsperren»-Endpunkt.
@@ -196,7 +196,10 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   EINER Stelle** (`VERBS`), **`can` ist Auskunft UND Tor**, die Leiste der Karte ist
   `situation` (nie leer ausser Erledigt/Storniert – Wächter «keine Sackgasse»). **Die Stücke
   passieren das Modul von selbst** – mit der Zusage, bei Vorauszahlung mit dem Geld
-  (`process.advance_payments`). **Eigentum** «geht an die Partei · geht an uns» ist eine
+  (`process.advance_payments`). **Preise** gibt das Modul
+  bei einer Einnahme je Artikel vor, wenn gewünscht (`Beleg.PRICES`, netto, Hauswährung; am
+  Beleg fest, `voucher_head.preset_prices`; den Steuersatz entscheidet die Anschrift).
+  **Eigentum** «geht an die Partei · geht an uns» ist eine
   **Pflichtwahl ohne Vorbelegung** (`ownership_problem`: ohne Wahl kein Anbieten, keine
   Zusage), eingefroren mit der Zusage; am Ziel macht sie aus dem Stück Verkauft oder
   Freigegeben. **Der Beleg IST die Rechnung – eine je Modul**; ein

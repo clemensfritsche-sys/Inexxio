@@ -213,6 +213,10 @@ def test_the_money_directions_mirror_the_backend():
             f"«{key}» heisst in der Oberfläche anders als im Backend (erwartet "
             f"«{flow.label}») – und der Editor zeigt es, bevor der Server gefragt wurde."
         )
+        we_quote = "true" if flow.quoted_by == dm.BY_US else "false"
+        assert f"weQuote: {we_quote}" in row, (
+            f"«{key}»: ob wir den Preis nennen, sagt die Oberfläche anders als das Backend – "
+            f"dann böte der Editor eine Preis-Vorgabe an, die der Dienst abweist (oder nicht).")
     for gone in ("party:", "parties:", "ref:"):
         assert gone not in block, (
             f"«{gone}» steht wieder je Richtung – dieselbe Rolle in zwei Wörtern ist die "

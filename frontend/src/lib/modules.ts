@@ -62,18 +62,25 @@ export const VOUCHER_DIRECTION: Record<string, {
    * Wert; dies ist die freundliche Hälfte derselben Regel, nie ein zweiter Massstab.
    */
   partyRef: boolean;
+  /**
+   * **Nennen WIR den Preis?** Nur dann lässt er sich im Modul vorgeben (`Beleg.PRICES`).
+   * Gespiegelt von `Direction.quoted_by` (getestet).
+   */
+  weQuote: boolean;
 }> = {
   in: {
     // Der Handschlag – Geld kommt herein, weil eine Zusage nach aussen erfüllt wird.
     icon: Handshake, label: 'Einnahme',
     hint: 'Einnahme – wir stellen Rechnung, Geld kommt herein.',
     partyRef: false,
+    weQuote: true,
   },
   out: {
     // Der Einkaufswagen – Geld geht hinaus, weil wir etwas beziehen.
     icon: ShoppingCart, label: 'Ausgabe',
     hint: 'Ausgabe – wir bekommen Rechnung, Geld geht hinaus.',
     partyRef: true,
+    weQuote: false,
   },
 };
 
@@ -350,7 +357,16 @@ export interface ModuleDraft {
    * String (ein halb getipptes Feld hat keine Zahl). Leer heisst «wählt der Mensch am Beleg».
    */
   presets: Record<VoucherPresetKey, string>;
+  /**
+   * Nur «Zahlung», nur bei einer Einnahme: **vorgegebene Einzelpreise** je Artikel
+   * (`Beleg.PRICES`) – am Beleg fest. `name` steht nur für die Anzeige im Editor; zum Server
+   * gehen Nummer und Preis.
+   */
+  prices: PricePreset[];
 }
+
+/** Ein vorgegebener Preis im Editor: Artikel (Nummer, Name zur Anzeige) und Einzelpreis. */
+export interface PricePreset { article: number | null; name: string; price: string }
 
 /**
  * **Die Ausprägungen des Aussonderns.** Zwei Fälle, ein Modul – sie tun dasselbe, nur
@@ -380,11 +396,21 @@ const MONEY_FORM = {
     })).filter((r) => Number.isFinite(r.party)),
     instruction: String(c.instruction ?? ''),
     presets: presetsDraft(c),
+    prices: asRows(c.prices).map((r) => ({
+      article: Number.isFinite(Number(r.article)) ? Number(r.article) : null,
+      name: '', price: String(r.price ?? ''),
+    })),
   }),
   config: (m: ModuleDraft) => ({
     direction: m.direction,
     parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
     instruction: m.instruction.trim(),
+    // **Ein Preis ohne Artikel oder ohne Betrag ist noch keine Vorgabe** – er bleibt im
+    // Editor stehen, geht aber nicht hinaus. Bei einer Ausgabe nennt die Partei den Preis.
+    prices: voucherDirection(m.direction).weQuote
+      ? m.prices.filter((p) => p.article !== null && p.price.trim() !== '')
+        .map((p) => ({ article: p.article, price: p.price.trim() }))
+      : [],
     // Leer geht als `null` hinaus («wählt der Mensch am Beleg»); eine Zahl **unverändert** –
     // ob sie gilt, sagt der Server (`Beleg._clean_presets`), nicht dieses Formular.
     ...Object.fromEntries(VOUCHER_PRESETS.map(({ key }) => {
@@ -511,7 +537,7 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
     lines: [], target: '',
     // **Die Vorgabe ist die EINNAHME** (#791). Die Richtung bleibt eine ausdrückliche
     // Angabe – der Server verlangt sie (`Beleg.clean_config`).
-    direction: 'in', parties: [], instruction: '', presets: blankPresets(),
+    direction: 'in', parties: [], instruction: '', presets: blankPresets(), prices: [],
   };
 }
 

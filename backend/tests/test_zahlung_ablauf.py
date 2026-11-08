@@ -567,6 +567,10 @@ def test_return_repair_and_cancelled_return(db):
     assert {u.status for u in units} == {st.VERKAUFT}
     fix = _again(db, units, [{"module_type": "datenerfassung",
                               "config": {"points": [{"label": "OK", "type": "bool"}]}}])
+    from app.services import order_state
+    assert order_state.deviation_flags(db, [fix.id])[fix.id] is False, (
+        "Ein Service am verkauften Stück ist ein regulärer Start (statuses.REGULAR_STARTS) – "
+        "das Stück ruht beim Kunden, niemandem wird etwas entzogen.")
     _run_capture(db, fix)
     assert {u.status for u in _units(db, row.unit_ids)} == {st.VERKAUFT}, (
         "Eine Reparatur ohne Zahlungsmodul ändert nichts am Eigentum.")
@@ -583,11 +587,34 @@ def test_return_repair_and_cancelled_return(db):
         payment_days=30)
     _do(db, back, bstep, "agree", party=who.object_id)
     assert svc.sold_units(db, row.unit_ids) == set(), "Die Retoure «an uns» hebt den Verkauf auf."
+    assert order_state.deviation_flags(db, [back.id])[back.id] is False, (
+        "Eine Retoure ist keine Abweichung – belegt ist sie durch ihre Zahlung «geht an uns».")
     _do(db, back, bstep, "revoke")
     assert svc.sold_units(db, row.unit_ids) == set(row.unit_ids), (
         "Eine stornierte Retoure zählt nicht – es gilt wieder der Verkauf.")
     _run_capture(db, back)
     assert {u.status for u in _units(db, row.unit_ids)} == {st.VERKAUFT}
+
+
+def test_sold_units_are_never_offered_or_consumed(db):
+    """**Regulär starten heisst nicht «frei bei uns».** Ein verkauftes Stück darf ein Auftrag
+    greifen (Service, Retoure), aber FIFO schlägt es nie vor, und kein Verbrauch nimmt es.
+
+    Bug-Form, gegen die das prüft: ``statuses.START_BEFORE`` (oder die Bestandsfrage) auf die
+    Menge ``REGULAR_STARTS`` umgestellt – dann verbaute ein Auftrag den Kran des Kunden.
+    """
+    from app.domain import statuses as st
+    from app.models import Article, Instance
+    from app.services import consumption
+    order, step, row, who = _sold(db)
+    units = _units(db, row.unit_ids)
+    assert {u.status for u in units} == {st.VERKAUFT}
+    inst = db.query(Instance).filter(Instance.id == units[0].instance_id).first()
+    art = db.query(Article).filter(Article.id == inst.article_id).first()
+    assert st.VERKAUFT in st.REGULAR_STARTS
+    assert st.VERKAUFT not in st.IN_STOCK_UNIT_STATUSES, "FIFO schlägt nur vor, was im Regal liegt."
+    free = {u.id for u, *_ in consumption._free(db, art.object_id).all()}
+    assert not free & {u.id for u in units}, "Ein verkauftes Stück wird nie verbaut."
 
 
 def test_module_presets_are_fixed(db):
@@ -596,6 +623,64 @@ def test_module_presets_are_fixed(db):
     assert row.payment_days == 10
     with pytest.raises(HTTPException):
         _do(db, order, step, "terms", payment_days=30)
+
+
+def _with_prices(db, step, order, price="890.00"):
+    """Dem eingefrorenen Modul einen Preis je Artikel vorgeben – wie es der Editor täte."""
+    from app.models import Article, OrderLine
+    line = db.query(OrderLine).filter(OrderLine.order_id == order.id).first()
+    art = db.query(Article).filter(Article.id == line.article_id).first()
+    step.config = {**step.config, "prices": [{"article": art.object_id, "price": price}]}
+    db.flush()
+    return art
+
+
+def test_module_price_is_fixed_on_the_voucher(db):
+    """**Ein vorgegebener Preis steht im Beleg fest** – an der Zeile, in der Ansicht und gegen
+    das Verb ``price``. Ohne Vorgabe bleibt alles wie heute."""
+    from decimal import Decimal
+    from fastapi import HTTPException
+    from app.services import voucher_head
+    order, step, row, who = _scene(db, first=True)
+    _with_prices(db, step, order)
+    lines = voucher_head.sync_lines(db, row, order, step)
+    assert [ln.price for ln in lines] == [Decimal("890.00")]
+    assert [x["fixed_price"] for x in voucher_head.embed_lines(db, row)] == [True]
+    with pytest.raises(HTTPException) as exc:
+        _do(db, order, step, "price", lines=[{"id": lines[0].id, "price": "100.00"}])
+    assert "im Modul vorgegeben" in exc.value.detail
+    # Derselbe Preis (die Oberfläche schickt ihn mit, wenn sie den Satz ändert) ist kein Fehler.
+    _do(db, order, step, "price", lines=[{"id": lines[0].id, "price": "890.00"}])
+
+
+def test_without_a_preset_the_price_is_typed(db):
+    from app.services import voucher_head
+    order, step, row, who = _scene(db, first=True)
+    lines = voucher_head.sync_lines(db, row, order, step)
+    assert [ln.price for ln in lines] == [None]
+    assert [x["fixed_price"] for x in voucher_head.embed_lines(db, row)] == [False]
+    _do(db, order, step, "price", lines=[{"id": lines[0].id, "price": "100.00"}])
+
+
+def test_price_presets_are_checked_strictly():
+    """Nur bei einer Einnahme, je Artikel einmal, mit einem Preis; gespeichert normalisiert."""
+    from fastapi import HTTPException
+    from app.domain import modules
+    beleg = modules.get("beleg")
+    ok = beleg.clean_config({"direction": "in",
+                             "prices": [{"article": 100000123, "price": "890,5"}]})
+    assert ok["prices"] == [{"article": 100000123, "price": "890.50"}]
+    assert modules.Beleg.prices_of(ok) == {100000123: __import__("decimal").Decimal("890.50")}
+    assert beleg.clean_config({"direction": "in"})["prices"] == []
+    for bad in ({"direction": "out", "prices": [{"article": 1, "price": "1"}]},
+                {"direction": "in", "prices": [{"article": 1, "price": "1"},
+                                               {"article": 1, "price": "2"}]},
+                {"direction": "in", "prices": [{"article": 1, "price": ""}]},
+                {"direction": "in", "prices": [{"article": None, "price": "1"}]},
+                {"direction": "in", "prices": [{"article": 1, "price": "-5"}]},
+                {"direction": "in", "prices": "890"}):
+        with pytest.raises(HTTPException):
+            beleg.clean_config(bad)
 
 
 def test_manual_confirm_of_a_payment_module_is_refused(db):

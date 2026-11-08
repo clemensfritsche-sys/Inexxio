@@ -37,7 +37,7 @@ from .voucher import (
 from .voucher_head import (
     account_for, business_possible, destination, document_head, embed_lines,
     fit_to_address, freeze, has_goods, incoterm_place_of, is_export, issuer_company,
-    services_of, sync_lines,
+    preset_prices, services_of, sync_lines,
 )
 from .voucher_money import (
     AUTO_RELEASE, book, follow_up, papers_due, refundable,
@@ -410,9 +410,15 @@ def _currency(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     gibt es, wo wir den Preis nennen, nur mit einer Lieferadresse im Ausland (``can``).
     """
     try:
-        row.currency = cur.assert_code(data.get("currency"))
+        code = cur.assert_code(data.get("currency"))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    # **Ein vorgegebener Preis steht in der Hauswährung** – umgerechnet wird nichts, also
+    # gälte er in einer anderen Währung als eine andere Zahl.
+    if code != row.currency and preset_prices(db, row, step):
+        raise HTTPException(status_code=400, detail=(
+            f"Die Preise sind im Modul in {row.currency} vorgegeben – die Währung bleibt."))
+    row.currency = code
 
 
 def _issuer(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -534,13 +540,20 @@ def _price(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     rows = {ln.id: ln for ln in sync_lines(db, row, order, step)}
     delivery, seat = destination(db, row)
     kinds = services_of(db, list(rows.values()))
+    fixed = preset_prices(db, row, step)
     for raw in data.get("lines") or []:
         found = rows.get(_int(raw.get("id")))
         if found is None:
             continue
         if flow.quoted_by == vo.BY_US:
             if "price" in raw:
-                found.price = amount_of(raw.get("price"), row.currency, allow_negative=True)
+                price = amount_of(raw.get("price"), row.currency, allow_negative=True)
+                # **Was das Modul vorgibt, ändert man am Modul** (wie ``_reject_fixed``).
+                if found.article_id in fixed and price != fixed[found.article_id]:
+                    raise HTTPException(status_code=400, detail=(
+                        "Dieser Preis ist im Modul vorgegeben – ändern lässt er sich dort, "
+                        "nicht am Beleg."))
+                found.price = price
             if "part" in raw:
                 found.part = amount_of(raw.get("part"), row.currency)
             if "vat" in raw:

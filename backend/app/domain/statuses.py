@@ -93,11 +93,12 @@ GESPERRT = "gesperrt"
 #: Was niemand mehr schreibt, kostet nichts; was die Vergangenheit trägt, wird nicht
 #: gelöscht – der Ereignis-Log ist append-only und liest dieses Wort.
 #:
-#: **Nicht endgültig**, und das ist dieselbe Entscheidung wie dort: eine Retoure ist real.
-#: Ein Auftrag darf das Stück greifen – **das Greifen IST die Rücknahme**, es gibt keinen
-#: «Retoure annehmen»-Endpunkt. Und weil sein Start damit vom Regelstart abweicht, ist der
-#: Vorgang **automatisch** eine Abweichung (``order_state.deviation_flags``) und steht im
-#: Nachweis, ohne dass jemand ihn einträgt.
+#: **Nicht endgültig**: ein Auftrag darf das Stück greifen – für einen **Service** beim
+#: Kunden (Prüfung, Wartung, Reparatur) ebenso wie für eine **Retoure**. Beides ist ein
+#: **regulärer Start** (``REGULAR_STARTS``): das Stück ruht beim Kunden, niemandem wird etwas
+#: entzogen. Ob es danach uns gehört, sagt allein die Zahlung («geht an uns»,
+#: ``voucher.sold_units``) – sie ist der Nachweis der Retoure; es gibt keinen «Retoure
+#: annehmen»-Endpunkt.
 #:
 #: **Historie**, denn es liegt nicht mehr in unserem Regal: FIFO schlägt es nicht vor, der
 #: Bestand zählt es nicht mit – wählbar bleibt es trotzdem. Genau diese beiden Fragen führt
@@ -322,6 +323,16 @@ SELECTABLE_UNIT_STATUSES: tuple[str, ...] = tuple(
 #: Dieser Übergang IST die Aktion «Auftrag freigeben».
 START_BEFORE = FREIGEGEBEN
 START_AFTER = IM_PROZESS
+
+#: ►►► **Womit ein Auftrag regulär beginnt** – was **ruht**: in keinem Auftrag, nicht gesperrt,
+#: in nichts verbaut. ◄◄◄ Bei uns (``FREIGEGEBEN``) oder bei der Partei (``VERKAUFT`` – der
+#: Service am Kran des Kunden ist kein Ausnahmefall). Jeder andere Start ist eine Abweichung
+#: (``order_state.deviation_flags``, PROCESS_CORE §12.2): ein Stück einem laufenden Auftrag
+#: entziehen, eine Sperre aufheben, etwas ausbauen.
+#:
+#: **Nicht dasselbe wie «frei bei uns»**: FIFO und Verbrauch nehmen weiterhin nur
+#: ``FREIGEGEBEN`` – ein Kundenstück wird nie vorgeschlagen und nie verbaut.
+REGULAR_STARTS: frozenset[str] = frozenset({FREIGEGEBEN, VERKAUFT})
 
 #: Ende: Vorher ist fest. Das **Nachher** ist ``FREIGEGEBEN`` – oder ``VERKAUFT``, wenn
 #: das Stück einer anderen Partei gehört (``process._finish``). Genau einmal hinterlegt.

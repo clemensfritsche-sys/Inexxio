@@ -17380,6 +17380,11 @@
             ],
             "title": "Price"
           },
+          "fixed_price": {
+            "type": "boolean",
+            "title": "Fixed Price",
+            "default": false
+          },
           "vat": {
             "type": "string",
             "title": "Vat",

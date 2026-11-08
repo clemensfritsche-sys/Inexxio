@@ -653,7 +653,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
                     : o.status === VERBAUT
                       ? 'Verbaut – steckt in einem anderen Stück; der Auftrag baut es aus (Abweichung)'
                       : o.status === VERKAUFT
-                        ? 'Verkauft – gehört einer anderen Partei; der Auftrag holt es zurück, etwa für eine Reparatur oder Retoure (Abweichung)'
+                        ? 'Verkauft – gehört einer anderen Partei; ein regulärer Start, etwa für Service, Reparatur oder eine Retoure'
                         : `Steht auf «${statusLabel(o.status)}» – zählt nicht zum Bestand; daraus wird eine Abweichung`;
               return (
                 <button

@@ -13,6 +13,7 @@ Die Spalten ``status_before``/``status_after`` bleiben (sie sind der Mechanismus
 sie werden nur nicht mehr **gefragt**, sondern von hier gefüllt.
 """
 
+from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from fastapi import HTTPException
@@ -516,9 +517,11 @@ class Beleg(Module):
     Angabe genau ihre Frage, und der Beleg braucht kein ``if`` dafür: **leer heisst «gemäss
     Spezifikation»** – eine vollständige Aussage, keine fehlende Angabe.
 
-    Kein Betrag, keine Menge, kein Artikel, kein Termin, kein Steuersatz: alles davon
-    steht beim Modellieren nicht fest. **Was gehandelt wird, sagt der Prozess** – die
-    Einzelinstanzen, die vor dem Modul stehen, tragen ihren Artikel.
+    Keine Menge, kein Artikel, kein Termin, kein Steuersatz: alles davon steht beim
+    Modellieren nicht fest. **Was gehandelt wird, sagt der Prozess** – die Einzelinstanzen,
+    die vor dem Modul stehen, tragen ihren Artikel. **Vorgeben** darf das Modul, was für jeden
+    Auftrag gleich ist: Fristen, Lieferbedingung, Eigentum (``PRESETS``) und – bei einer
+    Einnahme – den Einzelpreis je Artikel (``PRICES``).
 
     ## Die eine Regel, die es robust macht: es bewegt keine Stücke
 
@@ -566,6 +569,69 @@ class Beleg(Module):
         """**Die Vorgaben des Moduls** – nur, was wirklich gesetzt ist."""
         data = config or {}
         return {k: data[k] for k in cls.PRESETS if data.get(k) not in (None, "")}
+
+    #: ►►► **Preise als Vorgabe** – je Artikel ein Einzelpreis, netto, in der Hauswährung. ◄◄◄
+    #: Eine Vorgabe wie die übrigen: was hier steht, steht im Beleg fest; wo kein Preis steht,
+    #: setzt ihn der Mensch in der Offerte. **Nur bei einer Einnahme** – bei einer Ausgabe
+    #: nennt die Partei den Preis. Den **Steuersatz** gibt es hier nicht: ihn entscheidet die
+    #: Anschrift (``voucher_head.fit_to_address``), eine Vorgabe daneben wäre eine zweite
+    #: Wahrheit.
+    PRICES = "prices"
+    #: Mehr ist keine Vorgabe mehr, sondern eine Preisliste.
+    MAX_PRICES = 50
+
+    @classmethod
+    def prices_of(cls, config: Optional[dict[str, Any]]) -> dict[int, Decimal]:
+        """**Die vorgegebenen Preise** – Objektnummer des Artikels → Einzelpreis (netto).
+
+        Gelesen tolerant (geschrieben wurde streng, ``_clean_prices``): eine Zeile, die sich
+        nicht lesen lässt, gibt keinen Preis vor – sie macht ihn nicht zu null.
+        """
+        out: dict[int, Decimal] = {}
+        for row in (config or {}).get(cls.PRICES) or []:
+            try:
+                out[int(row["article"])] = Decimal(str(row["price"]))
+            except (KeyError, TypeError, ValueError, InvalidOperation):
+                continue
+        return out
+
+    def _clean_prices(self, value: Any, flow: "vo.Direction") -> list[dict[str, Any]]:
+        """Die Preis-Vorgaben **streng** prüfen. Leer ist die Regel: der Preis kommt in der
+        Offerte."""
+        from . import currency as cur
+        if value in (None, ""):
+            return []
+        if not isinstance(value, (list, tuple)):
+            raise HTTPException(status_code=400,
+                                detail="Vorgegebene Preise sind eine Liste je Artikel.")
+        if value and flow.quoted_by != vo.BY_US:
+            raise HTTPException(status_code=400, detail=(
+                f"Bei einer «{flow.label}» nennt die Partei den Preis – vorgeben lässt er "
+                f"sich nur, wo wir ihn nennen."))
+        if len(value) > self.MAX_PRICES:
+            raise HTTPException(status_code=400, detail=(
+                f"Höchstens {self.MAX_PRICES} vorgegebene Preise je Modul."))
+        rows: list[dict[str, Any]] = []
+        seen: set[int] = set()
+        for entry in value:
+            raw = entry if isinstance(entry, dict) else {}
+            number = self._object_id(raw.get("article"))
+            if number is None:
+                raise HTTPException(status_code=400,
+                                    detail="Zu einem vorgegebenen Preis gehört ein Artikel.")
+            if number in seen:
+                raise HTTPException(status_code=400, detail=(
+                    f"Artikel {number} hat schon einen vorgegebenen Preis."))
+            try:
+                price = vo.amount(raw.get("price"), cur.DEFAULT)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            if price is None:
+                raise HTTPException(status_code=400,
+                                    detail=f"Zu Artikel {number} fehlt der Preis.")
+            seen.add(number)
+            rows.append({"article": number, "price": str(price)})
+        return rows
 
     def _clean_presets(self, data: dict[str, Any]) -> dict[str, Any]:
         """Die Vorgaben streng prüfen – leer heisst «wählt der Mensch am Beleg»."""
@@ -618,6 +684,7 @@ class Beleg(Module):
             self.PARTIES: self._clean_parties(data.get(self.PARTIES), flow),
             self.INSTRUCTION: self._clean_instruction(data.get(self.INSTRUCTION)),
             **self._clean_presets(data),
+            self.PRICES: self._clean_prices(data.get(self.PRICES), flow),
             "points": [], "sample": dict(sampling.DEFAULT),
         }
 
