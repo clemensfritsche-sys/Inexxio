@@ -62,7 +62,7 @@ def website_url() -> str:
     return get_settings().frontend_base_url.rstrip("/")
 
 # Eine Plattform-Konfiguration in der Datenbank gibt es nicht: der Google-Maps-Schlüssel
-# kommt aus dem Deploy (``config.google_maps_api_key``). Die ``iban`` ist verschlüsselt.
+# kommt aus dem Deploy (``config.google_maps_api_key``).
 
 
 def legal_name(company: Any) -> str:

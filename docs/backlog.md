@@ -8,10 +8,10 @@ steht nicht hier, sondern in `docs/history/` (zuletzt `2026-10-backlog-erledigt.
 
 ## Zwei-Deploy-Regel: vorgemerkte Drops
 
-**Offen (Aufräumen 1, Migration 175 entmappt, 176 droppt):** `is_active` an 23 Tabellen, an
+Heute keiner. Zuletzt gefallen (Aufräumen 1, Migration 176): `is_active` an 23 Tabellen, an
 denen nie gelöscht wird; `created_by` an `attachments`, `document_refs`, `document_links`,
 `holidays`; `captures.captured_by`; `articles.process_version`, `process_steps.source_version`;
-`orders.name`; `instances.label`; `vouchers.original_id`, `export_photo_id`. Zuletzt gefallen: `message_parties.person_object_id` samt Brücke und Index
+`orders.name`; `instances.label`; `vouchers.original_id`, `export_photo_id`. Davor: `message_parties.person_object_id` samt Brücke und Index
 (Migration 169, ersetzt durch `object_id`); davor die Tabellen `audit_log` und `process_events` (Migration 167,
 durch das Log ersetzt); davor `orders.end_status`, `user_profiles.department`, `job_title`
 (Migration 165). Ganze Tabellen stehen dazwischen in `PENDING_DROP_TABLES`.

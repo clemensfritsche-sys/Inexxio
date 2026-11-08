@@ -364,7 +364,7 @@ def test_a_module_shows_its_own_matter_in_every_state():
     #    Lösung. Wer die Aktiv-Verzweigung in eine eigene Konstante zieht (und den Beleg
     #    damit *noch* eindeutiger davor stellt), liess sie anschlagen, obwohl die Regel
     #    besser erfüllt ist als vorher. Gemessen, nachgeschärft, gegengeprüft.
-    body = src[src.index("const stepBody ="):src.index("// **Ohne Prozessbild")]
+    body = src[src.index("const stepBody ="):src.index("if (!(order.flow?.nodes ?? []).length)")]
     tree = body[body.index("return ("):]
     assert "<BelegWork" in tree, "Der Vorgang steht nicht mehr im gerenderten Baum."
     ahead = tree[:tree.index("<BelegWork")]

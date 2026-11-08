@@ -246,9 +246,9 @@ def test_our_own_bank_account_is_not_masked():
         "Es wird wieder maskiert (b)."
     )
     # (c) – das Attribut heisst wie das Feld der Antwort (B-47), also trägt sie es von
-    # selbst; die Spalte bleibt ``iban_encrypted`` (keine Migration).
+    # selbst; die Spalte heisst ebenso (Migration 176).
     from app.models import CompanySettings
-    assert CompanySettings.iban.property.columns[0].name == "iban_encrypted"
+    assert CompanySettings.iban.property.columns[0].name == "iban"
     company = CompanySettings(company_name="X", legal_form="AG", email="", is_own=True,
                               is_operator=False, is_active=True, country="CH",
                               currency="CHF", iban="CH9300762011623852957")

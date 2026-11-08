@@ -58,9 +58,8 @@ class CompanySettings(Base):
     #: der Datenbank**: eine Dublette ist unmöglich.
     uid_key: Mapped[Optional[str]] = mapped_column(String(20))
     name_key: Mapped[Optional[str]] = mapped_column(String(320))
-    # Bank = **eine** Zahl: die IBAN. Die Spalte heisst ``iban_encrypted``; verschlüsselt
-    # wird nichts (sie steht auf jeder Rechnung).
-    iban: Mapped[Optional[str]] = mapped_column("iban_encrypted", Text)
+    #: Bank = **eine** Zahl: die IBAN (Klartext – sie steht auf jeder Rechnung).
+    iban: Mapped[Optional[str]] = mapped_column(Text)
     email: Mapped[str] = mapped_column(String(255), default="")
     phone: Mapped[Optional[str]] = mapped_column(String(50))
     #: ►►► **Zeiterfassung einer eigenen Gesellschaft**: der Kanton (er
