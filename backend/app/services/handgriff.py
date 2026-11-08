@@ -8,7 +8,8 @@ Person (``core/auth.ACTING``) und denselben Prüfungen. Es gibt keinen zweiten W
 * **Welche Handlungen** ein Handgriff sein können, folgt aus der Route selbst, ohne Liste
   (``operations``): sie schreibt (nicht ``GET``), verlangt Personal (``require_employee`` oder
   ``require_admin``) und nimmt JSON. Eine Route mit Datei braucht die Hand. Der Assistent
-  bereitet nichts an sich selbst vor (Routen aus ``routers/assistant``).
+  bereitet nichts an sich selbst vor (Routen aus ``routers/assistant``), und nichts an der
+  Anmeldung von Claude (``routers/mcp``).
 * **Probelauf** (``call(..., probe=True)``): in eigener Sitzung ganz durch, dann verworfen.
   Was dabei nach aussen ginge oder zwischendurch speicherte, gibt ``NeedsHand``
   (``core/outside``).
@@ -103,7 +104,7 @@ def _routes(reading: bool) -> tuple[Operation, ...]:
         methods = set(c.methods or ()) - {"HEAD"}
         if not isinstance(route, APIRoute) or not methods or (methods <= {"GET"}) != reading:
             continue
-        if route.endpoint.__module__.endswith("routers.assistant"):
+        if route.endpoint.__module__.endswith(("routers.assistant", "routers.mcp")):
             continue
         calls = _calls(route.dependant)
         # Lesen darf die KI, was jedes Personal darf – nur Admin ist für sie nicht lesbar.
@@ -230,17 +231,19 @@ def said(detail: Any) -> str:
     return str(detail or "")
 
 
-def look(path: str, params: Optional[dict[str, Any]] = None) -> Outcome:
+def look(path: str, params: Optional[dict[str, Any]] = None,
+         viewer: Optional[UserProfile] = None) -> Outcome:
     """►►► **Lesen, was das ERP zeigt** – eine lesende Route, durch dieselbe Tür wie ein Klick,
-    mit den Rechten, die jedes Personal hat (``ai_tools.reader``). In eigener Sitzung, danach
+    mit den Rechten, die jedes Personal hat (``ai_tools.reader``) – oder mit denen von ``viewer``,
+    wenn das Ergebnis allein bei ihm bleibt (MCP). In eigener Sitzung, danach
     verworfen und ohne Weg nach aussen: ein Lesepfad, der nebenbei schreibt, hinterlässt nichts. ◄◄◄"""
     from ..core.auth import ACTING
     from .ai_tools import reader
     if operation_for("GET", path, reads()) is None:
         return Outcome(400, detail=f"«GET {path}» ist nichts, was das ERP zeigt.")
     db = SessionLocal()
-    act(db, "ai", None, "handgriff")
-    tokens = (AMBIENT.set(db), ACTING.set(reader()))
+    act(db, "ai", viewer.object_id if viewer is not None else None, "handgriff")
+    tokens = (AMBIENT.set(db), ACTING.set(viewer or reader()))
     try:
         with outside.probe():
             res = _request("GET", path, None, {k: v for k, v in (params or {}).items() if v is not None})
@@ -423,6 +426,11 @@ class Handgriff:
         return self.payload.get("talk")
 
     @property
+    def private(self) -> bool:
+        """Die Person hat ihn für sich vorbereiten lassen – im «+» oder in ihrem Claude (MCP)."""
+        return self.talk is not None or self.payload.get("mcp") is not None
+
+    @property
     def depends(self) -> list[int]:
         return [int(d) for d in self.payload.get("depends") or []]
 
@@ -459,8 +467,9 @@ def get(db: Session, hid: int) -> Handgriff:
 
 def may(h: Handgriff, viewer: UserProfile) -> bool:
     """►►► **Wer einen Handgriff sieht und entscheidet**: aus einem Gespräch nur, wer es führt
-    (und der Admin) – ein Gespräch ist privat; aus einer Mail jedes Personal. ◄◄◄"""
-    if h.talk is None:
+    (und der Admin) – ein Gespräch ist privat, ebenso was ihr Claude vorbereitet (MCP); aus einer
+    Mail jedes Personal. ◄◄◄"""
+    if not h.private:
         return True
     return viewer.role == "admin" or h.actor_id == viewer.object_id
 
@@ -534,7 +543,7 @@ def fill_or_raw(path: str) -> str:
 
 def prepare(db: Session, person: UserProfile, *, method: str, path: str, body: Any, line: str,
             home: int, talk: Optional[int] = None, mail: Optional[int] = None,
-            depends: Optional[list[int]] = None) -> tuple[Optional[int], Outcome]:
+            mcp: Optional[int] = None, depends: Optional[list[int]] = None) -> tuple[Optional[int], Outcome]:
     """►►► **Einen Handgriff vorbereiten** – erst der Probelauf (als ``person``; offene
     Handgriffe, auf die er wartet, laufen davor mit), dann das Ereignis ``handgriff``. Geht er
     nicht, entsteht nichts, und das ``Outcome`` sagt warum (die KI korrigiert). Was nur von Hand
@@ -564,6 +573,8 @@ def prepare(db: Session, person: UserProfile, *, method: str, path: str, body: A
         payload["talk"] = talk
     if mail is not None:
         payload["mail"] = mail
+    if mcp is not None:
+        payload["mcp"] = mcp
     hid = log.event(db, "handgriff", target, payload, kind="ai", actor=person.object_id)
     return hid, out
 
@@ -674,7 +685,8 @@ def view(db: Session, found: list[Handgriff]) -> list[Any]:
             line=str(h.payload.get("line") or ""), method=h.payload.get("method") or "",
             path=h.payload.get("path") or "", body=h.payload.get("body"),
             state=state_of(h, bool(waits)), result=(h.done or {}).get("result"),
-            source=mails.get(int(h.payload.get("mail") or 0), "Gespräch"), talk=h.talk,
+            source=mails.get(int(h.payload.get("mail") or 0),
+                                "Claude" if h.payload.get("mcp") is not None else "Gespräch"), talk=h.talk,
             hand=str(h.payload.get("hand") or ""), missing=str(h.payload.get("missing") or ""),
             waits_for=waits,
             summary=op.summary if op else ""))
@@ -695,7 +707,7 @@ def _mail_sources(db: Session, ids: list[int]) -> dict[int, str]:
 _OPEN_AT = text("""
 SELECT h.id FROM log h
  WHERE h.event = 'handgriff' AND h.object_id = :o
-   AND (h.payload ->> 'talk' IS NULL OR h.actor_id = :me)
+   AND ((h.payload ->> 'talk' IS NULL AND h.payload ->> 'mcp' IS NULL) OR h.actor_id = :me)
    AND NOT EXISTS (SELECT 1 FROM log x WHERE x.event IN ('handgriff.done', 'handgriff.dropped')
                      AND (x.payload ->> 'handgriff')::bigint = h.id)
  ORDER BY h.id""")

@@ -144,6 +144,20 @@
     ],
     "rewrites": [
       {
+        "source": "/.well-known/oauth-**",
+        "run": {
+          "serviceId": "inexxio-backend-dev",
+          "region": "europe-west6"
+        }
+      },
+      {
+        "source": "/.well-known/openid-configuration",
+        "run": {
+          "serviceId": "inexxio-backend-dev",
+          "region": "europe-west6"
+        }
+      },
+      {
         "source": "/api/**",
         "run": {
           "serviceId": "inexxio-backend-dev",

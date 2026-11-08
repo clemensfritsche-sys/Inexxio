@@ -26,7 +26,7 @@ export function AuthGate({ staffOnly = false, children }: {
     return onAuthChange(async (user) => {
       if (!user) {
         checked = null;
-        router.replace(`/login?from=${window.location.pathname}`);
+        router.replace(`/login?from=${encodeURIComponent(window.location.pathname + window.location.search)}`);
         return;
       }
       if (checked === user.uid) return;

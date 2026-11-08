@@ -238,6 +238,10 @@ export type BelegNote = components['schemas']['NoteOut'];
 export type Station = components['schemas']['StationOut'];
 /** Die Seite eines Dokuments (`/dokument?t=…`) – Papier, Unterschriften, Handlungen. */
 export type PublicDocument = components['schemas']['PublicDocument'];
+/** Claude verbinden (MCP): wer will, die Adresse zurück, meine Verbindungen. */
+export type McpAsk = components['schemas']['AskOut'];
+export type McpApprove = components['schemas']['ApproveOut'];
+export type McpGrant = components['schemas']['GrantOut'];
 /** AGB, Datenschutz oder Impressum als A4-Dokument bzw. Link auf die Datei. */
 export type LegalText = components['schemas']['LegalOut'];
 /** Eine Runde Verfassen (KI) – das Papier als A4-HTML, nichts gespeichert. */

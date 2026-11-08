@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * **Sicherheit** – der letzte Abschnitt der Konto-Seite: die Anmelde-E-Mail, die Passkeys und
- * das Abmelden.
+ * **Sicherheit** – der letzte Abschnitt der Konto-Seite: die Anmelde-E-Mail, die Passkeys, für
+ * Personal die Verbindungen mit Claude (`claude-card`) und das Abmelden.
  *
  * **Die Anmelde-E-Mail ändern** (für jede Anmeldeart, auch Google): zuerst fragt der Server,
  * ob die Adresse frei ist (`api.checkMyEmail`, dieselbe Regel wie beim Übernehmen), dann
@@ -18,6 +18,8 @@ import { api } from '@/lib/api';
 import { logout, reauthenticate, updateEmailAddress } from '@/lib/firebase';
 import { KtField, KtSection } from '@/components/form/kt-section';
 import { PasskeysCard } from './passkeys-card';
+import { ClaudeCard } from './claude-card';
+import { isStaff } from '@/lib/record-status';
 import { errorText } from '@/lib/use-action';
 
 /** Die neue Adresse über eine Neuanmeldung hinweg (der Magic Link öffnet oft einen neuen Tab). */
@@ -137,6 +139,8 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
       </div>
 
       <PasskeysCard />
+
+      {isStaff(profile.role) && <ClaudeCard />}
 
       <a className="kt-out" href="/abmelden"><LogOut size={18} aria-hidden />Abmelden</a>
     </KtSection>

@@ -20,7 +20,7 @@ from .domain import timekeeping as timekeeping_domain
 from .routers import (
     admin, articles, assistant, attachments, auth, communication, contact, documents, erp, legal,
     health, history, internal, website,
-    instances, newsletter, orders, passkey, payments, payments_list, places,
+    instances, mcp, newsletter, orders, passkey, payments, payments_list, places,
     public_documents, recordings, timekeeping,
 )
 
@@ -284,6 +284,7 @@ app.include_router(timekeeping.router)
 app.include_router(assistant.router)
 app.include_router(recordings.router)
 app.include_router(internal.router)
+app.include_router(mcp.router)
 
 
 @app.get("/")

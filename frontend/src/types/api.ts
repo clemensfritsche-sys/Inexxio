@@ -2822,6 +2822,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp/oauth/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Request Of
+         * @description Welcher Claude-Client verbunden werden will und wohin er zurückkehrt.
+         */
+        get: operations["request_of_api_v1_mcp_oauth_request_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/oauth/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve
+         * @description Claude verbinden (oder nicht) – die Antwort ist die Adresse zurück zum Client.
+         */
+        post: operations["approve_api_v1_mcp_oauth_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Grants
+         * @description Meine Verbindungen mit Claude – je erlaubtem Client eine.
+         */
+        get: operations["my_grants_api_v1_auth_me_mcp_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/mcp/{grant_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke
+         * @description Eine Verbindung mit Claude trennen – ab sofort kommt dieser Client nicht mehr hinein.
+         */
+        post: operations["revoke_api_v1_auth_me_mcp__grant_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -2953,6 +3033,21 @@ export interface components {
             is_default_delivery: boolean;
             /** Is Default Billing */
             is_default_billing: boolean;
+        };
+        /** ApproveIn */
+        ApproveIn: {
+            /** R */
+            r: string;
+            /** Allow */
+            allow: boolean;
+        };
+        /**
+         * ApproveOut
+         * @description Die Adresse zurück zum Client (mit Code oder Absage).
+         */
+        ApproveOut: {
+            /** Redirect */
+            redirect: string;
         };
         /** ArtOut */
         ArtOut: {
@@ -3258,6 +3353,16 @@ export interface components {
              * @description Was noch fehlt – leer heisst freigebbar.
              */
             missing?: string[];
+        };
+        /**
+         * AskOut
+         * @description Welcher Claude-Client verbunden werden will – und wohin er zurückkehrt.
+         */
+        AskOut: {
+            /** Client */
+            client: string;
+            /** Host */
+            host: string;
         };
         /** Attachment */
         Attachment: {
@@ -4342,6 +4447,21 @@ export interface components {
              * @default true
              */
             still_in: boolean;
+        };
+        /**
+         * GrantOut
+         * @description Eine Verbindung mit Claude – je erlaubtem Client eine.
+         */
+        GrantOut: {
+            /** Id */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Client */
+            client: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -12278,6 +12398,121 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TickOut"];
+                };
+            };
+        };
+    };
+    request_of_api_v1_mcp_oauth_request_get: {
+        parameters: {
+            query: {
+                r: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_api_v1_mcp_oauth_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApproveOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_grants_api_v1_auth_me_mcp_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantOut"][];
+                };
+            };
+        };
+    };
+    revoke_api_v1_auth_me_mcp__grant_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grant_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -60,10 +60,11 @@ src/app/
 ├── (account)/konto/     ← «Mein Konto»: EINE Seite (Person · Adressen · Firma · Newsletter · Sicherheit) – Spiegel des eigenen Benutzer-Datensatzes
 └── (erp)/erp/           ← Universal Feed (Master-Detail) – die EINZIGE ERP-Oberfläche;
                            erfassen/ = dasselbe «+» zum Einbetten (die Website zeigt es Personal
-                           in einem Rahmen, `html[data-embed]`: ohne Kopf und Fuss)
+                           in einem Rahmen, `html[data-embed]`: ohne Kopf und Fuss);
+                           verbinden/ = «Claude verbinden» (MCP: erlauben → zurück zum Client)
 src/components/
 ├── erp/       ← alle ERP-Bauteile (siehe unten)
-├── account/   ← account-shell (Kopf mit dem Namen als grossem Wort, Sprungleiste), sections/ (profile, security, passkeys)
+├── account/   ← account-shell (Kopf mit dem Namen als grossem Wort, Sprungleiste), sections/ (profile, security, passkeys, claude-card = Verbindungen mit Claude über MCP)
 ├── auth/      ← login-dialog, passkey-nudge, auth-gate (Schutz von /erp und /konto, `staffOnly`)
 ├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label,
 │                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)

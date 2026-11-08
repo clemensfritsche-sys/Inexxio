@@ -7232,6 +7232,184 @@
         ]
       }
     },
+    "/api/v1/mcp/oauth/request": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "Request Of",
+        "description": "Welcher Claude-Client verbunden werden will und wohin er zurückkehrt.",
+        "operationId": "request_of_api_v1_mcp_oauth_request_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "r",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "R"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/oauth/approve": {
+      "post": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "Approve",
+        "description": "Claude verbinden (oder nicht) – die Antwort ist die Adresse zurück zum Client.",
+        "operationId": "approve_api_v1_mcp_oauth_approve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApproveOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/me/mcp": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "My Grants",
+        "description": "Meine Verbindungen mit Claude – je erlaubtem Client eine.",
+        "operationId": "my_grants_api_v1_auth_me_mcp_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GrantOut"
+                  },
+                  "type": "array",
+                  "title": "Response My Grants Api V1 Auth Me Mcp Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/me/mcp/{grant_id}/revoke": {
+      "post": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "Revoke",
+        "description": "Eine Verbindung mit Claude trennen – ab sofort kommt dieser Client nicht mehr hinein.",
+        "operationId": "revoke_api_v1_auth_me_mcp__grant_id__revoke_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Grant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantOut"
+                  },
+                  "title": "Response Revoke Api V1 Auth Me Mcp  Grant Id  Revoke Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -7563,6 +7741,38 @@
           "is_default_billing"
         ],
         "title": "AddressOut"
+      },
+      "ApproveIn": {
+        "properties": {
+          "r": {
+            "type": "string",
+            "title": "R"
+          },
+          "allow": {
+            "type": "boolean",
+            "title": "Allow"
+          }
+        },
+        "type": "object",
+        "required": [
+          "r",
+          "allow"
+        ],
+        "title": "ApproveIn"
+      },
+      "ApproveOut": {
+        "properties": {
+          "redirect": {
+            "type": "string",
+            "title": "Redirect"
+          }
+        },
+        "type": "object",
+        "required": [
+          "redirect"
+        ],
+        "title": "ApproveOut",
+        "description": "Die Adresse zurück zum Client (mit Code oder Absage)."
       },
       "ArtOut": {
         "properties": {
@@ -8301,6 +8511,25 @@
         "type": "object",
         "title": "ArticleValidation",
         "description": "Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."
+      },
+      "AskOut": {
+        "properties": {
+          "client": {
+            "type": "string",
+            "title": "Client"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client",
+          "host"
+        ],
+        "title": "AskOut",
+        "description": "Welcher Claude-Client verbunden werden will – und wohin er zurückkehrt."
       },
       "Attachment": {
         "properties": {
@@ -10864,6 +11093,31 @@
         ],
         "title": "GenealogyPart",
         "description": "Ein Teil in einer Stückliste – **abgeleitet**, nicht gespeichert.\n\n``still_in`` trennt die beiden Fragen, die eine Stückliste beantworten muss: *was\nwurde verbaut* (der Log, unveränderlich) und *was steckt heute noch drin* (der\nZustand). Ein ausgebautes Teil bleibt in der Liste – die Vergangenheit bekommt eine\nFortsetzung, sie wird nicht gelöscht."
+      },
+      "GrantOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "client": {
+            "type": "string",
+            "title": "Client"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "client"
+        ],
+        "title": "GrantOut",
+        "description": "Eine Verbindung mit Claude – je erlaubtem Client eine."
       },
       "HTTPValidationError": {
         "properties": {

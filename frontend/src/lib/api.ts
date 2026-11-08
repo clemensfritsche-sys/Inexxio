@@ -35,7 +35,7 @@ import type {
   PaymentSetup,
   TransferInfo,
   DocumentSummary, DocumentDetail, DocumentProposal, DocumentTarget, RecordRef,
-  CompanySettingsUpdate, PublicDocument, LegalText, VoucherPapers, ComposeResult, UploadResult,
+  CompanySettingsUpdate, PublicDocument, LegalText, McpAsk, McpApprove, McpGrant, VoucherPapers, ComposeResult, UploadResult,
   Talk, TalkFile, Handgriff, HandgriffOperation, HandgriffRun, HandgriffProbe, Pinned, Recording,
 } from '@/types';
 import type {
@@ -345,6 +345,28 @@ class ApiClient {
    *  `prepareVoucherPayment`); gebucht wird vom Webhook. */
   prepareDocumentPayment(token: string): Promise<PaymentSetup> {
     return this.post(`/api/v1/public/document/${encodeURIComponent(token)}/payment`, {});
+  }
+
+  // ─── Claude (MCP): verbinden und trennen (`routers/mcp.py`) ─────────────────
+
+  /** Welcher Claude-Client verbunden werden will (Seite `/erp/verbinden`). */
+  mcpRequest(r: string): Promise<McpAsk> {
+    return this.get(`/api/v1/mcp/oauth/request?r=${encodeURIComponent(r)}`);
+  }
+
+  /** Erlauben oder ablehnen – die Antwort ist die Adresse zurück zum Client. */
+  mcpApprove(r: string, allow: boolean): Promise<McpApprove> {
+    return this.post('/api/v1/mcp/oauth/approve', { r, allow });
+  }
+
+  /** Meine Verbindungen mit Claude. */
+  myMcpGrants(): Promise<McpGrant[]> {
+    return this.get('/api/v1/auth/me/mcp');
+  }
+
+  /** Eine Verbindung trennen – die Antwort sind die übrigen. */
+  revokeMcpGrant(id: number): Promise<McpGrant[]> {
+    return this.post(`/api/v1/auth/me/mcp/${id}/revoke`, {});
   }
 
   /** **Ein Rechtstext, wie er heute gilt** (AGB · Datenschutz · Impressum) – als A4-Dokument. */

@@ -25,9 +25,10 @@ Oberfläche. Was ``reader`` nicht sehen darf, gibt es für die KI nicht («nicht
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -184,10 +185,12 @@ def reader() -> UserProfile:
     return UserProfile(role="employee")
 
 
-def tools_for(db: Session) -> list[Tool]:
+def tools_for(db: Session, viewer: Optional[UserProfile] = None) -> list[Tool]:
     """►►► **Die Werkzeuge für einen Aufruf** – gebunden an ``reader()``, nie an die Person, in
-    deren Namen die KI arbeitet (ihr Ergebnis sehen alle). ◄◄◄"""
-    viewer = reader()
+    deren Namen die KI arbeitet (ihr Ergebnis sehen alle). Nur wo das Ergebnis allein bei der
+    Person bleibt (ihr eigener Claude über MCP, ``services/mcp``), liest sie mit deren Rechten
+    (``viewer``). ◄◄◄"""
+    viewer = viewer or reader()
     return [
         Tool("find", "Sucht Datensätze (Personen, Firmen, Aufträge, Artikel, Instanzen) nach "
                      "Objektnummer oder Name. Gibt «Nummer · Typ · Name» je Treffer.",
@@ -206,6 +209,81 @@ def tools_for(db: Session) -> list[Tool]:
                        "Für «gab es das schon?», «wie war das damals?».",
              {"frage": {"type": "string", "description": "Worum es geht, in eigenen Worten"}},
              lambda a: _knowledge(db, a.get("frage")), doing="sucht im Wissen:"),
+    ]
+
+
+#: Vorbereiten: (Methode, Pfad, Werte, Zeile, wartet auf) → (Handgriff oder None, Ergebnis).
+Prepare = Callable[[str, str, Any, str, list[int]], tuple[Optional[int], Any]]
+
+
+def erp_tools(prepare: Prepare, viewer: Optional[UserProfile] = None,
+              where: Callable[[int], str] = lambda hid: "") -> list[Tool]:
+    """►►► **Was das ERP kann – EINE Stelle für jede KI** (das «+», Claude über MCP): nachschlagen,
+    abrufen (eine lesende Route mit den Rechten von ``viewer``, sonst ``reader``), vorbereiten
+    (Probelauf, dann ein Handgriff; ``prepare`` sagt, wo er hingehört; ``where`` hängt an, wo ihn
+    die Person findet). Ausführen gehört nicht hierher – das entscheidet die Person. ◄◄◄"""
+    from . import handgriff
+
+    def find_ops(a: dict[str, Any]) -> str:
+        found = handgriff.find(str(a.get("woerter") or ""))
+        return "\n".join(f"{o.key} – {o.summary}" + (" (lesen: `abrufen`)" if o.method == "GET" else "")
+                         + (" (nur Admin)" if o.admin else "")
+                         + (" (nur von Hand: Datei)" if o.hand else "") for o in found) or "Nichts."
+
+    def fetch(a: dict[str, Any]) -> str:
+        try:
+            params = json.loads(a.get("abfrage_json") or "null") or {}
+        except ValueError as exc:
+            return f"Die Abfrage ist kein JSON: {exc}"
+        out = handgriff.look(str(a.get("pfad") or ""), params if isinstance(params, dict) else {},
+                             viewer=viewer)
+        if not out.ok:
+            return f"Geht nicht ({out.status}): {out.detail}"
+        return json.dumps(out.data, ensure_ascii=False, default=str)
+
+    def describe(a: dict[str, Any]) -> str:
+        op = handgriff.operation(str(a.get("handlung") or ""))
+        if op is None:
+            return "Diese Handlung gibt es nicht – schlage mit `handlungen` nach."
+        return f"{op.key}\n{op.summary}\nWerte (JSON-Schema): {json.dumps(op.schema, ensure_ascii=False)}"
+
+    def prepared(a: dict[str, Any]) -> str:
+        method, _, path = str(a.get("handlung") or "").partition(" ")
+        try:
+            body = json.loads(a.get("werte_json") or "null")
+        except ValueError as exc:
+            return f"Die Werte sind kein JSON: {exc}"
+        hid, out = prepare(method, str(a.get("pfad") or path), body, str(a.get("zeile") or ""),
+                           [int(x) for x in a.get("wartet_auf") or []])
+        if hid is None:
+            return f"Geht nicht ({out.status}): {out.detail}"
+        if handgriff.incomplete(out):
+            return (f"Vorbereitet als Handgriff {hid}, noch unvollständig: {out.detail} – die Person "
+                    f"ergänzt es im Entwurf.{where(hid)}")
+        return (f"Vorbereitet als Handgriff {hid}" + (f" – geht nur von Hand ({out.hand})." if out.hand
+                                                       else ".") + where(hid))
+
+    int_list = {"type": "array", "items": {"type": "integer"}}
+    return [
+        Tool("handlungen", "Was das ERP kann und zeigt, zu Stichwörtern: Schlüssel und Satz "
+             "(lesende mit `abrufen`, schreibende mit `vorbereiten`).",
+             {"woerter": {"type": "string"}}, find_ops, doing="schlägt nach:"),
+        Tool("handlung", "Felder einer Handlung bzw. Angaben einer Abfrage (Schlüssel "
+             "«METHODE /pfad»).", {"handlung": {"type": "string"}}, describe,
+             doing="liest die Handlung"),
+        Tool("abrufen", "Lesen, was das ERP zeigt – eine lesende Route (`GET`). `pfad` konkret "
+             "(Platzhalter durch Nummern ersetzt), `abfrage_json` die Abfrage als JSON-Objekt "
+             "(oder {}).",
+             {"pfad": {"type": "string"}, "abfrage_json": {"type": "string"}}, fetch,
+             doing="ruft ab:"),
+        Tool("vorbereiten", "Einen Handgriff vorbereiten – mit Probelauf. `handlung` ist der "
+             "Schlüssel, `pfad` der konkrete Pfad (Platzhalter durch Nummern ersetzt), "
+             "`werte_json` die Werte als JSON, `zeile` ein Satz, was geschieht, mit Nummer "
+             "und Name. Braucht er, was ein anderer Handgriff anlegt: dessen Nummer in "
+             "`wartet_auf` und in den Werten {\"$handgriff\": nummer}.",
+             {"handlung": {"type": "string"}, "pfad": {"type": "string"},
+              "werte_json": {"type": "string"}, "zeile": {"type": "string"},
+              "wartet_auf": int_list}, prepared, doing="bereitet vor:", shows="zeile"),
     ]
 
 

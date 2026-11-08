@@ -134,6 +134,7 @@ scripts/
 | Der Takt | `tick.py` (`TASKS`: Siegel, Wiederholungen (`loop`), Mails, Aufnahmen (`voice`), KI – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
 | Der Assistent (Phase 5, `docs/konzept/phase5-bauplan.md`) | `handgriff.py` (Handlungen aus den Routen `operations`, das Lesbare `reads` + `look` (jede lesende Route des Personals, als `ai_tools.reader`, verworfen), `incomplete` (fehlen nur Werte → Karte mit `missing`), `call` über ASGI mit den Rechten der Person – Probelauf oder Ausführen genau einmal; der vorbereitete Handgriff im Log: `prepare` mit Probelauf, `run` (wartet auf · inzwischen geändert), `probe`, `drop`, `settle`, `open_at`, `open_mail_counts`), `talk.py` (das Gespräch: `say`, die KI `answer` mit Werkzeugen lesen · abrufen · nachschlagen · vorbereiten · weglegen · ausführen auf ein Wort – eine Sperre je Gespräch, «Stopp» über `talk.stop`; `stream` live in eigenem Faden, `catch_up` im Takt; `clean` putzt Steuerzeichen), `ai.py` (die Tür: `converse` mit Werkzeugen, Schritten live `on_step` und `stopped`, Zwischenspeicher `cache_control`, Dauer `ms` je `ai.call`, Deckel in Franken), `ai_tools.py` (Lese-Werkzeuge als gemeinsamer Betrachter, dazu `wissen`), `memory.py` (im Wissen suchen: Notizen, Dokumente, entschiedene Handgriffe, pgvector), `pins.py` (das Angeheftete: offene Handgriffe + Wissen, neu gewählt nur bei Änderung im Umfeld), `surroundings.py` (das Umfeld aus dem Log, die Marke), `follow.py` (Handgriffe aus einer eingehenden Mail, im Takt), `core/outside.py` (nach aussen erst nach dem Speichern; im Probelauf `NeedsHand`) |
 | Sprache (Phase 4, `docs/konzept/phase4-bauplan.md`) | `recordings.py` (EINE Stelle: `start`, `add_chunk`, `stop`, `advance` – Abschnitte der Reihe nach über `ai.transcribe` → `recording.segment`, dann EINE Nachricht im Gespräch im Namen der Person → `recording.done`, Stücke weg; `due`/`sweep` für den Takt, `dismiss` verwirft eine gescheiterte; `context` = die Stecknadel vor dem Text), `ai.py` (`transcribe`, Gemini über `_vertex` – dieselbe Stelle wie `embed`), Stücke in `recording_chunks` (nicht im Log), Bytes über `attachments.put_object` (eigener Bucket `RECORDINGS_BUCKET`, sonst die Zeile) |
+| Claude über MCP | `mcp.py` (Metadaten, Client/Code/Zugang signiert, `token`, `bearer`, `grants`/`revoke`, JSON-RPC `handle` mit den Werkzeugen des «+» als die Person), Route `routers/mcp.py`, Projektakte `docs/konzept/mcp.md` |
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
@@ -154,7 +155,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **146 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **159 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -248,6 +249,11 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `/api/v1/erp/assistant/handgriffe/{id}/run` | staff (Gespräch: selbst · Admin) | **Ausführen** – genau einmal, mit meinen Rechten, durch die echte Route; `body` nur mit geänderten Werten; 409 wartet auf · inzwischen geändert · schon ausgeführt · nur von Hand |
 | POST | `/api/v1/erp/assistant/handgriffe/{id}/probe` · `/drop` · `/done` | staff (Gespräch: selbst · Admin) | Probelauf einer geänderten Fassung · **Weg** · von Hand erledigt (Entwurf freigegeben, `result`) |
 | GET · POST | `/api/v1/erp/assistant/pins/{object_id}` · `/refresh` | staff | **Das Angeheftete**: offene Handgriffe + Wissen, `stale` und `mark` (Umfeld) · das Wissen neu wählen (nur bei Änderung im Umfeld, sonst kein Aufruf) |
+| GET | `/.well-known/oauth-protected-resource` · `/oauth-authorization-server` · `/openid-configuration` | – | **MCP**: wo und wie man sich anmeldet (RFC 9728 · 8414) |
+| POST | `/api/v1/mcp/oauth/register` · GET `/authorize` · POST `/token` | – (PKCE, signiert) | OAuth 2.1 für jeden Claude-Client: anmelden (ohne Speichern) · weiter zu `/erp/verbinden` · Code oder Erneuerung gegen Zugang (`mcp.grant`) |
+| GET · POST | `/api/v1/mcp/oauth/request?r=` · `/approve` | staff | Die Seite «Claude verbinden»: wer will · erlauben/ablehnen → Adresse zurück zum Client |
+| POST | `/api/v1/mcp` | – (Zugang aus MCP) | **Das Protokoll** (JSON-RPC: `initialize` · `ping` · `tools/list` · `tools/call`) als die Person; ohne Zugang 401 mit `resource_metadata`; GET 405 |
+| GET · POST | `/api/v1/auth/me/mcp` · `/{grant_id}/revoke` | staff | Meine Verbindungen mit Claude · trennen (`mcp.revoked`) |
 | POST | `/api/v1/erp/recordings` | staff | **Aufnahme beginnen** (`{hint_object_id?, mime, context?}`; `context` = die Stecknadel, steht vor dem Text) → `recording.start`; `Recording` (`services/recordings`) |
 | POST | `/api/v1/erp/recordings/{id}/chunks` | staff (nur wer aufnimmt) | **Ein Stück** (multipart `segment`, `seq`, `file`; ≤ 4 MB; dasselbe Stück ersetzt es; nach Ende 409) |
 | POST | `/api/v1/erp/recordings/{id}/stop` | staff (nur wer aufnimmt) | **Stopp** (`{segments}`) → `recording.stop` |

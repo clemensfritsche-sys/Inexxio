@@ -395,6 +395,16 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
 - **Das «+» auf der Website** (`website/src/scripts/capture.ts`): nur für angemeldetes Personal;
   öffnet `/erp/erfassen` (dasselbe «+») in einem Rahmen – das Gespräch läuft dort, die Stecknadel
   zeigt auf die Website, «Neu anlegen» und «Entwurf öffnen» springen ins ERP (`?neu=…&handgriff=…`).
+- **Claude über MCP** (`services/mcp.py`, `routers/mcp.py`, Projektakte `docs/konzept/mcp.md`):
+  der eigene Claude der Person (Claude.ai, Desktop, Code) verbindet sich mit `/api/v1/mcp` und
+  arbeitet **als die Person** – mit denselben Werkzeugen wie das «+» (`ai_tools.tools_for` ·
+  `erp_tools`), aber mit ihren Rechten. Er liest und bereitet vor; ein Handgriff aus Claude ist
+  privat (`payload.mcp`) und wird im Angehefteten am Datensatz ausgeführt (Ausführen über MCP ist
+  der nächste Schritt). Anmelden ist OAuth 2.1 über die bestehende Anmeldung, **ohne Tabelle**:
+  Client-Kennung, Code und Zugang sind signiert (`core/signed`), der Code (PKCE S256) gilt genau
+  einmal (`mcp.grant`, eindeutiger Index), getrennt ist getrennt (`mcp.revoked`, Konto ·
+  Sicherheit); nur Personal. Erlauben auf `/erp/verbinden`; das Hosting leitet
+  `/.well-known/oauth-*` an den Dienst. Protokoll: JSON-RPC über einen `POST`, ohne SDK.
 - **Handgriffe aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person liest die
   KI im Takt und bereitet Handgriffe am Datensatz vor (Probelauf mit den Rechten der Person, die
   das Postfach verbunden hat); sie stehen im Angehefteten und zählen dort in «zu tun» – wer ihn
@@ -781,7 +791,8 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   vor – alles, was das ERP kann, mit Probelauf, ausgeführt nur von der Person, genau einmal;
   Handgriffe aus Mails am Datensatz; das Angeheftete mit dem Wissen, das jetzt zählt; im Wissen
   suchen nach Bedeutung; Deckel in Franken (siehe «Der Assistent»); Rückmeldungen zur Software
-  als Notiz an den Artikeln «ERP» und «Website».
+  als Notiz an den Artikeln «ERP» und «Website»; **Claude über MCP** (lesen, vorbereiten) für
+  jeden Claude-Client der Person.
 - **Speichern an einer Stelle**: jede Anfrage speichert einmal, am Ende (`core/database.get_db`,
   ganz oder gar nicht); was nach aussen geht (Mails, Dateien, Zahlung, KI), geschieht erst danach
   bzw. nie in einem Probelauf (`core/outside`).
@@ -800,7 +811,7 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 - Dokumente: automatische Freigabe einzelner Papiere (`voucher.AUTO_RELEASE`); Zugriff von
   aussen auf Dokumente (heute nur über einen Link).
 - Der Assistent: Lektionen (ab ~100 Fällen) · «Notiz gehört woandershin» als Handlung
-  (`communication.move_note` steht bereit) · MCP-Zugang mit denselben Werkzeugen · Massenänderungen
+  (`communication.move_note` steht bereit) · Ausführen über MCP (`docs/konzept/mcp.md`) · Massenänderungen
   (eine eigene Handlung im ERP, dann kann die KI sie) · Schwärzen der Bedeutungs-Zahlen.
 - Bewusst offen: Werkzeug-/Prüfmittel-Nachweis (`SYSTEM_LOGIC.md` §5.9), Shop
   (`docs/backlog.md`), offene-Posten-Liste je Partner, TOTP-MFA.

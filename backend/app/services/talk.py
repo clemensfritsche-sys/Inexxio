@@ -263,43 +263,9 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
     nur ein Satz an die KI."""
     from . import ai_tools
 
-    def find_ops(a: dict[str, Any]) -> str:
-        found = handgriff.find(str(a.get("woerter") or ""))
-        return "\n".join(f"{o.key} – {o.summary}" + (" (lesen: `abrufen`)" if o.method == "GET" else "")
-                         + (" (nur Admin)" if o.admin else "")
-                         + (" (nur von Hand: Datei)" if o.hand else "") for o in found) or "Nichts."
-
-    def fetch(a: dict[str, Any]) -> str:
-        try:
-            params = json.loads(a.get("abfrage_json") or "null") or {}
-        except ValueError as exc:
-            return f"Die Abfrage ist kein JSON: {exc}"
-        out = handgriff.look(str(a.get("pfad") or ""), params if isinstance(params, dict) else {})
-        if not out.ok:
-            return f"Geht nicht ({out.status}): {out.detail}"
-        return json.dumps(out.data, ensure_ascii=False, default=str)
-
-    def describe(a: dict[str, Any]) -> str:
-        op = handgriff.operation(str(a.get("handlung") or ""))
-        if op is None:
-            return "Diese Handlung gibt es nicht – schlage mit `handlungen` nach."
-        return f"{op.key}\n{op.summary}\nWerte (JSON-Schema): {json.dumps(op.schema, ensure_ascii=False)}"
-
-    def prepare(a: dict[str, Any]) -> str:
-        method, _, path = str(a.get("handlung") or "").partition(" ")
-        try:
-            body = json.loads(a.get("werte_json") or "null")
-        except ValueError as exc:
-            return f"Die Werte sind kein JSON: {exc}"
-        hid, out = handgriff.prepare(db, person, method=method, path=str(a.get("pfad") or path),
-                                     body=body, line=str(a.get("zeile") or ""), home=home,
-                                     talk=talk_id, depends=list(a.get("wartet_auf") or []))
-        if hid is None:
-            return f"Geht nicht ({out.status}): {out.detail}"
-        if handgriff.incomplete(out):
-            return (f"Vorbereitet als Handgriff {hid}, noch unvollständig: {out.detail} – die Person "
-                    "ergänzt es im Entwurf.")
-        return f"Vorbereitet als Handgriff {hid}" + (f" – geht nur von Hand ({out.hand})." if out.hand else ".")
+    def prepare(method: str, path: str, body: Any, line: str, depends: list[int]):
+        return handgriff.prepare(db, person, method=method, path=path, body=body, line=line,
+                                 home=home, talk=talk_id, depends=depends)
 
     def drop(a: dict[str, Any]) -> str:
         h = _mine(db, talk_id, int(a.get("handgriff") or 0))
@@ -314,27 +280,7 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
         h, out = handgriff.run(db, person, h.id)
         return f"Ausgeführt ({h.id})." if out.ok else f"Nicht ausgeführt: {out.detail or out.hand}"
 
-    int_list = {"type": "array", "items": {"type": "integer"}}
-    return [*ai_tools.tools_for(db),
-            ai.Tool("handlungen", "Was das ERP kann und zeigt, zu Stichwörtern: Schlüssel und Satz "
-                    "(lesende mit `abrufen`, schreibende mit `vorbereiten`).",
-                    {"woerter": {"type": "string"}}, find_ops, doing="schlägt nach:"),
-            ai.Tool("handlung", "Felder einer Handlung bzw. Angaben einer Abfrage (Schlüssel "
-                    "«METHODE /pfad»).", {"handlung": {"type": "string"}}, describe,
-                    doing="liest die Handlung"),
-            ai.Tool("abrufen", "Lesen, was das ERP zeigt – eine lesende Route (`GET`) mit den Rechten "
-                    "jedes Personals. `pfad` konkret (Platzhalter durch Nummern ersetzt), "
-                    "`abfrage_json` die Abfrage als JSON-Objekt (oder {}).",
-                    {"pfad": {"type": "string"}, "abfrage_json": {"type": "string"}}, fetch,
-                    doing="ruft ab:"),
-            ai.Tool("vorbereiten", "Einen Handgriff vorbereiten – mit Probelauf. `handlung` ist der "
-                    "Schlüssel, `pfad` der konkrete Pfad (Platzhalter durch Nummern ersetzt), "
-                    "`werte_json` die Werte als JSON, `zeile` ein Satz, was geschieht, mit Nummer "
-                    "und Name. Braucht er, was ein anderer Handgriff anlegt: dessen Nummer in "
-                    "`wartet_auf` und in den Werten {\"$handgriff\": nummer}.",
-                    {"handlung": {"type": "string"}, "pfad": {"type": "string"},
-                     "werte_json": {"type": "string"}, "zeile": {"type": "string"},
-                     "wartet_auf": int_list}, prepare, doing="bereitet vor:", shows="zeile"),
+    return [*ai_tools.tools_for(db), *ai_tools.erp_tools(prepare),
             ai.Tool("weglegen", "Einen Handgriff dieses Gesprächs weglegen (die Person will ihn "
                     "nicht, oder du ersetzt ihn durch einen neuen).",
                     {"handgriff": {"type": "integer"}}, drop, doing="legt weg: Handgriff"),
