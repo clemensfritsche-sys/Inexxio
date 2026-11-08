@@ -1,7 +1,7 @@
 # Projektakte «Wiederkehrende Aufträge»
 
 > **Kopfstatus:** in Klärung · **nichts gebaut** · Lead: Claude · Entscheid: Clemens Fritsche ·
-> seit 06.11.2026 · zuletzt 08.11.2026 (achte Runde) · Bauplan: `docs/konzept/wiederkehr-bauplan.md`
+> seit 06.11.2026 · zuletzt 08.11.2026 (neunte Runde) · Bauplan in §8
 > Bild (Ist-Stand 1:1, Schlaufe, Abo): https://claude.ai/artifact/Lk5AKy8G1CTWi68ZxA57uj
 > Diese Akte ist die **eine** Quelle für Ziel, Grundsätze, Vorschläge und Entscheide. Das Bild
 > zeigt, die Akte hält fest. Was hier nicht als entschieden steht, ist nicht entschieden.
@@ -10,27 +10,32 @@
 ## 0 · Kurzfassung (zum Prüfen)
 
 **So funktioniert es**
-1. Ein ganz gewöhnlicher Auftrag wird angelegt und freigegeben. Er ist die **Vorlage**. Unter
-   seinem Ziel steht ein Schalter «einmalig ↔ wiederholt sich»; die Linie läuft vom Ziel zurück
-   an den Anfang.
+1. Die Schlaufe wird **im Entwurf** eines ganz gewöhnlichen Auftrags eingeschaltet: unter dem Ziel
+   der Schalter «einmalig ↔ wiederholt sich»; die Linie läuft vom Ziel zurück an den Anfang. Mit
+   der Freigabe ist sie eingefroren wie alles am Auftrag. Nach der Freigabe lässt sich keine mehr
+   einschalten.
 2. **Eingestellt wie ein Dauerauftrag:** wie oft, ab wann, bis wann (unbefristet · Datum ·
    Anzahl). Je Lager-Zeile: «gleiche Einzelinstanzen» oder «FIFO»; eine Zeile «Neu» erzeugt jedes
    Mal neu. Fällt der Tag auf den 29.–31., gilt in kürzeren Monaten der letzte Tag.
-3. **Der Takt prüft alle 5 Minuten:** Ist eine Periode fällig und hat noch keinen Auftrag, stellt
-   er dieselbe Frage wie der Knopf «Freigeben», dazu: wäre es eine Abweichung?
+3. **Der Takt prüft alle 5 Minuten:** Ist der nächste Termin eines Auftrags mit Schlaufe erreicht
+   und hat er noch keinen Nachfolger, stellt er dieselbe Frage wie der Knopf «Freigeben», dazu:
+   wäre es eine Abweichung? Der Nachfolger ist eine **1:1-Kopie**: dieselben Module, dieselben
+   Zeilen, **dieselbe Schlaufe**.
    - nichts fehlt → der Auftrag entsteht sofort (im Namen der Person, die die Schlaufe setzte),
    - fehlt gerade → er **wartet** und fragt wieder; die Zahl am Symbol nennt den Grund,
    - fehlt für immer → **geht nicht mehr**; nur «Beenden».
-4. **Jede Wiederholung ist ein gewöhnlicher Auftrag.** Keine Periode geht verloren, je Periode
-   höchstens einer, nacheinander. Aufträge von Hand gehen jederzeit und verschieben nichts.
+4. **Jede Wiederholung ist ein gewöhnlicher Auftrag.** Jeder Auftrag hat höchstens **einen**
+   Nachfolger; so entsteht eine Kette, und keine Periode geht verloren. Aufträge von Hand gehen
+   jederzeit und verschieben nichts. Ein Auftrag ist nach seinem Ziel abgeschlossen, für immer.
 5. **Zahlung wie bei jedem Auftrag:** Was im Modul vorgegeben ist (Partei, Eigentum, Fristen,
    neu auch Positionen mit Preis), kommt mit. Was beim Ausführen gewählt wird (Anschrift, ein
    offener Preis), wird beim Ausführen gewählt, mit dem neuesten Stand. **Immer dieselben
    Schritte:** Offerte → Zusage → Rechnung. Hat die Partei die Wiederholung schon zugesagt und
    sind alle Preise vorgegeben, **macht das System Offerte und Zusage selbst** und schreibt
    dazu, worauf es sich stützt. Die Rechnung geht mit «Prüfen und freigeben».
-6. **Beenden** jederzeit, von jedem Auftrag der Schlaufe aus, endgültig. Was läuft, läuft fertig.
-   Weiter geht es mit einem neuen Auftrag. Setzen und beenden darf jede Person mit ERP-Zugang.
+6. **Beenden** jederzeit, am **neuesten** Auftrag der Kette (dem ohne Nachfolger), endgültig. Was
+   läuft, läuft fertig. Ältere Aufträge zeigen nur «weiter in Auftrag …». Ändern gibt es nicht;
+   weiter geht es mit einem neuen Auftrag. Setzen und beenden darf jede Person mit ERP-Zugang.
 
 **Was sich an Bestehendem ändert**
 - **«Verkauft» wird ein regulärer Start** (keine Abweichung mehr). FIFO und Verbrauch nehmen
@@ -41,8 +46,9 @@
   einer Wiederholung führt das System Offerte und Zusage mit denselben Verben aus, die sonst ein
   Mensch auslöst (PROCESS_CORE §13.6 wird angepasst). Dazu, allgemein und nicht nur für die
   Schlaufe: **Positionen mit Preis als Vorgabe im Zahlungsmodul.**
-- **Keine neue Tabelle.** Die Schlaufe besteht aus drei Ereignissen im Log (§4b). Fällig,
-  nächster, wartet: alles abgeleitet.
+- **Keine neue Tabelle.** Die Schlaufe besteht aus drei Ereignissen im Log (§4b). Es gibt keine
+  «Vorlage» und keine Urreferenz: jeder Auftrag trägt seine eigene Schlaufe. Fällig, nächster,
+  wartet: alles abgeleitet.
 
 **Bewusst nicht:** Vorlauf (später), Fristen für den Kunden (mit dem Shop), Liefersperre bei
 unbezahlt, Zähler wie Betriebsstunden, Wieder einschalten, Kopie als Entwurf.
@@ -101,8 +107,10 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
     monatlich · vierteljährlich · halbjährlich · jährlich), erste Ausführung, Ende
     (unbefristet · am Datum · nach Anzahl). Nichts Eigenes erfinden (07.11.2026, → O10).
 16. **Setzen, ändern und beenden darf jede Person mit ERP-Zugang** (07.11.2026, O11).
-17. **Die Schlaufe gehört allen Aufträgen, die aus ihr entstehen.** Jeder zeigt dieselbe
-    Einstellung, und beendet werden kann sie von jedem aus.
+17. **Jede Wiederholung ist eine 1:1-Kopie ihres Vorgängers, Schlaufe eingeschlossen**
+    (entschieden 08.11.2026). Es gibt keine Vorlage und keine Urreferenz; jeder Auftrag hat
+    höchstens einen Nachfolger. Ein abgeschlossener Auftrag bleibt abgeschlossen, für immer.
+    Beendet wird am neuesten Auftrag der Kette.
 18. **Beenden ist endgültig, wie bei einem Dauerauftrag** (07.11.2026). Es gibt kein «Wieder
     einschalten» und keine Kopie als Entwurf. Wer weitermachen will, legt einen neuen Auftrag
     mit eigener Schlaufe an.
@@ -196,18 +204,22 @@ nachbauen.
 
 | Ereignis | an | Nutzlast | wann |
 |---|---|---|---|
-| `loop.set` | Vorlage-Auftrag | wie oft, ab, bis, je Lager-Zeile «gleiche Einzelinstanzen» oder «FIFO» | beim Einschalten |
-| `loop.created` | neuer Auftrag | Vorlage, Periode | wenn der Takt eine Wiederholung anlegt, **in derselben Transaktion** |
-| `loop.ended` | Vorlage-Auftrag | – | beim Beenden |
+| `loop.set` | der Auftrag | Takt, sein Termin, Ende (Datum oder verbleibende Anzahl), je Lager-Zeile «gleiche Einzelinstanzen» oder «FIFO» | mit seiner Freigabe, **in derselben Transaktion** |
+| `loop.next` | der Nachfolger | Vorgänger, Termin | wenn der Takt den Nachfolger anlegt, **in derselben Transaktion** |
+| `loop.ended` | der Auftrag | – | beim Beenden (nur am neuesten der Kette) |
 
-- **Nie doppelt:** ein eindeutiger Index auf (Vorlage, Periode) für `loop.created`, gebaut wie
-  `ix_log_decided`. Ein zweiter Lauf scheitert an der Datenbank, nicht an einer Prüfung.
-- **Abgeleitet:** «läuft» = es gibt `loop.set` und kein `loop.ended`; «fällig» = eine Periode
-  nach dem Kalender ohne `loop.created`; «wartet» = fällig und die Freigabe-Prüfung sagt «fehlt»;
-  «gehört zur Schlaufe» = der Auftrag hat ein `loop.created`.
+- **Nie doppelt:** ein eindeutiger Index auf den Vorgänger in `loop.next`, gebaut wie
+  `ix_log_decided` – je Auftrag höchstens ein Nachfolger. Ein zweiter Lauf scheitert an der
+  Datenbank, nicht an einer Prüfung.
+- **Der Nachfolger** bekommt sein eigenes `loop.set`: dieselbe Einstellung, der nächste Termin, bei
+  «nach Anzahl» eins weniger. Bei 0 oder nach dem Enddatum entsteht keins mehr – die Kette endet
+  von selbst.
+- **Abgeleitet:** «läuft» = `loop.set`, kein `loop.next` mit ihm als Vorgänger, kein
+  `loop.ended`; «fällig» = sein Termin plus Takt ist erreicht; «wartet» = fällig, und die
+  Freigabe-Prüfung sagt «fehlt»; «weiter in Auftrag …» = sein Nachfolger aus `loop.next`.
 - **Unveränderlich** ist das Log ohnehin; «nur anhängen» braucht keinen eigenen Trigger.
 - **Gestrichen:** die Anzeige «2 Aufträge bisher». Sie braucht niemand, der Verlauf zeigt die
-  Aufträge. Bräuchte man sie, wäre sie eine Zählung von `loop.created` im Log.
+  Aufträge. Bräuchte man sie, wäre sie eine Zählung der Kette im Log.
 - **Und die Zeiterfassung?** (Rückfrage 08.11.2026) Sie bleibt, wie sie ist. Ihre Einträge
   sind Daten, mit denen täglich gerechnet wird (Stundenkonto aus vielen Einträgen, Ersetzungen,
   7-Tage-Regel, nur für die Person sichtbar); dafür ist eine eigene Tabelle richtig, und das Log
@@ -215,9 +227,9 @@ nachbauen.
   heute stünden sie vielleicht dort, aber umbauen brächte nichts. Die Wiederkehr berührt die
   Zeiterfassung nicht.
 - **Die Alternative**, falls Einstellungen im Log stören: eine kleine Tabelle mit append-only
-  Zeilen wie `time_contracts`, dazu eine Spalte am Auftrag für (Schlaufe, Periode) mit
-  eindeutigem Index. Funktioniert genauso, ist eine Tabelle und eine Spalte mehr.
-- Alles, was die Schlaufe tut, steht damit im Log: einschalten, jede Wiederholung, beenden; dazu
+  Zeilen wie `time_contracts`, dazu eine Spalte am Auftrag für den Vorgänger mit eindeutigem
+  Index. Funktioniert genauso, ist eine Tabelle und eine Spalte mehr.
+- Alles, was die Schlaufe tut, steht damit im Log: einschalten, jeder Nachfolger, beenden; dazu
   `tick.loop` (nur wenn etwas getan wurde) und die Freigabe des Auftrags wie bei jedem Auftrag.
 
 ## 5 · Vorschläge
@@ -244,13 +256,13 @@ nachbauen.
   - **Neben einer Abweichung:** Die Schlaufe läuft links (§4), die Abweichung wie heute rechts.
     Gezeichnet mit demselben Liniengenerator (`polyPath`).
   - **Gespeichert** als Ereignisse im Log (§4b). Wiederholt wird die eingefrorene Definition
-    des Vorlage-Auftrags (Module und Zeilen).
+    des Vorgängers (Module, Zeilen, Schlaufe), als 1:1-Kopie.
 - **V4 · Nie doppelt.** Je Schlaufe und Periode höchstens ein Auftrag, eindeutiger Index im Log
   (§4b). «Fällig» und «nächster» sind abgeleitet.
 - **V5 · Die Uhr ist der Takt** (gebaut): eine Aufgabe in `services/tick.TASKS`. Sie darf
   beliebig oft laufen, ohne etwas doppelt anzulegen (V4).
 - **V6 · Abo durchgespielt** (bestätigt 07.11.2026): Artikel «INEXXIO 365», eine Instanz je
-  Abo. Der Vorlage-Auftrag hat genau dieses Stück und ein Modul Zahlung (Einnahme, «geht an
+  Abo. Der erste Auftrag hat genau dieses Stück und ein Modul Zahlung (Einnahme, «geht an
   die Partei»). Jeden Monat entsteht derselbe Auftrag mit einer Rechnung. Einsätze (Reparatur,
   Ersatzgerät) sind gewöhnliche Aufträge daneben. Geht nur zusammen mit V1.
 
@@ -265,7 +277,7 @@ nachbauen.
   - **Neu, allgemein:** Positionen mit Preis als Vorgabe im Zahlungsmodul, neben den heutigen
     `VOUCHER_PRESETS`. Das nützt jedem Auftrag, nicht nur der Schlaufe.
   - **Der Beleg geht jedes Mal Offerte → Zusage → Rechnung.** Kein Schritt wird übersprungen,
-    keine Stufe wird gesetzt. Die Offerte der Vorlage nennt die Wiederholung (aus `loop.set`:
+    keine Stufe wird gesetzt. Die Offerte des ersten Auftrags nennt die Wiederholung (aus `loop.set`:
     «jährlich, ab 14.11.2027, bis auf Widerruf»). Hat die Partei sie angenommen und sind **alle**
     Preise vorgegeben, führt das System in jeder Wiederholung **Anbieten und Zusagen selbst aus –
     mit denselben Verben** (`VERBS`), die sonst ein Mensch auslöst, als Handelnder «System» im
@@ -292,21 +304,21 @@ nachbauen.
     ein Stück z. B. auf `Gesperrt` (die letzte Prüfung ist durchgefallen), gilt das als «fehlt
     gerade» – sonst entstünde eine Wiederholung als Abweichung (Grundsatz 3).
   - Ist die Antwort «es fehlt …», entsteht nichts. Die Sätze stehen als Zahl oben am Symbol des
-    Vorlage-Auftrags (Hover) und im Feed «zu tun» (`services/todo`, wie anstehende Papiere).
+    neuesten Auftrags der Kette (Hover) und im Feed «zu tun» (`services/todo`, wie anstehende Papiere).
   - Alle 5 Minuten wird neu gefragt. Ist die Antwort leer, entsteht der Auftrag sofort.
   - **Keine Periode geht verloren** (Grundsatz 5): Ist schon die nächste fällig, entstehen sie
     der Reihe nach, wegen der Exklusivität immer einer nach dem anderen. Je Periode höchstens
     ein Auftrag heisst nur «nie doppelt», nicht «auslassen».
   - Bei zu wenig Bestand (FIFO) bietet «zu tun» wie im Verbrauch «Nachschub anlegen» an.
 - **O4 · Vorlauf** – später. Idee: «fertig bis» statt «beginnt am», mit der Dauer aus dem Log
-  gelernt (wie lange die letzten Wiederholungen liefen; beim ersten Mal die Vorlage selbst).
+  gelernt (wie lange die letzten Wiederholungen liefen; beim ersten Mal der erste Auftrag selbst).
   Nichts eintippen.
 - **O5 · Kunde sieht Fristen** – später, mit dem Shop.
 - **O6 · Stück weg** (verschrottet, Artikel ersetzt) – entschieden 07.11.2026: dieselbe Regel
   wie O3, aber der Grund vergeht nicht. Die Schlaufe steht rot auf «geht nicht mehr», die Zahl am
   Symbol ist rot, und es gibt **nur «Beenden»**, wie bei einem Dauerauftrag (Grundsatz 18). Von
   selbst endet nichts. Bild: Teil 3, Zustand «geht nicht mehr».
-- **Beenden**: «Ab heute beenden» in der Einstellung der Schlaufe, von jedem ihrer Aufträge aus.
+- **Beenden**: «Ab heute beenden» in der Einstellung der Schlaufe, am neuesten Auftrag der Kette.
   Es wird eine Zeile «ab heute: beendet» (append-only, endgültig). Was schon entstanden ist,
   läuft normal zu Ende. Die Linie verschwindet; war sie schon kräftig (es gab Wiederholungen),
   bleibt sie nach prozessbild §8.1a kräftig stehen, und der Schalter sagt «einmalig».
@@ -343,18 +355,19 @@ nachbauen.
 
 ### Letzte Prüfung auf Schlupflöcher (08.11.2026, Vorschläge)
 
-- **O14 · Ändern gibt es nicht.** Die Einstellung wird einmal gesetzt, danach nur beendet – wie ein
+- **O14 · Ändern gibt es nicht** – entschieden 08.11.2026. Die Einstellung wird einmal gesetzt, danach nur beendet – wie ein
   Artikel und ein freigegebener Auftrag. Sonst stünden Grundsatz 6 («änderbar») und 18
   («beenden ist endgültig») gegeneinander.
-- **O15 · Wo man sie setzt:** nur an einem **regulären, freigegebenen** Auftrag (Grundsatz 3), der
-  **selbst keine Wiederholung** ist – sonst liefen zwei Schlaufen über dieselben Stücke. «Ab» ist
-  heute oder später, nie in der Vergangenheit (sonst entstünde beim Einschalten eine Reihe
-  nachgeholter Aufträge).
-- **O16 · Die automatische Zusage braucht die Schlaufe in der angenommenen Offerte.** Wird die
-  Schlaufe erst nach der Annahme gesetzt, hat die Partei der Wiederholung nie zugestimmt; dann
-  beginnt jede Wiederholung bei der Offerte. Der Satz zur Schlaufe ist Teil der angenommenen
-  Fassung (`offered_hash`).
-- **O17 · Verbaut ist «gerade nicht frei», nicht «endgültig weg».** Eine Schlaufe über ein
+- **O15 · Wo man sie setzt** – entschieden 08.11.2026: **nur im Entwurf**, vor der Freigabe, an
+  einem Auftrag, der regulär startet (Grundsatz 3). Nach der Freigabe lässt sich keine Schlaufe
+  mehr einschalten; dann legt man einen neuen Auftrag an. Die Kette (Grundsatz 17) macht
+  «Wiederholung einer Wiederholung» unnötig: jede Wiederholung trägt die Schlaufe ohnehin weiter.
+  «Ab» (der erste Termin) ist heute oder später.
+- **O16 · Die automatische Zusage** – mit O15 erledigt. Weil die Schlaufe vor der Freigabe feststeht,
+  nennt die Offerte des ersten Auftrags sie immer, und die Partei sagt **mit** der Wiederholung zu.
+  Jede Wiederholung stützt sich auf die Zusage ihres Vorgängers (der sich wieder auf seinen stützt);
+  der Vermerk nennt die ursprüngliche Annahme. Fehlt ein Preis, wartet der Beleg bei der Offerte.
+- **O17 · Verbaut ist «gerade nicht frei», nicht «endgültig weg»** – ok 08.11.2026. Eine Schlaufe über ein
   verbautes Stück wartet, bis es ausgebaut ist – womöglich lange. Sichtbar in «zu tun»; beenden
   kann jeder. Endgültig ist nur `Verschrottet` (die eine Stelle: `statuses.terminal`).
 
@@ -380,6 +393,116 @@ und der Weg ist immer eine Handlung, die es schon gibt (Auftrag fertig machen, a
 beenden, neuer Auftrag). Zwei Folgen sind gewollt, aber man muss sie kennen: Eine Schlaufe
 lässt nie still ein Stück weg, und nach langer Blockade kommen die Perioden der Reihe nach.
 
+## 8 · Bauplan (Entwurf 08.11.2026)
+
+Gebaut wird auf einem Feature-Branch (`claude/wiederkehr`); nach `develop` erst nach Freigabe.
+**In zwei Runden**, jede einzeln getestet und deploybar:
+- **Runde 1 – Fundament** (Schritte 0–2): Soll notieren, `Verkauft` regulär, Preise als Vorgabe.
+  Ändert Bestehendes, darum zuerst und für sich auf `inexxio-dev` prüfen.
+- **Runde 2 – die Schlaufe** (Schritte 3–7): Kalender, Log, Takt, Zahlung, Oberfläche, Abschluss.
+  Backend und Oberfläche zusammen, weil die Schlaufe ohne Oberfläche niemand einschalten kann.
+
+### Leitplanken (aus der Akte, verbindlich)
+
+- **Eine Wiederholung ist ein ganz gewöhnlicher Auftrag**, nur ausgelöst vom Takt. Sie entsteht
+  über **denselben Weg wie «Freigeben»** (`orders.validate_draft` → `orders.create_order`). Es
+  gibt keinen zweiten Anlageweg und keine Sonderregel im Prozess.
+- **Nichts Neues, wo es Bestehendes gibt:** der Takt (`services/tick.TASKS`), das Log
+  (Ereignisse, eindeutiger Index wie `ix_log_decided`), die Verben der Zahlung (`VERBS`), «zu tun»
+  (`services/todo`), der Liniengenerator (`polyPath`).
+- **Zwei Formen einer Regel, nie zwei Regeln:** was eine Wiederholung verhindert, sagt **eine**
+  Funktion als Satz (`loop.problem`) und prüft **dieselbe** beim Anlegen.
+- **Keine neue Infrastruktur, keine laufenden Kosten.**
+
+### Schritte
+
+Jeder Schritt ist für sich lauffähig, getestet und einzeln deploybar. Die Reihenfolge folgt den
+Abhängigkeiten.
+
+#### 0 · Soll notieren (nur Doku)
+- `SYSTEM_LOGIC.md`: die neuen Sätze als Soll, **bevor** gebaut wird (Verkauft regulär; je
+  Schlaufe und Periode höchstens ein Auftrag; keine Periode geht verloren; endgültig weg ⇒ geht
+  nicht mehr; nie ein Teil-Auftrag; Abweichung trägt keine Schlaufe).
+- `tests/matrix.py`: die Zeilen dazu, mit Soll.
+- `PROCESS_CORE.md` §13 Punkt 6 wird ein eigener Abschnitt «Wiederkehr» (Verweis auf die Akte);
+  §12.2 Regelstart; §13.6 die eine Stelle der Zahlung.
+
+#### 1 · `Verkauft` ist ein regulärer Start (V1)
+- `domain/statuses`: ein **zweiter Name** `REGULAR_STARTS = {FREIGEGEBEN, VERKAUFT}` neben
+  `START_BEFORE` (bleibt `Freigegeben` – Bestand, FIFO, Verbrauch).
+- `order_state.deviation_flags` vergleicht gegen `REGULAR_STARTS`.
+- Hinweis im Entwurf ohne «(Abweichung)» (`definition-lines.tsx`).
+- Tests: Service am verkauften Stück ist regulär · Retoure ist regulär und durch «geht an uns»
+  belegt · **Wächter:** FIFO und Verbrauch nehmen nie ein verkauftes Stück (gegen die Bug-Form
+  «`START_BEFORE` auf die Menge umgestellt» gegengeprüft).
+- Doku: SYSTEM_LOGIC T7e/U6c, Kommentare in `statuses.py`, CLAUDE.md.
+
+#### 2 · Preise als Vorgabe im Zahlungsmodul (allgemein)
+- `VOUCHER_PRESETS` um **Positionen** erweitert (Artikel/Text, Menge, Preis, Steuersatz); leer =
+  wie heute (wird in der Offerte gesetzt). Eingefroren mit dem Modul wie jede Vorgabe.
+- Der Beleg übernimmt vorgegebene Positionen beim Entstehen; sie sind `fixed` (punktiert, Hover).
+- Nützt jedem Auftrag. Tests: mit und ohne Vorgabe; eine vorgegebene Position lässt sich am Beleg
+  nicht ändern.
+
+#### 3 · Die Schlaufe: Kalender und Speicherung
+- `domain/loop.py` (rein, ohne Datenbank): Takte (wöchentlich · monatlich · vierteljährlich ·
+  halbjährlich · jährlich), **Perioden** ab «erste Ausführung», Ende (unbefristet · Datum ·
+  Anzahl), Monatsende → letzter Tag, Tage in Europe/Zurich. Tests: 31. im Februar, Schaltjahr,
+  Jahreswechsel, Ende nach Anzahl.
+- Log-Ereignisse `loop.set` · `loop.next` · `loop.ended` (§4b) mit Schema (Pydantic).
+  **Migration:** eindeutiger Index auf den Vorgänger in `loop.next`, gebaut wie
+  `ix_log_decided`; dazu ein Index zum Lesen laufender Schlaufen.
+- Die Schlaufe ist Teil des **Entwurfs** (`OrderDraft`) und wird mit der Freigabe als `loop.set`
+  geschrieben, in derselben Transaktion wie der Auftrag (O15). `validate_draft` prüft sie mit:
+  regulärer Start, «Ab» heute oder später, je Lager-Zeile eine Wahl ohne Vorbelegung.
+- `services/loop.py`: `end` · `due` (abgeleitet) · `problem` (der eine Satz, warum es gerade nicht
+  geht, oder «geht nicht mehr») · `create_next`.
+- `history.HIDDEN_EVENTS`? Nein: einschalten, jede Wiederholung und beenden stehen im Verlauf.
+
+#### 4 · Der Takt legt an
+- `tick.TASKS` + `Task("loop", …)`. Je fälligem Auftrag ohne Nachfolger, älteste zuerst, in
+  eigener Transaktion: den Entwurf als **1:1-Kopie** bauen (Module, Zeilen nach der Wahl: gleiche
+  Einzelinstanzen bzw. FIFO-Vorschlag des Servers bzw. «Neu», die Schlaufe mit dem nächsten
+  Termin), `validate_draft` fragen, bei leerer Antwort `create_order` + `loop.next` in
+  **derselben** Transaktion. Handelnder «System» im Namen der Person, die die Kette begann.
+- Antwort nicht leer → nichts schreiben (Leerlauf steht nicht im Log); `loop.problem` liefert den
+  Satz für «zu tun». Zeitgrenze wie die anderen Aufgaben; was nicht fertig wird, nimmt der
+  nächste Lauf.
+- Zusätzlich zur Freigabe-Prüfung: **keine Abweichung** (alle Stücke in `REGULAR_STARTS`) und
+  **keine endgültig weggefallene Einzelinstanz** (→ «geht nicht mehr»).
+- `services/todo`: wartende und unmögliche Schlaufen zählen am Symbol des neuesten Auftrags der
+  Kette (rot bei «geht nicht mehr»).
+- Tests: nie doppelt (zwei Läufe gleichzeitig) · wartet und entsteht, sobald frei · mehrere
+  Perioden nacheinander · verschrottet ⇒ geht nicht mehr · beendet ⇒ nichts mehr · Abweichung in
+  einer Wiederholung stört die nächste nicht · nach Anzahl endet die Kette von selbst.
+
+#### 5 · Die Zahlung in der Wiederholung
+- Die Offerte (Papier) nennt die Schlaufe, wenn es eine gibt; der Satz gehört zur **angenommenen
+  Fassung** (`offered_hash`).
+- Nach dem Anlegen einer Wiederholung: Sind alle Positionen vorgegeben **und** hat die Partei
+  beim Vorgänger zugesagt (selbst oder gestützt), führt **eine** Funktion `ask` und `agree` aus –
+  dieselben Verben, Handelnder «System», Vermerk «gestützt auf die Zusage vom … zu Auftrag …»
+  (Ereignis `voucher.action` wie immer). Sonst nichts: der Beleg wartet bei der Offerte.
+- Hinaus geht nichts von selbst (AB und Rechnung über «Prüfen und freigeben»).
+- Tests: Abo läuft bis «Rechnung stellen» · ohne Preis hält es bei der Offerte · die Zusage trägt
+  über mehrere Glieder der Kette und nennt die ursprüngliche Annahme.
+
+#### 6 · Oberfläche
+- Im **Entwurf** unter dem Ziel der Schalter «einmalig ↔ wiederholt sich» und die Karte zum
+  Einstellen (Wiederholen · Ab · Bis · Nimmt). Im **freigegebenen** Auftrag dieselbe Karte nur
+  lesend; am neuesten der Kette «Beenden», an älteren «weiter in Auftrag …». Zustand als Punkt +
+  Satz. Beenden fragt einmal nach.
+- Die Linie **links**, aus `polyPath`, Haarlinie bis zur ersten Wiederholung (prozessbild §8.1a);
+  jede Wiederholung zeigt ihre eigene Schlaufe.
+- `prozessbild.md` nachgezogen; Spiegel der Takte im Frontend getestet
+  (`test_frontend_mirrors.py`).
+
+#### 7 · Abschluss
+- CLAUDE.md (Ist-Stand), Kopfstatus dieser Akte «gebaut», Rundenbericht in `docs/history/`.
+
+### Kosten
+Keine neuen Dienste: der Takt läuft schon, die Datenbank auch. Je Lauf ein paar Abfragen.
+
 ## 7 · Rückfragen und Antworten
 
 | | Frage | Antwort |
@@ -402,3 +525,5 @@ lässt nie still ein Stück weg, und nach langer Blockade kommen die Perioden de
 | | Fremder Kran? | wie jeder Artikel, nichts Besonderes (O2) |
 | | Wie beenden? | «Ab heute beenden», endgültig wie ein Dauerauftrag; weiter mit einem neuen Auftrag (Grundsatz 18) |
 | | Zahlung fest oder offen? | was vorher festgelegt ist, gilt; was offen blieb, wird jedes Mal festgelegt (O1) |
+| | Wo setzt man die Schlaufe? | nur im Entwurf; jede Wiederholung ist eine 1:1-Kopie mit eigener Schlaufe, keine Vorlage (Grundsatz 17, O15) |
+| | Bauplan wo? | hier in §8, keine eigene Datei |
