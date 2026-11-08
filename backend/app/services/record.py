@@ -1,48 +1,27 @@
 """**Was ist an diesem Modul passiert?** — das Protokoll, je Einzelinstanz.
 
-> **Feste Regel für ALLE Module, heute und künftig** (Testnotiz #717): ein abgeschlossenes
-> Modul zeigt auf Klick lückenlos, was in ihm passiert ist – jede erfasste Angabe, jedes
-> Stück.
+> **Feste Regel für ALLE Module**: ein abgeschlossenes Modul zeigt auf Klick lückenlos,
+> was in ihm passiert ist – jede erfasste Angabe, jedes Stück.
 
-**Und darum steht sie hier und nicht in einem Modul.** Ein Protokoll je Modultyp wäre
-dieselbe Ansicht n-mal, und die (n+1)-te fehlte beim nächsten Typ – genau die Sorte
-Lücke, die man erst bemerkt, wenn jemand einen Nachweis braucht. Diese Datei liest den
-**Ereignis-Log**, und den schreibt jedes Modul über dieselbe eine Stelle
-(``process._pass``). Ein neuer Modultyp erbt das Protokoll, ohne eine Zeile dafür zu
-schreiben.
-
-**Gespeichert wird dafür nichts.** Alles steht bereits da: der Übergang im Log, die Werte
-in ``captures``, die Zuordnung einer verbauten Komponente im Payload (``into``). Was
-gefehlt hat, war die Ansicht.
+Eine Ableitung für alle Modultypen aus dem **Ereignis-Log** (``process._pass``), den Werten
+in ``captures`` und ``into`` im Payload; gespeichert wird nichts.
 
 ## Ein Eintrag ist ein VORGANG, nicht ein Stück
 
-Ein Stück kann dasselbe Modul mehrfach passieren – nach einem «nicht bestanden» wird
-erneut erfasst, und beide Male sind passiert. Der Log ist append-only, also **beides**
-steht drin, und beides gehört ins Protokoll. Zusammengefasst würde die Wiederholung die
-Vergangenheit überschreiben.
-
-Gebaut wird der Eintrag darum aus zwei Ereignissen, in der Reihenfolge, in der sie
-geschrieben werden (``process.confirm_step``):
+Ein Stück kann dasselbe Modul mehrfach passieren; jeder Vorgang ist ein Eintrag, gebaut aus
+zwei Ereignissen (``process.confirm_step``):
 
 ===============  ==========================================================
 ``capture``      **erfasst** – Werte, Urteil, wer, wann
 ``step``         **passiert** – Nachher-Zustand, Verifikation, ggf. ``into``
 ===============  ==========================================================
 
-Eine Erfassung ohne folgendes ``step`` ist genau das, was «nicht bestanden» heisst: es
-wurde gemessen, und es rückte nichts vor. Sie steht darum ebenfalls als Eintrag da –
-gerade sie ist der interessante.
+Eine Erfassung ohne folgendes ``step`` ist «nicht bestanden» und steht ebenfalls da.
 
 ## «Nicht gezogen» kommt aus der ZIEHUNG, nicht aus einem Vermerk
 
-Ein Stück, das ohne Erfassung durchlief, hat keinen ``capture``-Eintrag – aber daraus
-allein folgt nichts: ein Modul ohne Erfassungspunkte hat für **kein** Stück einen. Die
-Aussage steht im ``sample``-Ereignis, und das ist die einzige Stelle, an der sie steht
-(``services/sampling``). Ein Vermerk am Übergang wäre der zweite Ort: ihn schreibt nur
-**einer** der beiden Wege, die ein Stück vorrücken lassen (der Durchlauf am *nächsten*
-Modul), nicht der Vorgang am eigenen – die ungezogenen Geschwister einer bestätigten
-Instanz trügen ihn also nie.
+Die Aussage steht allein im ``sample``-Ereignis (``services/sampling``); ein fehlender
+``capture``-Eintrag allein sagt nichts.
 """
 
 from dataclasses import dataclass, field
@@ -68,8 +47,7 @@ class Value:
     type: str
     value: Any
     #: Das Urteil **dieses** Punktes (``True``/``False``) – ``None``, wenn er keines hat.
-    #: Ein Foto belegt, es bewertet nicht; ein erfundenes «in Ordnung» wäre eine Aussage,
-    #: die niemand getroffen hat.
+    #: Ein Foto belegt, es bewertet nicht.
     ok: Optional[bool] = None
 
 
@@ -80,23 +58,13 @@ class Entry:
     number: str
     at: datetime
     actor: Optional[str] = None
-    #: Wie die Instanz bestätigt wurde: ``scan`` ↔ ``manual``. Ohne den Vermerk wäre die
-    #: Tastatur von der Kamera hinterher nicht zu unterscheiden.
+    #: Wie die Instanz bestätigt wurde: ``scan`` ↔ ``manual``.
     verification: Optional[str] = None
     #: Der Zustand **nach** dem Vorgang. ``None`` heisst: nichts rückte vor (der Fall
     #: «nicht bestanden»).
     status_after: Optional[str] = None
-    #: Der Zustand **vor** dem Vorgang – erst damit ist ablesbar, ob sich überhaupt etwas
-    #: geändert hat.
-    #:
-    #: Ein **Durchläufer** (Datenerfassung, Bewegen) führt ``Im Prozess`` → ``Im Prozess``;
-    #: in jeder Zeile stünde derselbe Wert, und was in jeder Zeile gleich lautet, ist keine
-    #: Information (Testnotiz #726). Bei einem **Ausgang** ist der Zustand dagegen genau
-    #: das, was der Vorgang bewirkt hat.
-    #:
-    #: Der Dienst entscheidet das **nicht** – er liefert beide Werte, und die Anzeige
-    #: fragt, ob sie verschieden sind. Ein hier weggelassener Zustand hiesse, «vorgerückt»
-    #: und «nichts geändert» wären dasselbe; sie sind es nicht.
+    #: Der Zustand **vor** dem Vorgang. Der Dienst liefert beide Werte; die Anzeige fragt,
+    #: ob sie verschieden sind (ein Durchläufer bleibt ``Im Prozess``).
     status_before: Optional[str] = None
     #: Das Urteil der Erfassung: ``passed`` · ``failed`` · ``None`` (nichts Bewertbares).
     result: Optional[str] = None
@@ -114,10 +82,7 @@ def _points(step: ProcessStep) -> dict[str, dict[str, Any]]:
 def _values(points: dict[str, dict[str, Any]], stored: dict[str, Any]) -> list[Value]:
     """Die gespeicherten Werte, in der **Reihenfolge der Definition** und mit ihrer Frage.
 
-    Ein Wert zu einem Punkt, den die Definition nicht (mehr) kennt, wird trotzdem
-    gezeigt – roh und mit seinem Schlüssel als Beschriftung. Ihn wegzulassen hiesse, aus
-    dem Protokoll etwas zu entfernen, das erfasst wurde; ein Nachweis, der stillschweigend
-    kürzt, ist keiner.
+    Ein Wert zu einem unbekannten Punkt wird trotzdem gezeigt – roh, mit seinem Schlüssel.
     """
     out: list[Value] = []
     for key, point in points.items():
@@ -178,8 +143,7 @@ def step_record(db: Session, order: Order, step: ProcessStep, *,
                 limit: int = 200, offset: int = 0) -> tuple[list[Entry], int]:
     """Das Protokoll dieses Moduls — **eine Seite**, gezählt und geschnitten in SQL.
 
-    Gekappt, aber nicht verschwiegen: bei einer 6000er-Charge sind es tausende Einträge,
-    und die Gesamtzahl steht daneben. Geladen wird nur, was auf der Seite steht.
+    Gekappt, aber nicht verschwiegen: die Gesamtzahl steht daneben.
     """
     query = _entries(order, step)
     total = int(db.execute(select(func.count()).select_from(query.subquery())).scalar() or 0)
@@ -194,8 +158,7 @@ def step_record(db: Session, order: Order, step: ProcessStep, *,
     units = db.query(InstanceUnit).filter(InstanceUnit.id.in_(unit_ids | _into_ids(rows))).all()
     numbers = unit_numbers(db, units)
     actors = people.names(db, {int(e.actor_id) for e in rows if e.actor_id})
-    # **Die Ziehung** – gelesen, nicht gerechnet. ``None`` heisst «hier wurde nie
-    # gezogen»; dann ist «nicht gezogen» gar keine mögliche Antwort.
+    # **Die Ziehung** – gelesen, nicht gerechnet. ``None`` = hier wurde nie gezogen.
     drawn = (sampling.drawn_at(db, order=order, step=step, unit_ids=unit_ids)
              if sampling.was_drawn(db, order=order, step=step) else None)
     captures = _captures(db, {int((e.payload or {}).get("capture_id"))

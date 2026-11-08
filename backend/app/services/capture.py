@@ -1,21 +1,10 @@
 """Datenerfassung — die Werte, die ein Modul an Einzelinstanzen festhält.
 
-**Erfasst wird immer am Stück.** Die Zeile hängt an der Einzelinstanz, nicht an der
-Instanz und nicht am Artikel; eine Auswertung «wie steht die Charge da?» ist eine
-Summierung darüber, keine eigene Zeile. Das ist die Einzelinstanz-Regel, hier als
-Fremdschlüssel auf ``instance_units``.
+**Erfasst wird immer am Stück** (Fremdschlüssel auf ``instance_units``); die Charge ist
+eine Summierung. **Was erfasst wird, sagt das Modul** (``process_steps.config``).
 
-**Was erfasst wird, sagt das Modul** (``process_steps.config``), nicht der Artikel – eine
-Maske am Artikel hinge an keinem Prozess.
-
-**Erfassen ist ein Vorgang, kein Formular.** Es gibt darum keinen Endpunkt, der eine
-Erfassung ohne Modul schreibt: geschrieben wird ausschliesslich hier, gerufen vom
-Bestätigen (``process.confirm_step``) – **vor** dem Statuswechsel, damit eine fehlende
-Angabe nichts bewegt.
-
-**Gelesen wird sie am Prozess, nicht am Stück** (Testnotiz #677): erfasst wird an einem
-Modul, und dort steht auch, was erfasst wurde.
-Die Zeilen selbst bleiben – sie sind der Nachweis, nicht die Ansicht.
+**Erfassen ist ein Vorgang, kein Formular**: geschrieben nur hier, gerufen von
+``process.confirm_step`` **vor** dem Statuswechsel. Gelesen wird am Prozess, nicht am Stück.
 """
 
 from typing import Any
@@ -43,28 +32,10 @@ def record_for_step(
 
     ►►► **Der Scan verifiziert die Instanz. Die Erfassung gilt der Einzelinstanz.** ◄◄◄
 
-    Das sind zwei Dinge, und sie dürfen nie gekoppelt sein. Der Scan ist eine Aussage
-    über das **physische Ding**: das Etikett klebt an der Instanz, eine Einzelinstanz
-    zieht keine Objektnummer. Eine Messung dagegen ist eine Aussage über **ein Stück** –
-    zwei Schrauben aus derselben Charge haben zwei Durchmesser.
-
-    Vorher stand hier **ein** Wertesatz, der auf jedes gezogene Stück kopiert wurde. Das
-    war nicht bloss unbequem, es war eine **Behauptung**: bei einer Charge über zwei
-    Stück entstanden zwei Messwerte, gemessen wurde einer. Ein Nachweis, der mehr Zeilen
-    hat als Messungen, ist keiner – und aus derselben Kopie wären bei 1500 gezogenen
-    Stücken 1500 identische «Messungen» geworden.
-
-    Aus einem Scan werden damit **n** Erfassungen: Charge über 2 → 2, Stichprobe ¼ von
-    6000 → 1500. Es gibt hier keine Abfrage nach der Serialisierung; die Zahl folgt aus
-    der Ziehung.
-
-    Geprüft wird **vor** der ersten Zeile, und zwar jeder Satz einzeln: fehlt irgendwo
-    ein Pflichtpunkt, entsteht gar nichts. Eine halbe Erfassung wäre schlimmer als keine –
-    sie sähe hinterher aus wie eine vollständige.
-
-    Das **Urteil hängt am Stück**: jede Zeile trägt ihr eigenes. Was daraus für die
-    Instanz folgt, entscheidet der Aufrufer (§4.1: eine durchgefallene Stichprobe hält
-    die ganze Instanz an).
+    Das Etikett klebt an der Instanz; eine Messung gilt **einem Stück**. Aus einem Scan
+    werden **n** Erfassungen, die Zahl folgt aus der Ziehung. Geprüft wird jeder Satz
+    **vor** der ersten Zeile: fehlt ein Pflichtpunkt, entsteht nichts. Das **Urteil hängt
+    am Stück**; was für die Instanz folgt, entscheidet der Aufrufer (§4.1).
     """
     points = points_of(step)
     for values in captures.values():

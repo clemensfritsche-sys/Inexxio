@@ -1,36 +1,18 @@
 """Die **Journey einer Einzelinstanz** – woher sie kam, wohin sie ging.
 
-Im Prozess wird ausschliesslich mit Einzelinstanzen gearbeitet, und ein Stück ist immer
-in **genau einem** Auftrag aktiv. Alles ist damit ein einziger langer Prozess, nur
-aufgeteilt in Aufträge – und diese Aufteilung ist genau das, was hier wieder
-zusammengesetzt wird.
+Ein Stück ist immer in **genau einem** Auftrag aktiv; hier wird die Aufteilung in Aufträge
+wieder zusammengesetzt.
 
-**Abgeleitet, nicht gepflegt.** Es gibt keine Spalten ``vorheriger_auftrag`` /
-``naechster_auftrag``, die bei jeder Freigabe mitgeschrieben werden müssten. Solche
-Zeiger laufen irgendwann auseinander – und dann ist die Journey unbrauchbar für genau
-das, was sie beweisen soll. Die Quelle ist stattdessen die, die es ohnehin gibt: der
-**Ereignis-Log** (``process.*`` im Log, Sicht ``process_log``, PROCESS_CORE.md §10.3). Er ist append-only, hält
-je Statuswechsel fest, welches Stück in welchem Auftrag war, und seine ``id`` ist die
-Zeitachse.
-
-Daraus fällt die Nachbarschaft ohne weiteres Zutun heraus::
+**Abgeleitet, nicht gepflegt** (keine Zeiger-Spalten): Quelle ist der **Ereignis-Log**
+(``process.*``, Sicht ``process_log``, PROCESS_CORE.md §10.3); seine ``id`` ist die
+Zeitachse::
 
     Vorgänger  = der Auftrag des letzten Ereignisses VOR dem ersten Ereignis
                  dieses Stücks in diesem Auftrag
     Nachfolger = der Auftrag des ersten Ereignisses NACH dem letzten
 
-Beides ist damit automatisch lückenlos: was nicht im Log steht, ist nicht passiert, und
-was passiert ist, steht drin.
-
-**Gruppiert, nicht aufgezählt.** Bei 5000 Stück will niemand 5000 Verweise sehen (und
-das Layout überlebt sie auch nicht). Die Antwort ist darum eine Liste je **Nachbar-
-Auftrag** mit der Anzahl Stücke: «3 Stück aus Auftrag 100000123». Dieselbe Entscheidung
-wie bei den Stück-Gruppen im Prozessbild (§8.3).
-
-**Performance.** Zwei Abfragen je Auftrag, unabhängig von der Stückzahl – kein N+1. Der
-teure Teil ist «das letzte Ereignis vor X je Stück»; er läuft als ``DISTINCT ON`` über
-den Index ``(instance_unit_id, id)``. Das ist ein **abgeleiteter Index**, kein zweiter
-Datenbestand: er beschleunigt eine Frage, er beantwortet sie nicht.
+**Gruppiert, nicht aufgezählt**: je **Nachbar-Auftrag** die Anzahl Stücke (§8.3).
+Zwei Abfragen je Auftrag (``DISTINCT ON`` über den Index ``(instance_unit_id, id)``).
 """
 
 from typing import Optional
@@ -47,19 +29,10 @@ from ..models.process_event import KIND_START
 def _walked_the_process(order_id: int):
     """Die Stücke, die diesen Auftrag **von vorne** durchlaufen — sein Subjekt.
 
-    Es gibt zwei Eintrittspunkte (PROCESS_CORE.md §9.6): am **Start-Objekt** treten die
-    Stücke ein, um die es geht; an einem **Modul** tritt Material ein, das dort verbraucht
-    wird und den Auftrag im selben Zug wieder verlässt. Beide schreiben denselben
-    ``start``-Eintrag – unterschieden werden sie durch die Modul-``id`` daran.
-
-    Genau diese Unterscheidung braucht die Journey, und ihr Fehlen war ihr einziger
-    Fehler (Testnotiz #729): eine Schraube, die in einem anderen Auftrag entstand und hier
-    verbaut wurde, machte jenen Auftrag zum **vorgelagerten Auftrag** dieses Prozesses –
-    über dem Start, wo das Subjekt herkommt. Dort hat sie nie gestanden.
-
-    Es ist dieselbe Bedingung, aus der auch das Prozessbild liest (``flow._tally`` zählt
-    nur ``step_id IS NULL`` als «gestartet»). Eine zweite Formulierung davon wäre eine
-    zweite Antwort auf «wer läuft hier durch».
+    Zwei Eintrittspunkte (PROCESS_CORE.md §9.6): am **Start-Objekt** das Subjekt, an einem
+    **Modul** Material zum Verbrauch – beide als ``start``, unterschieden an der Modul-``id``.
+    Verbautes Material macht seinen Herkunftsauftrag nicht zum Vorgänger. Dieselbe Bedingung
+    wie ``flow._tally`` (``step_id IS NULL``).
     """
     return (
         select(ProcessEvent.instance_unit_id)
@@ -75,12 +48,8 @@ def _walked_the_process(order_id: int):
 def _span(order_id: int):
     """Je Stück: sein erstes und letztes Ereignis **in diesem Auftrag**.
 
-    Das ist die Klammer, ausserhalb derer der Nachbar liegt. Zwei Grenzen statt einer,
-    weil ein Stück den Auftrag betritt und wieder verlässt – und beides zählt.
-
-    Gerechnet wird nur über das **Subjekt** (``_walked_the_process``): Material, das an
-    einem Modul eintritt, durchläuft diesen Prozess nicht, und woher es kam, ist keine
-    Aussage über seinen Anfang.
+    Die Klammer, ausserhalb derer der Nachbar liegt; nur über das **Subjekt**
+    (``_walked_the_process``).
     """
     return (
         select(
@@ -101,8 +70,7 @@ def _neighbour_counts(db: Session, order_id: int, *, before: bool) -> list[tuple
     """``[(Auftrag-id, Anzahl Stücke), …]`` – der direkte Nachbar je Stück, gezählt.
 
     ``DISTINCT ON (unit)`` mit passender Sortierung liefert je Stück genau **ein**
-    Ereignis: das letzte davor bzw. das erste danach. Ein Stück ohne Nachbarn fällt
-    heraus – es hat keinen, und ein Platzhalter wäre erfunden.
+    Ereignis: das letzte davor bzw. das erste danach. Ein Stück ohne Nachbarn fällt heraus.
     """
     span = _span(order_id)
     ev = ProcessEvent
@@ -128,14 +96,8 @@ def _neighbour_counts(db: Session, order_id: int, *, before: bool) -> list[tuple
 def neighbours(db: Session, order: Order) -> tuple[list[dict], list[dict]]:
     """Die Nachbar-Aufträge dieses Auftrags: ``(vorher, nachher)``.
 
-    Ein Nachbar erscheint erst, **wenn es ihn wirklich gibt** – also sobald er
-    freigegeben ist, denn vorher existiert er nicht (es gibt keinen gespeicherten
-    Entwurf, §6.1) und schreibt darum auch nichts in den Log. Es braucht dafür keine
-    Zusatzbedingung: die Abwesenheit im Log **ist** die Abwesenheit des Auftrags.
-
-    Kein Vorgänger heisst: die Stücke sind hier entstanden. Kein Nachfolger heisst:
-    hier ist die Journey (noch) zu Ende. Beides wird als leere Liste gemeldet, nicht
-    als Platzhalter.
+    Ein Nachbar erscheint erst mit seiner Freigabe (§6.1). Kein Vorgänger: hier entstanden;
+    kein Nachfolger: (noch) zu Ende – je eine leere Liste.
     """
     return (_resolve(db, _neighbour_counts(db, order.id, before=True)),
             _resolve(db, _neighbour_counts(db, order.id, before=False)))
@@ -145,21 +107,15 @@ def neighbours(db: Session, order: Order) -> tuple[list[dict], list[dict]]:
 # Die Struktur: übergeordneter Auftrag ↔ Abweichungsauftrag
 # ---------------------------------------------------------------------------
 #
-# Die Journey oben beantwortet «wo war das Stück davor/danach» – eine Frage an die
-# **Zeitachse**. Hier geht es um die **Struktur**: welche Aufträge greifen ineinander,
-# weil einer dem anderen ein Stück mitten im Ablauf abgenommen hat.
-#
-# Beides aus derselben Quelle, aber an einem anderen Anker: die Journey misst von der
-# Auftrags-Spanne aus, die Struktur vom **Auftragswechsel** aus. Der Unterschied ist
-# nicht Geschmack — eine Abweichung, die ihr Stück zurückgibt, liegt *innerhalb* der
-# Spanne ihres Eltern-Auftrags, und die Spannen-Rechnung fände sie darum nie.
+# Die **Struktur** (wer hat wem ein Stück mitten im Ablauf abgenommen) misst vom
+# **Auftragswechsel** aus, nicht von der Spanne: eine Abweichung, die ihr Stück zurückgibt,
+# liegt innerhalb der Spanne ihres Eltern-Auftrags.
 
 
 def _adjacent(before: bool):
     """Das unmittelbar benachbarte Ereignis desselben Stücks — als Unterabfrage.
 
-    Ein Sprung an die Nachbar-Zeile über den Index ``(instance_unit_id, id)``; ohne ihn
-    wäre es ein Sortieren über die ganze Geschichte des Stücks.
+    Ein Sprung an die Nachbar-Zeile über den Index ``(instance_unit_id, id)``.
     """
     ev = aliased(ProcessEvent)
     q = select(ev.order_id).where(ev.instance_unit_id == ProcessEvent.instance_unit_id)
@@ -170,16 +126,9 @@ def _adjacent(before: bool):
 class Related:
     """Ein Nachbar-Auftrag **und die Zustandspunkte, an denen er ansetzt**.
 
-    Ein **Zustandspunkt** ist die Stelle auf der Prozesslinie, an der ein Stück wartet –
-    zwischen zwei Objekten, nicht in einem. Seine Identität steht in den Daten:
-    ``order_units.current_step_id`` heisst «steht **vor** diesem Modul» (``None`` = nach
-    dem Ende). Ein Punkt ist also «vor Modul X»; das Modul **benennt** ihn, es besitzt
-    ihn nicht.
-
-    Darum eine **Liste**: derselbe Abweichungsauftrag kann Stücke an zwei verschiedenen
-    Stellen abgenommen haben. Ein einzelner Wert (``min(step_id)``) hätte sich für
-    eine davon entschieden und die andere verschwiegen – und die Linie zeigte dann auf
-    einen Punkt, an dem gar nichts passiert ist.
+    Ein **Zustandspunkt** ist «vor Modul X» (``order_units.current_step_id``, ``None`` =
+    nach dem Ende). Eine **Liste**, weil derselbe Abweichungsauftrag Stücke an mehreren
+    Stellen abgenommen haben kann.
     """
 
     def __init__(self, order_id: int):
@@ -196,8 +145,7 @@ def _counts_from(db: Session, *, order_id: int, kind: str, status_before: Option
                  before: bool) -> list[Related]:
     """Nachbarn zu einem Anker-Ereignis, **je Zustandspunkt gezählt**.
 
-    Der Punkt steht im Anker-Ereignis (``step_id`` = wo das Stück stand, als es wechselte);
-    es gibt nichts nachzuschlagen und nichts abzuleiten.
+    Der Punkt steht im Anker-Ereignis (``step_id`` = wo das Stück stand, als es wechselte).
     """
     anchor = select(
         ProcessEvent.instance_unit_id.label("unit_id"),
@@ -228,9 +176,7 @@ def parents(db: Session, order: Order) -> list[Related]:
     Bedingung, die den Auftrag zur Abweichung macht (§2). Daneben steht dann der
     Auftrag, aus dem das Stück kam.
 
-    Die Zustandspunkte werden hier **zusammengefasst**: sie liegen im Ablauf des *anderen*
-    Auftrags und haben in diesem hier keine Stelle. Von einem übergeordneten Auftrag kommen
-    die Stücke am **Start** herein, und der Start ist der Punkt.
+    Die Zustandspunkte werden **zusammengefasst**: hier ist der Start der Punkt.
     """
     out: list[Related] = []
     for rel in _counts_from(db, order_id=order.id, kind=KIND_START,
@@ -241,14 +187,8 @@ def parents(db: Session, order: Order) -> list[Related]:
     return out
 
 
-# **«Welche Aufträge haben mir Stücke abgenommen» steht nicht mehr hier.**
-#
-# Es gab die Frage zweimal: hier über den Log (der Nachbar des ``handover``-Eintrags) und
-# in ``flow.build`` über die Abzweigungen des Graphs. Zwei Ableitungen derselben Sache
-# laufen auseinander, und man sieht es erst am Bildschirm – als Abzweigepunkt ohne seinen
-# Nachbarn. Die Antwort steht jetzt allein im Graph (``flow.Graph.neighbours``): ein
-# Nachbar existiert genau dann, wenn es seine Kante gibt. Der übergeordnete Auftrag
-# bleibt hier, denn im eigenen Graph gibt es ihn nicht – die Übernahme steht in *seinem*.
+# «Welche Aufträge haben mir Stücke abgenommen» beantwortet allein der Graph
+# (``flow.Graph.neighbours``).
 
 
 def returning_to(db: Session, order: Order, order_ids: list[int]) -> set[int]:
@@ -270,9 +210,7 @@ def returning_to(db: Session, order: Order, order_ids: list[int]) -> set[int]:
 def _resolve(db: Session, counts: list[tuple[int, int]]) -> list[dict]:
     """Interne Auftrags-ids → Objektnummer und Name, in **einer** Abfrage.
 
-    Die interne ``id`` verlässt die Antwort nicht: nach aussen ist ein Auftrag seine
-    Objektnummer. Ein Auftrag, den es nicht mehr gibt, fällt weg statt als Zeile mit
-    leerem Namen zu erscheinen.
+    Nach aussen ist ein Auftrag seine Objektnummer; einer, den es nicht mehr gibt, fällt weg.
     """
     if not counts:
         return []

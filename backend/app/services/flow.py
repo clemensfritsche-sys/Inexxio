@@ -1,17 +1,7 @@
 """Der **Prozess-Graph** — Knoten, Kanten, Positionen. Abgeleitet aus dem Ereignis-Log.
 
-Das Bild eines Auftrags entstand bisher im Browser: die Oberfläche baute die Knotenfolge
-aus Schritten und Stück-Gruppen zusammen und leitete daraus ab, wie weit die Linie
-kräftig läuft. Das ist **Prozesslogik im Frontend**, und sie war aus zwei Gründen falsch:
-
-* Sie las den **aktuellen Zustand** («wo stehen aktive Stücke») statt den **Log** («was ist
-  passiert»). Sobald ein Stück eine Stelle verliess, verschwand sie – mitsamt der
-  Abzweigung, die dort einmal stattgefunden hatte.
-* Sie war eine **zweite Wahrheit** neben dem Server. Zwei Ableitungen derselben Sache
-  laufen auseinander; welche stimmt, sieht man erst am Bildschirm.
-
-Darum liefert der Server das Bild als **Graph**, und das Frontend layoutet und zeichnet
-ihn nur noch. Die Begriffe sind abschliessend – mehr gibt es nicht:
+Der Server liefert das Bild als **Graph** aus dem **Log** (nicht aus dem heutigen Zustand);
+das Frontend layoutet und zeichnet nur. Die Begriffe sind abschliessend:
 
 ======================  ====================================================
 **Knoten**              Prozessobjekte: ``start`` · ``module`` · ``end``,
@@ -27,25 +17,15 @@ ihn nur noch. Die Begriffe sind abschliessend – mehr gibt es nicht:
 
 ## Der Kantenzustand ist eine Aussage über die KANTE, nicht über den Punkt
 
-Der Hauptstrang ist keine durchgehende Linie, sondern eine Folge von Kanten – und jede
-beantwortet ihre eigene Frage. «Hier sind Stücke angekommen» gilt für die Kante **zum**
-Abzweigepunkt; ob danach noch jemand geradeaus weiterging, ist eine andere Frage. Nimmt
-eine Abweichung alle Stücke mit, hat den geraden Weg **niemand** genommen, und er ist
-darum dünn – auch wenn unmittelbar davor sehr wohl Material stand.
-
-Gerechnet wird das als **Bilanz entlang der Achse**: sie beginnt mit dem, was am Punkt
-angekommen ist, jeder Abzweigepunkt zieht seine Ausgescherten ab, jeder Rückführpunkt
-addiert seine Rückkehrer. Es gibt kein ``if`` je Kantenart und keinen Sonderfall für
-«Abweichung nimmt alles»: die Zahl ist entweder grösser als null oder eben nicht.
+Nimmt eine Abweichung alle Stücke mit, ist der gerade Weg danach dünn, auch wenn davor
+Material stand. Gerechnet als **Bilanz entlang der Achse**: Ankunft, minus Ausgescherte je
+Abzweigepunkt, plus Rückkehrer je Rückführpunkt – ohne Sonderfall.
 
 ## Warum fork und join eigene Knoten sind
 
-Ein **Zustandspunkt** heisst «vor Modul X» (PROCESS_CORE.md §12.4) – und genau dorthin
-kehrt ein ausgeschertes Stück zurück. Solange das *ein* Knoten war, standen das Stück,
-das geblieben ist, und das Stück, das zurückkam, an derselben Stelle im Bild: man sah der
-Zeichnung nicht an, dass eines von beiden gerade eine Runde gedreht hat.
-
-Als **zwei** Knoten fällt die Frage weg, statt beantwortet zu werden::
+Ein **Zustandspunkt** heisst «vor Modul X» (PROCESS_CORE.md §12.4); dorthin kehrt ein
+ausgeschertes Stück zurück. Als **zwei** Knoten trennt das Bild, wer blieb und wer
+zurückkam::
 
         │
     ● fork@X ──────────────▶  Abweichungsauftrag
@@ -54,16 +34,12 @@ Als **zwei** Knoten fällt die Frage weg, statt beantwortet zu werden::
         │  (wer zurückkam)
     [ Modul X ]
 
-Beide Punkte heissen weiterhin «vor Modul X»; fachlich ist es **ein** Zustandspunkt, und
-``order_units.current_step_id`` bleibt seine eine Identität. Die Teilung ist die
-Darstellung dieser Identität in der Zeit: davor und danach.
+Fachlich bleibt es **ein** Zustandspunkt (``order_units.current_step_id``).
 
 ## Warum der Log und nicht der Zustand
 
-Ein Handover-Eintrag verschwindet nie. Eine Abzweigung, die einmal passiert ist, ist
-passiert – auch wenn das Stück längst zurück und weitergezogen ist. Alle Zähler hier sind
-darum **Zeilenzahlen im Log**: sie können nur wachsen. Daraus folgt die Invariante «eine
-einmal kräftige Kante wird nie wieder schwach» **von selbst**, statt sie zu bewachen.
+Alle Zähler sind **Zeilenzahlen im Log** und wachsen nur: eine einmal kräftige Kante wird
+nie wieder schwach.
 """
 
 from dataclasses import dataclass, field
@@ -99,18 +75,13 @@ EDGE_OUT = "out"
 #: Zurück aus einem anderen Auftrag (``frm`` zeigt auf dessen **Ende**).
 EDGE_BACK = "back"
 
-#: Ein Knoten in einem **anderen** Auftrag. Das Frontend löst ihn auf die Spalte auf, in
-#: der dieser Auftrag steht – steht er nicht im Bild, wird die Kante nicht gezeichnet.
-#: Damit braucht keine Seite zu wissen, welche Nachbarn gerade sichtbar sind.
+#: Ein Knoten in einem **anderen** Auftrag; steht er nicht im Bild, fehlt die Kante.
 def order_ref(object_id: int) -> str:
     return f"order:{object_id}"
 
 
-#: **Je Nachbar ein eigenes Paar.** Teilten sich zwei Abweichungen am selben
-#: Zustandspunkt einen Abzweige- und einen Rückführpunkt, müsste die erste Rückführung an
-#: der zweiten Abweichung *vorbei*, quer über die Fläche. Mit einem eigenen Paar je
-#: Nachbar liegt jeder Rückweg unmittelbar unter seinem Hinweg; die
-#: Kreuzung ist damit nicht vermieden, sondern **unmöglich** (§8.1a‴).
+#: **Je Nachbar ein eigenes Paar** Abzweige-/Rückführpunkt: jeder Rückweg liegt unter
+#: seinem Hinweg, Kreuzungen sind unmöglich (§8.1a‴).
 def fork_id(at: Optional[int], target: int) -> str:
     return f"fork:{at if at is not None else 'end'}:{target}"
 
@@ -128,11 +99,7 @@ class Node:
     id: str
     kind: str
     #: Bei ``module`` die eigene ``step_id``; bei ``fork``/``join`` das Modul, **vor** dem
-    #: der Punkt liegt (er heisst danach, er gehört ihm nicht).
-    #:
-    #: **Der Knoten trägt keinen Namen und keine Farbe.** Was in einem Modul steht, sagt
-    #: seine Zeile in ``steps`` – hier steht, *wo* es steht. Beides am Knoten wäre
-    #: dieselbe Angabe an zwei Stellen, und die eine liefe irgendwann der anderen davon.
+    #: der Punkt liegt. Name und Farbe stehen in ``steps``, nicht am Knoten.
     at: Optional[int] = None
 
 
@@ -141,8 +108,7 @@ class Placed:
     """Stücke an **einer** Position – gezählt, nicht aufgezählt.
 
     ``at_step_id``/``active`` sind der Schlüssel, mit dem die Oberfläche die einzelnen
-    Nummern nachlädt (``GET …/units``). Sie stehen hier, weil eine Position ohne ihn
-    zwar hübsch aussieht, sich aber nicht aufklappen lässt.
+    Nummern nachlädt (``GET …/units``).
     """
 
     status: str
@@ -155,16 +121,13 @@ class Placed:
 class Edge:
     id: str
     frm: str
-    #: ``None`` bei der Kante hinter dem Ende: dort ist der Prozess zu Ende, es gibt
-    #: keinen nächsten Knoten. Die angekommenen Stücke stehen trotzdem irgendwo – und
-    #: «irgendwo» ist diese Kante.
+    #: ``None`` bei der Kante hinter dem Ende (dort stehen die angekommenen Stücke).
     to: Optional[str]
     kind: str = EDGE_AXIS
     walked: bool = False
     #: **Die Zuordnung selbst**: die ``order_units``-Zeilen, die auf dieser Kante stehen.
-    #: Sie verlässt die Antwort nicht – aber die Zahlen an der Pille (``units``) und die
-    #: Liste im Aufklappen (``units_on``) kommen **beide** von hier. Zwei Abfragen für
-    #: dieselbe Frage waren genau der Widerspruch «1 Stk, aber zwei Nummern im Dropdown».
+    #: Zahlen an der Pille (``units``) und Liste im Aufklappen (``units_on``) kommen
+    #: **beide** von hier.
     members: list[int] = field(default_factory=list)
     units: list[Placed] = field(default_factory=list)
 
@@ -173,9 +136,7 @@ class Edge:
 class Neighbour:
     """Ein Auftrag, der an diesem hier hängt — **aus dem Graph, nicht daneben gezählt**.
 
-    Spalten und Linien lesen **dieselbe** Liste: ein Nachbar existiert genau dann, wenn es
-    seine Kante gibt. Zwei Ableitungen liefen auseinander – ein Abzweigepunkt ohne
-    Nachbar.
+    Ein Nachbar existiert genau dann, wenn es seine Kante gibt.
     """
 
     object_id: int
@@ -208,10 +169,8 @@ class _Tally:
     passed: dict[int, int] = field(default_factory=dict)
     #: Wie viele Stücke haben das Ende-Objekt passiert.
     ended: int = 0
-    #: Je Modul: wie viele Stücke sind **dort** in den Auftrag eingetreten
-    #: (``process._enter_at_step``). Sie haben die Kante davor nie gesehen – und genau
-    #: darum steht diese Zahl hier: ohne sie liesse sich «wer hat das Modul von der
-    #: Achse her erreicht?» nicht aus ``passed`` beantworten.
+    #: Je Modul: wie viele Stücke sind **dort** eingetreten (``process._enter_at_step``) –
+    #: sie haben die Kante davor nie gesehen.
     entered: dict[int, int] = field(default_factory=dict)
     #: Je Zustandspunkt und Ziel-Auftrag: wie viele Stücke sind ausgeschert.
     out: dict[tuple[Optional[int], int], int] = field(default_factory=dict)
@@ -222,11 +181,8 @@ class _Tally:
 def _tally(db: Session, order_id: int) -> _Tally:
     """**Eine** Abfrage über den Log dieses Auftrags, gruppiert.
 
-    Gezählt werden **Einzelinstanzen**, nicht Log-Zeilen: ein Stück kann dieselbe Stelle
-    mehrfach verlassen (Abweichung der Abweichung), und die Bilanz entlang der Achse
-    («angekommen − ausgeschert + zurückgekehrt») ginge dann nicht mehr auf. Jeder Term
-    bleibt dabei monoton – ein Stück, das eine Stelle einmal passiert hat, hat sie
-    passiert.
+    Gezählt werden **Einzelinstanzen**, nicht Log-Zeilen (ein Stück kann eine Stelle
+    mehrfach verlassen); jeder Term bleibt monoton.
     """
     rows = db.execute(
         select(
@@ -250,11 +206,8 @@ def _tally(db: Session, order_id: int) -> _Tally:
         n = int(n)
         at = int(step_id) if step_id is not None else None
         if kind == KIND_START:
-            # **Das Start-Objekt hat passiert, wer oben hereinkam.** Ein Eintritt an einem
-            # Modul (``process._enter_at_step``) trägt dessen ``id`` und hat das
-            # Start-Objekt nie gesehen; ihn mitzuzählen liesse die erste Kante Material
-            # tragen, das dort nie war. Gezählt wird er trotzdem – an **seinem** Modul,
-            # denn ohne ihn wäre ``passed`` dort nicht mehr lesbar.
+            # Ein Eintritt an einem Modul (``process._enter_at_step``) zählt an seinem
+            # Modul, nicht am Start-Objekt.
             if at is None:
                 t.started += n
             else:
@@ -325,9 +278,7 @@ def _returned_here(db: Session, order_id: int) -> set[tuple[int, Optional[int]]]
 def _left_through(db: Session, order_id: int) -> dict[int, int]:
     """Je ausgeschertem Stück die Objektnummer des Auftrags, **durch den** es ging.
 
-    Nicht der Auftrag, in dem es gerade steckt: bei einer Kette A → B → C ist C weder
-    ein Nachbar von A noch in dessen Bild – die Linie ginge ins Leere. Was A zeigt, ist
-    sein eigener Handover, und der steht in seinem Log.
+    Nicht der Auftrag, in dem es gerade steckt (bei A → B → C zeigt A auf B).
     """
     rows = db.execute(
         select(ProcessEvent.instance_unit_id, ProcessEvent.payload["to_order"].astext)
@@ -346,25 +297,9 @@ def _exit_points(db: Session, order_id: int) -> dict[int, int]:
     von selbst: über das **Ende-Objekt** (letzter Eintrag ``end``) oder über ein
     **Modul**, das ein Stück hinausführt (letzter Eintrag ``step``).
 
-    ►► **Ein Stück, das noch läuft, verlässt nichts.** ◄◄
-
-    Der letzte Eintrag allein beantwortet die Frage **nicht**: er lautet auch dann
-    ``step``, wenn ein Stück das Modul schlicht passiert hat und nun vor dem nächsten
-    **wartet**. Beides sieht im Log gleich aus; unterschieden werden die beiden allein
-    durch die **Zugehörigkeit** – wer den Auftrag verlassen hat, dessen Zeile ist
-    geschlossen (``released_at``), wer wartet, dessen Zeile ist offen.
-
-    Ohne diese Bedingung galt jedes wartende Stück als ausgetreten und wurde von
-    ``passed`` abgezogen. Warteten **alle**, stand die Bilanz auf null – und die Achse
-    hinter dem Punkt war eine Haarlinie, obwohl die Stücke sie gegangen sind und dort
-    stehen. Genau dieses Bild war gemeldet.
-
-    **Damit ist der Ausgang eine Regel statt eines Sonderfalls.** Vorher stand im Bild
-    «ist das letzte Modul terminal? dann hängt die Ausgangskante daran» – das trug genau
-    einen Fall (Aussondern am Schluss) und wäre beim **Verbrauch** falsch: der führt
-    einen Teil seiner Stücke mitten im Ablauf hinaus, während der Rest weiterläuft. Ohne
-    diese Ableitung landeten die verbauten Stücke auf der Kante hinter dem Ende – also
-    an einer Stelle, die sie nie passiert haben.
+    ►► **Ein Stück, das noch läuft, verlässt nichts.** ◄◄ Ein wartendes Stück hat ebenfalls
+    ``step`` zuletzt; unterschieden wird an der Zugehörigkeit (geschlossen = ``released_at``).
+    So gilt der Ausgang auch für den Verbrauch mitten im Ablauf.
     """
     last = (
         select(
@@ -395,9 +330,7 @@ def _exit_points(db: Session, order_id: int) -> dict[int, int]:
 def _left_with(db: Session, order_id: int) -> dict[int, str]:
     """**Mit welchem Zustand hat ein Stück diesen Auftrag verlassen?** — aus dem Log.
 
-    Der letzte Eintrag dieses Stücks in **diesem** Auftrag sagt es: das Ende-Objekt
-    schreibt ``freigegeben``, eine Übergabe schreibt den Zustand, den es beim Weggehen
-    hatte. Beides ist eingefroren – ein Log-Eintrag ändert sich nie.
+    Der letzte Eintrag dieses Stücks in **diesem** Auftrag sagt es.
     """
     last = (
         select(
@@ -431,8 +364,7 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
     ).all()
     came_back = _returned_here(db, order.id)
     through = _left_through(db, order.id)
-    # **Kommt es zurück?** – dieselbe Ableitung, die auch das Modul sperrt. Die Kette
-    # zählt (§3.5); zweimal gelaufen wären es zwei Antworten auf eine Frage.
+    # **Kommt es zurück?** – dieselbe Ableitung, die das Modul sperrt (Kette, §3.5).
     coming = order_state.returning_home(db, order)
     left_with = _left_with(db, order.id)
 
@@ -440,25 +372,9 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
     for mid, at, active, status, unit_id in raw:
         at = int(at) if at is not None else None
         # ►►► **Die Achse erzählt diesen Auftrag, die Abzweigung den Nachbarn.** ◄◄◄
-        #
-        # Beide Aussagen sind gewollt, sie beantworten nur verschiedene Fragen:
-        #
-        #   auf der **Abzweigung**  «arbeitet es dort noch?» – dafür ist der HEUTIGE
-        #                           Zustand die Antwort: ``im_prozess`` heisst «noch
-        #                           dort», alles andere «dort geblieben» (§8.1a).
-        #   auf der **Achse**       «was ist an dieser Stelle in DIESEM Auftrag
-        #                           passiert?» – dafür zählt der Zustand von damals.
-        #
-        # Der Unterschied steht schon in der Zeile: geschlossen **mit** Punkt heisst
-        # ausgeschert (Abzweigung), geschlossen **ohne** Punkt heisst hinter dem Ende
-        # angekommen (Achse).
-        #
-        # Auf der Achse stand bisher ebenfalls der heutige Zustand – und damit schrieb ein
-        # fremder Auftrag rückwirkend in dieses Bild: ein längst abgeschlossener Auftrag
-        # zeigte an seinem Ende plötzlich «Verschrottet», obwohl er nie etwas verschrottet
-        # hat. Das Stück war später **anderswo** ausgesondert worden. Ein Zustandswort in
-        # der Gegenwartsform, das Vergangenes behauptet, ist ein Fehler – auch wenn es
-        # einmal stimmte.
+        # Abzweigung (geschlossen mit Punkt): der HEUTIGE Zustand (§8.1a). Achse
+        # (geschlossen ohne Punkt): der Zustand, mit dem es DIESEN Auftrag verliess –
+        # sonst schriebe ein fremder Auftrag rückwirkend in dieses Bild.
         if not bool(active) and at is None:
             status = left_with.get(int(unit_id), status)
         out.append(_Row(
@@ -466,8 +382,7 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
             through=through.get(int(unit_id)),
             returned=(int(unit_id), at) in came_back,
             coming_back=int(unit_id) in coming,
-            # Nur wer draussen ist, ist irgendwo hinausgegangen. Bei einer offenen oder
-            # ausgescherten Zeile wäre der letzte Log-Eintrag eine Zwischenstation.
+            # Nur wer draussen ist, ist hinausgegangen.
             left_at=(left_at.get(int(unit_id))
                      if not bool(active) and at is None else None),
         ))
@@ -482,15 +397,8 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
 class Planned:
     """Eine Abzweigung, die es **noch nicht gibt** – der Entwurf daneben.
 
-    Ein Auftragsentwurf lebt im Browser (§6.1): er hat keine Zeile, keine Objektnummer
-    und schreibt nichts in den Log. Trotzdem will man **vor** der Freigabe sehen, woher
-    seine Stücke kommen und ob sie zurückgehen — und zwar in demselben Bild, das nach der
-    Freigabe entsteht, nicht in einer Skizze daneben.
-
-    Darum nimmt der Graph den Plan als Eingabe entgegen, statt dass ihn jemand nachbaut:
-    dieselbe Auffaltung, dieselben Knoten-Kennungen, dieselben Kanten. Der einzige
-    Unterschied ist der, der wahr ist — **nichts ist gegangen**, also bleibt jede Kante
-    des Plans eine Haarlinie und trägt keine Stücke (Regel Nr. 1).
+    Ein Entwurf lebt im Browser (§6.1); der Graph nimmt ihn als Eingabe und zeichnet ihn im
+    selben Bild – als Haarlinien ohne Stücke (**nichts ist gegangen**).
     """
 
     #: Zustandspunkt, an dem die Stücke stehen (``order_units.current_step_id``).
@@ -505,10 +413,8 @@ def build(db: Session, order: Order, *, planned: Optional[list[Planned]] = None)
     """Der Graph dieses Auftrags: Knoten, Kanten, Positionen.
 
     Die Knotenfolge ist die Schrittliste, aufgefaltet um die Punkte, an denen etwas
-    passiert ist. Ein ``fork`` entsteht, wenn dort je ein Stück ausgeschert ist; ein
-    ``join``, wenn dort je eines zurückkam **oder** noch eines unterwegs ist. Beides
-    steht im Log bzw. an der Verbindung – geraten wird nichts, und weggenommen wird
-    auch nichts mehr: was einmal passiert ist, bleibt im Bild.
+    passiert ist: ``fork``, wo je ein Stück ausscherte; ``join``, wo je eines zurückkam
+    **oder** noch unterwegs ist. Was einmal passiert ist, bleibt im Bild.
     """
     steps = (
         db.query(ProcessStep)
@@ -517,18 +423,11 @@ def build(db: Session, order: Order, *, planned: Optional[list[Planned]] = None)
         .all()
     )
     tally = _tally(db, order.id)
-    # ►► **Wer hier hinausging, ist nicht weitergelaufen.** ◄◄
-    #
-    # ``passed`` zählt die ``step``-Einträge eines Moduls – und die schreibt auch, wer den
-    # Auftrag dort **verlässt**. Ohne diese Korrektur trüge die Kante hinter einem
-    # Verbrauchsmodul die Komponenten mit, die dort ausgetreten sind: bei «3 Getriebe,
-    # 12 Schrauben» stünde die Bilanz auf 15 statt 3, und eine Abweichung, die alle drei
-    # Getriebe mitnimmt, hinterliesse eine **kräftige Linie, auf der niemand steht**.
+    # ►► **Wer hier hinausging, ist nicht weitergelaufen.** ◄◄ ``passed`` zählt auch, wer
+    # den Auftrag am Modul verlässt (z. B. verbrauchte Komponenten).
     left_at = _exit_points(db, order.id)
-    # ``onward`` ist die **weitergelaufene** Menge, ``tally.passed`` bleibt roh. Die
-    # Unterscheidung ist keine Kosmetik: die rohe Zahl ist die Aussage des Logs («wer hat
-    # dieses Modul passiert»), und genau gegen sie prüft ``_verify`` die Linienstärke.
-    # Würde sie hier überschrieben, prüfte die Invariante die Rechnung gegen sich selbst.
+    # ``onward`` = weitergelaufen; ``tally.passed`` bleibt roh, gegen ihn prüft
+    # ``_verify_walked`` die Linienstärke.
     onward = dict(tally.passed)
     for at in left_at.values():
         if at in onward:
@@ -539,9 +438,7 @@ def build(db: Session, order: Order, *, planned: Optional[list[Planned]] = None)
 
     known = {s.id for s in steps}
     forks = {at for (at, _) in tally.out}
-    # Ein Rückführpunkt entsteht, wenn dort je etwas zurückkam **oder** noch etwas
-    # unterwegs ist. Beides ist «hier mündet etwas ein» – einmal rückblickend, einmal
-    # angekündigt.
+    # Ein Rückführpunkt entsteht, wenn dort je etwas zurückkam **oder** noch unterwegs ist.
     pending = {(r.at, r.through) for r in rows
                if not r.active and r.at is not None and r.through and r.coming_back}
     joins = ({at for (at, _) in tally.back} | {at for (at, _) in pending}
@@ -562,10 +459,7 @@ def build(db: Session, order: Order, *, planned: Optional[list[Planned]] = None)
 
     for index, step in enumerate(steps):
         at = step.id
-        # **Die Bilanz.** Sie beginnt mit dem, was an diesem Punkt angekommen ist — vor dem
-        # ersten Modul über das Start-Objekt, sonst über das Modul davor — und wird in
-        # ``_branches`` an jeder Teilung fortgeschrieben. Die Kante **vor** dem Modul trägt
-        # damit, was nach allen Abzweigungen und Rückführungen übrig ist.
+        # **Die Bilanz**: was hier ankam, fortgeschrieben in ``_branches`` an jeder Teilung.
         flow = tally.started if index == 0 else onward.get(steps[index - 1].id, 0)
         open_here = any(point == at for point, _ in pending)
 
@@ -580,12 +474,8 @@ def build(db: Session, order: Order, *, planned: Optional[list[Planned]] = None)
             else (lambda r: _here_at(r, at)),
         ))
 
-        # ►► **Wer hier hinausgegangen ist, steht hier** – nicht am Ende. ◄◄
-        #
-        # Eine Kante ohne Ziel, wie die hinter dem Ende: der Prozess ist für diese Stücke
-        # zu Ende, es gibt keinen nächsten Knoten. Sie entsteht **aus dem Log** und nicht
-        # aus einer Eigenschaft des Modultyps – damit trägt dieselbe Zeile den Ausgang
-        # (alles geht) und den Verbrauch (ein Teil geht, der Rest läuft weiter).
+        # ►► **Wer hier hinausgegangen ist, steht hier** – nicht am Ende. ◄◄ Eine Kante
+        # ohne Ziel, **aus dem Log** (Ausgang wie Verbrauch), nicht aus dem Modultyp.
         gone = _pick(rows, lambda r: r.left_at == at)
         if gone:
             g.edges.append(_edge(
@@ -593,25 +483,15 @@ def build(db: Session, order: Order, *, planned: Optional[list[Planned]] = None)
             ))
 
     # ►► **Hinter einem Ausgang gibt es kein Ende-Objekt** (``modules.Module.terminal``). ◄◄
-    #
-    # Dieselbe Eigenschaft, aus der ``domain/chain`` seinen Freigabe-Fehler zieht und der
-    # Editor sein «dahinter geht nichts mehr»: dort kommt nie ein Stück an
-    # (``process.confirm_step`` überspringt ``_finish``), also wäre das Ende ein Knoten,
-    # den niemand je passiert.
-    #
-    # **Nur diese eine Frage hängt noch am Modultyp.** Wer wo hinausgegangen ist, steht
-    # oben je Modul und kommt aus dem Log – ein Verbrauchsmodul ist kein Ausgang (hinter
-    # ihm läuft das Produkt weiter) und führt trotzdem Stücke hinaus.
+    # Dort kommt nie ein Stück an (``process.confirm_step`` überspringt ``_finish``).
     if not (steps and modules.get(steps[-1].module_type).terminal):
         g.nodes.append(Node(id=NODE_END, kind=NODE_END))
         _link(g, prev, NODE_END, tally.ended > 0, [])
-        # Hinter dem Ende gibt es keinen Knoten mehr – angekommene Stücke stehen trotzdem
-        # irgendwo, und «irgendwo» ist die Kante, die aus dem Ende herausführt.
+        # Angekommene Stücke stehen auf der Kante aus dem Ende heraus.
         g.edges.append(_edge(
             "edge:end:done", NODE_END, None, EDGE_AXIS, tally.ended > 0,
-            # **Angekommen ist, wer über das Ende ging** – nicht, wer irgendwie draussen
-            # ist. Ein verbautes Stück ist ebenfalls geschlossen und ohne Punkt, hat das
-            # Ende aber nie gesehen; es steht an seinem Modul (``left_at``).
+            # **Angekommen ist, wer über das Ende ging** – ein verbautes Stück steht an
+            # seinem Modul (``left_at``).
             _pick(rows, lambda r: not r.active and r.at is None and r.left_at is None),
         ))
 
@@ -640,17 +520,14 @@ def _merged(found: list[Neighbour]) -> list[Neighbour]:
 # Die Zuordnung — **eine** Stelle, an der ein Stück auf eine Kante kommt
 # ---------------------------------------------------------------------------
 #
-# Der Zähler an der Pille und die Liste im Dropdown fragen **ein** Prädikat je Kante:
-# ``build`` zählt, was es zurückgibt, ``units_on`` listet es auf. Eine gröbere zweite
-# Abfrage («alle Stücke an Schritt X») zeigte an einer Teilung beide Gruppen.
+# Zähler an der Pille und Liste im Dropdown fragen **ein** Prädikat je Kante: ``build``
+# zählt, ``units_on`` listet auf.
 
 def _targets_at(at: Optional[int], tally: _Tally, pending: set,
                 plan: list["Planned"]) -> list[int]:
     """Die Nachbarn an diesem Zustandspunkt — **chronologisch**.
 
-    Die Objektnummer wächst mit der Zeit, also ist «aufsteigend» dasselbe wie «die
-    zuerst abgezweigte zuerst». Das ist die Reihenfolge, in der sie im Bild
-    untereinander stehen: deterministisch, gleiche Daten ⇒ gleiches Bild.
+    Aufsteigende Objektnummer = die zuerst abgezweigte zuerst; deterministisch.
     """
     return sorted({t for (p, t) in tally.out if p == at}
                   | {s for (p, s) in tally.back if p == at}
@@ -663,41 +540,25 @@ def _branches(g: Graph, prev: str, at: Optional[int], tally: _Tally,
               flow: int) -> tuple[str, int]:
     """Die Abzweigungen an einem Zustandspunkt — **je Nachbar ein eigenes Paar**.
 
-    ``… → fork₁ → join₁ → fork₂ → join₂ → Modul`` statt eines gemeinsamen Paares für
-    alle. Der Unterschied ist nicht kosmetisch: mit **einem** Rückführpunkt für alle
-    liegt er unter dem letzten Nachbarn, und der Rückweg des ersten muss an allen
-    folgenden vorbei – quer über die Fläche, mitten durch deren Hinwege. Mit einem
-    eigenen Paar liegt jeder Rückweg unmittelbar unter seinem Hinweg.
+    ``… → fork₁ → join₁ → fork₂ → join₂ → Modul``: jeder Rückweg liegt unter seinem Hinweg,
+    die Zeichnung ist planar (**Raupengraph**, §12.4).
 
-    Das ist die Standardform eines **Raupengraphen** (eine Achse mit Anhängseln): sind
-    die Ansatzpunkte verschieden, ist die Zeichnung **planar** – Kreuzungen sind dann
-    nicht vermieden, sondern unmöglich. Genau das stellt diese Auffaltung her, denn ein
-    Stück kehrt immer an den Punkt zurück, an dem es ausgeschert ist (§12.4): ohne sie
-    fallen alle Anhängsel eines Punktes auf dieselbe Stelle.
+    **Wer geblieben ist, steht auf dem Bypass der ersten noch offenen Abzweigung**; ist
+    nichts mehr draussen, auf der Kante vor dem Modul.
 
-    **Wer geblieben ist, steht auf dem Bypass der ersten noch offenen Abzweigung** –
-    einer, nicht mehreren: eine Position ist eine Kante. Ist nichts mehr draussen,
-    trägt ihn die Kante vor dem Modul (Befund 2.1).
-
-    **Die Bilanz wandert mit** (``flow``): sie kommt mit dem herein, was am Punkt
-    angekommen ist, verliert an jedem Abzweigepunkt seine Ausgescherten und gewinnt an
-    jedem Rückführpunkt seine Rückkehrer. Der Bypass zwischen beiden trägt genau das,
-    was **an diesem Nachbarn vorbeigelaufen** ist – nimmt er alles mit, ist es null, und
-    die Linie ist dünn. Genau das ist die Regel «die Volllinie zeigt den Weg der
-    Einzelinstanz», ohne eine einzige Fallunterscheidung.
+    **Die Bilanz wandert mit** (``flow``): minus Ausgescherte, plus Rückkehrer; der Bypass
+    trägt, was **an diesem Nachbarn vorbeigelaufen** ist.
     """
     stayed = _pick(rows, lambda r: _here_at(r, at, returned=False))
     targets = _targets_at(at, tally, pending, plan)
-    # **Der Plan ist keine Vergangenheit.** Eine geplante Abzweigung bekommt ihren
-    # Rückführpunkt aus dem Plan, nicht aus dem Log – und dort steht sonst nichts.
+    # Eine geplante Abzweigung bekommt ihren Rückführpunkt aus dem Plan, nicht aus dem Log.
     plans = {p.target: p for p in plan if p.at == at}
     holds = next((t for t in targets if (at, t) in pending), None)
 
     for t in targets:
         fid = fork_id(at, t)
         g.nodes.append(Node(id=fid, kind=NODE_FORK, at=at))
-        # Die Ankunftskante trägt niemanden: wer hier ist, ist am Abzweigepunkt
-        # vorbei – entweder hinaus oder auf dem Bypass daneben.
+        # Die Ankunftskante trägt niemanden: wer hier ist, ist hinaus oder auf dem Bypass.
         prev = _link(g, prev, fid, flow > 0, [])
         left = tally.out.get((at, t), 0)
         g.edges.append(_edge(
@@ -705,9 +566,8 @@ def _branches(g: Graph, prev: str, at: Optional[int], tally: _Tally,
             _pick(rows, lambda r, tt=t: _away_at(r, at, tt)),
         ))
         g.neighbours.append(Neighbour(object_id=t, unit_count=left))
-        # Ab hier ist die Achse um die Ausgescherten leichter. Nicht negativ: ein Stück
-        # kann eine Stelle mehrfach verlassen haben (es kam zwischendurch zurück), und
-        # «weniger als niemand» gibt es nicht.
+        # Ab hier ist die Achse um die Ausgescherten leichter; nie negativ (ein Stück kann
+        # eine Stelle mehrfach verlassen haben).
         flow = max(0, flow - left)
         returning = (at, t) in tally.back or (at, t) in pending
         if t in plans:
@@ -734,8 +594,7 @@ def _edge(eid: str, frm: str, to: Optional[str], kind: str, walked: bool,
           members: list) -> Edge:
     """Eine Kante mit ihren Mitgliedern – und den Zahlen, die daraus folgen.
 
-    **Ein** Konstruktor für jede Kante des Graphs. Zahlen und Mitglieder können damit
-    nicht auseinanderlaufen: die einen sind aus den anderen gerechnet.
+    **Ein** Konstruktor für jede Kante; die Zahlen sind aus den Mitgliedern gerechnet.
     """
     return Edge(id=eid, frm=frm, to=to, kind=kind, walked=walked,
                 members=[r.membership_id for r in members], units=_counted(members))
@@ -749,20 +608,9 @@ def _link(g: Graph, frm: str, to: str, walked: bool, members: list) -> str:
 def _verify_walked(g: Graph, tally: _Tally) -> None:
     """►►► **Die Linienstärke gegen den LOG, nicht gegen die Rechnung.** ◄◄◄
 
-    Die übrigen Invarianten prüfen die Zeichnung gegen die **Positionen**: eine Haarlinie
-    mit Stücken darauf ist ein Widerspruch. Das trägt nur so lange, wie noch jemand
-    dortsteht – in einem **abgeschlossenen** Auftrag ist jede Zugehörigkeit geschlossen,
-    keine Achsenkante hat mehr Mitglieder, und eine falsche Haarlinie fällt durch **jedes**
-    Netz. Genau dort war der gemeldete Fehler unsichtbar.
-
-    Diese Prüfung fragt darum den Log direkt: **wer ein Modul passiert hat, ist die Kante
-    davor gegangen.** Ausgenommen ist nur, wer erst dort eingetreten ist
-    (``process._enter_at_step``) – er hat die Kante nie gesehen.
-
-    Das ist bewusst eine **zweite** Herleitung derselben Aussage. Die Bilanz entlang der
-    Achse kann rechnen (sie muss: der Bypass einer Abzweigung ist eine Differenz); diese
-    hier kann nur zählen. Weichen sie ab, ist die Rechnung schuld – und das steht dann da,
-    statt still gezeichnet zu werden.
+    **Wer ein Modul passiert hat, ist die Kante davor gegangen** – ausser er trat dort ein
+    (``process._enter_at_step``). Eine bewusst zweite Herleitung neben der Bilanz; sie trägt
+    auch im abgeschlossenen Auftrag, wo keine Kante mehr Mitglieder hat.
     """
     for e in g.edges:
         if e.kind != EDGE_AXIS or not e.to or not e.to.startswith(f"{NODE_MODULE}:"):
@@ -779,9 +627,7 @@ def _verify_walked(g: Graph, tally: _Tally) -> None:
 def _verify(g: Graph, rows: list["_Row"]) -> None:
     """Die Invarianten. Verletzt heisst **sichtbar kaputt**, nicht still falsch.
 
-    Ein Bild, das eine Einzelinstanz verliert oder doppelt zeigt, ist schlimmer als
-    keines: es sieht vollständig aus. Darum wird hier gezählt, und was nicht aufgeht,
-    steht in ``problems`` – die Oberfläche sagt es dann, statt es zu zeichnen.
+    Was nicht aufgeht, steht in ``problems``; die Oberfläche sagt es, statt es zu zeichnen.
     """
     placed: list[int] = [m for e in g.edges for m in e.members]
     if len(placed) != len(set(placed)):
@@ -794,9 +640,7 @@ def _verify(g: Graph, rows: list["_Row"]) -> None:
     for e in g.edges:
         if sum(p.count for p in e.units) != len(e.members):
             g.problems.append(f"Kante {e.id}: Zahl und Mitglieder stimmen nicht überein.")
-        # **Wo etwas steht, ist etwas gewesen.** Eine Haarlinie mit Stücken darauf wäre
-        # ein Widerspruch in sich – und genau der Fehler, den die Bilanz entlang der
-        # Achse machen könnte, wenn sie an einer Stelle zu viel abzöge.
+        # **Wo etwas steht, ist etwas gewesen** – keine Haarlinie mit Stücken darauf.
         if e.members and not e.walked:
             g.problems.append(
                 f"Kante {e.id}: dort stehen Einzelinstanzen, aber sie gilt als nicht gegangen."
@@ -827,9 +671,7 @@ def _here_at(r: _Row, at: Optional[int], returned: Optional[bool] = None) -> boo
 def _counted(members: list[_Row]) -> list[Placed]:
     """Die Zahlen an der Pille – **abgeleitet aus den Mitgliedern**, nicht daneben gezählt.
 
-    Bei Menge 5000 will niemand 5000 Zeilen sehen; die Frage an dieser Stelle lautet «wie
-    viele stehen wo». Wer die Nummern braucht, klappt auf – und bekommt dann genau diese
-    Mitglieder, nicht das Ergebnis einer zweiten, gröberen Abfrage.
+    Wer die Nummern braucht, klappt auf und bekommt genau diese Mitglieder.
     """
     counts: dict[tuple[str, bool, Optional[int]], int] = {}
     for r in members:
@@ -844,10 +686,7 @@ def _counted(members: list[_Row]) -> list[Placed]:
 def units_on(db: Session, order: Order, edge_id: str) -> list[int]:
     """Die ``order_units``-Zeilen dieser Kante — **nachgeschlagen**, nicht neu hergeleitet.
 
-    Der Graph wird dafür gebaut und die Kante aufgeschlagen. Das ist Absicht: eine
-    zweite, schnellere Abfrage («alle Stücke an Schritt X») wäre genau die zweite
-    Quelle, aus der der Widerspruch entstand – die Pille zählte die Teilung, die Liste
-    kannte sie nicht und zeigte beide Gruppen. Es passiert nur beim Aufklappen.
+    Der Graph wird dafür gebaut und die Kante aufgeschlagen – bewusst keine zweite Abfrage.
     """
     g = build(db, order)
     for e in g.edges:

@@ -39,10 +39,8 @@ _MAX_PIXELS = 40_000_000   # ~40 MP – Schutz vor Decompression-Bombs (kleine D
 def _flatten_to_rgb(img):
     """Ein Bild nach RGB bringen und dabei etwaige **Transparenz auf WEISS** legen.
 
-    Kritisch für gezeichnete Unterschriften: die stammen von einem transparenten Canvas
-    (dunkle Striche auf transparentem PNG). Ein direktes ``convert("RGB")`` würde die
-    transparenten Pixel zu **Schwarz** machen → die ganze Fläche wäre ein schwarzer Balken.
-    Darum die Transparenz vorher auf einen weissen Hintergrund komponieren."""
+    Für gezeichnete Unterschriften (transparentes PNG): ein direktes ``convert("RGB")``
+    machte die Fläche schwarz."""
     from PIL import Image
     if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
         rgba = img.convert("RGBA")

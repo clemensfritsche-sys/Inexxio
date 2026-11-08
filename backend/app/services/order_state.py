@@ -26,9 +26,7 @@ from . import (
 )
 from .instances import unit_numbers
 
-#: Wie viele Werte höchstens in eine ``IN``-Liste kommen. Bei 5000 Stück wäre eine
-#: einzige Liste ein Abfrage-Text von hunderten Kilobyte; das ist kein Fehler, aber
-#: unnötig – und die Grenze kostet nichts.
+#: Wie viele Werte höchstens in eine ``IN``-Liste kommen.
 _CHUNK = 1000
 
 
@@ -45,10 +43,8 @@ def _open_of(unit_ids: list[int]) -> tuple:
 def held_by(db: Session, unit_ids: list[int]) -> dict[int, OrderUnit]:
     """Je Stück die **offene Zugehörigkeit**, falls es gerade in einem Auftrag läuft.
 
-    Das ist die Exklusivität aus §3, von der Lese-Seite: höchstens eine Zeile je Stück
-    kann offen sein, der partielle Unique-Index sorgt dafür. Was hier herauskommt, ist
-    darum eindeutig – und es ist zugleich die **Verbindung**, aus der eine Abweichung
-    entsteht (Abweichungsauftrag §3.2).
+    Eindeutig dank der Exklusivität (§3, partieller Unique-Index); zugleich die
+    **Verbindung**, aus der eine Abweichung entsteht (§3.2).
     """
     if not unit_ids:
         return {}
@@ -64,9 +60,7 @@ def held_by(db: Session, unit_ids: list[int]) -> dict[int, OrderUnit]:
 def holders(db: Session, unit_ids: list[int]) -> dict[int, int]:
     """Je Stück die **Objektnummer des Auftrags**, in dem es gerade läuft.
 
-    Zweite Form von ``held_by``, für die Anzeige: dort zählt nicht die Zeile, sondern
-    wohin der Klick führt. Ein Stück «Im Prozess» ohne den Weg zu seinem Auftrag ist
-    eine Sackgasse – man sieht, dass es läuft, aber nicht wo.
+    Zweite Form von ``held_by``, für die Anzeige (wohin der Klick führt).
     """
     out: dict[int, int] = {}
     for part in _chunks(list(unit_ids)):
@@ -84,8 +78,7 @@ def _units_at(db: Session, order: Order, step_id: Optional[int],
               *, instance_id: Optional[int] = None):
     """Was steht an diesem Zustandspunkt — wahlweise nur die Stücke **einer** Instanz.
 
-    Die Einschränkung ist die Ausführungsseite der Scan-Regel: verifiziert wird eine
-    Instanz, also arbeitet ein Vorgang auch nur an ihren Stücken.
+    Scan-Regel: ein Vorgang arbeitet nur an den Stücken der verifizierten Instanz.
     """
     q = (
         db.query(OrderUnit, InstanceUnit)
@@ -104,9 +97,7 @@ def _units_at(db: Session, order: Order, step_id: Optional[int],
 def units_before(db: Session, order: Order, step: ProcessStep) -> list[InstanceUnit]:
     """**Was steht vor diesem Modul?** — die eine öffentliche Antwort.
 
-    Gebraucht von jedem, der über das rechnet, was ankommt: die Stückliste
-    (``consumption.needs``) braucht die Zahl *und* den Ort, die Arbeitsliste die Instanzen.
-    Zwei Abfragen wären zwei Stände desselben Augenblicks.
+    Für Stückliste (``consumption.needs``: Zahl und Ort) und Arbeitsliste (Instanzen).
     """
     return [u for _, u in _units_at(db, order, step.id)]
 
@@ -114,31 +105,21 @@ def units_before(db: Session, order: Order, step: ProcessStep) -> list[InstanceU
 def step_work(db: Session, order: Order, step: ProcessStep) -> list[dict[str, Any]]:
     """**Was ist an diesem Modul zu tun — je Instanz?**
 
-    Ein Vorgang ist eine Instanz (§3), also ist das hier die Arbeitsliste: eine Zeile je
-    Instanz, die davorsteht. Sie trägt alles, was die Oberfläche braucht, ohne dass sie
-    etwas ableitet:
+    Die Arbeitsliste: eine Zeile je Instanz, die davorsteht (ein Vorgang ist eine Instanz, §3):
 
     ``waiting``   wie viele Stücke dieser Instanz hier stehen
     ``sample``    wie viele davon **gezogen** sind (die übrigen laufen ohne Erfassung durch)
     ``held``      hat die letzte Erfassung **nicht bestanden**? Dann rückt hier nichts vor
     ``rest``      die ungeprüften Stücke **dieser** Instanz an **diesem** Modul
 
-    ``rest`` ist der «Rest» aus §4.1 – und zwar genau in dem Umfang, den er haben darf:
-    die Stücke, die hier im Prozess stehen. **Nicht** die übrige Charge: Stücke, die
-    anderswo laufen oder längst am Lager liegen, hat dieses Modul nie behandelt, und eine
-    100 %-Kontrolle über sie wäre eine Aussage über Material, das hier nie war.
-
-    Das ``held`` ist die **letzte** Erfassung, nicht irgendeine: kommt ein Stück nach einer
-    Abweichung zurück und wird erneut erfasst, zählt das neue Urteil. Ein Hold, den nur ein
-    alter Befund am Leben hält, wäre eine Sackgasse ohne Ausgang.
+    ``rest`` (§4.1) umfasst nur die Stücke, die hier im Prozess stehen, nicht die übrige
+    Charge. ``held`` ist die **letzte** Erfassung: ein neues Urteil zählt.
     """
     waiting = _units_at(db, order, step.id)
     if not waiting:
         return []
     units = [u for _, u in waiting]
-    # **Gezogen** kommt aus dem Log, **erfasst** aus den Werten – zwei verschiedene
-    # Fragen. Wer «gezogen» aus dem Vorhandensein einer Erfassung ableitet, meldet vor
-    # der ersten Eingabe eine leere Stichprobe und einen Rest, der alles umfasst.
+    # **Gezogen** kommt aus dem Log, **erfasst** aus den Werten – zwei Fragen.
     drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
     holds = held_units(db, order, step, [u.id for u in units])
     numbers = unit_numbers(db, units)
@@ -201,21 +182,9 @@ def held_units(db: Session, order: Order, step: ProcessStep,
                unit_ids: list[int]) -> set[int]:
     """►►► **Welche Stücke hält dieses Modul fest?** ◄◄◄ — der **letzte Befund** zählt.
 
-    Ein «nicht bestanden» hält an (§4.5): nichts rückt vor, und der Grund steht da. Der
-    Halt ist eine **Auskunft über den letzten Befund**, keine Sperre – aufgehoben wird er
-    durch einen **neuen Befund**, also durch erneutes Erfassen. Nach einer Nacharbeit ist
-    das die Wiederholungsprüfung; genau so ist es gedacht.
-
-    **Die Sackgasse lag nie hier.** Der Halt hatte immer einen Ausgang – die Oberfläche
-    bot ihn nur nicht an: sie zeigte bei ``held`` **ausschliesslich** die Entscheidung und
-    nie die Erfassung. Damit hatte sie eine Regel erfunden, die es im Dienst nicht gibt,
-    und die erfundene Regel hatte keinen Schlüssel: wer die Abweichung anlegte und
-    durchlaufen liess, bekam sein Stück zurück und stand wieder genau davor – derselbe
-    Halt, dieselbe Meldung, und jeder weitere Anlauf legte nur eine weitere Abweichung an.
-
-    Darum steht die Frage jetzt hier, an **einer** Stelle, statt in der Ansicht: ``held``
-    ist eine abgeleitete Auskunft, und wer sie anzeigt, zeigt sie **neben** dem Weg nach
-    vorn, nicht anstelle davon.
+    Ein «nicht bestanden» hält an (§4.5). Der Halt ist eine **Auskunft**, keine Sperre –
+    aufgehoben durch einen **neuen Befund** (erneutes Erfassen). Wer ``held`` anzeigt,
+    zeigt es **neben** dem Weg nach vorn, nicht anstelle davon.
     """
     if not unit_ids:
         return set()
@@ -232,17 +201,9 @@ def held_numbers(db: Session, order: Order, step: ProcessStep, *,
     ``sample``   die **gezogenen**: für sie ist je ein Wertesatz zu erfassen (§9.3)
     ``failed``   die durchgefallenen – Vorauswahl für einen Abweichungsauftrag
 
-    ``failed`` geht als Vorauswahl in einen ganz gewöhnlichen Auftragsentwurf – **kein
-    neuer Mechanismus** (§4.1), nur eine andere Vorbelegung.
-
-    **Die 100 %-Kontrolle braucht keine eigene Gruppe** (#713): sie ist ein
-    Abweichungsauftrag über die übrigen Stücke mit der Stichprobe «alle» – der eine Weg,
-    den es für alles gibt.
-
-    **Erst auf Klick, nie auf Vorrat.** Keine dieser Listen steht in der Auftrags-Antwort:
-    bei einer 6000er-Charge wären es tausende Nummern bei jedem Öffnen des Auftrags. Die
-    Zahlen daneben (``step_work``) genügen für die Vorschau; die Nummern holt, wer sie
-    wirklich braucht – also der, der gerade zu erfassen beginnt.
+    ``failed`` geht in einen gewöhnlichen Auftragsentwurf (§4.1). Die 100 %-Kontrolle ist
+    ein Abweichungsauftrag mit der Stichprobe «alle». **Erst auf Klick**: die Zahlen in
+    ``step_work`` genügen für die Vorschau.
     """
     instance = (
         db.query(Instance).filter(Instance.object_id == instance_object_id).first()
@@ -296,10 +257,8 @@ def units_page(db: Session, order: Order, *, membership_ids: list[int],
                limit: int, offset: int) -> tuple[list[tuple[OrderUnit, InstanceUnit]], int]:
     """Die einzelnen Stücke einer Position – auf Abruf und in Seiten.
 
-    **Welche** Stücke, entscheidet nicht diese Abfrage, sondern die Zuordnung im
-    Prozessbild (``flow.units_on``): sie kommen als Zeilen-ids herein. Eine eigene
-    Bedingung hier wäre eine zweite Antwort auf «wo steht dieses Stück», und Pille und
-    Liste widersprächen sich.
+    **Welche** Stücke, entscheidet die Zuordnung im Prozessbild (``flow.units_on``); sie
+    kommen als Zeilen-ids herein.
     """
     if not membership_ids:
         return [], 0
@@ -316,10 +275,8 @@ def units_page(db: Session, order: Order, *, membership_ids: list[int],
 # Der Auftragsstatus — ABGELEITET, an genau einer Stelle
 # ---------------------------------------------------------------------------
 #
-# Ein Auftrag hat genau drei Zustände, und keiner davon wird gesetzt: er ergibt sich aus
-# dem Zustand seiner Einzelinstanzen. Eine Spalte daneben wäre der zweite Ort — und der
-# läuft beim ersten vergessenen Update weg. «Freigegeben» kommt nicht vor: Freigeben ist
-# die Aktion, mit der der Auftrag entsteht, kein Zustand, in dem er verweilt.
+# Drei Zustände, keiner gesetzt: abgeleitet aus seinen Einzelinstanzen. «Freigegeben» ist
+# eine Aktion, kein Zustand.
 #
 #   Im Prozess      es ist noch etwas unterwegs
 #   Abgeschlossen   mindestens ein Stück hat das Ziel erreicht
@@ -331,20 +288,9 @@ def units_page(db: Session, order: Order, *, membership_ids: list[int],
 def _derive(arrived: int, alive: int, lent: int) -> str:
     """Die Regel selbst — aus drei Zahlen. Alles andere zählt nur.
 
-    **«Abgeschlossen» heisst: den definierten Weg zu Ende gegangen** – nicht «das
-    Ende-Objekt passiert». Der Unterschied zählt bei einem **Ausgang** (§4.6): wer
-    ausgesondert wird, verlässt den Auftrag dort, und das ist das Ende seines Weges. Ein
-    vierter Wert dafür wäre falsch; die Regel deckt ihn bereits.
-
-    **Was noch unterwegs ist, gewinnt.** Ein Auftrag, dessen eines Stück angekommen und
-    dessen anderes gerade in einer Abweichung ist, läuft – er ist nicht «Abgeschlossen».
-    Vorher stand die Ankunft zuerst; das fiel nicht auf, weil Stücke ohne Abweichungen im
-    Gleichschritt laufen und ein Auftrag darum nie halb fertig war.
-
-    ``lent`` sind die Stücke, die einer Abweichung geliehen sind und **zurückkommen**
-    (Abweichungsauftrag §3.2). Gekappte Verbindungen zählen hier nicht: sie kommen nicht
-    zurück, der Auftrag läuft mit weniger weiter – und bleibt nichts übrig, ist sein Ziel
-    unerreichbar.
+    **«Abgeschlossen» = den definierten Weg zu Ende gegangen**, auch über einen Ausgang
+    (§4.6). **Was noch unterwegs ist, gewinnt.** ``lent`` = einer Abweichung geliehen und
+    **kommt zurück** (§3.2); gekappte Verbindungen zählen nicht.
     """
     if alive or lent:
         return st.IM_PROZESS
@@ -369,10 +315,8 @@ def _loans_toward(db: Session, order_ids: list[int]) -> list[tuple[int, int, lis
     der Eigenschaft der **Verbindung**; eine gekappte Ausleihe endet die Kette, und das ist
     die Aussage «kommt nie zurück».
 
-    Eingegrenzt wird auf die Stücke, die einen der gefragten Aufträge **verlassen** haben
-    (geschlossene Zeile mit Zustandspunkt) – nur sie können dorthin zurückkehren. Zwei
-    Leser fragen das: der Auftragsstatus (``waiting_counts``) und die Sperre bzw. das Bild
-    (``returning_home``).
+    Nur Stücke, die einen der Aufträge **verlassen** haben (geschlossen, mit Zustandspunkt).
+    Leser: ``waiting_counts`` und ``returning_home``.
     """
     if not order_ids:
         return []
@@ -408,10 +352,7 @@ def _loans_toward(db: Session, order_ids: list[int]) -> list[tuple[int, int, lis
 def waiting_counts(db: Session, order_ids: list[int]) -> dict[int, int]:
     """Wie viele Stücke sind gerade **ausgeliehen und kommen zurück**? — je Auftrag.
 
-    **Abgeleitet, nicht gespeichert.** Es wartet, wer noch mindestens eine offene
-    rückführende Verbindung hat – über die ganze Kette (``_loans_toward``). Kappt eine
-    Stufe die Rückführung, endet die Kette dort, und niemand darüber wartet weiter: jeder
-    läuft mit weniger weiter, und wem nichts bleibt, dessen Ziel ist unerreichbar (§3.4).
+    Über die ganze Kette (``_loans_toward``); eine gekappte Stufe beendet sie (§3.4).
     """
     wanted = set(order_ids)
     out: dict[int, int] = {}
@@ -425,8 +366,7 @@ def waiting_counts(db: Session, order_ids: list[int]) -> dict[int, int]:
 def _away_points(db: Session, order: Order) -> dict[int, int]:
     """Je ausgeschertem Stück der Zustandspunkt, an dem es diesen Auftrag verlassen hat.
 
-    Die Stelle steht schon da: beim Ausscheren wurde die Zeile geschlossen, ihr
-    ``current_step_id`` aber nicht angetastet (§3.3). Nachzuschlagen gibt es nichts.
+    Es ist das ``current_step_id`` der geschlossenen Zeile (§3.3).
     """
     return {
         int(u): int(s)
@@ -452,21 +392,9 @@ def returning_home(db: Session, order: Order) -> dict[int, int]:
 def pending_returns(db: Session, order: Order) -> dict[int, list[int]]:
     """**Worauf wartet welches Modul?** — Modul-id → Objektnummern der Abweichungen.
 
-    Ein Stück, das an einem Zustandspunkt ausgeschert ist und **zurückkommt**, gehört zu
-    dem, was an diesem Punkt bearbeitet wird. Solange es unterwegs ist, darf das Modul
-    dahinter nicht laufen: bestätigen hiesse ohne dieses Stück fortzufahren – und
-    hinterher wäre es zurück, aber der Zug abgefahren.
-
-    **Gekappte Ausleihen sperren nichts.** Sie kommen nie zurück; der Auftrag läuft mit
-    weniger Stücken weiter und wartet ausdrücklich nicht (§3.4). Ohne diese Unterscheidung
-    stünde jedes Modul, aus dem je etwas ausgesondert wurde, für immer still.
-
-    **Die Kette zählt** (§3.5): leiht A an B und B weiter an C, wartet auch A – das Stück
-    ist unterwegs zu ihm, nur eine Stufe tiefer. Genannt wird dabei der Auftrag, in dem es
-    **jetzt** steckt: dort ist etwas zu tun, damit es weitergeht.
-
-    Abgeleitet, nicht gespeichert – wie alles hier. Ein Sperr-Flag am Modul wäre ein
-    zweiter Ort für dieselbe Aussage, und der erste vergessene Rückweg liesse ihn stehen.
+    Solange ein ausgeschertes Stück **zurückkommt**, läuft das Modul dahinter nicht.
+    **Gekappte Ausleihen sperren nichts** (§3.4). **Die Kette zählt** (§3.5); genannt wird
+    der Auftrag, in dem das Stück **jetzt** steckt. Abgeleitet, kein Sperr-Flag.
     """
     coming = returning_home(db, order)
     if not coming:
@@ -498,9 +426,7 @@ def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
     Abweichung **alle** Stücke nimmt und die Rückführung gekappt ist (Matrix S57 · S58 · S59).
 
     «Angekommen» heisst: die Zugehörigkeit ist geschlossen **und** das Stück steht vor
-    keinem Modul mehr. Eine geschlossene Zeile allein genügt nicht – sie schliesst sich
-    auch, wenn ein Stück ausschert (siehe ``OrderUnit``), und das ist das Gegenteil von
-    angekommen.
+    keinem Modul mehr (auch Ausscheren schliesst die Zeile).
     """
     if not order_ids:
         return {}
@@ -521,8 +447,7 @@ def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
         int(oid): _derive(int(a), int(al), lent.get(int(oid), 0))
         for oid, a, al in rows
     }
-    # Ein Auftrag ohne jede Zugehörigkeit kann es nicht geben (die Freigabe verlangt
-    # mindestens eine Einzelinstanz). Käme er doch vor, ist er kein «Im Prozess».
+    # Ohne Zugehörigkeit (kann es nicht geben) ist ein Auftrag kein «Im Prozess».
     return {oid: found.get(oid, st.ABGEBROCHEN) for oid in order_ids}
 
 
@@ -536,18 +461,8 @@ def deviation_flags(db: Session, order_ids: list[int]) -> dict[int, bool]:
     dokumentationspflichtig. Eine Retoure ist keine Abweichung: sie ist eine Eigentumsfrage
     und steht in ihrer Zahlung («geht an uns»).
 
-    Die Regel **nennt darum keinen Status**: auch ein **gesperrtes** Stück wieder in Betrieb
-    zu nehmen ist eine Abweichung – in der Qualitätssicherung der Musterfall einer
-    Sonderfreigabe. Der Zweck des Labels ist die **Nachweisbarkeit**, nicht die Herkunft.
-
-    Als Vergleich gegen den einen Regelstart ist sie zugleich die **einfachere** Regel und
-    die haltbarere: ein künftiger Zustand ist automatisch eine Abweichung, ohne dass ihn
-    jemand hier einträgt. Die Richtung stimmt – wer zu viel ausweist, dokumentiert; wer zu
-    wenig ausweist, verliert den Nachweis.
-
-    Es gibt **kein Feld** dafür und keinen Auftragstyp. Ein Abweichungsauftrag ist ein
-    ganz gewöhnlicher Auftrag; «Abweichung» ist eine Auskunft über ihn, keine Eigenschaft,
-    die jemand setzt.
+    Die Regel nennt keinen Status (ein künftiger Zustand ist automatisch eine Abweichung).
+    **Kein Feld**, kein Auftragstyp: «Abweichung» ist eine Auskunft.
     """
     if not order_ids:
         return {oid: False for oid in order_ids}
@@ -568,8 +483,7 @@ def deviation_flags(db: Session, order_ids: list[int]) -> dict[int, bool]:
 def active_step_id(db: Session, order: Order) -> Optional[int]:
     """Welches Modul ist **jetzt** dran? Das erste, vor dem noch ein Stück steht.
 
-    Abgeleitet, nicht gespeichert: ein zweites Feld dafür wäre eine zweite Wahrheit,
-    die beim ersten vergessenen Update auseinanderläuft.
+    Abgeleitet, nicht gespeichert.
     """
     waiting = {
         int(sid) for (sid,) in db.query(OrderUnit.current_step_id).filter(
@@ -587,9 +501,7 @@ def active_step_id(db: Session, order: Order) -> Optional[int]:
 def events_page(db: Session, order: Order, *, limit: int) -> tuple[list[ProcessEvent], int]:
     """Die Historie – die **neuesten** ``limit`` Einträge und wie viele es insgesamt sind.
 
-    Der Deckel wird ausgewiesen, nicht verschwiegen: bei 5000 Stück hat der Log 10 000
-    Einträge, und eine Liste, die stumm bei 200 aufhört, sieht aus wie die ganze
-    Wahrheit. Die Zahl daneben sagt, dass es mehr gibt.
+    Der Deckel wird ausgewiesen: die Zahl daneben sagt, dass es mehr gibt.
     """
     total = (
         db.query(func.count(ProcessEvent.id))
@@ -609,13 +521,8 @@ def events_page(db: Session, order: Order, *, limit: int) -> tuple[list[ProcessE
 def started_at(db: Session, order: Order, unit_ids: list[int]) -> dict[int, datetime]:
     """**Wann hat dieses Stück das Start-Objekt passiert?** — je Stück, aus dem Log.
 
-    Der Start ist ein Ereignis wie jedes andere, und sein Zeitstempel steht bereits im
-    Log. Eine Spalte ``gestartet_am`` daneben wäre eine Kopie, die beim ersten Nacherfassen
-    von der Wahrheit abweicht – und die Wahrheit ist der Log (§7.2).
-
-    Gemeint ist der Eintritt in **diesen** Auftrag: ein Stück, das ausschert, passiert im
-    Abweichungsauftrag ein zweites Start-Objekt, und dort ist «seit wann läuft es hier»
-    eine andere Zahl als im Auftrag darüber.
+    Keine Spalte daneben: die Wahrheit ist der Log (§7.2). Gemeint ist der Eintritt in
+    **diesen** Auftrag.
     """
     if not unit_ids:
         return {}

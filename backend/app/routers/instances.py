@@ -96,8 +96,7 @@ def list_instances(
         db.query(Instance)
         .join(Article, Article.id == Instance.article_id, isouter=True)
         .filter(
-            # **Dieselbe Bedingung wie überall** (`services/lookup`) – vorher hier
-            # ausgeschrieben, und damit die Stelle, an der die Artikel-Suche abwich.
+            # **Dieselbe Bedingung wie überall** (`services/lookup`).
             lookup.matches(search or "", Instance.object_id, Article.name),
         )
     )
@@ -151,12 +150,9 @@ def instance_units(
     rows, total = inst_svc.units_page(
         db, instance, statuses=status, limit=limit, offset=offset)
     holders = order_state.holders(db, [u.id for u in rows])
-    # Nur die **Zahl** – zwei Abfragen für die ganze Seite. Die Stückliste selbst kommt
-    # auf Klick; sie ist je Stück eine eigene Geschichte und gehört in keine Liste.
+    # Nur die **Zahl**; die Stückliste selbst kommt auf Klick.
     parts = genealogy.parts_counts(db, [u.id for u in rows])
     # **Wo sie liegen** – aufgelöst je Halter, nicht je Stück (``places.for_units``).
-    # 60 Schrauben in einem Regal sind eine Kette; je Zeile aufzulösen wäre die
-    # N+1-Falle.
     places = places_svc.for_units(db, rows)
     return UnitPage(
         units=[_unit_out(instance, u, holders, parts, places) for u in rows],

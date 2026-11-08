@@ -63,9 +63,8 @@ NEVER = "never"
 ALWAYS = "always"
 #: Nur, wo **sie** den Preis nennt (Ausgabe): dann offeriert sie.
 IF_THEY_PRICE = "they"
-#: Nur, wo **wir** ihn nennen (Einnahme): dann nimmt sie an. Unseren Preis zu
-#: überschreiben wäre keine Antwort, sondern eine Gegenofferte – und die ist ein neuer
-#: Beleg.
+#: Nur, wo **wir** ihn nennen (Einnahme): dann nimmt sie an (eine Gegenofferte ist ein
+#: neuer Beleg).
 IF_WE_PRICE = "we"
 
 
@@ -156,22 +155,14 @@ def gaps(db: Session, row: Voucher, *, action: str,
     """►►► **Welche Angaben fehlen, um DIESE Handlung zu tun?** ◄◄◄
 
     Je Lücke eine Zeile mit dem **Datensatz** (klickbar), dem **Feld** und einem Satz, der
-    sagt, **warum dieser Beleg sie braucht**. Was daraus folgt, entscheidet ein Mensch –
-    wie bei ``StepNeed``: hingehen und eintragen.
+    sagt, **warum dieser Beleg sie braucht** – wie bei ``StepNeed``.
 
     **Gestaffelt und kumulativ** (``Verb.needs``): ``charge`` verlangt auch, was ``ask``
-    und ``agree`` verlangen. Eine Rechnung ohne Adressaten gibt es nicht, nur weil man
-    schon zugesagt hat.
-
-    **Zwei Sonderfälle, beide benannt:** die **IBAN** verlangt nur, wer einzieht (auf
-    einer Lieferantenrechnung steht *seine* Bankverbindung); die **UID des Empfängers**
-    verlangt nur ein Beleg, der *Reverse Charge* trägt – im Inland ist sie nicht
-    vorgeschrieben, und ein Pflichtfeld, das meistens leer bleiben darf, ist keines.
+    und ``agree`` verlangen. Die **IBAN** verlangt nur, wer einzieht; die **UID des
+    Empfängers** nur ein Beleg mit *Reverse Charge*.
     """
-    # **Geprüft wird die Partei, um die es GEHT.** Beim Zuschlag steht sie in der
-    # Nutzlast, nicht am Beleg – die Zusage prüfte sich sonst gegen eine leere Gegenseite
-    # und wäre nie möglich. Und wo noch gar keine feststeht, wird die Gegenseite nicht
-    # geprüft: beim Anfragen gibt es sie noch nicht, und der Knopf muss trotzdem da sein.
+    # **Geprüft wird die Partei, um die es GEHT** (beim Zuschlag aus der Nutzlast); steht
+    # noch keine fest (Anfragen), wird die Gegenseite nicht geprüft.
     look = party_id if party_id is not None else party_of(db, row)
     head = document_head(db, row, won=True, party_id=look)
     flow = vo.of(row.direction)
@@ -206,9 +197,7 @@ def gaps(db: Session, row: Voucher, *, action: str,
 def next_action(row: Voucher) -> str:
     """**Welche Handlung steht an dieser Stufe an?** – die, deren Lücken zählen.
 
-    Eine Liste aller Lücken über alle Stufen wäre eine Mängelliste statt einer Auskunft:
-    sie nennte Angaben, die erst in drei Schritten gebraucht werden, und niemand wüsste,
-    welche gerade im Weg steht.
+    Nur die Lücken, die gerade im Weg stehen – keine Mängelliste über alle Stufen.
     """
     return "bill" if row.stage != vo.OFFER else "ask"
 
@@ -365,9 +354,7 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
           payload: dict[str, Any], actor: Optional[UserProfile] = None) -> Voucher:
     """**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle.
 
-    Danach räumt der Beleg selbst nach (``follow_up``): ein Dokument geht hinaus, wo die
-    Partei eine neue Stufe zu sehen bekommt, und die Stücke ziehen weiter, sobald sie
-    dürfen. Beides ist keine Handlung, die jemand vergessen könnte.
+    Danach räumt der Beleg selbst nach (``follow_up``): Dokument hinaus, Stücke weiter.
     """
     row = of_step(db, step.id)
     if row is None:
@@ -413,8 +400,7 @@ def _currency(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         code = cur.assert_code(data.get("currency"))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    # **Ein vorgegebener Preis steht in der Hauswährung** – umgerechnet wird nichts, also
-    # gälte er in einer anderen Währung als eine andere Zahl.
+    # **Ein vorgegebener Preis steht in der Hauswährung** – umgerechnet wird nichts.
     if code != row.currency and preset_prices(db, row, step):
         raise HTTPException(status_code=400, detail=(
             f"Die Preise sind im Modul in {row.currency} vorgegeben – die Währung bleibt."))
@@ -1155,8 +1141,7 @@ def _target(db: Session, row: Voucher, data: dict[str, Any],
         actor.object_id if actor else None)
     rows = quotes_of(db, row)
     if number is None and internal and len(rows) == 1:
-        # Steht genau eine Zeile da, ist sie gemeint – danach zu fragen wäre eine Frage
-        # mit genau einer richtigen Antwort.
+        # Steht genau eine Zeile da, ist sie gemeint.
         return rows[0]
     found = next((q for q in rows if q.party_id == number), None)
     if found is None:
@@ -1174,9 +1159,7 @@ def _party(db: Session, *, step: ProcessStep, value: Any,
            flow: vo.Direction) -> Optional[int]:
     """Die gewählte Gegenpartei prüfen – gegen die Freigabe und gegen die Wirklichkeit.
 
-    **Leer heisst frei, aber nicht «irgendwer»**: wo die Definition niemanden nennt, muss
-    es die Objektnummer trotzdem geben. Eine Auswahl, die der Dienst danach abwiese, wäre
-    keine.
+    **Leer heisst frei, aber nicht «irgendwer»**: die Objektnummer muss es geben.
     """
     if value in (None, "", 0):
         return None
@@ -1297,12 +1280,8 @@ def _assert_ask(db: Session, row: Voucher, step: ProcessStep,
 def terms_problem(lead: Optional[int], days: Optional[int]) -> Optional[str]:
     """►►► **Ein Angebot nennt beide Fristen.** ◄◄◄ – der Satz, oder ``None``.
 
-    Sie sind kein Beiwerk: aus der **Lieferfrist** kommt der Termin, aus der
-    **Zahlungsfrist** die Fälligkeit jeder Rechnung – und, wenn sie null ist, die
-    Vorauszahlung. Fehlt eine, hat niemand über den Zeitpunkt gesprochen.
-
-    **Null ist ein gültiger Wert und hat einen Namen** («Sofort» · «Vorauszahlung»): darum
-    steht die Prüfung auf ``is None`` und nicht auf ``not value``.
+    Aus der **Lieferfrist** kommt der Termin, aus der **Zahlungsfrist** die Fälligkeit (null
+    = Vorauszahlung). **Null ist gültig**, darum ``is None``.
 
     **Zwei Formen, ein Namensstamm**: ``_assert_terms`` wirft ihn an einer Angebotszeile,
     ``ask_problem`` trägt ihn an den gesperrten Knopf.

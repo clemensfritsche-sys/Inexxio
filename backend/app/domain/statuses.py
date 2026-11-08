@@ -1,29 +1,15 @@
 """**Die geschlossene Statusliste — die eine Stelle, für alles.**
 
-Ein Status ist ein Zustand: einer **Einzelinstanz**, eines **Auftrags** oder eines
-**Artikels**. Jeder steht hier **genau einmal**, mit allem, was über ihn zu wissen ist –
-Beschriftung, Ampelton, welche Achsen ihn tragen, und (für Stücke) ob er zum aktuellen
-**Bestand** oder zur **Historie** zählt. Die drei Achsen teilen sich die Werte, wo sie
-dasselbe meinen. Das ist der Grundsatz: so wenige Status wie möglich, so viele
-gemeinsame wie möglich.
+Ein Status (Einzelinstanz, Auftrag, Artikel, Dokument) steht hier **genau einmal**, mit
+Beschriftung, Ampelton, Achsen und (für Stücke) **Bestand** oder **Historie**. So wenige
+Status wie möglich, so viele gemeinsame wie möglich.
 
-**Alles Weitere ist abgeleitet.** Die Achsen-Listen, die Ampeltöne, die Anzeige-
-Reihenfolge, die Trennung Bestand/Historie – keine davon ist eine zweite Liste, die
-jemand nachziehen müsste. Ein neuer Status ist **eine Zeile in** ``CATALOG``; Bestands-
-Leiste, Gruppierung, Farbe und Frontend-Spiegel folgen ohne weiteres Zutun.
+**Alles Weitere ist abgeleitet** (Achsen-Listen, Ampeltöne, Reihenfolge, Bestand/Historie).
+Ein neuer Status ist **eine Zeile in** ``CATALOG``. Die Bestands-Zugehörigkeit ist eine
+**Eigenschaft des Status**; fehlt sie, startet die App nicht.
 
-Vorher war das nicht so: ``LIVE_UNIT_STATUSES`` war eine eigene Liste neben
-``UNIT_STATUSES``. Ein neuer Stück-Zustand wäre stillschweigend als **lebender Bestand**
-gezählt worden – ein terminaler Zustand hätte den Lagerbestand erhöht, und niemand hätte
-es gemerkt. Genau darum ist die Zugehörigkeit jetzt eine **Eigenschaft des Status** und
-ihr Fehlen ein Fehler beim Start, kein stiller Standardwert.
-
-**Warum geschlossen** (PROCESS_CORE.md §5.1): wäre der Wert Freitext, bedeutete
-«Status X» in zwei Aufträgen womöglich Verschiedenes, und weder Farbe noch Bestand
-liessen sich systemweit ableiten.
-
-**Nicht angelegt, weil erfunden:** ``gebunden`` (Reservierung entfällt ersatzlos) und
-``verbraucht`` (wäre ein zweiter Endzustand — heute gibt es genau einen, §4.2).
+**Geschlossen** (PROCESS_CORE.md §5.1), damit Farbe und Bestand systemweit ableitbar sind.
+Es gibt genau einen Endzustand (§4.2).
 """
 
 from dataclasses import dataclass
@@ -34,21 +20,16 @@ from fastapi import HTTPException
 # Die Werte — so wenige wie möglich, geteilt über drei Achsen
 # ---------------------------------------------------------------------------
 
-#: Einsatzbereit. An der **Einzelinstanz**: sie steckt in keinem Auftrag. Am **Artikel**:
-#: er ist freigegeben und auftragsfähig. Dasselbe Wort, weil es dasselbe meint.
+#: Einsatzbereit: die **Einzelinstanz** steckt in keinem Auftrag, der **Artikel** ist
+#: auftragsfähig.
 FREIGEGEBEN = "freigegeben"
 
-#: Läuft gerade. An der **Einzelinstanz** wie am **Auftrag** — der Auftrag ist im Prozess,
-#: solange seine Stücke es sind.
+#: Läuft gerade (**Einzelinstanz** und **Auftrag**).
 IM_PROZESS = "im_prozess"
 
-#: **Der Auftrag ist seinen definierten Weg zu Ende gegangen** (**Auftrag**).
-#:
-#: Nicht «hat das Ziel erreicht» – das klang nach dem Ende-Objekt und liess einen Auftrag
-#: zweifelhaft aussehen, dessen Stücke durch einen **Ausgang** hinausgingen (§4.6). Ein
-#: terminales Modul IST das Ende des Weges; wer dort ankommt, ist fertig, auch wenn er das
-#: Ende-Objekt nie passiert. Genau das zählt ``order_state.order_statuses`` schon immer:
-#: Zugehörigkeit geschlossen **und** vor keinem Modul mehr stehend.
+#: **Der Auftrag ist seinen definierten Weg zu Ende gegangen** (**Auftrag**) – auch über
+#: einen **Ausgang** (§4.6): Zugehörigkeit geschlossen **und** vor keinem Modul mehr
+#: (``order_state.order_statuses``).
 ABGESCHLOSSEN = "abgeschlossen"
 
 #: Das Ziel ist nicht mehr erreichbar (**Auftrag**) – roter Ton.
@@ -61,67 +42,38 @@ INAKTIV = "inaktiv"
 #: Erst mit der letzten Unterschrift ist es «Freigegeben» (``services/documents.status_of``).
 UNTERSCHRIFT_ANGEFRAGT = "unterschrift_angefragt"
 
-#: **Dokument**: eine verlangte Unterschrift wurde abgelehnt – endgültig. Weiter geht es mit
-#: einem neuen Dokument.
+#: **Dokument**: eine verlangte Unterschrift wurde abgelehnt – endgültig.
 ABGELEHNT = "abgelehnt"
 
 #: **Dokument**: gelöscht. Der Datensatz bleibt (Art, Name, wer, wann, Grund), die Datei
 #: ist weg. Gelöscht wird nur, was nirgends hängt.
 GELOESCHT = "geloescht"
 
-#: Aus dem Verkehr gezogen und **physisch weg** (**Einzelinstanz**). Endgültig: es gibt
-#: das Ding nicht mehr, also kann es in keinem Auftrag mehr vorkommen.
+#: Aus dem Verkehr gezogen und **physisch weg** (**Einzelinstanz**). Endgültig.
 VERSCHROTTET = "verschrottet"
 
 #: Aus dem Verkehr gezogen, aber **physisch noch da** (**Einzelinstanz**). Nicht mehr
 #: einplanbar, solange die Sperre gilt – aufhebbar, indem ein Auftrag das Stück greift.
 GESPERRT = "gesperrt"
 
-#: **An einen Kunden gegangen** (**Einzelinstanz**). Es hat seinen Zweck erreicht – darum
-#: grün, aus demselben Grund wie ``VERBAUT``.
+#: **Gehört einer anderen Partei** (**Einzelinstanz**), geschrieben am Ziel
+#: (``process._finish``); grün wie ``VERBAUT``.
 #:
-#: ►►► **Heute schreibt ihn kein Modul mehr – und er bleibt trotzdem.** ◄◄◄
+#: **Nicht endgültig**: Service oder Retoure sind ein **regulärer Start**
+#: (``REGULAR_STARTS``). Ob es danach uns gehört, sagt allein die Zahlung
+#: (``voucher.sold_units``).
 #:
-#: Sein einziger Schreiber war «Ausliefern», und das Modul ist ersatzlos entfernt. Der
-#: **Katalog ist aber nicht nur die Liste dessen, was entstehen kann, sondern das
-#: Vokabular, in dem der append-only Ereignis-Log geschrieben ist**: jedes Stück, das je
-#: ausgeliefert wurde, trägt dieses Wort in seiner Zeile und in seiner Geschichte. Ihn zu
-#: streichen machte nicht Vergangenes ungeschehen, sondern **unlesbar** – die
-#: Bestandsleiste meldete einen Zustand, den sie nicht kennt, und `flow._left_with` läse
-#: ihn aus dem Log ohne Beschriftung.
-#:
-#: Was niemand mehr schreibt, kostet nichts; was die Vergangenheit trägt, wird nicht
-#: gelöscht – der Ereignis-Log ist append-only und liest dieses Wort.
-#:
-#: **Nicht endgültig**: ein Auftrag darf das Stück greifen – für einen **Service** beim
-#: Kunden (Prüfung, Wartung, Reparatur) ebenso wie für eine **Retoure**. Beides ist ein
-#: **regulärer Start** (``REGULAR_STARTS``): das Stück ruht beim Kunden, niemandem wird etwas
-#: entzogen. Ob es danach uns gehört, sagt allein die Zahlung («geht an uns»,
-#: ``voucher.sold_units``) – sie ist der Nachweis der Retoure; es gibt keinen «Retoure
-#: annehmen»-Endpunkt.
-#:
-#: **Historie**, denn es liegt nicht mehr in unserem Regal: FIFO schlägt es nicht vor, der
-#: Bestand zählt es nicht mit – wählbar bleibt es trotzdem. Genau diese beiden Fragen führt
-#: der Katalog getrennt (``stock`` ↔ ``terminal``), und dieser Wert ist der zweite Beleg
-#: dafür, dass sie unabhängig sind.
-#:
-#: **Der Ort fällt weg** – ohne eine Zeile dafür: ``process._pass`` räumt ihn für jeden
-#: Zustand, der zur Historie zählt. Wo das Stück beim Kunden liegt, ist nicht unsere
-#: Auskunft; die Lieferadresse steht am Beleg.
+#: **Historie**: FIFO schlägt es nicht vor, der Bestand zählt es nicht – wählbar bleibt es
+#: trotzdem (``stock`` ↔ ``terminal`` sind unabhängig).
 VERKAUFT = "verkauft"
 
-#: **Steckt in einem anderen Stück** (**Einzelinstanz**). Es hat seinen Zweck erreicht:
-#: kein Mangel, kein Verlust – darum grün und nicht gelb.
+#: **Steckt in einem anderen Stück** (**Einzelinstanz**) – Zweck erreicht, darum grün.
 #:
-#: **Nicht endgültig**, und das ist eine Entscheidung: Demontage ist real (ein Getriebe
-#: wird zerlegt, die Zahnräder gehen zurück ins Lager). Ein Auftrag darf das Stück
-#: greifen – **das Greifen IST der Ausbau**, genau wie beim Sperren; und weil sein Start
-#: dann vom Regelstart abweicht, ist der Vorgang **automatisch** eine Abweichung
-#: (``order_state.deviation_flags``) und damit dokumentiert, ohne eine Zeile dafür.
+#: **Nicht endgültig**: Demontage ist real. **Das Greifen IST der Ausbau** und automatisch
+#: eine Abweichung (``order_state.deviation_flags``).
 #:
-#: **Die Stückliste liest darum den LOG, nicht diesen Wert** (``services/genealogy``):
-#: läse sie den heutigen Zustand, verschwände ein ausgebautes Teil rückwirkend aus der
-#: Vergangenheit des Produkts. Was verbaut *war*, bleibt verbaut gewesen.
+#: **Die Stückliste liest den LOG, nicht diesen Wert** (``services/genealogy``): was verbaut
+#: *war*, bleibt verbaut gewesen.
 VERBAUT = "verbaut"
 
 # ---------------------------------------------------------------------------
@@ -148,35 +100,11 @@ class Status:
     tone: str
     #: Welche Achsen ihn tragen können.
     axes: tuple[str, ...]
-    #: **Bestand oder Historie?** Pflicht für jeden Zustand, den ein Stück tragen kann;
-    #: für alle anderen sinnlos und darum verboten (siehe ``_check``).
+    #: **Bestand oder Historie?** Pflicht für Stück-Zustände, sonst verboten (``_check``).
     stock: str | None = None
-    #: **Ist dieser Zustand endgültig?**
-    #:
-    #: Die stärkste Eigenschaft, die ein Status haben kann: aus ihm heraus gibt es keinen
-    #: Übergang mehr – aus keinem Anlass, an keiner Stelle, durch kein Modul. Was passiert
-    #: ist, ist passiert.
-    #:
-    #: **Alles Weitere folgt daraus, statt daneben zu stehen:**
-    #:
-    #: * ``is_selectable`` – ein Auftrag kann ein Stück in einem Endzustand nicht
-    #:   aufnehmen. Er könnte nichts damit tun; die Aufnahme wäre ein Versprechen, das
-    #:   der erste Schritt bricht. (Das war einmal ein eigenes Feld ``selectable``. Zwei
-    #:   Felder für dieselbe Frage sind zwei Stellen, an denen sie verschieden beantwortet
-    #:   werden kann – und genau eine davon wird beim nächsten Zustand vergessen.)
-    #: * der **Schutz in der Datenbank** (``terminal_guard_sql``): ein Trigger weist jeden
-    #:   Statuswechsel aus einem Endzustand ab. Nicht als Anwendungsregel, sondern als
-    #:   Eigenschaft der Tabelle – es gibt keinen Parameter, der ihn abschaltet.
-    #:
-    #: **Die Farbe folgt NICHT hieraus**: ein verbautes Stück ist aufhebbar **und** grün,
-    #: weil es seinen Zweck erreicht hat. Der
-    #: Ton sagt «gut · offen · Problem», ``terminal`` sagt «gibt es einen Weg zurück» –
-    #: zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten Zustand
-    #: falsch. Sie steht darum je Eintrag im Katalog.
-    #:
-    #: Nur ein **Stück**-Zustand darf terminal sein: er ist der einzige, der gespeichert
-    #: und geändert wird. Auftrags- und Artikel-Zustände sind abgeleitet bzw. anderswo
-    #: geführt; sie hier terminal zu nennen wäre eine Zusage, die niemand einlöst.
+    #: **Ist dieser Zustand endgültig?** Kein Übergang mehr, durch nichts. Daraus folgen
+    #: ``is_selectable`` und der Trigger ``terminal_guard_sql``; die Farbe folgt NICHT daraus
+    #: (verbaut ist aufhebbar **und** grün). Nur ein **Stück**-Zustand darf terminal sein.
     terminal: bool = False
 
 
@@ -184,23 +112,11 @@ class Status:
 CATALOG: tuple[Status, ...] = (
     Status(FREIGEGEBEN, "Freigegeben", "done", (UNIT, ARTICLE, DOCUMENT), stock=LIVE),
     Status(IM_PROZESS, "Im Prozess", "pending", (UNIT, ORDER), stock=LIVE),
-    # **Gesperrt zählt zum Bestand.** Das Stück liegt im Regal – es ist da, nur nicht
-    # verwendbar. Es in die Historie zu legen hiesse, den Bestand kleiner zu melden, als
-    # er ist; die Leiste zeigt es als eigenes Segment, und genau das ist die Auskunft.
+    # **Gesperrt zählt zum Bestand**: es liegt im Regal, nur nicht verwendbar.
     Status(GESPERRT, "Gesperrt", "pending", (UNIT,), stock=LIVE),
-    # **Verbaut zählt zur Historie.** Das Stück liegt nicht im Regal – es steckt in einem
-    # anderen. Als Bestand geführt wäre es Material, das niemand greifen kann, ohne
-    # vorher etwas auseinanderzunehmen.
-    #
-    # **Historie und nicht terminal** ist damit die erste Kombination dieser Art – und
-    # der Beleg, dass die beiden Eigenschaften unabhängig sind: «zählt es zum Bestand»
-    # und «gibt es einen Weg zurück» sind zwei Fragen. Nachgemessen: nichts im System
-    # koppelt sie.
+    # **Verbaut zählt zur Historie** (steckt in einem anderen Stück) und ist nicht terminal.
     Status(VERBAUT, "Verbaut", "done", (UNIT,), stock=HISTORY),
-    # **Verkauft steht neben Verbaut, nicht neben Verschrottet.** Beide haben ihr Ziel
-    # erreicht (grün), beide liegen nicht mehr im Regal (Historie), und aus beiden führt
-    # ein Weg zurück – Demontage dort, Retoure hier. Der einzige Unterschied ist, wo das
-    # Stück gelandet ist, und das ist keine Eigenschaft des Zustands.
+    # **Verkauft wie Verbaut**: grün, Historie, mit Weg zurück (Retoure).
     Status(VERKAUFT, "Verkauft", "done", (UNIT,), stock=HISTORY),
     Status(VERSCHROTTET, "Verschrottet", "danger", (UNIT,), stock=HISTORY, terminal=True),
     Status(ABGESCHLOSSEN, "Abgeschlossen", "done", (ORDER,)),
@@ -217,13 +133,7 @@ _TONES = ("done", "pending", "danger")
 def _check(catalog: tuple[Status, ...] = CATALOG) -> None:
     """**Der Wächter beim Start** – ein unvollständiger Eintrag kommt gar nicht erst durch.
 
-    Ein Stück-Zustand ohne Bestands-Zugehörigkeit wäre die gefährlichste Form eines
-    Fehlers: er landete stillschweigend irgendwo, und die Bestandsleiste zeigte eine
-    Zahl, die niemand nachrechnet. Darum startet die Anwendung lieber nicht.
-
-    Der Katalog ist ein **Parameter**, damit ein Test die Regel gegen ihre Fehlerform
-    prüfen kann: ein Wächter, der nie anschlägt, ist von einem kaputten nicht zu
-    unterscheiden.
+    Der Katalog ist ein Parameter, damit ein Test die Regel gegen ihre Fehlerform prüft.
     """
     seen: set[str] = set()
     for s in catalog:
@@ -291,26 +201,18 @@ TERMINAL_UNIT_STATUSES: tuple[str, ...] = tuple(
 #: **Die Zustände, in denen ein Stück im Regal liegt** – die Antwort auf «woraus darf sich
 #: FIFO bedienen?».
 #:
-#: Sie ist **nicht** dasselbe wie ``is_selectable``. Das sind zwei Fragen, und der Katalog
-#: führt sie getrennt: *«gibt es einen Weg zurück?»* (``terminal``) und *«liegt es im
-#: Regal?»* (``stock``). Ein **verbautes** Stück lässt sich nehmen – das Greifen IST der
-#: Ausbau – und ist trotzdem kein Lagerbestand: es steckt in einem anderen Stück.
-#:
-#: Genau diese Verwechslung war Testnotiz #739: die Vorauswahl fragte nach ``terminal``
-#: und schlug damit verbaute Stücke vor. Sie steht hier und nicht im Router, weil sie eine
-#: Eigenschaft des Katalogs ist – ein neuer Zustand gehört ihr automatisch an oder nicht.
+#: **Nicht** dasselbe wie ``is_selectable`` (``terminal``): ein verbautes Stück lässt sich
+#: greifen, liegt aber nicht im Regal.
 IN_STOCK_UNIT_STATUSES: tuple[str, ...] = tuple(
     s.value for s in CATALOG if UNIT in s.axes and s.stock == LIVE and not s.terminal
 )
 
-#: **Welche Stücke darf ein Auftrag greifen?** Abgeleitet aus derselben Eigenschaft –
-#: keine zweite Liste, die jemand nachzieht, wenn ein Zustand dazukommt.
+#: **Welche Stücke darf ein Auftrag greifen?** Abgeleitet aus ``terminal``.
 SELECTABLE_UNIT_STATUSES: tuple[str, ...] = tuple(
     s.value for s in CATALOG if UNIT in s.axes and not s.terminal
 )
 
-# **Keine Liste «was zählt zum Bestand»** – die Frage beantwortet ``stock_kind`` je
-# Zustand; eine zweite Aufzählung daneben läse man, statt die Eigenschaft zu fragen.
+# «Was zählt zum Bestand» beantwortet ``stock_kind`` je Zustand – keine Liste.
 
 # ---------------------------------------------------------------------------
 # Die festen Rand-Übergänge (§4.1)
@@ -322,42 +224,33 @@ START_BEFORE = FREIGEGEBEN
 START_AFTER = IM_PROZESS
 
 #: ►►► **Womit ein Auftrag regulär beginnt** – was **ruht**: in keinem Auftrag, nicht gesperrt,
-#: in nichts verbaut. ◄◄◄ Bei uns (``FREIGEGEBEN``) oder bei der Partei (``VERKAUFT`` – der
-#: Service am Kran des Kunden ist kein Ausnahmefall). Jeder andere Start ist eine Abweichung
-#: (``order_state.deviation_flags``, PROCESS_CORE §12.2): ein Stück einem laufenden Auftrag
-#: entziehen, eine Sperre aufheben, etwas ausbauen.
-#:
-#: **Nicht dasselbe wie «frei bei uns»**: FIFO und Verbrauch nehmen weiterhin nur
-#: ``FREIGEGEBEN`` – ein Kundenstück wird nie vorgeschlagen und nie verbaut.
+#: in nichts verbaut. ◄◄◄ Bei uns (``FREIGEGEBEN``) oder bei der Partei (``VERKAUFT``).
+#: Jeder andere Start ist eine Abweichung (``order_state.deviation_flags``, PROCESS_CORE
+#: §12.2). FIFO und Verbrauch nehmen weiterhin nur ``FREIGEGEBEN``.
 REGULAR_STARTS: frozenset[str] = frozenset({FREIGEGEBEN, VERKAUFT})
 
-#: Ende: Vorher ist fest. Das **Nachher** ist ``FREIGEGEBEN`` – oder ``VERKAUFT``, wenn
-#: das Stück einer anderen Partei gehört (``process._finish``). Genau einmal hinterlegt.
+#: Ende: das **Nachher** ist ``FREIGEGEBEN`` – oder ``VERKAUFT``, wenn das Stück einer
+#: anderen Partei gehört (``process._finish``).
 END_BEFORE = IM_PROZESS
 DEFAULT_END_STATUS = FREIGEGEBEN
 
-#: Womit eine frisch angelegte Einzelinstanz startet. Sie ist einsatzbereit und in
-#: keinem Auftrag — genau das heisst ``freigegeben``.
+#: Womit eine frisch angelegte Einzelinstanz startet.
 INITIAL_UNIT_STATUS = FREIGEGEBEN
 
-#: Was ein Zustand ist, den der Katalog nicht kennt. Er wird **gemeldet**, nicht
-#: einsortiert: eine Bestandsleiste, die ihn stillschweigend mitzählt, verbirgt genau
-#: den Fehler, den man sehen müsste.
+#: Ein Zustand, den der Katalog nicht kennt – **gemeldet**, nicht einsortiert.
 UNKNOWN = "unknown"
 
 
 def label(status: str) -> str:
-    """Beschriftung eines Status. Unbekannt → der rohe Wert, damit eine Anzeige nie
-    lügt: ein Wert, den es nicht geben dürfte, wird sichtbar, nicht versteckt."""
+    """Beschriftung eines Status. Unbekannt → der rohe Wert (sichtbar, nicht versteckt)."""
     return STATUS_LABELS.get(status, status)
 
 
 def is_terminal(status: str) -> bool:
     """**Ist dieser Zustand endgültig?** – die eine Frage, an der der Schutz hängt.
 
-    Ein unbekannter Wert ist **nicht** terminal: sonst wäre ein Tippfehler in den Daten
-    eine Sperre, die niemand mehr aufheben kann. Unbekanntes wird gemeldet
-    (``stock_kind`` → ``unknown``), nicht eingemauert.
+    Ein unbekannter Wert ist **nicht** terminal: er wird gemeldet (``stock_kind``), nicht
+    eingemauert.
     """
     s = _BY_VALUE.get(status)
     return bool(s and s.terminal)
@@ -366,15 +259,8 @@ def is_terminal(status: str) -> bool:
 def is_selectable(status: str) -> bool:
     """**Darf ein Auftrag ein Stück in diesem Zustand greifen?**
 
-    Die eine Antwort für die Freigabe (``release.release``) **und** für die Auswahl-Liste
-    (``routers/orders``). Getrennt gestellt wären es zwei Regeln, und die Oberfläche böte
-    irgendwann etwas an, das der Server ablehnt – oder schlimmer, umgekehrt.
-
-    **Abgeleitet aus ``terminal``**, nicht daneben deklariert: aufnehmen heisst, etwas tun
-    zu wollen, und aus einem Endzustand heraus gibt es nichts mehr zu tun.
-
-    Ein unbekannter Wert ist **nicht** wählbar: was der Katalog nicht kennt, kann er auch
-    nicht erlauben.
+    Die eine Antwort für Freigabe (``release.release``) und Auswahl-Liste
+    (``routers/orders``), abgeleitet aus ``terminal``. Unbekanntes ist nicht wählbar.
     """
     s = _BY_VALUE.get(status)
     return bool(s and not s.terminal)
@@ -383,10 +269,7 @@ def is_selectable(status: str) -> bool:
 def stock_kind(status: str) -> str:
     """**Bestand, Historie – oder unbekannt?** Die eine Antwort für die Bestandsansicht.
 
-    Sie kommt aus der Eigenschaft am Status, nicht aus einer Liste in der Oberfläche.
-    Ein Wert, den der Katalog nicht kennt (Altdaten, Fremdeintrag), landet in
-    ``UNKNOWN`` – sichtbar als eigene Gruppe, statt eine der beiden echten zu
-    verfälschen.
+    Unbekanntes landet in ``UNKNOWN`` – sichtbar als eigene Gruppe.
     """
     s = _BY_VALUE.get(status)
     return s.stock if s and s.stock else UNKNOWN
@@ -395,21 +278,15 @@ def stock_kind(status: str) -> str:
 def in_order(counts: dict[str, int]) -> list[tuple[str, int]]:
     """Gezählte Zustände in **Anzeige-Reihenfolge**, Nullen weggelassen.
 
-    Die Reihenfolge steht im ``CATALOG`` und sonst nirgends – jede Ansicht, die Zustände
-    nebeneinander zeigt (Bestandsleiste, Legende), liest sie hier. Sonst stünde dieselbe
-    Aufstellung an zwei Stellen in zwei Reihenfolgen.
-
-    Ein **unbekannter** Wert wird hinten angehängt statt verschwiegen: er dürfte nicht
-    existieren, und eine Leiste, deren Segmente sich nicht zur Menge summieren, verbirgt
-    genau den Fehler, den man sehen müsste.
+    Die Reihenfolge steht nur im ``CATALOG``. Ein **unbekannter** Wert wird hinten
+    angehängt statt verschwiegen.
     """
     known = [(s, counts[s]) for s in STATUS_LABELS if counts.get(s)]
     rest = [(s, n) for s, n in counts.items() if s not in STATUS_LABELS and n]
     return known + sorted(rest)
 
 
-#: Wie der Trigger und seine Funktion heissen. An **einer** Stelle, weil Migration,
-#: Sicherheitsnetz und Wächter dieselben Namen brauchen.
+#: Wie der Trigger und seine Funktion heissen (Start und Wächter brauchen dieselben Namen).
 TERMINAL_GUARD_FN = "instance_units_terminal_guard"
 TERMINAL_GUARD_TRIGGER = "trg_instance_units_terminal"
 
@@ -417,26 +294,14 @@ TERMINAL_GUARD_TRIGGER = "trg_instance_units_terminal"
 def terminal_guard_sql(statuses: tuple[str, ...] = TERMINAL_UNIT_STATUSES) -> str:
     """**Der Schutz als Eigenschaft der TABELLE, nicht als Regel der Anwendung.**
 
-    Ein Endzustand ist endgültig – und «endgültig» ist nur dann eine Zusage, wenn es
-    keinen Weg daran vorbei gibt. Eine Prüfung in der Anwendungslogik ist ein Weg, den
-    man vergessen kann: ein neues Modul, ein Reparaturskript, eine Migration, ein
-    ``UPDATE`` von Hand. Der Trigger kennt sie alle, weil er unter ihnen sitzt.
+    Der Trigger sitzt unter jedem Schreibweg (Modul, Skript, Migration, ``UPDATE`` von Hand).
+    **Keine Ausnahme**: was man verlassen können muss, ist nicht terminal.
 
-    **Kein Parameter, kein Force-Flag, keine Ausnahme.** Wer eine bräuchte, hat ein
-    Modellproblem und keinen Sonderfall: ein Zustand, den man doch verlassen können muss,
-    ist schlicht nicht terminal – und das ist eine Zeile im ``CATALOG``.
+    Die Liste ist ein Parameter (Test gegen die Fehlerform); im Betrieb kommt sie aus dem
+    Katalog, der Start (`main._sync_database_rules`) zieht sie nach. Idempotent.
 
-    Die Liste ist ein **Parameter**, damit ein Test die Regel gegen ihre Fehlerform
-    prüfen kann; im Betrieb kommt sie aus dem Katalog, und der Start (`main._sync_database_rules`)
-    zieht sie nach. Damit kann die Datenbank nicht von der einen Liste abweichen.
-
-    Idempotent: ``CREATE OR REPLACE`` plus ein ``DROP TRIGGER IF EXISTS``.
-
-    **Ein ``%`` ist ein Platzhalter, kein Sonderzeichen.** In der Meldung stehen einfache
-    Prozentzeichen, weil plpgsql sie so liest; ``%%`` wäre ein *literales* Prozentzeichen,
-    und die Funktion liesse sich gar nicht erst übersetzen («too many parameters specified
-    for RAISE»). Der Reflex, sie zu verdoppeln, kommt vom Datenbanktreiber – der ersetzt
-    aber nur, wenn Parameter mitkommen, und hier kommen keine.
+    Ein ``%`` ist ein plpgsql-Platzhalter – nicht verdoppeln (es kommen keine
+    Treiber-Parameter mit).
     """
     values = ", ".join(f"'{s}'" for s in statuses) or "NULL"
     return f"""

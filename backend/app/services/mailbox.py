@@ -1,14 +1,12 @@
-"""►►► **Das Postfach – Gmail ist der Speicher, das ERP der Verlauf** (CRM Schritt 3). ◄◄◄
+"""►►► **Das Postfach – Gmail ist der Speicher, das ERP der Verlauf.** ◄◄◄
 
 Drei Dinge, und jedes an genau einer Stelle:
 
 * **Verbinden** (``connect_url`` → Google → ``callback``): je Kanal ein Postfach, OAuth
   mit dauerhaftem Zugang. **Jede eigene Gesellschaft hat eines** (``c<Objektnummer>``),
   und ►►► **ihre Kontakt-E-Mail IST seine Adresse** ◄◄◄ – gesetzt allein durch das
-  Verbinden, geleert allein durch das Trennen; ein Eingabefeld dafür gibt es nicht. So
-  kann die Website nie eine Adresse zeigen, über die nichts hinausgeht und nichts
-  hereinkommt. Verbunden wird es am **Firmen-Datensatz** (nur ein Admin). **Persönliche
-  Postfächer gibt es nicht** – im Kommunikationstool ist jeder Benutzer gleich.
+  Verbinden, geleert allein durch das Trennen. Verbunden am **Firmen-Datensatz** (nur ein
+  Admin). **Persönliche Postfächer gibt es nicht.**
 * **Abgleichen** (``sync_all``): neue Mails seit dem letzten Stand (Gmail ``history``)
   werden zu Nachrichten. Der Absender wird einer Person zugeordnet – **unbekannte werden
   angelegt** (ohne Anmeldekonto: meldet sie sich später mit dieser Adresse an, übernimmt
@@ -17,14 +15,10 @@ Drei Dinge, und jedes an genau einer Stelle:
 * **Senden** (``send``): eine Mail, die im ERP an aussen geschrieben wird, geht über das
   Postfach ihres Kanals hinaus – im Faden ihres Betreffs (``_parent``).
 
-**Eine eigene Adresse ist nie eine Person.** Die Adressen der Postfächer und die
-Kontakt-E-Mails der eigenen Gesellschaften sind «wir» (``_ours``): eine Mail von dort hat einen
-Mitarbeiter als Absender, eine Mail dorthin hat sie als Kanal – und keine davon legt je
-eine Person an, auch nicht, wenn ein Benutzerkonto dieselbe Adresse trägt.
+**Eine eigene Adresse ist nie eine Person** («wir», ``_ours``).
 
-**Kein Abo, kein Pub/Sub, keine Uhr**: abgeglichen wird, wenn jemand das ERP offen hat
-(``POST /erp/messages/sync``, höchstens alle ``SYNC_EVERY``). Bis dahin liegen die Mails
-dort, wo sie ohnehin liegen – in Gmail.
+**Kein Abo, kein Pub/Sub**: abgeglichen wird, solange das ERP offen ist
+(``POST /erp/messages/sync``, höchstens alle ``SYNC_EVERY``), sonst im Takt (``services/tick``).
 """
 
 import base64

@@ -12,13 +12,10 @@ from .process import ModuleFacts, ModuleInput
 
 ALLOWED_UNITS = ("Stk", "mm", "m2", "m3", "kg", "l")
 ALLOWED_SERIALIZATION = ("unit", "batch")
-#: **Eine Status-Whitelist gibt es nicht mehr** (Testnotiz #773): der Zustand eines
-#: Artikels ist abgeleitet (``Article.status`` ← ``replaced_by_id``), also kommt er nicht
-#: von aussen herein und muss auch nicht geprüft werden. Die Wörter selbst stehen
-#: unverändert in ``domain/statuses`` – gelesen wird von dort, gesetzt von niemandem.
+#: Keine Status-Whitelist: der Zustand eines Artikels ist abgeleitet (``Article.status`` ←
+#: ``replaced_by_id``) und kommt nie von aussen.
 
-# Artikelnamen sind frei wählbar, aber bewusst KURZ gehalten (Feed/Etiketten/Listen bleiben
-# lesbar). Der Wert wird zentral hier gekappt – das Frontend begrenzt die Eingabe zusätzlich.
+# Artikelnamen bewusst KURZ (Feed, Etiketten, Listen); gekappt hier, das Frontend zusätzlich.
 NAME_MAX_LENGTH = 32
 
 _SIZE_RE = re.compile(r"^\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?)+$")
@@ -133,21 +130,17 @@ class ArticleCreate(BaseModel):
     #: **Ware oder Dienstleistung** – daraus folgen Steuersatz und Lieferbedingung im
     #: Zahlungsmodul (Ware: Lieferadresse; Dienstleistung: Sitz des Empfängers).
     is_service: Optional[bool] = None
-    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
-    #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
-    #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.
+    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind weltweit
+    #: identisch, der Rest national.
     hs_code: Optional[str] = None
-    #: **Ursprungsland** (ISO-2) – nicht aus dem HS-Code ableitbar und nicht das
-    #: Versandland: es ist eine eigene Angabe.
+    #: **Ursprungsland** (ISO-2) – eine eigene Angabe, nicht das Versandland.
     origin_country: Optional[str] = None
     #: Der Erzeugungsprozess. **Pflicht** – ein Artikel ohne ihn kann nichts erzeugen.
     steps: list[ModuleInput] = Field(default_factory=list)
     #: **Welchen Artikel löst dieser hier ab?** (Objektnummer, optional.)
     #:
-    #: Die Angabe steht am **Nachfolger**, weil sie genau einen Moment hat: die Anlage.
-    #: Ein Feld am Vorgänger («wer löst mich ab?») wäre jederzeit änderbar und damit eine
-    #: zweite Wahrheit über dieselbe Kette. Wirkung: ``predecessor.replaced_by_id`` zeigt
-    #: hierher, **und** der Vorgänger geht ausser Betrieb – ein Vorgang, ein Aufruf.
+    #: Steht am **Nachfolger** (einziger Moment: die Anlage). Wirkung:
+    #: ``predecessor.replaced_by_id`` zeigt hierher, der Vorgänger geht ausser Betrieb.
     replaces_object_id: Optional[int] = None
 
     @field_validator(*_OPTIONAL_TEXT_FIELDS)
@@ -276,23 +269,17 @@ class ArticleResponse(BaseModel):
     safety_stock: Optional[Decimal] = None
     is_hazmat: bool = False                     # Gefahrgut
     is_service: bool = False                    # Dienstleistung (sonst Ware)
-    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind
-    #: **weltweit identisch** (Weltzollorganisation, rund 200 Länder); darüber hinaus ist
-    #: es national, und das Importland hängt seine Verlängerung ohnehin selbst an.
+    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind weltweit
+    #: identisch, der Rest national.
     hs_code: Optional[str] = None
-    #: **Ursprungsland** (ISO-2) – nicht aus dem HS-Code ableitbar und nicht das
-    #: Versandland: es ist eine eigene Angabe.
+    #: **Ursprungsland** (ISO-2) – eine eigene Angabe, nicht das Versandland.
     origin_country: Optional[str] = None
-    # Die Erfassungsmaske der Datenerfassung: was an einer Einzelinstanz dieses
     # ── Ersetzen: die Kette in beide Richtungen ────────────────────────────────
     #: Die rohe Kante, wie sie in der Zeile steht (``articles.replaced_by_id``).
     replaced_by_id: Optional[int] = None
-    #: Aufgelöst – Nummer **und** Name **und** Zustand. Vom Router gefüllt; die rohe
-    #: Nummer allein zwänge jede Anzeige zu einer eigenen Abfrage, nur um ein Wort
-    #: danebenzuschreiben.
+    #: Aufgelöst – Nummer, Name und Zustand; vom Router gefüllt.
     replaced_by: Optional[ArticleLink] = None
-    #: Die Gegenrichtung: wen löst dieser Artikel ab? **Abgefragt, nicht gespiegelt** –
-    #: eine zweite Spalte wäre die zweite Stelle, an der die Kette auseinanderläuft.
+    #: Die Gegenrichtung: wen löst dieser Artikel ab? **Abgefragt, nicht gespiegelt.**
     replaces: Optional[ArticleLink] = None
     #: Die geplante Stückliste – **nur am Detail** (``None`` = nicht geladen).
     bom: Optional[ArticleBom] = None
@@ -329,8 +316,8 @@ class ArticleProcessStepResponse(ModuleFacts):
     Ableitung wie im Auftrag. Zwei Wege dorthin wären zwei Stände.
     """
 
-    #: **Die Identität des Moduls** (#687). Der Ereignis-Log zeigt auf sie und auf
-    #: nichts sonst – nicht auf einen Namen, nicht auf die Position.
+    #: **Die Identität des Moduls** – der Ereignis-Log zeigt auf sie, nicht auf Name oder
+    #: Position.
     id: int
     position: int
     status_before: str

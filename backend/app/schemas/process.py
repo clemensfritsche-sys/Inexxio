@@ -154,9 +154,8 @@ class CapturePoint(BaseModel):
     type: str
     target: Optional[float] = None
     tolerance: Optional[float] = None
-    #: **Worin wird gemessen?** (mm · kg · °C …) Ein freies, kurzes Wort – bewusst keine
-    #: Liste: die Mengeneinheiten des Artikels beantworten eine andere Frage (siehe
-    #: ``domain/capture_types/measure``), und eine zweite Liste wäre endlos.
+    #: **Worin wird gemessen?** (mm · kg · °C …) Ein freies, kurzes Wort, keine Liste
+    #: (``domain/capture_types/measure``).
     unit: Optional[str] = None
 
 
@@ -201,19 +200,14 @@ class PaymentSetup(BaseModel):
     zweite Stelle – und ein Aufruf, der das Geheimnis holt, holt den Schlüssel gleich mit.
     """
 
-    #: Der Faden zur Zahlungsabsicht. Er ist **kein** Geheimnis für den Zahlenden – aber
-    #: für jeden anderen: darum steht er in der Antwort und nirgends sonst.
+    #: Der Faden zur Zahlungsabsicht – nur für den Zahlenden, steht nirgends sonst.
     client_secret: str
     publishable_key: str
-    #: Der offene Betrag, **schon gerundet und formatiert** (``currency.money``) – damit
-    #: die Karte nicht rechnet und nicht rundet.
+    #: Der offene Betrag, **schon gerundet und formatiert** (``currency.money``).
     amount: str
     currency: str
-    #: ►►► **Welche Rechnung bezahlt wird** (Testnotiz #858). ◄◄◄
-    #:
-    #: Kassiert wird über **eine** Rechnung, nicht über einen Saldo – sonst entstünde die
-    #: Zahlung, die auf zwei Belege zeigt. Ihre Nummer steht darum in der Karte, in der
-    #: Beschreibung beim Dienst und in den Metadaten: derselbe Beleg, drei Leser.
+    #: ►►► **Welche Rechnung bezahlt wird** ◄◄◄ – kassiert wird über **eine** Rechnung,
+    #: nicht über einen Saldo (Karte, Beschreibung beim Dienst, Metadaten).
     invoice: str = ""
     billing: PaymentBilling
 
@@ -278,10 +272,8 @@ class StepConfirm(BaseModel):
     verification: Optional[str] = None
     sources: list[int] = Field(default_factory=list)
     #: **Der gescannte Zielort** eines Bewegungsmoduls – die Objektnummer des Halters.
-    #: Steht in der Definition bereits ein Ziel, ist dieser Scan die **Verifikation**
-    #: dagegen: eine andere Nummer wird abgewiesen (``Bewegen.movement_for``), hier und
-    #: nicht nur im Dialog. Steht dort keines, ist er die **Wahl** – und dann Pflicht,
-    #: denn ohne ihn wüsste niemand, wohin die Stücke gebracht wurden.
+    #: Mit Ziel in der Definition die **Verifikation** (``Bewegen.movement_for``), sonst die
+    #: **Wahl** – dann Pflicht.
     place: Optional[int] = None
     # **Kein «womit».** Eine Spedition zu beauftragen ist ein eigener Geldvorgang
     # (Modul «Zahlung»); dieses Feld sagt allein, wohin.
@@ -313,9 +305,7 @@ class RecordEntry(BaseModel):
     verification: Optional[str] = None
     #: Der Zustand **nach** dem Vorgang. ``None`` = nichts rückte vor («nicht bestanden»).
     status_after: Optional[str] = None
-    #: Der Zustand **vor** dem Vorgang – erst mit ihm ist ablesbar, ob sich etwas geändert
-    #: hat. Ein Durchläufer führt ``Im Prozess`` → ``Im Prozess``; ihn anzuzeigen hiesse,
-    #: in jeder Zeile dasselbe Wort zu wiederholen (Testnotiz #726).
+    #: Der Zustand **vor** dem Vorgang – erst mit ihm ist ablesbar, ob sich etwas änderte.
     status_before: Optional[str] = None
     result: Optional[str] = None
     #: ``False`` heisst: ausserhalb der Ziehung durchgelaufen, ohne Erfassung.

@@ -1,22 +1,10 @@
 """**Incoterms 2020** – wer trägt Kosten und Risiko, und bis wohin.
 
-►►► **Warum ein Katalog und kein Freitext.** ◄◄◄ Dieselbe Begründung wie bei Währung und
-Steuersatz: «FOB» getippt ist noch keine Vereinbarung, und ein Tippfehler fällt erst auf,
-wenn ein Container im Hafen steht. Die elf Klauseln sind die vollständige Liste der ICC;
-eine zwölfte gibt es nicht, und eine eigene Abkürzung wäre keine Klausel, sondern eine
-Behauptung.
+►►► **Ein Katalog, kein Freitext** ◄◄◄ – die elf Klauseln der ICC, jede mit ihrer Erklärung
+(am Katalog, nicht in der Oberfläche).
 
-►►► **Und warum jede eine Erklärung trägt.** ◄◄◄ Genau hier entstehen die Fragen – es ist
-die Stelle im ganzen Beleg, an der ein Kürzel über Tausende Franken entscheidet. Die
-Erklärung steht darum **am Katalog**, nicht in der Oberfläche: sie ist eine Eigenschaft
-der Klausel, und die Karte soll sie nicht zum zweiten Mal formulieren.
-
-**Der benannte Ort ist Pflicht**, sobald eine Klausel gewählt ist: «FCA» allein ist keine
-Vereinbarung, «FCA Rorschach» ist eine. Das ist keine Formalie – bei ``FCA`` entscheidet
-genau dieser Ort, wo das Risiko übergeht.
-
-*Die vier See-Klauseln tragen ihren Hinweis im Text: sie für Luftfracht oder einen Camion
-zu wählen ist der häufigste Fehler überhaupt, und er fällt erst im Schadensfall auf.*
+**Der benannte Ort ist Pflicht**, sobald eine Klausel gewählt ist («FCA Rorschach»).
+Die vier See-Klauseln nennen ihre Einschränkung im Text.
 """
 
 from dataclasses import dataclass
@@ -67,17 +55,14 @@ INCOTERMS: tuple[Incoterm, ...] = (
 
 _BY_KEY: dict[str, Incoterm] = {t.key: t for t in INCOTERMS}
 
-#: Wie das Feld heisst (Testnotiz #947). **Die Jahreszahl steht nicht dabei**: eine
-#: Beschriftung sagt, worum es geht – die Fassung steht in der Erklärung der gewählten
-#: Klausel, und die steht auf dem Beleg sichtbar darunter.
+#: Wie das Feld heisst – ohne Jahreszahl (die Fassung steht in der Erklärung der Klausel).
 LABEL = "Lieferbedingung"
 #: Was neben der Klausel steht. **Ohne ihn ist sie keine Vereinbarung.**
 PLACE_LABEL = "Benannter Ort"
 
 #: ►►► **Der Ort ist kein Feld – die Klausel sagt, woher er kommt.** ◄◄◄ Bei den E- und
 #: F-Klauseln geht das Risiko beim **Leistungserbringer** über (seine Versandadresse), bei
-#: den C- und D-Klauseln am **Ziel** (die Lieferadresse). Getippt wäre der Ort die zweite
-#: Aussage über eine Anschrift, die schon dasteht.
+#: den C- und D-Klauseln am **Ziel** (die Lieferadresse).
 AT_OURS: frozenset[str] = frozenset({"EXW", "FCA", "FAS", "FOB"})
 
 
@@ -91,8 +76,7 @@ def place_at_ours(key: Optional[str]) -> bool:
 def of(key: Optional[str]) -> Optional[Incoterm]:
     """Die Klausel zu einem Kürzel – ``None``, wenn es keine ist.
 
-    **Tolerant beim Lesen**: ein eingefrorener Vorgang kann eine Klausel tragen, die eine
-    spätere Fassung nicht mehr führt, und eine Anzeige darf daran nicht zerbrechen.
+    **Tolerant beim Lesen** (eingefrorene Vorgänge).
     """
     return _BY_KEY.get((key or "").strip().upper()) if key else None
 
@@ -100,8 +84,7 @@ def of(key: Optional[str]) -> Optional[Incoterm]:
 def assert_incoterm(value: Any) -> Optional[str]:
     """Die Schreibprüfung. **Leer ist erlaubt** – nicht jedes Geschäft hat eine Klausel.
 
-    Ein unbekanntes Kürzel ist ein **Fehler mit Liste**, kein stilles Verwerfen: wer
-    «DAT» schickt (die Klausel von 2010, die es 2020 nicht mehr gibt), soll das lesen.
+    Ein unbekanntes Kürzel ist ein **Fehler mit Liste**, kein stilles Verwerfen.
     """
     if value in (None, ""):
         return None
@@ -117,13 +100,8 @@ def assert_incoterm(value: Any) -> Optional[str]:
 def sentence(key: Optional[str], place: Optional[str]) -> Optional[str]:
     """**Wie die Vereinbarung auf dem Beleg steht** – «FCA Rorschach».
 
-    Eine Stelle, an der sie gebaut wird; im Browser zusammengesetzt wäre sie die zweite
-    Schreibweise, und die beiden lauteten beim nächsten Feld verschieden.
-
-    ►►► **Ohne die Jahreszahl in Klammern** (Testnotiz #956, nach #947 auch hier). ◄◄◄
-    *«Diese Info in Klammern kann grundsätzlich entfallen. Bei allen.»* – Sie stand an
-    **jedem** Wert und sagte an jedem dasselbe; welche Fassung gilt, gehört einmal in die
-    Erklärung der gewählten Klausel, nicht zwanzigmal hinter das Kürzel.
+    Die eine Stelle, an der sie gebaut wird; **ohne Jahreszahl** (die Fassung steht einmal
+    in der Erklärung der Klausel).
     """
     term = of(key)
     if term is None:

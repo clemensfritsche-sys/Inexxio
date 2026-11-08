@@ -69,12 +69,8 @@ _READS = "voucher.reads"
 def reading(db: Session) -> Iterator[None]:
     """►►► **Ein Lesevorgang – was er über einen Beleg liest, liest er einmal.** ◄◄◄
 
-    Die Antwort an die Karte (``embed_data``) und die Listen über viele Belege fragen
-    dieselben Zeilen dutzendfach: Angebotsspiegel, Geld-Zeilen, Positionen, Dokumente, den
-    Aussteller, die Anschrift der Partei. Innerhalb dieses Blocks liest ``once`` jede davon
-    einmal und reicht sie durch. **Jedes Schreiben verwirft das Gemerkte** (``flush``,
-    Rücksprung, ``forget`` nach einem direkten ``INSERT``) – ein Lesevorgang, der schreibt,
-    sieht nie einen alten Stand.
+    Innerhalb dieses Blocks liest ``once`` jede Zeile einmal. **Jedes Schreiben verwirft das
+    Gemerkte** (``flush``, Rücksprung, ``forget`` nach einem direkten ``INSERT``).
     """
     outer = _READS in db.info
     if not outer:
@@ -157,15 +153,13 @@ def lines_of(db: Session, row: Voucher) -> list[VoucherLine]:
 # ---------------------------------------------------------------------------
 #
 # *mit wem* · *was vereinbart ist* · *welche Zahlungsfrist* stehen an der gewählten
-# Angebotszeile. Als Spalten daneben könnte derselbe Beleg zwei Dinge sagen; **als
-# Ableitung kann der Widerspruch gar nicht entstehen.**
+# Angebotszeile.
 
 def chosen_quote(db: Session, row: Voucher) -> Optional[VoucherQuote]:
     """**Die Angebotszeile, bei der zugesagt wurde** – oder ``None``.
 
-    Sie ist die Antwort auf *mit wem · zu welchem Betrag · zu welchen Fristen*. Der
-    Zustand ``gewaehlt`` entsteht nicht durch Tippen, sondern dadurch, dass ``_agree``
-    hier zugesagt hat – ein Zustand ist eine Folge.
+    Sie sagt *mit wem · zu welchem Betrag · zu welchen Fristen*; ``gewaehlt`` setzt nur
+    ``_agree``.
     """
     return next((q for q in quotes_of(db, row) if q.state == vo.CHOSEN), None)
 
@@ -266,8 +260,7 @@ def balance_of(db: Session, row: Voucher) -> vo.Balance:
 def is_billed(row: Voucher) -> bool:
     """**Steht die Rechnung?** – die eine Frage, und sie hat kein eigenes Ja/Nein.
 
-    ``billed_on`` ist das Rechnungsdatum; dass es dasteht, *ist* die Antwort. Ein Feld
-    «gestellt?» daneben wäre die zweite Aussage über dieselbe Sache.
+    ``billed_on`` ist das Rechnungsdatum; dass es dasteht, *ist* die Antwort.
     """
     return row.billed_on is not None
 
@@ -286,9 +279,7 @@ def corrects(db: Session, row: Voucher) -> Optional[Voucher]:
 def minus(row: Voucher) -> bool:
     """**Mindert dieser Beleg?** – die eine Lesestelle, und sie fragt kein eigenes Feld.
 
-    Dass ein Verweis dasteht, *ist* die Antwort (``corrects_id``) – ein Flag «ist
-    Gutschrift» daneben wäre die zweite Wahrheit, und die eine vergessene Nachzieh-Stelle
-    fällt erst auf, wenn ein Beleg das Falsche behauptet.
+    Dass ein Verweis dasteht, *ist* die Antwort (``corrects_id``).
     """
     return row.corrects_id is not None
 
@@ -311,14 +302,8 @@ def inbound(row: Voucher) -> bool:
 def process_lines(db: Session, order: Order) -> list[tuple[int, int]]:
     """**Was steht im Auftrag?** – je Artikel eine Zeile ``(article_id, Stück)``.
 
-    Derselbe Weg, aus dem der Prozess überall rechnet: offene Zugehörigkeit →
-    Einzelinstanz → Instanz → Artikel. Sortiert, damit die Reihenfolge nicht von der
-    Datenbank abhängt.
-
-    **Über den ganzen Auftrag und nicht über den einzelnen Schritt.** Ein Angebot
-    entsteht, *bevor* die Stücke am Modul ankommen – ein Beleg am Ende der Kette hätte
-    sonst bis zuletzt eine leere Zeile. Und es ist fachlich richtig: dieselben sechs
-    Wellen sind es, für die ich das Härten einkaufe und die ich danach verkaufe.
+    Offene Zugehörigkeit → Einzelinstanz → Instanz → Artikel, sortiert. **Über den ganzen
+    Auftrag**, nicht den Schritt: ein Angebot entsteht, *bevor* die Stücke ankommen.
     """
     rows = (
         db.query(Instance.article_id, func.count(OrderUnit.id))
@@ -543,8 +528,7 @@ def passable(db: Session, row: Voucher) -> bool:
 def line_dicts(db: Session, row: Voucher) -> list[dict[str, Any]]:
     """Die Positionen in der Form, in der ``domain/voucher`` rechnet.
 
-    Die Mathematik kennt keine Datenbank: sie bekommt ``{quantity, price, vat}`` und gibt
-    Netto, Steuer und Brutto zurück. Diese Übersetzung steht **einmal**.
+    ``{quantity, price, vat}`` → Netto, Steuer, Brutto; die Übersetzung steht **einmal**.
     """
     return [{"quantity": ln.quantity,
              "price": str(ln.price) if ln.price is not None else None,
@@ -556,9 +540,7 @@ def line_dicts(db: Session, row: Voucher) -> list[dict[str, Any]]:
 def priced_dicts(db: Session, row: Voucher) -> list[dict[str, Any]]:
     """Nur die Positionen, die wirklich einen Preis tragen.
 
-    Bei einer **Ausgabe** gibt es keine – dort nennt die Gegenpartei eine Summe, und die
-    Steuer steht auf *ihrer* Rechnung. Der Unterschied ist damit eine **Zahl**, keine
-    Fallunterscheidung nach Richtung.
+    Bei einer **Ausgabe** keine: dort nennt die Gegenpartei eine Summe.
     """
     return [ln for ln in line_dicts(db, row) if ln["price"] is not None]
 
@@ -570,8 +552,7 @@ def priced_dicts(db: Session, row: Voucher) -> list[dict[str, Any]]:
 def house_currency(db: Session) -> str:
     """**Die Währung des Hauses** – die des Betreibers, tolerant gelesen.
 
-    Gibt es (noch) keinen Betreiber, gilt ``currency.DEFAULT``: ein harter Fehler beim
-    Freigeben eines Auftrags wäre die falsche Antwort auf eine fehlende Stammdatenzeile.
+    Ohne Betreiber gilt ``currency.DEFAULT``.
     """
     operator = once(db, ("operator",), lambda: sites.find_operator(db))
     try:
@@ -595,9 +576,7 @@ def instantiate_for_order(db: Session, order: Order,
                           *, actor_id: Optional[int] = None) -> None:
     """Jedes Beleg-Modul dieses Auftrags bekommt seinen Beleg.
 
-    **Bei der Freigabe und nicht beim Erreichen**: mit wem und worüber gehandelt wird,
-    steht in der Definition, und ein Angebot einzuholen dauert – wer erst beim Erreichen
-    anfragt, wartet die Frist ab, nachdem alles andere fertig ist.
+    **Bei der Freigabe, nicht beim Erreichen**: ein Angebot einzuholen dauert.
 
     Idempotent (der partielle Unique-Index trägt); ohne ein solches Modul ein No-op.
     """
@@ -616,9 +595,7 @@ def instantiate_for_order(db: Session, order: Order,
             order_id=order.id, step_id=step.id,
             direction=vo.assert_direction(
                 modules.get(step.module_type).direction_of(step.config)),
-            # Die Währung kommt vom Betreiber, nicht aus einem Feld: der Normalfall ist
-            # die Hauswährung, und ihn zu tippen wäre eine Eingabe mit genau einer
-            # richtigen Antwort.
+            # Die Währung kommt vom Betreiber (Hauswährung), nicht aus einem Feld.
             currency=house_currency(db),
             issuer_company_id=issuer_of(db, actor_id),
             stage=vo.OFFER,
@@ -639,13 +616,8 @@ def instantiate_for_order(db: Session, order: Order,
 def mine(db: Session, viewer: Optional[UserProfile]) -> Optional[list[Voucher]]:
     """**Woran ist dieser Betrachter beteiligt?** ``None`` = an allem.
 
-    Beteiligt ist, wer **angefragt** wurde – seine Zeile steht im Angebotsspiegel. Seit
-    der eine Tabelle ist, ist das eine gewöhnliche ``JOIN``-Bedingung statt einer
-    JSONB-Containment-Abfrage.
-
-    **Personal bekommt ``None``** – wer ohnehin ins ERP darf, braucht keine verengte
-    Sicht. **Sonst fragt diese Funktion nicht nach der Rolle**: jeder darf Gegenpartei
-    sein – die Rolle sagt, was jemand *für uns* tut, nicht ob wir mit ihm Geld austauschen.
+    Beteiligt ist, wer **angefragt** wurde (Zeile im Angebotsspiegel). **Personal bekommt
+    ``None``**; sonst zählt die Rolle nicht – jeder darf Gegenpartei sein.
     """
     if viewer is None or viewer.role in STAFF_ROLES:
         return None
@@ -718,13 +690,9 @@ def assert_completable(db: Session, *, step: ProcessStep, auto: bool = False) ->
 def service_day(db: Session, step: ProcessStep) -> Optional[date]:
     """►►► **Wann wurde die Leistung erbracht?** – aus dem Prozess, nicht getippt. ◄◄◄
 
-    Der Tag, an dem die Stücke **das Modul davor** verlassen haben, also bei diesem hier
-    angekommen sind. **Das Rechnungsdatum ist es nicht**: eine zwei Wochen später
-    geschriebene Rechnung verschöbe die Steuerperiode (MWSTG Art. 26 Bst. c).
-
-    Gelesen wird darum das Ereignis des **Vorgängers**, nicht das eigene – ein ``step`` an
-    *diesem* Modul heisst «hier fertig». Steht dieses Modul am Anfang, ist die Ankunft der
-    **Start** des Auftrags. ``None`` heisst «hier ist noch nichts angekommen».
+    Der Tag, an dem die Stücke hier ankamen – das Ereignis des **Vorgängers** (am Anfang:
+    der **Start**), nicht das Rechnungsdatum (MWSTG Art. 26 Bst. c). ``None`` = noch
+    nichts angekommen.
     """
     before = (
         db.query(ProcessStep.id)
