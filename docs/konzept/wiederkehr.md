@@ -375,6 +375,22 @@ nachbauen.
   verbautes Stück wartet, bis es ausgebaut ist – womöglich lange. Sichtbar in «zu tun»; beenden
   kann jeder. Endgültig ist nur `Verschrottet` (die eine Stelle: `statuses.terminal`).
 
+### Schlussprüfung (08.11.2026)
+
+- **O18 · Wer merkt, dass eine Wiederholung entstanden ist?** Offen. Heute steht ein neuer Auftrag
+  im Feed «Aufträge»; in «zu tun» kommt er erst, wenn ein Papier ansteht. Für eine Prüfung beim
+  Kunden muss aber jemand losfahren. Vorschlag: nichts Neues – der Auftrag steht im Feed, und wer
+  zuständig ist, regelt später das Projekt «Aufgaben». Alternative: eine interne Nachricht an die
+  Person, die die Kette begann.
+- **O19 · Der Steuersatz wird nicht vorgegeben** (Vorgabe für Runde 1). Die Anschrift entscheidet
+  ihn heute (Inland, Export, Reverse Charge); eine Preisvorgabe im Modul enthält darum nur Text,
+  Menge und Preis. Sonst stünden zwei Wahrheiten gegeneinander.
+- **O20 · Fällig ab 00:00 Uhr Schweizer Zeit am Termin** (Vorgabe). Der Takt legt den Nachfolger
+  im ersten Lauf danach an, sofern nichts fehlt.
+- **O21 · Ohne Anschrift kein automatisches Anbieten.** Fehlt im Adressbuch der Partei eine
+  Standard-Anschrift, hält der Beleg bei der Offerte an wie bei einem fehlenden Preis
+  (dieselbe Prüfung, die heute «Anbieten» sperrt).
+
 ## 6a · Sackgassen-Prüfung (07.11.2026)
 
 Gefragt: Gibt es einen Zustand, aus dem man nicht mehr herauskommt?
