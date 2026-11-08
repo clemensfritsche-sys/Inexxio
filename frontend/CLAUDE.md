@@ -91,6 +91,7 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 ### `components/erp/` – eine Zeile je Datei
 | Datei | Rolle |
 |---|---|
+| `skeleton.tsx` | **Laden = die graue Form dessen, was kommt**: `Skeleton` (`lines` · `rows` · `block`) und `DetailSkeleton` (ganzes Fenster) – an jeder Stelle, die auf den Server wartet; kein «Lädt …», kein Kreisel. Der Schimmer ist `.erp-skel` (still bei «weniger Bewegung») |
 | `fields.tsx` | Grundtöne: `MICRO_LABEL`, `StatusDot` (der eine Zustandspunkt, 6 px), `StatusBadge`, `Row` |
 | `detail-frame.tsx` | Anatomie eines Datensatz-Fensters: `DetailHeader`, `RecordIcon` (+ `IconMark`, Zahl «zu tun» aus `lib/todo`), `HeaderAction`, `DetailBody`/`DETAIL_MAXW`, `Card` (`info`, `extra`, `unclipped`, `anchor`), `SPEC`, `SpecHead`, `SpecSection`, `ReadField` (Link nur ins Web, `lib/web-link`), `SectionSep`, `TodoChip` |
 | `controls.tsx` | Bedienelemente: **die eine Feldform** `inputClass` (normal · warn · read) / `inputCls`, `Label`, `IconSwitch`, `Segmented`, `Dialog` (modal, Fokus hinein und zurück, Escape), `Palette`, `numericOnly`, `FieldAction` |
@@ -228,6 +229,10 @@ Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-s
   Konto, Prozess-Editor). Ein loses `<input>`/`<select>`/`<textarea>` unter
   `components/{erp,account,beleg}` weist ESLint ab (`RAW_FIELD`); die Ausnahmen (Suchfelder,
   Nachrichten-Eingabe, Kästchen, Dateiwahl) stehen dort mit Grund.
+- **Eine Handlung am Server = `useAction`** (`lib/use-action.ts`): `run(fn, onError?)` setzt `busy`,
+  leert den Fehler, gibt das Ergebnis zurück oder den Satz des Servers in `error`; der Fehlertext
+  steht EINMAL in `errorText(e, fallback?)`. (Ausnahme: Module, die ein Test einzeln übersetzt –
+  `use-autosave`, `use-recorder` – können keine Nachbarn importieren.)
 - **Ein gescheiterter Abruf ist nie stumm** (`lib/notice.ts`): wer bei einem Fehler nichts
   anderes zu tun hat, schreibt `.catch(tell('Aufträge'))` – unten rechts steht dann «Nicht
   geladen: Aufträge – <Grund>» (`components/layout/notice-host.tsx`, im Wurzel-Layout),

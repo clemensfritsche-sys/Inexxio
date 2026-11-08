@@ -65,7 +65,9 @@ inexxio/
 ├── firebase.json     ← Hosting, Rewrites, Security-Header, Weiterleitungen alter Pfade
 ├── .github/workflows ← quality.yml (das Gate), deploy-dev.yml (develop), deploy-prod.yml (main)
 ├── infra/README.md   ← Infrastruktur, wie sie eingerichtet ist (Umgebungen, Kosten, Rollback)
-├── scripts/          ← check-schema.sh (nach jedem Deploy) · dump-db.sh · reset-dev-db.sql
+├── scripts/          ← check-schema.sh (nach jedem Deploy) · dump-db.sh · reset-dev-db.sql ·
+│                       same-code.mjs (hat sich nur Text geändert, nie Code? – Prüfung für
+│                       Arbeiten an Kommentaren)
 └── docs/             ← adr/ (gültige, mit Kopfstatus; historische in history/adr/) · attic.md · backlog.md (offen, auch die Befunde)
                          · design-system/ · prozessbild.md · gmail-setup.md · stripe-setup.md
                          · passkeys.md · dokumente.md · history/
@@ -515,8 +517,11 @@ Oberfläche und Dienst garantiert dasselbe.
 - **Speichern am Ende der Anfrage** (`core/database.DB`, `scope="function"`): kein Router und
   kein Dienst einer Anfrage ruft `commit` (`flush` genügt für eine Nummer; Wächter
   `test_handgriff`); Hintergrundarbeit (Takt, Abgleich, Abschreiben) speichert je Einheit.
-- **Soft-Delete**: nie hard delete, nur `is_active=false`. `is_active` (Soft-Delete) und
-  `status` (fachlich) sind zwei Achsen – nicht verwechseln.
+- **Soft-Delete**: nie hard delete, nur `is_active=false` – und `is_active` gibt es **nur, wo
+  wirklich gelöscht wird** (`models/base.SoftDeleteMixin`: Adressen, Referenzen, Feiertage,
+  Postfächer, Nachrichten, Belegzeilen und -angebote, Passkeys, Firmen). Append-only-Tabellen,
+  Ableitungen und Belege tragen die Spalte nicht. `is_active` (Soft-Delete) und `status`
+  (fachlich) sind zwei Achsen – nicht verwechseln.
 - **Fehler** strukturiert, mit einem Satz, der die Sache **nennt** (Nummer oder Name in «»).
 - Max. Funktionslänge 80 Zeilen · TypeScript strict, kein `any` · ESLint `no-unused-vars`.
 - **Autosave** überall (`lib/use-autosave.ts`, debounced 3 s, Enter sofort, Rückmeldung im

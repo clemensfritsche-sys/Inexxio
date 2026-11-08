@@ -297,8 +297,11 @@ oder anlegen), `legal_name()` (Name + Rechtsform, ohne «AG AG»). **Nie**
 Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox._contact`).
 
 ## Konventionen
-- Soft-Delete überall (`is_active=false`), kein hard delete. `is_active` (Soft-Delete) und
-  `status` (fachlich) sind zwei Achsen.
+- Soft-Delete (`is_active=false`), kein hard delete – die Spalte nur, wo gelöscht wird
+  (`models/base.SoftDeleteMixin`); `TimestampMixin` trägt nur `created_at`/`updated_at`.
+  `is_active` (Soft-Delete) und `status` (fachlich) sind zwei Achsen.
+- **Eine Sperre über Commits hinweg** (Advisory-Lock auf eigener Verbindung): `core/locks`
+  (`hold` · `let_go`) – Takt und Aufnahmen.
 - UTC-Timestamps; Pydantic v2 (`model_validate`, `model_dump`,
   `ConfigDict(from_attributes=True)`); SQLAlchemy 2.1 (`Mapped[T]`, `mapped_column`).
 - Fehler: `HTTPException(status_code=…, detail="…")` mit einem Satz, der die Sache nennt.
