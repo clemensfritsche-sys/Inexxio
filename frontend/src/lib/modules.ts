@@ -1,15 +1,10 @@
 /**
  * Prozessschrittmodule und Erfassungspunkt-Typen — **Symbole und Farben**, sonst nichts.
  *
- * Die Listen selbst stehen im Backend (`domain/modules.py`, `domain/capture_types/`) und
- * kommen über `GET /erp/orders/module-catalog`. Hier liegt nur, was eine Antwort nicht
- * transportieren kann: das Icon und die konkreten Farbwerte. **Welche** Farbfamilie ein
- * Modultyp trägt, sagt das Backend (`tone`) – ein neuer Modultyp ist damit ein Eintrag in
- * der Registry und kein Eingriff in die Oberfläche.
- *
- * `backend/tests/test_frontend_mirrors.py` prüft, dass Symbole und Farbfamilien **genau**
- * die Schlüssel des Backends abdecken: ein Typ ohne Symbol wäre eine leere Fläche, ein
- * Symbol ohne Typ eine tote Zeile.
+ * Die Listen stehen im Backend (`domain/modules.py`, `domain/capture_types/`, über
+ * `GET /erp/orders/module-catalog`); welche Farbfamilie ein Typ trägt, sagt `tone`. Hier liegt
+ * nur, was eine Antwort nicht transportieren kann. `backend/tests/test_frontend_mirrors.py`
+ * prüft, dass die Schlüssel genau die des Backends sind.
  */
 
 import {
@@ -34,32 +29,23 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   datenerfassung: ClipboardCheck,
   aussondern: PackageX,
   verbrauch: Blocks,
-  // Von hier nach dort – bewusst **kein** Transportmittel (kein Lastwagen, kein
-  // Gabelstapler): womit bewegt wird, entscheidet sich erst bei der Ausführung.
+  // Von hier nach dort – kein Transportmittel: womit, entscheidet die Ausführung.
   bewegen: MoveRight,
-  // Geld wechselt die Hand – in beide Richtungen dasselbe Symbol, denn es ist dasselbe
-  // Modul; die Richtung zeigt das Zeichen im Vorgang (`VOUCHER_DIRECTION`).
+  // Geld wechselt die Hand – ein Symbol für beide Richtungen (`VOUCHER_DIRECTION`).
   beleg: HandCoins,
 };
 
 /**
- * **Die beiden Richtungen eines Geldvorgangs — Symbol und Satz.**
- *
- * Alles Übrige zur Richtung (Wörter, Stufen, Verben) reist mit dem Vorgang
- * (`VoucherEmbed`); hier steht nur, was eine Antwort nicht transportieren kann. Gespiegelt
- * von `backend/app/domain/voucher.py`, deckungsgleich gehalten von `test_frontend_mirrors`.
- * Keine zwei Farben: Farbe ist im ERP für die Ampel reserviert.
- *
- * Die Werte heissen «Einnahme» ↔ «Ausgabe» (#831) – das Modul kann auch Miete, Lohn und
- * Gebühr, ein «Verkauf» wäre enger. Die Symbole (Handschlag ↔ Einkaufswagen, #845) zeigen
- * die häufigste Gestalt der Sache; zwei gespiegelte Pfeile wären auf 15 px dasselbe Zeichen.
+ * **Die beiden Richtungen eines Geldvorgangs — Symbol und Satz.** Alles Übrige reist mit dem
+ * Vorgang (`VoucherEmbed`). Spiegel von `backend/app/domain/voucher.py` (`test_frontend_mirrors`).
+ * Keine zwei Farben: Farbe ist im ERP für die Ampel reserviert. «Einnahme» ↔ «Ausgabe», weil
+ * das Modul auch Miete, Lohn und Gebühr kann.
  */
 export const VOUCHER_DIRECTION: Record<string, {
   icon: LucideIcon; label: string; hint: string;
   /**
-   * **Gibt es hier die Frage «wie bestelle ich bei ihm?»** Nur, wo **wir** bestellen.
-   * Gespiegelt von `Direction.party_ref` – der Dienst verwirft einen trotzdem gesendeten
-   * Wert; dies ist die freundliche Hälfte derselben Regel, nie ein zweiter Massstab.
+   * Gibt es die Frage «wie bestelle ich bei ihm?» Nur, wo wir bestellen. Spiegel von
+   * `Direction.party_ref` – die freundliche Hälfte derselben Regel.
    */
   partyRef: boolean;
   /**
@@ -84,16 +70,12 @@ export const VOUCHER_DIRECTION: Record<string, {
   },
 };
 
-/**
- * **Die Gegenpartei heisst in beiden Richtungen gleich** – es ist dieselbe Rolle, der
- * andere im Geschäft. Singular = Plural (#787). Gespiegelt von `domain/voucher`.
- */
+/** Die Gegenpartei heisst in beiden Richtungen gleich; Singular = Plural. Spiegel von `domain/voucher`. */
 export const VOUCHER_PARTY = 'Partner';
 
 /**
- * **Was ist zu tun? — EIN Satz am Modul, freiwillig** («Härten auf 58 HRC»). Er lautet
- * für jeden Partner gleich. Leer heisst «gemäss Spezifikation»: *was* es ist, sagen die
- * Positionen.
+ * **Was ist zu tun? — EIN Satz am Modul, freiwillig** («Härten auf 58 HRC»), für jeden Partner
+ * gleich. Leer heisst «gemäss Spezifikation».
  */
 export const VOUCHER_TASK = 'Was ist zu tun?';
 export const VOUCHER_TASK_HINT =
@@ -109,10 +91,8 @@ export const VOUCHER_ORDER_REF_HINT = 'Seine Artikelnummer oder der Link zu sein
 
 /**
  * ►►► **Was das Modul dem Beleg vorgeben DARF** (`Beleg.PRESETS` / `PRESET_LABELS`). ◄◄◄
- *
- * Das Modul ist Master: was hier steht, gilt für jeden Auftrag aus diesem Prozess und steht
- * im Beleg fest; **leer heisst «wählt der Mensch am Beleg»**. Gespiegelt von
- * `domain/modules.Beleg`, deckungsgleich gehalten von `test_frontend_mirrors`.
+ * Was hier steht, gilt für jeden Auftrag aus diesem Prozess; leer heisst «wählt der Mensch am
+ * Beleg». Spiegel von `domain/modules.Beleg` (`test_frontend_mirrors`).
  */
 export type VoucherPresetKey = 'payment_days' | 'lead_days' | 'valid_days' | 'incoterm' | 'ownership';
 export const VOUCHER_PRESETS: { key: VoucherPresetKey; label: string; days?: true; hint: string }[] = [
@@ -163,13 +143,8 @@ export function voucherDirection(direction: string | undefined | null) {
 }
 
 /**
- * **Die Stufen eines Geldvorgangs — als Schlüssel, nicht als Wort.**
- *
- * Wie sie *heissen*, sagt der Server (`VoucherEmbed.stages[].label`) – das hängt an der
- * Richtung. Was die Oberfläche braucht, ist die **Identität**: an welcher Stufe die
- * Zusage steht und an welcher die Rechnung. `test_frontend_mirrors` hält sie mit
- * `domain/voucher.STAGES` deckungsgleich; deutsche Wörter im Rumpf wären an einem Vorgang
- * der anderen Richtung still falsch.
+ * **Die Stufen eines Geldvorgangs — als Schlüssel, nicht als Wort** (die Wörter sagt der Server,
+ * sie hängen an der Richtung). Spiegel von `domain/voucher.STAGES` (`test_frontend_mirrors`).
  */
 export const VOUCHER_STAGE = {
   offer: 'offer',
@@ -193,13 +168,8 @@ export const QUOTE_STATE = {
 } as const;
 
 /**
- * **Die Farbfamilien der Module — die eine Stelle.**
- *
- * Bewusst **getrennt von der Ampel** (grün = Anfang/Ende · orange = im Prozess ·
- * rot = Problem): ein Modul ist kein Zustand und darf nicht wie einer aussehen
- * (PROCESS_CORE.md §5.3). Darum kühle und warme Neutraltöne statt Signalfarben.
- *
- * Kein Farbwert steht in einer Komponente – wer eine Modulfarbe braucht, fragt hier.
+ * **Die Farbfamilien der Module — die eine Stelle.** Getrennt von der Ampel: ein Modul ist
+ * kein Zustand (PROCESS_CORE.md §5.3), darum Neutraltöne statt Signalfarben.
  */
 export const MODULE_TONE: Record<string, { bg: string; fg: string; border: string }> = {
   slate: { bg: 'var(--accent-soft)', fg: 'var(--accent-ink)', border: '#BFD6E2' },
@@ -213,18 +183,16 @@ export const MODULE_TONE: Record<string, { bg: string; fg: string; border: strin
 };
 
 /**
- * **Das Symbol eines Moduls.** Unbekanntes sieht **unbekannt** aus (Fragezeichen) und
- * borgt nie das Symbol eines anderen Moduls – ein Browser-Stand, der älter ist als das
- * Backend, gäbe ein neues Modul sonst als ein bekanntes aus.
+ * **Das Symbol eines Moduls.** Unbekanntes sieht unbekannt aus (Fragezeichen), nie wie ein
+ * anderes Modul.
  */
 export function moduleIcon(type: string | undefined | null): LucideIcon {
   return MODULE_ICON[type ?? ''] ?? CircleHelp;
 }
 
 /**
- * **Die Farbe eines Moduls.** Die Familie reist mit dem Schritt (`ModuleFacts.tone`);
- * eine unbekannte – ein neueres Backend – ist ein Fehler und sieht auch so aus, statt die
- * Farbe eines echten anderen Moduls zu tragen.
+ * **Die Farbe eines Moduls** (`ModuleFacts.tone`). Eine unbekannte Familie ist ein Fehler und
+ * sieht auch so aus.
  */
 export function moduleTone(tone: string | undefined | null): { bg: string; fg: string; border: string } {
   return MODULE_TONE[tone ?? ''] ?? UNKNOWN_TONE;
@@ -233,20 +201,15 @@ export function moduleTone(tone: string | undefined | null): { bg: string; fg: s
 /** Sichtbar kaputt: keine Modulfarbe, sondern die Warnfarbe des Hauses. */
 const UNKNOWN_TONE = { bg: 'var(--danger-bg)', fg: 'var(--danger)', border: 'var(--danger)' };
 
-/**
- * **Der Schlüssel des Bewegen-Moduls** – gebraucht an genau einer Stelle: ein «Holen
- * lassen» **baut** ein Bewegen-Modul, es fragt nicht danach.
- */
+/** Der Schlüssel des Bewegen-Moduls – ein «Holen lassen» baut eines. */
 export const MOVE_MODULE = 'bewegen';
 
 /** Der Erfassungspunkt-Typ, der in der Definition einen **Sollwert** braucht (`Measure.clean`). */
 export const NEEDS_TARGET = 'measure';
 
 /**
- * **Hinter einem Ausgang kann kein Modul mehr stehen** – dieselbe Regel wie serverseitig
- * (`domain/chain`), nur früher. Die Palette verschwindet hinter einem terminalen Modul;
- * übrig bleibt das **Umsortieren**: ein dahinter gezogenes Modul bleibt sichtbar (sonst
- * liesse es sich nicht löschen), aber das Bild sagt, dass so nichts läuft.
+ * **Hinter einem Ausgang kann kein Modul mehr stehen** (wie `domain/chain`, nur früher). Ein
+ * dahinter gezogenes Modul bleibt sichtbar (zum Löschen), das Bild sagt, dass so nichts läuft.
  */
 export function chainProblems(steps: { label: string; terminal: boolean }[]): string[] {
   const exit = steps.findIndex((s) => s.terminal);
@@ -257,9 +220,8 @@ export function chainProblems(steps: { label: string; terminal: boolean }[]): st
 
 /**
  * **Die Stichprobe ist EINE Zahl: der Anteil an allem, was am Modul wartet**
- * (`domain/sampling.py`). Die Kurzwege sind Werte derselben Zahl (alle = 100 %, Hälfte =
- * 50 %, Viertel = 25 %), keine eigenen Modi. `value` ist ein **String** (ein halb
- * getipptes Feld hat keine Zahl); geprüft wird serverseitig.
+ * (`domain/sampling.py`); die Kurzwege sind Werte derselben Zahl. `value` ist ein String
+ * (halb getippt); geprüft wird serverseitig.
  */
 export interface SampleDraft {
   /** Der gewählte Kurzweg – oder `free`, dann zählt `value`. */
@@ -280,38 +242,28 @@ export const SAMPLE_PRESETS: { value: SampleMode; label: string; percent?: numbe
 /** Was ohne Angabe gilt – **alle**, wie im Backend (`sampling.DEFAULT`). */
 const SAMPLE_ALL: SampleDraft = { mode: 'all', value: '' };
 
-/**
- * Entwurfsform → das eine Feld, das der Server kennt. Ein frei getippter Anteil geht
- * **unverändert** hinaus, auch halb getippt: ihn hier in etwas umzudeuten wäre eine
- * stille Änderung der Konfiguration – der Server sagt stattdessen, dass die Zahl fehlt.
- */
+/** Entwurfsform → das eine Feld des Servers. Ein frei getippter Anteil geht unverändert hinaus. */
 export function samplePayload(s: SampleDraft): { percent: string | number } {
   const preset = SAMPLE_PRESETS.find((p) => p.value === s.mode)?.percent;
   return { percent: preset ?? s.value };
 }
 
 /**
- * Ein Erfassungspunkt im Entwurf. `key` fehlt: er wird serverseitig aus der Bezeichnung
- * abgeleitet — ihn hier zu vergeben hiesse, zwei Stellen für dieselbe Regel zu haben.
- *
- * Ein `required` gibt es **nicht**: alles, was angelegt ist, ist Pflicht.
+ * Ein Erfassungspunkt im Entwurf. `key` vergibt der Server aus der Bezeichnung. Ein `required`
+ * gibt es nicht: alles Angelegte ist Pflicht.
  */
 export interface PointDraft {
   label: string;
   type: string;
   target?: string;
   tolerance?: string;
-  /**
-   * **Worin gemessen wird** – nur beim Soll-Ist-Vergleich (mm · kg · °C …). Ein freies
-   * Wort, bewusst keine Liste: das System rechnet nie mit der Einheit, es zeigt sie an.
-   */
+  /** Worin gemessen wird – nur beim Soll-Ist (mm · kg · °C …); ein freies Wort, nur angezeigt. */
   unit?: string;
 }
 
 /**
- * Ein Modul im Entwurf — dieselbe Form am Artikel wie im Auftrag. **Kein Name**: wie ein
- * Modul heisst, sagt sein Typ (#682). `id` ist eine lokale Nummer; die Identität vergibt
- * der Server beim Anlegen.
+ * Ein Modul im Entwurf — dieselbe Form am Artikel wie im Auftrag. Kein Name (den sagt der Typ);
+ * `id` ist lokal, die Identität vergibt der Server.
  */
 export interface ModuleDraft {
   id: number;
@@ -328,10 +280,8 @@ export interface ModuleDraft {
    */
   reason: string;
   /**
-   * Nur «Verbrauch»: die **Stückliste** – je Zeile Artikel und Menge **pro Einzelinstanz**.
-   * Artikel, nicht Definitionszeilen: dasselbe Modul steht auch in der Artikel-Vorlage,
-   * und dort gibt es noch keine Zeilen. Dieselbe Zeile wie im Bedarf (`DefinitionLine`),
-   * ohne Herkunft und ohne konkrete Stücke – die wählt der Lagerist beim Ausführen.
+   * Nur «Verbrauch»: die Stückliste – je Zeile Artikel und Menge pro Einzelinstanz (auch in
+   * der Artikel-Vorlage, darum Artikel statt Definitionszeilen).
    */
   lines: DefinitionLine[];
   /**
@@ -339,15 +289,11 @@ export interface ModuleDraft {
    * **Optional**: leer heisst «wird beim Ausführen gewählt». Ein String (Eingabefeld).
    */
   target: string;
-  /**
-   * Nur «Zahlung»: **kommt Geld herein oder geht es hinaus?** (`in` ↔ `out`). Daraus folgt
-   * jedes Wort des Moduls; es ist seine Einstellung, kein zweiter Modul-Schlüssel.
-   */
+  /** Nur «Zahlung»: kommt Geld herein oder geht es hinaus? (`in` ↔ `out`). */
   direction: string;
   /**
-   * Nur «Zahlung»: die **zugelassenen Gegenparteien** – je Zeile Nummer und Bestellangabe
-   * (nur, wo wir bestellen: `VOUCHER_DIRECTION[…].partyRef`). **Leer heisst frei**: dann
-   * wird beim Ausführen gesucht.
+   * Nur «Zahlung»: die zugelassenen Gegenparteien – Nummer und Bestellangabe (nur, wo wir
+   * bestellen). Leer heisst frei.
    */
   parties: { party: number; ref: string }[];
   /** Nur «Zahlung»: **was ist zu tun?** – ein Satz am Modul, freiwillig. */
@@ -358,9 +304,8 @@ export interface ModuleDraft {
    */
   presets: Record<VoucherPresetKey, string>;
   /**
-   * Nur «Zahlung», nur bei einer Einnahme: **vorgegebene Einzelpreise** je Artikel
-   * (`Beleg.PRICES`) – am Beleg fest. `name` steht nur für die Anzeige im Editor; zum Server
-   * gehen Nummer und Preis.
+   * Nur «Zahlung», nur bei einer Einnahme: vorgegebene Einzelpreise je Artikel (`Beleg.PRICES`).
+   * `name` nur für die Anzeige.
    */
   prices: PricePreset[];
 }
@@ -368,11 +313,7 @@ export interface ModuleDraft {
 /** Ein vorgegebener Preis im Editor: Artikel (Nummer, Name zur Anzeige) und Einzelpreis. */
 export interface PricePreset { article: number | null; name: string; price: string }
 
-/**
- * **Die Ausprägungen des Aussonderns.** Zwei Fälle, ein Modul – sie tun dasselbe, nur
- * der Zielzustand unterscheidet sie. Welcher das ist, sagt das Backend
- * (`Aussondern.MODES`); hier stehen nur Wort und Erklärung.
- */
+/** **Die Ausprägungen des Aussonderns** – den Zielzustand sagt das Backend (`Aussondern.MODES`). */
 export type DisposalMode = 'scrap' | 'block';
 
 export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string }[] = [
@@ -381,14 +322,12 @@ export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string 
 ];
 
 /**
- * **Die Definition eines Geld-Moduls — Richtung, zugelassene Partner, Auftrag.** Kein
- * Steuersatz (er hängt an der Sache, #851) und keine Vorauszahlungs-Sperre (sie folgt aus
- * der Zahlungsfrist, #854) – beides steht erst fest, wenn ein Auftrag läuft.
+ * **Die Definition eines Geld-Moduls — Richtung, zugelassene Partner, Auftrag.** Kein Steuersatz,
+ * keine Vorauszahlungs-Sperre: beides steht erst fest, wenn ein Auftrag läuft.
  */
 const MONEY_FORM = {
   draft: (c: Record<string, unknown>) => ({
-    // Tolerant gelesen: eine fehlende Richtung ist eine **Ausgabe**, wie im Backend. (Die
-    // Vorgabe eines **neuen** Moduls ist die Einnahme, #791 – eine andere Frage.)
+    // Tolerant gelesen: eine fehlende Richtung ist eine Ausgabe, wie im Backend.
     direction: (c.direction === 'in' ? 'in' : 'out') as 'in' | 'out',
     // Je Partner eine Zeile `{ party, ref }` – die einzige Form, die der Editor schreibt.
     parties: asRows(c.parties).map((r) => ({
@@ -405,14 +344,12 @@ const MONEY_FORM = {
     direction: m.direction,
     parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
     instruction: m.instruction.trim(),
-    // **Ein Preis ohne Artikel oder ohne Betrag ist noch keine Vorgabe** – er bleibt im
-    // Editor stehen, geht aber nicht hinaus. Bei einer Ausgabe nennt die Partei den Preis.
+    // Ein Preis ohne Artikel oder Betrag ist noch keine Vorgabe – er geht nicht hinaus.
     prices: voucherDirection(m.direction).weQuote
       ? m.prices.filter((p) => p.article !== null && p.price.trim() !== '')
         .map((p) => ({ article: p.article, price: p.price.trim() }))
       : [],
-    // Leer geht als `null` hinaus («wählt der Mensch am Beleg»); eine Zahl **unverändert** –
-    // ob sie gilt, sagt der Server (`Beleg._clean_presets`), nicht dieses Formular.
+    // Leer geht als `null` hinaus; eine Zahl unverändert – ob sie gilt, sagt der Server.
     ...Object.fromEntries(VOUCHER_PRESETS.map(({ key }) => {
       const v = (m.presets[key] ?? '').trim();
       return [key, v === '' ? null : v];
@@ -439,10 +376,7 @@ function blankPresets(): Record<VoucherPresetKey, string> {
  */
 export const MODULE_FORM: Record<string, {
   config: (m: ModuleDraft) => Record<string, unknown>;
-  /**
-   * **Die Umkehrform — gespeicherte Konfiguration → Entwurf** (#771): damit zeigt ein
-   * freigegebener Prozess dieselben Felder wie ein Entwurf, nur gesperrt.
-   */
+  /** Die Umkehrform – gespeicherte Konfiguration → Entwurf (eingefroren: dieselben Felder, gesperrt). */
   draft: (config: Record<string, unknown>) => Partial<ModuleDraft>;
 }> = {
   datenerfassung: {
@@ -462,8 +396,7 @@ export const MODULE_FORM: Record<string, {
         type: p.type,
         target: p.type === NEEDS_TARGET && p.target !== '' ? Number(p.target) : null,
         tolerance: p.type === NEEDS_TARGET && p.tolerance !== '' ? Number(p.tolerance) : null,
-        // Die Einheit gehört zum Sollwert – ohne ihn gäbe es nichts, worauf sie sich
-        // bezieht (der Server verwirft sie bei jedem anderen Typ ohnehin).
+        // Die Einheit gehört zum Sollwert.
         unit: p.type === NEEDS_TARGET ? (p.unit ?? '').trim() : null,
       })),
       sample: samplePayload(m.sample),
@@ -474,9 +407,7 @@ export const MODULE_FORM: Record<string, {
       mode: (c.mode === 'block' ? 'block' : 'scrap') as DisposalMode,
       reason: String(c.reason ?? ''),
     }),
-    // Zwei Angaben, beide Pflicht: **was** passiert (verschrotten ↔ sperren) und
-    // **warum**. Erfassungspunkte gibt es keine – was ankommt, wird ausgesondert, und
-    // der Grund steht bereits hier statt bei jedem Stück noch einmal.
+    // Zwei Angaben, beide Pflicht: was passiert (verschrotten ↔ sperren) und warum.
     config: (m) => ({ mode: m.mode, reason: m.reason }),
   },
   bewegen: {
@@ -508,11 +439,7 @@ function asRows(value: unknown): Record<string, unknown>[] {
   return value.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
 }
 
-/**
- * **Der gespeicherte Anteil zurück in seine Eingabeform.** Die Kurzwege sind Werte
- * derselben Zahl (`SAMPLE_PRESETS`) – trifft die Zahl einen, steht der Regler dort;
- * sonst ist es ein frei getippter Anteil.
- */
+/** Der gespeicherte Anteil zurück in die Eingabeform – trifft er einen Kurzweg, steht der Regler dort. */
 function sampleDraft(value: unknown): SampleDraft {
   const percent = Number((value as { percent?: unknown } | null)?.percent ?? NaN);
   if (!Number.isFinite(percent)) return { ...SAMPLE_ALL };
@@ -520,10 +447,7 @@ function sampleDraft(value: unknown): SampleDraft {
   return preset ? { mode: preset.value, value: '' } : { mode: 'free', value: String(percent) };
 }
 
-/**
- * **Ein gespeichertes Modul als Entwurf** (#771). Ein Typ, den diese Oberfläche nicht
- * kennt, liefert den leeren Entwurf – die Karte sagt dann, dass sie ihn nicht kennt.
- */
+/** Ein gespeichertes Modul als Entwurf; ein unbekannter Typ liefert den leeren Entwurf. */
 export function moduleFromConfig(id: number, moduleType: string,
                                  config: Record<string, unknown> | null | undefined): ModuleDraft {
   return { ...blankModule(id, moduleType),
@@ -535,8 +459,7 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
     lines: [], target: '',
-    // **Die Vorgabe ist die EINNAHME** (#791). Die Richtung bleibt eine ausdrückliche
-    // Angabe – der Server verlangt sie (`Beleg.clean_config`).
+    // Die Vorgabe ist die Einnahme; der Server verlangt die Richtung (`Beleg.clean_config`).
     direction: 'in', parties: [], instruction: '', presets: blankPresets(), prices: [],
   };
 }

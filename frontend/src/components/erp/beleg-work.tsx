@@ -102,9 +102,8 @@ export function BelegWork({
       : (next?.action === 'pay' ? { ...f, f: { ...f.f, method: key } } : null)));
   }, [ways]);
 
-  // **«Zurück auf die Karte» sagt, was daraus wurde** (#1013/#1018): ab dem Klick zu,
-  // nachgefragt wie bei einer Zahlung (gebucht wird vom Webhook), ein Fehler steht da und
-  // gibt den Knopf wieder frei – sonst wäre ein Netzwerkfehler eine Sackgasse.
+  // «Zurück auf die Karte» sagt, was daraus wurde: ab dem Klick zu, nachgefragt wie bei einer
+  // Zahlung (gebucht vom Webhook); ein Fehler steht da und gibt den Knopf wieder frei.
   const [refunding, setRefunding] = useState(false);
   const refundCard = useCallback(async () => {
     const entry = d.entries.find((e) => e.refundable);

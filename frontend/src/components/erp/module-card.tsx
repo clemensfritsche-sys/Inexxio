@@ -8,13 +8,9 @@ import { formatObjectId } from '@/lib/utils';
 import { DiagramStep } from '@/lib/process-graph';
 
 /**
- * **Ein Prozessobjekt = eine Komponente.** Der Modultyp ist Konfiguration (Name,
- * Übergang, Farbe) — es gibt hier bewusst keinen Zweig je Modulart und wird auch keinen
- * geben. Die Farbe kommt aus `lib/modules.moduleTone`, gefüttert vom Backend: ein neuer
- * Modultyp ist ein Eintrag in der Registry, kein Eingriff hier.
- *
- * Prozessmodule tragen eine **eigene Farbfamilie**, getrennt von der Ampel (§5.4): sie
- * sind keine Zustände und dürfen nicht wie welche aussehen.
+ * **Ein Prozessobjekt = eine Komponente.** Der Modultyp ist Konfiguration (Name, Übergang,
+ * Farbe aus `lib/modules.moduleTone`) – kein Zweig je Modulart. Module tragen eine eigene
+ * Farbfamilie, getrennt von der Ampel (§5.4).
  */
 
 interface DragProps {
@@ -26,9 +22,8 @@ interface DragProps {
 }
 
 /**
- * **Das Zeichen eines Moduls** – getöntes Quadrat mit seinem Symbol: die einzige Fläche,
- * die ein Modul färbt. Die Historie hängt nicht hier, sondern an der Kopfzeile der Karte
- * (`ModuleShell.history`, #790).
+ * **Das Zeichen eines Moduls** – getöntes Quadrat mit Symbol, die einzige Fläche, die ein Modul
+ * färbt. Die Historie hängt an der Kopfzeile (`ModuleShell.history`).
  */
 function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)' }: {
   icon: LucideIcon; tone: string;
@@ -46,13 +41,9 @@ function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)' }: {
 }
 
 /**
- * **Die Hülle einer Modul-Karte — EIN Bauteil.** Weisse Karte (`module-ui.MODULE_CARD`),
- * Kopf mit `ModuleMark` und Beschriftung, Haarlinie vor dem Körper; der Rahmen trägt die
- * Modulfarbe, wenn das Modul dran ist. Die Anatomie, an der man eine Modul-Karte erkennt,
- * steht **einmal**.
- *
- * `lead` und `trail` sind die Stellen, an denen ein Träger Eigenes einhängt (Ziehgriff,
- * Schloss, Chevron, Löschen) – der Rahmen selbst kennt davon nichts.
+ * **Die Hülle einer Modul-Karte — EIN Bauteil**: weisse Karte (`module-ui.MODULE_CARD`), Kopf mit
+ * `ModuleMark`, Haarlinie vor dem Körper; der Rahmen trägt die Modulfarbe, wenn das Modul dran
+ * ist. `lead` und `trail` nehmen Eigenes auf (Ziehgriff, Schloss, Chevron, Löschen).
  */
 function ModuleShell({ tone, icon, label, active, lead, trail, head, body,
   history, children }: {
@@ -68,11 +59,9 @@ function ModuleShell({ tone, icon, label, active, lead, trail, head, body,
   /** Zusätzliche Eigenschaften am äusseren Rahmen – z. B. Ziehen. */
   body?: React.HTMLAttributes<HTMLDivElement>;
   /**
-   * **Die Historie hängt an der KOPFZEILE** (#790): sie läuft über die ganze Kartenbreite
-   * und ist zugeklappt die Karte. Nicht am äusseren Rahmen (dort stünde die Blase beim
-   * Tippen im Feldsatz) und **nie an der Beschriftung**: die trägt `truncate`
-   * (`overflow: hidden`) und schnitte das `::after` weg. Was darin eine eigene Blase
-   * trägt, gewinnt (`:has` in `globals.css`).
+   * **Die Historie hängt an der KOPFZEILE** – über die ganze Kartenbreite; nicht am Rahmen und
+   * nie an der Beschriftung (`truncate` schnitte das `::after` weg). Eigene Blasen gewinnen
+   * (`:has` in `globals.css`).
    */
   history?: string;
   children?: ReactNode;
@@ -88,16 +77,13 @@ function ModuleShell({ tone, icon, label, active, lead, trail, head, body,
         ...(body?.style ?? {}),
       }}>
       <div className="flex items-center gap-3"
-        // Fokussierbar, damit die Blase auch **ohne Hover** erscheint – auf dem
-        // Touchgerät per Tipp, an der Tastatur per Tab. Wo der Kopf ohnehin aufklappt,
-        // ist er längst fokussierbar; `head` steht darum danach und gewinnt.
+        // Fokussierbar, damit die Blase auch ohne Hover erscheint (Tipp, Tab); `head` gewinnt.
         tabIndex={history ? 0 : undefined}
         {...(history ? { 'data-tip': history, 'data-tip-list': '' } : {})}
         {...head}>
         {lead}
         <ModuleMark icon={icon} tone={tone.fg} bg={tone.bg} />
-        {/* **Der Name trägt die Display-Schrift des Hauses**, nicht die Modulfarbe: ein
-            Titel in einer Tönung liest sich als Zustand, und der steht woanders. */}
+        {/* Der Name trägt die Display-Schrift, nicht die Modulfarbe – eine Tönung läse sich als Zustand. */}
         <span className="flex-1 min-w-0 truncate" style={MODULE_TITLE}>{label}</span>
         {trail}
       </div>
@@ -116,7 +102,7 @@ export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, hi
   step: DiagramStep; active: boolean; dimmed: boolean;
   /** Was an diesem Modul passiert ist – der Ereignis-Log, an seinem Ort (§5). */
   history?: string;
-  /** Startet dieses Modul aufgeklappt? Sonst zu – und der Kopf klappt es auf (#696). */
+  /** Startet dieses Modul aufgeklappt? Sonst zu – und der Kopf klappt es auf. */
   defaultOpen?: boolean;
   onDelete?: () => void;
   drag?: DragProps;
@@ -124,43 +110,24 @@ export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, hi
 }) {
   const [open, setOpen] = useState(!!defaultOpen);
 
-  // ►► **Wird ein Modul zum aktiven, klappt es auf** (Testnotiz #727). ◄◄
-  //
-  // `defaultOpen` war ein reiner **Startwert**: wer den Auftrag öffnete, bevor die Stücke
-  // ankamen, bekam `false` – und dabei blieb es. Als das Modul dann an der Reihe war,
-  // blieb es zu, ohne blockiert zu sein. Genau so wurde es gemeldet.
-  //
-  // Der Effekt hängt an `defaultOpen` und **nur** daran: er läuft, wenn das aktive Modul
-  // wechselt, nicht bei jedem Rendern. Wer selbst zuklappt, bleibt darum zugeklappt –
-  // eine Entscheidung des Menschen wird nicht bei der nächsten Antwort überschrieben.
+  // ►► **Wird ein Modul zum aktiven, klappt es auf.** ◄◄ Der Effekt hängt nur an
+  // `defaultOpen`: wer selbst zuklappt, bleibt zugeklappt.
   useEffect(() => { setOpen(!!defaultOpen); }, [defaultOpen]);
-  // **Die Sperre gehört hierher, nicht ins Modul** (Testnotiz #698). Ein Modul fragt
-  // nicht, ob es darf – ihm wird gesagt, dass es nicht darf. `fieldset[disabled]` schaltet
-  // JEDE Eingabe und JEDEN Knopf darin ab, ganz gleich, was das Modul rendert; ein
-  // künftiger Einkauf oder Verkauf erbt das, ohne eine Zeile dafür zu schreiben. Der
-  // Inhalt bleibt sichtbar – man will ja sehen, was drinsteht.
+  // **Die Sperre gehört hierher, nicht ins Modul**: `fieldset[disabled]` schaltet jede Eingabe
+  // und jeden Knopf darin ab, was immer das Modul rendert; der Inhalt bleibt sichtbar.
   const waiting = step.waitingFor ?? [];
   const locked = waiting.length > 0;
-  // **Der Übergang steht nicht mehr auf der Karte.** Er gehört zum Modultyp und ist für
-  // jedes Modul derselbe (Durchläufer) – ihn hinzuschreiben wäre eine Zeile, die bei
-  // jeder Karte dasselbe sagt. Was die Karten unterscheidet, ist ihre **Art**, und die
-  // trägt das Symbol.
+  // Der Übergang steht nicht auf der Karte (für jedes Modul derselbe); die Art trägt das Symbol.
   const Icon = moduleIcon(step.moduleType);
-  // **Die Farbe kommt vom Schritt, nicht von einem Aufrufer.** Wer sie nicht kennt, malt
-  // nicht irgendetwas: `moduleTone` meldet eine unbekannte Familie sichtbar (Warnfarbe),
-  // statt sie stillschweigend zur Datenerfassung zu machen.
+  // Die Farbe kommt vom Schritt; `moduleTone` meldet eine unbekannte Familie sichtbar.
   const c = moduleTone(step.tone);
   return (
-    // **Die Hülle ist ein eigenes Bauteil** (`ModuleShell`). Was hier dazukommt, hängt
-    // in `lead`/`trail`: der Ziehgriff, das Schloss, der Chevron, das Löschen. Der
-    // Rahmen kennt davon nichts.
+    // Die Hülle ist `ModuleShell`; Eigenes hängt in `lead`/`trail`.
     <ModuleShell
       tone={c} icon={Icon} label={step.label} active={active}
       body={{
-        // **Gezogen wird am Griff, nicht an der Karte.** Ein `draggable` auf der Karte
-        // macht ihren ganzen Inhalt zum Ziehgriff – und damit lässt sich in ihren
-        // Eingabefeldern kein Text mehr markieren. Das fällt bei einem Modul kaum auf
-        // und bei zwanzig sofort.
+        // Gezogen wird am Griff, nicht an der Karte – sonst liesse sich in den Feldern kein
+        // Text markieren.
         onDragEnd: drag ? drag.onEnd : undefined,
         onDragOver: drag
           ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
@@ -177,8 +144,7 @@ export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, hi
           outlineOffset: 2,
         },
       }}
-      // **Der Kopf klappt auf** (#696) – eine Stelle, jedes Modul. Ohne Inhalt gibt es
-      // nichts aufzuklappen, dann ist er auch kein Knopf.
+      // Der Kopf klappt auf – ohne Inhalt ist er kein Knopf.
       head={{
         role: children ? 'button' : undefined,
         tabIndex: children ? 0 : undefined,
@@ -234,9 +200,7 @@ export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, hi
       history={history}
     >
       {children && open && (
-        // **Die Sperre gehört hierher, nicht ins Modul** (#698). Ein Modul fragt nicht,
-        // ob es darf – ihm wird gesagt, dass es nicht darf. `fieldset[disabled]` schaltet
-        // JEDE Eingabe und JEDEN Knopf darin ab, ganz gleich, was das Modul rendert.
+        // Die Sperre (siehe oben): `fieldset[disabled]` schaltet alles darin ab.
         <fieldset disabled={locked}
           style={{ border: 0, padding: 0, margin: 0, minWidth: 0,
                    opacity: locked ? 0.65 : 1 }}>

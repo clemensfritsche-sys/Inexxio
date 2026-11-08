@@ -26,14 +26,9 @@ const SUGGEST_DEBOUNCE_MS = 220;
 type Feedback = { kind: 'ok' | 'bad'; text: string } | null;
 
 /**
- * **Der Scanner.** Er besitzt die Kamera, führt durch eine Sequenz von Schritten und
- * liefert am Ende die Ergebnisse.
- *
- * **Was ein Ergebnis BEDEUTET, weiss er nicht** – das steht in der Deutung
- * (`lib/scan.ScanReading`, heute `objectCodes`), die er als Vertrag bekommt. Er kennt
- * weder den Decoder noch die Objektnummer-Semantik; er zeigt, quittiert und schaltet
- * weiter. Genau diese Naht macht eine zweite Deutung später zu einem neuen Objekt statt
- * zu einem Umbau.
+ * **Der Scanner.** Er besitzt die Kamera, führt durch eine Sequenz von Schritten und liefert
+ * die Ergebnisse. Was ein Ergebnis bedeutet, weiss er nicht – das steht in der Deutung
+ * (`lib/scan.ScanReading`, heute `objectCodes`), die er als Vertrag bekommt.
  */
 export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }: ScanRequest & { onClose: () => void }) {
   const [stepIndex, setStepIndex] = useState(0);
@@ -57,15 +52,9 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   const step: ScanStep | undefined = steps[stepIndex];
   const multi = steps.length > 1;
 
-  // **Ein abgebrochener Scan darf nichts auslösen.** Der Quittierungs-Timer lief früher
-  // ungebremst weiter: Esc oder Klick daneben in diesen 380 ms → der Dialog war weg, der
-  // Timer feuerte trotzdem, und `onComplete` bewegte eine Instanz, die niemand mehr
-  // bewegen wollte.
+  // Ein abgebrochener Scan darf nichts auslösen (der Quittierungs-Timer prüft, ob der Dialog lebt).
   useEffect(() => {
-    // Beim Betreten **wieder** auf «lebt» stellen: React ruft einen Effekt in der
-    // Entwicklung absichtlich zweimal auf (mount → cleanup → mount). Ohne diese Zeile
-    // bliebe die Marke nach dem ersten Cleanup für immer auf «tot» – der Dialog nähme
-    // dann nichts mehr an. Genau das hat der Browser-Durchlauf gemeldet.
+    // Beim Betreten wieder auf «lebt» stellen – React ruft Effekte in der Entwicklung zweimal auf.
     alive.current = true;
     return () => {
       alive.current = false;
@@ -121,15 +110,9 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   const { videoRef, state, torch, setTorch } = useBarcodeScanner(true, handleText);
   const cameraLive = state === 'starting' || state === 'scanning';
 
-  // **Der Fokus richtet sich nach der Kamera** (§3.2): läuft sie, bleibt er am Dialog –
-  // auf dem Telefon poppte sonst die Tastatur sofort über das Bild, um das es geht.
-  // Läuft sie nicht, ist die Tastatur der einzige Weg und bekommt den Fokus.
-  //
-  // ►►► **Und nach dem SCHRITT** (Testnotiz #1029). ◄◄◄ *«Beim ersten Scan kann man
-  // sofort tippen, beim zweiten nicht mehr.»* – Der Fokus hing allein am Kamerazustand,
-  // und der ändert sich zwischen zwei Schritten nicht; wer den ersten per Klick auf
-  // einen Vorschlag erledigt hatte, stand danach mit dem Fokus auf einem Knopf. Ein
-  // neuer Schritt ist eine neue Frage – also dieselbe Regel, nur auch dann.
+  // Der Fokus richtet sich nach der Kamera (§3.2): läuft sie, bleibt er am Dialog (sonst
+  // poppt auf dem Telefon die Tastatur auf); läuft sie nicht, bekommt das Feld den Fokus.
+  // Dieselbe Regel bei jedem neuen Schritt.
   useEffect(() => {
     if (cameraLive) sheetRef.current?.focus();
     else inputRef.current?.focus();
@@ -143,10 +126,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   }, [onClose]);
 
   function onKeyDown(e: React.KeyboardEvent) {
-    // **Hardware-Scanner bleiben bedienbar.** Ein USB-/Bluetooth-Gerät tippt die Nummer
-    // plus Enter – ohne Fokus im Feld ginge das ins Leere. Die erste Ziffer holt den
-    // Fokus und wird mitgenommen, damit nichts verloren geht. (Auf dem Telefon tippt
-    // niemand Ziffern, also geht dort auch keine Tastatur auf.)
+    // Hardware-Scanner bleiben bedienbar: die erste Ziffer holt den Fokus und wird mitgenommen.
     if (/^\d$/.test(e.key) && document.activeElement !== inputRef.current) {
       setQuery((q) => q + e.key);
       inputRef.current?.focus();
@@ -154,8 +134,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
       return;
     }
 
-    // Fokusfalle: im Dialog gibt es zwei bis vier bedienbare Dinge – sie im Kreis zu
-    // führen kostet acht Zeilen und macht ihn tastaturfähig.
+    // Fokusfalle: die bedienbaren Dinge im Dialog im Kreis führen.
     if (e.key !== 'Tab') return;
     const items = sheetRef.current?.querySelectorAll<HTMLElement>('button, input');
     if (!items?.length) return;
@@ -165,10 +144,8 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
-  // Semantische Suche, Teil 1: **was dieser Schritt annimmt** (`offersFor`). Bei einem
-  // Verifikationsschritt ist das genau die erwartete Nummer – deshalb genügt hier eine
-  // Teileingabe, ohne dass irgendein Aufrufer eine Liste oder eine Suche mitgeben müsste.
-  // Erweitert wird nie: die Vorschlagsmenge ist die Gültigkeitsmenge.
+  // Vorschläge, Teil 1: was dieser Schritt annimmt (`offersFor`) – bei einer Verifikation die
+  // erwartete Nummer. Die Vorschlagsmenge ist die Gültigkeitsmenge.
   const known = useMemo<ScanCandidate[]>(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
@@ -177,11 +154,8 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
       .slice(0, SUGGEST_MAX);
   }, [query, step]);
 
-  // Teil 2: die **gesuchte** Menge. Wo die Kandidaten das halbe ERP wären (der freie
-  // Lookup im Feed), gibt der Aufrufer keine Liste mit, sondern seine Suche
-  // (`step.suggest`). Bei einem **eingeschränkten oder verifizierenden** Schritt bleibt
-  // sie aussen vor: eine breitere Vorschlagsquelle darf nichts anbieten, was der Schritt
-  // gar nicht annehmen würde.
+  // Teil 2: die gesuchte Menge (`step.suggest`) für den freien Lookup – nie bei einem
+  // eingeschränkten oder verifizierenden Schritt.
   const ask = step?.restrict || step?.expected != null ? null : step?.suggest;
   const { hits: found } = useSearch(query, ask, { delay: SUGGEST_DEBOUNCE_MS });
 
@@ -191,14 +165,8 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   }, [known, found]);
 
   /**
-   * **Dieselbe Anatomie wie das Referenzfeld, aus dem der Dialog kommt**: die **Sorte**
-   * als Beschriftung darüber, der **Platzhalter** darin – und der Platzhalter ist
-   * wortgleich derselbe (`objectCodes.prompt` ↔ {@link LOOKUP_HINT}).
-   *
-   * Getrennt, weil ein Platzhalter beim ersten Zeichen verschwindet: stand die Sorte
-   * darin, wusste man ab dem ersten Buchstaben nicht mehr, wonach man sucht. Eine
-   * Beschriftung bleibt stehen. Was der Dialog TUT, sagt er nur noch der Vorlesehilfe –
-   * im Bild sagen es Zielrahmen und Suchstrahl.
+   * Dieselbe Anatomie wie das Referenzfeld: die Sorte als Beschriftung darüber (sie bleibt
+   * stehen), der Platzhalter darin, wortgleich (`objectCodes.prompt` ↔ {@link LOOKUP_HINT}).
    */
   const kind = scanKindLabel(step);
   const kindType = step?.kind ? SCAN_RECORD_TYPE[step.kind] : undefined;
@@ -207,16 +175,8 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   const empty = step?.emptyOption;
 
   /**
-   * **Enter geht durch – oder sagt, warum nicht.** Es gibt keinen Zwischenschritt.
-   *
-   * Der frühere «Übernehmen»-Knopf war ein zweiter Klick für eine Entscheidung, die
-   * bereits getroffen war: die Nummer stand im Feld. Schlimmer noch, er war **gesperrt**,
-   * wenn die Eingabe nicht passte – die Meldung, die der Mensch gebraucht hätte
-   * («das ist nicht das erwartete Objekt»), blieb damit aus, und der Knopf sagte nur,
-   * dass etwas nicht geht.
-   *
-   * Jetzt geht jede Eingabe durch dieselbe Prüfung wie ein Kamerabild (`reading.check`),
-   * und ihr Grund erscheint dort, wo der Blick ist: im Zielrahmen.
+   * **Enter geht durch – oder sagt, warum nicht.** Jede Eingabe geht durch dieselbe Prüfung
+   * wie ein Kamerabild (`reading.check`); der Grund erscheint im Zielrahmen.
    */
   function submitQuery() {
     const typedId = reading.read(query);
@@ -228,8 +188,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   }
 
   return (
-    // Der ganze Container IST die Kameraansicht. Kein Kopf, kein Erklärtext, kein zweiter
-    // Kasten: was zu tun ist, steht im Bild – und was man sucht, tippt man im Bild.
+    // Der ganze Container IST die Kameraansicht; was zu tun ist, steht im Bild.
     // Klick daneben schliesst, Esc ebenso.
     <div style={backdrop} onClick={onClose}>
       <div
@@ -262,8 +221,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
           </div>
         )}
 
-        {/* Taschenlampe – nur, wo das Gerät sie hat. Im Regal entscheidet sie darüber,
-            ob überhaupt etwas zu lesen ist. */}
+        {/* Taschenlampe – nur, wo das Gerät sie hat. */}
         {torch !== null && (
           <button
             type="button"
@@ -276,15 +234,11 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
           </button>
         )}
 
-        {/* Zielrahmen mit Suchstrahl + der EINEN Angabe, die zählt: was soll gescannt
-            werden. **Der Grund steht IM Rahmen** – dort schaut der Mensch ohnehin hin,
-            und dort meldet auch die Farbe den Zustand. Darunter oder daneben war er eine
-            zweite Stelle für dieselbe Aussage, und die untere Bildkante gehört der Suche. */}
+        {/* Zielrahmen mit Suchstrahl und dem, was gescannt werden soll. Der Grund steht IM
+            Rahmen, wo auch die Farbe den Zustand meldet. */}
         <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? 'var(--danger)' : feedback?.kind === 'ok' ? 'var(--success)' : 'rgba(255,255,255,.85)' }}>
           {cameraLive && !feedback && <div className="ix-scanbeam" style={beam} />}
-          {/* Erfolg meldet der **Rahmen** (er wird grün und der Scanner schaltet weiter) –
-              eine zweite grüne Meldung sagte dasselbe noch einmal (Notiz #253). Ein Text
-              braucht es nur beim Fehlschlag: dort zählt der GRUND. */}
+          {/* Erfolg meldet der Rahmen (grün); Text nur beim Fehlschlag. */}
           {feedback?.kind === 'bad' && (
             <div style={reasonBox} role="status">
               <AlertTriangle size={15} style={{ flex: 'none' }} />
@@ -293,18 +247,10 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
           )}
         </div>
 
-        {/* Suche – im Bild statt darunter: eine milchige Leiste am unteren Rand, mit
-            derselben Anatomie wie das Referenzfeld: Beschriftung · Eingabe · Liste. */}
+        {/* Suche im Bild: milchige Leiste am unteren Rand – Beschriftung · Eingabe · Liste. */}
         <div style={searchBar}>
-          {/* **Ein Bauteil statt zweier** (Notiz #758). Die Sorte stand als eigener Chip
-              über der Leiste, der Platzhalter trug nur die nackte Nummer – zwei Stellen
-              für EINE Auskunft. Jetzt sagt der Platzhalter beides («Instanz 100000825
-              suchen»), und das **Symbol** sitzt am Innenrand des Feldes: dass gesucht
-              wird, sagt das Feld selbst; *was* gesucht wird, sagt das Symbol – dasselbe,
-              das der Feed und jeder Detail-Kopf trägt (`TYPE_META`).
-
-              Ohne bekannten Datensatztyp (`process`/`object`) bleibt die Lupe: ein
-              ausgeliehenes Symbol wäre eine Behauptung. */}
+          {/* Der Platzhalter sagt Sorte und Nummer; das Symbol am Innenrand ist das des
+              Datensatztyps (`TYPE_META`), ohne bekannten Typ die Lupe. */}
           <div style={{ position: 'relative' }}>
             <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.7)', pointerEvents: 'none', display: 'flex' }}>
               {KindIcon ? <KindIcon size={15} /> : <Search size={15} />}
@@ -320,15 +266,11 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
             />
           </div>
 
-          {/* **Ein Klick genügt.** Die Auswahl IST die Eingabe – es gibt keinen zweiten
-              Knopf, der sie noch einmal bestätigt. Gescrollt wird weiterhin, nur der
-              Balken bleibt weg (Notiz #146). */}
+          {/* Ein Klick genügt – die Auswahl IST die Eingabe. */}
           {(empty || suggestions.length > 0) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 152, overflowY: 'auto' }}>
-              {/* **«Nichts» steht auch hier zur Wahl** – als erste Zeile, wie im Feld.
-                  Ohne sie müsste man den Dialog schliessen, um eine Entscheidung zu
-                  treffen, die er selbst anbietet. Der Scanner erfindet dafür keine
-                  Nummer: der Aufrufer sagt, was «nichts» bedeutet. */}
+              {/* «Nichts» steht auch hier zur Wahl, als erste Zeile; was es bedeutet, sagt
+                  der Aufrufer. */}
               {empty && (
                 <button
                   type="button"
@@ -338,9 +280,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
                   <OptionRow option={{ value: '', label: empty.label }} />
                 </button>
               )}
-              {/* **Dieselbe Zeile wie im Feld** – buchstäblich dasselbe Bauteil
-                  (`fields.OptionRow`), nicht dieselbe Absicht: Nummer tabellarisch,
-                  Name leise daneben. Ein Klick genügt, die Auswahl IST die Eingabe. */}
+              {/* Dieselbe Zeile wie im Feld (`fields.OptionRow`). */}
               {suggestions.map((c) => (
                 <button key={c.objectId} type="button" onClick={() => void handle(c.objectId, 'manual')} style={suggestionBtn}>
                   <OptionRow option={{ value: String(c.objectId), label: formatObjectId(c.objectId), name: c.label }} />
@@ -388,11 +328,7 @@ const beam: React.CSSProperties = {
   background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.95), transparent)',
   boxShadow: '0 0 12px rgba(255,255,255,.6)',
 };
-/**
- * **Der Grund – im Rahmen, nicht darunter.** Er füllt die untere Hälfte des Zielrahmens:
- * dort ist der Blick, dort ist der rote Rand, und die Aussage steht damit an genau einer
- * Stelle. Kein Schweben über der Kamera, kein Streifen ausserhalb.
- */
+/** **Der Grund – im Rahmen**: er füllt die untere Hälfte des Zielrahmens, an genau einer Stelle. */
 const reasonBox: React.CSSProperties = {
   position: 'absolute', left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center',
   justifyContent: 'center', gap: 7, padding: '10px 12px', textAlign: 'center',

@@ -1,13 +1,9 @@
 'use client';
 
 /**
- * **Der Schutz von `/erp` und `/konto` – EIN Bauteil** (vorher zwei fast gleiche Layouts).
- *
- * Ohne Anmeldung geht es zur Anmeldung (`/login?from=…`, zurück hierher danach). Mit
- * `staffOnly` darf nur Personal hinein (`isStaff`, Spiegel von `people.STAFF_ROLES`) – wer
- * nicht darf, landet in seinem **Konto**, nicht auf «/»: dort steht die Website, und die
- * kennt keine Anmeldung (`lib/login-target`). Den Token setzt hier niemand: der API-Client
- * holt ihn je Anfrage (`lib/firebase.ts`).
+ * **Der Schutz von `/erp` und `/konto` – EIN Bauteil.** Ohne Anmeldung zur Anmeldung
+ * (`/login?from=…`). Mit `staffOnly` darf nur Personal hinein (`isStaff`); wer nicht darf, landet
+ * im Konto, nie auf «/» (`lib/login-target`). Den Token holt der API-Client je Anfrage.
  */
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -54,9 +50,8 @@ export function AuthGate({ staffOnly = false, children }: {
 }
 
 /**
- * ►►► **Ins ERP darf, wer im Haus arbeitet** (Testnotiz #1043) – gefragt wird dasselbe wie
- * im Backend: zwei Rollen, nicht «nicht diese eine». Ohne Antwort gilt der letzte bekannte
- * Stand – und ein unbekannter ist keiner.
+ * ►►► **Ins ERP darf, wer im Haus arbeitet** – zwei Rollen, wie im Backend. Ohne Antwort gilt
+ * der letzte bekannte Stand; ein unbekannter ist keiner.
  */
 async function mayEnter(): Promise<boolean> {
   try {

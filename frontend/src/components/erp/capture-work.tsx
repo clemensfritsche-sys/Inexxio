@@ -14,33 +14,16 @@ import type { OrderSeed } from '@/components/erp/order-detail';
 /**
  * **Die Arbeit an einem aktiven Modul — eine Zeile je Instanz.**
  *
- * Ein Vorgang ist **eine Instanz**, und das ist keine Gestaltungsentscheidung: das
- * Etikett klebt am physischen Ding, und das Ding ist die Instanz – eine Einzelinstanz
- * zieht bewusst keine Objektnummer. Daraus fällt der Unterschied von selbst heraus:
- * eine Charge ist **ein** Scan (auch wenn zwölf ihrer Stücke erfasst werden),
- * Einzelserialisierung sind **n** Scans.
+ * Ein Vorgang ist eine Instanz: das Etikett klebt an ihr (eine Einzelinstanz hat keine
+ * Objektnummer). Eine Charge ist ein Scan, Einzelserialisierung sind n Scans.
  *
- * ## Drei Ebenen, und nur drei (Testnotiz #715)
+ * Drei Ebenen, an der Schriftgrösse ablesbar: 1. die Handlung (Nummer und Scan), 2. der
+ * Auftrag an diese Instanz (nach dem Scan das Formular), 3. der Halt – nur wenn es ihn gibt.
+ * Zeilen trennt eine Haarlinie, kein Rahmen.
  *
- * Vorher standen Zustandsmeldung, Zählung und Optionen gleichrangig nebeneinander, jede
- * in ihrem eigenen Kasten – Karte im Modul in der Spalte. Jetzt gibt es eine Rangfolge,
- * und sie ist an der Schriftgrösse ablesbar:
- *
- * 1. **Die Handlung** – Nummer und Scan. Das ist, was jetzt zu tun ist.
- * 2. **Der Auftrag an diese Instanz** – eine leise Zeile: wie viele Stücke, welche
- *    Punkte. Nach dem Scan tritt an ihre Stelle das Formular.
- * 3. **Der Halt** – nur wenn es ihn gibt, in einer Zeile, mit **einer** Entscheidung.
- *
- * Kein Rahmen um die Zeilen: was sie trennt, ist eine Haarlinie. Ein Kasten in einem
- * Kasten in einer Spalte sagt dreimal dasselbe («das gehört zusammen»).
- *
- * **Ohne Bestätigung keine Eingabe.** Der Scan ist der Regelweg, die Tastatur die
- * Alternative – beides ist eine Bestätigung, beides wird geloggt, und keines ist eine
- * Umgehung. Durchgesetzt wird es serverseitig (`process.confirm_step`).
- *
- * **Nicht bestanden ⇒ hier steht alles still**, bis ein Mensch entscheidet. Das System
- * legt nichts an: ein automatischer Folgeauftrag wäre ein leerer Entwurf, den niemand
- * bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass jemand zugestimmt hätte.
+ * Ohne Bestätigung keine Eingabe (Scan oder Tastatur, beides geloggt; serverseitig in
+ * `process.confirm_step`). Nicht bestanden ⇒ Stillstand, bis ein Mensch entscheidet; das
+ * System legt nichts an.
  */
 export function CaptureWork({ orderObjectId, stepId, points, action, work, needs = [],
                               target = null, moves = false,
@@ -59,11 +42,8 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    */
   target?: PlaceRef | null;
   /**
-   * **Womit bewegt werden kann** – und was davon heute geht (`available`).
-   *
-   * Diese Liste ist zugleich das **Bit**, ob dieses Modul überhaupt bewegt: sie ist leer
-   * bei jedem anderen Modultyp. Die Oberfläche braucht damit keine Fallunterscheidung
-   * nach dem Modultyp – dieselbe Bauart wie `needs` bei der Stückliste.
+   * **Womit bewegt werden kann** – und was davon heute geht (`available`). Leer bei jedem
+   * anderen Modultyp: die Liste ist zugleich das Bit, ob dieses Modul bewegt.
    */
   moves?: boolean;
   busy?: boolean;
@@ -76,26 +56,19 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
 }) {
   const scan = useScan();
   /**
-   * **Wie** eine Instanz bestätigt wurde (`scan` ↔ `manual`) und **welche** Stücke zu
-   * erfassen sind. Beides steht hier oben und nicht in der Zeile, weil der Sammel-Scan
-   * (#711) mehrere Zeilen auf einmal bestätigt – eine Zeile kann das nicht für die
-   * anderen mitmachen.
+   * Wie eine Instanz bestätigt wurde (`scan` ↔ `manual`) und welche Stücke zu erfassen sind –
+   * hier oben, weil der Sammel-Scan mehrere Zeilen auf einmal bestätigt.
    */
   const [verified, setVerified] = useState<Record<number, string>>({});
   const [numbers, setNumbers] = useState<Record<number, string[]>>({});
   /**
-   * **Aus welchen Kisten genommen wird** – je Artikel. Leer heisst «nach Plan»
-   * (`planBoxes`, die ältesten zuerst); der Mensch kann jede Zeile übersteuern.
-   * Der Server prüft die Wahl, er rät nicht: was hier steht, gilt.
+   * Aus welchen Kisten genommen wird – je Artikel. Leer heisst «nach Plan» (`planBoxes`); der
+   * Server prüft die Wahl, er rät nicht.
    */
   const [boxes, setBoxes] = useState<Record<number, number[]>>({});
   /**
-   * **Wohin es geht** – je Instanz die gescannte Ziel-Objektnummer, und **womit**.
-   *
-   * Beides steht hier oben, weil es zum **Vorgang** gehört und nicht zur Zeile: der
-   * Sammel-Scan bringt alles an denselben Ort, und die Transportart gilt für die Fuhre.
-   * Ist das Ziel in der Definition festgelegt, ist der Scan trotzdem nötig – er ist dann
-   * die Verifikation, dass wirklich dort abgelegt wurde.
+   * Wohin es geht (je Instanz die gescannte Ziel-Objektnummer) und womit – am Vorgang, weil der
+   * Sammel-Scan alles an denselben Ort bringt. Ein definiertes Ziel wird per Scan verifiziert.
    */
   const [placed, setPlaced] = useState<Record<number, number>>({});
 
@@ -104,24 +77,17 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
   }
 
   /**
-   * **Was zu scannen ist, ergibt sich aus der Stichprobe** (Testnotiz #714).
-   *
-   * Erst wird gezogen, daraus ergeben sich die zu erfassenden Einzelinstanzen, daraus
-   * die zu scannenden **Instanzen**. Eine Instanz ohne gezogenes Stück wird hier nicht
-   * bestätigt – sie läuft durch, sobald die Stichprobe dieses Moduls durch und bestanden
-   * ist (`process._run_through`). Ein Scan, der nichts bestätigt, ist keiner.
+   * **Was zu scannen ist, ergibt sich aus der Stichprobe**: gezogene Einzelinstanzen → ihre
+   * Instanzen. Eine Instanz ohne gezogenes Stück läuft durch, sobald die Stichprobe bestanden
+   * ist (`process._run_through`).
    */
   const needsScan = (w: StepWork) =>
     (points.length === 0 || w.sample > 0) && verified[w.instance_object_id] == null;
   const open = work.filter(needsScan);
 
   /**
-   * **Welche Kisten dieser Vorgang anfasst** – und damit, was zu scannen ist.
-   *
-   * Der Plan ist die Vorgabe (älteste zuerst, so wie der Server zuteilt), die Wahl des
-   * Menschen sticht ihn. **Es ist dieselbe Liste**, die gescannt und mitgeschickt wird:
-   * was der Lagerist in der Hand hatte, ist das, woraus genommen wird. Zwei Listen wären
-   * zwei Aussagen darüber.
+   * Welche Kisten dieser Vorgang anfasst: der Plan (älteste zuerst) ist die Vorgabe, die Wahl
+   * des Menschen sticht ihn. Dieselbe Liste wird gescannt und mitgeschickt.
    */
   const boxesFor = (w: StepWork): number[] => {
     const out = needs.flatMap((n) =>
@@ -141,10 +107,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
   }
 
   /** Was ein Vorgang an der Ware scannt: die Instanz, danach jede Kiste, aus der er nimmt.
-   *
-   * **Das Label nennt die Sorte, die Nummer hängt der Scanner an** (`objectCodes.prompt`
-   * aus `expected`). Stand sie auch hier, las der Platzhalter «Instanz 100000825
-   * 100000825 scannen» – zwei Stellen sagten dasselbe (Testnotiz #737). */
+   *  Das Label nennt die Sorte, die Nummer hängt der Scanner an (`objectCodes.prompt`). */
   const goodsSteps = (w: StepWork) => [
     // Ohne `label`: die Sorte kommt aus dem Typ, nicht aus einem hingeschriebenen Wort.
     { kind: 'instance' as const, expected: w.instance_object_id },
@@ -154,29 +117,17 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
   ];
 
   /**
-   * **Der Zielort – zuletzt, und das ist keine Geschmacksfrage.**
-   *
-   * So arbeitet jedes Lagersystem beim Ein- und Umlagern: erst die Ware, dann der Platz.
-   * Der Ziel-Scan ist die **Quittung der Ablage** – man hat das Stück in der Hand, geht
-   * hin, legt ab, scannt. Zuerst gescannt wäre er eine Absichtserklärung: zwischen «Ziel
-   * gescannt» und «hingelegt» kann alles passieren, und der Nachweis behauptete dann
-   * etwas, das niemand gesehen hat.
-   *
-   * Steht das Ziel in der Definition, ist dieser Schritt eine **Verifikation** dagegen
-   * (`expected`) – eine andere Nummer weist schon der Dialog ab, und der Server ein
-   * zweites Mal. Steht dort keines, ist er ein **freier Lookup** mit Existenzprüfung:
-   * ohne sie käme jede neunstellige Zahl durch, der Rahmen würde grün, und beim
-   * Bestätigen passierte stillschweigend nichts.
+   * **Der Zielort – zuletzt**: der Ziel-Scan ist die Quittung der Ablage (erst die Ware, dann
+   * der Platz). Steht das Ziel in der Definition, ist er eine Verifikation (`expected`); sonst
+   * ein freier Lookup mit Existenzprüfung.
    */
   const placeStep = () => (target
     ? { label: 'Zielort', expected: target.object_id }
     : {
       label: 'Zielort',
       exists: (id: number) => api.getPlace(id).then(() => true, absentOn404),
-      // **Ein freier Schritt muss seine Vorschlagsquelle mitbringen** (#730/#731/#732).
-      // Bei einer Verifikation ist sie abgeleitet (`offersFor` = die erwartete Nummer);
-      // hier gibt es keine, also fragt der Scanner dieselbe Suche wie das Zielfeld im
-      // Editor. Ohne sie tippt man «00292» und sieht nichts, obwohl es die Nummer gibt.
+      // Ein freier Schritt bringt seine Vorschlagsquelle mit – dieselbe Suche wie das Zielfeld
+      // im Editor.
       suggest: (q: string) => api.searchPlaces(q)
         .then((rows) => rows.map((p) => ({ objectId: p.object_id, label: p.label }))),
     });
@@ -186,16 +137,13 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
   ];
 
   /**
-   * **Der Sammel-Scan ist die Scan-Sequenz** (#711) – genau dafür ist sie gebaut: ein
-   * Dialog, ein Schritt je Instanz, der Reihe nach. Kein zweiter Mechanismus, keine
-   * zweite Kamera-Logik; der Unterschied zum Knopf in der Zeile ist die Zahl der
-   * Schritte.
+   * **Der Sammel-Scan ist die Scan-Sequenz**: ein Dialog, ein Schritt je Instanz. Kein zweiter
+   * Mechanismus.
    */
   function scanAll() {
     if (!open.length) return;
-    // **Der Zielort wird EINMAL gescannt, nicht je Instanz.** Eine Fuhre geht an einen
-    // Ort; ihn n-mal zu quittieren wäre dieselbe Aussage n-mal. Wer verschiedene Ziele
-    // hat, bestätigt die Zeilen einzeln – dafür ist der kleine Knopf da.
+    // Der Zielort wird EINMAL gescannt, nicht je Instanz – eine Fuhre geht an einen Ort.
+    // Verschiedene Ziele: Zeilen einzeln bestätigen.
     scan({
       steps: [...open.flatMap(goodsSteps), ...(moves ? [placeStep()] : [])],
       onComplete: (ids, how) => {
@@ -213,15 +161,13 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
           work={w}
           points={points}
           action={action}
-          // **Die Stückliste steht UNTER ihrer Einzelinstanz** (#724) – in der
-          // Reihenfolge, in der gearbeitet wird: erst wohin, dann was.
+          // Die Stückliste steht unter ihrer Einzelinstanz: erst wohin, dann was.
           needs={needs}
           boxes={boxes}
           onChoose={(article, ids) => setBoxes((s) => ({ ...s, [article]: ids }))}
           onSupply={onDeviate && ((article: number) => onDeviate({ articleObjectId: article }))}
-          // **«Holen lassen» ist kein zweiter Anlagepfad** – es ist derselbe Entwurf wie
-          // «Nachschub», nur mit Menge und einem Bewegen-Modul auf den Arbeitsort. Was
-          // daraus wird, entscheidet weiterhin die Auswahl im Entwurf.
+          // «Holen lassen» ist kein zweiter Anlagepfad – derselbe Entwurf wie «Nachschub», mit
+          // Menge und einem Bewegen-Modul auf den Arbeitsort.
           onHaul={onDeviate && ((need, quantity) => onDeviate({
             articleObjectId: need.article_object_id,
             quantity,
@@ -250,8 +196,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
         />
       ))}
 
-      {/* **Der grosse Knopf – aber nur, wenn er mehr kann als der kleine.** Bei einer
-          einzigen offenen Instanz wäre er ein zweiter Weg zum selben Ziel. */}
+      {/* Der grosse Knopf nur, wenn er mehr kann als der kleine (mehr als eine offene Instanz). */}
       {open.length > 1 && (
         <button type="button" onClick={scanAll} disabled={busy}
           className="erp-actbtn mt-2.5 w-full" style={{ height: 38 }}
@@ -264,20 +209,12 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
 }
 
 /**
- * **Der Plan: aus welchen Kisten die Menge kommt** – die ältesten zuerst.
- *
- * Es ist **dieselbe Reihenfolge**, in der der Server zuteilt (`consumption._free`); hier
- * steht sie, damit man **vor** dem Scan weiss, was man holen muss. Entschieden wird sie
- * nicht hier – wer eine andere Kiste nimmt, sagt es, und dann gilt seine Wahl.
+ * **Der Plan: aus welchen Kisten die Menge kommt** – dieselbe Reihenfolge wie der Server
+ * (`consumption._free`), damit man vor dem Scan weiss, was zu holen ist.
  */
 /**
- * **Welche Kisten der Server nehmen würde** – die Vorschau seiner eigenen Zuteilung.
- *
- * **Was am Arbeitsort liegt, kommt zuerst**: der Server nimmt ohnehin nur das (§9.6),
- * und eine Vorschau, die eine Kiste aus Regal A vorschlägt, während das Modul nur die
- * auf der Werkbank verbauen kann, wäre eine Anleitung zum Fehlschlag. Ob eine Kiste
- * «hier» ist, kann die Oberfläche dabei nicht selbst ausrechnen – «am Ort» ist eine
- * Aussage über die *Kette*; darum sagt es der Server je Quelle (``NeedSource.here``).
+ * Welche Kisten der Server nehmen würde. Was am Arbeitsort liegt, kommt zuerst (§9.6); ob
+ * eine Kiste «hier» ist, sagt der Server je Quelle (``NeedSource.here``).
  */
 function planBoxes(need: StepNeed, want: number): number[] {
   const out: number[] = [];
@@ -296,20 +233,10 @@ function planBoxes(need: StepNeed, want: number): number[] {
 /**
  * **Eine Zeile der Stückliste — was gebraucht wird, und ob es da ist.**
  *
- * **Nichtverfügbarkeit ist kein Zustand** (§4). Es gibt keinen Pausen-Wert und keine
- * Sperre: das Modul ist schlicht nicht fertig, und hier steht in Klartext, woran es
- * liegt. **«Am falschen Ort» ist dabei dieselbe Aussage wie «zu wenig da», eine Spalte
- * weiter** – und daraus folgen drei Wege, die alle schon existieren:
- *
- * * **eine andere Kiste nehmen** – dieselbe Wahl, die der Scan ohnehin trifft,
- * * **holen lassen** – ein ganz gewöhnlicher Auftrag mit einem Bewegen-Modul, dessen
- *   Ziel der Arbeitsort ist. Angelegt wird nichts: der Entwurf lebt im Browser (#386),
- * * **Nachschub anlegen** – derselbe Entwurf ohne Ziel, wenn es wirklich zu wenig ist.
- *
- * Angeboten wird nur, was gerade Sinn ergibt (#723): reicht das Material am Arbeitsort,
- * steht hier nichts. Ein automatisches Ausweichen gibt es bewusst nicht – welches
- * Material verbaut wird, ist eine Entscheidung, und eine unsichtbare Automatik sähe man
- * erst am fertigen Erzeugnis.
+ * Nichtverfügbarkeit ist kein Zustand (§4): hier steht in Klartext, woran es liegt. Drei Wege:
+ * eine andere Kiste nehmen · holen lassen (Auftrag mit Bewegen-Modul auf den Arbeitsort) ·
+ * Nachschub anlegen. Angeboten wird nur, was gerade Sinn ergibt; ein automatisches Ausweichen
+ * gibt es nicht.
  */
 function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
   need: StepNeed;
@@ -329,31 +256,17 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
 
   /**
    * ►►► **Verglichen wird gegen den Bedarf des MODULS, nicht gegen den Anteil dieser
-   * Zeile** (Testnotiz #1027). ◄◄◄
-   *
-   * *«Bei jeder der drei Einzelinstanzen steht ‹aus Charge 00741›, obwohl von diesem
-   * Artikel nur ein Stück freigegeben ist. Ist das richtig, oder müsste es zugewiesen
-   * sein?»*
-   *
-   * **Der Topf ist richtig, die Messlatte war es nicht.** Zugeteilt wird beim
-   * Bestätigen (`consumption.plan`, FIFO, je Produkt-Stück) und **aufgeschrieben** im
-   * Log (`payload.into`) – vorher gehört kein Stück irgendwem: Reservierungen gibt es
-   * im System nirgends, die Freigabe *ist* die Verfügbarkeitsprüfung. Eine Zuweisung
-   * vor der Ausführung wäre eine zweite Wahrheit neben dem Bestand, und sie wäre
-   * spätestens falsch, wenn ein anderer Auftrag dazwischenkommt.
-   *
-   * Falsch war, dass jede Zeile den **gemeinsamen** freien Bestand gegen **ihren
-   * eigenen** Anteil hielt: ein freier Schraubendreher las sich unter drei Instanzen
-   * dreimal als «genug», und die Unterdeckung fiel erst bei der Bestätigung auf – mit
-   * einem 409, nachdem man den Scanner schon in der Hand hatte. `need.required` ist
-   * genau diese Zahl (Menge je Stück × **alle** Stücke vor dem Modul, vom Server), und
-   * sie ist dieselbe, gegen die `plan` prüft. Zwei Formen einer Regel, ein Massstab.
+   * Zeile.** ◄◄◄
+   * Zugeteilt wird erst beim Bestätigen (`consumption.plan`, FIFO, im Log `payload.into`) –
+   * Reservierungen gibt es nicht. Der gemeinsame freie Bestand wird darum gegen
+   * `need.required` gehalten (Menge je Stück × alle Stücke vor dem Modul), denselben Massstab,
+   * gegen den `plan` prüft.
    */
   const required = need.required;
   /** Wie viele Produkt-Stücke an diesem Modul davorstehen – die Bezugsgrösse der Zahl. */
   const units = need.per_unit > 0 ? required / need.per_unit : 0;
 
-  // ►► **Keine Option anbieten, die gerade keinen Sinn ergibt** (#723). ◄◄
+  // ►► **Keine Option anbieten, die gerade keinen Sinn ergibt.** ◄◄
   //
   //   am Arbeitsort genug         →  nichts. Einfach scannen.
   //   genug da, liegt nur woanders →  «Holen lassen» – die Handlung ist ein Transport.
@@ -369,9 +282,7 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
     <div className="flex flex-col gap-1 py-1.5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <Boxes size={13} style={{ flex: 'none', color: 'var(--fg-4)' }} />
-        {/* **Die Zahl vorn gilt DIESER Instanz** – sie sagt, was in die Stücke geht, die
-            hier stehen. Die Deckung daneben gilt dem Modul: zwei verschiedene Fragen,
-            und beide gehören in die Zeile. */}
+        {/* Die Zahl vorn gilt DIESER Instanz; die Deckung daneben gilt dem Modul. */}
         <span className="text-xs" style={{ color: 'var(--fg-2)', fontWeight: 600 }}
           data-tip={`${need.per_unit} je Einzelinstanz × ${pieces} Stück dieser Instanz`}>
           {mine}×
@@ -386,9 +297,7 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
             {need.available} von {required} verfügbar
           </span>
         )}
-        {/* **Der Ort ist das Problem, nicht die Menge** – und die Zeile sagt beides:
-            wie viel hier liegt, und wo der Rest steht. «0 verfügbar» wäre hier schlicht
-            falsch: es sind vierzig da. */}
+        {/* Der Ort ist das Problem, nicht die Menge: wie viel hier liegt, und wo der Rest steht. */}
         {enough && misplaced && need.place && (
           <span className="ml-auto text-[11.5px]" style={{ color: 'var(--danger)' }}
             data-tip={`Gebraucht bei ${need.place.label} · ${need.available - here} `
@@ -399,7 +308,7 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
       </div>
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {/* Eine Objektnummer führt zu ihrem Datensatz – überall dieselbe Form (`ObjId`, #1028). */}
+        {/* Eine Objektnummer führt zu ihrem Datensatz (`ObjId`). */}
         <span className="text-[11.5px] flex flex-wrap items-center gap-x-1"
           style={{ color: 'var(--fg-4)' }}>
           {plan.length
@@ -466,12 +375,7 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
   );
 }
 
-/**
- * Eine Instanz — **eine Zeile, darunter höchstens zwei leise**.
- *
- * Getrennt wird durch eine Haarlinie, nicht durch einen Rahmen: die Zeilen gehören
- * ohnehin zusammen, das sagt schon die Modul-Karte, in der sie stehen.
- */
+/** Eine Instanz — eine Zeile, darunter höchstens zwei leise; getrennt durch eine Haarlinie. */
 function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, onHaul, busy,
                       first, via, numbers, onScan, onConfirm,
                       onDirty, onDeviate, orderObjectId, stepId }: {
@@ -496,8 +400,7 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, o
   stepId: number;
 }) {
   const nr = formatObjectId(work.instance_object_id);
-  // **Hier ist nichts zu erfassen** – die Instanz liegt ausserhalb der Ziehung (#714).
-  // Sie steht trotzdem da: der ungezogene Rest läuft **sichtbar** durch, nicht heimlich.
+  // Hier ist nichts zu erfassen (ausserhalb der Ziehung) – der Rest läuft sichtbar durch.
   const idle = points.length > 0 && work.sample === 0;
 
   return (
@@ -513,8 +416,7 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, o
             {work.article_name}
           </span>
         )}
-        {/* **Nur das Symbol** (#712) – was es tut, sagt der Hover; wen es meint, die
-            Nummer daneben. Ein Wort dazwischen wäre die dritte Aussage in einer Zeile. */}
+        {/* Nur das Symbol – was es tut, sagt der Hover. */}
         {!via && !idle && (
           <button type="button" onClick={onScan} disabled={busy}
             className="ml-auto flex items-center justify-center rounded-ds-md disabled:opacity-40"
@@ -526,7 +428,7 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, o
         )}
       </div>
 
-      {/* ── Was hineingeht — eingerückt, denn es gehört zu diesem Stück (#724) ── */}
+      {/* ── Was hineingeht — eingerückt, denn es gehört zu diesem Stück ── */}
       {needs.length > 0 && (
         <div className="flex flex-col" style={{
           marginLeft: 10, paddingLeft: 10, borderLeft: '1px solid var(--border-1)',
@@ -575,9 +477,8 @@ function labelOf(p: CapturePoint): string {
 }
 
 /**
- * **Der Halt — eine Zeile, eine Entscheidung** (§4.1, #710/#713). Die Meldung nennt die
- * Tatsache, nicht ihre Folgen (die stehen im Hover). Eine eigene 100 %-Kontrolle gibt es
- * nicht: sie ist derselbe Abweichungsauftrag, nur mit der Stichprobe «alle».
+ * **Der Halt — eine Zeile, eine Entscheidung** (§4.1). Die Meldung nennt die Tatsache, die
+ * Folgen stehen im Hover. Eine 100 %-Kontrolle ist ein Abweichungsauftrag mit Stichprobe «alle».
  */
 function Hold({ work, orderObjectId, stepId, onDeviate }: {
   work: StepWork; orderObjectId: number; stepId: number;

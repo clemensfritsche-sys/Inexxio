@@ -3,27 +3,12 @@
 import { useErpNav } from './obj-id';
 
 /**
- * **Die Nummer einer Einzelinstanz — `100000736-1`, mit leisem Suffix.**
+ * **Die Nummer einer Einzelinstanz — `100000736-1`, mit leisem Suffix.** Die Objektnummer
+ * normal, der Suffix kleiner und leiser – vollständig, denn sie wird gescannt und zitiert.
  *
- * Die Identität, die ein Mensch kennt und ausspricht, ist die **Objektnummer**; der
- * Suffix sagt nur, welches Stück davon gemeint ist. Beide gleich laut zu setzen macht
- * aus einer Nummer zwei, und in einer Liste von zwanzig Stücken springt dann jede Zeile
- * an, obwohl sich nur die letzte Stelle unterscheidet.
- *
- * Also: Nummer normal, Suffix eine Spur kleiner und in der leisesten Textfarbe – nah
- * genug, um als eine Angabe gelesen zu werden, leise genug, um nicht mitzurufen. Kein
- * Weglassen: die Nummer muss vollständig bleiben, sie wird gescannt und zitiert.
- *
- * **Sie führt zu ihrem Datensatz** (Auftrag §3). Der Teil vor dem Suffix **ist** die
- * Objektnummer der Instanz – es gibt nichts nachzuschlagen, und darum auch keinen Grund,
- * sie nicht anklickbar zu machen. Gesprungen wird über die **bestehende** Navigation
- * (`ErpNavContext`), dieselbe, mit der jede Objektnummer im ERP ihren Datensatz öffnet;
- * ein eigener Handler wäre ein zweiter Weg zur selben Sache. Ohne Navigation im Kontext
- * (Etikett, Dialog) bleibt sie stiller Text – die Fähigkeit hängt am Ort, nicht am
- * Aufrufer.
- *
- * **Eine Stelle für alle** (Testnotiz #681): wer eine Einzelinstanz-Nummer zeigt, nimmt
- * dieses Bauteil. Vier Orte hatten vorher vier Schreibweisen.
+ * Sie führt zu ihrem Datensatz (Auftrag §3) über die bestehende Navigation (`ErpNavContext`);
+ * ohne Navigation im Kontext (Etikett, Dialog) bleibt sie stiller Text. Wer eine
+ * Einzelinstanz-Nummer zeigt, nimmt dieses Bauteil.
  */
 export function UnitNumber({ value, size = 12.5 }: {
   /** `<Objektnummer>-<Suffix>`. Etwas anderes wird unverändert durchgereicht. */

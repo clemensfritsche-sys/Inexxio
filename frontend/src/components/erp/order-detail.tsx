@@ -37,60 +37,33 @@ import { useAction } from '@/lib/use-action';
 /**
  * Auftrag – Detailfenster.
  *
- * **Der Entwurf lebt nur hier.** `record === null` heisst: in der Datenbank steht nichts,
- * keine Entwurfs-Zeile, keine vorreservierte Objektnummer, kein Autosave. Wer das Fenster
- * verlässt, lässt keine Spur.
- *
- * **Anlegen ist Freigeben.** Es gibt keinen «Speichern»-Zwischenschritt: der Klick auf
- * «Freigeben» legt den Auftrag an, vergibt die Objektnummer, prüft die Exklusivität,
- * **erzeugt die neuen Einzelinstanzen**, schickt die Stücke durch das Start-Objekt und
- * loggt – alles in einer Transaktion (PROCESS_CORE.md §6.3). Danach ist die Struktur
- * eingefroren.
- *
- * Ob freigegeben werden darf, entscheidet der Server (`POST /erp/orders/validate` →
- * `services/orders.validate_draft`). Die Oberfläche formuliert die Regel nicht nach,
- * sie fragt sie ab: sonst gäbe es zwei Massstäbe für dieselbe Frage.
+ * Der Entwurf lebt nur hier (`record === null`: keine Zeile, keine Nummer, kein Autosave).
+ * **Anlegen ist Freigeben**: ein Klick legt an, vergibt die Nummer, prüft die Exklusivität,
+ * erzeugt die Einzelinstanzen und schickt sie durch den Start – eine Transaktion
+ * (PROCESS_CORE.md §6.3). Ob freigegeben werden darf, entscheidet der Server
+ * (`services/orders.validate_draft`).
  */
 /**
- * **Ein Entwurf mit bereits gewählter Einzelinstanz** (Abweichungsauftrag §3.1).
- *
- * Mehr ist eine «Abweichung» nicht: derselbe Entwurf, derselbe Editor, dieselbe Freigabe –
- * das Stück steht nur schon drin. Ob daraus eine Abweichung wird, entscheidet sich beim
- * Freigeben und ergibt sich aus dem Zustand des Stücks, nicht aus diesem Seed.
+ * **Ein Entwurf mit bereits gewählter Einzelinstanz** (Abweichungsauftrag §3.1). Ob daraus
+ * eine Abweichung wird, ergibt sich beim Freigeben aus dem Zustand des Stücks.
  */
 export interface OrderSeed {
   articleObjectId: number;
-  /**
-   * **Nur beim Auslöser am Stück** (§3.1). Der Shortcut am Artikel (#690) merkt bewusst
-   * nur den Artikel vor: wie viel, woher und mit welchem Ablauf ist die Entscheidung,
-   * und die trifft der Mensch. Ein reiner Shortcut, kein zweiter Anlagepfad.
-   */
+  /** Nur beim Auslöser am Stück (§3.1); der Shortcut am Artikel merkt nur den Artikel vor. */
   unitNumbers?: string[];
   /**
-   * In welchem Auftrag das Stück lief, als der Shortcut es griff. Das ist keine
-   * Zusatzinfo, sondern die **Absicht**: «ich hole es aus diesem Auftrag». Der Server
-   * prüft sie bei der Freigabe – wechselt das Stück vorher den Auftrag, bricht sie ab,
-   * statt still etwas anderes zu tun (`UnitPick.from_order`).
+   * In welchem Auftrag das Stück lief, als der Shortcut es griff – die Absicht. Wechselt das
+   * Stück vorher den Auftrag, bricht die Freigabe ab (`UnitPick.from_order`).
    */
   fromOrder?: number | null;
-  /**
-   * **Wie viel** – nur, wo die Menge aus der Sache folgt und nicht aus einer Vermutung:
-   * «12 Schrauben holen» weiss, dass es zwölf sind. Der Shortcut am Artikel merkt sie
-   * bewusst NICHT vor (#690) – dort ist sie eine Entscheidung.
-   */
+  /** Wie viel – nur, wo die Menge aus der Sache folgt («12 Schrauben holen»). */
   quantity?: number;
-  /**
-   * **Ein vorbelegter Ablauf.** Ein «Holen lassen» ist ein ganz gewöhnlicher Auftrag mit
-   * einem Bewegen-Modul – der Entwurf bringt es mit, statt es den Menschen ein zweites
-   * Mal eintippen zu lassen. Änderbar wie jedes andere Modul; es ist eine Eingabehilfe,
-   * keine Festlegung.
-   */
+  /** Ein vorbelegter Ablauf (z. B. ein Bewegen-Modul für «Holen lassen») – änderbar, eine Eingabehilfe. */
   steps?: { moduleType: string; target?: number }[];
 }
 
 export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
-  /** ``null`` ⇒ Entwurf (existiert nur im Browser). Sonst genügt die **Feed-Zeile** –
-   *  das Detail lädt sich selbst nach (siehe unten). */
+  /** ``null`` ⇒ Entwurf (nur im Browser). Sonst genügt die Feed-Zeile – das Detail lädt sich selbst. */
   record: OrderSummary | Order | null;
   /** Nur beim Entwurf: eine vorgewählte Einzelinstanz. */
   seed?: OrderSeed | null;
@@ -131,16 +104,9 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const [refreshKey, setRefreshKey] = useState(0);
 
   /**
-   * **Das Detail lädt seinen Auftrag selbst.**
-   *
-   * Der Feed liefert bewusst nur eine Zusammenfassung (`OrderSummary`) – ohne Schritte,
-   * Stücke und Historie; bei 5000 Stück ist das der Unterschied zwischen einer Liste und
-   * einem Megabyte. Wer die Feed-Zeile als Detail rendert, zeigt darum einen laufenden
-   * Prozess als leer: kein Modul, keine Einzelinstanzen, «nicht gestartet». Genau das
-   * war zu sehen – die Erzeugung lief pünktlich, die Ansicht wusste nur nichts davon.
-   *
-   * Die Zeile aus dem Feed dient nur noch als Adresse (`object_id`). Die Antwort jeder
-   * Handlung IST der neue Auftrag (`setQueryData`); nachgeladen wird über `lib/feed.TOUCHES`.
+   * **Das Detail lädt seinen Auftrag selbst.** Der Feed liefert nur `OrderSummary` (ohne
+   * Schritte, Stücke, Historie); die Zeile dient nur als Adresse. Die Antwort jeder Handlung
+   * IST der neue Auftrag (`setQueryData`); nachgeladen wird über `lib/feed.TOUCHES`.
    */
   const objectId = record?.object_id ?? null;
   const qc = useQueryClient();
@@ -161,9 +127,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     loop: loopPayload(loop, lines),
   }), [lines, steps, loop]);
 
-  // Freigebbarkeit beim Server erfragen, nicht selbst behaupten. **Die Vorschau der
-  // Quell-Aufträge** (Auftrag §2) kommt aus derselben Antwort – ein zweiter Aufruf wäre ein
-  // zweiter Stand desselben Entwurfs.
+  // Freigebbarkeit beim Server erfragen. Die Vorschau der Quell-Aufträge (Auftrag §2) kommt
+  // aus derselben Antwort.
   const check = useDebouncedQuery({
     name: 'order', input: isDraft ? draft : null, ask: api.validateOrder, what: 'Prüfung des Auftrags',
   });
@@ -174,8 +139,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
 
   async function release() {
     const made = await run(() => api.createOrder(draft), (e) => {
-      // **Ein veralteter Pick ist eine neue Lage**: der Server nennt sie mit einem Code, die
-      // Auswahl wird daraufhin gegen die Wirklichkeit nachgezogen.
+      // Ein veralteter Pick ist eine neue Lage: der Server nennt sie mit einem Code, die
+      // Auswahl wird nachgezogen.
       const detail = (e as ApiError)?.detail as { code?: string } | undefined;
       if (detail?.code === 'pick_stale') setRefreshKey((n) => n + 1);
     });
@@ -199,10 +164,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
                                       sources, place));
   }, [act]);
 
-  /**
-   * **Eine Handlung am Beleg** – derselbe Weg wie das Bestätigen: ein Aufruf, die
-   * Antwort IST der neue Auftrag. Kein eigener Zustand daneben, der veralten könnte.
-   */
+  /** **Eine Handlung am Beleg** – ein Aufruf, die Antwort IST der neue Auftrag. */
   const runVoucher = useCallback(async (
     stepId: number, body: { action: string } & Record<string, unknown>,
   ) => {
@@ -212,10 +174,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   /** **Die Wiederholung beenden** – derselbe Weg: ein Befehl, die Antwort ist der Auftrag. */
   const endLoop = useCallback(() => act((id) => api.endLoop(id)), [act]);
 
-  /**
-   * **Den Auftrag noch einmal holen** – ohne eine Handlung an ihm. Eine Online-Zahlung hat
-   * keine Antwort (gebucht wird sie vom Webhook), also braucht genau sie diesen Weg.
-   */
+  /** Den Auftrag neu holen – für die Online-Zahlung, die keine Antwort hat (bucht der Webhook). */
   const { refetch } = orderQuery;
   const reload = useCallback(() => { void refetch(); }, [refetch]);
 
@@ -226,8 +185,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     <div className="flex flex-col h-full overflow-auto">
       <DetailHeader
         type="order"
-        // **Die Abweichung ist ein Zeichen am Symbol** (#699) – dieselbe Komponente wie
-        // im Feed. Zwei Implementierungen driften garantiert auseinander (#688).
+        // Die Abweichung ist ein Zeichen am Symbol – dieselbe Komponente wie im Feed.
         deviation={live?.is_deviation ?? false}
         title={live?.name ?? null}
         placeholder="Neuer Auftrag"
@@ -259,10 +217,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
           </p>
         )}
 
-        {/* **Kein Mass von hier.** Jedes Prozessbild bringt seines mit (#684) – der
-            Entwurf ist eine Spalte, der laufende Auftrag sind bis zu drei. Eine Zahl an
-            dieser Stelle wäre der zweite Stand, aus dem der gemeldete Breitenunterschied
-            entstanden ist. */}
+        {/* Kein Mass von hier: jedes Prozessbild bringt seines mit. */}
         {isDraft ? (
           <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}
             refreshKey={refreshKey} parents={preview}
@@ -292,15 +247,9 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * **Der Prozess folgt aus der Herkunft.**
- *
- * Sobald eine Zeile «Neu» trägt, ist der Prozess die **Vorlage des Artikels** – als
- * Kopie, mit Versionsstempel, und hier nur zu sehen, nicht zu ändern. Sie zu bearbeiten
- * hiesse, einen Stempel auf etwas zu setzen, das danach nicht mehr die Vorlage ist.
- * Ändern geht am Artikel, unter «Spezifikation».
- *
- * Ein reiner «Lager»-Auftrag greift auf Vorhandenes zu – was damit geschehen soll, weiss
- * nur dieser eine Auftrag. Dort wird frei modelliert.
+ * **Der Prozess folgt aus der Herkunft.** Trägt eine Zeile «Neu», ist er die Vorlage des
+ * Artikels – hier nur zu sehen, geändert wird am Artikel. Ein reiner «Lager»-Auftrag wird
+ * hier frei modelliert.
  */
 function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop }: {
   lines: DefinitionLine[]; setLines: (l: DefinitionLine[]) => void;
@@ -338,14 +287,9 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop
   const isMake = sourceArticle !== null;
 
   /**
-   * **Die Rückführung schaltet man am Ziel** (§5) – und das Ziel ist seit der Vorschau
-   * der Quell-Auftrag selbst, nicht mehr eine Ersatz-Pille unter dem Ende.
-   *
-   * Die Entscheidung hängt an der **Definitionszeile** (`returns`), gefragt wird sie am
-   * **Auftrag**: umgeschaltet wird darum jede Zeile, die aus ihm etwas nimmt. Das ist
-   * dieselbe Zusammenfassung, die der Server für die Vorschau macht (ein Auftrag kehrt
-   * zurück, wenn irgendeine seiner Zeilen zurückführt) – zwei Lesarten davon ergäben
-   * einen Klick, der die Linie nicht bewegt.
+   * **Die Rückführung schaltet man am Ziel** (§5), dem Quell-Auftrag. Die Entscheidung hängt
+   * an der Definitionszeile (`returns`); umgeschaltet wird jede Zeile, die aus diesem Auftrag
+   * nimmt – dieselbe Zusammenfassung wie die Vorschau des Servers.
    */
   const toggleReturn = useCallback((parentObjectId: number) => {
     const takes = (l: DefinitionLine) => l.units.some((u) => u.fromOrder === parentObjectId);
@@ -357,8 +301,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop
     <DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey} />
   );
 
-  // Bringt eine Zeile «Neu» mit, ist der Prozess die **Vorlage des Artikels** – dann nur
-  // ansehen. Sonst wird hier modelliert, mit demselben Editor wie am Artikel.
+  // Bringt eine Zeile «Neu» mit, ist der Prozess die Vorlage des Artikels – nur ansehen.
   return (
     <>
       {isMake ? (
@@ -402,37 +345,24 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
   /** Eine Handlung am Beleg des Moduls «Zahlung». */
   onVoucher: (stepId: number,
               body: { action: string } & Record<string, unknown>) => void;
-  /**
-   * **Den Auftrag neu laden.**
-   *
-   * Für das eine, was **keine** Handlung an ihm ist: eine Online-Zahlung. Sie bucht
-   * nichts – das tut der Webhook –, also gibt es auch keine Antwort, die den Auftrag
-   * mitbrächte; nachgeladen wird er trotzdem, damit die Zeile erscheint, sobald sie da ist.
-   */
+  /** Den Auftrag neu laden – für die Online-Zahlung (bucht der Webhook, keine Antwort). */
   onReload: () => void;
   onDeviate?: (seed: OrderSeed) => void;
   onEndLoop: () => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
-  // Die einzelnen Nummern kommen erst beim Aufklappen – bei 5000 Stück ist das der
-  // Unterschied zwischen einer Antwort und einem Megabyte.
+  // Die einzelnen Nummern kommen erst beim Aufklappen.
   /**
    * ►►► Die **restriktivere Variante** zur offenen Frage (Abweichungsauftrag §5) ◄◄◄
-   *
-   * Solange im aktiven Modul erfasst wird, lässt sich keine Abweichung auslösen. Der
-   * Server kann das nicht prüfen: eine begonnene Erfassung ist nirgends gespeichert (sie
-   * entsteht erst beim Bestätigen). Diese Sperre ist darum **hier** – und sie ist
-   * bewusst die strengere von zwei möglichen Antworten, bis die Frage entschieden ist.
-   * Die dauerhafte Regel gehört an den Modultyp (`domain/modules.units_may_leave`).
+   * Solange im aktiven Modul erfasst wird, lässt sich keine Abweichung auslösen. Der Server
+   * kann das nicht prüfen (eine begonnene Erfassung ist nirgends gespeichert). Die dauerhafte
+   * Regel gehört an den Modultyp (`domain/modules.units_may_leave`).
    */
   const [entryStarted, setEntryStarted] = useState(false);
 
   /**
-   * **Die eine Herkunft, die nicht im Log steht.** Ein Erzeugungsauftrag hat keinen
-   * Vorgänger – seine Stücke entstehen bei der Freigabe. Alles andere kam aus einem
-   * Auftrag und steht darum in `journey_in`; zusammen decken beide jedes Stück ab
-   * (gemessen). Genau deshalb ist der frühere Definitions-Container weg: er sagte ein
-   * zweites Mal, was am Baum steht.
+   * **Die eine Herkunft, die nicht im Log steht**: die Stücke eines Erzeugungsauftrags
+   * entstehen bei der Freigabe. Alles andere steht in `journey_in`.
    */
   const origins: JourneyOrigin[] = (order.lines ?? [])
     .filter((ln) => ln.origin === NEU)
@@ -440,38 +370,26 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
 
   const expand = useCallback(async (edgeId: string) => {
     const page = await api.getOrderUnits(order.object_id, edgeId, 100, 0);
-    // **Der Zustand bleibt am Stück.** Der Server sendet ihn; ihn hier wegzuwerfen war
-    // der Grund, warum der Abweichungstrigger auch an einem verschrotteten Stück stand.
+    // Der Zustand bleibt am Stück – der Abweichungstrigger braucht ihn.
     return (page.units ?? []).map((u) => ({
       number: u.number, startedAt: u.started_at, status: u.status,
     }));
   }, [order.object_id]);
 
-  // **Ein Modul-Körper, zwei Wege dorthin**: der volle Prozess in der Mitte – und die
-  // **Partner-Sicht**, die kein Prozessbild bekommt (sein Beleg ist seine Sache, der Lauf
-  // des Auftrags nicht).
-  //
-  // `internal` sagt, ob dies die **volle** Ansicht ist – keine Rollenabfrage, sondern die
-  // Aussage der Aufrufstelle über sich selbst: das Modul-Protokoll (`StepRecord`) ist
-  // Personal-only. Was ein Partner im Modul **tun** darf, entscheidet der Beleg selbst
-  // (`voucher.can`).
+  // **Ein Modul-Körper, zwei Wege dorthin**: der volle Prozess und die Partner-Sicht ohne
+  // Prozessbild. `internal` ist die Aussage der Aufrufstelle über sich selbst (das Protokoll
+  // ist Personal-only); was ein Partner tun darf, entscheidet der Beleg (`voucher.can`).
   const stepBody = (step: DiagramStep, isActive: boolean, internal: boolean) => {
-    // **Ein Modul ohne Scan bekommt eine Bestätigung, kein Scan-Tor**: gefragt wird die
-    // Eigenschaft (`step.verifies`), nie der Modultyp. Es ist **ein** Vorgang, nicht einer
-    // je Instanz (`process._verified_instance`).
-    // **Eine Gegenpartei bestätigt kein Modul** (`confirm_step` ist Personal-only):
-    // gefragt wird `internal`, die Aussage der Aufrufstelle über sich selbst.
+    // Ein Modul ohne Scan bekommt eine Bestätigung, kein Scan-Tor (`step.verifies`) – ein
+    // Vorgang, nicht einer je Instanz. Eine Gegenpartei bestätigt kein Modul.
     const plain = step.verifies === false;
-    // **Warum jetzt nicht?** – der Satz kommt vom Server (`process.completion_problem`).
+    // Warum jetzt nicht? – der Satz kommt vom Server (`process.completion_problem`).
     const blocked = stepInfo(order, step.id)?.blocked ?? null;
-    // **Der Beleg umschliesst den Scan** – die Bestätigung, die jedes Modul abschliesst,
-    // passiert *in* ihm. Erkannt allein daran, dass es einen gibt, nie am Modultyp; bei
-    // jedem anderen ist er leer, und es bleibt beim Inhalt allein.
+    // Der Beleg umschliesst den Scan; erkannt daran, dass es einen gibt, nie am Modultyp.
     const paper = stepInfo(order, step.id)?.voucher ?? null;
     const work = !internal ? null : isActive && plain ? (
-      // **Der Modul-Knopf IST ein Knopf** (#813, `erp-actbtn-primary`, volle Breite). **Und
-      // wenn er jetzt nichts tun kann, gibt es ihn nicht** (#950): was im Weg steht, sagt
-      // die Modul-Karte selbst; gefragt wird der Server (`step.blocked`).
+      // Der Modul-Knopf IST ein Knopf (`erp-actbtn-primary`); kann er nichts tun, gibt es ihn
+      // nicht – was im Weg steht, sagt die Karte (`step.blocked`).
       blocked ? null : (
         <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
           disabled={busy} style={{ height: 42, fontSize: 14 }}
@@ -480,8 +398,7 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
         </button>
       )
     ) : isActive ? (
-      // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
-      // (Scan-Regel §3).
+      // Die Arbeit steht je Instanz da – ein Vorgang ist eine Instanz (Scan-Regel §3).
       <CaptureWork
         orderObjectId={order.object_id}
         stepId={step.id}
@@ -499,9 +416,7 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           onConfirm(step.id, instanceObjectId, verification, values, sources, place)}
       />
     ) : paper ? (
-      // **Ein Modul, das seine Sache selbst zeigt, braucht keine Aufzählung daneben** (#973):
-      // die `PointList` sagt, was ein Modul tun wird – ein Beleg zeigt sich selbst. Gefragt
-      // wird, ob es einen Beleg gibt, nie der Modultyp.
+      // Ein Modul, das seine Sache selbst zeigt (Beleg), braucht keine `PointList` daneben.
       null
     ) : (
       <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
@@ -520,17 +435,14 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           {work}
         </BelegWork>
       ) : work}
-      {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp; und nur,
-          wo es mehr zu berichten gibt als die blosse Passage (#825, `step.records`). */}
+      {/* Was in ihm passiert ist – zentral, nur wo es mehr gibt als die Passage (`step.records`). */}
       {internal && !isActive && step.records !== false
         && <StepRecord orderObjectId={order.object_id} stepId={step.id} />}
     </div>
     );
   };
 
-  // **Ohne Prozessbild: die Module allein** – dieselbe Karte, nur ohne Achse. Der Graph
-  // fehlt genau dann, wenn die Antwort für einen Partner verengt wurde
-  // (`orders._mine_only`); gezeichnet wird trotzdem `StepCard`, nicht ein Nachbau.
+  // Ohne Prozessbild (Partner, `orders._mine_only`): die Module allein, dieselbe `StepCard`.
   if (!(order.flow?.nodes ?? []).length) {
     return (
       <div className="flex flex-col gap-3" style={{ maxWidth: PROCESS_MAXW, margin: '0 auto' }}>
@@ -561,13 +473,10 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           deviateBlocked: entryStarted
             ? 'Im aktiven Modul wurde bereits erfasst. Erst bestätigen – oder das Fenster neu laden, dann ist die Eingabe verworfen.'
             : undefined,
-          // **Die Historie steht am Objekt** (§5) – und nur in der Mitte: von einem
-          // Nachbarn ist sie gar nicht geladen, und sie gehört in seinen Datensatz.
+          // Die Historie steht am Objekt (§5) – nur in der Mitte, Nachbarn haben sie nicht geladen.
           events: order.events ?? [],
           eventTotal: order.event_count ?? undefined,
-          // **Ein Modul zeigt seine Sache in JEDEM Zustand** (#696): EIN Körper, und
-          // `isActive` entscheidet allein, ob **gehandelt** werden darf – nicht, ob etwas
-          // zu sehen ist. Auf-/zugeklappt und gesperrt entscheidet das Diagramm.
+          // Ein Modul zeigt seine Sache in jedem Zustand; `isActive` entscheidet nur übers Handeln.
           renderStep: (step, isActive) => stepBody(step, isActive, true),
           loop: order.loop
             ? <LoopRunCard loop={order.loop} busy={busy} onEnd={onEndLoop} />
@@ -586,18 +495,12 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
 }
 
 /**
- * Was dieses Modul erfassen wird – seine eingefrorene Definition.
- *
- * Für ein Modul, das nicht an der Reihe ist: es soll zeigen, **was** es tut, ohne es tun
- * zu lassen. Die erfassten *Werte* eines erledigten Moduls stehen nicht hier, sondern in
- * der Historie – sie sind ein Ereignis, keine Eigenschaft des Moduls.
+ * Was dieses Modul erfassen wird – seine eingefrorene Definition. Erfasste Werte stehen in
+ * der Historie, nicht hier.
  */
 /**
- * **Warum hier ausgesondert wird** – aus der Definition, nicht vom Band.
- *
- * Der Grund wird beim Modellieren gegeben (`domain/modules.Aussondern`) und ist damit
- * für jedes Stück derselbe. Er steht an der Ausführungsstelle, weil dort die Frage
- * gestellt wird – aber als **Auskunft**, nicht als Eingabefeld.
+ * **Warum hier ausgesondert wird** – aus der Definition (`domain/modules.Aussondern`), als
+ * Auskunft, nicht als Eingabefeld.
  */
 function Reason({ text }: { text?: string | null }) {
   if (!text) return null;
@@ -614,17 +517,12 @@ function PointList({ points, sample, action, reason, moduleType, target }: {
   /** Für das Symbol – aus derselben Zuordnung, aus der es auch die Palette nimmt. */
   moduleType?: string;
   /**
-   * **Wohin dieses Modul bringt** – aus der Definition, bereits aufgelöst.
-   *
-   * `null` heisst bei einem Bewegungsmodul *nicht* «vergessen», sondern «wird beim
-   * Ausführen gewählt». Beides muss dastehen: ein offenes Ziel, das aussieht wie eine
-   * Lücke, liest sich als Fehler in der Definition.
+   * Wohin dieses Modul bringt. `null` heisst beim Bewegen «wird beim Ausführen gewählt» und
+   * muss so dastehen, nicht als Lücke.
    */
   target?: PlaceRef | null;
 }) {
-  // **Ein Modul ohne Erfassungspunkte hat trotzdem etwas zu sagen.** Das Aussondern
-  // erfasst nichts – was es tut, steht in seinem Verb und warum in seinem Grund; das
-  // Bewegen sagt zusätzlich, wohin. Ohne diese Zeilen stünde die Karte leer da.
+  // Ein Modul ohne Erfassungspunkte hat trotzdem etwas zu sagen: Verb, Grund, Ziel.
   if (!points.length) {
     const Icon = moduleIcon(moduleType);
     return action ? (
@@ -633,10 +531,7 @@ function PointList({ points, sample, action, reason, moduleType, target }: {
           <Icon size={13} style={{ color: 'var(--fg-4)' }} />
           <span>{action}</span>
         </div>
-        {/* **Dasselbe Wort wie im Editor** (`RUNTIME_CHOICE`, #785/#786): dort steht die
-            Wahl in der Liste, hier ihr Ergebnis – zwei Formulierungen für einen Zustand
-            wären zwei Aussagen, und die zweite («wird beim Ausführen gescannt») nannte
-            ausserdem den Weg statt den Zeitpunkt. */}
+        {/* Dasselbe Wort wie im Editor (`RUNTIME_CHOICE`) – ein Zustand, eine Formulierung. */}
         {target !== undefined && (
           <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
             {target ? (
@@ -658,9 +553,8 @@ function PointList({ points, sample, action, reason, moduleType, target }: {
   }
   return (
     <div className="flex flex-col gap-1">
-      {/* **Die Stichprobenregel gehört zur Definition** – sie sagt, an wie vielen Stücken
-          erfasst wird. Der Satz kommt vom Server (`sampling.describe`); wie viele es
-          konkret wurden, sagt erst die Ziehung am aktiven Modul. */}
+      {/* Die Stichprobenregel gehört zur Definition (`sampling.describe`); die konkrete
+          Zahl sagt erst die Ziehung am aktiven Modul. */}
       {sample && (
         <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-4)' }}>
           <Layers size={13} />
@@ -685,17 +579,11 @@ function PointList({ points, sample, action, reason, moduleType, target }: {
   );
 }
 
-/**
- * **Wartet dieser Auftrag auf eine Rückführung?** Abgeleitet, nicht gespeichert – es
- * wartet, wer noch eine offene rückführende Verbindung hat. Steht hier nichts, wartet er
- * auf nichts; ein Platzhalter «wartet auf 0» wäre eine Zeile ohne Aussage.
- */
+/** **Wartet dieser Auftrag auf eine Rückführung?** Abgeleitet: offene rückführende Verbindung. */
 
 /**
- * **Welcher Artikel gehört zu diesem Stück?** Die Nummer sagt es zur Hälfte: ihr vorderer
- * Teil ist die Objektnummer der Instanz, und die Instanz kennt ihren Artikel. Gefragt wird
- * darum der bestehende Endpunkt – ein zweites Feld an der Stück-Antwort wäre eine Kopie,
- * die auseinanderlaufen kann.
+ * Welcher Artikel gehört zu diesem Stück? Der vordere Teil der Nummer ist die Instanz, die
+ * Instanz kennt ihren Artikel – gefragt wird der bestehende Endpunkt.
  */
 async function startDeviation(
   unitNumber: string, fromOrder: number, open: (seed: OrderSeed) => void,
@@ -704,8 +592,7 @@ async function startDeviation(
   if (!Number.isInteger(instanceId)) return;
   const instance = await api.getInstance(instanceId);
   if (instance.article_object_id == null) return;
-  // Woher das Stück kommt, weiss diese Stelle sicher: aus dem Auftrag, dessen Prozess
-  // gerade offen ist. Genau das ist die Aussage, die der Server bei der Freigabe prüft.
+  // Woher das Stück kommt: aus dem offenen Auftrag – genau das prüft der Server bei der Freigabe.
   open({ articleObjectId: instance.article_object_id, unitNumbers: [unitNumber], fromOrder });
 }
 
@@ -727,11 +614,8 @@ function pointsOf(order: Order, stepId: number): CapturePoint[] {
 }
 
 /**
- * Wie viele Stücke stehen gerade davor – die Erfassung gilt für sie alle.
- *
- * Aus **derselben** Quelle wie das Bild (`order.flow`): eine Position ist eine Kante,
- * und die Kanten, die in dieses Modul münden, tragen sie. Eine zweite Liste daneben
- * hätte irgendwann eine andere Zahl genannt als das Diagramm daneben zeigt.
+ * Wie viele Stücke gerade davor stehen – aus derselben Quelle wie das Bild (`order.flow`):
+ * die Kanten, die in dieses Modul münden.
  */
 function workOf(order: Order, stepId: number): StepWork[] {
   return order.steps?.find((s) => s.id === stepId)?.work ?? [];

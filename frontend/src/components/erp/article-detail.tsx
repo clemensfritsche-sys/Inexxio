@@ -40,17 +40,13 @@ import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
 import { errorText } from '@/lib/use-action';
 
-// Artikel-Lebenszyklus. **Es gibt keinen gespeicherten Entwurf**: der Artikel entsteht
-// erst mit seiner Freigabe (services/articles.py), und die verlangt beides – vollständige
-// Spezifikation UND mindestens ein Prozessschrittmodul. Jeder vorhandene Artikel ist damit
-// freigegeben und eingefroren. **Ausser Betrieb** geht er dadurch, dass ein Nachfolger ihn
-// ablöst (#773); einen Schalter dafür gibt es nicht.
-//
-// **Keine Reiter** (#760): der Bestand steht in derselben Ansicht.
+// Artikel-Lebenszyklus: der Artikel entsteht erst mit seiner Freigabe (vollständige
+// Spezifikation UND mindestens ein Modul) und ist danach eingefroren. Ausser Betrieb geht er,
+// wenn ein Nachfolger ihn ablöst. Keine Reiter: der Bestand steht in derselben Ansicht.
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'is_hazmat'
   | 'hs_code' | 'origin_country';
-// Kein Ort am Artikel (#168): ein Artikel ist eine Gattung – einen Ort hat die Einzelinstanz.
+// Kein Ort am Artikel: ein Artikel ist eine Gattung – einen Ort hat die Einzelinstanz.
 type AddKey = OptKey;
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
@@ -61,11 +57,8 @@ type Form = {
   is_hazmat: string; hs_code: string; origin_country: string;
 };
 
-// Optionale Stammdaten – dynamische Feldliste (nur bei Bedarf hinzufügen).
-//
-// **Die Beschriftung nennt die Sache, der Platzhalter erklärt sie** (Notizen #207, #212–#214,
-// #216, #217): erklärende Zeilen UNTER einem Feld standen dauerhaft in der Fläche, obwohl
-// man sie nur beim ersten Ausfüllen braucht – im Platzhalter sind sie genau dann da.
+// Optionale Stammdaten – dynamische Feldliste. Die Beschriftung nennt die Sache, der
+// Platzhalter erklärt sie.
 const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?: boolean; placeholder: string }[] = [
   { key: 'material', label: 'Material', placeholder: 'z. B. Stahl 1.4301' },
   { key: 'cad_url', label: 'CAD-Link', placeholder: 'Link zur CAD-Datei/Zeichnung – https://…' },
@@ -75,14 +68,8 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?
   { key: 'safety_stock', label: 'Sicherheitsbestand', numeric: true, placeholder: 'darunter wird automatisch nachbestellt – z. B. 20' },
   { key: 'is_hazmat', label: 'Gefahrgut', boolean: true, placeholder: '' },
   // ►►► **Zoll-Angaben** – sie stehen auf JEDEM Beleg, nicht nur im Export. ◄◄◄
-  //
-  // Die **ersten sechs Stellen der Zolltarifnummer sind weltweit identisch**
-  // (Harmonisiertes System der Weltzollorganisation, rund 200 Länder); darüber hinaus
-  // ist sie national – das Importland hängt seine eigene Verlängerung ohnehin selbst an.
-  // Der Platzhalter sagt genau das, statt es zu verschweigen.
-  //
-  // Das **Ursprungsland ist NICHT aus der Nummer ableitbar** und auch nicht das
-  // Versandland: eine eigene Angabe.
+  // Die ersten sechs Stellen der Zolltarifnummer sind weltweit gleich (HS), der Rest national.
+  // Das Ursprungsland ist weder aus der Nummer noch aus dem Versandland ableitbar.
   { key: 'hs_code', label: 'Zolltarifnummer (HS)', placeholder: '6 bis 8 Stellen – die ersten 6 gelten weltweit, z. B. 848210' },
   { key: 'origin_country', label: 'Ursprungsland', placeholder: 'Wo die Ware hergestellt wurde – z. B. CH' },
 ];
@@ -113,9 +100,7 @@ function fromValues(base: Form, v: Record<string, string>): Form {
     ...(v.is_hazmat === 'true' ? { is_hazmat: 'ja' } : v.is_hazmat === 'false' ? { is_hazmat: '' } : {}) };
 }
 
-// Vorübergehender Transportfehler (Server nicht erreichbar / Kaltstart) vs.
-// fachlicher Fehler. Der API-Client wiederholt solche Anfragen bereits mehrfach;
-// schlägt es danach noch fehl, bekommt der Nutzer einen Wiederhol-Hinweis.
+// Vorübergehender Transportfehler (Server nicht erreichbar / Kaltstart) vs. fachlicher Fehler.
 function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
@@ -126,13 +111,9 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
   initial?: Record<string, string> | null;
   onSaved: (a: Article) => void;
   onBack: () => void;
-  /**
-   * Den Feed neu laden. Nötig, weil eine **Ersetzung zwei** Datensätze verändert: der
-   * Nachfolger entsteht, und der Vorgänger geht ausser Betrieb. `onSaved` meldet nur den
-   * einen – ohne diesen Aufruf stünde der andere im Feed noch als freigegeben da.
-   */
+  /** Den Feed neu laden: eine Ersetzung ändert zwei Datensätze, `onSaved` meldet nur einen. */
   onRefresh?: () => void;
-  /** Shortcut «Auftrag» (#690): öffnet den Auftragsentwurf mit diesem Artikel vorgewählt. */
+  /** Shortcut «Auftrag»: öffnet den Auftragsentwurf mit diesem Artikel vorgewählt. */
   onCreateOrder?: (articleObjectId: number) => void;
 }) {
   const isCreate = record === null;
@@ -140,14 +121,8 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
   // einen Moment (siehe `ArticleCreate.replaces_object_id`).
   const [replaces, setReplaces] = useState<Article | null>(null);
 
-  // Shortcut «Auftrag»: das Anlage-Fenster mit diesem Artikel vorgewählt öffnen. Es
-  // entsteht dabei **kein** Datensatz – einen Auftrag gibt es erst mit der Freigabe
-  // (Testnotiz #386).
-  //
-  // **Vorgemerkt wird nur der Artikel** – wie an der Instanz nur die Instanz (#608): der
-  // Knopf sagt, WORUM es geht; wie viel, woher und mit welchem Ablauf ist die Entscheidung,
-  // und die trifft der Mensch. Eine vorausgefüllte «1» wäre eine Behauptung, die in den
-  // meisten Fällen falsch ist und trotzdem freigebbar aussieht.
+  // Shortcut «Auftrag»: das Anlage-Fenster mit diesem Artikel vorgewählt öffnen, ohne Datensatz.
+  // Vorgemerkt wird nur der Artikel – Menge, Herkunft und Ablauf entscheidet der Mensch.
   function createOrderShortcut() {
     if (isCreate || record?.object_id == null || record.status !== FREIGEGEBEN) return;
     onCreateOrder?.(record.object_id);
@@ -175,22 +150,18 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
     set(key, '');
   }
 
-  // **Jeder gespeicherte Artikel ist freigegeben** und damit schreibgeschützt: es gibt
-  // keinen Entwurf in der Datenbank mehr, also auch keinen Zustand, in dem man ihn noch
-  // umbauen könnte (keine Versionierung – Änderung = neuer Artikel).
+  // Jeder gespeicherte Artikel ist freigegeben und schreibgeschützt (Änderung = neuer Artikel).
   const locked = !isCreate;
 
-  // Pflichtfelder: Name, Mengeneinheit, Serialisierung, Grösse und Gewicht (Einheit/
-  // Serialisierung tragen einen Default). Format-Fehler nur zeigen, wenn befüllt (nicht
-  // aggressiv beim leeren Neuformular); die «leer»-Pflicht steuert das `valid`-Gate.
+  // Pflichtfelder: Name, Mengeneinheit, Serialisierung, Grösse, Gewicht. Format-Fehler nur,
+  // wenn befüllt; die «leer»-Pflicht steuert das `valid`-Gate.
   const errs = {
     name: validateName(form.name),
     size: form.size.trim() ? validateSize(form.size) : null,
     weight: form.weight_kg.trim() ? validateWeight(form.weight_kg) : null,
   };
-  // Der Entwurf, so wie ihn die Freigabe schickt. Was zur Freigabe fehlt, sagt der
-  // **Server** (``POST /erp/articles/validate``) – nicht dieses Formular: sonst gäbe es
-  // zwei Massstäbe für dieselbe Frage, und der schwächere entschiede, ob der Knopf leuchtet.
+  // Der Entwurf, wie ihn die Freigabe schickt. Was fehlt, sagt der Server
+  // (``POST /erp/articles/validate``) – ein Massstab, nicht zwei.
   const payload: ArticleInput & { steps: unknown[] } = useMemo(() => ({
     name: form.name.trim(),
     unit: form.unit as ArticleUnit,
@@ -225,11 +196,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
     : check.data ? (check.data.missing ?? [])
       : check.error ? [`Prüfung nicht möglich – ${check.error.message}`] : null;
 
-  /**
-   * **Freigeben = Anlegen.** Ein Aufruf, eine Transaktion: erst hier entsteht der
-   * Datensatz und erst hier die Objektnummer. Bis dahin steht in der Datenbank nichts –
-   * wer das Fenster verlässt, lässt keine Spur.
-   */
+  /** **Freigeben = Anlegen**: ein Aufruf, eine Transaktion; erst hier entstehen Datensatz und Nummer. */
   async function release() {
     setSaving(true);
     setError(null);
@@ -251,7 +218,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
 
   return (
     <div className="flex flex-col h-full bg-bg-1">
-      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242). */}
+      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`). */}
       <DetailHeader
         type="article" title={form.name || null} placeholder="Neuer Artikel"
         objectId={isCreate ? null : record.object_id}
@@ -262,8 +229,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
         onBack={onBack}
         status={statusCfg}
         actions={isCreate ? (
-          // **Freigeben ist die Anlage.** Der Knopf sagt, was noch fehlt – ein stumm
-          // graues «Freigeben» liesse den Nutzer suchen.
+          // Freigeben ist die Anlage; der Knopf sagt, was noch fehlt.
           <HeaderAction
             label="Freigeben"
             hint={blocked ? `Es fehlt: ${missing!.join(' · ')}`
@@ -275,8 +241,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
           <>
             <HeaderSep />
             <LabelButton objectId={record.object_id} title={form.name || record.name} kind="Artikel" />
-            {/* Shortcut «Auftrag»: aus dem freigegebenen Artikel direkt einen Auftrag
-                auslösen (nur freigegebene Artikel sind auftragsfähig). */}
+            {/* Shortcut «Auftrag» (nur freigegebene Artikel sind auftragsfähig). */}
             {record.status === FREIGEGEBEN && (
               <button className="erp-idbtn erp-idbtn-act" data-tip="Auftrag" data-tip-pos="bottom"
                 aria-label="Auftrag zu diesem Artikel anlegen"
@@ -290,11 +255,8 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
         <DetailBody>
-            {/* **Wie steht dieser Artikel im Netz der anderen?** — Reihe (ersetzt /
-                ersetzt durch), wer ihn verbaut, und was in seiner Stückliste ausser
-                Betrieb ist. Bewusst ein schmaler Streifen **über** der Spezifikation:
-                nicht zu prominent, aber ohne Klick sichtbar – und dieselbe Stelle, an
-                der man bei der Anlage sagt, welchen Artikel dieser hier ablöst. */}
+            {/* Wie steht dieser Artikel im Netz der anderen? Schmaler Streifen über der
+                Spezifikation – dieselbe Stelle, an der man bei der Anlage den Vorgänger wählt. */}
             {isCreate ? (
               <ReplacesPicker value={replaces} onChange={setReplaces} />
             ) : (
@@ -307,9 +269,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
                 {/* Karten-Kopf «Spezifikation» + «+»-Knopf (nur Entwurf) für optionale Felder. */}
                 <SpecHead icon={FileText} title="Spezifikation"
                   right={<SectionAddButton added={added} onAdd={addField} />} />
-                {/* Standardmässig NUR die Pflichtfelder (Name, Mengeneinheit, Serialisierung,
-                    Grösse, Gewicht) – Name über volle Breite, dann zwei gepaarte Zeilen. ALLE
-                    weiteren Felder sind ausgeblendet und werden über den «+»-Knopf ergänzt. */}
+                {/* Standardmässig nur die Pflichtfelder; weitere über den «+»-Knopf. */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                   <NameField value={form.name} onChange={(v) => set('name', v)}
                     error={form.name.trim() ? errs.name : null} />
@@ -331,11 +291,8 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
                     </div>
                   )}
                 </div>
-                {/* **Kein «Zur Freigabe fehlt …»** (Testnotiz #692). Der ausgegraute Knopf
-                    im Kopf ist die Information – und er nennt den Grund im Hover, dort wo
-                    man ihn sucht. Derselbe Satz ein zweites Mal in der Fläche sagt nichts
-                    Neues. Ein echter **Fehler** bleibt: der ist keine Anleitung, sondern
-                    eine Meldung. */}
+                {/* Kein «Zur Freigabe fehlt …»: der ausgegraute Knopf nennt den Grund im Hover.
+                    Ein echter Fehler bleibt als Meldung. */}
                 {error && (
                   <div style={{ font: '500 12.5px var(--font-body)', color: 'var(--danger)' }}>
                     {error}
@@ -344,25 +301,16 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
               </div>
             )}
 
-            {/* **Der Bestand steht zwischen Spezifikation und Prozess** (Notiz #770).
-                Zuerst, was dieser Artikel **ist**, dann, was es davon **gibt**, dann, wie
-                er **entsteht** – die Reihenfolge, in der man einen Artikel liest. Er stand
-                ganz oben (Notiz #760), weil «wie viel habe ich davon» die häufigste Frage
-                ist; sichtbar ohne Klick ist er auch hier, nur nicht mehr vor der Angabe,
-                auf die er sich bezieht. Ohne Objektnummer gibt es den Artikel noch nicht –
-                dann steht hier nichts, statt einer Null, die es nicht gibt. */}
+            {/* Der Bestand steht zwischen Spezifikation und Prozess: was der Artikel ist, was
+                es davon gibt, wie er entsteht. Ohne Objektnummer steht hier nichts. */}
             {record?.object_id != null && (
               <div style={{ marginTop: 22 }}>
                 <StockView scope={{ kind: 'article', objectId: record.object_id }} />
               </div>
             )}
 
-            {/* **Der Erzeugungsprozess steht direkt unter der Spezifikation** (Notiz #671).
-                Ein eigener Reiter dafür war eine Trennung, die es fachlich nicht gibt:
-                beide Hälften gehören zur selben Anlage, und der Artikel entsteht erst,
-                wenn sie zusammen vollständig sind. Es ist **dieselbe** Komponente wie im
-                Auftrag (`ProcessDesigner`) – nur ohne den Bereich darüber, in dem der
-                Auftrag seine Einzelinstanzen definiert (PROCESS_CORE.md §8.1). */}
+            {/* Der Erzeugungsprozess direkt unter der Spezifikation – dieselbe Komponente wie im
+                Auftrag (`ProcessDesigner`), ohne den Bereich der Einzelinstanzen (PROCESS_CORE.md §8.1). */}
             <div style={{ marginTop: 22 }}>
               <ArticleProcess
                 articleObjectId={record?.object_id ?? null}
@@ -384,11 +332,9 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
   );
 }
 
-// Kopf-/Chrome-Styles (Inexxio Design System, analog Instanz-Detail)
-// Der Kopf kommt aus `detail-frame.DetailHeader` (Notiz #242) – hier bleibt nur die Karte.
-// Freies Namensfeld mit intelligenten Vorschlägen: das System schlägt beim Tippen bereits
-// verwendete/ähnliche Namen vor (kostenlos/lexikalisch, `services/article_names.py`), damit
-// keine Dubletten («Schraubendreher» vs. «Akkuschrauber») entstehen. Kein Katalog-Zwang mehr.
+// Der Kopf kommt aus `detail-frame.DetailHeader` – hier bleibt nur die Karte.
+// Freies Namensfeld mit Vorschlägen bereits verwendeter Namen (`services/article_names.py`),
+// gegen Dubletten.
 function NameField({ value, onChange, error }: {
   value: string; onChange: (v: string) => void; error?: string | null;
 }) {
@@ -454,8 +400,8 @@ function NameField({ value, onChange, error }: {
 
 // Read-only Gewicht (aus der Stückliste berechnet) – analog Preis-/Durchlaufzeit-Spanne.
 
-// ─── Spezifikation: sektionierte Ansicht (Design-Redesign) ────────────────────
-// Symbol-Auswahl je Einheit/Serialisierung (statt Dropdown/Segmented) – «Symbol + Wort».
+// ─── Spezifikation: sektionierte Ansicht ────────────────────
+// Symbol-Auswahl je Einheit/Serialisierung – «Symbol + Wort».
 const UNIT_PICK = [
   { value: 'Stk', label: 'Stk.', icon: Package },
   { value: 'mm', label: 'mm', icon: Ruler },
@@ -474,23 +420,18 @@ const SERIAL_PICK = [
   { value: 'unit', label: 'Einzelteil', icon: Fingerprint },
   { value: 'batch', label: 'Charge', icon: Layers },
 ];
-// Design `.grid2`: Zwei-Spalten-Raster für gepaarte Eingaben (Einheit/Serialisierung,
-// Abmessungen/Gewicht) – kollabiert auf Mobile auf eine Spalte.
+// Zwei-Spalten-Raster für gepaarte Eingaben – kollabiert auf Mobile auf eine Spalte.
 const GRID2: React.CSSProperties = {
   display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '22px 40px',
 };
 
 // Karten-Kopf und Lese-Unterabschnitt wohnen in `fields.tsx` (`SpecHead`/`SpecSection`) –
-// sie sind die Anatomie JEDER Spezifikations-Karte, nicht die des Artikels: der Bestand
-// benutzt denselben Kopf, und zwei fast gleiche Köpfe wären zwei Gestaltungen.
-
-// Add-Menü: die optionalen Text-/Mengenfelder. EIN Menü im Sektions-Kopf bietet alle noch
-// nicht sichtbaren Felder an.
+// die Anatomie jeder Spezifikations-Karte.
+// Add-Menü: EIN Menü im Sektions-Kopf bietet alle noch nicht sichtbaren optionalen Felder an.
 const ADD_MENU: { key: AddKey; label: string }[] =
   OPTIONAL_FIELDS.map((f) => ({ key: f.key as AddKey, label: f.label }));
 
-// «Feld hinzufügen» als kleines +-Symbol (Hover-Tooltip) im Sektions-Kopf → Dropdown der
-// noch nicht sichtbaren optionalen Felder DIESER Sektion. Kein eigener «Zusätzliche»-Bereich.
+// «Feld hinzufügen» als +-Symbol im Sektions-Kopf → Dropdown der noch nicht sichtbaren Felder.
 function SectionAddButton({ added, onAdd }: {
   added: AddKey[]; onAdd: (k: AddKey) => void;
 }) {
@@ -557,10 +498,8 @@ function OptField({ f, form, onSet, onRemove }: {
   );
 }
 
-// Eingabefeld-Klasse analog Design-`.fin` (Rand border-2, r-md, 14/12-Padding, Akzent-Fokus mit 3-px-Ring).
-
-// Feld-Label der Spezifikation (Design `.lbl`): das Mikro-Label des Hauses, eine Stufe
-// dunkler und mit mehr Luft zum grösseren `.fin`-Feld darunter; Pflicht-Stern in Marken-Rot.
+// Eingabefeld-Klasse analog Design-`.fin`.
+// Feld-Label der Spezifikation (Design `.lbl`); Pflicht-Stern in Marken-Rot.
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
     <label style={{ ...MICRO_LABEL, display: 'block', color: 'var(--fg-3)', marginBottom: 9 }}>
@@ -587,12 +526,8 @@ function EditField({ name, label, value, onChange, placeholder, hint, error, req
 }
 
 /**
- * **Schieberegler** für die beiden Achsen der Spezifikation (Mengeneinheit, Serialisierung).
- *
- * Dass die Optionen einander ausschliessen, zeigt die Bewegung des Reiters – nicht eine
- * Reihe gleich aussehender Pillen. Und nur die **aktive** Option trägt ihr Wort (Notizen
- * #219/#220): bei sechs Einheiten ringen sonst sechs Wörter nebeneinander um Aufmerksamkeit,
- * obwohl nur eines gilt. Die übrigen bleiben Symbol – ihr Name kommt im Hover.
+ * **Schieberegler** für Mengeneinheit und Serialisierung: die Bewegung des Reiters zeigt den
+ * Ausschluss; nur die aktive Option trägt ihr Wort, die übrigen sind Symbol mit Hover.
  */
 function IconPick({ label, value, onChange, options, required }: {
   label: string; value: string; onChange: (v: string) => void; required?: boolean;
@@ -611,18 +546,15 @@ function IconPick({ label, value, onChange, options, required }: {
 function SpecRead({ record, form }: { record: Article; form: Form }) {
   const has = (k: OptKey) => form[k].trim() !== '';
   const hasPhysical = !!record.size || record.weight_kg != null;
-  // **Bei wem beschafft wird, steht am Modul**, nicht hier (die zugelassenen Partner des
-  // Zahlungsmoduls im Erzeugungsprozess). Der Artikel trägt nur seine Spezifikation.
+  // Bei wem beschafft wird, steht am Zahlungsmodul, nicht hier.
   return (
     <div style={SPEC.card}>
       {/* Karten-Kopf «Spezifikation» (ohne «+»-Knopf – freigegeben ist read-only). */}
       <SpecHead icon={FileText} title="Spezifikation" />
-      {/* Basis-Gruppe ohne eigenen Unter-Kopf – der Karten-Kopf trägt sie (Design `.rsec` #1). */}
+      {/* Basis-Gruppe ohne eigenen Unter-Kopf – der Karten-Kopf trägt sie. */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ ...SPEC.grid, paddingTop: 2 }}>
-          {/* **Kein «Artikelname»** (Notiz #761): der Kopf trägt ihn bereits, gross und
-              als Titel des Fensters. Ihn hier zu wiederholen wäre eine zweite Anzeige
-              derselben Tatsache – im **Entwurf** bleibt das Feld, dort entsteht er. */}
+          {/* Kein «Artikelname»: der Kopf trägt ihn; im Entwurf bleibt das Feld. */}
           <ReadField icon={Ruler} label="Mengeneinheit" value={unitLabel(record.unit)} />
           <ReadField icon={Fingerprint} label="Serialisierung" value={serializationLabel(record.serialization)} />
           <ReadField icon={Tag} label="Art" value={record.is_service ? 'Dienstleistung' : 'Ware'} />
@@ -647,15 +579,8 @@ function SpecRead({ record, form }: { record: Article; form: Form }) {
 }
 
 // ─── Umfeld: Reihe · wer verbaut mich · was fehlt mir ────────────────────────
-//
-// **Drei Auskünfte, eine Frage:** wie steht dieser Artikel im Netz der anderen? Sie
-// gehören an den Datensatz und nicht in einen Dialog – ein Dialog zeigt sie einmal, dem,
-// der klickt; der Datensatz zeigt sie immer, allen. Und sie sind **Auskünfte, keine
-// Sperren**: ein Artikel mit einem ausser Betrieb genommenen Teil in der Stückliste
-// bleibt erzeugbar, solange Restbestand da ist.
-//
-// Gestaltet als schmaler Streifen: Haarlinie, gedämpfte Schrift, Versalien-Mikro-Label –
-// «nicht zu prominent, aber so, dass man es trotzdem sieht».
+// Wie steht dieser Artikel im Netz der anderen? Am Datensatz, nicht im Dialog; Auskünfte,
+// keine Sperren. Schmaler Streifen: nicht prominent, aber sichtbar.
 
 const STRIP: React.CSSProperties = {
   border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', background: 'var(--bg-1)',
@@ -663,10 +588,7 @@ const STRIP: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 11,
 };
 const STRIP_LABEL: React.CSSProperties = { ...MICRO_LABEL, fontSize: 10, flex: 'none' };
-// **Innen enger als aussen.** Bricht eine Zeile auf einem Telefon um, muss man ihre
-// Fortsetzung von der nächsten Zeile unterscheiden können – wären beide Abstände gleich,
-// läse sich «100000318 Antriebseinheit» wie eine neue Auskunft statt wie der Rest der
-// vorigen.
+// Innen enger als aussen: eine umgebrochene Zeile bleibt von der nächsten unterscheidbar.
 const STRIP_ROW: React.CSSProperties = {
   display: 'flex', alignItems: 'center', columnGap: 10, rowGap: 3,
   flexWrap: 'wrap', minHeight: 20,
@@ -690,11 +612,8 @@ function Arrow() {
 }
 
 /**
- * **Die Auskunft lädt sich selbst.** Der Feed liefert den Artikel ohne Umfeld (`bom` ist
- * dort `null` = «nicht geladen»), und das ist richtig so: zwei Abfragen je Artikel wären
- * im Feed zweihundert. Also holt der Streifen das Detail, wenn er gebraucht wird – wie
- * `ArticleProcess` und `StockView` daneben. Nach einer Ablösung oder einem Auftrag ändert
- * sich das Umfeld; neu gelesen wird über `lib/feed.TOUCHES`.
+ * Die Auskunft lädt sich selbst (der Feed liefert `bom: null` = «nicht geladen»).
+ * Neu gelesen wird über `lib/feed.TOUCHES`.
  */
 function ContextStrip({ objectId }: { objectId: number | null }) {
   const full = useQuery({
@@ -713,8 +632,7 @@ function ContextStrip({ objectId }: { objectId: number | null }) {
 
   return (
     <div style={STRIP}>
-      {/* **Die Reihe** – wen dieser Artikel ablöst und wer ihn ablöst. Eine Zeile, weil
-          es eine Kette ist: das Bild sagt die Richtung, ohne dass ein Wort sie erklärt. */}
+      {/* Die Reihe – wen dieser Artikel ablöst und wer ihn ablöst. */}
       {(before || after) && (
         <div style={STRIP_ROW}>
           <span style={STRIP_LABEL}>Reihe</span>
@@ -725,16 +643,10 @@ function ContextStrip({ objectId }: { objectId: number | null }) {
         </div>
       )}
 
-      {/* ►►► **«Wird verbaut in» steht heute nicht da** (Testnotiz #1034). ◄◄◄
-          *«Diese Info, dieser Container, kann im Moment ausgeblendet werden – dies kommt
-          zu einem späteren Zeitpunkt.»*
-          Die **Ableitung bleibt** (`services/bom.used_in`): sie ist die Gegenrichtung
-          derselben Abfrage, die «was mir fehlt» darunter beantwortet, kommt also ohne
-          eine zweite Abfrage mit – und sie ist ausdrücklich vertagt, nicht verworfen.
-          Gezeigt wird sie wieder, wenn die Stückliste selbst dran ist. */}
+      {/* «Wird verbaut in» ist vorerst ausgeblendet; die Ableitung (`services/bom.used_in`)
+          bleibt und kommt ohne zweite Abfrage mit. */}
 
-      {/* **Was mir fehlt** – transitiv, mit dem Weg dorthin und dem Nachfolger, falls es
-          einen gibt. Warnfarbe, aber keine Sperre: der Artikel bleibt erzeugbar. */}
+      {/* Was mir fehlt – transitiv, mit Weg und Nachfolger. Warnfarbe, keine Sperre. */}
       {gaps.map((g) => {
         const via = g.via ?? [];
         return (
@@ -763,13 +675,8 @@ function ContextStrip({ objectId }: { objectId: number | null }) {
   );
 }
 
-/** **Welchen Artikel löst dieser hier ab?** – nur bei der Anlage, an derselben Stelle,
- *  an der später die Reihe steht.
- *
- *  Die Angabe steht am **Nachfolger**, weil sie genau einen Moment hat. Wirkung: der
- *  gewählte Artikel zeigt danach hierher UND geht ausser Betrieb – ein Vorgang, ein
- *  Aufruf, keine zweite Gelegenheit, die Hälfte zu vergessen.
- */
+/** **Welchen Artikel löst dieser hier ab?** – nur bei der Anlage. Der gewählte Artikel zeigt
+ *  danach hierher UND geht ausser Betrieb – ein Vorgang, ein Aufruf. */
 function ReplacesPicker({ value, onChange }: {
   value: Article | null; onChange: (a: Article | null) => void;
 }) {
@@ -789,12 +696,8 @@ function ReplacesPicker({ value, onChange }: {
   }
   return (
     <div style={{ ...STRIP, gap: 8 }}>
-      {/* **Dasselbe Referenzfeld wie überall** (`ObjectSelect`, #738) – inklusive Kamera,
-          und das Zurücknehmen steht als Zeile IN der Liste statt als Knopf daneben
-          (#736): «nichts» ist hier eine gültige Wahl, also gehört sie dorthin, wo man
-          wählt. */}
-      {/* `Article.object_id` ist nullbar (ein Entwurf hat noch keine) – hier steht immer
-          ein angelegter Artikel, also verengt die Auswahl den Typ. */}
+      {/* Dasselbe Referenzfeld wie überall (`ObjectSelect`); «nichts» ist eine Zeile in der
+          Liste. `object_id` ist hier immer gesetzt, die Auswahl verengt den Typ. */}
       <ObjectSelect<Article & { object_id: number }>
         label="Ersetzt Artikel"
         value={value?.object_id ?? null}
@@ -803,9 +706,7 @@ function ReplacesPicker({ value, onChange }: {
         scanLabel="Artikel"
         emptyOption="Ohne Vorgänger anlegen"
         find={(q) => api.getArticles(q, 20)
-          // **Angeboten wird nur, was auch abgelöst werden kann** – ein bereits ersetzter
-          // Artikel würde von der Freigabe abgewiesen (`articles.replaceable_problem`),
-          // und eine Auswahl, die danach scheitert, ist keine.
+          // Angeboten wird nur, was abgelöst werden kann (`articles.replaceable_problem`).
           .then((rows) => rows.filter(
             (a): a is Article & { object_id: number } => a.object_id != null && !a.replaced_by_id))}
         onChange={(_nr, opt) => { onChange(opt); if (!opt) setOpen(false); }}
@@ -828,22 +729,12 @@ const MENU_ICON: Record<string, React.ElementType> = {
 
 
 
-// Der Bestand ist `stock-view.tsx` – dasselbe Modul, das die Instanz zeigt, nur mit dem
-// grösseren Umfang.
+// Der Bestand ist `stock-view.tsx` – dasselbe Modul wie an der Instanz.
 
 /**
- * **Der Erzeugungsprozess eines Artikels** – die Vorlage: wie ein Stück entsteht.
- *
- * Es ist **dieselbe Komponente wie im Auftrag** (`ProcessDesigner`), nicht eine zweite
- * Implementierung. Der einzige Unterschied ist der fehlende Bereich darüber: welche
- * Einzelinstanzen durchlaufen, entscheidet ausschliesslich der Auftrag. Ein Artikel hat
- * keine, und ein Editor, der sie voraussetzt, wäre hier nicht wiederverwendbar
- * (PROCESS_CORE.md §8.1/§8.2).
- *
- * **Im Entwurf lebt die Liste im Browser** – wie der Auftragsentwurf, und aus demselben
- * Grund: der Artikel entsteht erst mit der Freigabe. Danach ist sie eingefroren; einen
- * Endpunkt, der sie nachträglich ändert, gibt es nicht – die Eingefrorenheit ist also
- * kein bewachtes Verbot, sondern ein fehlendes Bedienelement.
+ * **Der Erzeugungsprozess eines Artikels** – dieselbe Komponente wie im Auftrag
+ * (`ProcessDesigner`), ohne Einzelinstanzen (PROCESS_CORE.md §8.1/§8.2). Im Entwurf lebt die
+ * Liste im Browser; danach ist sie eingefroren – es gibt keinen Endpunkt, der sie ändert.
  */
 /** Eingefroren nimmt niemand eine Änderung entgegen – eine Stelle, kein Literal je Aufruf. */
 const NO_CHANGE = () => {};
@@ -872,12 +763,9 @@ function ArticleProcess({ articleObjectId, draft, setDraft }: {
     }))
     : undefined;
 
-  // ►► **Der eingefrorene Stand ist derselbe Entwurf, nur unveränderlich** (#771). ◄◄
-  //
-  // Die gespeicherte Konfiguration kommt über die Umkehrform derselben Zuordnung zurück
-  // in die Eingabeform (`moduleFromConfig`) – damit zeigt der Editor hier **denselben**
-  // Feldsatz wie beim Anlegen, gesperrt. Ein zweiter, nur-lesender wäre die Stelle, an
-  // der die nächste Angabe fehlt; und gar keiner war der gemeldete Fehler.
+  // ►► **Der eingefrorene Stand ist derselbe Entwurf, nur unveränderlich.** ◄◄
+  // `moduleFromConfig` bringt die Konfiguration zurück in die Eingabeform – derselbe Feldsatz,
+  // gesperrt.
   const frozenModules: ModuleDraft[] = useMemo(
     () => (proc?.steps ?? []).map(
       (s) => moduleFromConfig(s.id, s.module_type,
@@ -893,9 +781,7 @@ function ArticleProcess({ articleObjectId, draft, setDraft }: {
       )}
       <ProcessDesigner
         modules={frozen ? frozenModules : draft}
-        // Eingefroren gibt es niemanden, der eine Änderung entgegennimmt – es gibt auch
-        // keinen Endpunkt dafür. Das `fieldset[disabled]` im Editor sorgt dafür, dass
-        // gar nichts erst gemeldet wird.
+        // Eingefroren nimmt niemand eine Änderung entgegen; `fieldset[disabled]` meldet nichts.
         onChange={frozen ? NO_CHANGE : setDraft}
         frozen={frozen}
         readOnlySteps={steps}

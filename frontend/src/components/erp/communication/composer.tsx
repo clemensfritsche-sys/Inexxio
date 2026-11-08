@@ -199,7 +199,7 @@ function From({ mails, value, onChange, me }: {
       data-tip="Ein Postfach verbindet ein Admin am Datensatz der Gesellschaft">
       Kein Postfach verbunden</span>;
   }
-  // ►►► Wie der Absender im Verlauf (`author`): «Gesellschaft · Mensch» (Testnotiz #1215). ◄◄◄
+  // ►►► Wie der Absender im Verlauf (`author`): «Gesellschaft · Mensch». ◄◄◄
   // Die Adresse des Postfachs steht im Hover, nicht im Chip.
   const text = (c: MessageChannel) => (c.name ? `${c.name} · ${me.name}` : me.name);
   const cur = value ?? mails[0];

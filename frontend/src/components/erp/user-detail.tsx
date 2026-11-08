@@ -16,12 +16,9 @@ import { DocumentTiles } from '@/components/erp/documents';
 import { TimeCard } from '@/components/erp/time/time-card';
 import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
 import { sectionItems, todoChanged } from '@/lib/todo';
-// **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
-// und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
-// Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
-// «Rechnungsadresse = Lieferadresse»-Schalter mit Spiegelung, Google-Adress-Suche. Keine
-// zweite Optik, kein zweiter Feld-Satz – nur die ERP-Extras kommen dazu (Notiz #295:
-// Rolle, admin-pflegbare Anstellung, System). Reuse statt Nachbau.
+// **ERP ist Master, das Profil ist der Spiegel** – der Profil-Teil nutzt dieselben Bausteine
+// wie das Konto (ein Formular, ein Auto-Save, Google-Adress-Suche); dazu nur die ERP-Extras
+// (Rolle, Anstellung, System).
 import { Field as AField, SelectField } from '@/components/form/field';
 import { AddressBook } from '@/components/erp/address-book';
 import { CompanyField } from '@/components/erp/company-field';
@@ -69,10 +66,8 @@ function buildForm(p: UserProfile): ERPForm {
 const nn = (s: string): string | null => (s.trim() === '' ? null : s);
 
 /**
- * Form → Update-Payload. Eintritt, Pensum und Austritt stehen im **Vertrag** der
- * Zeiterfassung (`time/time-contracts`), nicht mehr hier. Firma und Anschriften stehen
- * ebenfalls nicht in diesem Formular: die Firma wird zugeordnet (`CompanyField`), die
- * Anschriften leben im Adressbuch (`AddressBook`), jede mit ihrem eigenen Auto-Save.
+ * Form → Update-Payload. Eintritt, Pensum und Austritt stehen im Vertrag der Zeiterfassung
+ * (`time/time-contracts`); Firma (`CompanyField`) und Anschriften (`AddressBook`) speichern selbst.
  */
 function mapUpdate(v: ERPForm): ErpAdminUpdate {
   return {
@@ -85,11 +80,9 @@ function mapUpdate(v: ERPForm): ErpAdminUpdate {
 }
 
 /**
- * ►►► **Der Newsletter einer Person – Zustand, Nachweis, zwei Handlungen.** ◄◄◄ Anmelden
- * kann das ERP niemanden: es schickt die Bitte um Bestätigung (sie steht danach im Chat
- * oben), und angemeldet ist die Person erst mit ihrem Klick. Abmelden geht – wer es am
- * Telefon sagt, wird hier abgemeldet. Der Nachweis darunter: jede Zeile mit Datum und
- * Quelle, der Wortlaut im Hover.
+ * ►►► **Der Newsletter einer Person – Zustand, Nachweis, zwei Handlungen.** ◄◄◄ Anmelden kann
+ * das ERP niemanden: es schickt die Bitte um Bestätigung. Abmelden geht. Der Nachweis darunter
+ * mit Datum und Quelle, der Wortlaut im Hover.
  */
 function NewsletterConsent({ person }: { person: number }) {
   const qc = useQueryClient();
@@ -176,11 +169,8 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
       <Card icon={User} title="Person" anchor="person" extra={<TodoChip items={sectionItems(todo, 'person')} />}
         right={canEdit ? <SaveStatusIndicator status={status} errorMsg={errorMsg} /> : undefined}>
         {/* Rolle – ERP-Extra (das Konto kennt sie nicht, die eigene Rolle ändert man nicht). */}
-        {/* ►►► **Die Rolle ist der ZUGANG** (Testnotiz #1043). ◄◄◄ «Lieferant» und
-            «Kunde» standen hier und waren eine Aussage über **Vorgänge**: wer Partner
-            einer Ausgabe ist, ist dort Lieferant, bei einer Einnahme Kunde – dieselbe
-            Person kann beides sein. Übrig bleibt die eine Frage, die das Haus wirklich
-            stellt (`people.STAFF_ROLES`). */}
+        {/* ►►► **Die Rolle ist der ZUGANG** (`people.STAFF_ROLES`). ◄◄◄ Lieferant ↔ Kunde ist
+            eine Eigenschaft des Vorgangs, nicht der Person. */}
         {canEdit ? (
           <SelectField name="role" label="Rolle" value={role} onChange={(x) => set('role', x as UserRole)} options={[
             { value: 'admin', label: 'Admin' }, { value: 'employee', label: 'Mitarbeiter' },
@@ -207,11 +197,9 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
       </Card>
 
       {/* ── 3. Geschäftskonto ───────────────────────────────────────────────── */}
-      {/* ►►► **Das Personal ordnet zu – aus den bestehenden Firmen.** ◄◄◄ Eine neue legt es
-          über «+» im Feed an (Testnotiz #1214), nicht hier.
-          Eine fremde Firma ist nur ihre Identität (Name, Rechtsform, UID); die Anschriften
-          des Geschäftskontos gehören der Person. Für Personal muss die Firma eine unserer
-          Gesellschaften sein (`people.assert_employment`). */}
+      {/* ►►► **Das Personal ordnet zu – aus den bestehenden Firmen.** ◄◄◄ Neu angelegt wird
+          über «+» im Feed. Eine fremde Firma ist nur ihre Identität; für Personal muss es eine
+          unserer Gesellschaften sein (`people.assert_employment`). */}
       <Card icon={Building2} title="Geschäftskonto">
         <CompanyField company={record.company} readOnly={ro} search
           country={record.addresses?.[0]?.country}
@@ -229,7 +217,7 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
         {record.object_id != null && <NewsletterConsent person={record.object_id} />}
       </Card>
 
-      {/* ── 5. System (ERP-Extra, read-only – Notiz #295) ───────────────────── */}
+      {/* ── 5. System (ERP-Extra, read-only) ───────────────────── */}
       <Card icon={Cog} title="System">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <AField name="email" label="E-Mail" value={record.email} readOnly />
@@ -281,19 +269,12 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, todo }: {
   const initials = userInitials(name, record.email);
   const payments = usePayments(record.object_id != null ? { person: record.object_id } : null);
 
-  // **Eine Person wird nicht deaktiviert – sie wechselt die Rolle** (Testnotiz #755).
-  //
-  // Wer das Unternehmen verlässt, hört nicht auf zu existieren: er wird vom Mitarbeiter
-  // zum Kunden und darf weiter einkaufen. Ein Knopf, der eine Identität stilllegt, auf
-  // die Aufträge, Instanzen und Belege zeigen, beantwortete eine Frage, die niemand
-  // stellt. Gepflegt wird die **Rolle**, und zwar im Formular darunter – an derselben
-  // Stelle wie jede andere Angabe der Person.
+  // Eine Person wird nicht deaktiviert – sie wechselt die Rolle (im Formular darunter).
 
   return (
     <div className="flex flex-col h-full">
-      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242).
-          Das runde Foto als `avatar`; die Objektnummer trägt der Kopf (darum steht sie –
-          anders als im Profil – nicht noch einmal als Kachel im Formular). */}
+      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`); Foto als `avatar`,
+          die Objektnummer trägt der Kopf. */}
       <DetailHeader
         type="user" title={hasName ? name : null} placeholder="Kein Name"
         objectId={record.object_id} onBack={onBack}
@@ -301,10 +282,8 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, todo }: {
         photoUrl={record.photo_url} initials={initials} todo={todo}
       />
 
-      {/* ►►► **EINE Seite statt zwei Reiter.** ◄◄◄ Zuerst die Kommunikation – sie ist, was man
-          an einer Person am häufigsten tut –, ohne eigenen Kasten; darunter die Stammdaten.
-          **Dieselbe Breite wie jeder andere Datensatz** (Notiz #763): ohne sie lief das
-          Formular auf einem breiten Schirm auseinander und eine Zeile wurde unlesbar lang. */}
+      {/* ►►► **EINE Seite statt zwei Reiter.** ◄◄◄ Zuerst die Kommunikation, darunter die
+          Stammdaten – in der Breite jedes anderen Datensatzes. */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
         <DetailBody gap={24}>
           {record.object_id != null && (

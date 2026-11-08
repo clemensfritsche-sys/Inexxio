@@ -7,20 +7,11 @@ import { DraftSheet } from '@/components/erp/document-draft';
 import { useCamera } from '@/components/scan/use-camera';
 
 /**
- * **Ein Bild, aufgenommen — nicht hochgeladen** (Testnotizen #718/#720) – **und ein Dokument**:
- * die Aufnahme öffnet denselben Entwurf wie jede Datei (eine Ablage), das Stück als Referenz mit
- * Schloss (Feld `capture.photo`); erst die Freigabe macht sie zum Wert des Punkts.
- *
- * **Kein Hochladen**: eine Datei aus der Galerie belegt nichts über *diesen* Vorgang, und
- * ein Nachweis, der auf beide Arten entstehen kann, ist hinterher keiner.
- *
- * **Genau eine Aufnahme je Einzelinstanz.** Nicht mehr, auch nicht optional: bei mehreren
- * bliebe offen, welche die gemeinte ist. Neu aufnehmen geht (das verwirft die alte) –
- * *sammeln* geht nicht.
- *
- * **Und es ist dieselbe Kamera wie der Scanner** (`useCamera`): derselbe Stream, dieselbe
- * Linsenwahl, dieselbe Taschenlampe, dasselbe Aufräumen. Was hier fehlt, ist der
- * Decoder – dieses Bauteil sucht keine Codes, es hält fest, was zu sehen ist.
+ * **Ein Bild, aufgenommen — nicht hochgeladen – und ein Dokument**: die Aufnahme öffnet denselben
+ * Entwurf wie jede Datei, das Stück als Referenz mit Schloss (Feld `capture.photo`); erst die
+ * Freigabe macht sie zum Wert des Punkts. Kein Hochladen: eine Galerie-Datei belegt nichts über
+ * diesen Vorgang. Genau eine Aufnahme je Einzelinstanz (neu aufnehmen verwirft die alte).
+ * Dieselbe Kamera wie der Scanner (`useCamera`), ohne Decoder.
  */
 export function PhotoShot({ value, unit, label, onChange, disabled = false }: {
   /** Die URL der Aufnahme – oder `null`, solange keine gemacht wurde. */
@@ -88,11 +79,7 @@ export function PhotoShot({ value, unit, label, onChange, disabled = false }: {
   );
 }
 
-/**
- * Der Sucher — **dieselbe Bildsprache wie der Scanner**: die Fläche IST das Kamerabild,
- * die Bedienelemente liegen als milchige Chips darin. Nur der Zielrahmen fehlt: hier
- * wird nichts gesucht, hier wird festgehalten, was da ist.
- */
+/** Der Sucher — dieselbe Bildsprache wie der Scanner, ohne Zielrahmen. */
 function Viewfinder({ busy, onShot, onCancel }: {
   busy: boolean;
   onShot: (blob: Blob) => void;

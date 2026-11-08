@@ -17,7 +17,7 @@ import {
   type SampleMode,
 } from '@/lib/modules';
 
-/** Symbol je Kurzweg. Die Wörter stehen daneben – ein Anteil hat kein Bild (#636). */
+/** Symbol je Kurzweg. Die Wörter stehen daneben – ein Anteil hat kein Bild. */
 const SAMPLE_ICON: Record<SampleMode, LucideIcon> = {
   all: Layers, half: Columns2, quarter: Grid2x2, free: Percent,
 };
@@ -37,21 +37,12 @@ import { RUNTIME_CHOICE } from '@/lib/scan';
 import { tell } from '@/lib/notice';
 
 /**
- * **Den Prozess definieren — dieselbe Komponente am Artikel wie im Auftrag.**
+ * **Den Prozess definieren — dieselbe Komponente am Artikel wie im Auftrag** (PROCESS_CORE.md §8).
  *
- * Beide Orte definieren denselben Prozess (PROCESS_CORE.md §8): am Artikel als Vorlage,
- * im Auftrag als das, was gleich läuft. Zwei Editoren dafür wären zwei Stände, und sie
- * liefen garantiert auseinander.
- *
- * **Kein «Hinzufügen»-Knopf und kein Bearbeiten-Modus.** Ein Klick auf die Palette legt
- * das Modul an; es steht ab dem ersten Moment im Fluss und füllt sich, während man tippt
- * (Autosave). Vollständig ist es, wenn seine Pflichtangaben stehen – bis dahin sagt die
- * Karte, was fehlt, und die Freigabe verweigert. Ändern heisst löschen und neu anlegen;
- * dafür gibt es den Mülleimer, keinen zweiten Weg.
- *
- * **Nach der Freigabe ist die Struktur eingefroren** (`frozen`): keine Palette, kein
- * Mülleimer, kein Ziehen. Das ist keine bewachte Regel, sondern ein fehlendes Bedienelement –
- * einen Endpunkt, der eine freigegebene Definition ändert, gibt es ohnehin nicht.
+ * Kein «Hinzufügen»-Knopf, kein Bearbeiten-Modus: ein Klick auf die Palette legt das Modul an,
+ * es füllt sich per Autosave; bis die Pflichtangaben stehen, sagt die Karte, was fehlt. Ändern
+ * heisst löschen und neu anlegen. Nach der Freigabe ist die Struktur eingefroren (`frozen`):
+ * keine Palette, kein Mülleimer, kein Ziehen.
  */
 export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head, loop,
   parents, onToggleReturn }: {
@@ -60,29 +51,21 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   frozen?: boolean;
   /** Eingefrorener Stand (freigegebener Artikel/Auftrag) – dann wird nur gezeigt. */
   readOnlySteps?: DiagramStep[];
-  /** Slot über dem Start – beim Auftrag die Definition der Einzelinstanzen. Der Artikel
-   *  hat keine, und ein Diagramm, das sie voraussetzt, wäre dort nicht wiederverwendbar. */
+  /** Slot über dem Start – beim Auftrag die Definition der Einzelinstanzen (der Artikel hat keine). */
   head?: React.ReactNode;
   /** Die Karte «Wiederholen» unter dem Ende – nur im Auftragsentwurf. */
   loop?: React.ReactNode;
-  /**
-   * **Die Quell-Aufträge des Entwurfs** (Auftrag §2) – vom Server vorausberechnet, mit
-   * der Abzweigung, die entstehen würde. Ein Artikel hat keine; dann steht hier nur der
-   * Prozess, wie bisher.
-   */
+  /** Die Quell-Aufträge des Entwurfs (Auftrag §2), vom Server vorausberechnet. */
   parents?: RelatedOrder[];
   /** Ein Klick auf den Quell-Auftrag schaltet seine Rückführung an und aus (§5). */
   onToggleReturn?: (parentObjectId: number) => void;
 }) {
   const [catalog, setCatalog] = useState<ModuleCatalog | null>(null);
   const [drag, setDrag] = useState<number | null>(null);
-  // **Das zuletzt angelegte Modul startet aufgeklappt** (#696): es ist das, woran gerade
-  // gearbeitet wird – die Entsprechung zum «aktiven» Modul im laufenden Auftrag. Alle
-  // übrigen sind zu; ihr Kopf klappt sie auf.
+  // Das zuletzt angelegte Modul startet aufgeklappt – woran gerade gearbeitet wird.
   const [justAdded, setJustAdded] = useState<number | null>(null);
 
-  // **Auch der eingefrorene Stand braucht den Katalog** (#771): die Felder nennen ihre
-  // Erfassungspunkte beim Namen. Die Palette hängt an `frozen`, nicht am Katalog.
+  // Auch der eingefrorene Stand braucht den Katalog (Namen der Erfassungspunkte).
   useEffect(() => {
     let dead = false;
     api.getModuleCatalog()
@@ -91,10 +74,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
     return () => { dead = true; };
   }, []);
 
-  // **Was ein Modul ist, sagt sein Typ** – im Entwurf über den Katalog, gespeichert über
-  // die Antwort des Servers. Beides dieselbe Registry, nur zwei Wege dorthin; **beide**
-  // bringen Beschriftung, Farbfamilie und «Ausgang?» mit, damit keine Ansicht sie
-  // nachschlagen muss und keine sie vergessen kann.
+  // Was ein Modul ist, sagt sein Typ – im Entwurf über den Katalog, gespeichert über die
+  // Antwort des Servers; beide bringen Beschriftung, Farbfamilie und «Ausgang?» mit.
   const steps: DiagramStep[] = readOnlySteps
     ?? modules.map((m) => {
       const type = catalog?.modules?.find((x) => x.key === m.moduleType);
@@ -129,8 +110,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
     <ProcessColumns
       mid={{
         objectId: DRAFT_OBJECT_ID,
-        // **Der Graph eines Entwurfs ist seine Definition** – hier steht keine
-        // Prozesslogik, sondern die Liste, die daneben bearbeitet wird.
+        // Der Graph eines Entwurfs ist seine Definition.
         graph: definitionGraph(steps),
         steps,
         mode: 'definition',
@@ -142,13 +122,12 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
         onReorder: frozen ? undefined : move,
         dragging: drag,
         onDragState: setDrag,
-        // **Ein Modul zeigt seine Sache in JEDEM Zustand** (#771): derselbe Feldsatz, im
-        // freigegebenen Prozess gesperrt über `fieldset[disabled]` – kein zweiter zum Lesen.
+        // Ein Modul zeigt seine Sache in jedem Zustand: derselbe Feldsatz, gesperrt über
+        // `fieldset[disabled]`.
         renderStep: (step) => {
           const m = modules.find((x) => x.id === step.id);
           if (!m) return null;
-          // **Welche Felder ein Modul hat, sagt sein Typ** – die Zuordnung steht hier,
-          // nicht als Bedingung im Rumpf. Ein neuer Typ ist ein Eintrag, kein Eingriff.
+          // Welche Felder ein Modul hat, sagt sein Typ – eine Zuordnung, keine Bedingung.
           const known = m.moduleType in MODULE_FIELDS;
           const Fields = MODULE_FIELDS[m.moduleType];
           if (!known) {
@@ -170,8 +149,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
             </fieldset>
           );
         },
-        // **Hinter einem Ausgang gibt es nichts mehr anzubieten** (`Module.terminal`) – die
-        // freundliche Hälfte der Regel; die Prüfung bei der Freigabe bleibt das Netz.
+        // Hinter einem Ausgang gibt es nichts mehr anzubieten (`Module.terminal`); die Prüfung
+        // bei der Freigabe bleibt das Netz.
         tail: frozen || steps.some((s) => s.terminal)
           ? undefined
           : <Palette catalog={catalog} onPick={add} />,
@@ -183,12 +162,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
 }
 
 /**
- * **Die Modulauswahl — dort, wo das nächste Modul hinkäme.**
- *
- * Ein Symbol je Modultyp, in seiner Farbe; der Name klappt beim Hovern daneben auf.
- * Dieselbe Interaktion wie die Mengeneinheit am Artikel (`IconSwitch labelActiveOnly`):
- * man sieht die Auswahl auf einen Blick, ohne dass Wörter um Aufmerksamkeit ringen –
- * nur ist dies keine Wahl zwischen Werten, sondern ein Griff in den Baukasten.
+ * **Die Modulauswahl** – dort, wo das nächste Modul hinkäme: ein Symbol je Modultyp in seiner
+ * Farbe, der Name klappt beim Hovern auf.
  */
 function Palette({ catalog, onPick }: {
   catalog: ModuleCatalog | null; onPick: (key: string) => void;
@@ -219,19 +194,10 @@ function Palette({ catalog, onPick }: {
 }
 
 /**
- * **Aussondern — eine Entscheidung, sonst nichts.**
- *
- * Verschrotten und Sperren tun dasselbe: das Stück verlässt den Auftrag. Der einzige
- * Unterschied ist, **ob es einen Weg zurück gibt** – und genau das steht hier. Es ist
- * kein Status-Dropdown: der Anwender wählt, was passieren soll, den Zustand leitet das
- * Modul ab (`Aussondern.status_after_for`).
- *
- * Keine Erfassungspunkte, keine Stichprobe: was ankommt, wird ausgesondert.
- *
- * **Der Grund gehört hierher, nicht ans Band.** Warum an dieser Stelle ausgesondert wird,
- * ist eine Eigenschaft des Ablaufs und lautet bei jedem Stück gleich – am Band wäre es
- * ein Feld, das immer dasselbe aufnimmt. Ohne ihn lässt sich das Modul nicht anlegen
- * (`Aussondern.clean_config`); die Meldung hier ist die Bedienung, die Regel steht dort.
+ * **Aussondern — eine Entscheidung**: gibt es einen Weg zurück (Sperren) oder nicht
+ * (Verschrotten)? Den Zustand leitet das Modul ab (`Aussondern.status_after_for`). Keine
+ * Erfassungspunkte, keine Stichprobe. Der Grund gehört zum Ablauf, nicht ans Band; ohne ihn
+ * lässt sich das Modul nicht anlegen (`Aussondern.clean_config`).
  */
 function DisposalFields({ module: m, onChange }: {
   module: ModuleDraft;
@@ -257,20 +223,9 @@ function DisposalFields({ module: m, onChange }: {
 }
 
 /**
- * **Bewegen — eine Frage: wohin?**
- *
- * Und sie darf **offen bleiben**. Das ist der einzige Unterschied zu jedem anderen
- * Pflichtfeld im Editor, und er ist fachlich: beim Modellieren steht oft nicht fest, wo
- * in drei Wochen Platz sein wird. Eine Vorlage, die dann trotzdem ein Regal nennt, ist
- * beim zweiten Durchlauf falsch — und zwar stillschweigend.
- *
- * Damit «leer» nicht wie «vergessen» aussieht, sagt das Feld selbst, was dann passiert.
- * Steht eine Nummer da, wird sie **aufgelöst**: man sieht den Namen des Halters, nicht
- * nur seine Ziffern — sonst prüft niemand nach, ob es das richtige Regal ist.
- *
- * Der Scan-Knopf ist die Abkürzung dafür: am Regal steht man ohnehin, und sein Etikett
- * trägt die Nummer. Er nutzt denselben Dialog wie die Ausführung, nur mit einem freien
- * Lookup statt einer Verifikation.
+ * **Bewegen — wohin?** Das Ziel darf offen bleiben (beim Modellieren steht oft nicht fest, wo
+ * Platz sein wird); das Feld sagt dann selbst, was passiert. Eine Nummer wird zum Namen des
+ * Halters aufgelöst. Der Scan-Knopf nutzt denselben Dialog wie die Ausführung, mit freiem Lookup.
  */
 function MoveFields({ module: m, onChange }: {
   module: ModuleDraft;
@@ -280,8 +235,7 @@ function MoveFields({ module: m, onChange }: {
   const [place, setPlace] = useState<PlaceRef | null>(null);
   const target = m.target.trim();
 
-  // Den **gewählten** Halter benennen, damit im Feld sein Name steht und nicht seine
-  // Ziffern. Nur diesen einen – die Vorschläge holt die Suche, wenn getippt wird.
+  // Den gewählten Halter benennen; die Vorschläge holt die Suche.
   useEffect(() => {
     if (target === '') { setPlace(null); return; }
     let stale = false;
@@ -291,8 +245,7 @@ function MoveFields({ module: m, onChange }: {
     return () => { stale = true; };
   }, [target]);
 
-  // `PlaceRef` nennt sein Namensfeld `label`; hier wird es zu `name` – ein Mapping an der
-  // Stelle, an der der Unterschied entsteht, statt einer zweiten Feld-Konvention.
+  // `PlaceRef` nennt sein Namensfeld `label`; hier wird es zu `name`.
   const findPlaces = useCallback(
     (q: string) => api.searchPlaces(q)
       .then((rows) => rows.map((p) => ({ ...p, name: p.label }))),
@@ -301,34 +254,22 @@ function MoveFields({ module: m, onChange }: {
 
   return (
     <ObjectSelect<PlaceRef & { name: string }>
-      // **Das Feld nennt seine Sorte, der Scanner nennt dieselbe** – im Feld als
-      // Beschriftung, im Dialog als Zeile über der Suchleiste. Ohne sie stünde nur
-      // «Nummer oder Name» da, und im Vollbild-Dialog bliebe nach dem ersten Zeichen
-      // gar nichts mehr, das sagt, wonach gesucht wird. `scanLabel` ist damit
-      // überflüssig geworden: die Beschriftung IST die Sorte.
+      // Das Feld nennt seine Sorte, der Scanner dieselbe – die Beschriftung IST die Sorte.
       label="Zielort"
       value={target === '' ? null : Number(target)}
       selected={place ? { ...place, name: place.label } : null}
       find={findPlaces}
       onChange={(nr) => onChange({ target: nr == null ? '' : String(nr) })}
-      // **«Kein Ziel» ist eine Wahl, keine Lücke** (#734–#736): sie steht als erste Zeile
-      // in derselben Liste und im Feld, sobald sie gilt. Vorher stand dieselbe Aussage an
-      // drei Stellen – im Platzhalter, in einem Erklärsatz darunter und in einem X-Knopf
-      // daneben – und an keiner davon konnte man sie wählen.
+      // «Kein Ziel» ist eine Wahl, keine Lücke: erste Zeile in derselben Liste.
       emptyOption={RUNTIME_CHOICE}
     />
   );
 }
 
 /**
- * **Was ein Modultyp ZUSÄTZLICH hat.** Eine Zuordnung, keine Bedingung – und jeder Typ
- * steht darin, auch der mit `null`: die Liste beantwortet «kennt die Oberfläche diesen
- * Typ?», und ein fehlender Schlüssel ist die Antwort «nein».
- *
- * **`null` heisst «kennt ihn, hat aber nichts zu fragen».** Es gibt heute keinen solchen
- * Typ mehr – der Wert bleibt trotzdem erlaubt: ein **fehlender** Schlüssel wäre die
- * Antwort «diesen Typ kenne ich nicht», und die Karte sagte das dann auch. Ein Wächter
- * hält die Schlüssel mit dem Backend deckungsgleich.
+ * **Was ein Modultyp ZUSÄTZLICH hat** – eine Zuordnung, keine Bedingung. `null` heisst «kennt
+ * ihn, hat nichts zu fragen»; ein fehlender Schlüssel heisst «unbekannt». Ein Wächter hält die
+ * Schlüssel mit dem Backend deckungsgleich.
  */
 const MODULE_FIELDS: Record<string, React.ComponentType<{
   module: ModuleDraft;
@@ -343,19 +284,18 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
 };
 
 /**
- * **Eine Zeile entfernen — dasselbe Zeichen wie am Modul selbst** (#844): ein 26-px-
- * Quadrat, kein Rahmen, keine Fläche, allein die Warnfarbe. Was die Aufrufstellen
- * unterscheidet, ist der Satz im Hover.
+ * **Eine Zeile entfernen** – dasselbe Zeichen wie am Modul: 26-px-Quadrat, nur Warnfarbe.
+ * Die Aufrufstellen unterscheidet der Satz im Hover.
  */
 function RowDelete({ label, hint, reveal, onClick }: {
   label: string; hint?: string;
-  /** **Erst beim Hovern** (#832, `.ix-rowactions`, auf Touch immer sichtbar). */
+  /** Erst beim Hovern (`.ix-rowactions`, auf Touch immer sichtbar). */
   reveal?: boolean; onClick: () => void;
 }) {
   return (
     <button type="button" aria-label={label} data-tip={hint}
       className={`flex items-center justify-center rounded flex-none${reveal ? ' ix-rowactions' : ''}`}
-      // Eine Zeilenaktion steht am Ende ihrer Zeile (#995).
+      // Eine Zeilenaktion steht am Ende ihrer Zeile.
       style={{ width: 26, height: 26, color: 'var(--danger)', marginLeft: 'auto' }}
       onClick={onClick}>
       <Trash2 size={14} />
@@ -364,11 +304,9 @@ function RowDelete({ label, hint, reveal, onClick }: {
 }
 
 /**
- * **Zahlung — Richtung, Partner, Auftrag.** Die Richtung (*kommt Geld herein oder geht es
- * hinaus?*) ist ein Schieber, keine zweite Kachel: es ist EIN Modul. **Keine Menge, kein
- * Artikel, kein Termin, kein Betrag** (das sagen die Einzelinstanzen bzw. die Ausführung),
- * **kein Steuersatz** (#851, er hängt an der Sache) und **keine Vorauszahlungs-Sperre**
- * (#854, sie folgt aus der Zahlungsfrist auf dem Beleg).
+ * **Zahlung — Richtung, Partner, Auftrag.** Die Richtung ist ein Schieber (EIN Modul). Keine
+ * Menge, kein Artikel, kein Termin, kein Betrag, kein Steuersatz (hängt an der Sache), keine
+ * Vorauszahlungs-Sperre (folgt aus der Zahlungsfrist).
  */
 function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
   module: ModuleDraft;
@@ -379,8 +317,7 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
 }) {
   const [known, setKnown] = useState<Record<number, string>>({});
 
-  // Die gewählten Gegenparteien benennen – sonst stünden dort nur Ziffern. Eine Abfrage
-  // je fehlender Nummer, nicht je Rendern.
+  // Die gewählten Gegenparteien benennen – eine Abfrage je fehlender Nummer.
   useEffect(() => {
     const missing = m.parties.map((r) => r.party).filter((n) => !(n in known));
     if (missing.length === 0) return;
@@ -401,7 +338,7 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
   return (
     <div className="flex flex-col gap-3">
       <div>
-        {/* Kein Label darüber (#816): «Einnahme» ↔ «Ausgabe» sagen selbst, was sie sind. */}
+        {/* Kein Label: «Einnahme» ↔ «Ausgabe» sagen selbst, was sie sind. */}
         <IconSwitch
           value={m.direction === 'in' ? 'in' : 'out'}
           onChange={(v) => onChange({ direction: v })}
@@ -414,10 +351,8 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        {/* **Ein Hinzufüger, kein Auswahlfeld**: was man wählt, wandert in die Liste darunter.
-            «Leer heisst frei» steht als Zeile in der Liste (#786), solange niemand
-            zugelassen ist; «Partner» steht im Platzhalter (#843), im Scan-Vollbild als
-            Beschriftung (`scanLabel`). */}
+        {/* Ein Hinzufüger, kein Auswahlfeld: was man wählt, wandert in die Liste darunter.
+            «Leer heisst frei» steht als Zeile in der Liste, solange niemand zugelassen ist. */}
         <ObjectSelect<VoucherParty>
           value={null}
           selected={null}
@@ -432,8 +367,7 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
           }}
         />
         {m.parties.map((row) => (
-          /* Alles zu einem Partner auf einer Zeile (#833); «Entfernen» erscheint beim
-             Hovern, auf Touch immer (#832). */
+          /* Alles zu einem Partner auf einer Zeile; «Entfernen» beim Hovern, auf Touch immer. */
           <div key={row.party}
             className="ix-row flex items-center gap-2 py-1.5 flex-wrap"
             style={{ borderTop: '1px solid var(--border-1)' }}>
@@ -458,9 +392,7 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
           </div>
         ))}
       </div>
-      {/* **Was ist zu tun?** – ein Satz am Modul, freiwillig, in beiden Richtungen: in der
-          Definition wird vorher festgelegt, was zu tun ist. Leer heisst «gemäss
-          Spezifikation». */}
+      {/* Was ist zu tun? – ein freiwilliger Satz am Modul; leer heisst «gemäss Spezifikation». */}
       <div>
         <Label>{VOUCHER_TASK}</Label>
         <Input name="instruction" className={inputCls} value={m.instruction} maxLength={400}
@@ -593,10 +525,8 @@ function ConsumptionFields({ module: m, onChange }: {
 }
 
 /**
- * **Die Stichprobe — eine Zeile, keine Maske.**
- *
- * EINE Zahl: der Anteil an der Gesamtmenge (alle · Hälfte · Viertel · frei, §4.4). Die
- * Wörter stehen ausgeschrieben da – ein Anteil hat kein Bild (#618/#636).
+ * **Die Stichprobe — eine Zeile**: EINE Zahl, der Anteil an der Gesamtmenge (alle · Hälfte ·
+ * Viertel · frei, §4.4), mit ausgeschriebenen Wörtern.
  */
 function SampleRow({ value, onChange }: {
   value: SampleDraft; onChange: (next: SampleDraft) => void;
@@ -643,13 +573,7 @@ function PointIcon({ type, types }: { type: string; types: { key: string; label:
   );
 }
 
-/**
- * Der Inhalt eines Moduls im Entwurf: seine Erfassungspunkte.
- *
- * Es gibt **kein** «Pflicht ja/nein» mehr: alles, was angelegt ist, ist Pflicht. Ein
- * Schalter dafür wäre die Frage, warum man einen Erfassungspunkt anlegt, den niemand
- * ausfüllen muss – und jeder ausgeschaltete Punkt eine Lücke, die erst später auffällt.
- */
+/** Der Inhalt eines Moduls im Entwurf: seine Erfassungspunkte. Alles Angelegte ist Pflicht. */
 function ModuleFields({ module: m, types, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
@@ -667,10 +591,7 @@ function ModuleFields({ module: m, types, onChange }: {
       <div className="flex flex-col gap-1.5">
         {m.points.map((p, i) => (
           <div key={i} className="flex flex-wrap gap-1.5 items-center">
-            {/* **Die Art ist das Symbol der Zeile, kein Feld** (Testnotiz #683). Gewählt
-                wird sie unten mit der Palette – ein Auswahlfeld daneben wäre der zweite
-                Weg zur selben Entscheidung. Umentscheiden heisst löschen und neu
-                anlegen, wie beim Modul selbst. */}
+            {/* Die Art ist das Symbol der Zeile, kein Feld; umentscheiden heisst löschen und neu anlegen. */}
             <PointIcon type={p.type} types={types} />
             <Input name="points.label" className={inputCls} style={{ flex: 1, minWidth: 120 }} value={p.label}
               maxLength={120} placeholder="Erfassungspunkt, z. B. Gratfrei"
@@ -683,7 +604,7 @@ function ModuleFields({ module: m, types, onChange }: {
                 <Input name="points.tolerance" className={inputCls} style={{ width: 76 }} value={p.tolerance ?? ''}
                   {...numericInputProps} placeholder="± Tol."
                   onChange={(v) => setPoint(i, { tolerance: numericOnly(v, { decimals: true }) })} />
-                {/* Worin gemessen wird – ein freies, kurzes Wort (#707). */}
+                {/* Worin gemessen wird – ein freies, kurzes Wort. */}
                 <Input name="points.unit" className={inputCls} style={{ width: 62 }} value={p.unit ?? ''}
                   maxLength={8} placeholder="Einheit" data-tip="mm · kg · °C …"
                   onChange={(unit) => setPoint(i, { unit })} />
@@ -695,8 +616,7 @@ function ModuleFields({ module: m, types, onChange }: {
         ))}
       </div>
 
-      {/* Ein Symbol je Erfassungstyp – dieselbe Geste wie die Modulauswahl, eine Ebene
-          tiefer. Klick legt den Punkt an; ausgefüllt wird er dort, wo er steht. */}
+      {/* Ein Symbol je Erfassungstyp; Klick legt den Punkt an. */}
       <div className="flex flex-wrap gap-1.5">
         {types.map((t) => {
           const Icon = CAPTURE_ICON[t.key] ?? CAPTURE_ICON.text;

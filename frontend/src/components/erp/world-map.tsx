@@ -1,28 +1,14 @@
 'use client';
 
 /**
- * **Die Welt, mit Code gemalt** (Testnotiz #322) – nur Linien und Ecken, keine Rundungen.
+ * **Die Welt, mit Code gemalt** – nur Linien und Ecken, keine Rundungen.
  *
- * Die Gebietskarte war eine Reihe rechteckiger Kacheln, grob nach Himmelsrichtung
- * angeordnet. Das war eine *Tabelle, die so tut als wäre sie eine Karte*: man musste die
- * Zuordnung lesen, statt sie zu sehen. Hier ist es umgekehrt.
- *
- * **Warum ein Raster und keine Umriss-Polygone.** Ein Kontinent aus zehn Stützpunkten
- * bleibt ein Fleck – erkennbar wird eine Weltkarte erst über die *Verhältnisse* (wo liegt
- * was zu was). Ein grobes Raster liefert die geschenkt: jede Zelle ist ein 5°-Feld, seine
- * Position ist die echte geografische Position, und die Form entsteht aus der Menge. Das
- * Ergebnis ist strikt angular (nur Zellkanten), ohne dass irgendwo eine Kurve gerundet
- * werden müsste – genau das Gewünschte, und nebenbei ehrlich: eine Zelle gehört genau
- * einer Region, es gibt keine gemalte Grauzone.
- *
- * Die Maske ist Handarbeit: 72 Spalten (Länge −180…+175) × 25 Zeilen (Breite 75…−50).
- * Ein Buchstabe je Zelle = die Region, `.` = Wasser. Grönland und die Antarktis fehlen
- * bewusst – sie liegen in **keiner** Region (sie fielen auf den Betreiber zurück), und
- * eine Fläche einzufärben, die keiner Region gehört, wäre eine gemalte Behauptung.
- *
- * Russland liegt fachlich in EUR (siehe `services/geography.py`) und ist darum bis in den
- * Osten europäisch eingefärbt – das ist zugleich geografisch wahr (Russland ist beides)
- * und modell-wahr. Die Karte darf nicht anders behaupten als die Auflösung entscheidet.
+ * Ein grobes Raster statt Umriss-Polygonen: jede Zelle ist ein 5°-Feld an ihrer echten
+ * Position, die Form entsteht aus der Menge, und jede Zelle gehört genau einer Region.
+ * Maske: 72 Spalten (Länge −180…+175) × 25 Zeilen (Breite 75…−50), ein Buchstabe je Zelle =
+ * Region, `.` = Wasser. Grönland und die Antarktis fehlen, weil sie in keiner Region liegen.
+ * Russland liegt fachlich in EUR (`services/geography.py`) – die Karte behauptet nichts anderes
+ * als die Auflösung.
  */
 
 import { useState } from 'react';
@@ -76,26 +62,12 @@ const CELLS_BY_REGION: Record<string, MapCell[]> = (() => {
 })();
 
 /**
- * **Der Rahmen ist die Landmasse, nicht das Raster** (Testnotiz #357).
- *
- * Die Maske ist ein volles 72×25-Gitter, aber links stehen drei reine Wasser-Spalten (und je
- * nach Maske oben/unten Leerzeilen). Als `viewBox` genommen, ergab das einen Streifen
- * Hintergrund am Rand – die Karte «füllte den Container nicht aus». Statt das mit einem
- * Zahlenwert nachzujustieren (der bei jeder Masken-Änderung wieder falsch wäre), wird der
- * Ausschnitt aus den Zellen **abgeleitet**: die Bounding-Box aller Landzellen.
+ * **Der Rahmen ist die Landmasse, nicht das Raster**: der Ausschnitt ist die Bounding-Box aller
+ * Landzellen, abgeleitet statt nachjustiert.
  */
 /**
- * **Eine Region = EIN Pfad** (Testnotiz #369).
- *
- * Vorher war jede 5°-Zelle ein eigenes ``<rect>``: rund 700 Knoten, alle unter je einem
- * SVG-Filter. Der Filter ist das Teure – er legt pro Gruppe einen Offscreen-Puffer an,
- * zeichnet weich und schneidet die Alpha-Kante zurück –, und je mehr Knoten darunter
- * liegen, desto länger dauert das Rastern. Beim Scrollen wurde die Karte genau dann
- * gerastert, wenn sie in den Blick kommt: das war das Stocken.
- *
- * Die Form bleibt haargenau dieselbe, sie steht nur in EINEM ``d``-Attribut statt in
- * hundert Elementen – ein Rechteck je Zelle, minimal überlappend (damit der Weichzeichner
- * sie zu einer Fläche zusammenzieht statt Perlen zu bilden), alle im selben Pfad.
+ * **Eine Region = EIN Pfad** – ein Rechteck je Zelle, minimal überlappend, alle in einem ``d``
+ * (der SVG-Filter ist teuer je Knoten).
  */
 const PATH_BY_REGION: Record<string, string> = {};
 
@@ -115,19 +87,14 @@ for (const [region, cells] of Object.entries(CELLS_BY_REGION)) {
 }
 
 /**
- * **Wo liegt der Schwerpunkt einer Region?** – in Prozent der Kartenfläche.
- *
- * Damit kann die Gebietsansicht ihre Beschriftung und ihre Zuweisung **dort** anbringen,
- * wo das Gebiet liegt (Testnotiz #342), statt in einer Liste daneben. Der Median statt des
- * Mittels: bei einer langgezogenen Region (Europa bis Ostrussland) zieht ein Ausreisser den
- * Mittelwert ins Meer, der Median bleibt auf der Landmasse.
+ * **Wo liegt der Schwerpunkt einer Region?** – in Prozent der Kartenfläche, damit Beschriftung
+ * und Zuweisung dort stehen, wo das Gebiet liegt. Median statt Mittel: er bleibt auf der Landmasse.
  */
 export function regionAnchor(region: string): { x: number; y: number } {
   const cells = CELLS_BY_REGION[region] ?? [];
   if (!cells.length) return { x: 50, y: 50 };
   const mid = (v: number[]) => v.sort((a, b) => a - b)[Math.floor(v.length / 2)];
-  // Prozent **des gezeichneten Ausschnitts** (BOX), nicht des vollen Rasters – sonst
-  // liefen Beschriftung und Zuweisungs-Kärtchen gegenüber der Karte aus dem Ruder.
+  // Prozent des gezeichneten Ausschnitts (BOX), nicht des vollen Rasters.
   return {
     x: ((mid(cells.map((c) => c.x)) + 0.5 - BOX.x) / BOX.w) * 100,
     y: ((mid(cells.map((c) => c.y)) + 0.5 - BOX.y) / BOX.h) * 100,
@@ -147,27 +114,20 @@ export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
   onSelect?: (region: string) => void;
   /** Hover-Text je Region (z. B. «Europa · Inexxio AG»). */
   title?: (region: string) => string;
-  /** Beschriftung IN der Fläche: Gebiet + wer es fakturiert (Testnotiz #342). */
+  /** Beschriftung IN der Fläche: Gebiet + wer es fakturiert. */
   label?: (region: string) => { title: string; sub: string; ink: string } | null;
 }) {
-  // Gehören mehrere Regionen derselben Gesellschaft, sind sie gleich eingefärbt – dann ist
-  // ohne Hover nicht zu sehen, wo Asien aufhört. Der Hover zeichnet die Region nach; das
-  // ist zugleich die Erkundung («welches Gebiet ist das?»), ohne Fläche zu kosten.
+  // Gleich eingefärbte Regionen derselben Gesellschaft: der Hover zeichnet die Region nach.
   const [hover, setHover] = useState<string | null>(null);
 
   return (
     <svg viewBox={`${BOX.x} ${BOX.y} ${BOX.w} ${BOX.h}`} width="100%" role="img" aria-label="Weltkarte der Gebietsaufteilung"
-      // Eigene Rasterebene: einmal gezeichnet, beim Scrollen nur noch zusammengesetzt
-      // statt neu gefiltert (der Filter ist die teure Stelle).
+      // Eigene Rasterebene: beim Scrollen nur zusammengesetzt statt neu gefiltert.
       style={{ display: 'block', background: 'var(--bg-3)', willChange: 'transform', contain: 'paint' }}
       onMouseLeave={() => setHover(null)}>
       <defs>
-        {/* **Ecken leicht abrunden** (Testnotiz #336) – ohne die Zellen zu Punkten zu
-            machen: weichzeichnen, dann die Alpha-Kante hart zurückschneiden. Weil das je
-            Region auf die GANZE Gruppe wirkt, verschmelzen ihre Zellen zu EINER Fläche,
-            deren Aussenkante gerundet ist; die Innenkanten verschwinden. Nebeneffekt, der
-            genau zu #340 passt: zwei benachbarte Regionen runden jede für sich, wodurch
-            zwischen ihnen eine sichtbare Naht entsteht – die fehlende «Abgrenzung». */}
+        {/* Ecken leicht abrunden: weichzeichnen, dann die Alpha-Kante hart zurückschneiden – je
+            Region verschmelzen die Zellen zu einer Fläche; zwischen Regionen bleibt eine Naht. */}
         <filter id="ix-map-round" x="-4%" y="-4%" width="108%" height="108%">
           <feGaussianBlur in="SourceGraphic" stdDeviation="0.26" result="b" />
           <feColorMatrix in="b" type="matrix"
@@ -187,9 +147,8 @@ export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
           </g>
         );
       })}
-      {/* **Die Zuordnung steht IN der Fläche**, nicht in einer Liste daneben: welche
-          Gesellschaft ein Gebiet fakturiert, liest man dort, wo das Gebiet liegt.
-          Ausserhalb der Filter-Gruppe, damit die Weichzeichnung die Schrift nicht anfasst. */}
+      {/* Die Zuordnung steht IN der Fläche – ausserhalb der Filter-Gruppe, damit die
+          Weichzeichnung die Schrift nicht anfasst. */}
       {label && Object.keys(CELLS_BY_REGION).map((region) => {
         const l = label(region);
         if (!l) return null;
@@ -197,11 +156,8 @@ export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
         const mid = (v: number[]) => v.sort((a, b) => a - b)[Math.floor(v.length / 2)];
         const cx = mid(cells.map((c) => c.x)) + 0.5;
         const cy = mid(cells.map((c) => c.y)) + 0.5;
-        // **Die Schrift muss den Hover überleben** (Testnotiz #357): unter dem Cursor wird die
-        // Fläche mit dem KRÄFTIGEN Ton der Gesellschaft nachgezeichnet – und genau dieser Ton
-        // ist auch die Schriftfarbe, die Beschriftung verschwand also im eigenen Gebiet. Auf
-        // der kräftigen Fläche schreibt sie darum weiss. Kein zweiter Zustand, nur eine Farbe,
-        // die dem Untergrund folgt.
+        // Unter dem Cursor ist die Fläche im kräftigen Ton der Gesellschaft – dort schreibt die
+        // Beschriftung weiss.
         const ink = selected === region || hover === region ? '#fff' : l.ink;
         return (
           <g key={`l-${region}`} pointerEvents="none" textAnchor="middle">

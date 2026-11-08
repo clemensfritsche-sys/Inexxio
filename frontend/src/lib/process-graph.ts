@@ -11,68 +11,41 @@ import type { GraphEdge, GraphNode, JourneyStop, ProcessEventResponse, ProcessGr
 
 export interface DiagramStep {
   /**
-   * **Die Identität des Moduls** (Testnotiz #687). Serverseitig vergeben und
-   * unveränderlich; im Entwurf eine lokale Nummer, weil es den Datensatz noch nicht gibt.
-   * Der Ereignis-Log zeigt auf sie – nie auf einen Namen, nie auf die Position.
+   * **Die Identität des Moduls** – serverseitig vergeben und unveränderlich; im Entwurf eine
+   * lokale Nummer. Der Ereignis-Log zeigt auf sie, nie auf Name oder Position.
    */
   id: number;
   moduleType: string;
-  /** Wie das Modul heisst – **aus seinem Typ abgeleitet**, nicht eingegeben (#682). */
+  /** Wie das Modul heisst – aus seinem Typ abgeleitet, nicht eingegeben. */
   label: string;
-  /**
-   * **Die Farbfamilie – am Schritt, nicht als Prop des Rahmens.**
-   *
-   * Sie kam einmal über einen Rückruf von aussen (`ColumnProps.tone`), gefüttert aus dem
-   * Modul-Katalog. Den lädt aber nur der Editor: der **freigegebene** Auftrag reichte
-   * ihn nicht durch, und ein stiller Rückfall gab jedem Modul die Farbe der
-   * Datenerfassung – die Aussonderung wechselte beim Freigeben ihr Aussehen. Als Feld
-   * des Schritts kann sie nicht mehr fehlen, weil sie niemand mehr weitergeben muss.
-   */
+  /** **Die Farbfamilie – am Schritt**, damit sie nirgends weitergegeben werden muss. */
   tone: string | null;
   /**
-   * **Ist dies ein Ausgang?** Dann steht dahinter nichts mehr: kein weiteres Modul (der
-   * Editor bietet keines an, die Freigabe weist es ab) und kein Ende-Objekt (das Stück
-   * kommt dort nie an). Eine Eigenschaft des Modultyps – siehe `Module.terminal`.
+   * **Ist dies ein Ausgang?** Dann steht dahinter nichts mehr – kein Modul, kein Ende-Objekt
+   * (`Module.terminal`).
    */
   terminal: boolean;
   /**
-   * **Muss die Instanz vor der Eingabe gescannt werden?**
-   *
-   * Ein Scan beantwortet «habe ich das richtige physische Ding vor mir». Ein Modul ohne
-   * physischen Bezug (ein Geldvorgang stellt etwas in Rechnung) tut mit dem Stück gar
-   * nichts – dort wäre er eine Geste ohne Aussage, und die Ausführungsstelle zeigt
-   * schlicht eine Bestätigung. Eine Eigenschaft des Modultyps
-   * (`Module.requires_verification`), die mit dem Schritt reist wie Farbe und Ausgang.
-   *
-   * Optional wie `moves`: der **Editor** baut seine Schritte aus dem Modul-Katalog und
-   * rendert nie eine Ausführung – dort gibt es die Frage nicht.
+   * **Muss die Instanz vor der Eingabe gescannt werden?** Ohne physischen Bezug (Geldvorgang)
+   * zeigt die Ausführung nur eine Bestätigung (`Module.requires_verification`). Optional: der
+   * Editor rendert nie eine Ausführung.
    */
   verifies?: boolean;
   /** **Bewegt dieses Modul die Stücke?** Daraus folgt der Ziel-Scan. */
   moves?: boolean;
   /**
-   * **Worauf dieses Modul wartet** (Testnotiz #698) – Objektnummern der Abweichungen,
-   * deren Rückführung aussteht. Nicht leer heisst: gesperrt.
-   *
-   * Das Modul fragt **nicht selbst**, ob es darf; ihm wird gesagt, dass es nicht darf.
-   * Die Sperre wird an einer Stelle gerendert (`StepCard`) und serverseitig durchgesetzt
-   * (`process.confirm_step`) – ein künftiges Modul erbt beides, ohne eine Zeile dafür.
+   * **Worauf dieses Modul wartet** – Objektnummern der Abweichungen, deren Rückführung aussteht.
+   * Nicht leer heisst gesperrt: gerendert in `StepCard`, durchgesetzt in `process.confirm_step`.
    */
   waitingFor?: number[];
   /**
-   * **Kann man an diesem Modul noch etwas tun?** (#821) – dann wird es nicht gedämpft,
-   * auch wenn es nicht dran ist (eine Rechnung lässt sich nach dem Durchlauf noch buchen).
-   * Der Schritt sagt es, abgeleitet aus derselben Tabelle, die auch das Tor ist
-   * (`voucher.can`). Optional wie `moves`: der Editor rendert nie eine Ausführung.
+   * **Kann man an diesem Modul noch etwas tun?** Dann wird es nicht gedämpft, auch wenn es nicht
+   * dran ist (`voucher.can`). Optional wie `moves`.
    */
   openActions?: boolean;
   /**
-   * **Hat dieses Modul mehr zu berichten als die blosse Passage?** (Testnotiz #825)
-   *
-   * Das Protokoll bleibt für jedes Modul der Nachweis – aber wo nichts erfasst, nichts
-   * verifiziert und kein Zustand geändert wird, blieben eine Nummer, ein Name und eine
-   * Uhrzeit übrig. Abgeleitet am Schritt (`ProcessStepResponse.records`), nie aus dem
-   * Modultyp.
+   * **Hat dieses Modul mehr zu berichten als die blosse Passage?** Abgeleitet am Schritt
+   * (`ProcessStepResponse.records`), nie aus dem Modultyp.
    */
   records?: boolean;
 }
@@ -80,24 +53,13 @@ export interface DiagramStep {
 export type DiagramMode = 'definition' | 'ausfuehrung';
 
 /**
- * **Der Graph eines Entwurfs.** Ein Auftragsentwurf lebt im Browser (§6.1) – es gibt
- * ihn auf dem Server nicht, also kann der ihn auch nicht liefern.
- *
- * Das ist **keine** zweite Ableitung: hier steht keine Prozesslogik, sondern die
- * Definition selbst. Ein Entwurf hat keine Einzelinstanzen, also keine Positionen; er
- * ist nicht gelaufen, also ist keine Kante gegangen; und es gibt nichts, wovon
- * abzuzweigen wäre. Übrig bleibt die Kette Start → Module → Ende, und die *ist* die
- * Liste, die daneben bearbeitet wird.
+ * **Der Graph eines Entwurfs.** Ein Entwurf lebt im Browser (§6.1); sein Graph ist keine
+ * zweite Ableitung, sondern die Definition selbst: Start → Module → Ende.
  */
 /**
- * **Wie ein Entwurf im Bild heisst.** Er hat keine Objektnummer (§6.1) und braucht doch
- * eine Adresse: die Vorschau des Quell-Auftrags nennt ihn als Ziel ihrer Abzweigung
- * (`order:<n>`), und ohne einen gemeinsamen Wert fände die Linie ihr Ende nicht.
- *
- * Gespiegelt von `backend/app/schemas/order.DRAFT_OBJECT_ID` – der Server schreibt sie
- * in die Vorschau, diese Seite liest sie; `tests/test_frontend_mirrors.py` hält beide
- * zusammen. Null ist keine gültige Objektnummer (der Kreis beginnt bei 100'000'001),
- * kann also mit keinem echten Auftrag kollidieren.
+ * **Wie ein Entwurf im Bild heisst** – die Adresse, die die Vorschau des Quell-Auftrags als Ziel
+ * nennt. Spiegel von `backend/app/schemas/order.DRAFT_OBJECT_ID` (`tests/test_frontend_mirrors.py`);
+ * Null kollidiert mit keiner echten Objektnummer.
  */
 export const DRAFT_OBJECT_ID = 0;
 
@@ -105,10 +67,8 @@ export const DRAFT_OBJECT_ID = 0;
 export const EMPTY_GRAPH: ProcessGraph = { nodes: [], edges: [], problems: [] };
 
 export function definitionGraph(steps: DiagramStep[]): ProcessGraph {
-  // **Ein terminales Modul beendet die Kette** – dieselbe Regel wie serverseitig
-  // (`domain/chain.assert_closes`, `services/flow.build`): was dort ankommt, verlässt den
-  // Auftrag, also gibt es dahinter kein Ende-Objekt. Und weil die Modul-Palette *vor* dem
-  // Ende steht, ist sie damit ebenfalls weg – ohne eine zweite Bedingung dafür.
+  // Ein terminales Modul beendet die Kette (`domain/chain.assert_closes`, `services/flow.build`):
+  // dahinter gibt es kein Ende-Objekt und damit auch keine Modul-Palette.
   const exit = steps.findIndex((s) => s.terminal);
   const chain: GraphNode[] = [
     { id: 'start', kind: 'start', at: null },
@@ -121,24 +81,15 @@ export function definitionGraph(steps: DiagramStep[]): ProcessGraph {
       id: `edge:${n.id}:${chain[i + 1].id}`,
       frm: n.id, to: chain[i + 1].id, kind: 'axis', walked: false, units: [],
     })),
-    // Was daran nicht aufgeht, sagt die Regel selbst (`lib/modules.chainProblems`) – das
-    // Bild rendert nur, was es bekommt.
+    // Was daran nicht aufgeht, sagt `lib/modules.chainProblems`.
     problems: chainProblems(steps),
   };
 }
 
 /**
- * **Eine Zeile im Bild.** Ein Prozessobjekt, die Beschriftung einer Kante – oder eine
- * Zutat, die nicht zum Graph gehört (Definitionsbereich, Modulauswahl, Journey).
- *
- * Die Trennung Knoten ↔ Kante ist die Umsetzung der Regel «eine Position ist **immer**
- * eine Kante»: Stücke stehen nicht *in* einem Knoten, sondern auf dem Weg zum nächsten –
- * und genau dort steht ihre Pille, mitten auf der Linie.
- *
- * **Eine Liste, ein Index.** Das Raster mit drei Spuren braucht je Zeile eine Rasterzeile
- * und muss wissen, in welcher ein bestimmter Knoten steht; die Spalte braucht dieselbe
- * Reihenfolge zum Rendern. Zwei Zählungen davon wären zwei Wahrheiten – und die eine
- * verschöbe den Nebenauftrag gegenüber der anderen um eine Zeile.
+ * **Eine Zeile im Bild** – ein Prozessobjekt, die Beschriftung einer Kante oder eine Zutat
+ * (Definitionsbereich, Modulauswahl, Journey). Eine Position ist immer eine Kante: die Pille
+ * steht auf der Linie. Eine Liste, ein Index – für die Spalte wie für das Raster.
  */
 export type ColumnRow =
   | { key: string; slot: 'head' | 'tail' | 'loop' | 'journey-in' | 'journey-out' | 'return' }
@@ -146,10 +97,8 @@ export type ColumnRow =
   | { key: string; edge: GraphEdge };
 
 /**
- * Der Graph als Zeilenfolge — reines Layout, keine Ableitung.
- *
- * Die Knoten kommen in der Reihenfolge, in der der Server sie liefert; zwischen zwei
- * Knoten schiebt sich die Beschriftung ihrer Kante, sofern dort etwas steht.
+ * Der Graph als Zeilenfolge — reines Layout: Knoten in der Reihenfolge des Servers, dazwischen
+ * die Beschriftung ihrer Kante.
  */
 export function columnRows(g: ProcessGraph, extra: {
   head?: boolean; tail?: boolean; journeyIn?: boolean; journeyOut?: boolean;
@@ -167,8 +116,7 @@ export function columnRows(g: ProcessGraph, extra: {
     if (extra.tail && n.kind === 'end') rows.push({ key: 'tail', slot: 'tail' });
     rows.push({ key: n.id, node: n });
     if (extra.loop && n.kind === 'end') rows.push({ key: 'loop', slot: 'loop' });
-    // **Was hinausgegangen ist, steht am Abzweigepunkt.** Die out-Kante führt in eine
-    // andere Spalte; ihre Stücke stehen aber hier – sie sind an dieser Stelle weg.
+    // Was hinausgegangen ist, steht am Abzweigepunkt – dort sind die Stücke weg.
     (g.edges ?? [])
       .filter((e) => e.kind === 'out' && e.frm === n.id && (e.units ?? []).length)
       .forEach((e) => rows.push({ key: `on:${e.id}`, edge: e }));
@@ -176,27 +124,15 @@ export function columnRows(g: ProcessGraph, extra: {
     if (e && (e.units ?? []).length) rows.push({ key: `on:${e.id}`, edge: e });
   });
   if (extra.journeyOut) rows.push({ key: 'journey-out', slot: 'journey-out' });
-  // **Ganz unten**, denn genau dort beginnt die Rückführungslinie: sie dockt an der
-  // letzten Zeile dieser Spalte an (§8.1a″). Der Schalter sitzt damit **auf** ihr.
+  // Ganz unten: dort dockt die Rückführungslinie an (§8.1a″), der Schalter sitzt auf ihr.
   if (extra.returns) rows.push({ key: 'return', slot: 'return' });
   return rows;
 }
 
 /**
- * **Die Historie steht am Prozessobjekt, nicht in einer Box darunter** (Auftrag §5).
- *
- * Der Ereignis-Log ist die Wahrheit über das Vergangene (§10.3) und bleibt vollständig
- * erhalten – aufgezeichnet wird unverändert. Nur **wo** man ihn liest, ändert sich: eine
- * Liste am Fuss des Auftrags zwingt dazu, jede Zeile erst dem Objekt zuzuordnen, an dem
- * sie passiert ist. Am Objekt selbst ist diese Zuordnung die Position.
- *
- * **Ein Muster für alle**, und zwar für *alle drei* Objektarten – nicht nur für Module:
- * ``start`` und ``end`` tragen ``step_id = null``, ihre Einträge (die Hälfte des Logs)
- * wären an einem reinen Modul-Hover **unerreichbar**. Der Schlüssel ist darum nicht «das
- * Modul», sondern «dieses Prozessobjekt».
- *
- * Gekappt wird nicht verschwiegen: liefert der Server nur die letzten N von M Einträgen,
- * sagt es die letzte Zeile.
+ * **Die Historie steht am Prozessobjekt, nicht in einer Box darunter** (Auftrag §5). Der
+ * Schlüssel ist das Prozessobjekt, nicht das Modul – ``start`` und ``end`` tragen
+ * ``step_id = null``. Liefert der Server nur die letzten N von M, sagt es die letzte Zeile.
  */
 export function historyTip(events: ProcessEventResponse[], node: GraphNode,
                            total?: number): string | undefined {
@@ -225,10 +161,8 @@ export function rowOfNode(rows: ColumnRow[], nodeId: string): number {
 }
 
 /**
- * **Woher die Stücke kamen, ohne dass sie ein Auftrag hergibt.**
- *
- * Ein Erzeugungsauftrag hat keinen Vorgänger – seine Stücke entstehen bei der Freigabe.
- * Das ist die einzige Herkunft, die nicht im Log steht, weil es davor nichts gab.
+ * **Woher die Stücke eines Erzeugungsauftrags kamen**: sie entstehen bei der Freigabe – die
+ * einzige Herkunft, die nicht im Log steht.
  */
 export interface JourneyOrigin {
   label: string;
@@ -240,13 +174,7 @@ export const JOURNEY_LIMIT = 3;
 
 export const journeyId = (where: 'in' | 'out', key: string | number) => `j:${where}:${key}`;
 
-/**
- * Die Schlüssel der Äste einer Journey-Zeile — **dieselbe Liste, die sie rendert**.
- *
- * Die Zeile zeigt die Nachbarn und der Linien-Layer verbindet sie; zwei Listen dafür
- * hiessen, dass ein Ast ohne Chip oder ein Chip ohne Ast entstehen kann. Genau diese
- * Klasse Fehler hat den Abzweigepunkt ohne Nachbarn erzeugt.
- */
+/** Die Schlüssel der Äste einer Journey-Zeile — dieselbe Liste, die sie rendert. */
 /** Gibt es die Herkunfts-Zeile? — **die** Bedingung, nicht eine je Aufrufer. */
 export const hasJourney = (stops: JourneyStop[], origins: JourneyOrigin[] = []) =>
   stops.length > 0 || origins.length > 0;
@@ -260,12 +188,8 @@ export function journeyKeys(stops: JourneyStop[],
 }
 
 /**
- * Die Achsenkanten – alles, was innerhalb einer Spalte zu zeichnen ist.
- *
- * **Auch die Kante hinter dem Ende** (``to = null``). Sie hat keinen nächsten Knoten,
- * aber sehr wohl ein Ziel: die Zeile, auf der ihre Stücke stehen. Ohne sie hing die
- * Pille «angekommen» ohne Anschluss unter dem Ende – und die Rückführung in einen
- * übergeordneten Auftrag, die unter dieser Zeile abgeht, begann im Nichts.
+ * Die Achsenkanten – alles, was innerhalb einer Spalte zu zeichnen ist, auch die Kante hinter
+ * dem Ende (``to = null``): ihr Ziel ist die Zeile, auf der ihre Stücke stehen.
  */
 export function axisEdges(g: ProcessGraph): GraphEdge[] {
   return (g.edges ?? []).filter((e) => e.kind === 'axis');

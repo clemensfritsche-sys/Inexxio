@@ -17,20 +17,10 @@ import { DetailSkeleton } from './skeleton';
 /**
  * Instanz-Detail – eine **Gruppe** und ihre Einzelinstanzen.
  *
- * **Es gibt hier nichts zu tun.** Eine Einzelinstanz entsteht mit ihrer Instanz und die
- * mit einem Auftrag (Testnotiz #678); gelöscht wird sie nie (#679). Gearbeitet wird am
- * Prozess, und dort steht auch, was erfasst wurde. Übrig bleibt die Auskunft: **woher**
- * die Gruppe stammt und **was** in ihr liegt.
- *
- * **Dieselbe Anatomie wie der Artikel**: der Kopf ist der eine `DetailHeader`, darunter
- * Spezifikations-Karten – erst die Herkunft, dann der Bestand. Und der Bestand ist
- * wörtlich dasselbe Modul wie im Artikel-Reiter «Bestand» (`stock-view.tsx`), nur mit dem
- * kleineren Umfang: hier sind die Zeilen direkt die Einzelinstanzen.
- *
- * **Die Gruppe trägt keinen Zustand** (#675). Bei genau einem Stück liesse er sich
- * spiegeln – bei einer Charge mit gemischten Zuständen gibt es keine richtige Antwort,
- * und jede gewählte wäre eine Behauptung. Der Zustand steht an den Stücken, wo er
- * hingehört; die Leiste im Bestand zählt auf, statt zu behaupten.
+ * Hier gibt es nichts zu tun – gearbeitet wird am Prozess; übrig bleibt die Auskunft: woher die
+ * Gruppe stammt und was in ihr liegt. Dieselbe Anatomie wie der Artikel (`DetailHeader`, dann
+ * Herkunft und Bestand aus `stock-view.tsx`). Die Gruppe trägt keinen Zustand – er steht an
+ * den Stücken.
  */
 export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?: () => void }) {
   const query = useQuery({
@@ -56,11 +46,8 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
         <DetailBody gap={22}>
-          {/* **Woher stammt diese Gruppe?** Der Artikel, dessen Erzeugungsprozess sie
-              durchlaufen hat – als **verlinkte Objektnummer**, nicht als abgeschriebener
-              Name: die Spezifikation liegt einen Klick entfernt und ist dort immer
-              aktuell (#676). Die Merkmale daneben (Menge, Zustände) stehen im Bestand
-              darunter; sie hier zu wiederholen wäre dieselbe Aussage an zwei Stellen. */}
+          {/* Woher stammt diese Gruppe? Der Artikel als verlinkte Objektnummer – die
+              Spezifikation liegt einen Klick entfernt. */}
           <div style={SPEC.card}>
             <SpecHead icon={Package} title="Herkunft" />
             <div style={SPEC.grid}>
@@ -81,8 +68,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
             </div>
           </div>
 
-          {/* **Dasselbe Bestandsmodul wie am Artikel** – kein Nachbau, nur der kleinere
-              Umfang: die Aufstellung dieser Gruppe und darunter ihre Nummern. */}
+          {/* Dasselbe Bestandsmodul wie am Artikel, im kleineren Umfang. */}
           <StockView scope={{ kind: 'instance', record: rec }} />
           <DocumentTiles objectId={rec.object_id} />
           <SectionSep label="Verlauf" />
