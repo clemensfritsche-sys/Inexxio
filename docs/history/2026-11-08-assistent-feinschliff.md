@@ -33,6 +33,9 @@ Auslöser: Clemens' erster Test auf dev («Artikel ERP und Website anlegen», ge
 - **Tür zur KI**: Zwischenspeicher (`cache_control` auf der Anleitung; Lesen kostet 0.1, Schreiben
   1.25 des vollen Preises) und `ms` je `ai.call` (auch beim Abschreiben).
 
+- **Nur das Ergebnis**: Karten, die die KI selbst weglegt (ersetzt), stehen nicht im Gespräch
+  (Clemens' zweiter Test: zwei durchgestrichene Karten mit «Einzelteil» statt `unit`).
+
 ## Geprüft
 
 - Backend 879 Tests (frische DB), neu: unvollständige Karte, abrufen (nicht Admin, nicht schreibend),

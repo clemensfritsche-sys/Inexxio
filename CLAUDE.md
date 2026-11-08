@@ -374,7 +374,8 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   erste IST das Gespräch), `handgriff`, `handgriff.done`, `handgriff.dropped`, `talk.failed`,
   `talk.stop`, `pin`. **Offen ist abgeleitet.** Ein Gespräch ist **privat** (wer es führt, und der Admin), offen,
   solange ein Handgriff offen ist oder die KI nicht geantwortet hat; abgeschlossen wird es nicht
-  mehr gezeigt. Diese Ereignisse stehen nicht im Verlauf (`history.HIDDEN_EVENTS`).
+  mehr gezeigt. Was die KI selbst weglegt (einen Handgriff ersetzt), steht nicht im Gespräch –
+  die Person sieht nur das Ergebnis. Diese Ereignisse stehen nicht im Verlauf (`history.HIDDEN_EVENTS`).
 - **Das «+»** (`components/erp/capture/capture-sheet.tsx`): Eingabe wie bei Claude, darüber das
   Gespräch (Blasen, Handgriff-Karten `handgriff-card.tsx`), darunter «Offene Gespräche» und «Neu
   anlegen». **Die Antwort kommt live** (`talk.stream`, NDJSON): die Nachricht steht sofort, darunter

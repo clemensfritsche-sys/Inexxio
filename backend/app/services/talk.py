@@ -112,7 +112,9 @@ def view(db: Session, talk_id: int, *, problem: Optional[str] = None) -> TalkOut
                             text=str((r.payload or {}).get("text") or ""),
                             files=[FileRef(**f) for f in (r.payload or {}).get("files") or []])
                 for r in rows]
-    found = handgriff.view(db, handgriff.load(db, [r.id for r in db.execute(_HANDGRIFFE, {"t": talk_id})]))
+    # Was die KI selbst weglegte (ersetzt), ist kein Ergebnis – die Person sieht nur, was gilt.
+    found = handgriff.view(db, [h for h in handgriff.load(db, [r.id for r in db.execute(_HANDGRIFFE, {"t": talk_id})])
+                                if not h.replaced])
     waiting = bool(messages) and messages[-1].by == "person"
     is_open = waiting or any(h.state in ("open", "waiting") for h in found)
     if waiting and not problem:

@@ -426,3 +426,20 @@ def test_stop_halts_before_the_next_step(db, house, monkeypatch):
     assert talk.answer(db, tid, staff) is None
     t = talk.view(db, tid)
     assert t.messages[-1].text == talk.HALTED and not t.waiting
+
+
+def test_what_the_ai_replaced_is_not_shown(db, house):
+    """Die Person sieht nur das Ergebnis: was die KI selbst weglegte (ersetzt), steht nicht im
+    Gespräch; was die Person weglegte, schon (sie hat es entschieden)."""
+    _boss, staff, firm = house
+    tid = talk.say(db, staff, "Notizen bitte.")
+    ids = []
+    for i in range(2):
+        hid, out = handgriff.prepare(db, staff, method="POST", path="/api/v1/erp/messages",
+                                     body=_note(firm.object_id, f"Notiz {i}"), line=f"Notiz {i}",
+                                     home=firm.object_id, talk=tid)
+        assert hid, out.detail
+        ids.append(hid)
+    handgriff.drop(db, staff, ids[0], by="ai")
+    handgriff.drop(db, staff, ids[1])
+    assert [h.id for h in talk.view(db, tid).handgriffe] == [ids[1]]

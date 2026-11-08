@@ -415,6 +415,8 @@ class Handgriff:
     payload: dict[str, Any]
     done: Optional[dict[str, Any]] = None
     dropped: bool = False
+    #: Die KI selbst hat ihn weggelegt (ersetzt) – für die Person kein Ergebnis.
+    replaced: bool = False
 
     @property
     def talk(self) -> Optional[int]:
@@ -432,8 +434,8 @@ class Handgriff:
 _LOAD = text("""
 SELECT h.id, h.at, h.object_id, h.actor_id, h.payload,
        d.payload AS done,
-       EXISTS (SELECT 1 FROM log x WHERE x.event = 'handgriff.dropped'
-                 AND (x.payload ->> 'handgriff')::bigint = h.id) AS dropped
+       (SELECT x.payload ->> 'by' FROM log x WHERE x.event = 'handgriff.dropped'
+         AND (x.payload ->> 'handgriff')::bigint = h.id LIMIT 1) AS dropped_by
   FROM log h
   LEFT JOIN log d ON d.event = 'handgriff.done' AND (d.payload ->> 'handgriff')::bigint = h.id
  WHERE h.event = 'handgriff' AND h.id = ANY(:ids)
@@ -443,7 +445,8 @@ SELECT h.id, h.at, h.object_id, h.actor_id, h.payload,
 def load(db: Session, ids: list[int]) -> list[Handgriff]:
     if not ids:
         return []
-    return [Handgriff(r.id, r.at, r.object_id, r.actor_id, r.payload or {}, r.done, r.dropped)
+    return [Handgriff(r.id, r.at, r.object_id, r.actor_id, r.payload or {}, r.done,
+                      r.dropped_by is not None, r.dropped_by == "ai")
             for r in db.execute(_LOAD, {"ids": list(ids)})]
 
 
