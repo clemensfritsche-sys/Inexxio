@@ -1,11 +1,50 @@
 # Projektakte «Wiederkehrende Aufträge»
 
 > **Kopfstatus:** in Klärung · **nichts gebaut** · Lead: Claude · Entscheid: Clemens Fritsche ·
-> seit 06.11.2026 · zuletzt 07.11.2026 (vierte Runde)
+> seit 06.11.2026 · zuletzt 08.11.2026 (fünfte Runde)
 > Bild (Ist-Stand 1:1, Schlaufe, Abo): https://claude.ai/artifact/Lk5AKy8G1CTWi68ZxA57uj
 > Diese Akte ist die **eine** Quelle für Ziel, Grundsätze, Vorschläge und Entscheide. Das Bild
 > zeigt, die Akte hält fest. Was hier nicht als entschieden steht, ist nicht entschieden.
 > Ausgangspunkt im Kern: `PROCESS_CORE.md` §13 Punkt 6.
+
+## 0 · Kurzfassung (zum Prüfen)
+
+**So funktioniert es**
+1. Ein ganz gewöhnlicher Auftrag wird angelegt und freigegeben. Er ist die **Vorlage**. Unter
+   seinem Ziel steht ein Schalter «einmalig ↔ wiederholt sich»; die Linie läuft vom Ziel zurück
+   an den Anfang.
+2. **Eingestellt wie ein Dauerauftrag:** wie oft, ab wann, bis wann (unbefristet · Datum ·
+   Anzahl). Je Lager-Zeile: «gleiche Einzelinstanzen» oder «FIFO»; eine Zeile «Neu» erzeugt jedes
+   Mal neu. Fällt der Tag auf den 29.–31., gilt in kürzeren Monaten der letzte Tag.
+3. **Der Takt prüft alle 5 Minuten:** Ist eine Periode fällig und hat noch keinen Auftrag, stellt
+   er dieselbe Frage wie der Knopf «Freigeben», dazu: wäre es eine Abweichung?
+   - nichts fehlt → der Auftrag entsteht sofort (im Namen der Person, die die Schlaufe setzte),
+   - fehlt gerade → er **wartet** und fragt wieder; die Zahl am Symbol nennt den Grund,
+   - fehlt für immer → **geht nicht mehr**; nur «Beenden».
+4. **Jede Wiederholung ist ein gewöhnlicher Auftrag.** Keine Periode geht verloren, je Periode
+   höchstens einer, nacheinander. Aufträge von Hand gehen jederzeit und verschieben nichts.
+5. **Zahlung:** übernimmt Partei, Eigentum und Positionen, die Anschrift ist die heutige.
+   Fester Preis → gleich zugesagt, nur «Rechnung stellen» (mit «Prüfen und freigeben»).
+   Offener Preis → beginnt bei der Offerte.
+6. **Beenden** jederzeit, von jedem Auftrag der Schlaufe aus, endgültig. Was läuft, läuft fertig.
+   Weiter geht es mit einem neuen Auftrag. Setzen und beenden darf jede Person mit ERP-Zugang.
+
+**Was sich an Bestehendem ändert**
+- **«Verkauft» wird ein regulärer Start** (keine Abweichung mehr). FIFO und Verbrauch nehmen
+  weiter nur «Freigegeben».
+- **«Automatisch angelegt wird nie etwas»** wird zu **«Nichts entsteht ohne Entscheid eines
+  Menschen»**; die Schlaufe ist dieser Entscheid, im Voraus.
+- **Die Zahlung kennt die Schlaufe** an einer Stelle: Die Offerte nennt die Wiederholung, die
+  Zusage gilt weiter (PROCESS_CORE §13.6 wird angepasst).
+- **Neu gespeichert** wird nur die Einstellung der Schlaufe (append-only) und die Wahl je Zeile.
+  Fällig, nächster, wartet, Anzahl bisher: alles abgeleitet.
+
+**Bewusst nicht:** Vorlauf (später), Fristen für den Kunden (mit dem Shop), Liefersperre bei
+unbezahlt, Zähler wie Betriebsstunden, Wieder einschalten, Kopie als Entwurf.
+
+**Folgen, die man kennen muss:** Nach langer Blockade kommen mehrere Perioden nacheinander. Eine
+Schlaufe lässt nie still ein Stück weg. Ein fester Preis bleibt fest; eine Erhöhung heisst
+beenden, neu anbieten, neue Schlaufe.
 
 ## 1 · Problem
 
@@ -50,8 +89,8 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
     Rückführung (07.11.2026, → V3).
 13. **Zahlung: Was vorher festgelegt ist, gilt weiter; was bewusst offen blieb, wird jedes Mal
     neu festgelegt** (07.11.2026, → O1).
-14. **Was die Wiederholung nimmt, sagt der Mensch je Zeile ausdrücklich**: «gleiche Instanzen»
-    (genau dieselben Einzelinstanzen) oder «FIFO». Es steht **unten bei der Schlaufe**, zusammen mit Takt und Ende
+14. **Was die Wiederholung nimmt, sagt der Mensch je Zeile ausdrücklich**: «gleiche
+    Einzelinstanzen» oder «FIFO». Es steht **unten bei der Schlaufe**, zusammen mit Takt und Ende
     (07.11.2026, → V3).
 15. **Eingestellt wird wie ein Dauerauftrag im E-Banking**: wiederholen (wöchentlich ·
     monatlich · vierteljährlich · halbjährlich · jährlich), erste Ausführung, Ende
@@ -136,12 +175,12 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
     und oben an der ersten Zeile der Spalte an, Haarlinie bis zur ersten Wiederholung, danach
     kräftig. Kein Strichmuster, keine eigene Farbe.
   - **Am Anfang steht, was die Wiederholung nimmt**, je Lager-Zeile eine **Pflichtwahl ohne
-    Vorbelegung** (wie das Eigentum am Beleg): «gleiche Instanzen» (Service, Abo, fremder Kran)
+    Vorbelegung** (wie das Eigentum am Beleg): «gleiche Einzelinstanzen» (Service, Abo, fremder Kran)
     oder «FIFO» (Lieferung). Eine Zeile «Neu» erzeugt jedes Mal neu. Mehr Möglichkeiten
     gibt es nicht. Ausdrücklich, weil es sich nicht ableiten lässt (§4) und weil eine falsche
-    Annahme teuer wäre: wer z. B. zwölf Kartuschen von Hand wählt und «gleiche Instanzen» bekäme,
+    Annahme teuer wäre: wer z. B. zwölf Kartuschen von Hand wählt und «gleiche Einzelinstanzen» bekäme,
     würde nächsten Monat dieselben, schon verkauften Kartuschen noch einmal liefern.
-  - **FIFO nimmt weiter nur `Freigegeben`**, «gleiche Instanzen» darf auch `Verkauft` (V1).
+  - **FIFO nimmt weiter nur `Freigegeben`**, «gleiche Einzelinstanzen» darf auch `Verkauft` (V1).
   - **Neben einer Abweichung:** Die Schlaufe ist ein Zug wie jede Querlinie und bekommt ihre
     Spur aus `process-flow.channels`. Sie reicht über die ganze Spalte, also bekommt sie die
     äusserste Spur, und eine Abweichung daneben liegt innen.
