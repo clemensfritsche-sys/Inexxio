@@ -438,6 +438,23 @@ OWNERSHIP: tuple[tuple[str, str], ...] = (
 OWNERSHIP_LABEL = "Eigentum"
 
 
+def assert_days(key: str, value: Any) -> Optional[int]:
+    """►► **Eine Frist in Tagen** (``payment_days`` · ``lead_days`` · ``valid_days``) – die EINE
+    Regel für die Vorgabe am Modul und den Wert am Beleg: 0 bis 365, eine Offerte gilt mindestens
+    einen Tag. Leer heisst «nicht gesetzt». ◄◄"""
+    if value in (None, ""):
+        return None
+    try:
+        days = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"«{value}» ist keine Anzahl Tage.")
+    if not 0 <= days <= 365:
+        raise ValueError("Eine Frist liegt zwischen 0 und 365 Tagen.")
+    if key == "valid_days" and days == 0:
+        raise ValueError("Eine Offerte gilt mindestens einen Tag.")
+    return days
+
+
 def assert_ownership(value: Any) -> Optional[str]:
     if value in (None, ""):
         return None

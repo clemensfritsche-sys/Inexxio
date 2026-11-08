@@ -38,6 +38,7 @@ from sqlalchemy import func, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from ..core import locks
 from ..models import RecordingChunk, UserProfile
 from ..schemas.recordings import Recording
 from . import ai, attachments, log, records, talk
@@ -430,33 +431,13 @@ def _say(db: Session, rec: Rec, person: UserProfile) -> int:
 
 
 def _lock(rec_id: int):
-    """Die Sperre je Aufnahme auf einer **eigenen** Verbindung (über Commits hinweg) – ``None``,
-    wenn Anfrage oder Takt sie gerade halten."""
-    from ..core.database import engine
-    con = engine.connect()
-    try:
-        got = con.execute(text("SELECT pg_try_advisory_lock(:s, :k)"),
-                          {"s": LOCK_SPACE, "k": rec_id & 0x7FFF_FFFF}).scalar()
-        con.commit()
-    except BaseException:
-        con.invalidate()             # nie eine Verbindung mit halber Sperre in den Pool
-        con.close()
-        raise
-    if got:
-        return con
-    con.close()
-    return None
+    """Die Sperre je Aufnahme (über Commits hinweg, ``core/locks``) – ``None``, wenn Anfrage oder
+    Takt sie gerade halten."""
+    return locks.hold(LOCK_SPACE, rec_id & 0x7FFF_FFFF)
 
 
 def _unlock(con, rec_id: int) -> None:
-    try:
-        con.execute(text("SELECT pg_advisory_unlock(:s, :k)"),
-                    {"s": LOCK_SPACE, "k": rec_id & 0x7FFF_FFFF})
-        con.commit()
-    except Exception:       # noqa: BLE001 – die Verbindung nie mit der Sperre zurückgeben
-        con.invalidate()
-    finally:
-        con.close()
+    locks.let_go(con, LOCK_SPACE, rec_id & 0x7FFF_FFFF)
 
 
 def advance(db: Session, rec_id: int) -> Optional[str]:

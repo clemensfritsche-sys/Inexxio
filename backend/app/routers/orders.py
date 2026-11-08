@@ -81,13 +81,15 @@ def _place_ref(db: Session, object_id) -> Optional[PlaceRef]:
 
 
 def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
-           only: Optional[set[int]] = None) -> list[ProcessStepResponse]:
+           only: Optional[set[int]] = None, drawn: bool = False) -> list[ProcessStepResponse]:
     """Die Module eines Auftrags – **mit ihrer Sperre**.
 
     Ob ein Modul laufen darf, entscheidet nicht das Modul: es steht hier als Auskunft am
     Schritt (``waiting_for``), und durchgesetzt wird es serverseitig in
     ``process.confirm_step``. Ein neuer Modultyp erbt beides, ohne etwas dafür zu tun.
-    ``only`` beschränkt auf die Module, die ein Betrachter sehen darf.
+    ``only`` beschränkt auf die Module, die ein Betrachter sehen darf. ``drawn``: nur, was
+    das Bild eines **Nachbarn** liest (Modul, Farbe, Sperre) – er wird blass gezeichnet, ohne
+    Arbeit, Bedarf oder Beleg; die volle Antwort holt sein eigener Datensatz.
     """
     pending = order_state.pending_returns(db, order)
     out: list[ProcessStepResponse] = []
@@ -96,6 +98,9 @@ def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
             continue
         row = ProcessStepResponse.model_validate(s)
         row.waiting_for = pending.get(s.id, [])
+        if drawn:
+            out.append(row)
+            continue
         # **Die Arbeitsliste** – je wartender Instanz eine Zeile. Sie steht am Schritt,
         # weil ein Vorgang eine Instanz ist (Scan-Regel §3): was zu scannen ist, ist
         # dieselbe Liste wie das, was zu tun ist.
@@ -264,11 +269,12 @@ def _loop_view(db: Session, order: Order) -> Optional[LoopView]:
 def _related(db: Session, order: Order,
              counts: Sequence[Union[journey_svc.Related, flow_svc.Neighbour]],
              *, incoming: bool) -> list[RelatedOrder]:
-    """Nachbar-Aufträge mit **ihrem eigenen Ablauf** – dieselben Felder wie die Mitte.
+    """Nachbar-Aufträge mit **ihrem eigenen Ablauf** – dieselbe Form wie die Mitte.
 
-    Sie werden daneben mit derselben Komponente gerendert; darum liefert der Server auch
-    dieselben Angaben. Eine gekürzte Sonderform wäre eine zweite Darstellung derselben
-    Sache, und die läuft irgendwann von der ersten weg.
+    Sie werden daneben mit derselben Komponente gezeichnet, aber blass und ohne Inhalt der
+    Module: geliefert wird, was das Bild liest (``_steps(drawn=True)``, Graph, Zustand). Die
+    volle Antwort – Arbeitsliste, Bedarf, Beleg – kostete je Nachbar so viel wie ein ganzer
+    Auftrag und zog dabei dessen Belegpositionen nach (gemessen, ``test_order_view_queries``).
 
     Die Liste kommt für Abweichungen aus dem **Graph** (dort steht die Abzweigung) und
     für übergeordnete Aufträge aus dem **Log** (dort steht die Übernahme) – beide nennen
@@ -297,7 +303,7 @@ def _related(db: Session, order: Order,
             object_id=row.object_id,
             name=row.name,
             status=states.get(oid, st.IM_PROZESS),
-            steps=_steps(db, row),
+            steps=_steps(db, row, drawn=True),
             flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row))),
             active_step_id=order_state.active_step_id(db, row),
             unit_count=rel.unit_count,
@@ -629,7 +635,7 @@ def _preview_parents(db: Session, draft: dict) -> list[RelatedOrder]:
             object_id=row.object_id,
             name=row.name,
             status=order_state.order_status(db, row),
-            steps=_steps(db, row),
+            steps=_steps(db, row, drawn=True),
             flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row, planned=plan))),
             active_step_id=order_state.active_step_id(db, row),
             unit_count=taken,

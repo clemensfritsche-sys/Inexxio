@@ -25,8 +25,8 @@ import zlib
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from sqlalchemy import text
 
+from ..core import locks
 from ..core.actor import system_session
 
 #: Danach beginnt der Takt nichts Neues mehr (Sekunden ab Beginn des Laufs).
@@ -165,33 +165,12 @@ def lock_key(name: str) -> int:
 
 
 def _acquire(name: str):
-    """Die Sperre auf einer **eigenen** Verbindung – ``None``, wenn sie gerade jemand hält.
-    (Eine Sitzung gibt ihre Verbindung beim Commit zurück; die Sperre bliebe dann an einer
-    fremden Verbindung im Pool hängen.)"""
-    from ..core.database import engine
-    con = engine.connect()
-    try:
-        got = con.execute(text("SELECT pg_try_advisory_lock(:s, :k)"),
-                          {"s": LOCK_SPACE, "k": lock_key(name)}).scalar()
-        con.commit()
-    except Exception:
-        con.close()
-        raise
-    if got:
-        return con
-    con.close()
-    return None
+    """Die Sperre der Aufgabe – ``None``, wenn sie gerade jemand hält (``core/locks``)."""
+    return locks.hold(LOCK_SPACE, lock_key(name))
 
 
 def _release(con, name: str) -> None:
-    try:
-        con.execute(text("SELECT pg_advisory_unlock(:s, :k)"),
-                    {"s": LOCK_SPACE, "k": lock_key(name)})
-        con.commit()
-    except Exception:       # noqa: BLE001 – die Verbindung nie mit der Sperre zurückgeben
-        con.invalidate()
-    finally:
-        con.close()
+    locks.let_go(con, LOCK_SPACE, lock_key(name))
 
 
 def _counts(done: Optional[dict[str, Any]]) -> dict[str, int]:

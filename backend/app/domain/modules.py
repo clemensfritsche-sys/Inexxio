@@ -637,19 +637,11 @@ class Beleg(Module):
         """Die Vorgaben streng prüfen – leer heisst «wählt der Mensch am Beleg»."""
         from . import incoterms as inc
         out: dict[str, Any] = {}
-        for key in ("payment_days", "lead_days", "valid_days"):
-            value = data.get(key)
-            if value in (None, ""):
-                continue
-            try:
-                days = int(value)
-            except (TypeError, ValueError):
-                raise HTTPException(status_code=400, detail=f"«{value}» ist keine Anzahl Tage.")
-            if not 0 <= days <= 365 or (key == "valid_days" and days == 0):
-                raise HTTPException(status_code=400,
-                                    detail="Eine Frist liegt zwischen 0 und 365 Tagen.")
-            out[key] = days
         try:
+            for key in ("payment_days", "lead_days", "valid_days"):
+                days = vo.assert_days(key, data.get(key))
+                if days is not None:
+                    out[key] = days
             if data.get("incoterm"):
                 out["incoterm"] = inc.assert_incoterm(data.get("incoterm"))
             if data.get("ownership"):

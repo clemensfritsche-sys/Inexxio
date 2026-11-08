@@ -448,16 +448,9 @@ def _terms(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     Hinausgehen. Nur gesendete Felder wirken; was das Modul vorgibt, steht fest."""
     _reject_fixed(step, {k: data[k] for k in ("payment_days", "lead_days", "valid_days")
                          if k in data})
-    if "payment_days" in data:
-        row.payment_days = _days(data.get("payment_days"))
-    if "lead_days" in data:
-        row.lead_days = _days(data.get("lead_days"))
-    if "valid_days" in data:
-        days = _days(data.get("valid_days"))
-        if days == 0:
-            raise HTTPException(status_code=400,
-                                detail="Eine Offerte gilt mindestens einen Tag.")
-        row.valid_days = days
+    for key in ("payment_days", "lead_days", "valid_days"):
+        if key in data:
+            setattr(row, key, _days(key, data.get(key)))
 
 
 def _add_party(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -649,9 +642,9 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     if "amount" in data:
         line.amount = amount_of(data.get("amount"), row.currency)
     if "lead_days" in data:
-        line.lead_days = _days(data.get("lead_days"))
+        line.lead_days = _days("lead_days", data.get("lead_days"))
     if "payment_days" in data:
-        line.payment_days = _days(data.get("payment_days"))
+        line.payment_days = _days("payment_days", data.get("payment_days"))
     if "reference" in data:
         line.reference = _text(data.get("reference"), 120)
     if "link" in data:
@@ -708,9 +701,9 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         if "amount" in data:
             line.amount = amount_of(data.get("amount"), row.currency)
         if "lead_days" in data:
-            line.lead_days = _days(data.get("lead_days"))
+            line.lead_days = _days("lead_days", data.get("lead_days"))
         if "payment_days" in data:
-            line.payment_days = _days(data.get("payment_days"))
+            line.payment_days = _days("payment_days", data.get("payment_days"))
     if line.amount is None:
         raise HTTPException(status_code=400,
                             detail="Ohne Betrag gibt es keine Zusage.")
@@ -1229,18 +1222,12 @@ def amount_of(value: Any, code: str, *, allow_negative: bool = False) -> Optiona
         raise HTTPException(status_code=400, detail=str(e))
 
 
-def _days(value: Any) -> Optional[int]:
-    if value in (None, ""):
-        return None
+def _days(key: str, value: Any) -> Optional[int]:
+    """Eine Frist – die Regel steht EINMAL in ``domain/voucher.assert_days``."""
     try:
-        found = int(value)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400,
-                            detail=f"«{value}» ist keine Anzahl Tage.")
-    if not 0 <= found <= 365:
-        raise HTTPException(status_code=400,
-                            detail="Eine Frist liegt zwischen 0 und 365 Tagen.")
-    return found
+        return vo.assert_days(key, value)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 def ask_problem(db: Session, row: Voucher, step: ProcessStep,
