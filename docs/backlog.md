@@ -8,10 +8,8 @@ steht nicht hier, sondern in `docs/history/` (zuletzt `2026-10-backlog-erledigt.
 
 ## Zwei-Deploy-Regel: vorgemerkte Drops
 
-- Tabelle `voucher_documents` – entmappt mit Migration 177 (die Papiere sind gewöhnliche
-  Dokumente mit `document_links`), fällt mit 178.
-
-Zuletzt gefallen (Aufräumen 1, Migration 176): `is_active` an 23 Tabellen, an
+Heute keiner. Zuletzt gefallen: die Tabelle `voucher_documents` (Migration 178, die Papiere
+sind gewöhnliche Dokumente mit `document_links`); davor (Aufräumen 1, Migration 176): `is_active` an 23 Tabellen, an
 denen nie gelöscht wird; `created_by` an `attachments`, `document_refs`, `document_links`,
 `holidays`; `captures.captured_by`; `articles.process_version`, `process_steps.source_version`;
 `orders.name`; `instances.label`; `vouchers.original_id`, `export_photo_id`. Davor: `message_parties.person_object_id` samt Brücke und Index

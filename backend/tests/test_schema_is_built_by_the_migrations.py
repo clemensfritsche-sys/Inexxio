@@ -147,7 +147,7 @@ _TABLES_WITHOUT_MODEL = {"alembic_version"}
 PENDING_DROP: set[str] = set()
 
 #: Dasselbe für ganze **Tabellen** (zuletzt ``audit_log``, ``process_events``: Migration 167).
-PENDING_DROP_TABLES: set[str] = {"voucher_documents"}   # 177 entmappt, 178 droppt
+PENDING_DROP_TABLES: set[str] = set()
 
 
 def leftovers(insp) -> list[str]:
