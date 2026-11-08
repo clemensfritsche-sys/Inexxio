@@ -91,7 +91,7 @@ function levelOf(buf: Float32Array): number {
 const sleep = (ms: number) => new Promise<void>((r) => { setTimeout(r, ms); });
 
 export function useRecorder(hint: number | null, onStopped: (r: Recording) => void,
-  context?: string | null) {
+  context?: string | null, talk?: number | null) {
   const [phase, setPhase] = useState<RecorderPhase>('starting');
   const [problem, setProblem] = useState('');
   const [span, setSpan] = useState<{ from: number; to: number | null } | null>(null);
@@ -101,9 +101,10 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
   const stopRef = useRef<() => void>(() => undefined);
   const doneRef = useRef(onStopped);
   doneRef.current = onStopped;
-  // Hinweis und Stecknadel gelten, wie sie beim Start waren.
+  // Hinweis, Stecknadel und Gespräch gelten, wie sie beim Start waren.
   const hintRef = useRef(hint);
   const contextRef = useRef(context ?? null);
+  const talkRef = useRef(talk ?? null);
 
   useEffect(() => {
     let dead = false;
@@ -217,7 +218,7 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
         const opts: MediaRecorderOptions = { audioBitsPerSecond: BITRATE, ...(mimeType ? { mimeType } : {}) };
         let spare: MediaRecorder | null = new MediaRecorder(stream, opts);
         const rec = await api.startRecording(spare.mimeType || mimeType || 'audio/webm', hintRef.current,
-          contextRef.current);
+          contextRef.current, talkRef.current);
         if (dead) {
           freeMic();
           busy = false;

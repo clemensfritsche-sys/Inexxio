@@ -18,9 +18,12 @@ from __future__ import annotations
 
 import base64
 import json
+import queue
+import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, ContextManager, Iterator, Optional
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
@@ -60,11 +63,14 @@ class Answer(BaseModel):
 
 
 FORMAT = """
-Antwortformat: `text` – deine Antwort. Was folgt, bereitest du mit dem Werkzeug `vorbereiten`
-vor (je Handlung ein Handgriff), bevor du antwortest; in `text` sagst du kurz, was du vorbereitet
-hast und was du wissen müsstest. Wissen (was ist, was gesagt wurde) legst du als Notiz am
-richtigen Datensatz ab: Handlung «POST /api/v1/erp/messages» mit `channel` "note", `about` = der
-Datensatz, `subject` und `body`.
+Antwortformat: `text` – deine Antwort an die Person: direkt auf das, was sie sagt oder fragt,
+kurz, in reinem Text (kein Markdown, keine Sternchen; eine Aufzählung mit «–»). Erzähl nicht,
+was du nicht getan hast. Was folgt, bereitest du mit `vorbereiten` vor (je Handlung ein
+Handgriff), bevor du antwortest – auch wenn Werte fehlen, die nur die Person kennt: dann füllst
+du, was du weisst, und sie ergänzt es im Entwurf; frag nicht vorher danach. Was das ERP zeigt
+(Listen, Auswahlen, Bestand, Module), liest du mit `abrufen`. Wissen (was ist, was gesagt wurde)
+legst du als Notiz am richtigen Datensatz ab: Handlung «POST /api/v1/erp/messages» mit `channel`
+"note", `about` = der Datensatz, `subject` und `body`.
 """
 
 
@@ -257,8 +263,19 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
 
     def find_ops(a: dict[str, Any]) -> str:
         found = handgriff.find(str(a.get("woerter") or ""))
-        return "\n".join(f"{o.key} – {o.summary}" + (" (nur Admin)" if o.admin else "")
+        return "\n".join(f"{o.key} – {o.summary}" + (" (lesen: `abrufen`)" if o.method == "GET" else "")
+                         + (" (nur Admin)" if o.admin else "")
                          + (" (nur von Hand: Datei)" if o.hand else "") for o in found) or "Nichts."
+
+    def fetch(a: dict[str, Any]) -> str:
+        try:
+            params = json.loads(a.get("abfrage_json") or "null") or {}
+        except ValueError as exc:
+            return f"Die Abfrage ist kein JSON: {exc}"
+        out = handgriff.look(str(a.get("pfad") or ""), params if isinstance(params, dict) else {})
+        if not out.ok:
+            return f"Geht nicht ({out.status}): {out.detail}"
+        return json.dumps(out.data, ensure_ascii=False, default=str)
 
     def describe(a: dict[str, Any]) -> str:
         op = handgriff.operation(str(a.get("handlung") or ""))
@@ -277,6 +294,9 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
                                      talk=talk_id, depends=list(a.get("wartet_auf") or []))
         if hid is None:
             return f"Geht nicht ({out.status}): {out.detail}"
+        if handgriff.incomplete(out):
+            return (f"Vorbereitet als Handgriff {hid}, noch unvollständig: {out.detail} – die Person "
+                    "ergänzt es im Entwurf.")
         return f"Vorbereitet als Handgriff {hid}" + (f" – geht nur von Hand ({out.hand})." if out.hand else ".")
 
     def drop(a: dict[str, Any]) -> str:
@@ -294,10 +314,17 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
 
     int_list = {"type": "array", "items": {"type": "integer"}}
     return [*ai_tools.tools_for(db),
-            ai.Tool("handlungen", "Die Handlungen des ERP zu Stichwörtern (Schlüssel und Satz).",
-                    {"woerter": {"type": "string"}}, find_ops),
-            ai.Tool("handlung", "Felder und Prüfungen einer Handlung (Schlüssel «METHODE /pfad»).",
-                    {"handlung": {"type": "string"}}, describe),
+            ai.Tool("handlungen", "Was das ERP kann und zeigt, zu Stichwörtern: Schlüssel und Satz "
+                    "(lesende mit `abrufen`, schreibende mit `vorbereiten`).",
+                    {"woerter": {"type": "string"}}, find_ops, doing="schlägt nach:"),
+            ai.Tool("handlung", "Felder einer Handlung bzw. Angaben einer Abfrage (Schlüssel "
+                    "«METHODE /pfad»).", {"handlung": {"type": "string"}}, describe,
+                    doing="liest die Handlung"),
+            ai.Tool("abrufen", "Lesen, was das ERP zeigt – eine lesende Route (`GET`) mit den Rechten "
+                    "jedes Personals. `pfad` konkret (Platzhalter durch Nummern ersetzt), "
+                    "`abfrage_json` die Abfrage als JSON-Objekt (oder {}).",
+                    {"pfad": {"type": "string"}, "abfrage_json": {"type": "string"}}, fetch,
+                    doing="ruft ab:"),
             ai.Tool("vorbereiten", "Einen Handgriff vorbereiten – mit Probelauf. `handlung` ist der "
                     "Schlüssel, `pfad` der konkrete Pfad (Platzhalter durch Nummern ersetzt), "
                     "`werte_json` die Werte als JSON, `zeile` ein Satz, was geschieht, mit Nummer "
@@ -305,40 +332,150 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
                     "`wartet_auf` und in den Werten {\"$handgriff\": nummer}.",
                     {"handlung": {"type": "string"}, "pfad": {"type": "string"},
                      "werte_json": {"type": "string"}, "zeile": {"type": "string"},
-                     "wartet_auf": int_list}, prepare),
+                     "wartet_auf": int_list}, prepare, doing="bereitet vor:", shows="zeile"),
             ai.Tool("weglegen", "Einen Handgriff dieses Gesprächs weglegen (die Person will ihn "
                     "nicht, oder du ersetzt ihn durch einen neuen).",
-                    {"handgriff": {"type": "integer"}}, drop),
+                    {"handgriff": {"type": "integer"}}, drop, doing="legt weg: Handgriff"),
             *([ai.Tool("ausfuehren", "Einen Handgriff dieses Gesprächs ausführen – NUR, wenn die "
                        "Person es in ihrer letzten Nachricht ausdrücklich sagt («ja, ausführen», "
-                       "«leg es ab»).", {"handgriff": {"type": "integer"}}, execute)] if live else [])]
+                       "«leg es ab»).", {"handgriff": {"type": "integer"}}, execute,
+                       doing="führt aus: Handgriff")] if live else [])]
 
 
-def answer(db: Session, talk_id: int, person: UserProfile, *, live: bool = False) -> Optional[str]:
+#: Der Raum der Sperre «die KI antwortet gerade in diesem Gespräch» – Stream und Takt antworten
+#: nie beide.
+_LOCK_SPACE = 5052
+
+
+def _claim(db: Session, talk_id: int) -> bool:
+    """Die Sperre auf dieses Gespräch, bis zum Ende der Transaktion – ``False``, wenn schon
+    jemand antwortet."""
+    return bool(db.execute(text("SELECT pg_try_advisory_xact_lock(:s, :k)"),
+                           {"s": _LOCK_SPACE, "k": talk_id & 0x7FFF_FFFF}).scalar())
+
+
+def _waiting(db: Session, talk_id: int) -> bool:
+    """Ist die letzte Nachricht von der Person (die KI ist dran)?"""
+    return db.execute(text(
+        "SELECT payload ->> 'by' FROM log WHERE event = 'talk' "
+        "AND (id = :t OR (payload ->> 'talk')::bigint = :t) ORDER BY id DESC LIMIT 1"),
+        {"t": talk_id}).scalar() == "person"
+
+
+def _stopped(db: Session, talk_id: int) -> bool:
+    """Hat die Person seit ihrer letzten Nachricht «Stopp» gedrückt (``talk.stop``)?"""
+    return bool(db.execute(text(
+        "SELECT EXISTS (SELECT 1 FROM log WHERE event = 'talk.stop' "
+        "AND (payload ->> 'talk')::bigint = :t AND id > :said)"),
+        {"t": talk_id, "said": _last_said(db, talk_id)}).scalar())
+
+
+#: Warum keine Antwort kam: jemand anders (Stream oder Takt) antwortet gerade.
+BUSY = "Die KI antwortet schon."
+#: Die Antwort, wenn die Person anhielt – sie schliesst den Zug (der Takt holt nichts nach).
+HALTED = "Angehalten."
+
+
+def answer(db: Session, talk_id: int, person: UserProfile, *, live: bool = False,
+           on_step: Optional[Callable[[str], None]] = None) -> Optional[str]:
     """►►► **Die KI antwortet** – liest, schlägt nach, bereitet vor, antwortet. ``None`` = sie
-    hat geantwortet, sonst warum nicht (``ai.problem``). ``live`` = die Person hat eben selbst
-    geschrieben (nur dann darf ein Wort von ihr ausführen). ◄◄◄"""
+    hat geantwortet (oder es war nichts zu tun), sonst warum nicht (``ai.problem``). ``live`` =
+    die Person ist dabei (nur dann darf ein Wort von ihr ausführen); ``on_step`` hört jeden
+    Schritt. Antwortet schon jemand (Stream oder Takt), wartet diese Antwort nicht darauf. ◄◄◄"""
     first = _first(db, talk_id)
+    if not _claim(db, talk_id):
+        return BUSY
+    if not _waiting(db, talk_id):
+        return None
     content = _transcript(db, talk_id, person) if ai.available(db) else []
     said = ai.converse(db, task="talk", actor=person, system=AUFTRAG + "\n" + FORMAT,
                        content=content, schema=Answer,
-                       tools=tools(db, person, talk_id, first.object_id, live=live))
+                       tools=tools(db, person, talk_id, first.object_id, live=live),
+                       on_step=on_step, stopped=lambda: _stopped(db, talk_id))
+    if said is None and ai.problem() == ai.STOPPED:
+        _reply(db, person, talk_id, HALTED, first.object_id)
+        return None
     if said is None:
         return ai.problem() or "Die KI hat nicht geantwortet."
     _reply(db, person, talk_id, said.text or "Erledigt.", first.object_id)
     return None
 
 
-def converse(db: Session, person: UserProfile, body: str, *, talk: Optional[int] = None,
-             hint: Optional[int] = None, files: Optional[list[FileRef]] = None) -> TalkOut:
-    """Sagen und antworten lassen – in EINER Anfrage (``ai.until``). Fällt die KI aus, steht
-    die Nachricht trotzdem; ``problem`` sagt warum, der Takt antwortet nach."""
-    tid = say(db, person, body, talk=talk, hint=hint, files=files)
-    handgriff.release(db)       # die Nachricht steht – auch wenn die KI danach scheitert
-    trouble = answer(db, tid, person, live=True)
-    if trouble and ai.available(db):
-        log.event(db, "talk.failed", None, {"talk": tid, "problem": trouble})
-    return view(db, tid, problem=trouble)
+def stop(db: Session, person: UserProfile, talk_id: int) -> None:
+    """**Stopp** – die KI hält vor ihrem nächsten Schritt an (``talk.stop``, über alle Instanzen
+    hinweg: ein Ereignis, kein Merker im Speicher). Was sie schon vorbereitete, bleibt."""
+    first = assert_may(db, talk_id, person)
+    log.event(db, "talk.stop", first.object_id, {"talk": talk_id}, kind="person",
+              actor=person.object_id)
+
+
+#: Ein Lebenszeichen im Stream, solange die KI arbeitet – keine Leitung schläft ein.
+ALIVE_S = 15
+
+
+def stream(person_id: int, talk_id: int) -> Iterator[bytes]:
+    """►►► **Die Antwort live** (Projektakte, «wie Claude»): je Zeile ein JSON – ``{"step": …}``
+    für jeden Schritt der KI, am Ende ``{"talk": …}`` (das Gespräch, wie die Oberfläche es zeigt).
+    Die KI arbeitet in eigenem Faden und eigener Sitzung; reisst die Leitung ab, arbeitet sie
+    zu Ende und speichert – das Gespräch zeigt es beim nächsten Öffnen. Begrenzt durch Schritte,
+    Deckel und «Stopp», nicht durch eine Uhr. ◄◄◄"""
+    lines: queue.Queue[Optional[dict[str, Any]]] = queue.Queue()
+    threading.Thread(target=_answer_alone, args=(person_id, talk_id, lines.put),
+                     daemon=True, name=f"talk-{talk_id}").start()
+    while True:
+        try:
+            item = lines.get(timeout=ALIVE_S)
+        except queue.Empty:
+            yield b"\n"
+            continue
+        if item is None:
+            return
+        yield (json.dumps(item, ensure_ascii=False, default=str) + "\n").encode()
+
+
+@contextmanager
+def _own_session() -> Iterator[Session]:
+    from ..core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+#: Woher die Antwort ihre Sitzung hat – eine eigene, unabhängig von der Anfrage (die Tests
+#: geben hier ihre Testsitzung).
+OWN_SESSION: Callable[[], ContextManager[Session]] = _own_session
+
+
+def _answer_alone(person_id: int, talk_id: int, put: Callable[[Optional[dict[str, Any]]], None]) -> None:
+    """Die Antwort in eigener Sitzung – im Namen der Person, gespeichert am Ende."""
+    try:
+        with OWN_SESSION() as db:
+            _answer_in(db, person_id, talk_id, put)
+    finally:
+        put(None)
+
+
+def _answer_in(db: Session, person_id: int, talk_id: int,
+               put: Callable[[Optional[dict[str, Any]]], None]) -> None:
+    from ..core.actor import act
+    try:
+        person = db.query(UserProfile).filter(UserProfile.id == person_id).first()
+        if person is None:
+            put({"error": "Diese Person gibt es nicht."})
+            return
+        act(db, "person", person.object_id, "ui")
+        put({"talk": view(db, talk_id).model_dump(mode="json")})     # die Nachricht steht sofort
+        trouble = answer(db, talk_id, person, live=True, on_step=lambda st: put({"step": st}))
+        if trouble and trouble != BUSY and ai.available(db):
+            log.event(db, "talk.failed", None, {"talk": talk_id, "problem": trouble})
+        db.commit()
+        put({"talk": view(db, talk_id, problem=trouble).model_dump(mode="json")})
+    except Exception as exc:                                   # noqa: BLE001
+        db.rollback()
+        print(f"WARNING: talk {talk_id} failed: {exc!r}", flush=True)
+        put({"error": "Die KI ist gestolpert – deine Nachricht ist gespeichert, der Takt antwortet nach."})
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +512,7 @@ def catch_up(db: Session, deadline: float, limit: int = CATCH_UP) -> int:
         trouble = answer(db, tid, person)
         if trouble is None:
             n += 1
-        elif ai.available(db):
+        elif trouble != BUSY and ai.available(db):
             log.event(db, "talk.failed", None, {"talk": tid, "problem": trouble})
         db.commit()
     return n

@@ -5,8 +5,11 @@ import { createContext, useContext } from 'react';
 /** Ein Entwurf, den ein Handgriff öffnet – die Werte vorausgefüllt, `handgriff` wird erledigt,
  *  sobald der Entwurf freigegeben ist. */
 export interface DraftFromHandgriff {
-  kind: 'user' | 'organization' | 'document';
+  kind: 'user' | 'organization' | 'article' | 'order' | 'document';
+  /** Die einfachen Werte als Text (Felder des Entwurfs). */
   values: Record<string, string>;
+  /** Die Werte, wie die KI sie vorbereitete (Zeilen eines Auftrags). */
+  body?: Record<string, unknown>;
   handgriff: number;
 }
 

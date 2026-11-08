@@ -6,27 +6,50 @@ echte Route, mit ihren Rechten (``services/handgriff``). Was hier steht, ist sel
 Handgriff (der Assistent bereitet nichts an sich selbst vor).
 """
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
+from ..core.config import get_settings
 from ..core.database import DB
 from ..models import UserProfile
-from ..schemas.assistant import (DoneIn, FileRef, HandgriffOut, OperationOut, PinnedOut, ProbeOut,
+from ..schemas.assistant import (DoneIn, DoorOut, FileRef, HandgriffOut, OperationOut, PinnedOut, ProbeOut,
                                  RunIn, RunOut, TalkIn, TalkOut)
 from ..services import ai, attachments, handgriff, pins, talk
 
 router = APIRouter(prefix="/api/v1/erp/assistant", tags=["assistent"])
 
 
-@router.post("/talks", response_model=TalkOut)
+@router.post("/talks", response_class=StreamingResponse,
+             responses={200: {"content": {"application/x-ndjson": {}},
+                              "description": "Je Zeile ein JSON: {step} je Schritt, am Ende {talk}."}})
 def say(data: TalkIn, db: Session = DB, user: UserProfile = Depends(require_employee)):
-    """**Dem Assistenten etwas sagen** – die Nachricht steht sofort; dann antwortet die KI und
-    bereitet Handgriffe vor (unter 50 s). Fällt sie aus, sagt ``problem`` warum; der Takt
-    antwortet nach."""
-    with ai.until(50):
-        return talk.converse(db, user, data.text, talk=data.talk, hint=data.hint_object_id,
-                             files=data.files)
+    """**Dem Assistenten etwas sagen** – die Nachricht ist gespeichert, bevor die Antwort beginnt;
+    dann antwortet die KI live (je Zeile ein Schritt, am Ende das Gespräch). Ohne Text, aber mit
+    ``talk``: die KI antwortet auf das, was schon dasteht (nach einer Aufnahme)."""
+    if data.text.strip() or data.files:
+        tid = talk.say(db, user, data.text, talk=data.talk, hint=data.hint_object_id,
+                       files=data.files)
+    elif data.talk is not None:
+        tid = talk.assert_may(db, data.talk, user).id
+    else:
+        raise HTTPException(400, detail="Eine Nachricht braucht Text oder eine Datei.")
+    return StreamingResponse(talk.stream(user.id, tid), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+@router.post("/talks/{talk_id}/stop", status_code=204)
+def stop(talk_id: int, db: Session = DB, user: UserProfile = Depends(require_employee)):
+    """**Stopp** – die KI hält vor ihrem nächsten Schritt an; was sie vorbereitete, bleibt."""
+    talk.stop(db, user, talk_id)
+
+
+@router.get("/door", response_model=DoorOut)
+def door(user: UserProfile = Depends(require_employee)):
+    """Wo das Gespräch live läuft – die direkte Adresse des Dienstes (ohne die 60 s des Hostings);
+    leer = dieselbe Adresse wie alles andere."""
+    return DoorOut(url=get_settings().backend_url.rstrip("/"))
 
 
 @router.get("/talks/open", response_model=list[TalkOut])
@@ -65,7 +88,6 @@ def operation_of(handgriff_id: int, db: Session = DB,
     h = handgriff.assert_may(db, handgriff_id, user)
     op = handgriff.operation_for(h.payload["method"], handgriff.fill_or_raw(h.payload["path"]))
     if op is None:
-        from fastapi import HTTPException
         raise HTTPException(410, detail="Diese Handlung gibt es im ERP nicht mehr.")
     return OperationOut(key=op.key, summary=op.summary, admin=op.admin, hand=op.hand, schema=op.schema)
 
@@ -75,7 +97,6 @@ def run(handgriff_id: int, data: RunIn, db: Session = DB,
         user: UserProfile = Depends(require_employee)):
     """**Ausführen** – genau einmal, mit meinen Rechten, durch die echte Route. ``body`` nur, wenn
     ich die Werte geändert habe. Geht es nicht, sagt der Satz der Route warum (409/4xx)."""
-    from fastapi import HTTPException
     h, out = handgriff.run(db, user, handgriff_id, data.body)
     if not out.ok:
         raise HTTPException(out.status if out.status >= 400 else 409,

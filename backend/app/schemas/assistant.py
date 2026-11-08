@@ -22,6 +22,11 @@ class TalkIn(BaseModel):
     files: list[FileRef] = Field(default_factory=list, max_length=10)
 
 
+class DoorOut(BaseModel):
+    """Die direkte Adresse des Dienstes für das Gespräch live – leer: dieselbe wie sonst."""
+    url: str = ""
+
+
 class HandgriffOut(BaseModel):
     """**Ein Handgriff, wie die Karte ihn zeigt.**"""
     id: int
@@ -43,6 +48,9 @@ class HandgriffOut(BaseModel):
     talk: Optional[int] = None
     #: Geht nur von Hand (Datei, Kamera, Zahlung …) – dann «Öffnen» statt «Ausführen».
     hand: str = ""
+    #: Es fehlen Werte, die die Person ergänzt – der Satz der Route; «Ausführen» erst danach
+    #: (über «Entwurf öffnen» oder «Ändern»).
+    missing: str = ""
     #: Worauf er wartet (Nummern anderer Handgriffe).
     waits_for: list[int] = Field(default_factory=list)
     #: Was die Handlung tut – ihr Satz aus dem ERP.

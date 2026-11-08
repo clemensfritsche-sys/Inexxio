@@ -66,8 +66,6 @@ MAX_AUDIO = 15 * 1024 * 1024
 #: Einen Abschnitt nur beginnen, wenn noch so viele Sekunden bleiben – kein bezahlter Aufruf,
 #: der sicher an der Zeitgrenze stirbt.
 SEGMENT_LEAST = 40.0
-#: Ablegen durch die KI erst, wenn noch so viel Zeit bleibt – sonst holt es der Takt nach.
-FILE_LEAST = 20.0
 #: «zu tun»: eine fehlgeschlagene Aufnahme steht so lange an der Person.
 FAILED_DAYS = 7
 
@@ -100,6 +98,8 @@ class Rec:
     actor_id: Optional[int]
     hint: Optional[int]
     mime: str
+    #: Das Gespräch, in dem gesprochen wurde – der Text geht dorthin (sonst beginnt er eines).
+    talk: Optional[int] = None
     #: Wo die Aufnahme ansetzt (die Stecknadel: Seite und Element) – steht vor dem Text.
     context: str = ""
     stop: Optional[dict[str, Any]] = None
@@ -142,7 +142,8 @@ def load(db: Session, rec_id: int) -> Rec:
         raise HTTPException(404, detail=f"Aufnahme «{rec_id}» gibt es nicht.")
     p = r.payload or {}
     rec = Rec(id=r.id, at=r.at, object_id=r.object_id, actor_id=r.actor_id, hint=p.get("hint"),
-              mime=str(p.get("mime") or ""), context=str(p.get("context") or ""))
+              mime=str(p.get("mime") or ""), context=str(p.get("context") or ""),
+              talk=p.get("talk"))
     for e in db.execute(_EVENTS, {"i": rec_id}):
         body = e.payload or {}
         if e.event == "recording.stop" and rec.stop is None:
@@ -231,15 +232,19 @@ def open_for(db: Session, actor: UserProfile, limit: int = 20) -> list[Recording
 # ─── Aufnehmen ─────────────────────────────────────────────────────────────────────────
 
 def start(db: Session, hint: Optional[int], mime: str, actor: UserProfile,
-          context: str = "") -> Rec:
+          context: str = "", in_talk: Optional[int] = None) -> Rec:
     """►► **Eine Aufnahme beginnt** – ``recording.start`` am offenen Datensatz, sonst an der
-    Person; ``context`` (die Stecknadel) steht später vor dem abgeschriebenen Text. ◄◄"""
+    Person; ``context`` (die Stecknadel) steht später vor dem abgeschriebenen Text; ``in_talk`` =
+    das offene Gespräch, in das der Text geht (wie getippt). ◄◄"""
     mime = (mime or "").strip()
     if not mime.lower().startswith("audio/"):
         raise HTTPException(400, detail=f"«{mime[:60]}» ist keine Tonaufnahme.")
     if hint is not None and records.labels(db, [hint]).get(hint) is None:
         raise HTTPException(400, detail=f"Datensatz «{hint}» gibt es nicht.")
     payload: dict[str, Any] = {"hint": hint, "mime": mime}
+    if in_talk is not None:
+        talk.assert_may(db, in_talk, actor)
+        payload["talk"] = in_talk
     if talk.clean(context or "").strip():
         payload["context"] = talk.clean(context).strip()
     rid = log.event(db, "recording.start", hint or actor.object_id, payload)
@@ -399,7 +404,7 @@ def _whole(rec: Rec) -> str:
 
 def _finish(db: Session, rec: Rec, person: UserProfile) -> Optional[str]:
     """Alles abgeschrieben → **eine** Nachricht im Gespräch (im Namen der Person) → ``recording.done`` →
-    Stücke weg; dann, wenn Zeit bleibt, antwortet die KI (sonst der Takt, ``talk.catch_up``).
+    Stücke weg; antworten tut die KI live im «+» (sonst der Takt, ``talk.catch_up``).
     Ohne jeden Text: ``recording.failed`` – war nur nichts zu hören (keine Stücke, Stille), ist
     das ``silent`` und kein Fehlschlag."""
     if not any((t.get("text") or "").strip() for t in rec.texts.values()):
@@ -408,15 +413,20 @@ def _finish(db: Session, rec: Rec, person: UserProfile) -> Optional[str]:
              {"problem": UNREADABLE} if refused else {"problem": NOTHING, "silent": True})
         db.commit()
         return None
-    hint = rec.hint if rec.hint and records.labels(db, [rec.hint]).get(rec.hint) else None
-    tid = talk.say(db, person, _whole(rec), hint=hint, recording=rec.id)
+    tid = _say(db, rec, person)
     _end(db, rec, "recording.done", {"talk": tid})
     db.commit()
-    if ai.available(db) and ai.remaining(60) >= FILE_LEAST:
-        trouble = talk.answer(db, tid, person)
-        db.commit()
-        return trouble
     return None
+
+
+def _say(db: Session, rec: Rec, person: UserProfile) -> int:
+    """Der abgeschriebene Text als Nachricht der Person – im Gespräch, in dem sie sprach (sonst
+    beginnt er eines am Hinweis). Antworten tut die KI live im «+» (``talk.stream``), ohne «+»
+    der Takt."""
+    if rec.talk is not None:
+        return talk.say(db, person, _whole(rec), talk=rec.talk, recording=rec.id)
+    hint = rec.hint if rec.hint and records.labels(db, [rec.hint]).get(rec.hint) else None
+    return talk.say(db, person, _whole(rec), hint=hint, recording=rec.id)
 
 
 def _lock(rec_id: int):
@@ -523,8 +533,7 @@ def _rescue(db: Session, rec: Rec) -> bool:
         return False
     for s in range(rec.segments):
         rec.texts.setdefault(s, {"skipped": LATE})
-    hint = rec.hint if rec.hint and records.labels(db, [rec.hint]).get(rec.hint) else None
-    tid = talk.say(db, person, _whole(rec), hint=hint, recording=rec.id)
+    tid = _say(db, rec, person)
     _end(db, rec, "recording.done", {"talk": tid, "partial": True})
     return True
 

@@ -62,7 +62,7 @@ export function DetailPane({ show, creating, sel, activeRow, orderSeed, seeds, i
       <ErrorBoundary resetKey={creating ?? (sel ? `${sel.type}-${sel.objectId}` : 'none')} onReset={h.onReset}>
         <ErpNavContext.Provider value={null}>
           {creating === 'article' && (
-            <ArticleDetail key="new-article" record={null} onSaved={h.onArticleSaved}
+            <ArticleDetail key={`new-article-${seeds.no}`} record={null} initial={seeds.record} onSaved={h.onArticleSaved}
               onRefresh={h.onRefreshArticles} onBack={h.onCancelCreate} />
           )}
           {creating === 'person' && (
@@ -72,7 +72,7 @@ export function DetailPane({ show, creating, sel, activeRow, orderSeed, seeds, i
             <NewCompany key={`new-company-${seeds.no}`} isAdmin={isAdmin} initial={seeds.record} onSaved={h.onCompanyCreated} onBack={h.onCancelCreate} />
           )}
           {creating === 'order' && (
-            <OrderDetail key="new-order" record={null} seed={orderSeed} onSaved={h.onOrderSaved} onBack={h.onCancelCreate} />
+            <OrderDetail key={`new-order-${seeds.no}`} record={null} seed={orderSeed} onSaved={h.onOrderSaved} onBack={h.onCancelCreate} />
           )}
           {creating === 'document' && (
             <DocumentDraft key={`new-document-${seeds.no}`} seed={seeds.draft ?? undefined} onCancel={h.onCancelCreate}

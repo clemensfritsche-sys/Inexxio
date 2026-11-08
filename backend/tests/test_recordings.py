@@ -498,8 +498,8 @@ def test_the_events_of_a_recording_are_not_in_the_history(db, api, gemini):  # n
 
 
 def test_the_tick_finishes_a_recording_without_a_browser(db, api, gemini, monkeypatch):  # noqa: F811
-    """Tab zu nach dem Stopp: der Takt schreibt ab, bringt den Text ins Gespräch und lässt die KI
-    antworten."""
+    """Tab zu nach dem Stopp: der Takt schreibt ab und bringt den Text ins Gespräch; das Gespräch
+    wartet dann auf die KI (live im «+», sonst ``talk.catch_up`` im Takt)."""
     me = new_person(db, "employee")
     c = api.as_(me)
     rec = begin(c)
@@ -516,7 +516,9 @@ def test_the_tick_finishes_a_recording_without_a_browser(db, api, gemini, monkey
     (end,) = events(db, "recording.done", rec["id"])
     t = talk.view(db, end.payload["talk"])
     assert t.messages[0].text == "Erster.\n\nZweiter." and t.messages[0].by == "person"
-    assert t.messages[-1].text == "Notiert."                       # die KI hat geantwortet
+    assert t.waiting                                               # die KI ist dran
+    assert talk.answer(db, t.id, me) is None
+    assert talk.view(db, t.id).messages[-1].text == "Notiert."
     assert any(t.name == "voice" for t in tick.TASKS)
     assert tick._voice(db, time.monotonic() + 30) == {"failed": 0, "dropped": 0}
 
@@ -710,3 +712,20 @@ def test_gemini_has_its_own_region_and_a_404_names_model_and_region(db, gemini, 
 
 
 # ─── Lange Aufnahmen ablegen: Bereiche statt Text ──────────────────────────────────────
+
+
+def test_speaking_in_an_open_conversation_continues_it(db, api, gemini, monkeypatch):  # noqa: F811
+    """Wer im offenen Gespräch spricht, redet dort weiter – wie getippt; es beginnt kein neues."""
+    me = new_person(db, "employee")
+    tid = talk.say(db, me, "Zuerst getippt.")
+    c = api.as_(me)
+    r = c.post(BASE, json={"mime": "audio/webm;codecs=opus", "talk": tid})
+    assert r.status_code == 200, r.text
+    rid = r.json()["id"]
+    send(c, rid, 0, 0)
+    c.post(f"{BASE}/{rid}/stop", json={"segments": 1})
+    gemini(said("Dann gesprochen."))
+    c.post(f"{BASE}/{rid}/advance")
+    (end,) = events(db, "recording.done", rid)
+    assert end.payload["talk"] == tid
+    assert [m.text for m in talk.view(db, tid).messages] == ["Zuerst getippt.", "Dann gesprochen."]

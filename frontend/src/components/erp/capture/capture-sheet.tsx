@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowUp, Camera, ChevronRight, FileText, Loader2, MessageSquare, Mic, MapPin, Plus, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Camera, Check, ChevronRight, FileText, Loader2, MessageSquare, Mic, MapPin, Plus, Square, X } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { notify, tell } from '@/lib/notice';
 import { when } from '@/lib/when';
@@ -44,7 +44,7 @@ const CREATE: { type: Creatable; record: ErpRecordType; label: string }[] = [
 type Phase =
   | { k: 'idle' }
   | { k: 'recording' }
-  | { k: 'working'; recording?: Recording }
+  | { k: 'working'; recording?: Recording; steps?: string[] }
   | { k: 'failed'; recording: Recording };
 
 /**
@@ -95,31 +95,46 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
   const keep = (t: Talk) => { client.setQueryData(qk.talk(t.id), t); setTalkId(t.id); };
   const fresh = () => { forget(); setPhase({ k: 'idle' }); setTalkId(null); setPlace(''); setAbout(hint); setProblem(''); setHomeless(''); };
 
-  /** Text (und Dateien) an den Assistenten – antwortet er, nachdem das «+» zu ist, meldet es sich. */
-  async function send(text: string, files: TalkFile[]): Promise<boolean> {
-    const body = place ? `${place}\n\n${text}` : text;
-    setPhase({ k: 'working' });
+  /** Ein Schritt der KI, live – er steht unter dem Gespräch, bis die Antwort da ist. */
+  const step = (st: string) => {
+    if (alive.current) setPhase((p) => (p.k === 'working' ? { ...p, steps: [...(p.steps ?? []), st] } : p));
+  };
+
+  /**
+   * ►► **Sagen und live zuhören** – die Nachricht steht sofort im Gespräch, darunter, was die KI
+   * gerade tut, dann ihre Antwort. Ohne Text (nach einer Aufnahme) antwortet sie auf das, was
+   * dasteht. Antwortet sie, nachdem das «+» zu ist, meldet es sich. ◄◄
+   */
+  async function live(text: string, files: TalkFile[], talk: number | null): Promise<boolean> {
+    setPhase({ k: 'working', steps: [] });
     setProblem('');
+    let id = talk;                                // ein neues Gespräch hat seine Nummer ab der ersten Zeile
     try {
-      const t = await api.say(body, { talk: talkId, hint: talkId ? null : about?.objectId, files });
-      if (alive.current) { keep(t); setPlace(''); }
+      await api.say(text, {
+        talk, hint: talk ? null : about?.objectId, files,
+        onTalk: (x) => { id = x.id; if (alive.current) keep(x); }, onStep: step,
+      });
+      if (alive.current) setPlace('');
       else notify('Der Assistent hat geantwortet – das Gespräch steht im «+».', Date.now(), { tone: 'info' });
       return true;
     } catch (e) {
-      tell('Gespräch', 'Nicht gesendet')(e);
+      tell('Gespräch', 'Nicht beantwortet')(e);
       if (alive.current) {
-        // Abgewiesen (4xx): nichts ist gespeichert. Sonst (Zeitgrenze, Netz) kann die Nachricht
-        // schon angekommen sein – der Text kommt trotzdem zurück, mit dem Hinweis, erst
-        // nachzusehen (sonst stünde sie zweimal da).
+        // Abgewiesen (4xx): nichts ist gespeichert – der Text kommt ins Feld zurück. Sonst riss nur
+        // die Leitung: die Nachricht steht, die KI arbeitet zu Ende (das Gespräch zeigt es).
         const refused = e instanceof ApiError && e.status >= 400 && e.status < 500;
         const why = e instanceof Error ? e.message : 'Nicht gesendet.';
-        setProblem(refused ? why : `${why} Vielleicht ist sie trotzdem angekommen – bitte zuerst unter «Offene Gespräche» nachsehen.`);
+        setProblem(refused ? why : `${why} Die KI arbeitet weiter – das Gespräch zeigt ihre Antwort, sobald sie da ist.`);
+        if (id) void client.invalidateQueries({ queryKey: qk.talk(id) });
+        return !refused;
       }
       return false;
     } finally {
       if (alive.current) setPhase({ k: 'idle' });
     }
   }
+  const send = (text: string, files: TalkFile[]) => live(place ? `${place}\n\n${text}` : text, files, talkId);
+  const halt = () => { if (talkId) api.stopTalk(talkId).catch(tell('Gespräch', 'Nicht angehalten')); };
 
   // Beim Zeigen tritt das «+» nur beiseite (unsichtbar, nicht ausgehängt) – der getippte Text,
   // die Aufnahme, das Warten bleiben, wie sie sind.
@@ -129,10 +144,11 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
       <div role="dialog" aria-modal="true" aria-label="Assistent" className="erp-capture-sheet"
         {...{ [PIN_UI]: 'true' }} onClick={(e) => e.stopPropagation()}>
         <div className="erp-capture-body">
-          {talk && <TalkView talk={talk} working={phase.k === 'working'} onFresh={fresh}
+          {talk && <TalkView talk={talk} working={phase.k === 'working'} steps={phase.k === 'working' ? phase.steps : undefined}
+            onStop={phase.k === 'working' && !phase.recording ? halt : undefined} onFresh={fresh}
             onChanged={() => void client.invalidateQueries({ queryKey: qk.talk(talk.id) })} />}
-          {!talk && phase.k === 'working' && <Skeleton />}
-          <Composer phase={phase} place={place} about={talk ? null : about} talking={!!talk}
+          {!talk && phase.k === 'working' && <Skeleton steps={phase.steps} />}
+          <Composer phase={phase} place={place} about={talk ? null : about} talk={talk?.id ?? null}
             onDropPlace={() => { forget(); setPlace(''); setAbout(hint); setHomeless(''); }}
             onSend={send} onPin={pin}
             onRecord={() => { setProblem(''); setPhase({ k: 'recording' }); }}
@@ -142,7 +158,7 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
           {homeless && <p className="erp-capture-hint" style={{ marginTop: -6 }}>{homeless}</p>}
           {problem && <p role="alert" className="erp-capture-problem"><AlertCircle size={15} aria-hidden />{problem}</p>}
           <Transcribing phase={phase} alive={alive}
-            onTalk={(t) => { keep(t); setPhase({ k: 'idle' }); }}
+            onTalk={(t) => { keep(t); void live('', [], t.id); }}
             onFailed={(recording) => setPhase({ k: 'failed', recording })} />
           {phase.k === 'failed' && <FailedRecording recording={phase.recording} onDone={fresh} />}
           <div className="erp-capture-rest" aria-disabled={phase.k !== 'idle' || undefined}>
@@ -239,8 +255,8 @@ function HintLine({ about, onDrop }: { about: CaptureHint | null; onDrop?: () =>
  * Anhang in die nächste Nachricht (sie liegen dann im Korb). Während einer Aufnahme ist sie die
  * Aufnahme (`RecordingStrip`); während die KI antwortet, wartet sie. ◄◄
  */
-function Composer({ phase, place, about, talking, onDropPlace, onSend, onPin, onRecord, onStopped, onMicFailed }: {
-  phase: Phase; place: string; about: CaptureHint | null; talking: boolean; onDropPlace: () => void;
+function Composer({ phase, place, about, talk, onDropPlace, onSend, onPin, onRecord, onStopped, onMicFailed }: {
+  phase: Phase; place: string; about: CaptureHint | null; talk: number | null; onDropPlace: () => void;
   onSend: (text: string, files: TalkFile[]) => Promise<boolean>;
   onPin: () => void; onRecord: () => void; onStopped: (r: Recording) => void; onMicFailed: (why: string) => void;
 }) {
@@ -274,7 +290,7 @@ function Composer({ phase, place, about, talking, onDropPlace, onSend, onPin, on
     if (!(await onSend(sent, with_))) { setText((t) => t || sent); setFiles((f) => (f.length ? f : with_)); }
   }
   if (phase.k === 'recording') {
-    return <RecordingStrip hint={about?.objectId ?? null} context={place || null}
+    return <RecordingStrip hint={about?.objectId ?? null} talk={talk} context={place || null}
       onStopped={onStopped} onFailed={onMicFailed} />;
   }
   return (
@@ -299,7 +315,7 @@ function Composer({ phase, place, about, talking, onDropPlace, onSend, onPin, on
         </div>
       )}
       <TextArea name="capture" value={text} onChange={setText} readOnly={!idle} autoFocus rows={2}
-        placeholder={idle ? (talking ? 'Antworten …' : 'Was gibt’s? Schreiben oder aufnehmen …') : ''}
+        placeholder={idle ? (talk ? 'Antworten …' : 'Was gibt’s? Schreiben oder aufnehmen …') : ''}
         aria-label="Was ich dem Assistenten sage" className="erp-composer-input"
         onKeyDownCapture={(e) => {
           if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
@@ -329,11 +345,12 @@ function Composer({ phase, place, about, talking, onDropPlace, onSend, onPin, on
  * ►► **Das Gespräch** – was ich sagte (rechts), was die KI antwortet (links), die Handgriffe als
  * Karten, der Reihe nach. Oben «Neues Gespräch»; während die KI antwortet, das Skeleton. ◄◄
  */
-function TalkView({ talk, working, onFresh, onChanged }: {
-  talk: Talk; working: boolean; onFresh: () => void; onChanged: () => void;
+function TalkView({ talk, working, steps, onStop, onFresh, onChanged }: {
+  talk: Talk; working: boolean; steps?: string[]; onStop?: () => void; onFresh: () => void; onChanged: () => void;
 }) {
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }); }, [talk.messages.length, talk.handgriffe.length]);
+  useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }); },
+    [talk.messages.length, talk.handgriffe.length, steps?.length]);
   const items = [
     ...talk.messages.map((m) => ({ at: m.at, id: m.id, el: <Bubble key={`m${m.id}`} m={m} /> })),
     ...talk.handgriffe.map((h) => ({ at: h.at, id: h.id, el: <HandgriffCard key={`h${h.id}`} h={h} onChanged={onChanged} /> })),
@@ -347,7 +364,7 @@ function TalkView({ talk, working, onFresh, onChanged }: {
           style={{ height: 28, padding: '0 10px', fontSize: 12 }}><Plus size={13} />Neues Gespräch</button>
       </div>
       {items.map((x) => x.el)}
-      {working && <Skeleton />}
+      {working && <Skeleton steps={steps} onStop={onStop} />}
       {!working && talk.problem && <p className="erp-capture-hint" role="status">{talk.problem}</p>}
       <div ref={end} />
     </div>
@@ -382,20 +399,31 @@ function Transcribing({ phase, alive, onTalk, onFailed }: {
   return null;
 }
 
-/** Die Form einer Antwort, grau – ein paar Zeilen, eine Karte. */
-function Skeleton() {
+/**
+ * ►► **Während die KI arbeitet** – was sie gerade tut, Schritt für Schritt («liest …», «bereitet vor:
+ * …»), darunter die graue Form der Antwort; «Stopp» hält sie vor dem nächsten Schritt an. ◄◄
+ */
+function Skeleton({ steps, onStop }: { steps?: string[]; onStop?: () => void }) {
   return (
     <div className="erp-capture-skel" aria-busy="true" aria-label="Der Assistent antwortet">
+      {(steps ?? []).length > 0 && (
+        <ol className="erp-talk-steps" aria-live="polite">
+          {(steps ?? []).map((st, i) => (
+            <li key={i} className={i === (steps ?? []).length - 1 ? 'erp-talk-step-now' : undefined}>
+              {i === (steps ?? []).length - 1 ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <Check size={12} aria-hidden />}
+              <span>{st}</span>
+            </li>
+          ))}
+        </ol>
+      )}
       <span className="erp-skel" style={{ height: 12, width: '72%' }} />
       <span className="erp-skel" style={{ height: 12, width: '54%' }} />
-      <div className="erp-capture-part">
-        <span className="erp-skel" style={{ height: 14, width: '64%' }} />
-        <span className="erp-skel" style={{ height: 12, width: '40%' }} />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <span className="erp-skel" style={{ height: 32, width: 110, borderRadius: 8 }} />
-          <span className="erp-skel" style={{ height: 32, width: 90, borderRadius: 8 }} />
-        </div>
-      </div>
+      {onStop && (
+        <button type="button" onClick={onStop} className="erp-actbtn erp-actbtn-neutral"
+          style={{ height: 28, padding: '0 10px', fontSize: 12, alignSelf: 'flex-start' }}>
+          <Square size={11} aria-hidden />Stopp
+        </button>
+      )}
     </div>
   );
 }

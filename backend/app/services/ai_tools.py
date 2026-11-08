@@ -192,20 +192,20 @@ def tools_for(db: Session) -> list[Tool]:
         Tool("find", "Sucht Datensätze (Personen, Firmen, Aufträge, Artikel, Instanzen) nach "
                      "Objektnummer oder Name. Gibt «Nummer · Typ · Name» je Treffer.",
              {"q": {"type": "string", "description": "Nummer oder ein Teil des Namens"}},
-             lambda a: find(db, viewer, a.get("q"))),
+             lambda a: find(db, viewer, a.get("q")), doing="sucht"),
         Tool("record", "Liest die Angaben eines Datensatzes (Person, Firma, Auftrag, Artikel, "
                        "Instanz, Dokument) über seine Objektnummer.",
              {"object_id": {"type": "integer", "description": "9-stellige Objektnummer"}},
-             lambda a: record(db, viewer, a.get("object_id"))),
+             lambda a: record(db, viewer, a.get("object_id")), doing="liest"),
         Tool("history", "Liest die neuesten Einträge im Verlauf eines Datensatzes: Nachrichten, "
                         "Notizen, Dokumente, Änderungen.",
              {"object_id": {"type": "integer", "description": "9-stellige Objektnummer"}},
-             lambda a: history(db, viewer, a.get("object_id"))),
+             lambda a: history(db, viewer, a.get("object_id")), doing="liest den Verlauf von"),
         Tool("wissen", "Sucht im Wissen der Firma nach Bedeutung (nicht nach Wörtern): Notizen, "
                        "Dokumente und frühere Entscheide – je Treffer Datum, Datensatz, Inhalt. "
                        "Für «gab es das schon?», «wie war das damals?».",
              {"frage": {"type": "string", "description": "Worum es geht, in eigenen Worten"}},
-             lambda a: _knowledge(db, a.get("frage"))),
+             lambda a: _knowledge(db, a.get("frage")), doing="sucht im Wissen:"),
     ]
 
 

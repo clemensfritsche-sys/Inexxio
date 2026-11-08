@@ -41,11 +41,11 @@ Zahlung:   Stripe – eigene Bezahlkarte im ERP (Payment Element + Webhook). OPT
 E-Mail:    Gmail API – je eigener Gesellschaft ein Postfach, Abgleich + Versand.
            OPTIONAL: ohne OAuth-Client wird eine Mail nur erfasst (docs/gmail-setup.md)
 KI:        Claude API (Anthropic SDK) – EINE Tür services/ai.py: Lesen (Haiku 5.5),
-           Verfassen, Ablegen, Folgen, Hinweise (Sonnet 5.5, mit Lese-Werkzeugen), Deckel
-           10 CHF je Tag, jeder Aufruf im Log. Bedeutungs-Zahlen: Vertex AI (europe-west3) +
-           pgvector. OPTIONAL: ohne ANTHROPIC_API_KEY geht alles ausser Verfassen und Ablegen
-           durch die KI; ohne Vertex fehlen nur die ähnlichen Fälle (docs/dokumente.md,
-           «Die KI» unten)
+           Verfassen, Gespräch, Folgen, Angeheftetes (Sonnet 5.5, mit Werkzeugen), Deckel
+           10 CHF je Tag, jeder Aufruf im Log (Kosten, Dauer). Abschreiben: Gemini über
+           Vertex AI; Bedeutungs-Zahlen: Vertex AI + pgvector. OPTIONAL: ohne ANTHROPIC_API_KEY
+           bleibt das Gespräch Text; ohne Vertex fehlen Abschreiben und Suche nach Bedeutung
+           («Der Assistent» unten)
 Scanner:   OpenCV.js (Paket @techstark/opencv-js, als /vendor/opencv-<Version>.js
            ausgeliefert, geladen erst beim Scannen)
 ```
@@ -356,10 +356,15 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   Prüfungen – kein zweiter Weg. Welche Handlungen ein Handgriff sein können, **folgt aus den
   Routen** (`handgriff.operations`: schreibt, verlangt Personal, nimmt JSON; mit Datei → nur von
   Hand; nichts aus `routers/assistant`) – **keine Liste, keine Regel, nur Rechte**. Die KI schlägt
-  Handlungen nach (`handlungen`, `handlung`), statt alle in jeder Anfrage mitzubekommen.
+  Handlungen nach (`handlungen`, `handlung`), statt alle in jeder Anfrage mitzubekommen. **Lesen**
+  ebenso: `abrufen` ruft jede lesende Route des Personals (`handgriff.reads` · `look`), als
+  `ai_tools.reader`, in eigener Sitzung, verworfen.
 - **Vorbereiten = Probelauf** in eigener Sitzung, dann verworfen (Regel 1: nach aussen erst nach
   dem Speichern, `core/outside`); was nicht geht, wird keine Karte, die KI erfährt den Satz der
-  Route. **Ausführen genau einmal** (`handgriff.done`, eindeutiger Index `ix_log_handgriff_done`),
+  Route. **Fehlen nur Werte** (die Route sagt 400/422, `handgriff.incomplete`), wird es trotzdem
+  eine Karte: «Fehlt noch: …» (`missing`), «Ausführen» erst nach dem Ergänzen, «Entwurf öffnen»
+  überall, wo es «Neu anlegen» gibt (Person, Firma, Artikel, Auftrag, Dokument). Was die Person nicht
+  darf, wird nie eine Karte. **Ausführen genau einmal** (`handgriff.done`, eindeutiger Index `ix_log_handgriff_done`),
   ganz oder gar nicht. **Aufeinander aufbauen:** `{"$handgriff": n}` in den Werten, die Karte
   wartet, das ERP setzt die Nummer ein. **Inzwischen geändert:** steht die Nummer im Pfad und
   wurde der Datensatz seit der Vorbereitung geändert (`update`/`delete` im Log), weist Ausführen
@@ -367,12 +372,17 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   aus dem Schema der Route, geprüft per Probelauf (`…/probe`).
 - **Alles sind Ereignisse im Log**, keine Tabelle: `talk` (eine Nachricht, `by` person · ai; die
   erste IST das Gespräch), `handgriff`, `handgriff.done`, `handgriff.dropped`, `talk.failed`,
-  `pin`. **Offen ist abgeleitet.** Ein Gespräch ist **privat** (wer es führt, und der Admin), offen,
+  `talk.stop`, `pin`. **Offen ist abgeleitet.** Ein Gespräch ist **privat** (wer es führt, und der Admin), offen,
   solange ein Handgriff offen ist oder die KI nicht geantwortet hat; abgeschlossen wird es nicht
   mehr gezeigt. Diese Ereignisse stehen nicht im Verlauf (`history.HIDDEN_EVENTS`).
 - **Das «+»** (`components/erp/capture/capture-sheet.tsx`): Eingabe wie bei Claude, darüber das
   Gespräch (Blasen, Handgriff-Karten `handgriff-card.tsx`), darunter «Offene Gespräche» und «Neu
-  anlegen». 📷/📄 legen die Datei in den Korb und hängen sie an die Nachricht – die KI liest sie
+  anlegen». **Die Antwort kommt live** (`talk.stream`, NDJSON): die Nachricht steht sofort, darunter
+  jeder Schritt der KI («liest …», «bereitet vor: …») und «Stopp» (`talk.stop`). Das Gespräch läuft
+  **direkt am Dienst** (`BACKEND_URL`, `GET …/assistant/door`) – nicht durch das Hosting mit seinen
+  60 s; begrenzt durch Schritte, Deckel und «Stopp», die Uhr (240 s, Cloud Run 300 s) ist nur das
+  Netz. Die KI arbeitet in eigenem Faden und eigener Sitzung; reisst die Leitung, arbeitet sie zu
+  Ende. Eine Sperre je Gespräch: Stream und Takt antworten nie beide. 📷/📄 legen die Datei in den Korb und hängen sie an die Nachricht – die KI liest sie
   und bereitet das Dokument vor («Entwurf öffnen» öffnet den Dokument-Entwurf mit der Datei; mit
   der Freigabe ist der Handgriff erledigt, `…/done`). Die Zahl am «+» = meine offenen Gespräche und
   Aufnahmen (`lib/assistant.useUnfinished`).
@@ -400,8 +410,9 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   sehen darf. Ohne Vertex keine Suche nach Bedeutung, sonst nichts.
 - **Die KI liest, was jedes Personal sehen darf** (`ai_tools.reader`: Rolle `employee`, ohne eigene
   Nummer) – auch wenn ein Admin spricht. Eine Tür: `services/ai.py` (`converse` mit Werkzeugen,
-  Aufgaben `talk` · `follow` · `pin` · `read` · `compose`, je Zug ein `ai.call` mit Kosten; `ai.until`
-  hält jede Anfrage unter 60 s). Der Auftrag steht wörtlich in `backend/app/assets/ai/auftrag.md`.
+  Aufgaben `talk` · `follow` · `pin` · `read` · `compose`, je Zug ein `ai.call` mit Kosten und Dauer
+  `ms`; Anleitung und Werkzeuge im Zwischenspeicher des Anbieters, `cache_control`; `ai.until` hält
+  jede Anfrage über das Hosting unter 60 s). Der Auftrag steht wörtlich in `backend/app/assets/ai/auftrag.md`.
   Fällt die KI aus, bleibt das Gespräch Text; der Takt antwortet nach (`talk.catch_up`).
 - **Deckel in Franken** (`AI_DAILY_CAP_CHF`, 10 je Schweizer Tag, Preise in `ai.PRICES`); ab 80 %
   ein Hinweis in «zu tun» des Admins (am Betreiber, mit Betrag; am Deckel rot).
@@ -412,8 +423,9 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   Abweisung); fällt das Mikrofon aus, endet die Aufnahme sauber. Bricht sie ab, gilt sie nach
   **30 Minuten Ruhe** als gestoppt – nichts bis dahin geht verloren. **Gemini** (Vertex AI, `ai.transcribe`, `gemini-3.5-flash`, dieselbe Tür
   und derselbe Deckel) schreibt je Abschnitt ab – Hochdeutsch in Schweizer Schreibweise, auch bei
-  Mundart; der Text wird **eine Nachricht im Gespräch im Namen der Person**, danach wie beim
-  Schreiben. Was sich nicht abschreiben lässt (kein Stück 0, über 15 MB, zweimal abgelehnt,
+  Mundart; der Text wird **eine Nachricht im Gespräch im Namen der Person** – im offenen Gespräch,
+  in dem gesprochen wurde (`recording.start.talk`), sonst ein neues; danach antwortet die KI live
+  wie beim Schreiben (ohne «+» der Takt). Was sich nicht abschreiben lässt (kein Stück 0, über 15 MB, zweimal abgelehnt,
   sechsmal gescheitert), wird **mit Vermerk** «[Abschnitt n: …]» übersprungen. **Vom Gesprochenen
   bleibt nur der Text:** die Stücke
   (`recording_chunks`, Bytes über `attachments.put_object` in einem **eigenen Bucket ohne Soft

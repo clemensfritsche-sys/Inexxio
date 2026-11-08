@@ -15,14 +15,16 @@ import type { Recording } from '@/types';
  * Startet das Mikrofon nicht (verweigert, keines da), geht der Grund an `onFailed` – das Feld
  * ist dann wieder die Eingabe, der Grund steht darunter.
  */
-export function RecordingStrip({ hint, context, onStopped, onFailed }: {
+export function RecordingStrip({ hint, talk, context, onStopped, onFailed }: {
   hint: number | null;
+  /** Das offene Gespräch – der Text geht dorthin, wie getippt. */
+  talk: number | null;
   /** Die Stecknadel («Stelle: …») – steht später vor dem abgeschriebenen Text. */
   context: string | null;
   onStopped: (r: Recording) => void;
   onFailed: (why: string) => void;
 }) {
-  const rec = useRecorder(hint, onStopped, context);
+  const rec = useRecorder(hint, onStopped, context, talk);
   const live = rec.phase === 'recording';
   const failedRef = useRef(onFailed);
   failedRef.current = onFailed;

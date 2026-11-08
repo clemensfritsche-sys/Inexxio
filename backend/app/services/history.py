@@ -51,7 +51,7 @@ HIDDEN = frozenset({"messages", "message_parties", "objects", "webauthn_challeng
 #:    ein Gespräch im «+» (privat), ein Handgriff und das Wissen im Angehefteten; was ein
 #:    Handgriff tut, steht danach als gewöhnliche Änderung oder Notiz da. Im Verlauf wären sie
 #:    dieselbe Sache ein zweites Mal – und die Worte eines Gesprächs für jeden lesbar. ◄◄
-HIDDEN_EVENTS = frozenset({"talk", "talk.failed", "handgriff", "handgriff.done",
+HIDDEN_EVENTS = frozenset({"talk", "talk.failed", "talk.stop", "handgriff", "handgriff.done",
                            "handgriff.dropped", "pin", "mail.followed", "mail.follow_failed",
                            "follow.start",
                            # Phase 4: eine Aufnahme ist privat, wie das Gespräch, in das sie

@@ -14,6 +14,7 @@ Bug-Formen, gegen die diese Wächter stehen:
 
 import json
 import random
+from contextlib import nullcontext
 
 import pytest
 from fastapi import HTTPException
@@ -23,7 +24,7 @@ from app.core.actor import act
 from app.core.auth import ACTING, get_current_user
 from app.core.database import AMBIENT, get_db
 from app.main import app
-from app.models import Message, UserProfile
+from app.models import Log, Message, UserProfile
 from app.services import ai, handgriff, log, pins, talk, todo
 from tests import factories
 from tests.runner import session
@@ -53,6 +54,7 @@ class _Api:
         db.commit = db.flush        # Hintergrundarbeit (Aufnahmen) speichert je Einheit – hier nicht
         app.dependency_overrides[get_db] = self._session
         app.dependency_overrides[get_current_user] = self._who
+        talk.OWN_SESSION = lambda: nullcontext(db)     # die Antwort sieht die Testsitzung
         self.client = TestClient(app)
 
     def _session(self):
@@ -78,6 +80,7 @@ def api(db):
     yield a
     app.dependency_overrides.pop(get_db, None)
     app.dependency_overrides.pop(get_current_user, None)
+    talk.OWN_SESSION = talk._own_session
 
 
 def _tool(name, i, **kw):
@@ -99,10 +102,17 @@ def _note(about, body="Kran 3 quietscht"):
     return {"channel": "note", "about": [about], "subject": "Kran 3", "body": body}
 
 
-def _say(api, who, text, **kw):
-    r = api.as_(who).post("/api/v1/erp/assistant/talks", json={"text": text, **kw})
+def _lines(r):
+    """Der Stream: je Zeile ein JSON (Leerzeilen sind Lebenszeichen)."""
     assert r.status_code == 200, r.text
-    return r.json()
+    return [json.loads(x) for x in r.text.splitlines() if x.strip()]
+
+
+def _say(api, who, text, **kw):
+    """Sagen – und das Gespräch, wie es am Ende des Streams steht."""
+    lines = _lines(api.as_(who).post("/api/v1/erp/assistant/talks", json={"text": text, **kw}))
+    assert "talk" in lines[-1], lines
+    return lines[-1]["talk"]
 
 
 # ─── Gespräch und Handgriff ────────────────────────────────────────────────────────────
@@ -360,3 +370,59 @@ def test_a_crafted_path_is_no_handgriff():
                  "/api/v1/erp/records/%2e%2e/1", "/api/v1/erp//messages"):
         assert handgriff.operation_for("POST", path) is None, path
     assert handgriff.operation_for("POST", "/api/v1/erp/messages") is not None
+
+
+# ─── Feinschliff: unvollständig, lesen, live, Stopp ─────────────────────────────────────
+
+def test_missing_values_make_a_card_that_waits_for_the_person(db, api, house, monkeypatch):
+    """Fehlen nur Werte (die Route sagt 400/422), wird es trotzdem eine Karte – mit dem Satz der
+    Route; «Ausführen» weist ab, bis die Person ergänzt. Was sie nicht darf, wird nie eine
+    (``test_the_ai_cannot_prepare_what_the_person_may_not_do``)."""
+    _boss, staff, _firm = house
+    script = _turns(_prepare(1, "POST /api/v1/erp/articles", "/api/v1/erp/articles",
+                             {"name": "ERP"}, "Artikel «ERP» anlegen"))
+    _ready(monkeypatch, script)
+    t = _say(api, staff, "Leg den Artikel ERP an.")
+    (h,) = t["handgriffe"]
+    assert h["state"] == "open" and "Abmessungen" in h["missing"]
+    result = script.seen[1]["messages"][-1]["content"][0]["content"]
+    assert "unvollständig" in result
+    r = api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run", json={})
+    assert r.status_code == 409 and "Unvollständig" in r.json()["detail"]
+
+
+def test_the_ai_reads_what_every_staff_member_sees(db, house):
+    """«abrufen»: jede lesende Route des Personals, durch die echte Route – nichts, was nur ein
+    Admin sieht, und keine schreibende."""
+    out = handgriff.look("/api/v1/erp/orders/module-catalog")
+    assert out.ok and out.data, out.detail
+    assert not handgriff.look("/api/v1/admin/territories").ok          # nur Admin
+    assert not handgriff.look("/api/v1/erp/messages").ok               # schreibt
+    keys = {o.key for o in handgriff.reads()}
+    assert "GET /api/v1/erp/orders/module-catalog" in keys
+    assert not any(k.startswith("GET /api/v1/erp/assistant") for k in keys)
+
+
+def test_the_answer_streams_its_steps(db, api, house, monkeypatch):
+    """Live wie bei Claude: je Schritt eine Zeile, am Ende das Gespräch; jeder Zug im Log mit
+    seiner Dauer."""
+    _boss, staff, firm = house
+    _ready(monkeypatch, _turns(_prepare(1, "POST /api/v1/erp/messages", "/api/v1/erp/messages",
+                                        _note(firm.object_id), "Notiz an die Firma")))
+    lines = _lines(api.as_(staff).post("/api/v1/erp/assistant/talks", json={"text": "Notiz bitte."}))
+    assert {"step": "bereitet vor: Notiz an die Firma"} in lines
+    assert lines[-1]["talk"]["messages"][-1]["by"] == "ai"
+    calls = db.query(Log).filter(Log.event == "ai.call").order_by(Log.id.desc()).limit(2).all()
+    assert all("ms" in c.payload for c in calls)
+
+
+def test_stop_halts_before_the_next_step(db, house, monkeypatch):
+    """«Stopp»: die KI hält vor ihrem nächsten Schritt an; das Gespräch hat eine Antwort
+    («Angehalten.»), der Takt holt nichts nach."""
+    _boss, staff, _firm = house
+    _ready(monkeypatch, _turns(say="Nie gesagt."))
+    tid = talk.say(db, staff, "Mach etwas Langes.")
+    talk.stop(db, staff, tid)
+    assert talk.answer(db, tid, staff) is None
+    t = talk.view(db, tid)
+    assert t.messages[-1].text == talk.HALTED and not t.waiting

@@ -86,11 +86,11 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?
   { key: 'origin_country', label: 'Ursprungsland', placeholder: 'Wo die Ware hergestellt wurde – z. B. CH' },
 ];
 
-function seedFrom(record: Article | null): Form {
-  const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '', kind: 'goods',
+function seedFrom(record: Article | null, initial?: Record<string, string> | null): Form {
+  const base: Form = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '', kind: 'goods',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
     is_hazmat: '', hs_code: '', origin_country: '' };
-  if (!record) return base;
+  if (!record) return initial ? fromValues(base, initial) : base;
   return {
     ...base,
     name: record.name, unit: record.unit, serialization: record.serialization,
@@ -105,6 +105,13 @@ function seedFrom(record: Article | null): Form {
   };
 }
 
+/** Ein Entwurf aus einem Handgriff – die Werte, die die KI kannte (Namen wie die Route sie nimmt). */
+function fromValues(base: Form, v: Record<string, string>): Form {
+  const known = Object.fromEntries(Object.entries(v).filter(([k]) => k in base && k !== 'kind'));
+  return { ...base, ...known, ...(v.is_service === 'true' ? { kind: 'service' } : {}),
+    ...(v.is_hazmat === 'true' ? { is_hazmat: 'ja' } : v.is_hazmat === 'false' ? { is_hazmat: '' } : {}) };
+}
+
 // Vorübergehender Transportfehler (Server nicht erreichbar / Kaltstart) vs.
 // fachlicher Fehler. Der API-Client wiederholt solche Anfragen bereits mehrfach;
 // schlägt es danach noch fehl, bekommt der Nutzer einen Wiederhol-Hinweis.
@@ -112,8 +119,10 @@ function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrder }: {
+export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onCreateOrder }: {
   record: Article | null;          // null ⇒ Anlage-Modus
+  /** Anlage aus einem Handgriff: die Werte, die die KI kannte. */
+  initial?: Record<string, string> | null;
   onSaved: (a: Article) => void;
   onBack: () => void;
   /**
@@ -142,7 +151,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
     if (isCreate || record?.object_id == null || record.status !== FREIGEGEBEN) return;
     onCreateOrder?.(record.object_id);
   }
-  const [form, setForm] = useState<Form>(() => seedFrom(record));
+  const [form, setForm] = useState<Form>(() => seedFrom(record, initial));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,7 +160,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
   const [steps, setSteps] = useState<ModuleDraft[]>([]);
   // Welche optionalen Felder werden angezeigt (mit Wert oder bewusst hinzugefügt)
   const [added, setAdded] = useState<AddKey[]>(() => {
-    const s = seedFrom(record);
+    const s = seedFrom(record, initial);
     return OPTIONAL_FIELDS.filter((f) => s[f.key].trim() !== '').map((f) => f.key);
   });
 

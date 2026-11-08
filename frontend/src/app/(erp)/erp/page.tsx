@@ -32,7 +32,9 @@ const SUGGEST_LIMIT = 8;
 /** Was ein Entwurf mitbringt (aus «+» oder einem Handgriff). */
 interface Seeds { no: number; draft: DraftSeed | null; record: Record<string, string> | null; handgriff: number | null }
 /** Welcher Entwurf zu welcher Anlage gehört – für «Entwurf öffnen» über die Adresse. */
-const KIND_OF: Partial<Record<Creatable, DraftFromHandgriff['kind']>> = { person: 'user', company: 'organization', document: 'document' };
+const KIND_OF: Record<Creatable, DraftFromHandgriff['kind']> = {
+  person: 'user', company: 'organization', article: 'article', order: 'order', document: 'document',
+};
 
 export default function ErpPage() {
   const [search, setSearch] = useState('');
@@ -74,7 +76,7 @@ export default function ErpPage() {
   };
   useUrlParams({ onType: setTypeFilter, onOpen: open,
     onCreate: (type, camera, values, handgriff) => {
-      if (handgriff && values) { void openDraft({ kind: KIND_OF[type] ?? 'document', values, handgriff }); return; }
+      if (handgriff && values) { void openDraft({ kind: KIND_OF[type], values, handgriff }); return; }
       startCreate(type, undefined, { ...(camera ? { draft: { start: 'scan' } } : {}), ...(values ? { record: values } : {}) });
     } });
 
@@ -176,11 +178,17 @@ export default function ErpPage() {
     objectId: sel.objectId,
     label: (activeRow && rowTitle(activeRow)) || TYPE_META[sel.type]?.label || '',
   } : null;
-  /** «Entwurf öffnen» aus einem Handgriff – Person und Firma vorausgefüllt, ein Dokument mit der
+  /** «Entwurf öffnen» aus einem Handgriff – der Anlege-Entwurf des ERP, vorausgefüllt: Person,
+   *  Firma und Artikel mit ihren Werten, ein Auftrag mit seiner ersten Zeile, ein Dokument mit der
    *  Datei aus dem Gespräch (`values.file` = ihr Schlüssel im Korb). */
   async function openDraft(d: DraftFromHandgriff) {
+    if (d.kind === 'order') {
+      startCreate('order', orderSeedOf(d.body), { handgriff: d.handgriff });
+      return;
+    }
     if (d.kind !== 'document') {
-      startCreate(d.kind === 'user' ? 'person' : 'company', undefined, { record: d.values, handgriff: d.handgriff });
+      const type: Creatable = d.kind === 'user' ? 'person' : d.kind === 'organization' ? 'company' : 'article';
+      startCreate(type, undefined, { record: d.values, handgriff: d.handgriff });
       return;
     }
     const file = d.values.file ? await api.attachmentBlob(d.values.file).catch((e: unknown) => {
@@ -211,12 +219,14 @@ export default function ErpPage() {
 
   const handlers: DetailHandlers = {
     onArticleSaved: (a: Article) => {
+      settle(a.object_id);
       patchList<Article>('articles', replace(a));
       select({ type: 'article', objectId: a.object_id });
     },
     // Erst hier existiert der Auftrag: die Anlage liefert ihn samt frisch vergebener
     // Objektnummer zurück, und der Feed übernimmt ihn ohne Nachladen.
     onOrderSaved: (o: Order) => {
+      settle(o.object_id);
       patchList<OrderSummary>('orders', replace<OrderSummary>(o));
       select({ type: 'order', objectId: o.object_id });
     },
@@ -271,4 +281,13 @@ export default function ErpPage() {
       </CaptureContext.Provider>
     </ErpNavContext.Provider>
   );
+}
+
+/** Die erste Zeile eines vorbereiteten Auftrags als Seed des Entwurfs (Artikel, Menge) – den Rest
+ *  entscheidet der Mensch im Entwurf. */
+function orderSeedOf(body: Record<string, unknown> | undefined): OrderSeed | undefined {
+  const lines = body?.lines;
+  const first = Array.isArray(lines) ? (lines[0] as { article_object_id?: unknown; quantity?: unknown } | undefined) : undefined;
+  if (!first || typeof first.article_object_id !== 'number') return undefined;
+  return { articleObjectId: first.article_object_id, ...(typeof first.quantity === 'number' ? { quantity: first.quantity } : {}) };
 }

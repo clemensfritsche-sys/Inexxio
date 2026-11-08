@@ -2425,11 +2425,52 @@ export interface paths {
         put?: never;
         /**
          * Say
-         * @description **Dem Assistenten etwas sagen** – die Nachricht steht sofort; dann antwortet die KI und
-         *     bereitet Handgriffe vor (unter 50 s). Fällt sie aus, sagt ``problem`` warum; der Takt
-         *     antwortet nach.
+         * @description **Dem Assistenten etwas sagen** – die Nachricht ist gespeichert, bevor die Antwort beginnt;
+         *     dann antwortet die KI live (je Zeile ein Schritt, am Ende das Gespräch). Ohne Text, aber mit
+         *     ``talk``: die KI antwortet auf das, was schon dasteht (nach einer Aufnahme).
          */
         post: operations["say_api_v1_erp_assistant_talks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/assistant/talks/{talk_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop
+         * @description **Stopp** – die KI hält vor ihrem nächsten Schritt an; was sie vorbereitete, bleibt.
+         */
+        post: operations["stop_api_v1_erp_assistant_talks__talk_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/assistant/door": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Door
+         * @description Wo das Gespräch live läuft – die direkte Adresse des Dienstes (ohne die 60 s des Hostings);
+         *     leer = dieselbe Adresse wie alles andere.
+         */
+        get: operations["door_api_v1_erp_assistant_door_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4024,6 +4065,17 @@ export interface components {
             result?: number | null;
         };
         /**
+         * DoorOut
+         * @description Die direkte Adresse des Dienstes für das Gespräch live – leer: dieselbe wie sonst.
+         */
+        DoorOut: {
+            /**
+             * Url
+             * @default
+             */
+            url: string;
+        };
+        /**
          * EmailCheck
          * @description Die neue Anmelde-E-Mail – gefragt, bevor der Bestätigungslink hinausgeht.
          */
@@ -4364,6 +4416,11 @@ export interface components {
              * @default
              */
             hand: string;
+            /**
+             * Missing
+             * @default
+             */
+            missing: string;
             /** Waits For */
             waits_for?: number[];
             /**
@@ -5986,6 +6043,8 @@ export interface components {
             mime: string;
             /** Context */
             context?: string | null;
+            /** Talk */
+            talk?: number | null;
         };
         /** RefIn */
         RefIn: {
@@ -11668,13 +11727,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Je Zeile ein JSON: {step} je Schritt, am Ende {talk}. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TalkOut"];
+                    "application/x-ndjson": unknown;
                 };
             };
             /** @description Validation Error */
@@ -11684,6 +11743,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_api_v1_erp_assistant_talks__talk_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                talk_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    door_api_v1_erp_assistant_door_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorOut"];
                 };
             };
         };

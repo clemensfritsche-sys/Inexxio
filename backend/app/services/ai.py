@@ -141,7 +141,10 @@ TASKS: dict[str, Task] = {
     # Ein Papier von zwei, drei Seiten – ebenfalls unter den 60 s des Hostings.
     "compose": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=55.0, retries=0),
     # Ein Zug im Gespräch: nachschlagen, vorbereiten (jeder Handgriff mit Probelauf), antworten.
-    "talk": Task(model="claude-sonnet-5-5", max_tokens=6000, timeout=48.0, retries=0,
+    # Live gestreamt direkt am Dienst (``talk.stream``), nicht durch das Hosting: begrenzt durch
+    # die Schritte, den Deckel und «Stopp» – die Uhr ist nur das äussere Netz (Cloud Run 300 s).
+    # Im Takt hält ``until`` ihn kürzer.
+    "talk": Task(model="claude-sonnet-5-5", max_tokens=6000, timeout=240.0, retries=0,
                  rounds=10, effort="low"),
     # Was aus einer eingehenden Mail folgt – im Takt, der selbst nach 60 s abbricht: 45 s, kein
     # zweiter Versuch (ein Fehlschlag kommt im nächsten Takt wieder, ``follow.TRIES``).
@@ -249,7 +252,9 @@ def _client(timeout: float = 90.0, retries: int = 1):
 def _record(db: Session, task: str, model: str, actor: Optional[UserProfile],
             usage: dict[str, Any]) -> None:
     """Ein Aufruf ins Log – mit den Kosten in Franken (der Deckel zählt sie)."""
-    usage = {**usage, "chf": cost_chf(model, int(usage.get("in") or 0), int(usage.get("out") or 0))}
+    billed_in = (int(usage.get("in") or 0) + CACHE_READ * int(usage.get("cache_read") or 0)
+                 + CACHE_WRITE * int(usage.get("cache_write") or 0))
+    usage = {**usage, "chf": cost_chf(model, round(billed_in), int(usage.get("out") or 0))}
     log.event(db, "ai.call", None, {"task": task, "model": model, **usage},
               kind="ai", actor=actor.object_id if actor else None)
 
@@ -280,6 +285,16 @@ class Tool:
     properties: dict[str, Any]
     run: Callable[[dict[str, Any]], str]
     required: tuple[str, ...] = field(default=())
+    #: Was die Person live sieht, während das Werkzeug läuft («sucht», «liest») – davor steht
+    #: nichts, dahinter der erste Wert der Eingabe.
+    doing: str = ""
+    #: Welcher Wert der Eingabe dahinter steht – leer: der erste.
+    shows: str = ""
+
+    def step(self, args: dict[str, Any]) -> str:
+        values = [args.get(self.shows)] if self.shows else list(args.values())
+        first = next((str(v) for v in values if isinstance(v, (str, int)) and str(v).strip()), "")
+        return " ".join(f"{self.doing or self.name} {first[:80]}".split())
 
     def spec(self) -> dict[str, Any]:
         return {"name": self.name, "description": self.description, "strict": True,
@@ -290,6 +305,24 @@ class Tool:
 
 #: So viel Text gibt ein Werkzeug höchstens zurück.
 TOOL_TEXT = 8000
+#: Warum keine Antwort kam, wenn die Person «Stopp» drückte.
+STOPPED = "Angehalten."
+
+
+def _ms(began: float) -> int:
+    """Wie lange ein Aufruf dauerte – in Millisekunden, für das Log (``ai.call``)."""
+    return int((_time.monotonic() - began) * 1000)
+
+
+def _tokens(usage: Any) -> dict[str, int]:
+    """Die Tokens eines Zugs – neu gelesen, aus dem Zwischenspeicher, in ihn geschrieben."""
+    return {"in": int(usage.input_tokens or 0), "out": int(usage.output_tokens or 0),
+            "cache_read": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
+            "cache_write": int(getattr(usage, "cache_creation_input_tokens", 0) or 0)}
+
+
+#: Was ein Token aus dem Zwischenspeicher kostet (lesen · schreiben), gemessen am vollen Preis.
+CACHE_READ, CACHE_WRITE = 0.1, 1.25
 
 
 def _use(tools: dict[str, Tool], block: Any) -> dict[str, Any]:
@@ -316,12 +349,17 @@ def _replay(content: list[Any]) -> list[dict[str, Any]]:
 
 
 def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
-             content: list[dict], schema: type[T], tools: Optional[list[Tool]] = None
-             ) -> Optional[T]:
+             content: list[dict], schema: type[T], tools: Optional[list[Tool]] = None,
+             on_step: Optional[Callable[[str], None]] = None,
+             stopped: Optional[Callable[[], bool]] = None) -> Optional[T]:
     """►►► **Ein Gespräch mit Werkzeugen** – die KI darf nachschlagen (höchstens
     ``Task.rounds`` Züge, alle zusammen in ``Task.timeout``), dann kommt die Antwort in fester
-    Form. Jeder Zug ist ein ``ai.call``; vor jedem Zug gilt der Deckel. Nie eine Ausnahme –
-    ``problem()`` sagt, warum nichts kam. ◄◄◄"""
+    Form. Jeder Zug ist ein ``ai.call`` (mit Dauer ``ms``); vor jedem Zug gilt der Deckel. Nie
+    eine Ausnahme – ``problem()`` sagt, warum nichts kam. ``on_step`` hört jeden Schritt (live
+    im «+»), ``stopped`` hält vor dem nächsten Zug an (die Person drückte «Stopp»).
+
+    **Zwischenspeicher**: Anleitung und Werkzeuge sind in jedem Zug gleich – der Anbieter merkt
+    sie sich (``cache_control``), jeder weitere Zug liest sie schneller und für einen Zehntel. ◄◄◄"""
     _PROBLEM.set("")
     blocked = _gate()
     if blocked:
@@ -336,7 +374,11 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
     if spec.effort:
         extra["output_config"] = {"effort": spec.effort}
     deadline = _time.monotonic() + _left(spec.timeout)
+    cached = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
     for turn in range(1, max(1, spec.rounds) + 1):
+        if stopped is not None and stopped():
+            _PROBLEM.set(STOPPED)
+            return None
         if not available(db):
             _PROBLEM.set("Der Tagesdeckel der KI ist erreicht – morgen wieder.")
             return None
@@ -345,14 +387,15 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
             _PROBLEM.set("Die KI hat zu lange gebraucht – gleich noch einmal.")
             return None
         usage: dict[str, Any] = {"turn": turn}
+        began = _time.monotonic()
         try:
             response = _client(left, _retries(spec.retries)).messages.parse(
-                model=spec.model, max_tokens=spec.max_tokens, system=system,
+                model=spec.model, max_tokens=spec.max_tokens, system=cached,
                 messages=messages, output_format=schema, **extra)
-            usage.update({"in": response.usage.input_tokens, "out": response.usage.output_tokens,
-                          "stop": response.stop_reason})
+            usage.update({**_tokens(response.usage), "stop": response.stop_reason, "ms": _ms(began)})
         except Exception as exc:                               # noqa: BLE001
-            usage.update({"error": type(exc).__name__, "status": getattr(exc, "status_code", None)})
+            usage.update({"error": type(exc).__name__, "status": getattr(exc, "status_code", None),
+                          "ms": _ms(began)})
             _record(db, task, spec.model, actor, usage)
             _PROBLEM.set(problem_of(exc))
             print(f"WARNING: ai.{task} failed: {exc!r}", flush=True)
@@ -362,7 +405,11 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
         _record(db, task, spec.model, actor, usage)
         if response.stop_reason == "tool_use" and calls:
             messages.append({"role": "assistant", "content": _replay(response.content)})
-            results: list[dict[str, Any]] = [_use(by_name, b) for b in calls]
+            results: list[dict[str, Any]] = []
+            for b in calls:
+                if on_step is not None and b.name in by_name:
+                    on_step(by_name[b.name].step(dict(b.input or {})))
+                results.append(_use(by_name, b))
             if turn == spec.rounds - 1:
                 results.append({"type": "text", "text": "Antworte jetzt – ohne weiteres Nachschlagen."})
             messages.append({"role": "user", "content": results})
@@ -587,6 +634,7 @@ def transcribe(db: Session, raw: bytes, mime: str, *, actor: Optional[UserProfil
                                 "data": base64.standard_b64encode(raw).decode("ascii")}},
                 {"text": "Schreibe diese Aufnahme ab."}]}],
             "generationConfig": {"maxOutputTokens": 16384}}
+    began = _time.monotonic()
     call = _vertex(db, model=TRANSCRIBE_MODEL, method="generateContent", body=body, limit=55.0,
                    least=10.0, what="Abschreiben",
                    region=settings.vertex_gemini_region or settings.vertex_region)
@@ -606,5 +654,5 @@ def transcribe(db: Session, raw: bytes, mime: str, *, actor: Optional[UserProfil
         _FAULTED.set(True)                        # Zeit, 5xx, 429, Netz
         if call.timeout:
             usage = {**usage, "in": int(seconds * AUDIO_TOKENS_PER_SECOND), "estimated": True}
-    _record(db, "transcribe", TRANSCRIBE_MODEL, actor, usage)
+    _record(db, "transcribe", TRANSCRIBE_MODEL, actor, {**usage, "ms": _ms(began)})
     return text

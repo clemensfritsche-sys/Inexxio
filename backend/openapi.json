@@ -6303,7 +6303,7 @@
           "assistent"
         ],
         "summary": "Say",
-        "description": "**Dem Assistenten etwas sagen** – die Nachricht steht sofort; dann antwortet die KI und\nbereitet Handgriffe vor (unter 50 s). Fällt sie aus, sagt ``problem`` warum; der Takt\nantwortet nach.",
+        "description": "**Dem Assistenten etwas sagen** – die Nachricht ist gespeichert, bevor die Antwort beginnt;\ndann antwortet die KI live (je Zeile ein Schritt, am Ende das Gespräch). Ohne Text, aber mit\n``talk``: die KI antwortet auf das, was schon dasteht (nach einer Aufnahme).",
         "operationId": "say_api_v1_erp_assistant_talks_post",
         "requestBody": {
           "content": {
@@ -6317,13 +6317,9 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Je Zeile ein JSON: {step} je Schritt, am Ende {talk}.",
             "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TalkOut"
-                }
-              }
+              "application/x-ndjson": {}
             }
           },
           "422": {
@@ -6332,6 +6328,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/assistant/talks/{talk_id}/stop": {
+      "post": {
+        "tags": [
+          "assistent"
+        ],
+        "summary": "Stop",
+        "description": "**Stopp** – die KI hält vor ihrem nächsten Schritt an; was sie vorbereitete, bleibt.",
+        "operationId": "stop_api_v1_erp_assistant_talks__talk_id__stop_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "talk_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Talk Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/assistant/door": {
+      "get": {
+        "tags": [
+          "assistent"
+        ],
+        "summary": "Door",
+        "description": "Wo das Gespräch live läuft – die direkte Adresse des Dienstes (ohne die 60 s des Hostings);\nleer = dieselbe Adresse wie alles andere.",
+        "operationId": "door_api_v1_erp_assistant_door_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoorOut"
                 }
               }
             }
@@ -10197,6 +10261,18 @@
         "title": "DoneIn",
         "description": "Von Hand erledigt (Entwurf freigegeben, Datei abgelegt) – was dabei entstand."
       },
+      "DoorOut": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "DoorOut",
+        "description": "Die direkte Adresse des Dienstes für das Gespräch live – leer: dieselbe wie sonst."
+      },
       "EmailCheck": {
         "properties": {
           "email": {
@@ -10935,6 +11011,11 @@
           "hand": {
             "type": "string",
             "title": "Hand",
+            "default": ""
+          },
+          "missing": {
+            "type": "string",
+            "title": "Missing",
             "default": ""
           },
           "waits_for": {
@@ -14276,6 +14357,17 @@
               }
             ],
             "title": "Context"
+          },
+          "talk": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Talk"
           }
         },
         "type": "object",

@@ -21,7 +21,8 @@ router = APIRouter(prefix="/api/v1/erp", tags=["ki"])
 def start(data: RecordingIn, db: Session = DB,
           user: UserProfile = Depends(require_employee)):
     """**Eine Aufnahme beginnt** – am offenen Datensatz (Hinweis), sonst an der Person."""
-    rec = recordings.start(db, data.hint_object_id, data.mime, user, data.context or "")
+    rec = recordings.start(db, data.hint_object_id, data.mime, user, data.context or "",
+                           in_talk=data.talk)
     db.flush()
     return recordings.view(db, rec, user)
 

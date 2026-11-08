@@ -89,9 +89,9 @@ def _first_sentence(doc: str) -> str:
     return text.strip()[:_SUMMARY]
 
 
-@lru_cache(maxsize=1)
-def operations() -> tuple[Operation, ...]:
-    """►►► **Alle Handlungen, die ein Handgriff sein können** – abgeleitet, nie gepflegt. ◄◄◄"""
+@lru_cache(maxsize=2)
+def _routes(reading: bool) -> tuple[Operation, ...]:
+    """Die Routen des Personals – schreibende (``reading=False``) oder lesende (``GET``)."""
     from fastapi.routing import APIRoute, iter_route_contexts
 
     from ..core.auth import require_admin, require_employee
@@ -101,17 +101,19 @@ def operations() -> tuple[Operation, ...]:
     for c in iter_route_contexts(app.routes):
         route = c.route
         methods = set(c.methods or ()) - {"HEAD"}
-        if not isinstance(route, APIRoute) or not methods or methods <= {"GET"}:
+        if not isinstance(route, APIRoute) or not methods or (methods <= {"GET"}) != reading:
             continue
         if route.endpoint.__module__.endswith("routers.assistant"):
             continue
         calls = _calls(route.dependant)
-        if require_employee not in calls and require_admin not in calls:
+        # Lesen darf die KI, was jedes Personal darf – nur Admin ist für sie nicht lesbar.
+        if require_employee not in calls and (reading or require_admin not in calls):
             continue
         method = sorted(methods)[0]
         op = spec["paths"].get(c.path, {}).get(method.lower(), {})
         content = (op.get("requestBody") or {}).get("content") or {}
-        schema = _resolve((content.get("application/json") or {}).get("schema") or {}, spec)
+        schema = (_resolve({"parameters": op.get("parameters") or []}, spec) if reading else
+                  _resolve((content.get("application/json") or {}).get("schema") or {}, spec))
         found.append(Operation(
             name=route.name, method=method, path=c.path,
             summary=_first_sentence(route.endpoint.__doc__ or op.get("summary") or ""),
@@ -119,6 +121,18 @@ def operations() -> tuple[Operation, ...]:
             hand=bool(content) and "application/json" not in content,
             schema=schema))
     return tuple(found)
+
+
+def operations() -> tuple[Operation, ...]:
+    """►►► **Alle Handlungen, die ein Handgriff sein können** – abgeleitet, nie gepflegt: sie
+    schreiben, verlangen Personal und nehmen JSON (mit Datei: nur von Hand). ◄◄◄"""
+    return _routes(False)
+
+
+def reads() -> tuple[Operation, ...]:
+    """►►► **Alles, was das ERP jedem Personal zeigt** – die lesenden Routen (``GET``), die die KI
+    mit ``look`` abruft. Abgeleitet wie ``operations``; Admin-Routen sind für sie nicht lesbar. ◄◄◄"""
+    return _routes(True)
 
 
 def _resolve(schema: Any, spec: dict[str, Any], depth: int = 0) -> Any:
@@ -138,8 +152,8 @@ def _resolve(schema: Any, spec: dict[str, Any], depth: int = 0) -> Any:
 
 def operation(key: str) -> Optional[Operation]:
     """Eine Handlung über ihren Schlüssel «METHODE /pfad/{platzhalter}» – eindeutig, anders
-    als der Funktionsname."""
-    return next((o for o in operations() if o.key == key), None)
+    als der Funktionsname; lesend oder schreibend."""
+    return next((o for o in (*operations(), *reads()) if o.key == key), None)
 
 
 #: Ein Pfad mit Punkt-Teilen, Abfrage, Anker oder Kodierung könnte nach dem Normalisieren eine
@@ -147,11 +161,13 @@ def operation(key: str) -> Optional[Operation]:
 _UNSAFE = re.compile(r"(^|/)\.{1,2}(/|$)|//|[?#%\\]")
 
 
-def operation_for(method: str, path: str) -> Optional[Operation]:
-    """Die Handlung zu einem konkreten Aufruf (``POST /api/v1/erp/messages``)."""
+def operation_for(method: str, path: str, among: Optional[tuple[Operation, ...]] = None
+                  ) -> Optional[Operation]:
+    """Die Handlung zu einem konkreten Aufruf (``POST /api/v1/erp/messages``) – unter den
+    schreibenden, oder unter ``among``."""
     if _UNSAFE.search(path):
         return None
-    for o in operations():
+    for o in among if among is not None else operations():
         pattern = "^" + re.sub(r"\{[^}]+\}", "[^/]+", o.path) + "$"
         if o.method == method.upper() and re.match(pattern, path):
             return o
@@ -163,7 +179,7 @@ def find(words: str, limit: int = 12) -> list[Operation]:
     statt alle in jeder Anfrage mitzubekommen."""
     terms = [t for t in re.split(r"\W+", words.lower()) if len(t) > 2]
     scored = []
-    for o in operations():
+    for o in (*operations(), *reads()):
         text = f"{o.name} {o.summary} {o.path}".lower()
         hits = sum(t in text for t in terms)
         if hits or not terms:
@@ -175,7 +191,8 @@ def find(words: str, limit: int = 12) -> list[Operation]:
 # Aufrufen
 # ---------------------------------------------------------------------------
 
-def _request(method: str, path: str, body: Any) -> httpx.Response:
+def _request(method: str, path: str, body: Any, params: Optional[dict[str, Any]] = None
+             ) -> httpx.Response:
     """Die Route über ASGI aufrufen – in einer eigenen Ereignisschleife dieses Threads; der
     Kontext (Sitzung, Person, Probelauf) reist mit."""
     from ..main import app
@@ -183,7 +200,8 @@ def _request(method: str, path: str, body: Any) -> httpx.Response:
     async def go() -> httpx.Response:
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         async with httpx.AsyncClient(transport=transport, base_url="http://handgriff") as c:
-            return await c.request(method, path, json=body if body is not None else None)
+            return await c.request(method, path, json=body if body is not None else None,
+                                   params=params or None)
     return asyncio.run(go())
 
 
@@ -195,8 +213,44 @@ def _detail(res: httpx.Response) -> tuple[Any, str, str]:
     if res.is_success:
         return data, "", ""
     if isinstance(data, dict):
-        return None, str(data.get("detail") or ""), str(data.get("hand") or "")
+        return None, said(data.get("detail")), str(data.get("hand") or "")
     return None, res.reason_phrase, ""
+
+
+def said(detail: Any) -> str:
+    """Der Satz einer Abweisung – auch die Liste, die die Prüfung der Werte liefert (422):
+    «feld: was nicht stimmt» je Fehler."""
+    if isinstance(detail, list):
+        parts = []
+        for e in detail:
+            if isinstance(e, dict):
+                where = ".".join(str(x) for x in (e.get("loc") or [])[1:]) or "Werte"
+                parts.append(f"{where}: {e.get('msg') or ''}".strip())
+        return "; ".join(parts)[:600]
+    return str(detail or "")
+
+
+def look(path: str, params: Optional[dict[str, Any]] = None) -> Outcome:
+    """►►► **Lesen, was das ERP zeigt** – eine lesende Route, durch dieselbe Tür wie ein Klick,
+    mit den Rechten, die jedes Personal hat (``ai_tools.reader``). In eigener Sitzung, danach
+    verworfen und ohne Weg nach aussen: ein Lesepfad, der nebenbei schreibt, hinterlässt nichts. ◄◄◄"""
+    from ..core.auth import ACTING
+    from .ai_tools import reader
+    if operation_for("GET", path, reads()) is None:
+        return Outcome(400, detail=f"«GET {path}» ist nichts, was das ERP zeigt.")
+    db = SessionLocal()
+    act(db, "ai", None, "handgriff")
+    tokens = (AMBIENT.set(db), ACTING.set(reader()))
+    try:
+        with outside.probe():
+            res = _request("GET", path, None, {k: v for k, v in (params or {}).items() if v is not None})
+        data, detail, hand = _detail(res)
+        return Outcome(res.status_code, data, detail, hand)
+    finally:
+        db.rollback()
+        AMBIENT.reset(tokens[0])
+        ACTING.reset(tokens[1])
+        db.close()
 
 
 @dataclass(frozen=True)
@@ -494,19 +548,27 @@ def prepare(db: Session, person: UserProfile, *, method: str, path: str, body: A
              for d in before] + [Step(method, path, body)]
     out = Outcome(200) if op.hand else call(person.id, steps, probe=True, results=known)
     # Ging der Probelauf nach aussen (KI, Zahlung), ist er bis dorthin gelungen – der echte Lauf
-    # darf es; nur eine Datei braucht die Hand.
-    if not out.ok and not out.hand and not op.hand:
+    # darf es; nur eine Datei braucht die Hand. Fehlen nur Werte (400, 422), wird er trotzdem eine
+    # Karte – die Person ergänzt sie («Entwurf öffnen», «Ändern»); was sie nicht darf, nie.
+    if not out.ok and not out.hand and not op.hand and not incomplete(out):
         return None, out
     target = target_of(path, body, home)
     payload: dict[str, Any] = {
         "method": method, "path": path, "body": body, "line": " ".join(line.split())[:300],
-        "depends": deps, "seen": _seen(db, target), "hand": "Datei" if op.hand else ""}
+        "depends": deps, "seen": _seen(db, target), "hand": "Datei" if op.hand else "",
+        "missing": out.detail if incomplete(out) else ""}
     if talk is not None:
         payload["talk"] = talk
     if mail is not None:
         payload["mail"] = mail
     hid = log.event(db, "handgriff", target, payload, kind="ai", actor=person.object_id)
     return hid, out
+
+
+def incomplete(out: Outcome) -> bool:
+    """►► **Es fehlen nur Werte** – die Route wies die Werte ab (400, 422), nicht die Person oder
+    die Sache. Das ergänzt die Person; alles andere (Rechte, unbekannt, gesperrt) nie. ◄◄"""
+    return out.status in (400, 422) and not out.hand
 
 
 def _results(db: Session, deps: list[int]) -> tuple[dict[int, int], list[int]]:
@@ -531,6 +593,8 @@ def run(db: Session, viewer: UserProfile, hid: int, body: Any = None) -> tuple[H
                                         f"{'ausgeführt' if h.done else 'weggelegt'}.")
     if h.payload.get("hand") and body is None:
         raise HTTPException(409, detail=f"Das geht nur von Hand ({h.payload['hand']}).")
+    if h.payload.get("missing") and body is None:
+        raise HTTPException(409, detail=f"Unvollständig – {h.payload['missing']}")
     known, waiting = _results(db, h.depends)
     if waiting:
         raise HTTPException(409, detail=f"Wartet auf Handgriff {', '.join(map(str, waiting))}.")
@@ -608,7 +672,8 @@ def view(db: Session, found: list[Handgriff]) -> list[Any]:
             path=h.payload.get("path") or "", body=h.payload.get("body"),
             state=state_of(h, bool(waits)), result=(h.done or {}).get("result"),
             source=mails.get(int(h.payload.get("mail") or 0), "Gespräch"), talk=h.talk,
-            hand=str(h.payload.get("hand") or ""), waits_for=waits,
+            hand=str(h.payload.get("hand") or ""), missing=str(h.payload.get("missing") or ""),
+            waits_for=waits,
             summary=op.summary if op else ""))
     return out
 

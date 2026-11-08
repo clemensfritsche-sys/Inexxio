@@ -583,13 +583,59 @@ class ApiClient {
   }
 
   // ─── Phase 5 · Der Assistent: Gespräch, Handgriff, Angeheftet (docs/konzept/phase5-bauplan.md) ──
-  /** **Dem Assistenten etwas sagen** – ohne `talk` beginnt ein Gespräch (am offenen Datensatz
-   *  `hint`); die KI antwortet und bereitet Handgriffe vor (bis ~50 s). */
-  say(text: string, opts: { talk?: number | null; hint?: number | null; files?: TalkFile[] } = {}): Promise<Talk> {
-    return this.post('/api/v1/erp/assistant/talks', {
+  /** Wo das Gespräch live läuft – die direkte Adresse des Dienstes (einmal gefragt; leer = hier). */
+  private door: Promise<string> | null = null;
+
+  private talkDoor(): Promise<string> {
+    this.door ??= this.get<{ url: string }>('/api/v1/erp/assistant/door').then(
+      (d) => d.url || API_BASE,
+      (e: unknown) => { this.door = null; throw e; });
+    return this.door;
+  }
+
+  /**
+   * ►►► **Dem Assistenten etwas sagen – die Antwort kommt live** (wie bei Claude). ◄◄◄ Ohne `talk`
+   * beginnt ein Gespräch (am offenen Datensatz `hint`); ohne Text, aber mit `talk`, antwortet die KI
+   * auf das, was dasteht (nach einer Aufnahme). Je Zeile des Streams: `onTalk` (das Gespräch – sofort
+   * mit der Nachricht, am Ende mit der Antwort), `onStep` (was die KI gerade tut). Läuft direkt am
+   * Dienst – ohne die 60 s des Hostings; begrenzt durch Schritte, Deckel und «Stopp».
+   */
+  async say(text: string, opts: {
+    talk?: number | null; hint?: number | null; files?: TalkFile[];
+    onTalk?: (t: Talk) => void; onStep?: (step: string) => void; signal?: AbortSignal;
+  } = {}): Promise<Talk> {
+    const path = '/api/v1/erp/assistant/talks';
+    const body = JSON.stringify({
       text, ...(opts.talk ? { talk: opts.talk } : {}), ...(opts.hint ? { hint_object_id: opts.hint } : {}),
       ...(opts.files?.length ? { files: opts.files } : {}),
     });
+    const base = await this.talkDoor();
+    let res: Response | null = null;
+    for (const force of [false, true]) {
+      const token = this.tokenProvider ? await this.tokenProvider(force).catch(() => null) : null;
+      res = await fetch(`${base}${path}`, {
+        method: 'POST', body, signal: opts.signal,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (res.status !== 401 || !this.tokenProvider) break;
+    }
+    if (!res || !res.ok || !res.body) throw res ? await this.apiError(res) : new Error('Keine Verbindung zum Server');
+    notifyDataChanged(path);
+    let last: Talk | null = null;
+    for await (const line of ndjson(res.body)) {
+      const item = line as { talk?: Talk; step?: string; error?: string };
+      if (item.talk) { last = item.talk; opts.onTalk?.(item.talk); }
+      if (item.step) opts.onStep?.(item.step);
+      if (item.error) throw new Error(item.error);
+    }
+    notifyDataChanged(path);
+    if (!last) throw new Error('Die Verbindung riss ab – deine Nachricht ist gespeichert.');
+    return last;
+  }
+
+  /** **Stopp** – die KI hält vor ihrem nächsten Schritt an; was sie vorbereitete, bleibt. */
+  stopTalk(id: number): Promise<void> {
+    return this.post(`/api/v1/erp/assistant/talks/${id}/stop`, {});
   }
 
   /** Meine offenen Gespräche – die Zahl am «+». */
@@ -651,10 +697,12 @@ class ApiClient {
 
   // ─── Phase 4 · Sprache: Aufnehmen (docs/konzept/phase4-bauplan.md) ─────────
   /** Eine Aufnahme beginnen – `hint` = der Datensatz, der dabei offen war; `context` = die
-   *  Stecknadel («Stelle: …»), sie steht später vor dem abgeschriebenen Text. */
-  startRecording(mime: string, hint?: number | null, context?: string | null): Promise<Recording> {
+   *  Stecknadel («Stelle: …»), sie steht später vor dem abgeschriebenen Text; `talk` = das offene
+   *  Gespräch, in das der Text geht (wie getippt). */
+  startRecording(mime: string, hint?: number | null, context?: string | null, talk?: number | null): Promise<Recording> {
     return this.post('/api/v1/erp/recordings', {
       mime, ...(hint ? { hint_object_id: hint } : {}), ...(context ? { context } : {}),
+      ...(talk ? { talk } : {}),
     });
   }
 
@@ -1133,4 +1181,20 @@ export function attachmentUrl(path: string): string {
   if (!path) return path;
   if (/^https?:\/\//.test(path) || path.startsWith('data:')) return path;
   return `${API_BASE}${path}`;
+}
+
+/** Die Zeilen eines NDJSON-Streams, je eine als JSON (Leerzeilen = Lebenszeichen). */
+async function* ndjson(body: ReadableStream<Uint8Array>): AsyncGenerator<unknown> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let rest = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    rest += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+    const lines = rest.split('\n');
+    rest = lines.pop() ?? '';
+    for (const l of lines) if (l.trim()) yield JSON.parse(l);
+    if (done) break;
+  }
+  if (rest.trim()) yield JSON.parse(rest);
 }

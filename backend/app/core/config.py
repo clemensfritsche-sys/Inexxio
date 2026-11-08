@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     #: das **Deployment** – kein Eingabefeld daneben, das beim ersten Domain-Wechsel still
     #: falsch wird (``services/sites.website_url`` ist die eine Ableitung daraus).
     frontend_base_url: str = "http://localhost:3000"
+    #: Die direkte Adresse dieses Dienstes (Cloud Run, setzt der Deploy) – dort läuft das
+    #: Gespräch live, ohne die 60 s, nach denen Firebase Hosting eine Anfrage abbricht. Leer =
+    #: über dieselbe Adresse wie alles andere (lokal).
+    backend_url: str = ""
 
     # ── Zahlungsdienst (``services/stripe_pay``) ─────────────────────────────────
     #: **Leer heisst: es gibt keinen.** Kein Schalter daneben, der ohne Schlüssel auf «an»

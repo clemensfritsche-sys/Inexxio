@@ -21,6 +21,8 @@ class RecordingIn(BaseModel):
     mime: str = Field(max_length=100)
     #: Die Stecknadel: Seite und Element, an dem die Aufnahme ansetzt («Stelle: …»).
     context: Optional[str] = Field(default=None, max_length=600)
+    #: Das offene Gespräch – der Text geht dorthin, wie getippt.
+    talk: Optional[int] = None
 
 
 class StopIn(BaseModel):

@@ -425,3 +425,12 @@ abweicht, gilt der Code; hier steht, warum:
 - **«Entwurf öffnen»** gibt es für Person, Firma und Dokument (die Entwürfe, die das ERP hat); jede
   andere Handlung hat «Ändern» mit den Feldern der Route.
 
+### Feinschliff nach dem ersten Test (08.11.2026, Rundenbericht `docs/history/2026-11-08-assistent-feinschliff.md`)
+
+- **Live statt 60 s:** das Gespräch streamt direkt am Dienst (`BACKEND_URL`), Schritt für Schritt,
+  mit «Stopp»; begrenzt durch Schritte, Deckel und «Stopp», nicht durch eine Uhr. Ersetzt das
+  frühere «unter 50 s, sonst der Takt».
+- **Fehlende Werte sind eine Karte:** 400/422 aus dem Probelauf → Handgriff mit «Fehlt noch: …»;
+  «Entwurf öffnen» überall, wo es «Neu anlegen» gibt. Was die Person nicht darf, bleibt ohne Karte.
+- **Lesen wie Handeln:** `abrufen` = jede lesende Route des Personals (abgeleitet wie die Handlungen).
+- **Sprechen im offenen Gespräch** setzt es fort; Zwischenspeicher und Dauer je Aufruf in der Tür.

@@ -228,7 +228,9 @@ jobs:
       # (app/core/database.py), je Instanz also 10 × WEB_WORKERS. Bei max_instances × 10
       # muss das unter dem Limit von Cloud SQL bleiben (db-f1-micro 25, db-g1-small 50,
       # je abzüglich 3 Reserve) – während eines Rollouts laufen alte und neue Revision kurz
-      # nebeneinander. `--allow-unauthenticated`: Firebase Hosting leitet `/api/**` nur an
+      # nebeneinander. `--timeout 300s`: über Firebase Hosting endet jede Anfrage nach 60 s; nur das
+      # Gespräch mit der KI läuft direkt am Dienst (BACKEND_URL) und darf länger.
+      # `--allow-unauthenticated`: Firebase Hosting leitet `/api/**` nur an
       # einen öffentlichen Dienst weiter; wer etwas darf, prüft das Backend bei jeder Anfrage.
       - name: Deploy to Cloud Run
         run: |
@@ -241,6 +243,13 @@ jobs:
           # Die Stücke einer Aufnahme (backend/app/services/recordings.py): eigener Bucket ohne
           # Soft Delete, 1 Tag; einmal infra/setup-sprache.sh. Fehlt er, bleiben sie in der DB.
           vars="$vars,RECORDINGS_BUCKET=${{ inputs.gcp_project }}-recordings"
+          # Die direkte Adresse des Dienstes (backend/app/services/talk.py): dort läuft das Gespräch
+          # mit der KI live, ohne die 60 s, nach denen Firebase Hosting abbricht. Beim allerersten
+          # Deploy gibt es sie noch nicht – dann läuft es über das Hosting (kürzer, sonst gleich).
+          if url=$(gcloud run services describe "${{ inputs.service }}" --project "${{ inputs.gcp_project }}" \
+                     --region "${{ inputs.region }}" --format='value(status.url)' 2>/dev/null) && [ -n "$url" ]; then
+            vars="$vars,BACKEND_URL=$url"
+          fi
           [ -n "${{ inputs.firebase_project_id }}" ] && vars="$vars,FIREBASE_PROJECT_ID=${{ inputs.firebase_project_id }}"
           [ -n "${{ inputs.stripe_publishable_key }}" ] && vars="$vars,STRIPE_PUBLISHABLE_KEY=${{ inputs.stripe_publishable_key }}"
           gcloud run deploy "${{ inputs.service }}" \
@@ -257,7 +266,7 @@ jobs:
             --max-instances "${{ inputs.max_instances }}" \
             --cpu "${{ inputs.cpu }}" \
             --memory "${{ inputs.memory }}" \
-            --timeout 60s \
+            --timeout 300s \
             --concurrency 80 \
             --quiet
 

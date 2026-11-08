@@ -9,7 +9,7 @@ import { when, whenTitle } from '@/lib/when';
 import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { Field, SelectField } from '@/components/form/field';
-import { useCapture, type CaptureActions } from '@/components/erp/capture/capture-context';
+import { useCapture, type CaptureActions, type DraftFromHandgriff } from '@/components/erp/capture/capture-context';
 import type { Handgriff } from '@/types';
 
 /**
@@ -20,8 +20,9 @@ import type { Handgriff } from '@/types';
  *
  * - **Ausführen** (bei einer Notiz «Ablegen») – durch die echte Route, mit meinen Rechten, genau
  *   einmal; was nicht geht, sagt der Satz der Route an der Karte.
- * - **Entwurf öffnen** – wo das ERP einen Entwurf hat (Person, Firma, Dokument): ausgefüllt;
- *   angelegt wird erst mit «Freigeben», dann ist der Handgriff erledigt.
+ * - **Entwurf öffnen** – überall, wo es «Neu anlegen» gibt: ausgefüllt; angelegt wird erst mit
+ *   «Freigeben», dann ist der Handgriff erledigt. Fehlen Werte («Fehlt noch: …»), ist das der Weg
+ *   – «Ausführen» geht erst, wenn alles da ist.
  * - **Ändern** – die Felder der Handlung (aus ihrer Beschreibung), geprüft mit einem Probelauf.
  * - **Weg** – geschieht nicht.
  *
@@ -78,13 +79,15 @@ export function HandgriffCard({ h, onChanged }: {
               <Hand size={14} />Öffnen
             </button>
           ) : (
-            <button type="button" disabled={busy} onClick={() => void act(() => api.runHandgriff(h.id), 'Ausführen')}
-              className="erp-actbtn erp-actbtn-primary erp-hg-btn">
+            <button type="button" disabled={busy || !!h.missing} onClick={() => void act(() => api.runHandgriff(h.id), 'Ausführen')}
+              data-tip={h.missing ? `Erst ergänzen – ${h.missing}` : undefined}
+              className={h.missing ? 'erp-actbtn erp-actbtn-neutral erp-hg-btn' : 'erp-actbtn erp-actbtn-primary erp-hg-btn'}>
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}{isNote ? 'Ablegen' : 'Ausführen'}
             </button>
           )}
           {draft && !h.hand && (
-            <button type="button" disabled={busy} onClick={() => draft()} className="erp-actbtn erp-actbtn-neutral erp-hg-btn">
+            <button type="button" disabled={busy} onClick={() => draft()}
+              className={h.missing ? 'erp-actbtn erp-actbtn-primary erp-hg-btn' : 'erp-actbtn erp-actbtn-neutral erp-hg-btn'}>
               Entwurf öffnen
             </button>
           )}
@@ -119,6 +122,7 @@ function StateLine({ h }: { h: Handgriff }) {
   if (h.state === 'dropped') return <span className="erp-hg-state">Weggelegt</span>;
   if (h.state === 'waiting') return <span className="erp-hg-state">Wartet auf Handgriff {(h.waits_for ?? []).join(', ')}</span>;
   if (h.hand) return <span className="erp-hg-state">Geht nur von Hand ({h.hand})</span>;
+  if (h.missing) return <span className="erp-hg-state erp-hg-missing">Fehlt noch: {h.missing}</span>;
   return null;
 }
 
@@ -151,18 +155,25 @@ function show(v: unknown): string {
 const isNoteBody = (b: unknown) => !!b && typeof b === 'object' && (b as { channel?: string }).channel === 'note';
 
 /**
- * **Wo das ERP einen Entwurf hat** – Person, Firma, Dokument. Der Entwurf öffnet ausgefüllt;
- * mit «Freigeben» ist der Handgriff erledigt (`createDraft` meldet die Nummer zurück).
+ * **Wo das ERP einen Entwurf hat** – überall, wo es «Neu anlegen» gibt (Person, Firma, Artikel,
+ * Auftrag, Dokument): die Anlage-Route der Handlung ist der Schlüssel (`DRAFTS`). Der Entwurf
+ * öffnet ausgefüllt; mit «Freigeben» ist der Handgriff erledigt.
  */
+const DRAFTS: Record<string, DraftFromHandgriff['kind']> = {
+  '/api/v1/erp/records': 'user',
+  '/api/v1/admin/companies': 'organization',
+  '/api/v1/erp/articles': 'article',
+  '/api/v1/erp/orders': 'order',
+  '/api/v1/erp/documents': 'document',
+};
+
 function draftOf(h: Handgriff, capture: CaptureActions): (() => void) | null {
-  const body = (h.body && typeof h.body === 'object' ? h.body : {}) as Record<string, unknown>;
-  const kind = h.method === 'POST' && h.path === '/api/v1/erp/records' ? 'user'
-    : h.method === 'POST' && h.path === '/api/v1/admin/companies' ? 'organization'
-      : h.method === 'POST' && h.path === '/api/v1/erp/documents' ? 'document' : null;
+  const kind = h.method === 'POST' ? DRAFTS[h.path] : undefined;
   if (!kind) return null;
-  const values = Object.fromEntries(Object.entries(body).filter(([, v]) => typeof v === 'string' || typeof v === 'number')
+  const body = (h.body && typeof h.body === 'object' ? h.body : {}) as Record<string, unknown>;
+  const values = Object.fromEntries(Object.entries(body).filter(([, v]) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
     .map(([k, v]) => [k, String(v)]));
-  return () => capture.openDraft({ kind, values, handgriff: h.id });
+  return () => capture.openDraft({ kind, values, body, handgriff: h.id });
 }
 
 // ─── Ändern ────────────────────────────────────────────────────────────────────────────
