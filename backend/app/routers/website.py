@@ -14,12 +14,12 @@ Herausgegeben wird nur, was ohnehin auf jeder Rechnung und im Impressum steht. D
 IP-Adresse wird nicht gespeichert.
 """
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..core.actor import public
-from ..core.database import get_db
+from ..core.database import DB
 from ..services import phone as tel, sites, visitor
 from ..services import address as addr
 
@@ -37,7 +37,8 @@ class PublicContact(BaseModel):
 
 @router.get("/contact", response_model=PublicContact, dependencies=[public("web")])
 def public_contact(request: Request, response: Response, country: str | None = None,
-                   db: Session = Depends(get_db)):
+                   db: Session = DB):
+    """Telefon, E-Mail und Anschrift der Gesellschaft zum Land des Besuchers (sonst des Betreibers)."""
     if country is None:
         country = visitor.country(request)
     company = sites.company_for_country(db, country or None)

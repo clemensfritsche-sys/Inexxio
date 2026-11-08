@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user
 from ..core.actor import public
-from ..core.database import get_db
+from ..core.database import DB
 from ..models import UserProfile
 from ..schemas.passkey import (
     PasskeyLoginResult,
@@ -32,7 +32,7 @@ LOGIN_LIMIT = 30
 def register_options(
     request: Request,
     current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = DB,
 ) -> dict:
     """Registrierungs-Optionen (Challenge) für ``navigator.credentials.create``."""
     return passkey.begin_registration(db, current_user, request)
@@ -43,7 +43,7 @@ def register_verify(
     data: PasskeyRegisterVerify,
     request: Request,
     current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = DB,
 ):
     """Registrierung abschliessen: Attestation prüfen und Passkey speichern."""
     return passkey.complete_registration(
@@ -54,7 +54,7 @@ def register_verify(
 @router.get("", response_model=list[PasskeyResponse])
 def list_passkeys(
     current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = DB,
 ):
     """Die registrierten Passkeys des angemeldeten Nutzers (Verwaltung im Konto)."""
     return passkey.list_passkeys(db, current_user)
@@ -64,7 +64,7 @@ def list_passkeys(
 def delete_passkey(
     passkey_id: int,
     current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = DB,
 ):
     """Einen Passkey entfernen (Soft-Delete)."""
     passkey.delete_passkey(db, current_user, passkey_id)
@@ -74,7 +74,7 @@ def delete_passkey(
 # ── Anmeldung (passwortlos, unauthentifiziert) ────────────────────────────────
 
 @router.post("/login/options", dependencies=[public("login")])
-def login_options(request: Request, db: Session = Depends(get_db)) -> dict:
+def login_options(request: Request, db: Session = DB) -> dict:
     """Anmelde-Optionen (Challenge) für ``navigator.credentials.get`` – usernamelos. Jede
     Challenge ist eine Zeile: begrenzt je Absender wie jede öffentliche Tür
     (``services/visitor``)."""
@@ -88,7 +88,7 @@ def login_options(request: Request, db: Session = Depends(get_db)) -> dict:
 def login_verify(
     data: PasskeyLoginVerify,
     request: Request,
-    db: Session = Depends(get_db),
+    db: Session = DB,
 ):
     """Anmeldung abschliessen: Assertion prüfen → Firebase Custom Token zurückgeben."""
     token = passkey.complete_authentication(db, request, data.credential)

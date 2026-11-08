@@ -301,8 +301,8 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
         return          # eine eingegangene Mail, von Hand erfasst – sie ging nie hinaus
     mailbox.assert_may_send(db, msg.channel, sender)
     msg.outgoing = True
-    if now and _aware(msg.at) <= _now():
-        mailbox.send(db, msg)
+    if now:
+        mailbox.send_after(db)
 
 
 

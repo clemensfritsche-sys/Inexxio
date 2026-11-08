@@ -25,7 +25,7 @@ dieselbe Bauart wie ``statuses.terminal_guard_sql`` und ``timekeeping.append_onl
 #: Wer handelt.
 KINDS = ("person", "ai", "system", "external")
 #: Woher eine Handlung kommt.
-SOURCES = ("ui", "capture", "web", "link", "webhook", "login", "probe", "job", "start",
+SOURCES = ("ui", "capture", "handgriff", "web", "link", "webhook", "login", "probe", "job", "start",
            "migration", "mcp", "test")
 
 #: Diese Spaltennamen stehen nie im Klartext im Log (Zugangs-Token, Schlüssel, Challenges).

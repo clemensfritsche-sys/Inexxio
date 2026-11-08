@@ -38,14 +38,14 @@ from html import escape
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from ..core.actor import public
-from ..core.database import get_db
+from ..core.database import DB
 from ..services import inquiry as svc, people, visitor
 
 router = APIRouter(prefix="/api/v1/contact", tags=["contact"])
@@ -255,7 +255,8 @@ def _done(inq: Inquiry, wants_json: bool) -> Response:
 # ------------------------------------------------------------------ Endpunkt
 
 @router.post("", summary="Anfrage der Website (Formular, multipart)", dependencies=[public("web")])
-async def submit_inquiry(request: Request, db: Session = Depends(get_db)) -> Response:
+async def submit_inquiry(request: Request, db: Session = DB) -> Response:
+    """Eine Anfrage von der Website – sie wird eine offene Nachricht im Postfach der Gesellschaft zum Land des Besuchers."""
     wants_json = "application/json" in request.headers.get("accept", "")
     length = request.headers.get("content-length", "")
     if length.isdigit() and int(length) > MAX_BODY:
@@ -298,6 +299,7 @@ def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> 
                        newsletter=inq.newsletter)
     try:
         msg = svc.record(db, data, country)
+        db.flush()      # was beim Speichern scheitern kann, scheitert hier – vor dem «Danke»
     except HTTPException as exc:  # ein Bild, das sich nicht lesen lässt
         db.rollback()
         name = inq.photos[0].filename if len(inq.photos) == 1 else "Eine der Dateien"
@@ -316,9 +318,9 @@ def _confirm(db: Session, msg, inq: svc.Inquiry) -> bool:
     steht im Log – und eine angelegte Bestätigung holt der nächste Abgleich nach."""
     m = VOCAB["mail"]
     try:
-        return svc.confirm(db, msg, inq, m)
+        with db.begin_nested():     # scheitert sie, bleibt die Anfrage stehen
+            return svc.confirm(db, msg, inq, m)
     except Exception as exc:
-        db.rollback()
         print(f"WARNING: INQUIRY confirmation not sent message={msg.id}: {type(exc).__name__}: {exc}", flush=True)
         return False
 

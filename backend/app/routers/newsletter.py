@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
 from ..core.actor import public
-from ..core.database import get_db
+from ..core.database import DB
 from ..domain import newsletter as dn
 from ..models import UserProfile
 from ..schemas.newsletter import ConsentRow, NewsletterIn, NewsletterState
@@ -65,7 +65,7 @@ def _answer(wants_json: bool, msg: str, status: int, html_body: str = "") -> Res
 
 @router.post("", summary="Anmeldung von der Website (E-Mail → Bitte um Bestätigung)", dependencies=[public("web")])
 def subscribe(request: Request, email: str = Form(""), hp: str = Form(""),
-              db: Session = Depends(get_db)) -> Response:
+              db: Session = DB) -> Response:
     """Wie das Anfrage-Formular: Honigtopf und Begrenzung je Absender vor der Datenbank. Dann
     die Bitte um Bestätigung – **angelegt wird nichts**: gibt es zur Adresse keine Person,
     steht die Adresse im signierten Link, und die Person entsteht erst mit dem Klick."""
@@ -111,14 +111,14 @@ def confirm_page(t: str = "") -> Response:
 
 
 @router.post("/confirm", include_in_schema=False, dependencies=[public("link")])
-def confirm(t: str = "", db: Session = Depends(get_db)) -> Response:
+def confirm(t: str = "", db: Session = DB) -> Response:
     """Der Klick auf den Knopf – angemeldet, mit Quelle und Wortlaut (``newsletter.confirm``)."""
     try:
         link = svc.read(t, "confirm")
     except ValueError as exc:
         return _invalid(str(exc))
     svc.confirm(db, link)
-    db.commit()
+    db.flush()
     return RedirectResponse(PAGES["confirmed"], status_code=303)
 
 
@@ -137,7 +137,7 @@ def unsubscribe_page(t: str = "") -> Response:
 
 @router.post("/unsubscribe", include_in_schema=False, dependencies=[public("link")])
 def unsubscribe(t: str = "", one_click: str = Form("", alias="List-Unsubscribe"),
-                db: Session = Depends(get_db)) -> Response:
+                db: Session = DB) -> Response:
     """Abmelden – vom Knopf der Seite oder mit einem Klick im Mailprogramm (RFC 8058: der
     Rumpf ist ``List-Unsubscribe=One-Click``)."""
     try:
@@ -148,7 +148,7 @@ def unsubscribe(t: str = "", one_click: str = Form("", alias="List-Unsubscribe")
         return _invalid(W["invalid"])
     direct = one_click == "One-Click"
     svc.set_state(db, link.person, False, "one_click" if direct else "link")
-    db.commit()
+    db.flush()
     return Response(status_code=200) if direct else RedirectResponse(
         PAGES["unsubscribed"], status_code=303)
 
@@ -156,31 +156,34 @@ def unsubscribe(t: str = "", one_click: str = Form("", alias="List-Unsubscribe")
 # ── Selbst ──────────────────────────────────────────────────────────────────
 
 @me_router.get("", response_model=NewsletterState)
-def my_state(db: Session = Depends(get_db), user: UserProfile = Depends(get_current_user)):
+def my_state(db: Session = DB, user: UserProfile = Depends(get_current_user)):
+    """Bin ich für den Newsletter angemeldet?"""
     return _state(db, user.object_id) if user.object_id else NewsletterState(
         subscribed=False, wording=svc.WORDING)
 
 
 @me_router.put("", response_model=NewsletterState)
-def set_mine(data: NewsletterIn, db: Session = Depends(get_db),
+def set_mine(data: NewsletterIn, db: Session = DB,
              user: UserProfile = Depends(get_current_user)):
+    """Mich für den Newsletter an- oder abmelden (meine Adresse ist bestätigt)."""
     if not user.object_id:
         raise HTTPException(400, detail="Ohne Objektnummer gibt es keinen Newsletter.")
     svc.set_state(db, user.object_id, data.subscribed, "account", user.id)
-    db.commit()
+    db.flush()
     return _state(db, user.object_id)
 
 
 # ── ERP ─────────────────────────────────────────────────────────────────────
 
 @erp_router.get("/{object_id}", response_model=NewsletterState)
-def person_state(object_id: int, db: Session = Depends(get_db),
+def person_state(object_id: int, db: Session = DB,
                  _: UserProfile = Depends(require_employee)):
+    """Newsletter einer Person: angemeldet oder nicht, mit dem Nachweis."""
     return _state(db, object_id, full=True)
 
 
 @erp_router.post("/{object_id}/invite", response_model=NewsletterState)
-def invite(object_id: int, db: Session = Depends(get_db),
+def invite(object_id: int, db: Session = DB,
            _: UserProfile = Depends(require_employee)):
     """Die Bitte um Bestätigung schicken – angemeldet ist die Person erst mit ihrem Klick."""
     svc.invite(db, object_id, "invitation")
@@ -188,9 +191,9 @@ def invite(object_id: int, db: Session = Depends(get_db),
 
 
 @erp_router.post("/{object_id}/unsubscribe", response_model=NewsletterState)
-def unsubscribe_person(object_id: int, db: Session = Depends(get_db),
+def unsubscribe_person(object_id: int, db: Session = DB,
                        user: UserProfile = Depends(require_employee)):
     """Abmelden im Namen der Person (sie hat es am Telefon gesagt) – mit Quelle «ERP»."""
     svc.set_state(db, object_id, False, "erp", user.id)
-    db.commit()
+    db.flush()
     return _state(db, object_id, full=True)

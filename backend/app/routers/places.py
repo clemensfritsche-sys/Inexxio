@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
-from ..core.database import get_db
+from ..core.database import DB
 from ..models import UserProfile
 from ..schemas.place import PlaceRef
 from ..services import places as places_svc
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/v1/erp/places", tags=["places"])
 def search_places(
     search: str = Query("", description="Objektnummer-Teil oder Name"),
     limit: int = Query(places_svc.SEARCH_LIMIT, ge=1, le=50),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """**Halter suchen** – nach Nummer oder Namen, für jede Zielort-Eingabe.
@@ -47,7 +47,7 @@ def search_places(
 @router.get("/{object_id}", response_model=PlaceRef)
 def resolve_place(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Kann diese Objektnummer etwas halten? Dann: was ist sie und wie heisst sie.

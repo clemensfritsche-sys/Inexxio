@@ -387,21 +387,22 @@ def test_staff_needs_one_of_our_companies():
         db.close()
 
 
-def test_a_person_is_created_without_ever_logging_in(monkeypatch):
+def test_a_person_is_created_without_ever_logging_in():
     """**Name + E-Mail + Rolle, Nummer sofort, E-Mail klein und einmalig.** Bug-Formen:
     (a) keine Objektnummer; (b) die E-Mail behält Grossbuchstaben; (c) dieselbe E-Mail in
-    anderer Schreibweise gilt als neu; (d) ein Mitarbeiter vergibt eine Personal-Rolle."""
+    anderer Schreibweise gilt als neu; (d) ein Mitarbeiter vergibt eine Personal-Rolle;
+    (e) beim Anlegen geht etwas nach aussen (ein Anmeldekonto)."""
     from app.schemas.admin import PersonCreate
     db = session()
     db.commit = db.flush     # die Szene wird am Ende verworfen
-    monkeypatch.setattr(people, "firebase_uid_for", lambda email, name: f"fb-{email}")
     try:
         admin = SimpleNamespace(id=1, role="admin")
         u = people.create_person(db, PersonCreate(first_name="Hans", last_name="Muster",
                                                   email=" Hans.Muster@Firma.CH "), admin)
         assert u.object_id, "(a)"
         assert u.email == "hans.muster@firma.ch", "(b)"
-        assert u.firebase_uid == "fb-hans.muster@firma.ch"
+        # Kein Anmeldekonto im Voraus – es entsteht bei der ersten Anmeldung (e).
+        assert u.firebase_uid == people.contact_uid("hans.muster@firma.ch"), "(e)"
         with pytest.raises(HTTPException) as e:
             people.create_person(db, PersonCreate(first_name="X", last_name="Y",
                                                   email="HANS.MUSTER@firma.ch"), admin)

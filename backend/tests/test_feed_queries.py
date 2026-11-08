@@ -41,6 +41,7 @@ def _firms(db, n: int) -> list:
 
 def test_the_company_list_does_not_ask_per_company(db):
     _firms(db, 2)
+    admin.list_companies(db=db, _=None)      # der erste Aufruf legt den Betreiber an
     db.expire_all()
     with _counted(db) as few:
         admin.list_companies(db=db, _=None)

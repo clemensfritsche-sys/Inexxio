@@ -22,6 +22,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from tests.support import after_save
 from app.core.database import get_db
 from app.domain import communication as dc
 from app.models import Message, MessageParty, UserProfile
@@ -53,7 +54,7 @@ def world(db, monkeypatch):
     monkeypatch.setattr(svc, "company_for", lambda _db, _country: SimpleNamespace(object_id=FIRM))
     monkeypatch.setattr(mb, "ready", lambda: True)
     monkeypatch.setattr(mb, "active", lambda _db, ch: box if ch == CHANNEL else None)
-    monkeypatch.setattr(mb, "send", lambda _db, m: sent.append(m.id) or True)
+    monkeypatch.setattr(mb, "send", lambda _db, m, *_: sent.append(m.id) or True)
     app = FastAPI()
     app.include_router(contact.router)
     app.dependency_overrides[get_db] = lambda: db
@@ -115,6 +116,7 @@ def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
     ausgehebelt)."""
     data = form()
     assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
+    after_save(world.db)
     (inq,) = inquiries(world.db, data["email"])
     conf = world.db.query(Message).join(MessageParty, MessageParty.message_id == Message.id).filter(
         MessageParty.object_id == inq.sender_object_id, Message.id != inq.id).one()
@@ -160,7 +162,7 @@ def test_without_a_connected_mailbox_there_is_no_confirmation_but_the_inquiry_st
 def test_a_failing_confirmation_does_not_fail_the_inquiry(world, monkeypatch):
     """Geht die Bestätigung nicht hinaus, bleibt sie als «muss noch hinaus» stehen – der
     nächste Abgleich holt sie nach; die Anfrage ist längst gespeichert."""
-    monkeypatch.setattr(mb, "send", lambda _db, _m: False)
+    monkeypatch.setattr(mb, "send", lambda _db, _m, *_: False)
     data = form()
     assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
     (inq,) = inquiries(world.db, data["email"])

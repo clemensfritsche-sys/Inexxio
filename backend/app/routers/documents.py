@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
-from ..core.database import get_db
+from ..core.database import DB
 from ..domain import documents as dd
 from ..models import Document, UserProfile
 from ..schemas.documents import (
@@ -94,14 +94,14 @@ def detail(db: Session, doc: Document) -> DocumentDetail:
 
 @router.get("", response_model=list[DocumentSummary])
 def list_documents(q: str = "", limit: int = 100, offset: int = 0,
-                   db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+                   db: Session = DB, user: UserProfile = Depends(require_employee)):
     """Der Feed «Dokument» – seitenweise, durchsucht auf dem Server (wie die Instanzen)."""
     found = docs.search(db, user, q, limit=max(1, min(limit, 200)), offset=max(0, offset))
     return summaries(db, found, q)
 
 
 @router.get("/targets", response_model=list[RecordOut])
-def search_targets(q: str = "", db: Session = Depends(get_db),
+def search_targets(q: str = "", db: Session = DB,
                    _: UserProfile = Depends(require_employee)):
     """Ein Datensatz für eine Referenz – Nummer ODER Name."""
     return [RecordOut(object_id=r.object_id, type=r.type, label=r.label)
@@ -109,7 +109,7 @@ def search_targets(q: str = "", db: Session = Depends(get_db),
 
 
 @router.get("/of/{object_id}", response_model=list[DocumentSummary])
-def documents_of(object_id: int, db: Session = Depends(get_db),
+def documents_of(object_id: int, db: Session = DB,
                  user: UserProfile = Depends(require_employee)):
     """Die Kacheln unten an einem Datensatz (Regel 4) – je Kachel, welches Pflichtfeld des
     Datensatzes sie füllt (ein Feld zeigt sein Dokument, ohne danach zu suchen)."""
@@ -143,7 +143,7 @@ def file_document(
     art: str = Form(...), name: str = Form(...), source: str = Form("file"),
     refs: str = Form("[]"), target: str = Form(""), signers: str = Form("[]"),
     text: str = Form(""), keywords: str = Form(""), facts: str = Form(""),
-    db: Session = Depends(get_db), user: UserProfile = Depends(require_employee),
+    db: Session = DB, user: UserProfile = Depends(require_employee),
 ):
     """►►► **Freigeben.** ◄◄◄ ``refs`` ist eine JSON-Liste ``[{"object_id": …}]`` (ganze
     Datensätze); ``target`` ein Pflichtfeld, das in derselben Transaktion gesetzt wird.
@@ -168,7 +168,7 @@ def file_document(
     if aim is not None:
         fields.apply(db, actor=user, doc=doc, object_id=aim.object_id, part=aim.part,
                      field=aim.field, extra=aim.extra)
-    db.commit()
+    db.flush()
     return FiledOut(document=detail(db, doc), existed=existed)
 
 
@@ -176,14 +176,14 @@ def file_document(
 def read_draft(
     files: list[UploadFile] = File(...),
     sender: Optional[int] = Form(None), hint: str = Form(""),
-    db: Session = Depends(get_db), user: UserProfile = Depends(require_employee),
+    db: Session = DB, user: UserProfile = Depends(require_employee),
 ):
     """►►► **Einen Entwurf lesen – ohne ihn zu speichern.** ◄◄◄ Die KI schlägt Art, Name und
     Referenz vor; ohne KI kommt ein leerer Vorschlag (Absender als Referenz, wenn bekannt)."""
     raw, mime, _ = _upload(files)
     p = reading.propose(db, raw=raw, mime=docs.sniff(raw, mime), actor=user,
                         sender_object_id=sender, hint=hint or None)
-    db.commit()     # das Log des KI-Aufrufs
+    db.flush()
     return ProposalOut(art=p.art, name=p.name, text=p.text, keywords=p.keywords, facts=p.facts,
                        refs=[ProposedRef(**r.__dict__) for r in p.refs], why=p.why, read=p.read,
                        ai=ai.ready(), ai_problem="" if p.read else ai.problem(),
@@ -191,7 +191,7 @@ def read_draft(
 
 
 @router.get("/requirements", response_model=list[RequirementOut])
-def open_requirements(db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+def open_requirements(db: Session = DB, user: UserProfile = Depends(require_employee)):
     """Worauf Module warten (``services/requirements``) – je Anforderung ein Satz."""
     return [RequirementOut(key=r.key, label=r.label, sentence=r.sentence, fields=list(r.fields),
                            object_id=r.object_id, part=r.part, field=r.field)
@@ -199,7 +199,7 @@ def open_requirements(db: Session = Depends(get_db), user: UserProfile = Depends
 
 
 @router.post("/compose", response_model=ComposeOut)
-def compose(data: ComposeIn, db: Session = Depends(get_db),
+def compose(data: ComposeIn, db: Session = DB,
             user: UserProfile = Depends(require_employee)):
     """**Eine Runde Verfassen** (``services/composing``) – gespeichert wird nichts; nur der
     Aufruf der KI steht im Log."""
@@ -211,7 +211,7 @@ def compose(data: ComposeIn, db: Session = Depends(get_db),
             current = None
     paper = composing.compose(db, actor=user, turns=[composing.Turn(**t.model_dump()) for t in data.turns],
                               current=current)
-    db.commit()     # der Aufruf der KI zählt (Deckel, Log)
+    db.flush()
     if paper is None:
         return ComposeOut(ai=ai.available(db), reply=ai.problem() or (
             "Gerade kann ich nicht schreiben – versuchen Sie es gleich noch einmal."))
@@ -222,7 +222,7 @@ def compose(data: ComposeIn, db: Session = Depends(get_db),
 
 
 @router.post("/{object_id}/send", response_model=DocumentDetail)
-def send(object_id: int, data: SendIn, db: Session = Depends(get_db),
+def send(object_id: int, data: SendIn, db: Session = DB,
          user: UserProfile = Depends(require_employee)):
     """**Senden** – je Empfänger ein Link ohne Ablauf und eine Mail; mit ``sign`` sollen sie
     unterschreiben (``services/signing``)."""
@@ -230,14 +230,12 @@ def send(object_id: int, data: SendIn, db: Session = Depends(get_db),
     if data.sign:
         signing.request(db, doc, data.to, user)
     signing.send(db, doc, data.to, data.note, user)
-    db.commit()
-    from ..services import voucher_docs
-    voucher_docs.send_pending(db)
+    db.flush()
     return detail(db, doc)
 
 
 @router.post("/template", response_model=DocumentDetail)
-def from_template(data: TemplateIn, db: Session = Depends(get_db),
+def from_template(data: TemplateIn, db: Session = DB,
                   user: UserProfile = Depends(require_employee)):
     """**«Aus Vorlage»** – AGB oder Datenschutz einer eigenen Gesellschaft aus der Vorlage
     (``legal.from_template``); nur der Admin. Ein Mensch entscheidet, nie der Start."""
@@ -245,23 +243,23 @@ def from_template(data: TemplateIn, db: Session = Depends(get_db),
         raise HTTPException(status_code=403, detail="Rechtstexte setzt nur der Admin.")
     company = sites.require_own(db, data.company)
     doc = legal.from_template(db, company, data.kind, user)
-    db.commit()
+    db.flush()
     return detail(db, doc)
 
 
 @router.post("/{object_id}/field", response_model=DocumentDetail)
-def set_field(object_id: int, data: TargetIn, db: Session = Depends(get_db),
+def set_field(object_id: int, data: TargetIn, db: Session = DB,
               user: UserProfile = Depends(require_employee)):
     """Ein schon freigegebenes Dokument in ein Pflichtfeld – ändern, nie leeren."""
     doc = docs.readable(db, object_id, user)
     fields.apply(db, actor=user, doc=doc, object_id=data.object_id, part=data.part,
                  field=data.field, extra=data.extra)
-    db.commit()
+    db.flush()
     return detail(db, doc)
 
 
 @router.post("/{object_id}/read", response_model=DocumentDetail)
-def read_later(object_id: int, db: Session = Depends(get_db),
+def read_later(object_id: int, db: Session = DB,
                user: UserProfile = Depends(require_employee)):
     """**Das Lesen nachholen** – für ein Dokument, das ohne KI freigegeben wurde. Schreibt nur
     Text, Stichworte und Angaben; Art, Name und Referenz bleiben, wie der Mensch sie setzte."""
@@ -273,45 +271,48 @@ def read_later(object_id: int, db: Session = Depends(get_db),
     if p.read:
         # ``""`` statt ``None``: auch ein Lesen ohne Text ist ein Lesen (``docs.unread``).
         doc.text, doc.keywords, doc.facts = p.text, p.keywords or None, p.facts or None
-    db.commit()
+    db.flush()
     return detail(db, doc)
 
 
 @router.post("/{object_id}/refs", response_model=DocumentDetail)
-def add_ref(object_id: int, data: RefIn, db: Session = Depends(get_db),
+def add_ref(object_id: int, data: RefIn, db: Session = DB,
             user: UserProfile = Depends(require_employee)):
+    """Ein Dokument an einen weiteren Datensatz hängen (Referenz setzen)."""
     doc = docs.readable(db, object_id, user)
     docs.attach(db, doc, data.object_id, user)
-    db.commit()
+    db.flush()
     return detail(db, doc)
 
 
 @router.delete("/{object_id}/refs/{ref_id}", response_model=DocumentDetail)
-def remove_ref(object_id: int, ref_id: int, db: Session = Depends(get_db),
+def remove_ref(object_id: int, ref_id: int, db: Session = DB,
                user: UserProfile = Depends(require_employee)):
+    """Ein Dokument von einem Datensatz lösen (Referenz entfernen) – ein Pflichtfeld nie."""
     doc = docs.readable(db, object_id, user)
     docs.detach(db, doc, ref_id, user)
-    db.commit()
+    db.flush()
     return detail(db, doc)
 
 
 @router.post("/{object_id}/delete", response_model=DocumentDetail)
-def delete_document(object_id: int, data: DeleteIn, db: Session = Depends(get_db),
+def delete_document(object_id: int, data: DeleteIn, db: Session = DB,
                     user: UserProfile = Depends(require_employee)):
+    """Ein Dokument löschen, mit Grund – nur, was nirgends mehr hängt."""
     doc = docs.readable(db, object_id, user)
     docs.delete(db, doc, data.reason, user)
-    db.commit()
+    db.flush()
     return detail(db, doc)
 
 
 # Zuletzt: «/{object_id}» fängt sonst «/requirements» ab.
 @router.get("/{object_id}", response_model=DocumentDetail)
-def get_document(object_id: int, db: Session = Depends(get_db),
+def get_document(object_id: int, db: Session = DB,
                  user: UserProfile = Depends(require_employee)):
     """Ein Dokument lesen – **wer welches Dokument geöffnet hat, steht im Log**
     (``document.read``)."""
     doc = docs.readable(db, object_id, user)
     out = detail(db, doc)
     log.event(db, "document.read", doc.object_id)
-    db.commit()
+    db.flush()
     return out

@@ -111,6 +111,8 @@ def _mail(db: Session, doc: Document, person: UserProfile, link: DocumentLink, n
                   subject=title, body=mail.body, html=mail.html, at=datetime.now(timezone.utc),
                   created_by=actor.id, outgoing=live)
     write(db, msg, {"to": [person.object_id], "cc": [], "bcc": [], "about": []})
+    if live:
+        mailbox.send_after(db)
     return msg
 
 

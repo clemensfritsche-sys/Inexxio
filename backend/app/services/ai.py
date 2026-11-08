@@ -40,7 +40,7 @@ from pydantic import BaseModel
 from sqlalchemy import Float, cast, func
 from sqlalchemy.orm import Session
 
-from ..core import clock
+from ..core import clock, outside
 from ..core.config import get_settings
 from ..models import Log, UserProfile
 from . import log
@@ -240,6 +240,7 @@ def content_of(raw: bytes, mime: str) -> Optional[dict]:
 
 
 def _client(timeout: float = 90.0, retries: int = 1):
+    outside.now("die KI")
     import anthropic
     return anthropic.Anthropic(api_key=get_settings().anthropic_api_key, max_retries=retries,
                                timeout=timeout)
@@ -471,6 +472,7 @@ def _vertex(db: Session, *, model: str, method: str, body: dict[str, Any], limit
     Zahlen und Abschreiben: Einrichtung, Pause nach Abweisung, Deckel, Zeitgrenze (``until``, kein
     zweiter Versuch), Fehler als ein Satz in ``problem()``. Ins Log schreibt der Aufrufer
     (``_record``), denn nur er kennt die Tokens. ◄◄◄"""
+    outside.now("die KI")
     settings = get_settings()
     if not settings.vertex_project:
         _PROBLEM.set(f"{what} ist nicht eingerichtet (VERTEX_PROJECT fehlt).")

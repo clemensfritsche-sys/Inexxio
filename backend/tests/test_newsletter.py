@@ -12,6 +12,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
+from tests.support import after_save
 from app.core.database import get_db
 from app.models import Message, MessageParty, UserProfile
 from app.services import visitor
@@ -91,8 +92,9 @@ def test_the_erp_cannot_subscribe_anyone_it_can_only_ask(world, monkeypatch):
     Klick – mit der Quelle aus dem Link. Wer angemeldet ist, bekommt keine zweite Bitte."""
     db, p = world.db, _person(world.db)
     sent: list[Message] = []
-    monkeypatch.setattr(mb, "send", lambda _db, m: sent.append(m) or True)
+    monkeypatch.setattr(mb, "send", lambda _db, m, *_: sent.append(m) or True)
     m = nl.invite(db, p.object_id, "invitation")
+    after_save(db)
     assert sent[-1].id == m.id and m.subject == nl.WORDS["confirmSubject"]
     assert [x.object_id for x in db.query(MessageParty).filter(
         MessageParty.message_id == m.id)] == [p.object_id]
@@ -256,9 +258,10 @@ def test_a_signup_for_a_known_person_asks_without_her_name(world, monkeypatch):
     Anrede (er kann aus einem öffentlichen Formular stammen)."""
     db, p = world.db, _person(world.db)
     sent: list[Message] = []
-    monkeypatch.setattr(mb, "send", lambda _db, m: sent.append(m) or True)
+    monkeypatch.setattr(mb, "send", lambda _db, m, *_: sent.append(m) or True)
     res = world.client.post("/api/v1/newsletter", data={"email": p.email},
                             headers={"Accept": "application/json"})
     assert res.status_code == 200
+    after_save(db)
     (m,) = sent
     assert p.last_name not in m.body and nl.subscribed(db, [p.object_id]) == set()

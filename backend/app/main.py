@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from .core.config import get_settings
+from .core import outside
 from .core.actor import system_session
 from .core.database import Base
 from .domain import log as log_domain
@@ -130,6 +131,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(outside.NeedsHand)
+async def needs_hand_handler(request: Request, exc: outside.NeedsHand):
+    """Im Probelauf eines Handgriffs: diese Handlung geht nach aussen oder speichert
+    zwischendurch – sie braucht die Person selbst (``core/outside``)."""
+    return JSONResponse(status_code=409, content={
+        "detail": f"Das geht nur von Hand ({exc.what}).", "hand": exc.what})
 
 
 @app.exception_handler(IntegrityError)

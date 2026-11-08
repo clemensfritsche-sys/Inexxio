@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from .actor import act
 from .config import get_settings
-from .database import get_db
+from .database import DB
 
 _bearer = HTTPBearer(auto_error=False)
 _request: Any = None
@@ -66,7 +66,7 @@ def caller_problem(token: Optional[str]) -> Optional[tuple[int, str]]:
 
 
 def require_tick(cred: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
-                 db: Session = Depends(get_db)) -> None:
+                 db: Session = DB) -> None:
     """Abhängigkeit des Takts: Token prüfen, dann handelt das System (``job``)."""
     problem = caller_problem(cred.credentials if cred else None)
     if problem:

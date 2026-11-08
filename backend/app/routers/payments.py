@@ -9,13 +9,13 @@ Er steht **nicht** im Auftrags-Router, obwohl der Beleg dort lebt: dieser Router
 Signatur» soll man an der Datei sehen.
 """
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Header, Request
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from ..core.actor import public
-from ..core.database import get_db
-from ..services import stripe_pay, voucher_docs
+from ..core.database import DB
+from ..services import stripe_pay
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 async def webhook(
     request: Request,
     stripe_signature: str = Header("", alias="Stripe-Signature"),
-    db: Session = Depends(get_db),
+    db: Session = DB,
 ):
     """**Eine Rückmeldung des Zahlungsdienstes.**
 
@@ -44,7 +44,4 @@ async def webhook(
 def _book(db: Session, raw: bytes, signature: str | None) -> str:
     """Buchen und Folgen – synchron, im Threadpool (nie in der Event-Loop)."""
     status = stripe_pay.handle_webhook(db, raw=raw, signature=signature)
-    # **Was die Zahlung ausgelöst hat (die Quittung), geht gleich hinaus** – festgeschrieben
-    # hat ``handle_webhook`` schon.
-    voucher_docs.send_pending(db)
     return status

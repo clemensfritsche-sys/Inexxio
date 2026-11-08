@@ -46,7 +46,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.actor import act
-from ..core import signed
+from ..core import outside, signed
 from ..core.config import get_settings
 from ..domain import communication as dc
 from ..models import Mailbox, Message, MessageParty, UserProfile
@@ -240,7 +240,7 @@ def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh:
                    picture=picture[:1000] or None))
     if firm is not None:
         _contact(db, firm, address, actor)
-    db.commit()
+    db.flush()
     return ""
 
 
@@ -259,16 +259,17 @@ def disconnect(db: Session, channel: str, actor: UserProfile) -> None:
     if firm is not None:
         _contact(db, firm, "", actor)
     if mb is None:
-        db.commit()
         return
     mb.is_active = False
     token = _open(mb.token)
-    db.commit()
+    db.flush()
     if token:
-        try:
-            httpx.post(REVOKE_URL, data={"token": token}, timeout=10)
-        except httpx.HTTPError:
-            pass        # zurückgezogen ist es bei uns; Google räumt abgelaufene selbst
+        def _revoke() -> None:
+            try:
+                httpx.post(REVOKE_URL, data={"token": token}, timeout=10)
+            except httpx.HTTPError:
+                pass    # zurückgezogen ist es bei uns; Google räumt abgelaufene selbst
+        outside.after(db, _revoke)
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +278,7 @@ def disconnect(db: Session, channel: str, actor: UserProfile) -> None:
 
 def _access(mb: Mailbox) -> Optional[str]:
     """Ein frisches Zugangs-Token – oder ``None``, und dann steht der Grund am Postfach."""
+    outside.now("Gmail")
     refresh = _open(mb.token)
     if refresh is None:
         mb.problem = EXPIRED
@@ -635,6 +637,26 @@ def assert_may_send(db: Session, channel: str, sender: UserProfile) -> None:
 #: So oft wird eine Mail versucht, die Gmail abweist; danach bleibt sie liegen, und der Grund
 #: steht als interne Nachricht im Verlauf (``_give_up``).
 MAX_ATTEMPTS = 3
+
+
+def send_after(db: Session) -> None:
+    """►►► **Was diese Handlung an Mails hinausgibt, geht nach dem Speichern hinaus** ◄◄◄
+    (``core/outside.after``) – über den gewöhnlichen Versand (``send_due``) in eigener Sitzung.
+    Wird die Handlung verworfen, geht nichts hinaus; scheitert der Versand, bleibt die Mail
+    ``outgoing`` und der Abgleich holt nach. Jede Stelle, die eine Mail ``outgoing`` schreibt,
+    ruft das."""
+    if ready():
+        outside.after(db, _send_due_alone)
+
+
+def _send_due_alone() -> None:
+    from ..core.actor import system_session
+    s = system_session("job")
+    try:
+        send_due(s)
+        s.commit()
+    finally:
+        s.close()
 
 
 def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None,

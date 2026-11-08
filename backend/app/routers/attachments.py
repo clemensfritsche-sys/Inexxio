@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.actor import public
-from ..core.database import get_db
+from ..core.database import DB
 from ..models import UserProfile
 from ..services import attachments as attachments_svc
 
@@ -27,17 +27,19 @@ class UploadResult(BaseModel):
 @router.post("/api/v1/erp/attachments", response_model=UploadResult, status_code=201)
 def upload_attachment(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(require_employee),
 ):
+    """Ein Bild ablegen, das kein Dokument ist (die gezeichnete Unterschrift) – jede andere Datei wird ein Dokument."""
     raw = file.file.read()
     att = attachments_svc.store_image(db, raw, file.filename, user.id)
-    db.commit()
+    db.flush()
     return UploadResult(id=att.id, url=attachments_svc.public_url(att), width=att.width, height=att.height)
 
 
 @router.get("/api/v1/attachments/{token}", dependencies=[public("link")])
-def serve_attachment(token: str, db: Session = Depends(get_db)):
+def serve_attachment(token: str, db: Session = DB):
+    """Ein abgelegtes Bild ausliefern – über seinen unerratbaren Schlüssel."""
     from ..services import documents as docs
     att = attachments_svc.get_by_token(db, token)
     return Response(content=attachments_svc.bytes_of(att), media_type=att.mime,
@@ -46,7 +48,7 @@ def serve_attachment(token: str, db: Session = Depends(get_db)):
 
 
 @router.get("/api/v1/attachments/{token}/preview", dependencies=[public("link")])
-def serve_preview(token: str, db: Session = Depends(get_db)):
+def serve_preview(token: str, db: Session = DB):
     """**Das Vorschaubild** – abgeleitet aus der Datei, bei jedem Abruf neu (der Browser hält
     es fest, die Datei ändert sich nie). Gibt es keins, 404 – die Kachel zeigt die Sorte.
     Zwischengespeichert wie die Datei selbst (``attachments.serve_headers``)."""

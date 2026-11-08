@@ -1,14 +1,14 @@
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..core.actor import public
-from ..core.database import get_db
+from ..core.database import DB
 
 router = APIRouter(tags=["health"])
 
@@ -41,7 +41,8 @@ def schema_state(db: Session) -> dict:
 
 
 @router.get("/health", dependencies=[public("probe")])
-def health_check(db: Session = Depends(get_db)):
+def health_check(db: Session = DB):
+    """Läuft der Dienst, und steht die Datenbank auf dem Stand des Codes (``schema``: current · behind)?"""
     try:
         db.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected", "version": get_settings().app_version,

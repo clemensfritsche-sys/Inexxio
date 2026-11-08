@@ -65,6 +65,7 @@ from typing import Any, Iterator, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from ..core import outside
 from ..core.config import get_settings, payment_service_ready
 from ..domain import currency as cur
 from ..domain import voucher as dm
@@ -125,7 +126,9 @@ def _speaking(what: str) -> Iterator[None]:
     Sie steht um **jeden** Aufruf, der Geld bewegt (Vorbereiten, Erstatten): eine Stelle,
     die sie vergisst, ist genau die, an der wieder ein englischer Rohtext im Browser
     steht. Eine ``HTTPException`` reist unangetastet weiter – sie ist bereits unser Satz.
+    Im Probelauf geht nichts zum Dienst (``core/outside.now``).
     """
+    outside.now(what)
     try:
         yield
     except HTTPException:
@@ -362,7 +365,7 @@ def _note_payment(db: Session, api: Any, data: dict[str, Any]) -> str:
         # Karte eine Behauptung ohne Beleg (``dm.MANUAL_METHODS`` weist sie darum ab).
         method=dm.CARD,
     )
-    db.commit()
+    db.flush()
     return "paid"
 
 
@@ -398,7 +401,7 @@ def _note_refund(db: Session, api: Any, data: dict[str, Any]) -> str:
         booked += 1
     if not booked:
         return "ignored"
-    db.commit()
+    db.flush()
     return "refunded"
 
 

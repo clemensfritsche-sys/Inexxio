@@ -429,6 +429,8 @@ def _mail(db: Session, *, row: Voucher, rec: VoucherDocument, doc: document.Doc,
                   html=mail.html, at=datetime.now(timezone.utc),
                   created_by=actor.id if staff else None, outgoing=live)
     write(db, msg, {"to": [party], "cc": [], "bcc": [], "about": []})
+    if live:
+        mailbox.send_after(db)
     return msg
 
 
@@ -453,18 +455,6 @@ def preview(db: Session, *, order: Order, step: Any, action: str, payload: dict[
     finally:
         sp.rollback()
         db.expire_all()
-
-
-def send_pending(db: Session) -> None:
-    """**Was gerade entstanden ist, geht gleich hinaus** – nach dem Festschreiben, über den
-    gewöhnlichen Versand (``mailbox.send_due``). Scheitert er, holt der Abgleich nach."""
-    from . import mailbox
-    if not mailbox.ready():
-        return
-    try:
-        mailbox.send_due(db)
-    except Exception as exc:     # der Versand darf die Antwort nie zerlegen
-        log.warning("Versand der Beleg-Mails gescheitert: %r", exc)
 
 
 # ---------------------------------------------------------------------------

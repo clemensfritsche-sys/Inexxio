@@ -24,7 +24,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from ..domain.log import KINDS, SOURCES
-from .database import ACTOR_KEY as _KEY, SET_ACTOR as _SET, SessionLocal, get_db
+from .database import ACTOR_KEY as _KEY, SET_ACTOR as _SET, SessionLocal, DB
 
 
 def act(db: Session, kind: str, actor_id: Optional[int] = None, source: str = "ui") -> None:
@@ -43,7 +43,7 @@ def public(source: str):
     if source not in SOURCES:
         raise ValueError(source)
 
-    def outside(db: Session = Depends(get_db)) -> None:
+    def outside(db: Session = DB) -> None:
         act(db, "external", None, source)
 
     outside.log_actor = True        # der Wächter erkennt die Abhängigkeit daran

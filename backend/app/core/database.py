@@ -1,9 +1,12 @@
 import json
+from contextvars import ContextVar
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Optional
 
+from fastapi import Depends
 from sqlalchemy import create_engine, event, text
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import Session, sessionmaker, DeclarativeBase
 from .config import get_settings
 
 settings = get_settings()
@@ -71,9 +74,38 @@ class Base(DeclarativeBase):
     pass
 
 
+#: Die Sitzung, in der gerade ein **Handgriff** läuft (``services/handgriff``): die Route, die er
+#: aufruft, arbeitet in ihr, statt eine eigene zu öffnen – gespeichert oder verworfen wird dort.
+AMBIENT: ContextVar[Optional[Session]] = ContextVar("ambient_session", default=None)
+
+
 def get_db():
+    """►►► **Eine Anfrage speichert einmal – am Ende.** ◄◄◄ (Projektakte, Phase 5 §6.1)
+
+    Endet die Route ohne Fehler, wird gespeichert; wirft sie, wird alles verworfen – ganz
+    oder gar nicht. Kein Router und kein Dienst speichert mittendrin (``db.flush()`` genügt
+    für eine Nummer). Was erst nach dem Speichern hinausgehen darf, meldet sich bei
+    ``core/outside.after``.
+
+    Eingebunden wird sie **nur** über ``DB`` (``scope="function"``): dann läuft das Speichern,
+    bevor die Antwort hinausgeht – scheitert es, ist die Antwort ein Fehler, nie ein «ok» ohne
+    Speicherung.
+
+    Läuft ein Handgriff (``AMBIENT``), gibt es dessen Sitzung – ohne zu speichern."""
+    shared = AMBIENT.get()
+    if shared is not None:
+        yield shared
+        return
     db = SessionLocal()
     try:
         yield db
+        db.commit()
+    except BaseException:
+        db.rollback()
+        raise
     finally:
         db.close()
+
+
+#: Die Sitzung einer Anfrage – ``db: Session = DB``. Eine Stelle, ein Geltungsbereich.
+DB = Depends(get_db, scope="function")

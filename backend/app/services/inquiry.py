@@ -97,7 +97,8 @@ def _body(inq: Inquiry) -> str:
 
 
 def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
-    """Die Anfrage festhalten – **committet**, bevor irgendetwas hinausgeht.
+    """Die Anfrage festhalten – gespeichert mit der Anfrage, bevor irgendetwas hinausgeht
+    (die Bestätigung geht erst danach, ``mailbox.send_after``).
 
     Ein Foto, das sich nicht lesen lässt, wirft (``attachments.store_image``: 400/413);
     dann ist nichts gespeichert, und der Aufrufer sagt es am Feld."""
@@ -112,7 +113,7 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
                   subject=subject_of(inq.message), body=_body(inq), at=datetime.now(timezone.utc),
                   created_by=None, attachments=files or None)
     write(db, msg, {"to": [], "cc": [], "bcc": [], "about": []})
-    db.commit()
+    db.flush()
     return msg
 
 
@@ -142,9 +143,7 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
                   subject=subject, body=mail.body, html=mail.html,
                   at=datetime.now(timezone.utc), created_by=None, outgoing=True)
     write(db, msg, {"to": [inquiry.sender_object_id], "cc": [], "bcc": [], "about": []})
-    db.commit()
-    mailbox.send(db, msg)       # scheitert es, bleibt ``outgoing`` – der Abgleich holt nach
-    db.commit()
+    mailbox.send_after(db)
     return True
 
 

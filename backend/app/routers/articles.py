@@ -19,7 +19,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
-from ..core.database import get_db
+from ..core.database import DB
 from ..models import Article, UserProfile
 from ..schemas.article import (
     ArticleBom, ArticleLink, ArticleProcess, ArticleProcessStepResponse,
@@ -96,7 +96,7 @@ def _get(db: Session, object_id: int) -> Article:
 @router.get("/name-suggestions", response_model=list[ArticleNameSuggestion])
 def name_suggestions(
     q: str = Query("", description="Angefangener Name"),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Bereits verwendete oder ähnliche Namen – rein lexikalisch, ohne KI."""
@@ -108,9 +108,10 @@ def list_articles(
     search: str | None = Query(None),
     limit: int = Query(200, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
+    """Alle Artikel für den Feed."""
     # **Nummer ODER Name** – die eine Suchbedingung des Hauses (`services/lookup`, #738).
     q = db.query(Article).filter(lookup.matches(search or "", Article.object_id, Article.name))
     rows = q.order_by(Article.object_id.desc()).limit(limit).offset(offset).all()
@@ -120,7 +121,7 @@ def list_articles(
 @router.post("/validate", response_model=ArticleValidation)
 def validate_article(
     data: ArticleCreate,
-    _db: Session = Depends(get_db),
+    _db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.
@@ -135,7 +136,7 @@ def validate_article(
 @router.post("", response_model=ArticleResponse, status_code=201)
 def create_article(
     data: ArticleCreate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(require_employee),
 ):
     """Anlegen **ist** Freigeben – ein Aufruf, eine Transaktion.
@@ -148,7 +149,7 @@ def create_article(
         db, data.model_dump(exclude_unset=True), actor_id=user.id)
     # Die Ersetzung steht im Log beim **Vorgänger** (seine Zeile bekommt ``replaced_by_id``):
     # dort sucht sie jemand, der wissen will, warum ein Artikel ausser Betrieb ging.
-    db.commit()
+    db.flush()
     db.refresh(article)
     return _out(article)
 
@@ -156,9 +157,10 @@ def create_article(
 @router.get("/{object_id}", response_model=ArticleResponse)
 def get_article(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
+    """Ein Artikel mit Spezifikation, Bestand und Nachfolger (es gibt kein Ändern)."""
     return _detail(db, _get(db, object_id))
 
 
@@ -167,7 +169,7 @@ def article_stock(
     object_id: int,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """**Wie viel habe ich von diesem Artikel, in welchem Zustand, unter welcher Nummer?**
@@ -227,9 +229,10 @@ def article_stock(
 @router.get("/{object_id}/process", response_model=ArticleProcess)
 def get_process(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
+    """Der eingefrorene Erzeugungsprozess eines Artikels (nur lesen)."""
     article = _get(db, object_id)
     return ArticleProcess(
         version=int(article.process_version or 0),

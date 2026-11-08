@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_admin, require_employee
-from ..core.database import get_db
+from ..core.database import DB
 from ..models import UserProfile
 from ..schemas.admin import (
     CompanyCreate,
@@ -81,7 +81,7 @@ def get_public_settings():
 
 @router.get("/companies", response_model=list[CompanySettingsResponse])
 def list_companies(
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Alle Firmen – eigene und fremde, Betreiber zuerst. **Jeder Mitarbeiter** sieht sie:
@@ -92,7 +92,7 @@ def list_companies(
 @router.get("/companies/{object_id}", response_model=CompanySettingsResponse)
 def get_company(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Ein Unternehmen mit vollem Feldsatz (frisch, für die Detail-Ansicht)."""
@@ -102,7 +102,7 @@ def get_company(
 @router.post("/companies", response_model=CompanySettingsResponse, status_code=201)
 def create_company(
     data: CompanyCreate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_employee),
 ):
     """Neue Firma anlegen – **jeder Mitarbeiter**; eine **eigene** Gesellschaft nur ein
@@ -124,7 +124,7 @@ def create_company(
 def update_company(
     object_id: int,
     data: CompanySettingsUpdate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_employee),
 ):
     """Felder einer Firma ändern – **derselbe Pfad für jede** (auch den
@@ -138,7 +138,7 @@ def update_company(
 @router.post("/companies/{object_id}/operator", response_model=CompanySettingsResponse)
 def set_company_operator(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_admin),
 ):
     """Diese Gesellschaft zum **Betreiber der Website** machen (Impressum + Systemkonfig).
@@ -153,7 +153,7 @@ def set_company_operator(
 @router.delete("/companies/{object_id}", response_model=CompanySettingsResponse)
 def deactivate_company(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_employee),
 ):
     """Ein Unternehmen **schliessen** (Soft-Delete, umkehrbar über ``…/reopen``). Der
@@ -168,7 +168,7 @@ def deactivate_company(
 @router.post("/companies/{object_id}/reopen", response_model=CompanySettingsResponse)
 def reopen_company(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_employee),
 ):
     """Ein geschlossenes Unternehmen **wieder öffnen** – dieselbe Berechtigung wie das
@@ -212,7 +212,7 @@ def _territory_map_response(db: Session) -> TerritoryMapResponse:
 
 @router.get("/territories", response_model=TerritoryMapResponse)
 def get_territories(
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_admin),
 ):
     """Die **Gebietskarte**: jede Weltregion und jedes Land + die Gesellschaft, die es
@@ -225,7 +225,7 @@ def get_territories(
 def assign_territory(
     area: str,
     data: TerritoryAssign,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_admin),
 ):
     """Ein **Gebiet** einer Gesellschaft zuweisen (Weltkarte): eine Region («EUR») oder – als

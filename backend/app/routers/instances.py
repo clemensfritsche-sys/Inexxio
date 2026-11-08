@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
-from ..core.database import get_db
+from ..core.database import DB
 from ..domain import statuses as st
 from ..models import Article, Instance, InstanceUnit, UserProfile
 from ..schemas.instance import (
@@ -86,7 +86,7 @@ def list_instances(
     search: str | None = Query(None),
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Der Instanz-Feed – **alle** Instanzen, neueste Objektnummer zuerst.
@@ -127,9 +127,10 @@ def list_instances(
 @router.get("/{object_id}", response_model=InstanceResponse)
 def get_instance(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
+    """Eine Instanz mit ihren Stücken, Orten und Zuständen."""
     return _detail(db, _get(db, object_id))
 
 
@@ -139,7 +140,7 @@ def instance_units(
     status: list[str] | None = Query(None, description="Nur Stücke in diesen Zuständen"),
     limit: int = Query(60, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Die **Nummern** der Einzelinstanzen – seitenweise, auf Nachfrage.
@@ -170,7 +171,7 @@ def instance_units(
 def unit_genealogy(
     object_id: int,
     suffix: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """**Woraus besteht dieses Stück – und worin steckt es?**

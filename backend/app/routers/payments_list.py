@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
-from ..core.database import get_db
+from ..core.database import DB
 from ..models import UserProfile
 from ..services import payment_list
 
@@ -36,7 +36,7 @@ class PaymentRow(BaseModel):
 def list_payments(
     person: Optional[int] = None,
     company: Optional[int] = None,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ) -> Any:
     """**Die Zahlungen einer Person** (``person=``) **oder einer eigenen Gesellschaft**

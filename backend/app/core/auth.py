@@ -6,6 +6,7 @@ dieser E-Mail), auf eine neue E-Mail umgestellt und zum Admin befördert wird nu
 Passkey trägt die Angaben des bestehenden Firebase-Kontos und findet die Person über die UID.
 """
 
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -17,13 +18,18 @@ from sqlalchemy.orm import Session
 
 from .actor import act
 from .config import get_settings
-from .database import get_db
+from .database import DB
 from ..models import UserProfile
 from ..services import people
 from ..services.people import STAFF_ROLES
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
+
+#: Die Person, für die gerade ein **Handgriff** läuft (``services/handgriff``) – gesetzt nur dort,
+#: nie aus einer Anfrage von aussen. Die Route sieht sie wie nach einer Anmeldung und prüft ihre
+#: Rechte wie immer.
+ACTING: ContextVar[Optional[UserProfile]] = ContextVar("acting_person", default=None)
 _firebase_initialized = False
 
 #: Der Satz für jede Abweisung einer unbestätigten Adresse.
@@ -66,7 +72,7 @@ def _create_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfil
                          first=name[0] if name else None,
                          last=name[1] if len(name) > 1 else None,
                          photo_url=decoded.get("picture"))
-    db.commit()
+    db.flush()
     db.refresh(user)
     return user
 
@@ -90,7 +96,7 @@ def _resolve_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfi
         user = people.by_email(db, email)
         if user is not None and user.is_active:
             user.firebase_uid = uid
-            db.commit()
+            db.flush()
     if user is None:
         return _create_user(db, uid, email, decoded)
     if not user.is_active:
@@ -134,16 +140,20 @@ def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict
         user.last_login_at = login
         changed = True
     if changed:
-        db.commit()
+        db.flush()
 
 
 def get_current_user(
     request: Request,
     credentials_: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
+    db: Session = DB,
 ) -> UserProfile:
     """Die angemeldete Person. Nur ein ungültiges Token ist 401 – ein Fehler beim Anlegen oder
     Abgleichen bleibt ein Serverfehler."""
+    acting = ACTING.get()
+    if acting is not None:
+        act(db, "person", acting.object_id, "handgriff")
+        return acting
     if not credentials_:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:

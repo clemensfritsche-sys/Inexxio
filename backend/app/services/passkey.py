@@ -80,7 +80,7 @@ def _issue_challenge(db: Session, purpose: str, user_id: int | None) -> bytes:
         user_id=user_id,
         expires_at=datetime.now(timezone.utc) + CHALLENGE_TTL,
     ))
-    db.commit()
+    db.flush()
     return challenge
 
 
@@ -106,7 +106,7 @@ def _consume_challenge(db: Session, credential: dict, purpose: str) -> bytes:
         expires = expires.replace(tzinfo=timezone.utc)
     expired = expires < datetime.now(timezone.utc)
     db.delete(row)
-    db.commit()
+    db.flush()
     if expired:
         raise HTTPException(400, detail="Passkey-Anfrage abgelaufen. Bitte erneut versuchen.")
     return base64url_to_bytes(challenge_b64)
@@ -116,7 +116,7 @@ def _purge_expired(db: Session) -> None:
     db.query(WebAuthnChallenge).filter(
         WebAuthnChallenge.expires_at < datetime.now(timezone.utc)
     ).delete(synchronize_session=False)
-    db.commit()
+    db.flush()
 
 
 # ── Registrierung (Nutzer ist angemeldet, fügt einen Passkey hinzu) ───────────
@@ -194,7 +194,7 @@ def complete_registration(
         last_used_at=datetime.now(timezone.utc),
     )
     db.add(row)
-    db.commit()
+    db.flush()
     db.refresh(row)
     return row
 
@@ -251,7 +251,7 @@ def complete_authentication(db: Session, request: Request, credential: dict) -> 
 
     row.sign_count = verified.new_sign_count
     row.last_used_at = datetime.now(timezone.utc)
-    db.commit()     # die letzte Anmeldung schreibt ``core/auth`` aus dem Token (``auth_time``)
+    db.flush()     # die letzte Anmeldung schreibt ``core/auth`` aus dem Token (``auth_time``)
 
     return mint_firebase_token(user)
 
@@ -300,4 +300,4 @@ def delete_passkey(db: Session, user: UserProfile, passkey_id: int) -> None:
     if not row:
         raise HTTPException(404, detail="Passkey nicht gefunden.")
     row.is_active = False
-    db.commit()
+    db.flush()

@@ -226,9 +226,7 @@ def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
                   subject=WORDS["confirmSubject"], body=mail.body, html=mail.html, at=_now(),
                   created_by=None, outgoing=True)
     write(db, msg, {"to": [oid], "cc": [], "bcc": [], "about": []})
-    db.commit()
-    mailbox.send(db, msg)       # scheitert es, bleibt ``outgoing`` – der Abgleich holt nach
-    db.commit()
+    mailbox.send_after(db)
     return msg
 
 

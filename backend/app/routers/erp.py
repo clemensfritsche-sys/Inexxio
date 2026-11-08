@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, selectinload
 from pydantic import BaseModel
 
 from ..core.auth import require_admin, require_employee
-from ..core.database import get_db
+from ..core.database import DB
 from ..models import UserProfile, WebAuthnCredential
 from ..schemas.admin import (
     AddressIn, CompanyRef, ErpAdminUpdate, PersonCreate, UserProfileResponse,
@@ -50,7 +50,7 @@ class ObjectResolution(BaseModel):
 @router.get("/objects/{object_id}", response_model=ObjectResolution)
 def resolve_object(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Typ einer Objektnummer in O(1) auflösen (zentrale Registry, Fallback Scan)."""
@@ -62,9 +62,10 @@ def resolve_object(
 
 @router.get("/records", response_model=list[UserProfileResponse])
 def list_erp_records(
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
+    """Alle Personen für den Feed."""
     # **Alle Personen**, auch eine alte deaktivierte Zeile: «inaktiv» ist ein Zustand,
     # kein Verschwinden – sie bleibt ansehbar.
     users = (db.query(UserProfile)
@@ -77,7 +78,7 @@ def list_erp_records(
 @router.post("/records", response_model=UserProfileResponse, status_code=201)
 def create_erp_record(
     data: PersonCreate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_employee),
 ):
     """►►► **Eine Person anlegen** – ohne dass sie sich je angemeldet hat. ◄◄◄
@@ -91,7 +92,7 @@ def search_people(
     search: str = Query("", max_length=80),
     limit: int = Query(20, ge=1, le=50),
     staff: bool = Query(False),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """**Welche Person ist gemeint?** – Nummer, Firma, Name oder E-Mail
@@ -104,7 +105,7 @@ def search_people(
 @router.get("/companies", response_model=list[CompanyRef])
 def search_companies(
     search: str = "",
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """**Welche Firma ist gemeint?** – die Vorschläge, während das **Personal** einer
@@ -121,9 +122,10 @@ def search_companies(
 @router.get("/records/{object_id}", response_model=UserProfileResponse)
 def get_erp_record(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
+    """Eine Person mit ihren Angaben."""
     user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
@@ -134,14 +136,15 @@ def get_erp_record(
 def update_erp_record(
     object_id: int,
     data: ErpAdminUpdate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_admin),
 ):
+    """Angaben einer Person ändern (Name, Kontakt, Firma, Rolle, Anstellung) – nur ein Admin."""
     user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
     people.apply_profile_update(db, user, data, current_user.id, staff=True)
-    db.commit()
+    db.flush()
     db.refresh(user)
     return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
 
@@ -156,7 +159,7 @@ def _person(db: Session, object_id: int) -> UserProfile:
 
 
 def _done(db: Session, user: UserProfile) -> UserProfileResponse:
-    db.commit()
+    db.flush()
     db.refresh(user)
     return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
 
@@ -165,9 +168,10 @@ def _done(db: Session, user: UserProfile) -> UserProfileResponse:
 def add_record_address(
     object_id: int,
     data: AddressIn,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_admin),
 ):
+    """Eine Anschrift ins Adressbuch einer Person aufnehmen – nur ein Admin."""
     user = _person(db, object_id)
     address_book.add(db, user, data.model_dump(exclude_unset=True), current_user.id)
     return _done(db, user)
@@ -179,9 +183,10 @@ def change_record_address(
     object_id: int,
     address_id: int,
     data: AddressIn,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_admin),
 ):
+    """Eine Anschrift im Adressbuch einer Person ändern – nur ein Admin."""
     user = _person(db, object_id)
     address_book.change(db, user, address_id, data.model_dump(exclude_unset=True),
                         current_user.id)
@@ -193,9 +198,10 @@ def change_record_address(
 def remove_record_address(
     object_id: int,
     address_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     current_user: UserProfile = Depends(require_admin),
 ):
+    """Eine Anschrift aus dem Adressbuch einer Person entfernen – nur ein Admin."""
     user = _person(db, object_id)
     address_book.remove(db, user, address_id, current_user.id)
     return _done(db, user)

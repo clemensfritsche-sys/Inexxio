@@ -266,33 +266,14 @@ def search(db: Session, q: str = "", *, staff: bool = False,
     )
 
 
-def firebase_uid_for(email: str, name: str) -> str:
-    """►►► **Das Firebase-Konto zu dieser E-Mail** – gefunden oder angelegt. ◄◄◄
-
-    Eine intern angelegte Person bekommt ihr Konto **sofort**: meldet sie sich später an
-    (Magic Link, Google mit derselben Adresse), ist sie über die UID direkt **dieser**
-    Datensatz – samt Historie. Gibt es das Konto schon, wird es übernommen."""
-    from firebase_admin import auth as fb
-    from ..core.auth import _init_firebase
-    _init_firebase()
-    try:
-        return fb.get_user_by_email(email).uid
-    except fb.UserNotFoundError:
-        pass
-    try:
-        return fb.create_user(email=email, display_name=name or None,
-                              email_verified=False).uid
-    except Exception as e:      # noqa: BLE001 – der Dienst nennt den Grund
-        raise HTTPException(502, detail=f"Das Anmeldekonto für «{email}» liess sich nicht "
-                                        f"anlegen: {e}")
-
-
 def create_person(db: Session, data, actor: UserProfile) -> UserProfile:
     """►►► **Eine Person anlegen** – ohne dass sie sich je angemeldet hat. ◄◄◄
 
-    Minimum: Vorname, Nachname, E-Mail, Rolle. Die Objektnummer entsteht **sofort**, das
-    Firebase-Konto ebenso; die E-Mail ist klein geschrieben und einmalig. Personal-Rollen
-    vergibt nur ein Admin – wie an jeder anderen Stelle. Committet."""
+    Minimum: Vorname, Nachname, E-Mail, Rolle. Die Objektnummer entsteht **sofort**; ein
+    Anmeldekonto nicht – es entsteht bei der ersten Anmeldung, die über die bestätigte E-Mail
+    genau diesen Datensatz übernimmt (``core/auth._resolve_user``). So geht beim Anlegen nichts
+    nach aussen. Die E-Mail ist klein geschrieben und einmalig. Personal-Rollen vergibt nur ein
+    Admin – wie an jeder anderen Stelle."""
     fields = data.model_dump(exclude_unset=True)
     first = (fields.pop("first_name", "") or "").strip()
     last = (fields.pop("last_name", "") or "").strip()
@@ -313,21 +294,16 @@ def create_person(db: Session, data, actor: UserProfile) -> UserProfile:
     probe = UserProfile(first_name=first, last_name=last, email=email, role="user")
     _company_fields(db, fields, actor.id, staff=True)
     assert_employment(db, probe, {"role": role, **fields})
-    uid = firebase_uid_for(email, f"{first} {last}")
-    if db.query(UserProfile).filter(UserProfile.firebase_uid == uid).first() is not None:
-        raise HTTPException(409, detail=f"Das Anmeldekonto zu «{email}» gehört bereits "
-                                        f"einer anderen Person.")
-    user = ensure(db, email, uid=uid, role=role, first=first, last=last, actor_id=actor.id)
+    user = ensure(db, email, role=role, first=first, last=last, actor_id=actor.id)
     user.company_object_id = fields.get("company_object_id")
-    db.commit()
-    db.refresh(user)
+    db.flush()
     return user
 
 
 #: ►►► **Die Anmelde-Kennung (``firebase_uid``) hat zwei Formen** – erklärt an dieser Stelle:
-#: die **UID aus Firebase** (wer sich angemeldet hat, ``core/auth``, oder vom Personal angelegt
-#: wurde – das Konto entsteht sofort, ``firebase_uid_for``) und ``mail:<adresse>``
-#: (``contact_uid``) für einen **Kontakt ohne Anmeldekonto** (Mail, Anfrage, Newsletter).
+#: die **UID aus Firebase** (wer sich angemeldet hat, ``core/auth``) und ``mail:<adresse>``
+#: (``contact_uid``) für jede Person **ohne Anmeldekonto** (vom Personal angelegt, Mail,
+#: Anfrage, Newsletter).
 #: Meldet er sich später mit dieser – bestätigten – Adresse an, übernimmt er genau diesen
 #: Datensatz (``core/auth._resolve_user``).
 def contact_uid(email: str) -> str:

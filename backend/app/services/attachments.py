@@ -24,9 +24,9 @@ from contextvars import ContextVar
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import event
 from sqlalchemy.orm import Session
 
+from ..core import outside
 from ..core.config import get_settings
 from ..models import Attachment
 
@@ -160,8 +160,8 @@ def serve_headers(att: Attachment, *, public: bool = False) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 _client = None
-#: In einem Lauf, der zurückgerollt wird (Vorschau eines Belegs), geht nichts in den Bucket –
-#: sonst bliebe dort eine Datei ohne Zeile liegen.
+#: In einem Lauf, der zurückgerollt wird (Vorschau eines Belegs, Probelauf eines Handgriffs),
+#: geht nichts in den Bucket – sonst bliebe dort eine Datei ohne Zeile liegen.
 _IN_DATABASE: ContextVar[bool] = ContextVar("attachments_in_database", default=False)
 
 
@@ -187,10 +187,15 @@ def in_database():
         _IN_DATABASE.reset(token)
 
 
+def _here() -> bool:
+    """Bleiben die Bytes in der Zeile? – in jedem Lauf, der zurückgerollt wird."""
+    return _IN_DATABASE.get() or outside.probing()
+
+
 def keep(att: Attachment, raw: bytes) -> None:
     """**Die Bytes ablegen** – im Bucket, sonst in der Zeile. Ein Fehler des Speichers kostet
     nie die Datei: sie bleibt dann in der Datenbank, und das Log sagt es."""
-    target = None if _IN_DATABASE.get() else bucket()
+    target = None if _here() else bucket()
     if target is not None:
         try:
             target.blob(att.token).upload_from_string(raw, content_type=att.mime)
@@ -243,7 +248,7 @@ def put_object(name: str, raw: bytes, mime: str) -> bool:
     """**Bytes unter einem Namen in den Bucket der Aufnahmen** – ``True``, wenn sie dort liegen.
     ``False`` (kein Bucket, ein Lauf zum Zurückrollen, Bucket fehlt oder hakt): dann hält der
     Aufrufer sie in seiner Zeile – verloren geht nichts."""
-    target = None if _IN_DATABASE.get() else recordings_bucket()
+    target = None if _here() else recordings_bucket()
     if target is None:
         return False
     try:
@@ -279,7 +284,7 @@ def drop_objects(db: Session, prefix: str) -> None:
     if target is None or not prefix:
         return
 
-    def _drop(_session) -> None:
+    def _drop() -> None:
         try:
             names = [b.name for b in target.list_blobs(prefix=prefix)]
             for i in range(0, len(names), DROP_BATCH):
@@ -288,7 +293,7 @@ def drop_objects(db: Session, prefix: str) -> None:
                         target.blob(name).delete()
         except Exception as exc:                                   # noqa: BLE001
             print(f"WARNING: Objekte unter {prefix} nicht gelöscht ({exc!r})", flush=True)
-    event.listen(db, "after_commit", _drop, once=True)
+    outside.after(db, _drop)
 
 
 def discard(db: Session, att: Attachment) -> None:
@@ -297,10 +302,10 @@ def discard(db: Session, att: Attachment) -> None:
     if att.data is None and bucket() is not None:
         name = att.token
 
-        def _drop(_session) -> None:
+        def _drop() -> None:
             try:
                 bucket().blob(name).delete()
             except Exception as exc:                               # noqa: BLE001
                 print(f"WARNING: Objekt {name} nicht gelöscht ({exc!r})", flush=True)
-        event.listen(db, "after_commit", _drop, once=True)
+        outside.after(db, _drop)
     db.delete(att)

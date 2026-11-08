@@ -168,7 +168,7 @@ def operator(db: Session) -> CompanySettings:
                                   object_id=next_object_id(db, "organization"))
         _rekey(company)
         db.add(company)
-        db.commit()
+        db.flush()
         db.refresh(company)
     return company
 
@@ -251,7 +251,7 @@ def set_operator(db: Session, company: CompanySettings, actor_id: int | None) ->
     db.query(CompanySettings).filter(CompanySettings.id != company.id).update(
         {CompanySettings.is_operator: False})
     company.is_operator = True
-    db.commit()
+    db.flush()
     db.refresh(company)
     return company
 
@@ -287,7 +287,7 @@ def deactivate(db: Session, company: CompanySettings, actor_id: int | None) -> C
         raise HTTPException(409, detail="Das letzte Unternehmen kann nicht geschlossen werden")
     db.query(CompanyTerritory).filter(CompanyTerritory.company_id == company.id).delete()
     company.is_active = False
-    db.commit()
+    db.flush()
     db.refresh(company)
     return company
 
@@ -301,7 +301,7 @@ def reopen(db: Session, company: CompanySettings, actor_id: int | None) -> Compa
     _rekey(company)
     _assert_unique(db, company)
     company.is_active = True
-    db.commit()
+    db.flush()
     db.refresh(company)
     return company
 
@@ -406,13 +406,13 @@ def set_territory(db: Session, area: str, company_object_id: int | None,
     if company is None or company.id == _default_owner_id(db, code):
         if row is not None:
             db.delete(row)
-        db.commit()
+        db.flush()
         return
     if row is None:
         db.add(CompanyTerritory(region=code, company_id=company.id))
     else:
         row.company_id = company.id
-    db.commit()
+    db.flush()
 
 
 # ─── Anlegen / Ändern – EIN Feldsatz für JEDE Gesellschaft ────────────────────────
@@ -630,7 +630,7 @@ def create(db: Session, data: dict, actor_id: int | None, *,
     op = operator(db)
     db.query(CompanySettings).filter(CompanySettings.id == op.id).with_for_update().first()
     company = _new(db, data, actor_id, own=own)
-    db.commit()
+    db.flush()
     db.refresh(company)
     return company
 
@@ -734,7 +734,7 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
     if own != company.is_own:
         company.is_own = own
     _apply_entity_fields(company, data, db, actor_id)
-    db.commit()
+    db.flush()
     db.refresh(company)
     return company
 

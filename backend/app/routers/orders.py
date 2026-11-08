@@ -13,7 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
-from ..core.database import get_db
+from ..core.database import DB
 from ..domain import statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
@@ -136,19 +136,14 @@ def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
 
 
 def _keep(db: Session) -> None:
-    """**Was eine Ansicht schreibt, bleibt** – committet an der Tür, nicht im Dienst.
+    """**Was eine Ansicht schreibt, bleibt** – gespeichert am Ende der Anfrage (``get_db``).
 
     Der Beleg zieht seine Positionen beim Anzeigen aus dem Prozess nach
     (``voucher.sync_lines``) – der einzige Schreibvorgang auf einem Lesepfad, und er ist
-    Absicht: die Positionen brauchen eine Id, damit man sie bepreisen kann. Hier, in der
-    einen Stelle, an der eine Antwort ihre Module baut, wird er festgeschrieben – ohne
-    ``expire_on_commit``, damit die Antwort danach nicht jedes geladene Objekt neu holt.
+    Absicht: die Positionen brauchen eine Id, damit man sie bepreisen kann. ``flush`` gibt sie
+    ihr, ohne die geladenen Objekte zu verwerfen.
     """
-    keep, db.expire_on_commit = db.expire_on_commit, False
-    try:
-        db.commit()
-    finally:
-        db.expire_on_commit = keep
+    db.flush()
 
 
 def _involved(db: Session, viewer: UserProfile) -> Optional[set[tuple[int, int]]]:
@@ -348,7 +343,7 @@ def _event_numbers(db: Session, events) -> dict[int, str]:
 def list_orders(
     limit: int = Query(200, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(get_current_user),
 ):
     """Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).
@@ -382,7 +377,7 @@ def article_options(
     search: Optional[str] = Query(None, description="Objektnummer-Teil oder Name"),
     object_id: Optional[int] = Query(None, description="Genau diesen Artikel auflösen"),
     limit: int = Query(20, le=300),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Welche Artikel kann ich in eine Definitionszeile nehmen?
@@ -450,7 +445,7 @@ def unit_options(
     preselect: int = Query(0, ge=0, le=500, description="Wie viele FIFO vorschlagen"),
     limit: int = Query(60, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?
@@ -573,7 +568,7 @@ def _fifo(db: Session, base, want: int) -> list[str]:
 @router.post("/validate", response_model=OrderValidation)
 def validate_order(
     data: OrderCreate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.
@@ -653,12 +648,12 @@ def _preview_parents(db: Session, draft: dict) -> list[RelatedOrder]:
 @router.post("", response_model=OrderResponse, status_code=201)
 def create_order(
     data: OrderCreate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(require_employee),
 ):
     """Anlegen **ist** Freigeben – ein Aufruf, eine Transaktion (§6.3)."""
     order = orders_svc.create_order(db, data.model_dump(), actor_id=user.id, actor=user)
-    db.commit()
+    db.flush()
     db.refresh(order)
     return _to_response(db, order)
 
@@ -666,21 +661,21 @@ def create_order(
 @router.post("/{object_id}/loop/end", response_model=OrderResponse)
 def end_loop(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """**Die Wiederholung beenden** – am neuesten Auftrag der Kette, auch wenn er abgeschlossen
     ist; endgültig. Der Auftrag selbst ändert sich nicht (``loop.end`` → ``loop.ended``)."""
     order = orders_svc.get(db, object_id)
     loop_svc.end(db, order)
-    db.commit()
+    db.flush()
     return _to_response(db, order)
 
 
 @router.get("/{object_id}", response_model=OrderResponse)
 def get_order(
     object_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(get_current_user),
 ):
     """Der Auftrag – und für eine Gegenpartei **derselbe, nur ihr Modul**."""
@@ -693,7 +688,7 @@ def list_units(
     edge: str = Query(..., description="Die Kante des Prozessbildes, deren Stücke gemeint sind."),
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Die einzelnen Stücke **einer Position** – erst wenn jemand aufklappt.
@@ -732,7 +727,7 @@ def confirm_step(
     object_id: int,
     step_id: int,
     data: StepConfirm,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(require_employee),
 ):
     """«Bestätigen» – der **eine** Ausführungs-Endpunkt, für jedes Modul derselbe.
@@ -747,7 +742,7 @@ def confirm_step(
         instance_object_id=data.instance_object_id, verification=data.verification,
         sources=data.sources, place=data.place,
         actor_id=user.id)
-    db.commit()
+    db.flush()
     db.refresh(order)
     return _to_response(db, order)
 
@@ -758,7 +753,7 @@ def hold_numbers(
     step_id: int,
     instance: int = Query(..., description="Objektnummer der betroffenen Instanz"),
     group: str = Query(..., description="sample | failed"),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Die Nummern einer Gruppe – **erst auf Klick** (§4/§4.1).
@@ -783,7 +778,7 @@ def step_record(
     step_id: int,
     limit: int = Query(200, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """►►► **Was ist an diesem Modul passiert?** ◄◄◄ — lückenlos, je Einzelinstanz.
@@ -850,7 +845,7 @@ def update_voucher(
     object_id: int,
     step_id: int,
     data: VoucherUpdate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(get_current_user),
 ):
     """**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher_actions.VERBS``).
@@ -874,9 +869,7 @@ def update_voucher(
     log.event(db, "voucher.action", order.object_id,
               {"action": data.action, "step": step.id, "stage": row.stage},
               table="vouchers", row=row.id)
-    db.commit()
-    # **Was gerade an Dokumenten entstand, geht gleich hinaus** – nach dem Festschreiben.
-    voucher_docs.send_pending(db)
+    db.flush()
     db.refresh(order)
     return _to_response(db, order, viewer=user)
 
@@ -886,7 +879,7 @@ def preview_voucher(
     object_id: int,
     step_id: int,
     data: VoucherUpdate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(require_employee),
 ):
     """►►► **Vorschau → Freigeben**: das Papier, das diese Handlung hinausgäbe – gerechnet von
@@ -905,7 +898,7 @@ def preview_voucher(
 def prepare_voucher_payment(
     object_id: int,
     step_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(get_current_user),
 ):
     """►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
@@ -930,7 +923,7 @@ def refund_voucher_payment(
     object_id: int,
     step_id: int,
     body: VoucherUpdate,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(require_employee),
 ):
     """►►► **Geld zurück — über den Dienst, der es eingezogen hat.** ◄◄◄
@@ -948,7 +941,7 @@ def refund_voucher_payment(
     log.event(db, "voucher.refund_requested", order.object_id,
               {"entry": body.entry, "amount": body.amount, "step": step_id},
               table="vouchers", row=row.id)
-    db.commit()
+    db.flush()
     return _to_response(db, order, viewer=user)
 
 
@@ -957,7 +950,7 @@ def refund_voucher_payment(
 def voucher_transfer_details(
     object_id: int,
     step_id: int,
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(get_current_user),
 ):
     """**Wie man diese Rechnung überweist** – Bankverbindung und QR-Rechnung.
@@ -977,7 +970,7 @@ def voucher_correctable(
     object_id: int,
     step_id: int,
     search: str = "",
-    db: Session = Depends(get_db),
+    db: Session = DB,
     user: UserProfile = Depends(require_employee),
 ):
     """►►► **Welche Rechnung mindert dieser Beleg?** – sie darf in einem anderen Auftrag

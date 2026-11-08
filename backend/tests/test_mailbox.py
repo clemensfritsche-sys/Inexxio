@@ -11,6 +11,7 @@ import random
 import pytest
 from fastapi import HTTPException
 
+from tests.support import after_save
 from app.models import Mailbox, Message, UserProfile
 from app.services import people
 from app.schemas.communication import MessageIn
@@ -142,9 +143,11 @@ def test_an_outward_mail_goes_out_through_its_mailbox(world, monkeypatch):
     lea = _person(db)
     sent = []
     monkeypatch.setattr(mb, "ready", lambda: True)
-    monkeypatch.setattr(mb, "send", lambda _db, m: sent.append(m.id) or False)
+    monkeypatch.setattr(mb, "send", lambda _db, m, *_: sent.append(m.id) or False)
     m = comm.create(db, MessageIn(channel=CH, sender=staff.object_id, to=[lea.object_id],
                                   subject="Offerte", body="Offerte"), staff)
+    assert sent == [] and comm.load(db, [m.id])[0].pending, "erst nach dem Speichern"
+    after_save(db)
     assert sent == [m.id] and comm.load(db, [m.id])[0].pending
     box.is_active = False
     db.flush()

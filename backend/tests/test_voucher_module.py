@@ -1035,8 +1035,8 @@ def test_a_view_that_writes_its_lines_also_keeps_them(db):
     Wert wird nicht übernommen – nur mit Enter funktioniert es.»*
 
     Die Oberfläche war unschuldig. ``sync_lines`` legt die Positionszeilen beim **Anzeigen**
-    an; ``get_db`` committet aber nie, und ein blosses ``flush`` fällt beim Schliessen der
-    Sitzung zurück. Der Browser bekam damit Ids, **die es nicht gibt** – und ``_price``
+    an; ``get_db`` committete damals nie, und ein blosses ``flush`` fiel beim Schliessen der
+    Sitzung zurück (heute speichert jede Anfrage am Ende, Phase 5). Der Browser bekam damit Ids, **die es nicht gibt** – und ``_price``
     findet seine Zeile nicht und schreibt nichts. Dass es «mit Enter ging», war schlicht
     der **zweite** Versuch: der erste ``POST`` legt die Zeilen an und committet sie.
 
@@ -1055,8 +1055,8 @@ def test_a_view_that_writes_its_lines_also_keeps_them(db):
     ids = [ln.id for ln in paper.lines]
     assert ids, "Die Ansicht zeigt keine Position."
 
-    # ►►► **Die Sitzung endet, ohne dass jemand committet** – genau wie ``get_db``.
-    db.rollback()
+    # ►►► **Die Anfrage endet** – ``get_db`` speichert, was die Ansicht schrieb.
+    db.commit()
     kept = db.query(VoucherLine).filter(VoucherLine.id.in_(ids)).count()
     assert kept == len(ids), (
         f"{kept} von {len(ids)} Positionen haben die Anzeige überlebt (a) – der "
