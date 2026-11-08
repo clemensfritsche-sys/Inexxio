@@ -15,10 +15,12 @@ Ohne verbundenes Postfach wird die Mail **nur erfasst** – wie jede andere Mail
 
 import logging
 import secrets
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from html import escape
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from sqlalchemy.orm import Session
 
@@ -221,8 +223,15 @@ def _lines(db: Session, row: Voucher, kind: str, doc: document.Doc) -> None:
 
 
 def _terms(db: Session, row: Voucher, theirs: dict[str, Any]) -> list[tuple[str, str]]:
+    from ..domain import loop as dl
+    from . import loop
     out = [("Zahlungsfrist", _days_word(vs.due_days_of(db, row), lead=False)),
            ("Lieferfrist", _days_word(vs.lead_days_of(db, row), lead=True))]
+    # **Die Offerte nennt die Wiederholung** – wer zusagt, sagt zur Schlaufe zu (Wiederkehr O16).
+    order = db.query(Order).filter(Order.id == row.order_id).first()
+    repeat = loop.settings(db, order) if order is not None else None
+    if repeat is not None:
+        out.append(("Wiederholung", escape(dl.sentence(repeat))))
     if row.incoterm and vh.has_goods(db, row):
         place = vh.incoterm_place_of(db, row)
         out.append(("Lieferbedingung",
@@ -300,6 +309,21 @@ def _payslip(db: Session, row: Voucher, theirs: dict[str, Any]) -> Optional[docu
 # Ausgeben: einfrieren und mailen
 # ---------------------------------------------------------------------------
 
+#: ►► **Leise ausgeben** – das Papier entsteht als Dokument, eine Mail nicht. ◄◄ Für die
+#: Wiederholung (``services/loop._carry_agreement``): das System führt Anbieten und Zusagen aus,
+#: aber hinaus geht nichts von selbst (Projektakte Wiederkehr O1).
+_QUIET: ContextVar[bool] = ContextVar("voucher_docs_quiet", default=False)
+
+
+@contextmanager
+def quietly() -> Iterator[None]:
+    token = _QUIET.set(True)
+    try:
+        yield
+    finally:
+        _QUIET.reset(token)
+
+
 def issue(db: Session, *, row: Voucher, kind: str, actor: Optional[UserProfile] = None,
           party_id: Optional[int] = None, level: Optional[int] = None
           ) -> Optional[VoucherDocument]:
@@ -318,8 +342,8 @@ def issue(db: Session, *, row: Voucher, kind: str, actor: Optional[UserProfile] 
                           agb=doc.terms_of.key if doc.terms_of else None)
     db.add(rec)
     db.flush()
-    msg = _mail(db, row=row, rec=rec, doc=doc, kind=kind, party=party, actor=actor,
-                level=level)
+    msg = None if _QUIET.get() else _mail(db, row=row, rec=rec, doc=doc, kind=kind,
+                                          party=party, actor=actor, level=level)
     rec.message_id = msg.id if msg is not None else None
     db.flush()
     return rec

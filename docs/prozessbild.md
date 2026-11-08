@@ -273,6 +273,11 @@ also an der **letzten Zeile der Spalte** — genau dort dockt die Rückführungs
 Entscheidung einmalig statt änderbar), und trägt seinen Zustand im Wort («kehrt zurück» ↔
 «bleibt hier»), nicht im Strichmuster.
 
+**Die Wiederholung** (PROCESS_CORE §6.6) ist eine Karte direkt **unter dem Ende**; ihre Linie
+(`process-columns.LoopLine`, derselbe `polyPath`) verlässt die Karte nach **links**, läuft links
+neben allen Modulen hinauf und mündet von links in den Start. Links, weil rechts die Abweichungen
+stehen. Haarlinie, solange es keinen Nachfolger gibt, danach kräftig.
+
 Nicht **neben der Stückauswahl** (die Aussage stünde woanders als ihre Wirkung), nicht als
 **Ersatz-Knoten mit eigener Linie** (zwei Rückweg-Linien für eine Entscheidung) und nicht
 als **Klick auf die ganze Nachbarspalte** (eine Fläche ohne Aufforderung).

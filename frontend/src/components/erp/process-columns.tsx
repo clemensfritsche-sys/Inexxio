@@ -161,7 +161,8 @@ interface Wires {
 }
 
 export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
-  deviationTotal = 0, journeyIn = [], journeyOut = [], origins = [], onToggleReturn }: {
+  deviationTotal = 0, journeyIn = [], journeyOut = [], origins = [], onToggleReturn,
+  loopWalked = false }: {
   /** Was in der Mitte steht – der laufende Auftrag oder der Entwurf. */
   mid: MidColumn;
   /** Übergeordnete Aufträge (links). Im Entwurf die **Vorschau** aus `/validate`. */
@@ -181,6 +182,12 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
    * Entscheidung längst gefallen.
    */
   onToggleReturn?: (parentObjectId: number) => void;
+  /**
+   * **Die Schlaufe ist gegangen** – es gibt den Nachfolger (Wiederkehr §8). Dann ist ihre
+   * Linie kräftig wie jede gegangene Kante, sonst eine Haarlinie. Gezeichnet wird sie,
+   * sobald die Mitte eine Wiederholung trägt (`mid.loop`).
+   */
+  loopWalked?: boolean;
 }) {
   // **Eine Sache, eine Stelle.** Ein Auftrag, der schon als Spalte danebensteht, ist
   // kein zweiter Eintrag in der Journey-Zeile – dort bleibt, was die Spalten nicht
@@ -206,6 +213,7 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
   // Objekte und als Abhängigkeit eine Endlosschleife statt einer Bedingung.
   const withHead = !!midProps.head;
   const withTail = !!midProps.tail;
+  const withLoop = !!midProps.loop;
   const journeyInRow = hasJourney(inStops, origins);
   const journeyOutRow = outStops.length > 0;
   const returnsRow = returns.length > 0;
@@ -217,10 +225,10 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
     // Raster sie nicht mit, sässe jeder Knoten eine Zeile daneben und jede Querlinie
     // dockte am falschen an.
     rows: columnRows(midProps.graph, {
-      head: withHead, tail: withTail,
+      head: withHead, tail: withTail, loop: withLoop,
       journeyIn: journeyInRow, journeyOut: journeyOutRow, returns: returnsRow,
     }),
-  }), [midProps.objectId, midProps.graph, midProps.steps, withHead, withTail,
+  }), [midProps.objectId, midProps.graph, midProps.steps, withHead, withTail, withLoop,
     journeyInRow, journeyOutRow, returnsRow]);
 
   const left = useMemo(() => parents.map((r) => side(r, 'left')), [parents]);
@@ -299,8 +307,11 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
     <FlowFrame
       gutter={gutter}
       lines={(a, _size, m) => (
-        <Wiring columns={columns} anchors={a} metrics={m} wires={wires}
-          journeyIn={journeyKeys(inStops, origins)} journeyOut={journeyKeys(outStops)} />
+        <>
+          <Wiring columns={columns} anchors={a} metrics={m} wires={wires}
+            journeyIn={journeyKeys(inStops, origins)} journeyOut={journeyKeys(outStops)} />
+          {withLoop && <LoopLine anchors={a} walked={loopWalked} />}
+        </>
       )}
     >
       {(m) => {
@@ -317,7 +328,9 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
         if (solo || !m.lanes) {
           return (
             <div className="flex flex-col items-center gap-6">
-              <div className="w-full" style={{ maxWidth: PROCESS_MAXW }}>{column()}</div>
+              {/* Mit Wiederholung braucht ihre Linie links Platz neben den Karten. */}
+              <div className="w-full" style={{ maxWidth: PROCESS_MAXW,
+                paddingLeft: withLoop ? 2 * LOOP_OFFSET : undefined }}>{column()}</div>
               {[...left, ...right].map((c) => (
                 <div key={c.prefix} className="w-full" style={{ maxWidth: PROCESS_MAXW }}>
                   <Neighbour col={c} />
@@ -379,6 +392,32 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
       }}
     </FlowFrame>
     </div>
+  );
+}
+
+/** Wie weit die Schlaufe links neben den Karten läuft. */
+const LOOP_OFFSET = 14;
+
+/**
+ * **Die Schlaufe — vom Ende zurück zum Start, links herum** (Wiederkehr §8).
+ *
+ * Sie beginnt an der Karte der Wiederholung (direkt unter dem Ende), läuft links an allen
+ * Modulen vorbei hinauf und mündet von links in den Start: der nächste Auftrag beginnt dort,
+ * wo dieser angefangen hat. Links, weil rechts die Abweichungen stehen. Dieselbe Linie wie
+ * jede andere (`polyPath`, `Stroke`): kräftig, wenn es den Nachfolger gibt, sonst Haarlinie.
+ */
+function LoopLine({ anchors, walked }: {
+  anchors: Record<string, FlowAnchor>; walked: boolean;
+}) {
+  const card = anchors.loop;
+  const start = anchors.start;
+  if (!card || !start) return null;
+  const from = port(card, 'left');
+  const to = port(start, 'left');
+  const x = card.left - LOOP_OFFSET;
+  return (
+    <Stroke walked={walked}
+      d={polyPath([from, [x, from[1]], [x, to[1]], to])} />
   );
 }
 

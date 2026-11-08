@@ -106,6 +106,18 @@ def _free(db: Session, article_object_id: int):
     )
 
 
+def free_numbers(db: Session, article_object_id: int, want: int) -> list[str]:
+    """►► **Die ältesten freien Stücke eines Artikels, als Nummern** – dieselbe Menge wie der
+    Verbrauch (``_free``: bei uns ``Freigegeben``, in keinem Auftrag). Die Schlaufe nimmt damit
+    «FIFO»: ein Nachfolger startet so nie als Abweichung (kein gesperrtes, kein verkauftes
+    Stück). ◄◄"""
+    from .instances import unit_number
+    if want <= 0:
+        return []
+    rows = _free(db, article_object_id).order_by(InstanceUnit.id).limit(want).all()
+    return [unit_number(inst, unit) for unit, inst in rows]
+
+
 def _counted(db: Session, article_object_id: int) -> list[tuple[int, Optional[places.Place], int]]:
     """Die freien Stücke **gezählt** – je Kiste und Ort eine Zeile, nicht je Stück."""
     rows = (

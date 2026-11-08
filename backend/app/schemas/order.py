@@ -65,6 +65,24 @@ class DefinitionLine(BaseModel):
     returns: bool = True
 
 
+class LoopIn(BaseModel):
+    """►► **Die Schlaufe im Entwurf** – eingestellt wie ein Dauerauftrag (``domain/loop``). ◄◄
+
+    Geprüft wird sie im Dienst (``loop.draft_problems``), nicht hier: so nennt die Prüfung des
+    Entwurfs jeden fehlenden Teil als Satz, statt mit 422 abzubrechen."""
+
+    #: ``week`` · ``month`` · ``quarter`` · ``half`` · ``year``.
+    every: Optional[str] = None
+    #: Die erste Wiederholung (Kalendertag, heute oder später).
+    first: Optional[str] = None
+    #: Ende: ein Datum **oder** eine Anzahl Wiederholungen – beides leer heisst unbefristet.
+    until: Optional[str] = None
+    count: Optional[int] = None
+    #: Je Zeile des Entwurfs (gleiche Reihenfolge): ``same`` (gleiche Einzelinstanzen) oder
+    #: ``fifo``; bei einer Zeile «Neu» bedeutungslos. **Ohne Vorbelegung**.
+    takes: list[Optional[str]] = Field(default_factory=list)
+
+
 class OrderCreate(BaseModel):
     """Der Entwurf, so wie ihn die Oberfläche schickt."""
 
@@ -73,6 +91,8 @@ class OrderCreate(BaseModel):
     #: sein Prozess ist die Vorlage des Artikels, als Kopie. Etwas anderes zu schicken
     #: änderte daran nichts.
     steps: list[ModuleInput] = Field(default_factory=list)
+    #: **Die Schlaufe** – nur im Entwurf; mit der Freigabe eingefroren (Wiederkehr).
+    loop: Optional[LoopIn] = None
 
 
 #: Die Marke, unter der ein Entwurf im Bild seines künftigen Nachbarn steht. Er hat noch
@@ -475,6 +495,45 @@ class RelatedOrder(BaseModel):
     returns: bool = False
 
 
+class LoopLineView(BaseModel):
+    """Was eine Zeile in jeder Wiederholung nimmt."""
+
+    position: int
+    article_name: str = ""
+    #: ``same`` · ``fifo`` · ``new``.
+    take: Optional[str] = None
+    take_label: str = ""
+
+
+class LoopView(BaseModel):
+    """►► **Die Schlaufe eines Auftrags** – alles abgeleitet aus dem Log (``services/loop``). ◄◄"""
+
+    every: str
+    every_label: str
+    #: Der Termin des Nachfolgers (Kalendertag, ISO).
+    next: str
+    until: Optional[str] = None
+    #: Wie viele Wiederholungen noch (bei «nach Anzahl»), sonst ``None``.
+    left: Optional[int] = None
+    #: Die Schlaufe in einem Satz – derselbe wie auf dem Papier.
+    sentence: str = ""
+    lines: list[LoopLineView] = Field(default_factory=list)
+    #: ``run`` · ``wait`` · ``stuck`` · ``ended`` · ``done`` (Kette zu Ende) · ``continued``.
+    state: str
+    #: Wort und Ampelton des Zustands (``domain/loop.STATES``) – die Karte übersetzt nichts.
+    state_label: str
+    tone: str
+    #: Warum es wartet bzw. nicht mehr geht – der Satz vom Server; beim Beenden das Datum.
+    reason: Optional[str] = None
+    successor: Optional[int] = None
+    predecessor: Optional[int] = None
+    #: Die Zusage, auf die sich Offerte und Zusage dieser Wiederholung stützen.
+    agreed_from: Optional[int] = None
+    agreed_on: Optional[str] = None
+    #: Darf hier beendet werden? Nur am neuesten Auftrag der Kette, solange sie läuft.
+    may_end: bool = False
+
+
 class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -516,6 +575,8 @@ class OrderResponse(BaseModel):
     # der Start-Eintrag dieses Auftrags trägt ``status_before = im_prozess``, das Stück
     # kam also aus einem laufenden Auftrag. Es gibt keinen Auftragstyp und keine Spalte.
     is_deviation: bool = False
+    #: **Die Schlaufe** (Wiederkehr) – ``None``, wenn sich der Auftrag nicht wiederholt.
+    loop: Optional[LoopView] = None
     #: Links: die Aufträge, aus denen dieser hier Stücke übernommen hat.
     parents: list[RelatedOrder] = Field(default_factory=list)
     #: Rechts: die Aufträge, die diesem hier Stücke abgenommen haben. **Gekappt bei

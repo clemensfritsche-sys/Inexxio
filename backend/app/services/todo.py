@@ -112,6 +112,10 @@ def todo(db: Session, actor: UserProfile) -> list[TodoOut]:
         items[oid].append(TodoItem(section="dokumente", count=1, label=label))
     for oid, item in _ai_items(db, actor):
         items[oid].append(item)
+    # **Wiederkehr**: ein Nachfolger, der wartet oder nie mehr entsteht – am neuesten Auftrag.
+    from . import loop
+    for oid, label, red in loop.todo_items(db):
+        items[oid].append(TodoItem(section="wiederholung", count=1, label=label, red=red))
     if actor.role == "admin":
         for c in db.query(CompanySettings).filter(CompanySettings.is_own.is_(True),
                                                   CompanySettings.is_active.is_(True)).all():

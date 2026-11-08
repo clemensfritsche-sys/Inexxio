@@ -124,6 +124,8 @@ export interface ColumnProps {
   endStatus: string;
   head?: ReactNode;
   tail?: ReactNode;
+  /** **Die Wiederholung** – die Karte unter dem Ende (Projektakte Wiederkehr §8). */
+  loop?: ReactNode;
   onDelete?: (id: number) => void;
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
   onExpand?: (edgeId: string) => Promise<UnitChip[]>;
@@ -187,7 +189,7 @@ interface ReturnTarget {
  */
 export function FlowColumn({
   graph, steps, prefix = '', mode, activeStepId = null, expandedStepId = null, endStatus,
-  head, tail, onDelete,
+  head, tail, loop, onDelete,
   renderStep, onExpand, onReorder, dragging, onDragState,
   journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
   containerStyle, rowStyle, origins = [],
@@ -205,7 +207,7 @@ export function FlowColumn({
   // Raster zählt eine Zeile, die Spalte rendert sie nicht – und alles darunter sitzt
   // eine Zeile daneben.
   const rows = columnRows(graph, {
-    head: !!head, tail: !!tail,
+    head: !!head, tail: !!tail, loop: !!loop,
     journeyIn: hasJourney(journeyIn, origins), journeyOut: journeyOut.length > 0,
     returns: returns.length > 0,
   });
@@ -229,6 +231,7 @@ export function FlowColumn({
         if ('slot' in row) {
           const body = row.slot === 'head' ? head
             : row.slot === 'tail' ? tail
+              : row.slot === 'loop' ? loop
               : row.slot === 'return'
                 ? <ReturnRow targets={returns} onToggle={onToggleReturn} />
                 : <JourneyRow

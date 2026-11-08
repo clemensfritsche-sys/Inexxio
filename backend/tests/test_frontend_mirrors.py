@@ -377,3 +377,20 @@ def test_the_time_icons_mirror():
     wanted = {a.icon for a in tk.ARTS} | {h[2] for h in tk.HINTS.values()}
     assert wanted <= mirrored, f"Ohne Symbol in der Oberfläche: {sorted(wanted - mirrored)}"
     assert "nope-icon" not in mirrored
+
+
+def test_the_loop_choices_mirror_the_backend_word_for_word():
+    """**Die Wiederholung** (Wiederkehr §8): Takte und Wahl je Zeile stehen in der Karte von
+    Hand – Schlüssel und Wort wie ``domain/loop.EVERY`` und ``TAKES`` (``new`` wählt niemand,
+    es folgt aus einer Zeile «Neu»)."""
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import loop as dl
+
+    card = _read(FRONTEND / "components" / "erp" / "loop-card.tsx")
+    shown = dict(re.findall(r"\{ value: '(\w+)', label: '([^']+)' \}", card))
+    for key, (word, _months) in dl.EVERY.items():
+        assert shown.get(key) == word, f"Takt «{key}» heisst in der Karte nicht «{word}»."
+    for key in (dl.SAME, dl.FIFO):
+        assert shown.get(key) == dl.TAKES[key], (
+            f"Wahl «{key}» heisst in der Karte nicht «{dl.TAKES[key]}».")

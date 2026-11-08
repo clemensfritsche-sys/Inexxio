@@ -141,7 +141,7 @@ export function definitionGraph(steps: DiagramStep[]): ProcessGraph {
  * verschöbe den Nebenauftrag gegenüber der anderen um eine Zeile.
  */
 export type ColumnRow =
-  | { key: string; slot: 'head' | 'tail' | 'journey-in' | 'journey-out' | 'return' }
+  | { key: string; slot: 'head' | 'tail' | 'loop' | 'journey-in' | 'journey-out' | 'return' }
   | { key: string; node: GraphNode }
   | { key: string; edge: GraphEdge };
 
@@ -153,6 +153,8 @@ export type ColumnRow =
  */
 export function columnRows(g: ProcessGraph, extra: {
   head?: boolean; tail?: boolean; journeyIn?: boolean; journeyOut?: boolean;
+  /** **Die Wiederholung** – direkt unter dem Ende: dort setzt ihre Linie an (Wiederkehr §8). */
+  loop?: boolean;
   /** Der Rückführungs-Schalter des Entwurfs – **die letzte Zeile**, siehe `ReturnRow`. */
   returns?: boolean;
 } = {}): ColumnRow[] {
@@ -164,6 +166,7 @@ export function columnRows(g: ProcessGraph, extra: {
   (g.nodes ?? []).forEach((n) => {
     if (extra.tail && n.kind === 'end') rows.push({ key: 'tail', slot: 'tail' });
     rows.push({ key: n.id, node: n });
+    if (extra.loop && n.kind === 'end') rows.push({ key: 'loop', slot: 'loop' });
     // **Was hinausgegangen ist, steht am Abzweigepunkt.** Die out-Kante führt in eine
     // andere Spalte; ihre Stücke stehen aber hier – sie sind an dieser Stelle weg.
     (g.edges ?? [])

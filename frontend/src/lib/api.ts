@@ -947,6 +947,11 @@ class ApiClient {
     return this.post('/api/v1/erp/orders', draft);
   }
 
+  /** **Die Wiederholung beenden** – nur am neuesten Auftrag der Kette (`services/loop.end`). */
+  endLoop(objectId: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/loop/end`, {});
+  }
+
   /** **Eine Seite wählbarer Einzelinstanzen** (#740) – nicht die Liste. Gesperrte kommen
    *  mit: die Oberfläche zeigt den Grund, statt eine Zeile stumm verschwinden zu lassen.
    *

@@ -69,6 +69,9 @@ export const ARTICLE_NAME_MAX_LENGTH = 32;
 
 export type Order = components['schemas']['OrderResponse'];
 export type OrderSummary = components['schemas']['OrderSummary'];
+/** Die Wiederholung eines Auftrags (Projektakte `docs/konzept/wiederkehr.md`). */
+export type LoopView = components['schemas']['LoopView'];
+export type LoopIn = components['schemas']['LoopIn'];
 export type OrderValidation = components['schemas']['OrderValidation'];
 export type ProcessStepResponse = components['schemas']['ProcessStepResponse'];
 export type ProcessEventResponse = components['schemas']['ProcessEventResponse'];

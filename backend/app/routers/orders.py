@@ -24,7 +24,7 @@ from ..schemas.voucher import (
 from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
 from ..schemas.order import (
-    ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
+    ArticleOption, FlowGraph, JourneyNeighbour, LoopView, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     DRAFT_OBJECT_ID, NeedSource, ProcessEventResponse, ProcessStepResponse,
     RelatedOrder, StepNeed, StepWork, UnitOption, UnitChoices,
@@ -47,6 +47,7 @@ from ..services import places as places_svc
 from ..services import record as record_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
+from ..services import loop as loop_svc
 from ..services import order_state
 from ..services import process as process_svc
 from ..services import stripe_pay
@@ -256,7 +257,14 @@ def _internal(db: Session, order: Order) -> dict:
                             incoming=True),
         "deviations": _related(db, order, branches[:RELATED_LIMIT], incoming=False),
         "deviation_total": len(branches),
+        # **Die Schlaufe** – abgeleitet aus dem Log (``services/loop``).
+        "loop": _loop_view(db, order),
     }
+
+
+def _loop_view(db: Session, order: Order) -> Optional[LoopView]:
+    found = loop_svc.view(db, order)
+    return LoopView(**found) if found is not None else None
 
 
 def _related(db: Session, order: Order,
@@ -649,9 +657,23 @@ def create_order(
     user: UserProfile = Depends(require_employee),
 ):
     """Anlegen **ist** Freigeben – ein Aufruf, eine Transaktion (§6.3)."""
-    order = orders_svc.create_order(db, data.model_dump(), actor_id=user.id)
+    order = orders_svc.create_order(db, data.model_dump(), actor_id=user.id, actor=user)
     db.commit()
     db.refresh(order)
+    return _to_response(db, order)
+
+
+@router.post("/{object_id}/loop/end", response_model=OrderResponse)
+def end_loop(
+    object_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """**Die Wiederholung beenden** – am neuesten Auftrag der Kette, auch wenn er abgeschlossen
+    ist; endgültig. Der Auftrag selbst ändert sich nicht (``loop.end`` → ``loop.ended``)."""
+    order = orders_svc.get(db, object_id)
+    loop_svc.end(db, order)
+    db.commit()
     return _to_response(db, order)
 
 

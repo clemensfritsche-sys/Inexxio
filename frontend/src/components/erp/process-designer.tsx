@@ -53,7 +53,7 @@ import { tell } from '@/lib/notice';
  * Mülleimer, kein Ziehen. Das ist keine bewachte Regel, sondern ein fehlendes Bedienelement –
  * einen Endpunkt, der eine freigegebene Definition ändert, gibt es ohnehin nicht.
  */
-export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head,
+export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head, loop,
   parents, onToggleReturn }: {
   modules: ModuleDraft[];
   onChange: (m: ModuleDraft[]) => void;
@@ -63,6 +63,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   /** Slot über dem Start – beim Auftrag die Definition der Einzelinstanzen. Der Artikel
    *  hat keine, und ein Diagramm, das sie voraussetzt, wäre dort nicht wiederverwendbar. */
   head?: React.ReactNode;
+  /** Die Karte «Wiederholen» unter dem Ende – nur im Auftragsentwurf. */
+  loop?: React.ReactNode;
   /**
    * **Die Quell-Aufträge des Entwurfs** (Auftrag §2) – vom Server vorausberechnet, mit
    * der Abzweigung, die entstehen würde. Ein Artikel hat keine; dann steht hier nur der
@@ -135,6 +137,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
         expandedStepId: justAdded,
         endStatus: END_BEFORE,
         head,
+        loop,
         onDelete: frozen ? undefined : (id) => onChange(modules.filter((m) => m.id !== id)),
         onReorder: frozen ? undefined : move,
         dragging: drag,

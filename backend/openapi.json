@@ -2321,6 +2321,54 @@
         ]
       }
     },
+    "/api/v1/erp/orders/{object_id}/loop/end": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "End Loop",
+        "description": "**Die Wiederholung beenden** – am neuesten Auftrag der Kette, auch wenn er abgeschlossen\nist; endgültig. Der Auftrag selbst ändert sich nicht (``loop.end`` → ``loop.ended``).",
+        "operationId": "end_loop_api_v1_erp_orders__object_id__loop_end_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}": {
       "get": {
         "tags": [
@@ -11486,6 +11534,239 @@
         "title": "LogRow",
         "description": "Eine Zeile des Logs: eine geänderte Tabellenzeile oder ein Ereignis."
       },
+      "LoopIn": {
+        "properties": {
+          "every": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Every"
+          },
+          "first": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "takes": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Takes"
+          }
+        },
+        "type": "object",
+        "title": "LoopIn",
+        "description": "►► **Die Schlaufe im Entwurf** – eingestellt wie ein Dauerauftrag (``domain/loop``). ◄◄\n\nGeprüft wird sie im Dienst (``loop.draft_problems``), nicht hier: so nennt die Prüfung des\nEntwurfs jeden fehlenden Teil als Satz, statt mit 422 abzubrechen."
+      },
+      "LoopLineView": {
+        "properties": {
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "article_name": {
+            "type": "string",
+            "title": "Article Name",
+            "default": ""
+          },
+          "take": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Take"
+          },
+          "take_label": {
+            "type": "string",
+            "title": "Take Label",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "position"
+        ],
+        "title": "LoopLineView",
+        "description": "Was eine Zeile in jeder Wiederholung nimmt."
+      },
+      "LoopView": {
+        "properties": {
+          "every": {
+            "type": "string",
+            "title": "Every"
+          },
+          "every_label": {
+            "type": "string",
+            "title": "Every Label"
+          },
+          "next": {
+            "type": "string",
+            "title": "Next"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          },
+          "left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "default": ""
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LoopLineView"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "state_label": {
+            "type": "string",
+            "title": "State Label"
+          },
+          "tone": {
+            "type": "string",
+            "title": "Tone"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "successor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Successor"
+          },
+          "predecessor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predecessor"
+          },
+          "agreed_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreed From"
+          },
+          "agreed_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreed On"
+          },
+          "may_end": {
+            "type": "boolean",
+            "title": "May End",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "every",
+          "every_label",
+          "next",
+          "state",
+          "state_label",
+          "tone"
+        ],
+        "title": "LoopView",
+        "description": "►► **Die Schlaufe eines Auftrags** – alles abgeleitet aus dem Log (``services/loop``). ◄◄"
+      },
       "MailboxOut": {
         "properties": {
           "channel": {
@@ -12123,6 +12404,16 @@
             },
             "type": "array",
             "title": "Steps"
+          },
+          "loop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoopIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -12270,6 +12561,16 @@
             "type": "boolean",
             "title": "Is Deviation",
             "default": false
+          },
+          "loop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoopView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "parents": {
             "items": {

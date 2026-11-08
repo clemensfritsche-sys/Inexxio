@@ -128,6 +128,16 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   nie gesetzt. **Abgeschlossen** = den definierten Weg zu Ende gegangen (auch über einen
   Ausgang). Es gibt **keine Abbruch-Funktion**: der Abbruch ist eine Abweichung mit gekappter
   Rückführung.
+- **Die Wiederholung** (PROCESS_CORE §6.6, Projektakte `docs/konzept/wiederkehr.md`,
+  `domain/loop.py` · `services/loop.py` · `components/erp/loop-card.tsx`): eingeschaltet nur im
+  Entwurf eines regulären Auftrags (Takt, Ab, Bis, je Lager-Zeile «gleiche Einzelinstanzen» oder
+  «FIFO»), eingefroren als Ereignis `loop.set`. **Jeder Auftrag hat höchstens einen Nachfolger**,
+  eine 1:1-Kopie über `orders.create_order` (`loop.next`, eindeutiger Index); der Takt legt ihn am
+  Termin an. Fehlt etwas, **wartet** er (keine Periode geht verloren); ist ein Stück verschrottet,
+  «geht nicht mehr» – beides in «zu tun». Beendet wird am neuesten Auftrag (`loop.ended`). Die
+  Zahlung geht jedes Mal Offerte → Zusage → Rechnung; mit Zusage des Vorgängers und allen Preisen
+  vorgegeben macht das System Anfrage und Zusage still (`loop.agreed`). Zustand abgeleitet:
+  läuft · wartet · geht nicht mehr · beendet · abgeschlossen · weiter im Nachfolger.
 - **Abweichungen sind ganz gewöhnliche Aufträge** (PROCESS_CORE §12): wer Stücke greift, die
   nicht regulär starten (`statuses.REGULAR_STARTS`: `Freigegeben`, `Verkauft`), ist
   automatisch eine dokumentierte Abweichung (entzogen, gesperrt, verbaut). Ob ein Stück zurückkehrt, ist eine Eigenschaft der **Verbindung**
@@ -325,7 +335,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 
 Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, `POST /api/v1/internal/tick` – was nicht
 von einem offenen Browser abhängen darf. **Die Aufgaben stehen an einer Stelle**
-(`services/tick.TASKS`): Siegel des Logs · Mails holen und senden · die KI (Entscheide
+(`services/tick.TASKS`): Siegel des Logs · Wiederholungen anlegen (`loop`) · Mails holen und senden · die KI (Entscheide
 festschreiben, Erfassungen nachholen, Folgen aus Mails, Bedeutungs-Zahlen; alles unter 50 s,
 `ai.until`). Je Aufgabe eigene Sitzung
 (das System, `job`), Advisory-Lock (läuft sie anderswo: übersprungen), Zeitgrenze, ein
@@ -718,6 +728,8 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
 - **ERP-Feed** (Master-Detail, eine Route `/erp`): Benutzer · Artikel · Aufträge · Instanzen
   · Unternehmen · Dokumente; Objektnummer, QR-Etikett und Kamera-Scan an jedem Datensatz.
 - **Artikel** mit Spezifikation, Bestand in drei Ebenen, Reihe und gemeldeter Stückliste.
+- **Wiederkehrende Aufträge**: die Schlaufe im Entwurf (Karte «Wiederholen» unter dem Ende, Linie
+  links zurück zum Start), Nachfolger im Takt, Zahlung mit stiller Zusage, «zu tun», Beenden.
 - **Prozess** mit fünf Modulen, Abweichungen, Prozessbild als Graph aus dem Log
   (`services/flow.py`) und Modul-Protokoll.
 - **Beleg** (Modul «Zahlung») vollständig nach MWSTG Art. 26, Incoterms 2020, Gutschriften,

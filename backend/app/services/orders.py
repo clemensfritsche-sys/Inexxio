@@ -60,6 +60,10 @@ def validate_draft(db: Session | None, draft: dict[str, Any]) -> list[str]:
                 f"{ln.label}: {ln.quantity} Einzelinstanzen, gewählt sind "
                 f"{len(ln.picks)}"
             )
+    # **Die Schlaufe** (Wiederkehr): ihre Einstellung und «nur an einem regulären Auftrag».
+    if db is not None:
+        from . import loop
+        missing.extend(loop.draft_problems(db, draft))
     if missing:
         return missing
     try:
@@ -75,7 +79,8 @@ def _said(e: HTTPException) -> str:
     return str(detail.get("message") or detail) if isinstance(detail, dict) else str(detail)
 
 
-def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None) -> Order:
+def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None,
+                 actor: Any = None) -> Order:
     """Aus einem Entwurf einen freigegebenen Auftrag machen.
 
     Alles in **einer** Transaktion (der Aufrufer committet): Bedingungen, Anlage,
@@ -83,12 +88,21 @@ def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None) ->
     Halbfertiges zurück – kein Auftrag ohne Prozess, keine Einzelinstanz im
     Zwischenzustand, keine herrenlose Instanz.
     """
-    return release(
+    from . import loop
+    if draft.get("loop"):
+        # Vor der ersten Nummer: eine unmögliche Schlaufe verbrennt keine Objektnummer (§6.3).
+        problems = loop.draft_problems(db, draft)
+        if problems:
+            raise HTTPException(status_code=400, detail=problems[0])
+    order = release(
         db,
         lines=[dict(ln) for ln in (draft.get("lines") or [])],
         steps=[dict(s) for s in (draft.get("steps") or [])],
         actor_id=actor_id,
     )
+    # **Die Schlaufe friert mit der Freigabe ein** – dieselbe Transaktion (Wiederkehr O15).
+    loop.freeze(db, order, draft, actor)
+    return order
 
 
 def get(db: Session, object_id: int) -> Order:

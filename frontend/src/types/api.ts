@@ -849,6 +849,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/loop/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End Loop
+         * @description **Die Wiederholung beenden** – am neuesten Auftrag der Kette, auch wenn er abgeschlossen
+         *     ist; endgültig. Der Auftrag selbst ändert sich nicht (``loop.end`` → ``loop.ended``).
+         */
+        post: operations["end_loop_api_v1_erp_orders__object_id__loop_end_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}": {
         parameters: {
             query?: never;
@@ -4552,6 +4573,89 @@ export interface components {
             };
         };
         /**
+         * LoopIn
+         * @description ►► **Die Schlaufe im Entwurf** – eingestellt wie ein Dauerauftrag (``domain/loop``). ◄◄
+         *
+         *     Geprüft wird sie im Dienst (``loop.draft_problems``), nicht hier: so nennt die Prüfung des
+         *     Entwurfs jeden fehlenden Teil als Satz, statt mit 422 abzubrechen.
+         */
+        LoopIn: {
+            /** Every */
+            every?: string | null;
+            /** First */
+            first?: string | null;
+            /** Until */
+            until?: string | null;
+            /** Count */
+            count?: number | null;
+            /** Takes */
+            takes?: (string | null)[];
+        };
+        /**
+         * LoopLineView
+         * @description Was eine Zeile in jeder Wiederholung nimmt.
+         */
+        LoopLineView: {
+            /** Position */
+            position: number;
+            /**
+             * Article Name
+             * @default
+             */
+            article_name: string;
+            /** Take */
+            take?: string | null;
+            /**
+             * Take Label
+             * @default
+             */
+            take_label: string;
+        };
+        /**
+         * LoopView
+         * @description ►► **Die Schlaufe eines Auftrags** – alles abgeleitet aus dem Log (``services/loop``). ◄◄
+         */
+        LoopView: {
+            /** Every */
+            every: string;
+            /** Every Label */
+            every_label: string;
+            /** Next */
+            next: string;
+            /** Until */
+            until?: string | null;
+            /** Left */
+            left?: number | null;
+            /**
+             * Sentence
+             * @default
+             */
+            sentence: string;
+            /** Lines */
+            lines?: components["schemas"]["LoopLineView"][];
+            /** State */
+            state: string;
+            /** State Label */
+            state_label: string;
+            /** Tone */
+            tone: string;
+            /** Reason */
+            reason?: string | null;
+            /** Successor */
+            successor?: number | null;
+            /** Predecessor */
+            predecessor?: number | null;
+            /** Agreed From */
+            agreed_from?: number | null;
+            /** Agreed On */
+            agreed_on?: string | null;
+            /**
+             * May End
+             * @default false
+             */
+            may_end: boolean;
+        };
+        /**
          * MailboxOut
          * @description Ein Postfach – das einer eigenen Gesellschaft oder das eigene des Betrachters.
          */
@@ -4906,6 +5010,7 @@ export interface components {
             lines?: components["schemas"]["DefinitionLine"][];
             /** Steps */
             steps?: components["schemas"]["ModuleInput"][];
+            loop?: components["schemas"]["LoopIn"] | null;
         };
         /**
          * OrderLineResponse
@@ -4970,6 +5075,7 @@ export interface components {
              * @default false
              */
             is_deviation: boolean;
+            loop?: components["schemas"]["LoopView"] | null;
             /** Parents */
             parents?: components["schemas"]["RelatedOrder"][];
             /** Deviations */
@@ -9073,6 +9179,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderValidation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    end_loop_api_v1_erp_orders__object_id__loop_end_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
                 };
             };
             /** @description Validation Error */

@@ -90,6 +90,8 @@ app/
 │   ├── capture_types/← Erfassungspunkt-Typen (text · yes_no · photo · signature · measure)
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)
+│   ├── loop.py       ← die Wiederholung: Takte, Kalender (wie ein Dauerauftrag), Wahl je Zeile,
+│   │                   Prüfung der Einstellung (`problems` ↔ `clean`), Zustände (`STATES`)
 │   ├── log.py        ← das Log: Funktionen und Trigger (wer handelt, Zeilen, Ereignisse,
 │   │                   unveränderlich, Schwärzen, Siegel), OBJECT (Tabelle → Ding),
 │   │                   TABLE_WORDS (ein Wort je Tabelle für den Verlauf)
@@ -120,7 +122,7 @@ scripts/
 ### Wo was steht (`services/`)
 | Bereich | Datei(en) |
 |---|---|
-| Prozess-Engine | `release.py` (Freigabe: `_checked` – dieselbe Prüfung für den Entwurf –, `pick_problem` ↔ `unpickable`, Übernahme), `process.py` (Laufzeit-Schreibweg: `_pass`, `confirm_step`, `advance_payments`, Durchlauf, Ende, Rückkehr; `lock_orders`), `order_state.py` (nur Ableitungen: Auftragsstatus, Rückführungskette, Halt, Arbeitsliste, Abweichung, Log-Seiten), `orders.py` (Entwurf prüfen, anlegen), `materialize.py` |
+| Prozess-Engine | `release.py` (Freigabe: `_checked` – dieselbe Prüfung für den Entwurf –, `pick_problem` ↔ `unpickable`, Übernahme), `process.py` (Laufzeit-Schreibweg: `_pass`, `confirm_step`, `advance_payments`, Durchlauf, Ende, Rückkehr; `lock_orders`), `order_state.py` (nur Ableitungen: Auftragsstatus, Rückführungskette, Halt, Arbeitsliste, Abweichung, Log-Seiten), `orders.py` (Entwurf prüfen, anlegen), `materialize.py`, `loop.py` (die Wiederholung: `freeze` bei der Freigabe, `problem` = warum gerade kein Nachfolger, `create_next` über `orders.create_order`, `end`, `view`, `todo_items`; Kalender und Wahl in `domain/loop.py`) |
 | Prozessbild, Protokoll, Journey, Genealogie | `flow.py`, `record.py`, `journey.py`, `genealogy.py` |
 | Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, Beleg: `voucher.py` (Kern: lesen, Ableitungen, Anlage, Rahmen) → `voucher_head.py` (Belegkopf, Anschrift, Positionen) → `voucher_money.py` (Geld-Zeilen, Erstattung, QR, anstehende Papiere) → `voucher_actions.py` (`VERBS`, `can`, `apply`) → `voucher_view.py` (`embed_data`) (+ `voucher_docs.py`, `document.py`, `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
@@ -129,7 +131,7 @@ scripts/
 | Verlauf | `history.py` (ein Verlauf je Nummer: Nachrichten, Dokumente, Änderungen aus dem Log; `HIDDEN`), Wörter der Tabellen in `domain/log.TABLE_WORDS` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `records.py` (Datensätze benennen) |
-| Der Takt | `tick.py` (`TASKS`: Siegel, Mails, Aufnahmen (`voice`), KI – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
+| Der Takt | `tick.py` (`TASKS`: Siegel, Wiederholungen (`loop`), Mails, Aufnahmen (`voice`), KI – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
 | KI (Phase 3, `docs/konzept/phase3-bauplan.md`) | `ai.py` (die Tür: `converse` mit Werkzeugen, Deckel in Franken), `ai_tools.py` (Lese-Werkzeuge mit den Rechten der Person), `memory.py` (ähnliche Fälle, pgvector), `proposals.py` (Vorschläge `proposal`/`proposal.decided` im Log; `FIELDS`, offen = abgeleitet, `settle`), `intake.py` (Erfassen → `intake`, die KI legt ab → `file`-Vorschlag, «Stimmt so» → Notizen, «Verwerfen» → `discard`; `clean` putzt Steuerzeichen), `pins.py` (das Angeheftete: offene Vorschläge + Hinweise `pin`), `follow.py` (was aus einer eingehenden Mail folgt, im Takt; Start `follow.start`, je Mail `mail.followed`) |
 | Sprache (Phase 4, `docs/konzept/phase4-bauplan.md`) | `recordings.py` (EINE Stelle: `start`, `add_chunk`, `stop`, `advance` – Abschnitte der Reihe nach über `ai.transcribe` → `recording.segment`, dann EINE Erfassung im Namen der Person → `recording.done`, Stücke weg; `due`/`sweep` für den Takt, `dismiss` verwirft eine gescheiterte; `context` = die Stecknadel vor dem Text), `ai.py` (`transcribe`, Gemini über `_vertex` – dieselbe Stelle wie `embed`), Stücke in `recording_chunks` (nicht im Log), Bytes über `attachments.put_object` (eigener Bucket `RECORDINGS_BUCKET`, sonst die Zeile); aus einer Aufnahme legt die KI in **Bereichen nummerierter Absätze** ab, den Text baut `intake.spoken_parts` wörtlich |
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
@@ -152,7 +154,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **139 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **140 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -194,6 +196,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `/api/v1/erp/orders/validate` | staff | Entwurf prüfen inkl. Vorschau des Prozessbildes |
 | GET | `/api/v1/erp/orders/{object_id}` | user | Auftrag lesen; ein Partner sieht nur sein Modul, ein Unbeteiligter 404 |
 | GET | `/api/v1/erp/orders/{object_id}/units?edge=` | staff | Stücke einer Kante des Prozessbildes |
+| POST | `/api/v1/erp/orders/{object_id}/loop/end` | staff | **Wiederholung beenden** – nur am neuesten Auftrag der Kette, auch wenn er abgeschlossen ist (`loop.end` → `loop.ended`; sonst 409) |
 | POST | `/api/v1/erp/orders/{object_id}/steps/{step_id}/confirm` | staff | **Ein Modul bestätigen** – für EINE Instanz (`instance_object_id`, `verification`) |
 | GET | `…/steps/{step_id}/hold?instance=&group=` | staff | Nummern einer Gruppe (`sample` · `failed` · `rest`), erst auf Klick |
 | GET | `…/steps/{step_id}/record` | staff | Modul-Protokoll, seitenweise |

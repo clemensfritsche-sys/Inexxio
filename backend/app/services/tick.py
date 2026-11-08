@@ -131,14 +131,39 @@ def _voice(db, deadline: float) -> dict[str, int]:
     return done
 
 
+def _loop(db, deadline: float) -> dict[str, int]:
+    """**Wiederkehrende Aufträge** (``services/loop``): je fälligem Auftrag ohne Nachfolger den
+    Nachfolger anlegen – wenn nichts fehlt; sonst wartet er (der Grund steht in «zu tun»).
+    Jeder in eigener Transaktion: eine Kette, die scheitert, hält die anderen nicht auf. Fehlt
+    die Zeit, nimmt der nächste Lauf den Rest – keine Periode geht verloren."""
+    import time as _t
+    from . import loop
+    done: dict[str, int] = {}
+    for order in loop.due(db):
+        if _t.monotonic() >= deadline:
+            break
+        try:
+            if loop.create_next(db, order) is not None:
+                done["created"] = done.get("created", 0) + 1
+            db.commit()
+        except Exception as exc:        # noqa: BLE001 – gemeldet, die nächste Kette läuft
+            db.rollback()
+            done["failed"] = done.get("failed", 0) + 1
+            print(f"ERROR: TICK loop {order.object_id}: {exc!r}", flush=True)
+    return done
+
+
 #: ►► **Die Aufgaben des Takts, in dieser Reihenfolge.** Das Siegel zuerst: es dauert
-#:    Millisekunden und darf nie hinter einem langsamen Postfach warten. Dann die Aufnahmen
+#:    Millisekunden und darf nie hinter einem langsamen Postfach warten. Dann die
+#:    Wiederholungen (``loop``): reine Datenbank-Arbeit, ein Nachfolger ist fällig ab
+#:    Tagesbeginn und soll nicht hinter Gmail oder der KI warten. Dann die Aufnahmen
 #:    (``voice``): eine eigene Aufgabe mit eigener Sperre – das Aufräumen läuft auch, wenn die KI
 #:    scheitert, und ein Mensch wartet auf seinen Text; vor der KI, weil ein langes Ablegen oder
 #:    Folgen sonst jeden Lauf die Zeit nähme. Die KI zuletzt: sie braucht am längsten, wartet auf
 #:    die Mails, die der Abgleich eben holte, und legt ab, was ``voice`` eben erfasste.
 TASKS: tuple[Task, ...] = (
     Task("seal", _seal),
+    Task("loop", _loop),
     Task("mail", _mail),
     Task("voice", _voice),
     Task("ai", _ai),

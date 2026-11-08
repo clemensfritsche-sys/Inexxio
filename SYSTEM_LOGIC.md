@@ -550,8 +550,9 @@ am Ende-Objekt wird ein Stück, das der Partei gehört, `verkauft` (T7d).
 
 ### 5.10 Wiederkehrende Aufträge – Soll, vorher notiert (Runde 2)
 
-Projektakte `docs/konzept/wiederkehr.md`. Diese Sätze sind das **Soll** der Tests, die mit der
-Schlaufe kommen; gebaut ist davon heute nur der reguläre Start von `verkauft` (T7e, U6c).
+Projektakte `docs/konzept/wiederkehr.md`. Diese Sätze waren das vorher notierte **Soll**; gebaut
+in Runde 2 und geprüft in `backend/tests/test_wiederkehr.py` (W1–W9), dazu der reguläre Start von
+`verkauft` (T7e, U6c).
 
 | | Satz |
 |---|---|

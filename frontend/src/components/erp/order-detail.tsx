@@ -30,6 +30,7 @@ import { RUNTIME_CHOICE } from '@/lib/scan';
 import { moduleIcon } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
+import { LoopDraftCard, LoopRunCard, loopPayload, type LoopDraft } from '@/components/erp/loop-card';
 
 /**
  * Auftrag – Detailfenster.
@@ -120,6 +121,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
       ...blankModule(i + 1, m.moduleType),
       target: m.target ? String(m.target) : '',
     })));
+  // **Die Wiederholung lebt im Entwurf** – eingefroren wird sie mit der Freigabe.
+  const [loop, setLoop] = useState<LoopDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Zählt hoch, wenn die Freigabe an einer veralteten Auswahl scheitert – der Picker holt
@@ -154,7 +157,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const draft = useMemo(() => ({
     lines: toPayload(lines),
     steps: steps.map(toModulePayload),
-  }), [lines, steps]);
+    loop: loopPayload(loop, lines),
+  }), [lines, steps, loop]);
 
   // Freigebbarkeit beim Server erfragen, nicht selbst behaupten. **Die Vorschau der
   // Quell-Aufträge** (Auftrag §2) kommt aus derselben Antwort – ein zweiter Aufruf wäre ein
@@ -227,6 +231,19 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
    * hat keine solche Antwort – gebucht wird sie vom Webhook –, also braucht genau sie
    * diesen einen Weg.
    */
+  /** **Die Wiederholung beenden** – derselbe Weg: ein Befehl, die Antwort ist der Auftrag. */
+  const endLoop = useCallback(async () => {
+    if (objectId == null) return;
+    setBusy(true); setError(null);
+    try {
+      setLive(await api.endLoop(objectId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [objectId, setLive]);
+
   const { refetch } = orderQuery;
   const reload = useCallback(() => { void refetch(); }, [refetch]);
 
@@ -276,11 +293,12 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             entstanden ist. */}
         {isDraft ? (
           <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}
-            refreshKey={refreshKey} parents={preview} />
+            refreshKey={refreshKey} parents={preview}
+            loop={<LoopDraftCard loop={loop} onChange={setLoop} lines={lines} />} />
         ) : live ? (
           <RunView order={live} busy={busy} onConfirm={confirmStep}
             onVoucher={runVoucher} onReload={reload}
-            onDeviate={onDeviate} />
+            onDeviate={onDeviate} onEndLoop={endLoop} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
             {orderQuery.isFetching ? 'Lädt …' : null}
@@ -314,13 +332,15 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
  * Ein reiner «Lager»-Auftrag greift auf Vorhandenes zu – was damit geschehen soll, weiss
  * nur dieser eine Auftrag. Dort wird frei modelliert.
  */
-function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
+function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop }: {
   lines: DefinitionLine[]; setLines: (l: DefinitionLine[]) => void;
   steps: ModuleDraft[]; setSteps: (s: ModuleDraft[]) => void;
   /** Hochgezählt, wenn die Freigabe an einer veralteten Auswahl scheitert. */
   refreshKey: number;
   /** Die Quell-Aufträge, wie sie nach der Freigabe aussähen (Auftrag §2). */
   parents: RelatedOrder[];
+  /** Die Karte «Wiederholen» – unter dem Ende, im Editor wie bei einer Vorlage. */
+  loop: React.ReactNode;
 }) {
   // Welcher Artikel bringt den Prozess mit? Der erste mit Herkunft «Neu».
   const sourceArticle = useMemo(
@@ -380,6 +400,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
             mode: 'definition',
             endStatus: END_BEFORE,
             head,
+            loop,
           }}
           parents={parents}
           onToggleReturn={toggleReturn}
@@ -391,6 +412,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
           parents={parents}
           onToggleReturn={toggleReturn}
           head={head}
+          loop={loop}
         />
       )}
     </>
@@ -402,7 +424,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function RunView({ order, busy, onConfirm, onVoucher, onReload,
-                   onDeviate }: {
+                   onDeviate, onEndLoop }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number | null, verification: string,
               values: Record<string, Record<string, unknown>>,
@@ -419,6 +441,7 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
    */
   onReload: () => void;
   onDeviate?: (seed: OrderSeed) => void;
+  onEndLoop: () => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
   // Die einzelnen Nummern kommen erst beim Aufklappen – bei 5000 Stück ist das der
@@ -576,7 +599,11 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           // `isActive` entscheidet allein, ob **gehandelt** werden darf – nicht, ob etwas
           // zu sehen ist. Auf-/zugeklappt und gesperrt entscheidet das Diagramm.
           renderStep: (step, isActive) => stepBody(step, isActive, true),
+          loop: order.loop
+            ? <LoopRunCard loop={order.loop} busy={busy} onEnd={onEndLoop} />
+            : undefined,
         }}
+        loopWalked={order.loop?.successor != null}
         parents={order.parents ?? []}
         deviations={order.deviations ?? []}
         deviationTotal={order.deviation_total ?? 0}

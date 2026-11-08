@@ -645,6 +645,36 @@ Nach der Freigabe ist auch das nicht mehr möglich — die Struktur ist eingefro
 dasselbe wie «bearbeiten», die Regel liefe leer. Sie meint **Modul-Definitionen**: ein
 Modul hat keinen Bearbeiten-Zustand, nur einen Papierkorb.
 
+### 6.6 Die Wiederholung (Schlaufe)
+
+Projektakte `docs/konzept/wiederkehr.md`, Sätze `SYSTEM_LOGIC.md` §5.10. Wartung, Kalibrierung,
+monatliche Lieferung und ein Abo sind **derselbe** Fall: ein Auftrag, der sich im Takt
+wiederholt. Bewusst im **Prozess**, nicht am Preis – die Zahlung weiss von ihr nichts.
+
+- **Eingeschaltet wird nur im Entwurf** (`OrderCreate.loop`), nur an einem regulären Auftrag;
+  mit der Freigabe ist sie eingefroren (Ereignis `loop.set` am Auftrag). Takt wöchentlich ·
+  monatlich · vierteljährlich · halbjährlich · jährlich; die erste Ausführung legt den Tag fest,
+  ein kürzerer Monat nimmt seinen letzten (wie ein Dauerauftrag); Ende unbefristet, ein Datum
+  oder eine Anzahl. Je Lager-Zeile wählt der Mensch **gleiche Einzelinstanzen** oder **FIFO**
+  (Pflicht, ohne Vorbelegung); eine Zeile «Neu» erzeugt jedes Mal neu.
+- **Jeder Auftrag hat höchstens einen Nachfolger**, eine **1:1-Kopie** mit derselben Schlaufe
+  (`loop.next`, eindeutiger Index `ix_log_loop_next`). Der Takt legt ihn am Termin an –
+  **über denselben Weg wie «Freigeben»** (`orders.create_order`), im Namen dessen, der die
+  Schlaufe eingeschaltet hat. Er ist nie eine Abweichung und geht nie mit einem Teil der Stücke.
+- **Fehlt gerade etwas** (Stück noch in Arbeit, gesperrt, verbaut, FIFO zu knapp), **wartet**
+  er – keine Periode geht verloren, nach langer Blockade kommen sie der Reihe nach. Ist ein
+  Stück der Schlaufe verschrottet oder der Artikel ersetzt, **geht es nicht mehr** – nur
+  Beenden. Beides steht als Satz in «zu tun» am Auftrag (`loop.problem`, dieselbe Funktion
+  prüft beim Anlegen).
+- **Beendet wird am neuesten Auftrag der Kette** (`POST …/loop/end` → `loop.ended`), auch wenn
+  er abgeschlossen ist; der Auftrag selbst ändert sich nicht.
+- **Zahlung**: jede Wiederholung geht Offerte → Zusage → Rechnung. Hatte der Vorgänger eine
+  Zusage und gibt das Modul alle Preise vor, macht das System Anfrage und Zusage still (ohne
+  Mail) und schreibt es auf (`loop.agreed`); sonst bleibt der Beleg bei der Offerte. Die
+  Offerte nennt die Wiederholung in den Konditionen.
+- **Bild**: die Karte «Wiederholen» steht unter dem Ende; ihre Linie läuft **links** zurück
+  zum Start (rechts stehen die Abweichungen) – Haarlinie, kräftig, sobald es den Nachfolger gibt.
+
 ---
 
 ## 7. Richtung und Historie
@@ -1950,12 +1980,7 @@ nachgetragen — nicht beim Bauen erraten.
 5. **Die Vorlage im Entwurf abweichen lassen.** Heute nicht möglich — der Stempel wäre
    sonst eine Behauptung. Falls es gebraucht wird, ist es ein eigener Vorgang
    («Prozess dieses Auftrags von der Vorlage lösen»), kein stilles Editieren.
-6. **Wiederkehrende Aufträge — eine Schlaufe mit Intervall im Prozess.** Wartung,
-   Kalibrierung, monatliche Lieferung und ein Abo sind **derselbe** Fall: eine Regel, die
-   in einem Takt einen ganz gewöhnlichen Auftrag erzeugt. Bewusst **nicht** als
-   Eigenschaft des **Preises** (so hing es im Vorgängersystem, `docs/attic.md` «Verkauf und
-   Shop»): steht die Wiederkehr im Prozess, muss die Zahlung von ihr nichts wissen — und
-   jedes andere Modul erbt sie.
+6. ~~Wiederkehrende Aufträge~~ — **entschieden und gebaut** (November 2026), siehe §6.6.
 
 ---
 
