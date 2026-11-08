@@ -37,7 +37,7 @@ EXEMPT = {
     "log": "das Log selbst (unveränderlich, eigener Trigger)",
     "log_seal": "die Siegel des Logs (unveränderlich, eigener Trigger)",
     "process_log": "eine Sicht auf das Log, keine Tabelle",
-    "ai_memory": "Bedeutungs-Zahlen je Vorschlag – eine Ableitung aus dem Log (``memory``)",
+    "ai_memory": "Bedeutungs-Zahlen (Fälle, Notizen, Dokumente) – eine Ableitung (``memory``)",
     "recording_chunks": ("technische Stücke einer Aufnahme, gelöscht nach der Abschrift "
                          "(spätestens nach einem Tag); was geschah, steht als ``recording.*`` "
                          "im Log (``recordings``)"),

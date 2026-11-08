@@ -68,16 +68,15 @@ def _mail(db, deadline: float) -> dict[str, int]:
     return {"new": new, "sent": sent}
 
 
-#: So viele entschiedene Fälle ohne Bedeutungs-Zahlen holt ein Lauf nach.
-MEMORY_PER_RUN = 10
+#: So viele Einträge ohne Bedeutungs-Zahlen holt ein Lauf nach.
+MEMORY_PER_RUN = 20
 
 
 def _ai(db, deadline: float) -> dict[str, int]:
-    """**Die KI im Takt** (Bauplan Phase 3): die abgeleiteten Entscheide festschreiben (braucht
-    keine KI, läuft immer) · offene Erfassungen ohne Vorschlag nachholen · neue Mails auf ihre
-    Folgen prüfen · fehlende Bedeutungs-Zahlen der entschiedenen Fälle nachholen (auch der eben
-    festgeschriebenen). Am Deckel nur das Erste. Jeder
-    Schritt committet für sich – ein Ausfall der KI nimmt das Getane nicht zurück."""
+    """**Die KI im Takt** (Phase 5): Gespräche nachholen, auf die sie nicht antwortete · neue
+    Mails auf ihre Folgen prüfen (Handgriffe am Datensatz) · fehlende Bedeutungs-Zahlen (Fälle,
+    Notizen, Dokumente – «im Wissen suchen»; braucht nur Vertex). Jeder Schritt speichert für
+    sich – ein Ausfall der KI nimmt das Getane nicht zurück."""
     import time as _t
     from . import ai
     with ai.until(deadline - _t.monotonic() + FINISH_WITHIN - START_WITHIN):
@@ -86,26 +85,16 @@ def _ai(db, deadline: float) -> dict[str, int]:
 
 def _ai_steps(db, deadline: float) -> dict[str, int]:
     import time as _t
-    from . import ai, follow, intake, memory, proposals
-    done = {"decided": proposals.settle(db)}
-    db.commit()
-    if not ai.available(db) or _t.monotonic() >= deadline:
-        return done
-    done["filed"] = intake.catch_up(db, deadline)
-    if _t.monotonic() < deadline and ai.available(db):
-        done["mails"], done["proposals"] = follow.run(db, deadline)
+    from . import ai, follow, memory, talk
+    done: dict[str, int] = {}
+    if ai.available(db) and _t.monotonic() < deadline:
+        done["answered"] = talk.catch_up(db, deadline)
+    if ai.available(db) and _t.monotonic() < deadline:
+        done["mails"], done["handgriffe"] = follow.run(db, deadline)
         db.commit()
-    if ai.embed_ready() and _t.monotonic() < deadline:
-        from ..models import UserProfile
-        for pid, payload, actor, decided in memory.missing(db, MEMORY_PER_RUN):
-            if _t.monotonic() >= deadline:
-                break
-            who = db.query(UserProfile).filter(UserProfile.object_id == actor).first() if actor else None
-            if not memory.remember(db, pid, payload, decided=decided, actor=who):
-                break
-            done["remembered"] = done.get("remembered", 0) + 1
-        db.commit()
-    return done
+    if _t.monotonic() < deadline:          # Bedeutungs-Zahlen brauchen nur Vertex
+        done["remembered"] = memory.catch_up(db, deadline, MEMORY_PER_RUN)
+    return {k: v for k, v in done.items() if v}
 
 
 #: So viele Aufnahmen schaut ein Lauf höchstens an (jede nur, solange Zeit ist).

@@ -47,15 +47,15 @@ from . import access, communication, records
 #: Datensatz, an dem es hängt) – dort sind sie seine eigenen Änderungen, keine Doppelung.
 #: Ereignisse (``action = 'event'``) zeigt er – ausser denen der KI (``HIDDEN_EVENTS``).
 HIDDEN = frozenset({"messages", "message_parties", "objects", "webauthn_challenges"})
-#: ►► **Die Ereignisse der KI stehen nicht im Verlauf** – sie haben ihren eigenen Ort: eine
-#:    Erfassung in «Abgelegt» (nur für die Person, die erfasst hat), ein Vorschlag und ein
-#:    Hinweis im Angehefteten; was abgelegt wird, steht danach als Notiz da. Im Verlauf wären sie
-#:    dieselbe Sache ein zweites Mal – und der rohe Text einer Erfassung für jeden lesbar. ◄◄
-HIDDEN_EVENTS = frozenset({"intake", "intake.failed", "proposal", "proposal.decided", "pin",
-                           "pin.solved", "mail.followed", "mail.follow_failed",
+#: ►► **Die Ereignisse des Assistenten stehen nicht im Verlauf** – sie haben ihren eigenen Ort:
+#:    ein Gespräch im «+» (privat), ein Handgriff und das Wissen im Angehefteten; was ein
+#:    Handgriff tut, steht danach als gewöhnliche Änderung oder Notiz da. Im Verlauf wären sie
+#:    dieselbe Sache ein zweites Mal – und die Worte eines Gesprächs für jeden lesbar. ◄◄
+HIDDEN_EVENTS = frozenset({"talk", "talk.failed", "handgriff", "handgriff.done",
+                           "handgriff.dropped", "pin", "mail.followed", "mail.follow_failed",
                            "follow.start",
-                           # Phase 4: eine Aufnahme ist privat, bis sie eine Erfassung wird
-                           # (dann wie oben) – ihre Abschrift stünde sonst für jeden da.
+                           # Phase 4: eine Aufnahme ist privat, wie das Gespräch, in das sie
+                           # geht – ihre Abschrift stünde sonst für jeden da.
                            "recording.start", "recording.stop", "recording.segment",
                            "recording.segment_failed", "recording.done", "recording.failed",
                            "recording.dismissed"})

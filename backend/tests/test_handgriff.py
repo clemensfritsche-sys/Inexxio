@@ -36,6 +36,10 @@ def _counts(db) -> tuple[int, int]:
     return (db.query(func.count(Log.id)).scalar(), db.query(func.count(Message.id)).scalar())
 
 
+def _one(person, method: str, path: str, body, **kw):
+    return handgriff.call(person.id, [handgriff.Step(method, path, body)], **kw)
+
+
 def _note(about: int, text: str = "Kran 3 quietscht") -> dict:
     return {"channel": "note", "about": [about], "subject": "Kran 3", "body": text}
 
@@ -47,8 +51,7 @@ def test_the_probe_runs_through_and_leaves_nothing(people, monkeypatch):
     def no_network(*_a, **_k):
         raise AssertionError("(b) Der Probelauf ging nach aussen.")
     monkeypatch.setattr(socket.socket, "connect", no_network)
-    out = handgriff.call(staff.id, "POST", "/api/v1/erp/messages", _note(staff.object_id),
-                         probe=True)
+    out = _one(staff, "POST", "/api/v1/erp/messages", _note(staff.object_id), probe=True)
     assert out.ok, out.detail
     assert _counts(db) == before, "(a) Der Probelauf hat etwas hinterlassen."
 
@@ -61,8 +64,8 @@ def test_executing_saves_the_route_and_its_mark_together(people):
         marks.append(handgriff.result_of(data))
         from app.services import log
         log.event(s, "test.done", staff.object_id, {"message": data["id"]})
-    out = handgriff.call(staff.id, "POST", "/api/v1/erp/messages",
-                         _note(staff.object_id, "gespeichert"), probe=False, done=done)
+    out = _one(staff, "POST", "/api/v1/erp/messages", _note(staff.object_id, "gespeichert"),
+               probe=False, done=done)
     assert out.ok, out.detail
     db.expire_all()
     msg = db.query(Message).filter(Message.id == out.data["id"]).one()
@@ -79,8 +82,8 @@ def test_a_failing_mark_saves_nothing(people):
     def done(_s, _data):
         raise RuntimeError("kaputt")
     with pytest.raises(RuntimeError):
-        handgriff.call(staff.id, "POST", "/api/v1/erp/messages", _note(staff.object_id),
-                       probe=False, done=done)
+        _one(staff, "POST", "/api/v1/erp/messages", _note(staff.object_id), probe=False,
+             done=done)
     assert _counts(db) == before
 
 
@@ -89,8 +92,8 @@ def test_a_handgriff_has_exactly_the_rights_of_its_person(people):
     _db, staff, boss = people
     path = f"/api/v1/erp/records/{staff.object_id}"         # Angaben einer Person: nur Admin
     change = {"phone": "+41 52 000 00 00"}
-    assert handgriff.call(staff.id, "PATCH", path, change, probe=True).status == 403
-    assert handgriff.call(boss.id, "PATCH", path, change, probe=True).ok
+    assert _one(staff, "PATCH", path, change, probe=True).status == 403
+    assert _one(boss, "PATCH", path, change, probe=True).ok
 
 
 def test_only_actions_of_the_erp_are_handgriffe(people):
@@ -101,7 +104,7 @@ def test_only_actions_of_the_erp_are_handgriffe(people):
     assert not any(k.startswith("GET ") for k in keys)
     assert "POST /api/v1/contact" not in keys
     assert not any("/assistant" in k for k in keys)
-    out = handgriff.call(staff.id, "GET", "/api/v1/erp/records", None, probe=True)
+    out = _one(staff, "GET", "/api/v1/erp/records", None, probe=True)
     assert out.status == 400
 
 

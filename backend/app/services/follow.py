@@ -1,7 +1,7 @@
 """►►► **Was aus einer eingehenden Mail folgt** (Projektakte §4.3, Bauplan «Der Takt»). ◄◄◄
 
-Die Kundin schreibt, unten in der Signatur steht eine neue Telefonnummer – die KI schlägt vor,
-sie zu übernehmen (``ai.converse``, Aufgabe ``follow``, im Takt). Geprüft wird nur, was:
+Die Kundin schreibt, unten in der Signatur steht eine neue Telefonnummer – die KI bereitet einen
+**Handgriff** vor (``ai.converse``, Aufgabe ``follow``, im Takt). Geprüft wird nur, was:
 
 * **von aussen an uns** kam (abgeglichen aus dem Postfach einer eigenen Gesellschaft),
 * **von einer bekannten Person** (die es schon gab, als die Mail ankam – ein neuer Absender
@@ -13,10 +13,10 @@ sie zu übernehmen (``ai.converse``, Aufgabe ``follow``, im Takt). Geprüft wird
   Zeitgrenze) zählt als ``mail.follow_failed`` und die Mail kommt im nächsten Takt wieder. Am
   Deckel kein Versuch und kein Zählen.
 
-Ergebnis sind Vorschläge (``change``/``create``) mit der Mail als Quelle; geschrieben wird erst
-nach dem Klick eines Menschen. Gelesen wird, was jedes Personal sehen darf
-(``ai_tools.tools_for``); im Log handelt die KI im Namen der Person, die das Postfach verbunden
-hat.
+Ergebnis sind Handgriffe mit der Mail als Quelle (``services/handgriff``, Probelauf mit den
+Rechten der Person, die das Postfach verbunden hat). Sie stehen am Datensatz und zählen dort in
+«zu tun»; ausgeführt wird erst, wenn ein Mensch es tippt. Gelesen wird, was jedes Personal sehen
+darf (``ai_tools.reader``).
 """
 
 from __future__ import annotations
@@ -24,13 +24,12 @@ from __future__ import annotations
 import time
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..models import Message, UserProfile
-from . import ai, log
-from .intake import AiProposal, follow_up, system_text
+from . import ai, handgriff, log
 
 #: So viele Mails je Lauf des Takts.
 PER_RUN = 5
@@ -39,17 +38,15 @@ TRIES = 3
 
 
 class FollowAnswer(BaseModel):
-    proposals: list[AiProposal]
+    note: str = Field(description="Ein Satz für das Protokoll: was du vorbereitet hast, oder «nichts»")
 
 
 FOLLOW_FORMAT = """
-Antwortformat: `proposals` – was aus dieser Mail folgt: `change` (ein Feld eines Datensatzes
-ändern, z. B. eine neue Telefonnummer aus der Signatur) oder `create` (eine Person oder Firma
-anlegen). Leer, wenn nichts folgt.
-Erlaubte Felder:
+Eine Mail ist eingegangen. Was folgt daraus im ERP (eine neue Telefonnummer aus der Signatur,
+eine Bestellung, ein Termin, Wissen zu einem Datensatz)? Bereite es mit `vorbereiten` vor – je
+Handlung ein Handgriff am richtigen Datensatz; ein Mensch entscheidet. Folgt nichts, bereite
+nichts vor. Antwortformat: `note` – ein Satz, was du vorbereitet hast.
 """
-
-
 def start(db: Session) -> Optional[int]:
     """Die höchste Nachrichtennummer bei der Einführung – ``None`` vor dem ersten Lauf."""
     v = db.execute(text("SELECT (payload ->> 'after')::bigint FROM log WHERE event = "
@@ -102,10 +99,33 @@ def _content(db: Session, msg: Message, sender: UserProfile, reader: UserProfile
              ) -> list[dict[str, Any]]:
     from . import memory
     body = f"Betreff: {msg.subject or ''}\n\n{msg.body or ''}"
-    cases = memory.as_prompt(memory.similar(db, body, actor=reader))
+    cases = memory.as_prompt(memory.search(db, body, actor=reader, kinds=("handgriff",)))
     head = (f"Eine Mail an uns von {sender.display_name} ({sender.object_id}), "
             f"am {msg.at.isoformat(timespec='minutes')}.")
     return [{"type": "text", "text": head + ("\n\n" + cases if cases else "") + "\n\n" + body}]
+
+
+def _tools(db: Session, msg: Message, sender: UserProfile, reader: UserProfile) -> list[ai.Tool]:
+    """Lesen, nachschlagen, vorbereiten – ohne Weglegen und Ausführen: aus einer Mail wird nur
+    vorbereitet (die Handgriffe stehen am Datensatz, wer ihn öffnet, entscheidet)."""
+    from . import talk
+    keep = ("find", "record", "history", "wissen", "handlungen", "handlung")
+    tools = [t for t in talk.tools(db, reader, 0, sender.object_id) if t.name in keep]
+
+    def prepare(a: dict[str, Any]) -> str:
+        import json
+        method, _, path = str(a.get("handlung") or "").partition(" ")
+        try:
+            body = json.loads(a.get("werte_json") or "null")
+        except ValueError as exc:
+            return f"Die Werte sind kein JSON: {exc}"
+        hid, out = handgriff.prepare(db, reader, method=method, path=str(a.get("pfad") or path),
+                                     body=body, line=str(a.get("zeile") or ""),
+                                     home=sender.object_id, mail=msg.id,
+                                     depends=list(a.get("wartet_auf") or []))
+        return f"Vorbereitet als Handgriff {hid}." if hid else f"Geht nicht ({out.status}): {out.detail}"
+    spec = next(t for t in talk.tools(db, reader, 0, sender.object_id) if t.name == "vorbereiten")
+    return [*tools, ai.Tool(spec.name, spec.description, spec.properties, prepare)]
 
 
 def failures(db: Session, message_id: int) -> int:
@@ -116,7 +136,7 @@ def failures(db: Session, message_id: int) -> int:
 
 
 def follow_one(db: Session, message_id: int) -> Optional[int]:
-    """►►► **Eine Mail auf ihre Folgen prüfen** – gibt die Zahl der Vorschläge zurück, oder
+    """►►► **Eine Mail auf ihre Folgen prüfen** – gibt die Zahl der Handgriffe zurück, oder
     ``None``, wenn die KI gerade nicht da ist (dann kommt die Mail im nächsten Lauf wieder). Ein
     Fehlschlag zählt; erst der ``TRIES``-te schliesst die Mail ab. ◄◄◄"""
     msg = db.get(Message, message_id)
@@ -128,10 +148,11 @@ def follow_one(db: Session, message_id: int) -> Optional[int]:
         return 0
     if not ai.available(db):
         return None
-    from . import ai_tools
-    answer = ai.converse(db, task="follow", actor=reader, system=system_text(FOLLOW_FORMAT),
+    from .talk import AUFTRAG
+    before = _made(db, msg.id)
+    answer = ai.converse(db, task="follow", actor=reader, system=AUFTRAG + "\n" + FOLLOW_FORMAT,
                          content=_content(db, msg, sender, reader), schema=FollowAnswer,
-                         tools=ai_tools.tools_for(db))
+                         tools=_tools(db, msg, sender, reader))
     if answer is None:
         if not ai.available(db):
             return None
@@ -139,18 +160,21 @@ def follow_one(db: Session, message_id: int) -> Optional[int]:
         log.event(db, "mail.follow_failed", sender.object_id, {"message": msg.id, "problem": trouble})
         if failures(db, msg.id) < TRIES:
             return 0
-        log.event(db, "mail.followed", sender.object_id, {"message": msg.id, "proposals": 0,
+        log.event(db, "mail.followed", sender.object_id, {"message": msg.id, "handgriffe": 0,
                                                           "problem": trouble})
         return 0
-    source = {"text": f"Mail von {sender.display_name}: {msg.subject or ''}"[:300],
-              "object_id": sender.object_id, "message_id": msg.id, "at": msg.at}
-    made = follow_up(db, answer.proposals, home=sender.object_id, source=source, actor=reader)
-    log.event(db, "mail.followed", sender.object_id, {"message": msg.id, "proposals": len(made)})
-    return len(made)
+    made = _made(db, msg.id) - before
+    log.event(db, "mail.followed", sender.object_id, {"message": msg.id, "handgriffe": made})
+    return made
+
+
+def _made(db: Session, message_id: int) -> int:
+    return int(db.execute(text("SELECT count(*) FROM log WHERE event = 'handgriff' "
+                               "AND (payload ->> 'mail')::bigint = :m"), {"m": message_id}).scalar() or 0)
 
 
 def run(db: Session, deadline: float, limit: int = PER_RUN) -> tuple[int, int]:
-    """Der Takt: die fälligen Mails, je eine Transaktion. Gibt (Mails, Vorschläge) zurück –
+    """Der Takt: die fälligen Mails, je eine Transaktion. Gibt (Mails, Handgriffe) zurück –
     «Mails» zählt auch die gescheiterten Versuche."""
     mails = made = 0
     for mid in due(db, limit):

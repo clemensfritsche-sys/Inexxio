@@ -1,31 +1,28 @@
-"""►►► **Lernen ohne Training – die Erfahrung der KI** (Projektakte §4.3, Schritt 3.6). ◄◄◄
+"""►►► **Im Wissen suchen – nach Bedeutung, nicht nach Wörtern.** ◄◄◄ (Phase 5 §8.4)
 
-Jeder Vorschlag mit Entscheid ist ein **Fall** (im Log: ``proposal`` + ``proposal.decided``).
-Bevor die KI ablegt oder vorschlägt, bekommt sie die **ähnlichsten** entschiedenen Fälle mit –
-wie wir früher ihre Vorschläge bestätigt, geändert oder verworfen haben – und richtet sich
-danach. «Ähnlich» heisst: ähnliche Bedeutung, nicht gleiche Wörter (Bedeutungs-Zahlen von
-Vertex AI über ``ai.embed``, gesucht mit pgvector in ``ai_memory``).
+Was die Firma weiss, steht in **Notizen** und **Dokumenten**; wie sie über Vorschläge der KI
+entschied, in **entschiedenen Handgriffen** (Fälle). Jeder solche Eintrag bekommt Bedeutungs-Zahlen
+(Vertex AI über ``ai.embed``, pgvector in ``ai_memory``). «Die Pumpe tropft» findet dann auch
+«Wellendichtung undicht» – andere Wörter, dieselbe Sache.
 
-* ``shareable`` – **nur ein Fall, dessen Inhalt jedes Personal sehen darf, wird eingebettet**:
-  ``change``/``create`` (ihre Quelle nennt keine Worte einer Erfassung) und ``file`` nur, wenn er
-  abgelegt wurde (``accepted``/``changed`` – dann steht der Inhalt als Notiz da). Ein verworfener
-  ``file`` bleibt bei der Person, die erfasst hat.
-* ``text_of`` – was von einem Fall eingebettet wird (Quelle + Vorschlag, bei ``file`` die Teile,
-  wie sie abgelegt wurden), EINE Stelle.
-* ``remember`` – die Zahlen eines **entschiedenen** Falls ablegen (beim Entscheid: ✕, «Stimmt
-  so»; was dort nicht ging und was der Takt entschied, holt der Takt nach: ``missing``).
-* ``similar`` – die ähnlichsten Fälle zu einem Text; ``as_prompt`` macht daraus den Abschnitt
-  für die Anfrage. Weil ``ai_memory`` nur Entschiedenes und Teilbares hält, ist jeder Nachbar
-  aus dem Index ein Fall – die Suche verliert keine an einen nachträglichen Filter.
+* ``KINDS`` – ``handgriff`` · ``note`` · ``document``; je Art EINE Stelle, die sagt, was eingebettet
+  wird (``_TEXT``) und welche noch fehlen (``_MISSING``). Der Takt holt nach (``catch_up``).
+* **Nur, was jedes Personal sehen darf:** ein Handgriff aus einem Gespräch erst, wenn er
+  ausgeführt ist (dann steht sein Ergebnis ohnehin da); weggelegte nur aus Mails. Notizen und
+  Dokumente werden beim Suchen gegen die Rechte des Lesers geprüft (``ai_tools.reader``).
+* ``search`` – die ähnlichsten Einträge zu einem Text, mit Datum und Datensatz; ``as_prompt``
+  macht aus Fällen den Abschnitt für die Anfrage.
 
-Ohne Vertex (nicht eingerichtet, Deckel, Fehler) gibt es keine Fälle – sonst nichts. Nichts wird
-vergessen: ``ai_memory`` ist eine Ableitung aus dem Log und entsteht im Takt neu.
+Ohne Vertex (nicht eingerichtet, Deckel, Fehler) gibt es keine Suche nach Bedeutung – sonst
+fehlt nichts. ``ai_memory`` ist eine Ableitung und entsteht im Takt neu.
 """
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any, Iterable, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -33,142 +30,186 @@ from sqlalchemy.orm import Session
 from ..models import AiMemory, UserProfile
 from . import ai
 
-#: So viele ähnliche Fälle gehen höchstens in eine Anfrage.
-CASES = 5
-#: Ab dieser Kosinus-Distanz (0 = gleich, 2 = Gegenteil) ist ein Fall nicht mehr «ähnlich».
+#: Die Arten im Gedächtnis.
+KINDS = ("handgriff", "note", "document")
+#: So viele Treffer höchstens.
+FOUND = 5
+#: Ab dieser Kosinus-Distanz (0 = gleich, 2 = Gegenteil) ist nichts mehr «ähnlich».
 FAR = 0.6
-
-#: Die Wörter der Entscheide – so liest die KI ihre Fälle.
-OUTCOMES = {"accepted": "übernommen", "changed": "selbst geändert", "rejected": "verworfen",
-            "gone": "erledigt sich (Datensatz weg)"}
+#: So viele Einträge holt der Takt je Lauf nach.
+PER_RUN = 20
+#: So viel Text eines Dokuments wird eingebettet.
+DOC_TEXT = 6000
 
 
 @dataclass(frozen=True)
-class Case:
-    proposal: int
+class Found:
+    kind: str
+    ref_id: int
     text: str
-    outcome: str
-    #: Bei «selbst geändert»: was der Mensch stattdessen nahm.
-    value: Optional[str]
+    at: datetime
     distance: float
+    #: Der Datensatz, an dem es steht (Notiz: woran sie hängt; Dokument: es selbst).
+    object_id: Optional[int] = None
 
 
-#: Die Entscheide, mit denen ein ``file`` ein Fall für alle ist (abgelegt = als Notiz sichtbar).
-FILED = ("accepted", "changed")
+# ---------------------------------------------------------------------------
+# Was eingebettet wird – je Art EINE Abfrage, die Text und Datum liefert
+# ---------------------------------------------------------------------------
+
+#: Handgriffe mit Entscheid, die jedes Personal sehen darf; der Entscheid ist Teil des Texts.
+_HANDGRIFFE = """
+SELECT h.id AS ref_id, coalesce(d.at, x.at) AS at, h.object_id,
+       concat('Quelle: ', CASE WHEN h.payload ->> 'mail' IS NULL THEN 'Gespräch' ELSE 'Mail' END,
+              E'\\nHandgriff: ', h.payload ->> 'line', ' (', h.payload ->> 'method', ' ',
+              h.payload ->> 'path', E')\\n⇒ ',
+              CASE WHEN d.id IS NOT NULL THEN 'ausgeführt' ELSE 'verworfen' END) AS text
+  FROM log h
+  LEFT JOIN log d ON d.event = 'handgriff.done' AND (d.payload ->> 'handgriff')::bigint = h.id
+  LEFT JOIN log x ON x.event = 'handgriff.dropped' AND (x.payload ->> 'handgriff')::bigint = h.id
+                 AND x.payload ->> 'by' = 'person'
+ WHERE h.event = 'handgriff'
+   AND (d.id IS NOT NULL OR (x.id IS NOT NULL AND h.payload ->> 'mail' IS NOT NULL))"""
+
+#: Notizen (Wissen an einem Datensatz) – Betreff und Text, am Datensatz, an dem sie hängen.
+_NOTES = """
+SELECT m.id AS ref_id, m.at, p.object_id,
+       concat(coalesce(m.subject, ''), E'\\n', left(m.body, 4000)) AS text
+  FROM messages m
+  JOIN message_parties p ON p.message_id = m.id AND p.role = 'about'
+ WHERE m.channel = 'note' AND m.is_active"""
+
+#: Dokumente – Art, Name, Stichworte und der gelesene Text.
+_DOCUMENTS = f"""
+SELECT d.object_id AS ref_id, d.created_at AS at, d.object_id,
+       concat(d.art, ' · ', d.name, E'\\n', coalesce(d.keywords::text, ''), E'\\n',
+              left(coalesce(d.text, ''), {DOC_TEXT})) AS text
+  FROM documents d
+ WHERE d.is_active"""
+
+_SOURCES = {"handgriff": _HANDGRIFFE, "note": _NOTES, "document": _DOCUMENTS}
 
 
-def shareable(payload: dict[str, Any], decided: Optional[dict[str, Any]]) -> bool:
-    """►►► **Darf dieser Fall in jede Anfrage?** – entschieden, und sein Inhalt ist für jedes
-    Personal sichtbar. ◄◄◄"""
-    if not decided:
-        return False
-    if payload.get("kind") == "file":
-        return decided.get("outcome") in FILED
-    return payload.get("kind") in ("change", "create")
+def _missing(db: Session, kind: str, limit: int) -> list[Any]:
+    sql = (f"SELECT s.ref_id, s.at, s.text FROM ({_SOURCES[kind]}) s "
+           f"WHERE NOT EXISTS (SELECT 1 FROM ai_memory a WHERE a.kind = :k AND a.ref_id = s.ref_id) "
+           f"AND length(trim(s.text)) > 3 ORDER BY s.at DESC LIMIT :n")
+    return db.execute(text(sql), {"k": kind, "n": limit}).all()
 
 
-def text_of(payload: dict[str, Any], decided: Optional[dict[str, Any]] = None) -> str:
-    """►►► **Was von einem Fall eingebettet wird** – die Quelle und der Vorschlag selbst,
-    knapp; bei einem ``file`` die Teile, wie sie abgelegt wurden. EINE Stelle für ``remember``
-    und den Takt. ◄◄◄"""
-    source = (payload.get("source") or {}).get("text") or ""
-    kind = payload.get("kind") or ""
-    if kind == "change":
-        what = f"Feld {payload.get('label') or payload.get('field')} → {payload.get('value')}"
-    elif kind == "create":
-        draft = payload.get("draft") or {}
-        values = ", ".join(f"{k}: {v}" for k, v in (draft.get("values") or {}).items())
-        what = f"neu anlegen ({draft.get('type')}): {values}"
-    elif kind == "file":
-        parts = (decided or {}).get("parts") or payload.get("parts") or []
-        what = "ablegen: " + " | ".join(
-            f"{p.get('object_id')}: {str(p.get('text') or '')[:200]}" for p in parts)
-    else:
-        what = str(payload.get("label") or "")
-    return f"Quelle: {source[:1500]}\nVorschlag ({kind}): {what[:1500]}"
-
-
-def remember(db: Session, proposal_id: int, payload: dict[str, Any], *,
-             decided: Optional[dict[str, Any]], actor: Optional[UserProfile]) -> bool:
-    """Die Bedeutungs-Zahlen eines entschiedenen Falls ablegen – ``True``, wenn sie jetzt da
-    sind. Ein Fall, der nicht ``shareable`` ist, bekommt nie welche (``False``)."""
-    if not shareable(payload, decided):
-        return False
-    if db.get(AiMemory, proposal_id) is not None:
+def remember(db: Session, kind: str, ref_id: int, body: str, at: datetime, *,
+             actor: Optional[UserProfile]) -> bool:
+    """Die Zahlen eines Eintrags ablegen – ``True``, wenn sie jetzt da sind."""
+    if db.get(AiMemory, (kind, ref_id)) is not None:
         return True
-    body = text_of(payload, decided)
     values = ai.embed(db, body, actor=actor)
     if values is None:
         return False
-    db.add(AiMemory(log_id=proposal_id, embedding=values, text=body))
+    db.add(AiMemory(kind=kind, ref_id=ref_id, at=at, embedding=values, text=body))
     db.flush()
     return True
 
 
-#: Entschiedene, teilbare Fälle ohne Zahlen (dieselbe Regel wie ``shareable``) – je Vorschlag
-#: gibt es genau einen Entscheid (``ix_log_decided`` ist eindeutig).
-_MISSING = text("""
-SELECT p.id, p.payload, p.actor_id, d.payload AS decided
-  FROM log d
-  JOIN log p ON p.id = (d.payload ->> 'proposal')::bigint AND p.event = 'proposal'
-  LEFT JOIN ai_memory m ON m.log_id = p.id
- WHERE d.event = 'proposal.decided' AND m.log_id IS NULL
-   AND (p.payload ->> 'kind' IN ('change', 'create')
-        OR (p.payload ->> 'kind' = 'file' AND d.payload ->> 'outcome' = ANY(:filed)))
- ORDER BY d.id DESC LIMIT :n""")
-
-
-def missing(db: Session, limit: int = 20
-            ) -> list[tuple[int, dict[str, Any], Optional[int], dict[str, Any]]]:
-    """Entschiedene Fälle ohne Bedeutungs-Zahlen – die zuletzt entschiedenen zuerst (der Takt
-    holt sie nach): (Vorschlag, Nutzlast, in wessen Namen, Entscheid)."""
-    return [(r.id, r.payload or {}, r.actor_id, r.decided or {})
-            for r in db.execute(_MISSING, {"n": limit, "filed": list(FILED)})]
-
-
-#: Erst die nächsten Nachbarn (reine Index-Suche, HNSW), dann ihr Entscheid – jeder Eintrag in
-#: ``ai_memory`` ist entschieden, also geht keiner an den Join verloren.
-_SIMILAR = text("""
-SELECT n.log_id, n.text, n.distance, d.payload AS decided
-  FROM (SELECT m.log_id, m.text, (m.embedding <=> CAST(:q AS vector)) AS distance
-          FROM ai_memory m
-         WHERE m.is_active
-         ORDER BY m.embedding <=> CAST(:q AS vector)
-         LIMIT :k) n
-  JOIN log d ON d.event = 'proposal.decided' AND (d.payload ->> 'proposal')::bigint = n.log_id
- ORDER BY n.distance""")
-
-
-def similar(db: Session, query: str, *, actor: Optional[UserProfile], k: int = CASES) -> list[Case]:
-    """►►► **Die ähnlichsten Fälle** (entschieden, für jedes Personal sichtbar) zu einem Text –
-    oder keine (kein Vertex, Deckel, Fehler, noch keine Fälle). Nie eine Ausnahme. ◄◄◄"""
+def catch_up(db: Session, deadline: float, limit: int = PER_RUN) -> int:
+    """►► **Der Takt: was noch keine Zahlen hat** – Fälle, Notizen, Dokumente, die neuesten
+    zuerst. Speichert je Eintrag; ohne Vertex oder am Deckel: nichts. ◄◄"""
     if not ai.embed_ready():
-        return []
-    has_cases = db.execute(text("SELECT EXISTS (SELECT 1 FROM ai_memory)")).scalar()
-    if not has_cases:
-        return []
-    values = ai.embed(db, query, actor=actor, query=True)
-    if values is None:
-        return []
-    q = "[" + ",".join(f"{v:.7g}" for v in values) + "]"
-    out = []
-    for r in db.execute(_SIMILAR, {"q": q, "k": k}):
-        if r.distance is None or r.distance > FAR:
-            continue
-        decided = r.decided or {}
-        out.append(Case(proposal=r.log_id, text=r.text, outcome=str(decided.get("outcome") or ""),
-                        value=decided.get("value"), distance=float(r.distance)))
+        return 0
+    n = 0
+    for kind in KINDS:
+        for r in _missing(db, kind, limit):
+            if time.monotonic() >= deadline:
+                return n
+            if not remember(db, kind, int(r.ref_id), r.text, r.at, actor=None):
+                return n            # Deckel, Vertex aus, Fehler – im nächsten Lauf
+            db.commit()
+            n += 1
+    return n
+
+
+# ---------------------------------------------------------------------------
+# Suchen
+# ---------------------------------------------------------------------------
+
+_NEAREST = text("""
+SELECT m.kind, m.ref_id, m.text, m.at, (m.embedding <=> CAST(:q AS vector)) AS distance
+  FROM ai_memory m
+ WHERE m.is_active AND m.kind = ANY(:kinds)
+ ORDER BY m.embedding <=> CAST(:q AS vector)
+ LIMIT :k""")
+
+
+def _where(db: Session, rows: list[Any]) -> dict[tuple[str, int], int]:
+    """Der Datensatz je Treffer: Notiz → woran sie hängt, Dokument → es selbst, Fall → sein
+    Datensatz."""
+    out: dict[tuple[str, int], int] = {}
+    notes = [r.ref_id for r in rows if r.kind == "note"]
+    if notes:
+        for mid, oid in db.execute(text("SELECT message_id, object_id FROM message_parties "
+                                        "WHERE role = 'about' AND message_id = ANY(:ids)"),
+                                   {"ids": notes}):
+            out.setdefault(("note", mid), oid)
+    cases = [r.ref_id for r in rows if r.kind == "handgriff"]
+    if cases:
+        for hid, oid in db.execute(text("SELECT id, object_id FROM log WHERE id = ANY(:ids)"),
+                                   {"ids": cases}):
+            out[("handgriff", hid)] = oid
+    for r in rows:
+        if r.kind == "document":
+            out[("document", r.ref_id)] = r.ref_id
     return out
 
 
-def as_prompt(cases: list[Case]) -> str:
-    """Die Fälle als Abschnitt der Anfrage – leer, wenn es keine gibt."""
+def _visible(db: Session, object_ids: Iterable[int]) -> set[int]:
+    """Was jedes Personal sehen darf – gelesen als gemeinsamer Betrachter."""
+    from fastapi import HTTPException
+
+    from . import ai_tools, history
+    reader = ai_tools.reader()
+    ok = set()
+    for oid in set(object_ids):
+        try:
+            history.assert_visible(db, oid, reader)
+            ok.add(oid)
+        except HTTPException:
+            pass
+    return ok
+
+
+def search(db: Session, query: str, *, actor: Optional[UserProfile],
+           kinds: tuple[str, ...] = KINDS, k: int = FOUND) -> list[Found]:
+    """►►► **Die ähnlichsten Einträge** zu einem Text – nur, was jedes Personal sehen darf, die
+    nächsten zuerst. Nie eine Ausnahme: ohne Vertex, am Deckel, ohne Einträge: leer. ◄◄◄"""
+    if not query.strip() or not ai.embed_ready():
+        return []
+    if not db.execute(text("SELECT EXISTS (SELECT 1 FROM ai_memory WHERE kind = ANY(:k))"),
+                      {"k": list(kinds)}).scalar():
+        return []
+    values = ai.embed(db, query[:4000], actor=actor, query=True)
+    if values is None:
+        return []
+    q = "[" + ",".join(f"{v:.7g}" for v in values) + "]"
+    rows = [r for r in db.execute(_NEAREST, {"q": q, "kinds": list(kinds), "k": k * 3})
+            if r.distance is not None and r.distance <= FAR]
+    where = _where(db, rows)
+    seen = _visible(db, where.values())
+    out = [Found(r.kind, r.ref_id, r.text, r.at, float(r.distance), where.get((r.kind, r.ref_id)))
+           for r in rows if where.get((r.kind, r.ref_id)) in seen]
+    return out[:k]
+
+
+def as_prompt(found: list[Found]) -> str:
+    """Fälle als Abschnitt der Anfrage – wie wir früher über Handgriffe der KI entschieden."""
+    cases = [f for f in found if f.kind == "handgriff"]
     if not cases:
         return ""
-    lines = ["So haben wir früher über ähnliche Vorschläge entschieden – richte dich danach:"]
-    for c in cases:
-        verdict = OUTCOMES.get(c.outcome, c.outcome)
-        if c.outcome == "changed" and c.value:
-            verdict += f" (stattdessen: {c.value})"
-        lines.append(f"- {c.text.replace(chr(10), ' · ')} ⇒ {verdict}")
+    lines = ["So haben wir früher über ähnliche Handgriffe entschieden – richte dich danach:"]
+    lines += [f"- {c.text.replace(chr(10), ' · ')}" for c in cases]
     return "\n".join(lines)
+
+
+def as_lines(found: list[Found]) -> str:
+    """Wissen als Text für die KI – je Treffer Datum, Art, Datensatz und Inhalt."""
+    words = {"note": "Notiz", "document": "Dokument", "handgriff": "Fall"}
+    return "\n".join(f"- {f.at:%d.%m.%Y} · {words[f.kind]} {f.ref_id} an {f.object_id}: "
+                     f"{f.text.replace(chr(10), ' · ')[:600]}" for f in found) or "Nichts gefunden."

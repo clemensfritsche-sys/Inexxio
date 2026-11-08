@@ -56,7 +56,7 @@ def test_the_ai_looks_up_with_a_tool_and_then_answers(db, monkeypatch):
     script = _Script(_answer(stop="tool_use", content=[_Block(type="text", text="…"), call]),
                      _answer(parsed=Out(answer="ok")))
     _ready(monkeypatch, script)
-    got = ai.converse(db, task="file", actor=staff, system="s", schema=Out,
+    got = ai.converse(db, task="talk", actor=staff, system="s", schema=Out,
                       content=[{"type": "text", "text": "x"}], tools=ai_tools.tools_for(db))
     assert got == Out(answer="ok")
     result = script.seen[1]["messages"][-1]["content"][0]
@@ -73,18 +73,18 @@ def test_a_failing_tool_is_an_answer_not_a_crash(db, monkeypatch):
     call = _Block(type="tool_use", id="t1", name="nope", input={})
     script = _Script(_answer(stop="tool_use", content=[call]), _answer(parsed=Out(answer="x")))
     _ready(monkeypatch, script)
-    assert ai.converse(db, task="file", actor=staff, system="s", schema=Out, content=[],
+    assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[],
                        tools=ai_tools.tools_for(db)) == Out(answer="x")
     assert script.seen[1]["messages"][-1]["content"][0]["is_error"] is True
 
 
 def test_endless_looking_up_ends_without_an_answer(db, monkeypatch):
     staff = new_person(db, "employee")
-    rounds = ai.TASKS["file"].rounds
+    rounds = ai.TASKS["talk"].rounds
     script = _Script(*[_answer(stop="tool_use", content=[
         _Block(type="tool_use", id=f"t{i}", name="find", input={"q": "x"})]) for i in range(rounds)])
     _ready(monkeypatch, script)
-    assert ai.converse(db, task="file", actor=staff, system="s", schema=Out, content=[],
+    assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[],
                        tools=ai_tools.tools_for(db)) is None
     assert "keinem Ergebnis" in ai.problem() and len(script.seen) == rounds
 
@@ -141,13 +141,13 @@ def test_the_day_adds_up_in_francs_and_stops_at_the_cap(db, monkeypatch):
     monkeypatch.setattr(ai, "ready", lambda: True)
     monkeypatch.setattr(get_settings(), "ai_daily_cap_chf", 0.05)
     before = ai.spent_today(db)
-    ai._record(db, "file", "claude-sonnet-5-5", staff, {"in": 20_000, "out": 2_000})   # 0.048 CHF
+    ai._record(db, "talk", "claude-sonnet-5-5", staff, {"in": 20_000, "out": 2_000})   # 0.048 CHF
     assert abs(ai.spent_today(db) - before - 0.048) < 1e-9
     monkeypatch.setattr(ai, "spent_today", lambda db: 0.048)
     assert ai.available(db) and ai.near_cap(db)
     monkeypatch.setattr(ai, "spent_today", lambda db: 0.05)
     assert not ai.available(db)
-    assert ai.converse(db, task="file", actor=staff, system="s", schema=Out, content=[]) is None
+    assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[]) is None
     assert "Tagesdeckel" in ai.problem()
 
 
@@ -184,8 +184,8 @@ def test_a_flow_with_a_time_limit_never_gives_a_call_more_time(db, monkeypatch):
     monkeypatch.setattr(ai, "_client", lambda timeout, retries: seen.append(timeout) or _Script(
         _answer(parsed=Out(answer="ok"))))
     with ai.until(10):
-        assert ai.converse(db, task="file", actor=staff, system="s", schema=Out, content=[])
+        assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[])
     assert 0 < seen[0] <= 10
     with ai.until(1):
-        assert ai.converse(db, task="file", actor=staff, system="s", schema=Out, content=[]) is None
+        assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[]) is None
     assert "zu lange" in ai.problem()

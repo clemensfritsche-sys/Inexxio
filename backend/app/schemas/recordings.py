@@ -10,7 +10,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .proposals import IntakeOut
+from .assistant import TalkOut
 
 
 class RecordingIn(BaseModel):
@@ -36,8 +36,8 @@ class Recording(BaseModel):
     """►►► **Eine Aufnahme** – ``id`` ist die Nummer ihres ``recording.start`` im Log. ◄◄◄
 
     ``state``: ``recording`` (kein Stopp, nicht abgebrochen) · ``transcribing`` (gestoppt,
-    Abschnitte fehlen) · ``filing`` (Text da, die Erfassung entsteht) · ``done`` (die Erfassung
-    gibt es, ``intake`` gesetzt) · ``failed`` (``problem``)."""
+    Abschnitte fehlen) · ``filing`` (Text da, die Nachricht entsteht) · ``done`` (die Nachricht
+    steht im Gespräch, ``talk`` gesetzt) · ``failed`` (``problem``)."""
 
     id: int
     at: datetime
@@ -50,6 +50,6 @@ class Recording(BaseModel):
     transcribed: int = 0
     #: Ungefähre Länge – je Stück 30 s.
     seconds: int = 0
-    #: Die Erfassung, sobald es sie gibt – die Oberfläche öffnet «Abgelegt».
-    intake: Optional[IntakeOut] = None
+    #: Das Gespräch, sobald die Nachricht darin steht – die Oberfläche zeigt es.
+    talk: Optional[TalkOut] = None
     problem: Optional[str] = None

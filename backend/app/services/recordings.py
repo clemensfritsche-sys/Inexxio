@@ -1,8 +1,8 @@
 """►►► **Aufnehmen und Abschreiben** – EINE Stelle (Phase 4 · Sprache,
 ``docs/konzept/phase4-bauplan.md``). ◄◄◄
 
-Gesprochenes wird Text, der Text wird eine **Erfassung** (``intake``) – danach ist alles wie beim
-Schreiben (Phase 3). Vom Gesprochenen bleibt nur der Text.
+Gesprochenes wird Text, der Text wird eine **Nachricht im Gespräch** (``talk``) – danach ist alles wie beim
+Schreiben (Phase 5). Vom Gesprochenen bleibt nur der Text.
 
 * ``start`` → ``recording.start`` (am offenen Datensatz, sonst an der Person). Die Nummer der
   Aufnahme ist die Log-Id dieses Ereignisses.
@@ -16,11 +16,11 @@ Schreiben (Phase 3). Vom Gesprochenen bleibt nur der Text.
 * ``advance`` – so weit, wie die Zeit reicht (``ai.until``): je Abschnitt ``ai.transcribe`` →
   ``recording.segment``. Was sich nicht abschreiben lässt (kein Stück 0, zu gross, abgelehnt,
   zu oft gescheitert), wird **mit Vermerk übersprungen** – nie endlos versucht, nie still weg;
-  ist alles abgeschrieben, **eine** Erfassung mit dem ganzen Text →
-  ``recording.done`` → Stücke gelöscht; dann, wenn Zeit bleibt, legt die KI ab. Läuft in der
+  ist alles abgeschrieben, **eine** Nachricht im Gespräch mit dem ganzen Text →
+  ``recording.done`` → Stücke gelöscht; dann, wenn Zeit bleibt, antwortet die KI. Läuft in der
   Anfrage (die Oberfläche fragt nach) **und** im Takt (``due``).
 * ``sweep`` (im Takt) – eine Aufnahme, die nach ``KEEP`` nicht fertig ist, wird mit dem, was
-  abgeschrieben ist, die Erfassung (sonst ``recording.failed``); ihre Stücke gehen, und kein
+  abgeschrieben ist, die Nachricht (sonst ``recording.failed``); ihre Stücke gehen, und kein
   Stück bleibt länger als ``KEEP``.
 
 **Nur die Person, die aufnimmt** (und der Admin) sieht ihre Aufnahme (``_may``); Stücke und
@@ -40,7 +40,7 @@ from sqlalchemy.orm import Session
 
 from ..models import RecordingChunk, UserProfile
 from ..schemas.recordings import Recording
-from . import ai, attachments, intake, log, records
+from . import ai, attachments, log, records, talk
 
 #: Ein Stück ist höchstens so gross (30 s Opus mit 24 kbit/s sind ~90 KB).
 MAX_CHUNK = 4 * 1024 * 1024
@@ -198,13 +198,13 @@ def view(db: Session, rec: Rec, viewer: UserProfile, *, problem: Optional[str] =
     found = None
     if rec.end is not None:
         problem = rec.end[1].get("problem") or problem
-        iid = rec.end[1].get("intake")
-        if iid and intake.may_see(db, int(iid), viewer):
-            found = intake.view(db, intake.get(db, int(iid)))
+        tid = rec.end[1].get("talk")
+        if tid and (viewer.role == "admin" or rec.actor_id == viewer.object_id):
+            found = talk.view(db, int(tid))
     return Recording(id=rec.id, at=rec.at, hint_object_id=rec.hint, mime=rec.mime, state=state,
                      segments=rec.segments, transcribed=len(rec.texts),
                      seconds=sum(rec.seconds_of(s) for s in range(rec.segments)),
-                     intake=found, problem=(problem or None) if state != "done" else None)
+                     talk=found, problem=(problem or None) if state != "done" else None)
 
 
 #: Ein Ende, das zählt: fertig – oder gescheitert, aber nicht bloss still («Nichts zu hören»,
@@ -240,8 +240,8 @@ def start(db: Session, hint: Optional[int], mime: str, actor: UserProfile,
     if hint is not None and records.labels(db, [hint]).get(hint) is None:
         raise HTTPException(400, detail=f"Datensatz «{hint}» gibt es nicht.")
     payload: dict[str, Any] = {"hint": hint, "mime": mime}
-    if intake.clean(context or "").strip():
-        payload["context"] = intake.clean(context).strip()
+    if talk.clean(context or "").strip():
+        payload["context"] = talk.clean(context).strip()
     rid = log.event(db, "recording.start", hint or actor.object_id, payload)
     return load(db, rid)
 
@@ -249,7 +249,7 @@ def start(db: Session, hint: Optional[int], mime: str, actor: UserProfile,
 def dismiss(db: Session, rec_id: int, actor: UserProfile) -> Rec:
     """►► **Eine gescheiterte Aufnahme verwerfen** – sie verschwindet aus dem «+» (``recording.dismissed``);
     das Log behält sie. Nur, was gescheitert ist (was läuft, endet mit Stopp, was fertig ist, ist
-    eine Erfassung und wird dort verworfen); zweimal ist einmal. ◄◄"""
+    eine Nachricht im Gespräch); zweimal ist einmal. ◄◄"""
     rec = get(db, rec_id, actor)
     if state_of(rec) != "failed":
         raise HTTPException(409, detail=f"Aufnahme «{rec_id}» ist nicht gescheitert – verwerfen geht "
@@ -398,8 +398,8 @@ def _whole(rec: Rec) -> str:
 
 
 def _finish(db: Session, rec: Rec, person: UserProfile) -> Optional[str]:
-    """Alles abgeschrieben → **eine** Erfassung (im Namen der Person) → ``recording.done`` →
-    Stücke weg; dann, wenn Zeit bleibt, legt die KI ab (sonst der Takt, ``intake.catch_up``).
+    """Alles abgeschrieben → **eine** Nachricht im Gespräch (im Namen der Person) → ``recording.done`` →
+    Stücke weg; dann, wenn Zeit bleibt, antwortet die KI (sonst der Takt, ``talk.catch_up``).
     Ohne jeden Text: ``recording.failed`` – war nur nichts zu hören (keine Stücke, Stille), ist
     das ``silent`` und kein Fehlschlag."""
     if not any((t.get("text") or "").strip() for t in rec.texts.values()):
@@ -409,11 +409,11 @@ def _finish(db: Session, rec: Rec, person: UserProfile) -> Optional[str]:
         db.commit()
         return None
     hint = rec.hint if rec.hint and records.labels(db, [rec.hint]).get(rec.hint) else None
-    it = intake.capture(db, _whole(rec), hint, person, recording=rec.id)
-    _end(db, rec, "recording.done", {"intake": it.id})
+    tid = talk.say(db, person, _whole(rec), hint=hint, recording=rec.id)
+    _end(db, rec, "recording.done", {"talk": tid})
     db.commit()
     if ai.available(db) and ai.remaining(60) >= FILE_LEAST:
-        trouble = intake.file_with_ai(db, it, person)
+        trouble = talk.answer(db, tid, person)
         db.commit()
         return trouble
     return None
@@ -451,7 +451,7 @@ def _unlock(con, rec_id: int) -> None:
 
 def advance(db: Session, rec_id: int) -> Optional[str]:
     """►►► **So weit, wie die Zeit reicht** – Abschnitte der Reihe nach abschreiben, dann die
-    Erfassung. Gibt zurück, warum es (noch) nicht weitergeht, oder ``None``. Committet je
+    Nachricht im Gespräch. Gibt zurück, warum es (noch) nicht weitergeht, oder ``None``. Committet je
     Schritt: was abgeschrieben ist, bleibt. Läuft in der Anfrage und im Takt; nie zweimal
     gleichzeitig an derselben Aufnahme (``_lock``). ◄◄◄"""
     con = _lock(rec_id)
@@ -513,8 +513,8 @@ SELECT s.id FROM log s
 
 def _rescue(db: Session, rec: Rec) -> bool:
     """►► **Was nach einem Tag schon abgeschrieben ist, geht nicht verloren**: es wird die
-    Erfassung, der Rest ein Vermerk «[Abschnitt n: nach einem Tag nicht abgeschrieben]». Ohne jeden Text →
-    ``recording.failed``. ``True``, wenn eine Erfassung entstand. ◄◄"""
+    Nachricht, der Rest ein Vermerk «[Abschnitt n: nach einem Tag nicht abgeschrieben]». Ohne jeden Text →
+    ``recording.failed``. ``True``, wenn eine Nachricht entstand. ◄◄"""
     if rec.end is not None:
         return True
     person = db.query(UserProfile).filter(UserProfile.object_id == rec.actor_id).first()
@@ -524,8 +524,8 @@ def _rescue(db: Session, rec: Rec) -> bool:
     for s in range(rec.segments):
         rec.texts.setdefault(s, {"skipped": LATE})
     hint = rec.hint if rec.hint and records.labels(db, [rec.hint]).get(rec.hint) else None
-    it = intake.capture(db, _whole(rec), hint, person, recording=rec.id)
-    _end(db, rec, "recording.done", {"intake": it.id, "partial": True})
+    tid = talk.say(db, person, _whole(rec), hint=hint, recording=rec.id)
+    _end(db, rec, "recording.done", {"talk": tid, "partial": True})
     return True
 
 

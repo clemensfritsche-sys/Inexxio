@@ -1,15 +1,23 @@
-"""►►► **Lernen – die ähnlichsten entschiedenen Fälle** (Phase 3, Schritt 3.6). ◄◄◄
+"""►►► **Im Wissen suchen – nach Bedeutung** (Phase 5 §8.4). ◄◄◄
 
 Vertex AI wird nachgebildet: jeder Text bekommt Zahlen, die nur von einem Stichwort abhängen –
 so ist «ähnlich» im Test eindeutig. Die Suche selbst läuft echt (pgvector).
+
+Bug-Formen: (a) eine Notiz mit anderen Wörtern wird nicht gefunden; (b) gefunden wird, was nicht
+jedes Personal sehen darf (ein Handgriff aus einem Gespräch, der nie ausgeführt wurde); (c) ein
+Eintrag bekommt zweimal Zahlen; (d) ohne Vertex scheitert etwas.
 """
 
 import math
+import time
+from datetime import datetime, timezone
 
+from app.core.actor import act
 from app.core.config import get_settings
-from app.models import AiMemory
-from app.services import ai, log, memory, proposals
-from tests.factories import new_person
+from app.models import AiMemory, Message
+from app.schemas.communication import MessageIn
+from app.services import ai, communication, log, memory
+from tests.factories import new_firm, new_person
 
 
 def _vector(word: str) -> list[float]:
@@ -20,116 +28,70 @@ def _vector(word: str) -> list[float]:
     return [x / n for x in v]
 
 
+#: «tropft» und «undicht» meinen dieselbe Sache – im nachgebildeten Vertex dasselbe Stichwort.
+def _word(text: str) -> str:
+    t = text.lower()
+    if "tropf" in t or "undicht" in t:
+        return "dicht"
+    return "telefon" if "telefon" in t else t[:20]
+
+
 def _fake_vertex(monkeypatch):
     monkeypatch.setattr(get_settings(), "vertex_project", "test")
-
-    def embed(db, text, *, actor, query=False, **kw):
-        word = "schlauch" if "schlauch" in text.lower() else "telefon" if "telefon" in text.lower() else text
-        return _vector(word)
-    monkeypatch.setattr(ai, "embed", embed)
+    monkeypatch.setattr(ai, "embed", lambda db, text, *, actor, query=False, **kw: _vector(_word(text)))
 
 
-def _proposal(db, oid, source, value):
-    payload = {"kind": "change", "field": "phone", "label": "Telefon", "value": value,
-               "source": {"text": source}}
-    return log.event(db, "proposal", oid, payload), payload
+def _note(db, who, about, subject, body):
+    act(db, "person", who.object_id, "ui")
+    return communication.create(db, MessageIn(channel="note", about=[about], subject=subject,
+                                              body=body), who)
 
 
-def _decide(db, pid, outcome, **extra):
-    """Der Entscheid – über die eine Stelle, die dabei die Zahlen ablegt."""
-    return proposals.decide(db, proposals.get(db, pid), outcome, **extra)
-
-
-def test_similar_cases_come_with_their_decision(db, monkeypatch):
-    """Erst der Entscheid macht einen Fall – und erst dann gibt es Zahlen. Bug-Form: ein Fall
-    ohne Entscheid zählt mit (oder bekommt schon beim Vorschlag Zahlen), oder der Entscheid
-    fehlt im Prompt."""
+def test_a_note_is_found_by_meaning_not_by_words(db, monkeypatch):
+    """(a) «Die Pumpe tropft» findet «Wellendichtung undicht» – mit Datum und Datensatz."""
     _fake_vertex(monkeypatch)
     staff = new_person(db, "employee")
-    a, _ = _proposal(db, staff.object_id, "Hans sagt, seine Telefonnummer ist neu", "+41 79 1")
-    b, _ = _proposal(db, staff.object_id, "Telefon von Hans geändert", "+41 79 2")
-    c, _ = _proposal(db, staff.object_id, "Hydraulikschlauch geplatzt", "x")
-    assert db.query(AiMemory).filter(AiMemory.log_id.in_([a, b, c])).count() == 0
-    _decide(db, a, "changed", value="+41 79 9")
-    _decide(db, c, "rejected")
+    firm = new_firm(db)
+    note = _note(db, staff, firm.object_id, "Pumpe P3", "Wellendichtung undicht, getauscht.")
+    _note(db, staff, firm.object_id, "Anruf", "Neue Telefonnummer der Zentrale.")
     db.flush()
-    assert {m.log_id for m in db.query(AiMemory).filter(AiMemory.log_id.in_([a, b, c]))} == {a, c}
-    found = memory.similar(db, "neue Telefonnummer von Hans", actor=staff)
-    assert [f.proposal for f in found] == [a]                      # b: ohne Entscheid
-    assert found[0].outcome == "changed" and found[0].value == "+41 79 9"
-    prompt = memory.as_prompt(found)
-    assert "selbst geändert (stattdessen: +41 79 9)" in prompt and "Telefon" in prompt
+    assert memory.catch_up(db, time.monotonic() + 30) >= 2
+    found = memory.search(db, "Die Pumpe tropft wieder", actor=None, kinds=("note",))
+    assert found and found[0].ref_id == note.id and found[0].object_id == firm.object_id
+    assert "Wellendichtung" in memory.as_lines(found)
 
 
-def test_a_proposal_gets_no_numbers_until_it_is_decided(db, monkeypatch):
-    """Bug-Form: ``propose`` legt schon Zahlen ab – ein unentschiedener Vorschlag (vielleicht
-    nie gesehen) wäre ein Fall."""
-    _fake_vertex(monkeypatch)
-    staff, customer = new_person(db, "employee"), new_person(db, "user")
-    pid = proposals.propose(db, object_id=customer.object_id, kind="change", field="phone",
-                            value="079 123 00 00", source={"text": "Telefon neu"},
-                            actor=staff.object_id)
-    assert db.get(AiMemory, pid) is None
-    _decide(db, pid, "rejected")
-    assert db.get(AiMemory, pid) is not None
-
-
-def test_remember_once_and_backfill_what_is_missing(db, monkeypatch):
-    """Nur Entschiedenes fehlt; was beim Entscheid nicht ging, holt der Takt nach."""
+def test_only_what_every_staff_may_see_is_remembered(db, monkeypatch):
+    """(b) Ein Handgriff aus einem Gespräch wird erst ein Fall, wenn er ausgeführt ist;
+    weggelegt bleibt er privat. Aus einer Mail zählt auch das Weglegen."""
     _fake_vertex(monkeypatch)
     staff = new_person(db, "employee")
-    pid, payload = _proposal(db, staff.object_id, "Telefon neu", "1")
-    assert pid not in [m[0] for m in memory.missing(db, 50)]       # unentschieden: kein Fall
-    _decide(db, pid, "accepted", remember=False)                   # wie ``settle`` im Takt
-    (row,) = [m for m in memory.missing(db, 50) if m[0] == pid]
-    assert row[3]["outcome"] == "accepted"
-    assert memory.remember(db, pid, payload, decided=row[3], actor=staff)
-    assert memory.remember(db, pid, payload, decided=row[3], actor=staff)   # zweimal = einmal
-    assert db.query(AiMemory).filter(AiMemory.log_id == pid).count() == 1
-    assert pid not in [m[0] for m in memory.missing(db, 50)]
-
-
-def _file(db, oid, words):
-    payload = {"kind": "file", "label": "Ablegen", "source": {"text": "Erfassung von X"},
-               "parts": [{"object_id": oid, "text": words, "subject": "x"}]}
-    return log.event(db, "proposal", oid, payload)
-
-
-def test_a_discarded_capture_of_another_person_never_comes_back(db, monkeypatch):
-    """►► **Gedächtnis ohne fremde Privatsachen.** Ein verworfener ``file`` (die Worte sah nur,
-    wer erfasste) bekommt nie Zahlen und kommt in keine Anfrage; ein abgelegter schon – seine
-    Teile stehen als Notiz da, und zwar so, wie der Mensch sie ablegte. Bug-Form: ``similar``
-    liefert die Worte eines verworfenen ``file`` einer anderen Person. ◄◄"""
-    _fake_vertex(monkeypatch)
-    me, other = new_person(db, "employee"), new_person(db, "employee")
-    secret = _file(db, other.object_id, "Telefon privat: Scheidung, bitte niemandem sagen")
-    _decide(db, secret, "rejected")
-    kept = _file(db, me.object_id, "Telefon der Firma, KI-Fassung")
-    _decide(db, kept, "changed", parts=[{"object_id": me.object_id, "text": "Telefon der Firma, "
-                                         "abgelegt", "subject": "Telefon"}])
+    act(db, "person", staff.object_id, "ui")
+    payload = {"method": "PATCH", "path": "/api/v1/erp/records/1", "line": "Telefon neu"}
+    private = log.event(db, "handgriff", staff.object_id, {**payload, "talk": 1})
+    done = log.event(db, "handgriff", staff.object_id, {**payload, "talk": 1})
+    mailed = log.event(db, "handgriff", staff.object_id, {**payload, "mail": 1})
+    log.event(db, "handgriff.dropped", staff.object_id, {"handgriff": private, "by": "person"})
+    log.event(db, "handgriff.done", staff.object_id, {"handgriff": done})
+    log.event(db, "handgriff.dropped", staff.object_id, {"handgriff": mailed, "by": "person"})
     db.flush()
-    assert db.get(AiMemory, secret) is None
-    assert secret not in [m[0] for m in memory.missing(db, 500)]
-    found = memory.similar(db, "Telefon", actor=me)
-    assert secret not in [f.proposal for f in found] and kept in [f.proposal for f in found]
-    text = next(f.text for f in found if f.proposal == kept)
-    assert "abgelegt" in text and "KI-Fassung" not in text
-    assert not memory.remember(db, secret, proposals.get(db, secret).payload,
-                               decided={"outcome": "rejected"}, actor=me)
+    memory.catch_up(db, time.monotonic() + 30)
+    kept = {m.ref_id for m in db.query(AiMemory).filter(AiMemory.kind == "handgriff")}
+    assert done in kept and mailed in kept
+    assert private not in kept, "(b) ein privater, nie ausgeführter Handgriff"
+    text = db.get(AiMemory, ("handgriff", done)).text
+    assert "Telefon neu" in text and "ausgeführt" in text
 
 
-def test_without_vertex_there_are_no_cases_and_nothing_breaks(db, monkeypatch):
+def test_remembering_twice_is_once_and_without_vertex_nothing_fails(db, monkeypatch):
+    """(c) zweimal = einmal; (d) ohne Vertex: keine Suche, kein Fehler."""
+    _fake_vertex(monkeypatch)
+    at = datetime.now(timezone.utc)
+    assert memory.remember(db, "note", 987654321, "Telefon", at, actor=None)
+    assert memory.remember(db, "note", 987654321, "Telefon", at, actor=None)
+    assert db.query(AiMemory).filter(AiMemory.ref_id == 987654321).count() == 1
     monkeypatch.setattr(get_settings(), "vertex_project", "")
-    staff = new_person(db, "employee")
-    pid, payload = _proposal(db, staff.object_id, "Telefon neu", "1")
-    _decide(db, pid, "rejected")
-    assert db.get(AiMemory, pid) is None
-    assert memory.remember(db, pid, payload, decided={"outcome": "rejected"}, actor=staff) is False
-    assert memory.similar(db, "Telefon", actor=staff) == []
+    assert memory.search(db, "Telefon", actor=None) == []
+    assert memory.catch_up(db, time.monotonic() + 30) == 0
     assert memory.as_prompt([]) == ""
-
-
-def test_the_case_text_names_source_and_proposal():
-    t = memory.text_of({"kind": "create", "source": {"text": "Neuer Kunde Muster"},
-                        "draft": {"type": "organization", "values": {"company_name": "Muster"}}})
-    assert "Neuer Kunde Muster" in t and "company_name: Muster" in t
+    assert db.query(Message).count() >= 0

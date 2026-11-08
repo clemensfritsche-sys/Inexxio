@@ -1,14 +1,15 @@
-"""**Das Gedächtnis der KI – Bedeutungs-Zahlen je Fall** (Projektakte §4.3 «Lernen», Schritt 3.6).
+"""**Das Gedächtnis der KI – Bedeutungs-Zahlen** (Phase 5: «im Wissen suchen»).
 
-Ein Fall ist ein Vorschlag im Log (``proposal``); hier stehen nur seine **Bedeutungs-Zahlen**
-(``embedding``, 768 Zahlen von Vertex AI) und der Text, aus dem sie entstanden – eine
-**Ableitung** aus dem Log, kein Wissen: geht die Tabelle verloren, entsteht sie im Takt neu.
-Gesucht wird mit pgvector in der eigenen Datenbank (``memory.similar``).
+Je Eintrag – ein entschiedener Handgriff (ein Fall), eine Notiz, ein Dokument – seine
+**Bedeutungs-Zahlen** (``embedding``, 768 Zahlen von Vertex AI) und der Text, aus dem sie
+entstanden: eine **Ableitung**, kein Wissen – geht die Tabelle verloren, entsteht sie im Takt
+neu. Gesucht wird mit pgvector in der eigenen Datenbank (``memory.search``).
 """
 
+from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import BigInteger, Text
+from sqlalchemy import BigInteger, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import UserDefinedType
 
@@ -44,8 +45,13 @@ class Vector(UserDefinedType):
 class AiMemory(Base, TimestampMixin):
     __tablename__ = "ai_memory"
 
-    #: Der Vorschlag im Log (``log.id`` eines ``proposal``) – je Fall genau eine Zeile.
-    log_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    #: ``handgriff`` (ein entschiedener Handgriff – ein Fall) · ``note`` (eine Notiz) ·
+    #: ``document`` (ein Dokument) – ``memory.KINDS``.
+    kind: Mapped[str] = mapped_column(String(12), primary_key=True)
+    #: Die Nummer dazu: Log-Id des Handgriffs, Id der Nachricht, Objektnummer des Dokuments.
+    ref_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    #: Wann das Eingebettete entstand – Neues vor Altem.
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(768), nullable=False)
-    #: Was eingebettet wurde (Quelle + Vorschlag) – lesbar, damit man sieht, was die KI sah.
+    #: Was eingebettet wurde – lesbar, damit man sieht, was die KI sah.
     text: Mapped[str] = mapped_column(Text, nullable=False)

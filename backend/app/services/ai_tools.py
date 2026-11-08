@@ -8,7 +8,7 @@ Postfach verbunden hat), sondern immer als ``reader``: ein gemeinsamer Betrachte
 Dokumentteile (``access.may``, ``history.page`` filtern das). Wer handelt, steht trotzdem im Log
 (``ai.call`` mit Kosten, Vorschlag und Hinweis im Namen der Person).
 
-Drei Werkzeuge, alle **nur lesend** und alle mit ``reader`` als Betrachter (``tools_for``):
+Vier Werkzeuge, alle **nur lesend** und alle mit ``reader`` als Betrachter (``tools_for``):
 
 * ``find`` – «welchen Datensatz meinst du?»: Nummer ODER Name (``records.search``, dieselbe
   Suche wie jedes Referenzfeld);
@@ -16,7 +16,8 @@ Drei Werkzeuge, alle **nur lesend** und alle mit ``reader`` als Betrachter (``to
   bei einem Dokument Text und Stichworte – nur, wenn der Akteur es sehen darf
   (``access.may``);
 * ``history`` – die neuesten Einträge seines Verlaufs (``history.page`` mit dem Akteur als
-  Betrachter: Dokumente nach ``access``, die Zeiterfassung nur selbst/Admin).
+  Betrachter: Dokumente nach ``access``, die Zeiterfassung nur selbst/Admin);
+* ``wissen`` – im Wissen suchen, nach Bedeutung (``memory.search``: Notizen, Dokumente, Fälle).
 
 Es gibt keinen eigenen Weg an den Regeln vorbei: jedes Werkzeug fragt dieselben Dienste wie die
 Oberfläche. Was ``reader`` nicht sehen darf, gibt es für die KI nicht («nicht gefunden»).
@@ -200,4 +201,14 @@ def tools_for(db: Session) -> list[Tool]:
                         "Notizen, Dokumente, Änderungen.",
              {"object_id": {"type": "integer", "description": "9-stellige Objektnummer"}},
              lambda a: history(db, viewer, a.get("object_id"))),
+        Tool("wissen", "Sucht im Wissen der Firma nach Bedeutung (nicht nach Wörtern): Notizen, "
+                       "Dokumente und frühere Entscheide – je Treffer Datum, Datensatz, Inhalt. "
+                       "Für «gab es das schon?», «wie war das damals?».",
+             {"frage": {"type": "string", "description": "Worum es geht, in eigenen Worten"}},
+             lambda a: _knowledge(db, a.get("frage"))),
     ]
+
+
+def _knowledge(db: Session, question: Any) -> str:
+    from . import memory
+    return memory.as_lines(memory.search(db, str(question or ""), actor=None))

@@ -1,4 +1,4 @@
-"""►►► **Phase 4 · Sprache – Aufnehmen, Abschreiben, Erfassen.** ◄◄◄
+"""►►► **Phase 4 · Sprache – Aufnehmen, Abschreiben, ins Gespräch.** ◄◄◄
 
 Der Vertrag: ``docs/konzept/phase4-bauplan.md``. Gemini (Vertex AI) wird nachgebildet
 (``_Gemini``), Claude ebenso (``_Script`` aus ``tests/test_ai_core.py``) – nie ein echter Aufruf.
@@ -17,11 +17,10 @@ import pytest
 from app.core.actor import act
 from app.core.config import get_settings
 from app.models import Log, RecordingChunk
-from app.services import ai, attachments, history, intake, recordings, tick, todo
-from app.services.intake import AiRange, SpokenAnswer
+from app.services import ai, attachments, history, recordings, talk, tick, todo
 from tests.factories import new_firm, new_person
 from tests.test_ai_core import _Script, _answer
-from tests.test_proposals import api  # noqa: F401 – die Fixture: echte Routen, dieselbe Sitzung
+from tests.test_assistant import api  # noqa: F401 – die Fixture: echte Routen, dieselbe Sitzung
 
 BASE = "/api/v1/erp/recordings"
 #: Die echte Sitzung zu Vertex – die Fixture ersetzt sie.
@@ -95,14 +94,19 @@ def chunks(db, rid):
     return db.query(RecordingChunk).filter(RecordingChunk.recording == rid).count()
 
 
+def spoken(got) -> str:
+    """Der Text, den die Aufnahme ins Gespräch brachte."""
+    return got["talk"]["messages"][0]["text"]
+
+
 def events(db, name, rid):
     return [e for e in db.query(Log).filter(Log.event == name).order_by(Log.id)
             if (e.payload or {}).get("recording") == rid]
 
 
-# ─── Der Weg: Start → Stücke → Stopp → Abschreiben → Erfassung ─────────────────────────
+# ─── Der Weg: Start → Stücke → Stopp → Abschreiben → Gespräch ──────────────────────────
 
-def test_a_recording_becomes_one_intake_in_the_order_of_its_segments(db, api, gemini):  # noqa: F811
+def test_a_recording_becomes_one_message_in_the_order_of_its_segments(db, api, gemini):  # noqa: F811
     """Bug-Form: Stücke in der Reihenfolge des Ankommens statt nach Nummer, Abschnitte
     vertauscht, das Audio bleibt nach der Abschrift liegen."""
     me = new_person(db, "employee")
@@ -120,15 +124,15 @@ def test_a_recording_becomes_one_intake_in_the_order_of_its_segments(db, api, ge
     assert g.audio(0) == (b"seg0-0seg0-1", "audio/webm") and g.audio(1)[0] == b"seg1-0"
     assert "gemini-3.5-flash:generateContent" in g.seen[0]["url"]
     assert "Schweizer Schreibweise" in g.seen[0]["body"]["systemInstruction"]["parts"][0]["text"]
-    it = got["intake"]
-    assert it["text"] == "Schlauch am Kran ersetzt.\n\nHerr Meier ruft morgen an."
-    assert it["hint_object_id"] == firm.object_id and it["problem"] == intake.WAITING
-    stored = intake.get(db, it["id"])
-    assert stored.actor_id == me.object_id and stored.object_id == firm.object_id
+    t = got["talk"]
+    assert spoken(got) == "Schlauch am Kran ersetzt.\n\nHerr Meier ruft morgen an."
+    assert t["hint_object_id"] == firm.object_id and t["waiting"] and t["problem"]
+    first = db.query(Log).filter(Log.id == t["id"]).one()
+    assert first.actor_id == me.object_id and first.object_id == firm.object_id
     assert chunks(db, rec["id"]) == 0
-    assert [e.payload["intake"] for e in events(db, "recording.done", rec["id"])] == [it["id"]]
-    # Die Erfassung zählt als offene Erfassung der Person (Phase 3) – im Namen der Person.
-    assert it["id"] in intake.open_ids(db, me)
+    assert [e.payload["talk"] for e in events(db, "recording.done", rec["id"])] == [t["id"]]
+    # Das Gespräch ist offen (die KI hat noch nicht geantwortet) – im Namen der Person.
+    assert t["id"] in talk.open_ids(db, me)
     assert c.get(f"{BASE}/open").json() == []
 
 
@@ -153,7 +157,7 @@ def test_a_recording_without_a_stop_counts_as_stopped_after_thirty_quiet_minutes
     assert c.get(f"{BASE}/open").json()[0]["state"] == "transcribing"
     assert rec["id"] in recordings.due(db, 100)
     got = c.post(f"{BASE}/{rec['id']}/advance").json()
-    assert got["state"] == "done" and got["intake"]["text"] == "Bis hier gesprochen."
+    assert got["state"] == "done" and spoken(got) == "Bis hier gesprochen."
     assert g.audio(0)[0] == b"seg0-0seg0-1seg0-2"
 
 
@@ -259,7 +263,7 @@ def test_without_vertex_or_at_the_cap_it_waits_and_nothing_is_lost(db, api, gemi
     assert [e.payload["fault"] for e in events(db, "recording.segment_failed", rec["id"])] == [True, True]
     assert chunks(db, rec["id"]) == 1
     gemini(said("Doch noch."))
-    assert c.post(f"{BASE}/{rec['id']}/advance").json()["intake"]["text"] == "Doch noch."
+    assert c.post(f"{BASE}/{rec['id']}/advance").json()["talk"]["messages"][0]["text"] == "Doch noch."
 
 
 def test_a_segment_refused_twice_is_skipped_with_a_note(db, api, gemini):  # noqa: F811
@@ -276,14 +280,14 @@ def test_a_segment_refused_twice_is_skipped_with_a_note(db, api, gemini):  # noq
     gemini(400, said("Zweiter Teil."))
     got = c.post(f"{BASE}/{rec['id']}/advance").json()
     assert got["state"] == "done"
-    assert got["intake"]["text"].startswith("[Abschnitt 1: ")
-    assert got["intake"]["text"].endswith("]\n\nZweiter Teil.")
+    assert spoken(got).startswith("[Abschnitt 1: ")
+    assert spoken(got).endswith("]\n\nZweiter Teil.")
     assert len(events(db, "recording.segment_failed", rec["id"])) == 2
     (skipped,) = [e for e in events(db, "recording.segment", rec["id"]) if e.payload["segment"] == 0]
     assert skipped.payload["text"] == "" and skipped.payload["skipped"]
 
 
-def test_silence_is_no_intake(db, api, gemini):  # noqa: F811
+def test_silence_is_no_message(db, api, gemini):  # noqa: F811
     me = new_person(db, "employee")
     c = api.as_(me)
     rec = begin(c)
@@ -291,8 +295,8 @@ def test_silence_is_no_intake(db, api, gemini):  # noqa: F811
     c.post(f"{BASE}/{rec['id']}/stop", json={"segments": 1})
     gemini(said("   "))
     got = c.post(f"{BASE}/{rec['id']}/advance").json()
-    assert got["state"] == "failed" and got["problem"] == recordings.NOTHING and got["intake"] is None
-    assert db.query(Log).filter(Log.event == "intake", Log.actor_id == me.object_id).count() == 0
+    assert got["state"] == "failed" and got["problem"] == recordings.NOTHING and got["talk"] is None
+    assert db.query(Log).filter(Log.event == "talk", Log.actor_id == me.object_id).count() == 0
     assert chunks(db, rec["id"]) == 0
 
 
@@ -329,7 +333,7 @@ def test_a_stray_chunk_older_than_a_day_goes_too(db, api, gemini, monkeypatch): 
     rec = begin(api.as_(me))
     send(api.as_(me), rec["id"], 0, 0)
     act(db, "person", me.object_id, "ui")
-    recordings._end(db, recordings.load(db, rec["id"]), "recording.done", {"intake": None})
+    recordings._end(db, recordings.load(db, rec["id"]), "recording.done", {"talk": None})
     db.add(RecordingChunk(recording=rec["id"], segment=0, seq=5, byte_size=1, data=b"x"))
     db.flush()
     later(monkeypatch, timedelta(hours=25))
@@ -494,34 +498,31 @@ def test_the_events_of_a_recording_are_not_in_the_history(db, api, gemini):  # n
 
 
 def test_the_tick_finishes_a_recording_without_a_browser(db, api, gemini, monkeypatch):  # noqa: F811
-    """Tab zu nach dem Stopp: der Takt schreibt ab, erfasst und lässt die KI ablegen."""
+    """Tab zu nach dem Stopp: der Takt schreibt ab, bringt den Text ins Gespräch und lässt die KI
+    antworten."""
     me = new_person(db, "employee")
-    firm = new_firm(db, "Takt")
     c = api.as_(me)
     rec = begin(c)
     for seg in range(2):
         send(c, rec["id"], seg, 0)
     c.post(f"{BASE}/{rec['id']}/stop", json={"segments": 2})
     gemini(said("Erster."), said("Zweiter."))
-    script = _Script(_answer(parsed=SpokenAnswer(parts=[AiRange(
-        object_id=firm.object_id, subject="Takt", start=1, end=2)], proposals=[])))
+    script = _Script(_answer(parsed=talk.Answer(text="Notiert.")))
     monkeypatch.setattr(ai, "ready", lambda: True)
     monkeypatch.setattr(ai, "_client", lambda *a: script)
     act(db, "system", None, "job")
     done = tick._voice(db, time.monotonic() + 30)
     assert done["finished"] == 1
     (end,) = events(db, "recording.done", rec["id"])
-    it = intake.get(db, end.payload["intake"])
-    assert it.text == "Erster.\n\nZweiter." and it.actor_id == me.object_id
-    (part,) = intake.view(db, it).parts                               # die KI hat abgelegt
-    assert part.object_id == firm.object_id and part.text == "Erster.\n\nZweiter."
-    assert script.seen[0]["output_format"] is SpokenAnswer
+    t = talk.view(db, end.payload["talk"])
+    assert t.messages[0].text == "Erster.\n\nZweiter." and t.messages[0].by == "person"
+    assert t.messages[-1].text == "Notiert."                       # die KI hat geantwortet
     assert any(t.name == "voice" for t in tick.TASKS)
     assert tick._voice(db, time.monotonic() + 30) == {"failed": 0, "dropped": 0}
 
 
 def test_what_is_written_after_a_day_is_kept_the_rest_is_noted(db, api, gemini, monkeypatch):  # noqa: F811
-    """Nach einem Tag geht das Audio – aber was schon abgeschrieben ist, wird die Erfassung.
+    """Nach einem Tag geht das Audio – aber was schon abgeschrieben ist, kommt ins Gespräch.
     Bug-Form: eine halb abgeschriebene Stunde ist nach einem Tag ganz weg."""
     me = new_person(db, "employee")
     c = api.as_(me)
@@ -535,26 +536,8 @@ def test_what_is_written_after_a_day_is_kept_the_rest_is_noted(db, api, gemini, 
     assert recordings.sweep(db)["failed"] == 0
     (done,) = events(db, "recording.done", rec["id"])
     assert done.payload["partial"] is True and chunks(db, rec["id"]) == 0
-    text = intake.get(db, done.payload["intake"]).text
+    text = talk.view(db, done.payload["talk"]).messages[0].text
     assert text == "Erster Teil steht.\n\n[Abschnitt 2: nach einem Tag nicht abgeschrieben]"
-
-
-def test_a_long_part_becomes_several_notes(db, api):  # noqa: F811
-    """Eine Stunde Gesprochenes ist länger als eine Notiz trägt – «Stimmt so» legt sie in
-    Stücken ab, nichts geht verloren. Bug-Form: 422 und die Abschrift ist nicht ablegbar."""
-    me, firm = new_person(db, "employee"), new_firm(db, "Kran")
-    para = ("Wort " * 1990).strip()                       # ~9950 Zeichen
-    long = "\n\n".join([para] * 5)                        # ~50'000 Zeichen
-    got = intake.pieces(long)
-    assert len(got) == 3 and all(len(p) <= intake.MAX_TEXT for p in got)
-    assert " ".join(" ".join(got).split()) == " ".join(long.split())          # kein Wort fehlt
-    act(db, "person", me.object_id, "ui")
-    it = intake.capture(db, long, firm.object_id, me, recording=1)
-    r = api.as_(me).post(f"/api/v1/erp/intake/{it.id}/file",
-                         json={"parts": [{"object_id": firm.object_id, "text": long, "subject": "Sitzung"}]})
-    assert r.status_code == 200, r.text
-    notes = r.json()["notes"]
-    assert len(notes) == 3
 
 
 # ─── Prüfung Phase 4: nichts geht verloren, Zeit und Kosten ────────────────────────────
@@ -585,8 +568,8 @@ def test_a_segment_failing_six_times_is_skipped_and_a_timeout_costs(db, api, gem
         assert got["state"] == "transcribing" and got["transcribed"] == 0
     got = c.post(f"{BASE}/{rid}/advance").json()
     assert got["state"] == "done" and len(g.seen) == recordings.FAULTS + 1
-    assert got["intake"]["text"].startswith("[Abschnitt 1: ") and "halb" not in got["intake"]["text"]
-    assert got["intake"]["text"].endswith("]\n\nZweiter.")
+    assert spoken(got).startswith("[Abschnitt 1: ") and "halb" not in spoken(got)
+    assert spoken(got).endswith("]\n\nZweiter.")
     calls = [e.payload for e in db.query(Log).filter(Log.event == "ai.call", Log.actor_id == me.object_id)
              .order_by(Log.id)]
     timed_out = [p for p in calls if p.get("error") == "ReadTimeout"]
@@ -606,7 +589,7 @@ def test_a_segment_without_its_first_chunk_or_too_big_is_noted_without_a_call(db
     g = gemini(said("Dritter."))
     got = c.post(f"{BASE}/{rid}/advance").json()
     assert got["state"] == "done" and len(g.seen) == 1 and g.audio(0)[0] == b"seg2-0"
-    assert got["intake"]["text"] == (
+    assert spoken(got) == (
         f"[Abschnitt 1: {recordings.NO_HEAD}]\n\n[Abschnitt 2: {recordings.NO_CHUNKS}]\n\n"
         f"Dritter.\n\n[Abschnitt 4: {recordings.TOO_BIG}]")
 
@@ -672,7 +655,7 @@ def test_the_pin_context_stands_before_the_transcript(db, api, gemini):  # noqa:
     c.post(f"{BASE}/{rid}/stop", json={"segments": 1})
     gemini(said("Der Knopf ist doppelt."))
     got = c.post(f"{BASE}/{rid}/advance").json()
-    assert got["intake"]["text"] == "Stelle: /erp · «Freigeben»\n\nDer Knopf ist doppelt."
+    assert spoken(got) == "Stelle: /erp · «Freigeben»\n\nDer Knopf ist doppelt."
 
 
 def test_sweep_commits_before_it_unlocks_and_lock_frees_its_connection(db, api, gemini, monkeypatch):  # noqa: F811
@@ -727,59 +710,3 @@ def test_gemini_has_its_own_region_and_a_404_names_model_and_region(db, gemini, 
 
 
 # ─── Lange Aufnahmen ablegen: Bereiche statt Text ──────────────────────────────────────
-
-def _claude(monkeypatch, script):
-    monkeypatch.setattr(ai, "ready", lambda: True)
-    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
-    monkeypatch.setattr(ai, "_client", lambda *a: script)
-
-
-def test_an_hour_of_speech_is_filed_word_for_word_by_paragraph_ranges(db, monkeypatch):
-    """Bug-Formen: die KI schreibt eine Stunde ab (abgeschnitten, gekürzt, zu teuer) · ein Absatz
-    steht in zwei Teilen · ein Absatz, den die KI vergisst, ist weg."""
-    me, firm, other = new_person(db, "employee"), new_firm(db, "Kran"), new_firm(db, "Fahrzeug")
-    lines = [f"{'Anna' if i % 2 else 'Beat'}: Punkt {i} – " + "wir besprechen das Hubwerk. " * 20
-             for i in range(110)]
-    lines[40] = "Beat: " + "Ein langer Monolog ohne Zeilenumbruch. " * 100     # eine lange Zeile
-    long = "\n".join(lines[:55]) + "\n\n[Abschnitt 7: keine Stücke angekommen]\n\n" + "\n".join(lines[55:])
-    assert 55_000 < len(long) < 75_000
-    paras = intake.paragraphs(long)
-    assert "".join(paras) == long and max(len(p) for p in paras) <= intake.PARAGRAPH + 200
-    act(db, "person", me.object_id, "ui")
-    it = intake.capture(db, long, None, me, recording=99)
-    n = len(paras)
-    answer = SpokenAnswer(parts=[
-        AiRange(object_id=firm.object_id, subject="Hubwerk", start=1, end=30),
-        AiRange(object_id=other.object_id, subject="Fahrzeug", start=25, end=50),   # überlappt
-        AiRange(object_id=999_999_999, subject="gibt es nicht", start=51, end=60),
-        AiRange(object_id=firm.object_id, subject="Rest Kran", start=n - 5, end=n + 40),
-    ], proposals=[])
-    script = _Script(_answer(parsed=answer))
-    _claude(monkeypatch, script)
-    assert intake.file_with_ai(db, it, me) is None
-    sent = script.seen[0]
-    assert sent["output_format"] is SpokenAnswer and sent["max_tokens"] <= 6000
-    prompt = sent["messages"][0]["content"][0]["text"]
-    assert "[1] Beat: Punkt 0" in prompt and f"\n[{n}] " in prompt and "nummerierten Absätzen" in sent["system"]
-    parts = intake.view(db, it).parts
-    assert [p.object_id for p in parts] == [firm.object_id, other.object_id, me.object_id, firm.object_id]
-    assert parts[0].text == "".join(paras[:30]).strip()
-    assert parts[1].text == "".join(paras[30:50]).strip()          # 25–30 gehören schon «Hubwerk»
-    assert parts[2].text == "".join(paras[50:n - 6]).strip()       # Rest: an die Person
-    assert parts[3].text == "".join(paras[n - 6:]).strip()
-    # Jeder Absatz genau einmal, nichts gekürzt – zusammen wieder der ganze Text.
-    assert " ".join(" ".join(p.text for p in parts).split()) == " ".join(long.split())
-
-
-def test_a_typed_intake_is_still_filed_as_text(db, monkeypatch):
-    """Getippte Erfassungen bleiben, wie sie sind: Text-Teile, nicht Bereiche."""
-    from app.services.intake import AiPart, FileAnswer
-    me, firm = new_person(db, "employee"), new_firm(db, "Kran")
-    act(db, "person", me.object_id, "ui")
-    it = intake.capture(db, "Kran braucht Service.", None, me)
-    script = _Script(_answer(parsed=FileAnswer(parts=[AiPart(
-        object_id=firm.object_id, text="Kran braucht Service.", subject="Service")], proposals=[])))
-    _claude(monkeypatch, script)
-    assert intake.file_with_ai(db, it, me) is None
-    assert script.seen[0]["output_format"] is FileAnswer
-    assert "[1]" not in script.seen[0]["messages"][0]["content"][0]["text"]

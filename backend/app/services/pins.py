@@ -1,18 +1,16 @@
-"""►►► **Das Angeheftete** (Projektakte §4.3, Bauplan Phase 3, Schritt 3.5). ◄◄◄
+"""►►► **Das Angeheftete – was an diesem Datensatz jetzt zählt.** ◄◄◄ (Phase 5 §8.3)
 
-Im Verlauf eines Datensatzes, unten beim Neuesten:
+Unten im Verlauf jedes Datensatzes, zwei Teile:
 
-* **zuerst alle offenen Vorschläge** (``proposals.open_for``) – immer, unabhängig von der KI;
-* **dann die Hinweise der KI** – was an diesem Datensatz jetzt wichtig ist, mit Quelle, so wenig
-  wie möglich, auch keine. Sie entstehen nur auf Abruf («neu ansehen», ``refresh``) als Ereignis
-  ``pin`` und gelten bis zum nächsten; ein Hinweis lässt sich lösen (``pin.solved``).
+* **offene Handgriffe** (immer, zuerst) – aus Mails für jedes Personal, aus Gesprächen nur die
+  eigenen (``handgriff.open_at``);
+* **das Wissen, das jetzt zählt** – höchstens ``MAX`` Aussagen, jede mit Datum und Quelle (eine
+  Notiz, ein Dokument). Gewählt von der KI, als Ereignis ``pin`` mit der **Marke des Umfelds**
+  (``surroundings.mark``). Beim Öffnen kommt sofort der letzte Stand; hat sich im Umfeld seither
+  etwas geändert (``stale``), wählt ``refresh`` neu – sonst nicht (kein Aufruf, keine Kosten). Am
+  Deckel oder ohne KI bleibt der letzte Stand.
 
-«Neu ansehen» ersetzt nur die Hinweise – **nie einen offenen Vorschlag**: die stehen nicht im
-``pin``, sie werden bei jedem Lesen aus dem Log abgeleitet.
-
-Die Hinweise sieht jedes Personal – darum liest die KI dafür nur, was jedes Personal sehen darf
-(``ai_tools.reader``), auch wenn ein Admin «neu ansehen» drückt: ein Arztzeugnis im Verlauf
-einer Person kennt sie nicht. Einen Datensatz, den nicht jedes Personal sieht, sieht sie nicht an.
+Die KI liest dafür, was jedes Personal sehen darf (``ai_tools.reader``).
 """
 
 from __future__ import annotations
@@ -25,118 +23,115 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..models import UserProfile
-from ..schemas.proposals import PinHint, PinnedOut
-from . import ai, history, log, proposals
+from ..schemas.assistant import KnowledgeOut, PinnedOut
+from . import ai, handgriff, history, log, surroundings
 
-#: So viele Hinweise höchstens – «so wenig wie möglich».
-MAX_HINTS = 3
+#: So viele Aussagen höchstens – «so wenig wie möglich, auch nichts».
+MAX = 3
 #: So viele Einträge des Verlaufs gehen in die Anfrage (die KI kann weiter nachschlagen).
 ENTRIES = 20
 
 
-class AiHint(BaseModel):
-    text: str = Field(description="Der Hinweis, ein Satz, mit Quelle")
-    entry: Optional[int] = Field(description="Die Nummer des Eintrags [n], auf den er sich "
-                                             "stützt, sonst null")
+class AiKnowledge(BaseModel):
+    text: str = Field(description="Die Aussage, ein Satz, mit Datum und Quelle")
+    entry: Optional[int] = Field(description="Die Nummer [n] des Eintrags, auf den sie sich stützt, "
+                                             "sonst null")
 
 
 class PinAnswer(BaseModel):
-    hints: list[AiHint]
+    items: list[AiKnowledge]
 
 
-PIN_FORMAT = """
-Antwortformat: `hints` – was an diesem Datensatz jetzt wichtig ist, je ein Satz mit Quelle;
-`entry` ist die Nummer [n] des Verlauf-Eintrags, auf den er sich stützt. Leer, wenn nichts
-wichtig ist. Offene Vorschläge stehen schon da – nicht wiederholen.
+FORMAT = """
+Jemand öffnet diesen Datensatz. Was ist hier jetzt wichtig – aus dem Verlauf, dem Umfeld und dem
+Wissen der Firma (Werkzeug `wissen`)? Höchstens drei Aussagen, je ein Satz mit Datum und Quelle;
+Neues vor Altem; widersprechen sich zwei Einträge, sag es. Nichts Wichtiges: leer.
+Antwortformat: `items` – je Aussage `text` und `entry` (die Nummer [n] des Eintrags, sonst null).
 """
 
 
 def _latest(db: Session, object_id: int) -> Optional[Any]:
     return db.execute(text("SELECT id, at, payload FROM log WHERE event = 'pin' "
-                           "AND object_id = :o ORDER BY id DESC LIMIT 1"),
-                      {"o": object_id}).first()
+                           "AND object_id = :o ORDER BY id DESC LIMIT 1"), {"o": object_id}).first()
 
 
-def _solved(db: Session, object_id: int, pin_id: int) -> set[str]:
-    return {str(k) for (k,) in db.execute(text(
-        "SELECT payload ->> 'key' FROM log WHERE event = 'pin.solved' AND object_id = :o "
-        "AND (payload ->> 'pin')::bigint = :p"), {"o": object_id, "p": pin_id})}
+def _stale(db: Session, object_id: int, pin: Optional[Any]) -> tuple[bool, int]:
+    now = surroundings.mark(db, surroundings.of(db, object_id))
+    seen = int(((pin.payload or {}).get("seen") or 0)) if pin is not None else -1
+    return now > seen, now
 
 
 def pinned(db: Session, object_id: int, viewer: UserProfile, *,
            problem: Optional[str] = None) -> PinnedOut:
-    """►►► **Das Angeheftete** – offene Vorschläge (immer, zuerst) + die ungelösten Hinweise
-    des letzten «neu ansehen». ◄◄◄"""
+    """Das Angeheftete, wie es ist – ohne die KI zu fragen."""
     history.assert_visible(db, object_id, viewer)
-    # Eine Erfassung, die auf «Stimmt so» wartet (``file``), steht nicht hier, sondern im «+»
-    # («Nicht abgelegt», die Zahl am Knopf) – EIN Ort für Unabgelegtes.
-    found = [p for p in proposals.open_for(db, object_id, viewer) if p.kind != "file"]
     pin = _latest(db, object_id)
-    hints: list[PinHint] = []
-    if pin is not None:
-        gone = _solved(db, object_id, pin.id)
-        hints = [PinHint(key=str(h.get("key")), text=str(h.get("text") or ""),
-                         entry_key=h.get("entry_key"))
-                 for h in (pin.payload or {}).get("items") or [] if str(h.get("key")) not in gone]
-    return PinnedOut(proposals=found, hints=hints, refreshed_at=pin.at if pin else None,
-                     problem=problem or None)
+    stale, _mark = _stale(db, object_id, pin)
+    items = [KnowledgeOut(**i) for i in ((pin.payload or {}).get("items") or [])] if pin else []
+    return PinnedOut(handgriffe=handgriff.open_at(db, object_id, viewer), knowledge=items,
+                     chosen_at=pin.at if pin else None, stale=stale, problem=problem or None)
 
 
-def _content(db: Session, object_id: int, viewer: UserProfile,
-             entries: list[Any]) -> list[dict[str, Any]]:
-    """Was die KI zum Datensatz bekommt – gelesen mit ``viewer`` = ``ai_tools.reader()``."""
-    from . import ai_tools
-    lines = ["Der Datensatz, der gerade offen ist:", ai_tools.record(db, viewer, object_id), "",
-             "Sein Verlauf, die neuesten zuerst:"]
-    lines += [f"[{i}] {ai_tools.entry_line(e)}" for i, e in enumerate(entries, 1)] or ["(leer)"]
-    open_now = proposals.open_for(db, object_id, viewer)
-    if open_now:
-        lines += ["", "Offene Vorschläge (stehen schon da):"]
-        lines += [f"- {p.label}: {p.value or ''}" for p in open_now]
-    return [{"type": "text", "text": "\n".join(lines)}]
-
-
-#: Ein Datensatz, den nicht jedes Personal sieht (ein privates Dokument): keine Hinweise.
+#: Ein Datensatz, den nicht jedes Personal sieht (ein privates Dokument): kein Wissen.
 PRIVATE = "Diesen Datensatz sieht nicht jedes Personal – die KI sieht ihn nicht an."
 
 
+def _content(db: Session, object_id: int, reader: UserProfile, entries: list[Any],
+             near: list[int]) -> list[dict[str, Any]]:
+    from . import ai_tools, records
+    names = records.labels(db, near[1:])
+    lines = ["Der Datensatz, der gerade geöffnet wird:", ai_tools.record(db, reader, object_id), "",
+             "Sein Verlauf, die neuesten zuerst:"]
+    lines += [f"[{i}] {ai_tools.entry_line(e)}" for i, e in enumerate(entries, 1)] or ["(leer)"]
+    if names:
+        lines += ["", "Sein Umfeld:"] + [f"- {r.object_id} {r.type}: {r.name}" for r in names.values()]
+    return [{"type": "text", "text": "\n".join(lines)}]
+
+
 def refresh(db: Session, object_id: int, viewer: UserProfile) -> PinnedOut:
-    """►►► **«Neu ansehen»** – die KI liest den Datensatz und seinen Verlauf (mit den Rechten
-    jedes Personals, ``ai_tools.reader``; ``viewer`` handelt) und wählt die Hinweise: ein neues
-    ``pin``, auch ein leeres. Ohne KI bleibt alles, wie es war, und ``problem`` sagt warum. ◄◄◄"""
+    """►►► **Neu wählen – nur, wenn sich im Umfeld etwas geändert hat.** ◄◄◄ Die KI liest den
+    Datensatz, seinen Verlauf und sein Umfeld (als ``reader``; ``viewer`` handelt) und wählt das
+    Wissen: ein neues ``pin`` mit der Marke, auch ein leeres. Ohne KI bleibt der letzte Stand."""
     from . import ai_tools
-    from .intake import system_text
+    from .talk import AUFTRAG
     history.assert_visible(db, object_id, viewer)
+    pin = _latest(db, object_id)
+    stale, mark = _stale(db, object_id, pin)
+    if not stale:
+        return pinned(db, object_id, viewer)
     reader = ai_tools.reader()
     try:
         entries = history.page(db, object_id, reader, limit=ENTRIES).entries
     except HTTPException:
         return pinned(db, object_id, viewer, problem=PRIVATE)
-    content = _content(db, object_id, reader, entries) if ai.available(db) else []
-    answer = ai.converse(db, task="pin", actor=viewer, system=system_text(PIN_FORMAT),
+    near = surroundings.of(db, object_id)
+    content = _content(db, object_id, reader, entries, near) if ai.available(db) else []
+    answer = ai.converse(db, task="pin", actor=viewer, system=AUFTRAG + "\n" + FORMAT,
                          content=content, schema=PinAnswer, tools=ai_tools.tools_for(db))
     if answer is None:
-        return pinned(db, object_id, viewer, problem=ai.problem() or "Die KI hat nichts gezeigt.")
+        return pinned(db, object_id, viewer, problem=ai.problem() or "Die KI hat nichts gewählt.")
     items = []
-    for h in answer.hints:
-        body = " ".join(h.text.split())
-        if not body or len(items) >= MAX_HINTS:
+    for k in answer.items:
+        body = " ".join(k.text.split())
+        if not body or len(items) >= MAX:
             continue
-        entry = entries[h.entry - 1].key if h.entry and 0 < h.entry <= len(entries) else None
-        items.append({"key": str(len(items) + 1), "text": body, "entry_key": entry})
-    log.event(db, "pin", object_id, {"items": items}, kind="ai", actor=viewer.object_id)
+        entry = entries[k.entry - 1] if k.entry and 0 < k.entry <= len(entries) else None
+        items.append(_source(body, entry))
+    log.event(db, "pin", object_id, {"items": items, "seen": mark}, kind="ai",
+              actor=viewer.object_id)
     return pinned(db, object_id, viewer)
 
 
-def solve(db: Session, object_id: int, key: str, viewer: UserProfile) -> PinnedOut:
-    """Einen Hinweis lösen – er gehört zum letzten ``pin``; ein offener Vorschlag ist kein
-    Hinweis (über ihn entscheidet ✕ oder das Feld)."""
-    history.assert_visible(db, object_id, viewer)
-    pin = _latest(db, object_id)
-    keys = {str(h.get("key")) for h in ((pin.payload or {}).get("items") or [])} if pin else set()
-    if pin is None or key not in keys:
-        raise HTTPException(404, detail=f"Hinweis «{key}» gibt es an «{object_id}» nicht.")
-    if key in _solved(db, object_id, pin.id):
-        raise HTTPException(409, detail=f"Hinweis «{key}» ist schon gelöst.")
-    log.event(db, "pin.solved", object_id, {"pin": pin.id, "key": key})
-    return pinned(db, object_id, viewer)
+def _source(body: str, entry: Any) -> dict[str, Any]:
+    """Die Aussage mit ihrer Quelle – die Nachricht bzw. das Dokument des Verlauf-Eintrags."""
+    out: dict[str, Any] = {"text": body}
+    if entry is None:
+        return out
+    out["at"] = getattr(entry, "at", None)
+    message = getattr(entry, "message", None)
+    document = getattr(entry, "document", None)
+    if message is not None:
+        out["source_message_id"] = getattr(message, "id", None)
+    if document is not None:
+        out["source_object_id"] = getattr(document, "object_id", None)
+    return out

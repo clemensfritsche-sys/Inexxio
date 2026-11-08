@@ -140,14 +140,14 @@ TASKS: dict[str, Task] = {
     "read": Task(model="claude-haiku-5-5", max_tokens=6000, timeout=50.0, retries=0),
     # Ein Papier von zwei, drei Seiten – ebenfalls unter den 60 s des Hostings.
     "compose": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=55.0, retries=0),
-    # Eine Erfassung ablegen: nachschlagen (Werkzeuge), teilen, vorschlagen.
-    "file": Task(model="claude-sonnet-5-5", max_tokens=6000, timeout=45.0, retries=0,
-                 rounds=5, effort="low"),
+    # Ein Zug im Gespräch: nachschlagen, vorbereiten (jeder Handgriff mit Probelauf), antworten.
+    "talk": Task(model="claude-sonnet-5-5", max_tokens=6000, timeout=48.0, retries=0,
+                 rounds=10, effort="low"),
     # Was aus einer eingehenden Mail folgt – im Takt, der selbst nach 60 s abbricht: 45 s, kein
     # zweiter Versuch (ein Fehlschlag kommt im nächsten Takt wieder, ``follow.TRIES``).
     "follow": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=45.0, retries=0,
                    rounds=5, effort="low"),
-    # Was an einem Datensatz jetzt wichtig ist («neu ansehen»).
+    # Was an einem Datensatz jetzt wichtig ist (das Wissen im Angehefteten).
     "pin": Task(model="claude-sonnet-5-5", max_tokens=3000, timeout=45.0, retries=0,
                 rounds=3, effort="low"),
 }

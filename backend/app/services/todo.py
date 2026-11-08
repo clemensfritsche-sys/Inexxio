@@ -5,8 +5,8 @@ Offene Nachrichten (``communication.open_counts``), Aufgaben der Zeiterfassung
 Pflichtangaben (``people.missing_fields``), an einer
 eigenen Gesellschaft fehlende Feiertage (``holidays.holiday_tasks``) und Rechtstexte
 (``legal.FIELD_OF``), am Auftrag anstehende Papiere (``voucher_money.papers_due``) und erwartete
-Dokumente (``requirements``), offene Vorschläge der KI und meine offenen Erfassungen
-(``proposals``, ``intake``). Jede Quelle rechnet
+Dokumente (``requirements``) und offene Handgriffe aus Mails (``handgriff.open_mail_counts``).
+Jede Quelle rechnet
 selbst; hier wird nur gezählt. Rot, sobald etwas dringend ist (überfällige Nachricht,
 Aufgabe ab ``URGENT_DAYS`` Tagen).
 
@@ -75,15 +75,14 @@ def _cap_item(spent: float, cap: float) -> TodoItem:
 
 
 def _ai_items(db: Session, actor: UserProfile) -> list[tuple[int, TodoItem]]:
-    """**Phase 3 · KI**: offene Vorschläge je Datensatz, und für den Admin am Betreiber der
-    Hinweis, dass der Tagesdeckel der KI nahe ist. Was ich erfasst, aber nicht abgelegt habe
-    (Erfassungen, Aufnahmen), zählt **nicht hier**: es ist die Zahl am «+» (dieselben Listen
-    wie «Nicht abgelegt», ``/erp/intake/open`` und ``/erp/recordings/open``)."""
-    from . import ai, proposals, sites
+    """**Der Assistent**: offene Handgriffe aus Mails je Datensatz (wer ihn öffnet, entscheidet),
+    und für den Admin am Betreiber der Hinweis, dass der Tagesdeckel der KI nahe ist. Meine
+    offenen Gespräche zählen **nicht hier**: sie sind die Zahl am «+»."""
+    from . import ai, handgriff, sites
     out = []
-    for oid, n in proposals.open_counts(db).items():
-        out.append((oid, TodoItem(section="vorschlaege", count=n,
-                                  label=f"{n} Vorschl{'äge' if n != 1 else 'ag'}")))
+    for oid, n in handgriff.open_mail_counts(db).items():
+        out.append((oid, TodoItem(section="handgriffe", count=n,
+                                  label=f"{n} Handgriff{'e' if n != 1 else ''}")))
     if actor.role == "admin" and ai.near_cap(db):
         op = sites.find_operator(db)
         if op is not None and op.object_id:
