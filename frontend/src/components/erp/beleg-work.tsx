@@ -18,6 +18,7 @@ import { Stages } from '@/components/erp/beleg/stages';
 import { Terms } from '@/components/erp/beleg/terms';
 import { filled } from '@/components/erp/beleg/shared';
 import type { Send } from '@/components/erp/beleg/shared';
+import { errorText } from '@/lib/use-action';
 
 /**
  * ►►► **Der Beleg an der Ausführungsstelle – drei Zonen** (PROCESS_CORE §9.15). ◄◄◄
@@ -115,7 +116,7 @@ export function BelegWork({
       wait();
     } catch (e) {
       setRefunding(false);
-      setFailed(e instanceof Error ? e.message : String(e));
+      setFailed(errorText(e));
     }
   }, [d.entries, orderObjectId, stepId, wait]);
 

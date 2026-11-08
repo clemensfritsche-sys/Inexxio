@@ -11,6 +11,7 @@ import { SPEC, SpecHead } from '@/components/erp/detail-frame';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockBar } from '@/components/erp/stock-bar';
 import { UnitNumbers } from '@/components/erp/unit-numbers';
+import { Skeleton } from './skeleton';
 
 const PAGE = 50;
 
@@ -89,7 +90,9 @@ export function StockView({ scope }: { scope: StockScope }) {
       </StockCard>
     );
   }
-  if (states == null || total == null) return null;
+  if (states == null || total == null) {
+    return <StockCard><Skeleton block={28} lines={2} label="Bestand wird geladen" /></StockCard>;
+  }
 
   if (total === 0) {
     return (

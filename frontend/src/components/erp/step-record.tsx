@@ -8,6 +8,8 @@ import { statusCfg } from '@/lib/process-status';
 import { UnitNumber } from '@/components/erp/unit-number';
 import { when, whenTitle } from '@/lib/when';
 import { MICRO_LABEL, StatusDot } from '@/components/erp/fields';
+import { Skeleton } from './skeleton';
+import { errorText } from '@/lib/use-action';
 
 /**
  * ►►► **Ein abgeschlossenes Modul zeigt lückenlos, was in ihm passiert ist.** ◄◄◄
@@ -38,13 +40,13 @@ export function StepRecord({ orderObjectId, stepId }: {
     let dead = false;
     api.stepRecord(orderObjectId, stepId)
       .then((r) => { if (!dead) { setRows(r.entries ?? []); setTotal(r.total ?? 0); } })
-      .catch((e) => { if (!dead) setErr(e instanceof Error ? e.message : String(e)); });
+      .catch((e) => { if (!dead) setErr(errorText(e)); });
     return () => { dead = true; };
   }, [orderObjectId, stepId]);
 
   if (err) return <p className="text-xs" style={{ color: 'var(--danger)' }}>{err}</p>;
   if (rows === null) {
-    return <p className="text-xs" style={{ color: 'var(--fg-4)' }}>lädt …</p>;
+    return <Skeleton lines={2} label="Protokoll wird geladen" />;
   }
   if (rows.length === 0) {
     return (

@@ -10,6 +10,7 @@ import { RecordIcon } from '@/components/erp/detail-frame';
 import { StatusBadge } from '@/components/erp/fields';
 import { userInitials } from '@/components/erp/user-detail';
 import type { ErpRecordType, Todo } from '@/types';
+import { Skeleton } from './skeleton';
 
 /** Was «+» anlegen kann – ein Anlageweg je Sorte (`capture/capture-sheet.CREATE`). */
 export type Creatable = 'article' | 'order' | 'person' | 'company' | 'document';
@@ -218,7 +219,7 @@ export function FeedPanel({ show, search, onSearch, typeFilter, onTypeFilter, ro
       <SearchBar search={search} onSearch={onSearch} onScan={onScan} />
       <TypeChips typeFilter={typeFilter} onTypeFilter={onTypeFilter} count={count} />
       <div className="flex-1 overflow-y-auto min-h-0 p-2 pb-24">
-        {loading && <div className="p-6 text-center text-sm text-fg-4">Laden…</div>}
+        {loading && <Skeleton rows={8} label="Datensätze werden geladen" style={{ padding: 16 }} />}
         {!loading && rows.length === 0 && (
           <div className="p-6 text-center text-sm text-fg-4">
             {search || typeFilter ? 'Keine Treffer' : 'Keine Datensätze'}

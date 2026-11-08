@@ -31,6 +31,7 @@ import {
 import { api } from '@/lib/api';
 import { goTo, loginTarget, rememberFrom } from '@/lib/login-target';
 import { cachedRole, rememberName, rememberRole } from '@/lib/account-cache';
+import { errorText } from '@/lib/use-action';
 
 type Step = 'input' | 'loading' | 'sent';
 
@@ -99,7 +100,7 @@ export function LoginDialog({ onClose }: {
         if (!cancelled) await finishLogin();
       } catch (err: unknown) {
         if (!cancelled && !isPasskeyCancellation(err)) {
-          setError(err instanceof Error ? err.message : 'Passkey-Anmeldung fehlgeschlagen.');
+          setError(errorText(err, 'Passkey-Anmeldung fehlgeschlagen.'));
         }
       }
     })();
@@ -134,7 +135,7 @@ export function LoginDialog({ onClose }: {
       await finishLogin();
     } catch (err: unknown) {
       if (!isPasskeyCancellation(err)) {
-        setError(err instanceof Error ? err.message : 'Passkey-Anmeldung fehlgeschlagen.');
+        setError(errorText(err, 'Passkey-Anmeldung fehlgeschlagen.'));
       }
       setPasskeyLoading(false);
     }

@@ -16,6 +16,7 @@ import { useScan } from '@/components/scan/scan-provider';
 import { statusCfg, statusLabel } from '@/lib/process-status';
 import { VERBAUT, VERKAUFT } from '@/lib/status-catalog';
 import { tell } from '@/lib/notice';
+import { Skeleton } from './skeleton';
 
 /**
  * **Der Definitionsbereich** – was dieser Auftrag bearbeitet, oberhalb des Start-Symbols.
@@ -632,7 +633,7 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
           )}
 
           <div className="max-h-56 overflow-auto">
-            {page === null && <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>Lädt …</p>}
+            {page === null && <Skeleton rows={3} label="Stücke werden geladen" style={{ padding: '8px 0' }} />}
             {page !== null && (page.units ?? []).length === 0 && (
               <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>
                 {query || group

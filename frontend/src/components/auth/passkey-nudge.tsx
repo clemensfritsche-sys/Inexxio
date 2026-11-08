@@ -20,6 +20,7 @@ import { Fingerprint, X, Loader2, CheckCircle2 } from 'lucide-react';
 import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { platformPasskeyAvailable, registerPasskey, isPasskeyCancellation } from '@/lib/passkey';
+import { errorText } from '@/lib/use-action';
 
 const KEY = 'inexxio_passkey_nudge';
 const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;   // 30 Tage Ruhe nach «Später»
@@ -87,7 +88,7 @@ export function PasskeyNudge() {
     } catch (e) {
       // Abbruch (Dialog geschlossen) ist kein Fehler – Karte offen lassen, erneut möglich.
       if (!isPasskeyCancellation(e)) {
-        setErr(e instanceof Error ? e.message : 'Passkey konnte nicht eingerichtet werden.');
+        setErr(errorText(e, 'Passkey konnte nicht eingerichtet werden.'));
       }
     } finally {
       setBusy(false);

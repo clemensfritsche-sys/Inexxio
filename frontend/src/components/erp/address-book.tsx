@@ -11,6 +11,7 @@ import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
 import { KtField } from '@/components/form/kt-section';
 import type { AddressEntry, AddressInput, UserProfile } from '@/types';
+import { errorText } from '@/lib/use-action';
 
 /**
  * **Die Anschriften EINES Kontos – dasselbe Bauteil für Privat und Geschäftskonto, für
@@ -69,7 +70,7 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
     try {
       onSaved(await api.removeAddress(owner, id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Nicht möglich.');
+      setError(errorText(e, 'Nicht möglich.'));
     }
   }
 
@@ -199,7 +200,7 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
     try {
       onSaved(await api.removeAddress(owner, entry.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Nicht möglich.');
+      setError(errorText(e, 'Nicht möglich.'));
     }
   }
 
@@ -260,7 +261,7 @@ function NewAddress({ owner, account, mapsKey, onSaved, label, extra, onDone, on
         .then((u) => { c.onSaved(u); c.onDone(); })
         .catch((e) => {
           sent.current = false;
-          setError(e instanceof Error ? e.message : 'Nicht möglich.');
+          setError(errorText(e, 'Nicht möglich.'));
         });
     }, 1200);
     return () => clearTimeout(t);

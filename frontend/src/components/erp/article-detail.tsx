@@ -38,6 +38,7 @@ import { ObjectSelect } from '@/components/erp/object-select';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
+import { errorText } from '@/lib/use-action';
 
 // Artikel-Lebenszyklus. **Es gibt keinen gespeicherten Entwurf**: der Artikel entsteht
 // erst mit seiner Freigabe (services/articles.py), und die verlangt beides – vollständige
@@ -237,7 +238,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
       // Eine Ersetzung ändert **zwei** Datensätze – der Vorgänger ist jetzt inaktiv.
       if (replaces) onRefresh?.();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Freigabe fehlgeschlagen';
+      const msg = errorText(e, 'Freigabe fehlgeschlagen');
       setError(isTransient(msg) ? `${msg} – bitte erneut versuchen.` : msg);
     } finally {
       setSaving(false);

@@ -22,6 +22,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMapsApiKey } from '@/lib/use-maps-key';
 import { KtDate, KtField, KtSection } from '@/components/form/kt-section';
 import { tell } from '@/lib/notice';
+import { errorText } from '@/lib/use-action';
 
 interface Form {
   first_name: string;
@@ -147,7 +148,7 @@ function Newsletter() {
   const flip = (on: boolean) => {
     setError(null);
     api.setMyNewsletter(on).then(setState)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht gespeichert werden.'));
+      .catch((e) => setError(errorText(e, 'Konnte nicht gespeichert werden.')));
   };
   const on = !!state?.subscribed;
   return (

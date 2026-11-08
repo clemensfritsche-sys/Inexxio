@@ -7,6 +7,7 @@ import { registerPasskey, passkeySupported, isPasskeyCancellation } from '@/lib/
 import type { Passkey } from '@/types';
 import { when } from '@/lib/when';
 import { tell } from '@/lib/notice';
+import { errorText } from '@/lib/use-action';
 
 // Datum und Uhrzeit stehen im Haus an EINER Stelle (`lib/when`, Testnotiz #992).
 const formatDate = (iso: string | null) => when(iso);
@@ -38,7 +39,7 @@ export function PasskeysCard() {
       setPasskeys((prev) => [created, ...prev]);
     } catch (err: unknown) {
       if (!isPasskeyCancellation(err)) {
-        setError(err instanceof Error ? err.message : 'Passkey konnte nicht hinzugefügt werden.');
+        setError(errorText(err, 'Passkey konnte nicht hinzugefügt werden.'));
       }
     } finally {
       setAdding(false);
@@ -53,7 +54,7 @@ export function PasskeysCard() {
       await api.deletePasskey(id);
     } catch (err: unknown) {
       setPasskeys(prev); // Rollback
-      setError(err instanceof Error ? err.message : 'Passkey konnte nicht entfernt werden.');
+      setError(errorText(err, 'Passkey konnte nicht entfernt werden.'));
     }
   }
 

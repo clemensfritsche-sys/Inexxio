@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { StatusDot } from '@/components/erp/fields';
 import type { Mailbox } from '@/types';
+import { errorText } from '@/lib/use-action';
 
 /** Das Postfach dieses Datensatzes – mit Zustand und, wo ich darf, Verbinden/Trennen.
  *  Ohne Anbindung (kein OAuth-Client) steht hier nichts: dann wird eine Mail erfasst. */
@@ -13,10 +14,10 @@ export function Mailboxes({ boxes }: { boxes: Mailbox[] }) {
   if (!shown.length) return null;
   const connect = (b: Mailbox) => api.connectMailbox(b.channel)
     .then((r) => { window.location.href = r.url; })
-    .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht verbinden.'));
+    .catch((e) => setError(errorText(e, 'Konnte nicht verbinden.')));
   // Danach lädt das Postfach über `lib/feed.TOUCHES` selbst nach.
   const drop = (b: Mailbox) => api.disconnectMailbox(b.channel)
-    .catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht trennen.'));
+    .catch((e) => setError(errorText(e, 'Konnte nicht trennen.')));
   const link = { border: 0, background: 'none', padding: 0, font: 'inherit', fontSize: 12,
     color: 'var(--accent)', cursor: 'pointer' } as const;
   return (

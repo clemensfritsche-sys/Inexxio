@@ -18,6 +18,7 @@ import { api } from '@/lib/api';
 import { logout, reauthenticate, updateEmailAddress } from '@/lib/firebase';
 import { KtField, KtSection } from '@/components/form/kt-section';
 import { PasskeysCard } from './passkeys-card';
+import { errorText } from '@/lib/use-action';
 
 /** Die neue Adresse über eine Neuanmeldung hinweg (der Magic Link öffnet oft einen neuen Tab). */
 const PENDING = 'inexxio_new_email';
@@ -30,7 +31,7 @@ function reason(e: unknown): string {
   if (code === 'auth/invalid-email' || code === 'auth/invalid-new-email') return 'Das ist keine gültige E-Mail-Adresse.';
   if (code === 'auth/too-many-requests') return 'Zu viele Versuche – bitte in ein paar Minuten noch einmal.';
   if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return 'Die Anmeldung wurde abgebrochen.';
-  return e instanceof Error ? e.message : 'Das hat nicht geklappt.';
+  return errorText(e, 'Das hat nicht geklappt.');
 }
 
 export function SecuritySection({ profile }: { profile: UserProfile }) {

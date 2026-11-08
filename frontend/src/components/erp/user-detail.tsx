@@ -30,6 +30,7 @@ import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
 import type { ErpAdminUpdate, NewsletterState, Todo, UserProfile, UserRole } from '@/types';
 import { qk } from '@/lib/queries';
+import { errorText } from '@/lib/use-action';
 
 // **Keine Reiter**: Kommunikation und Stammdaten stehen auf EINER Seite. «Bestellungen» und
 // «Dokumente» kommen mit ihren Bereichen zurück (docs/attic.md).
@@ -103,7 +104,7 @@ function NewsletterConsent({ person }: { person: number }) {
   const act = (call: Promise<NewsletterState>, done: string) => {
     setBusy(true); setNote(null);
     call.then((s) => { qc.setQueryData(qk.newsletter(person), s); setNote(done); })
-      .catch((e) => setNote(e instanceof Error ? e.message : 'Hat nicht geklappt.'))
+      .catch((e) => setNote(errorText(e, 'Hat nicht geklappt.')))
       .finally(() => setBusy(false));
   };
   const on = !!state?.subscribed;

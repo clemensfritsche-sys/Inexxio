@@ -12,6 +12,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { StatusDot } from '@/components/erp/fields';
 import { UnitNumber } from '@/components/erp/unit-number';
 import { PlaceTrail } from '@/components/erp/place-trail';
+import { Skeleton } from './skeleton';
 
 const PAGE = 60;
 
@@ -141,7 +142,7 @@ export function UnitNumbers({ objectId, statuses, quantity, dense }: {
 
   if (err) return <p className="text-[12.5px]" style={{ color: 'var(--danger)' }}>{err}</p>;
   if (rows.length === 0 && query.isPending) {
-    return <p className="text-[12.5px] text-fg-4">Nummern werden geladen …</p>;
+    return <Skeleton lines={3} label="Nummern werden geladen" />;
   }
   if (rows.length === 0) {
     return <p className="text-[12.5px] text-fg-4">Keine Einzelinstanzen.</p>;

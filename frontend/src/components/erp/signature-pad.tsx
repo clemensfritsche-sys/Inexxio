@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Eraser, Check, Loader2, PenLine } from 'lucide-react';
 import { api, attachmentUrl } from '@/lib/api';
+import { errorText } from '@/lib/use-action';
 
 /**
  * Digitale Unterschrift: auf die Fläche zeichnen (Maus/Finger), «Übernehmen» lädt sie als
@@ -88,7 +89,7 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint, on
       const { url } = await api.uploadAttachment(new File([blob], 'unterschrift.png', { type: 'image/png' }));
       onChange(url);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Unterschrift konnte nicht gespeichert werden');
+      setErr(errorText(e, 'Unterschrift konnte nicht gespeichert werden'));
     } finally { setBusy(false); }
   }
 

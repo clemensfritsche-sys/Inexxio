@@ -11,13 +11,13 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import type { UserProfile, UserProfileUpdate } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { isStaff } from '@/lib/record-status';
 import { useProfileCompletion } from '@/lib/use-profile-completion';
 import { ProfileSection } from './sections/profile-section';
 import { SecuritySection } from './sections/security-section';
+import { Skeleton } from '@/components/erp/skeleton';
 
 interface Props {
   profile: UserProfile | null;
@@ -73,8 +73,8 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
 
   if (isLoading || !profile) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
-        {isLoading && <Loader2 className="animate-spin" style={{ width: 28, height: 28, color: 'var(--inexxio-red)' }} />}
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '48px 16px' }}>
+        {isLoading && <Skeleton block={96} lines={6} label="Konto wird geladen" />}
       </div>
     );
   }

@@ -26,6 +26,7 @@ import { type Capture, TimeDayDetail, usePreview } from './time-day';
 import { TimeSwipe } from './time-swipe';
 import { Note, daysLabel, hours, sgn, vacationText } from './time-ui';
 import { tell } from '@/lib/notice';
+import { Skeleton } from '../skeleton';
 
 const OFFLINE = 'Keine Verbindung – nicht gespeichert. Bitte erneut versuchen, sobald das Netz da ist.';
 const OFFLINE_SWIPE = 'Keine Verbindung – nicht gestempelt. Bitte erneut wischen, sobald das Netz da ist.';
@@ -130,7 +131,7 @@ export function TimeCard({ person }: { person: number }) {
   if (!view) {
     return (
       <Card icon={Clock} title="Zeiterfassung" unclipped>
-        {loadErr ? <ErrorText msg={loadErr} /> : <Note>Laden…</Note>}
+        {loadErr ? <ErrorText msg={loadErr} /> : <Skeleton block={180} lines={3} label="Zeiterfassung wird geladen" />}
       </Card>
     );
   }

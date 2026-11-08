@@ -12,6 +12,7 @@ import { DocumentTiles } from '@/components/erp/documents';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
+import { DetailSkeleton } from './skeleton';
 
 /**
  * Instanz-Detail – eine **Gruppe** und ihre Einzelinstanzen.
@@ -41,7 +42,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
   const error = !rec && query.error ? query.error.message : null;
 
   if (error) return <div className="p-6 text-sm" style={{ color: 'var(--danger)' }}>{error}</div>;
-  if (!rec) return null;
+  if (!rec) return <DetailSkeleton />;
 
   return (
     <div className="flex flex-col h-full bg-bg-1">

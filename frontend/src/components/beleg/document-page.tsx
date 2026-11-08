@@ -10,6 +10,7 @@ import meta from '@/lib/site-meta.json';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { Paper, StageWord } from './paper';
 import css from './beleg.module.css';
+import { errorText } from '@/lib/use-action';
 
 /**
  * ►►► **Die Seite eines Dokuments nach aussen** – über den Link aus unserer Mail. ◄◄◄
@@ -34,7 +35,7 @@ export function DocumentPage() {
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 0;
       setFailed(status === 410
-        ? { title: 'Dieses Dokument ist nicht mehr verfügbar.', text: e instanceof Error ? e.message : '' }
+        ? { title: 'Dieses Dokument ist nicht mehr verfügbar.', text: errorText(e, '') }
         : status === 404
           ? { title: 'Diesen Link gibt es nicht.', text: 'Bitte prüfen Sie den Link in unserer Mail.' }
           : { title: 'Das Dokument lässt sich gerade nicht laden.', text: 'Bitte laden Sie die Seite in einem Moment neu.' });
@@ -54,7 +55,7 @@ export function DocumentPage() {
 
   const act = async (run: () => Promise<View>) => {
     setBusy(true); setError(null);
-    try { setView(await run()); setDeclining(false); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    try { setView(await run()); setDeclining(false); } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
 

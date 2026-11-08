@@ -25,6 +25,7 @@ import { SaveStatusIndicator } from '@/components/form/save-status';
 import { TerritoryMap } from '@/components/erp/territory-map';
 import { ObjId } from '@/components/erp/obj-id';
 import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
+import { errorText } from '@/lib/use-action';
 
 // Das Unternehmen führt das Land als Klarnamen (nicht ISO-2). Die Adress-Suche mappt Googles
 // ISO-2-Code über ``toIso2`` auf diese Klarnamen (siehe address-field.tsx). Eine Gesellschaft
@@ -256,7 +257,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
       setBase(updated);
       onSaved(updated);
     } catch (e) {
-      setOpError(e instanceof Error ? e.message : 'Nicht möglich');
+      setOpError(errorText(e, 'Nicht möglich'));
     } finally { setOpBusy(false); }
   }
 
@@ -269,7 +270,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
       setBase(updated);
       onSaved(updated);   // Eltern-Feed lädt die Liste neu → alter Betreiber verliert den Titel
     } catch (e) {
-      setOpError(e instanceof Error ? e.message : 'Betreiber konnte nicht gesetzt werden');
+      setOpError(errorText(e, 'Betreiber konnte nicht gesetzt werden'));
     } finally { setOpBusy(false); }
   }
 
@@ -284,7 +285,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
       setBase(updated);
       onSaved(updated);
     } catch (e) {
-      setOpError(e instanceof Error ? e.message : 'Nicht möglich');
+      setOpError(errorText(e, 'Nicht möglich'));
     } finally { setCloseBusy(false); }
   }
 

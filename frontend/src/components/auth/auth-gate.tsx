@@ -15,6 +15,7 @@ import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { isStaff } from '@/lib/record-status';
 import { cachedRole, rememberRole } from '@/lib/account-cache';
+import { Skeleton } from '@/components/erp/skeleton';
 
 export function AuthGate({ staffOnly = false, children }: {
   /** Nur Personal (admin, employee) – sonst ins Konto. */
@@ -44,11 +45,8 @@ export function AuthGate({ staffOnly = false, children }: {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center" style={{ minHeight: MAIN_H }}>
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 rounded-full border-4 border-inexxio border-t-transparent animate-spin" />
-          <p className="mt-2 text-sm text-fg-3">Wird geladen…</p>
-        </div>
+      <div style={{ minHeight: MAIN_H, maxWidth: 880, margin: '0 auto', padding: 24 }}>
+        <Skeleton rows={6} label="Anmeldung wird geprüft" />
       </div>
     );
   }

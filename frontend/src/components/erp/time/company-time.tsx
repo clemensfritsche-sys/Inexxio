@@ -20,6 +20,7 @@ import { todoChanged } from '@/lib/todo';
 import { useAutosaveValue } from '@/lib/use-autosave';
 import type { CompanyTimeView, HolidayOut, TodoItem } from '@/types';
 import { HR, IconButton, Note, QuietButton, ROW_FORM, Sect, TimeField, timeIcon } from './time-ui';
+import { Skeleton } from '../skeleton';
 
 const GRID = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 190px), 1fr))', gap: '8px 20px' } as const;
 
@@ -198,7 +199,7 @@ export function CompanyTime({ company, todo }: { company: number; todo: TodoItem
   useEffect(() => { api.companyTime(company).then(setV).catch((e) => setMsg(err(e))); }, [company]);
   return (
     <Card icon={Clock} title="Zeiterfassung" unclipped anchor="feiertage">
-      {!v ? (msg ? <ErrorText msg={msg} /> : <Note>Laden…</Note>) : (
+      {!v ? (msg ? <ErrorText msg={msg} /> : <Skeleton lines={4} label="Feiertage werden geladen" />) : (
         <>
           <Holidays v={v} company={company} onView={setV} todo={todo} />
           {HR}

@@ -17,6 +17,7 @@ import { ObjectSelect } from '@/components/erp/object-select';
 import { RefChip, RefChips, mimeIcon } from '@/components/erp/documents';
 import type { DocumentDetail as Doc } from '@/types';
 import { tell } from '@/lib/notice';
+import { DetailSkeleton } from './skeleton';
 
 /** Ein Datensatz zum Referenzieren – in der Form, die `ObjectSelect` kennt. */
 export interface TargetOption { object_id: number; name: string }
@@ -110,7 +111,9 @@ export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack:
   }
 
   if (!doc) {
-    return <div className="flex-1 flex items-center justify-center text-sm text-fg-4">{error || 'Laden…'}</div>;
+    return error
+      ? <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--danger)' }}>{error}</div>
+      : <DetailSkeleton />;
   }
   const deleted = !!doc.deleted_at;
   const url = doc.file_url ? assetUrl(doc.file_url) : null;

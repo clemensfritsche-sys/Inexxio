@@ -31,6 +31,8 @@ import { moduleIcon } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
 import { LoopDraftCard, LoopRunCard, loopPayload, type LoopDraft } from '@/components/erp/loop-card';
+import { Skeleton } from '@/components/erp/skeleton';
+import { useAction } from '@/lib/use-action';
 
 /**
  * Auftrag – Detailfenster.
@@ -123,8 +125,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     })));
   // **Die Wiederholung lebt im Entwurf** – eingefroren wird sie mit der Freigabe.
   const [loop, setLoop] = useState<LoopDraft | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useAction();
   // Zählt hoch, wenn die Freigabe an einer veralteten Auswahl scheitert – der Picker holt
   // die Stückliste dann neu und zeigt, wo die Stücke jetzt liegen.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -172,20 +173,21 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const preview: RelatedOrder[] = (isDraft && check.data?.parents) || [];
 
   async function release() {
-    setBusy(true); setError(null);
-    try {
-      onSaved(await api.createOrder(draft));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      // **Ein veralteter Pick ist kein blosser Fehler, sondern eine neue Lage.** Der
-      // Server nennt sie mit einem Code (nicht mit einem Satz, den jemand umformulieren
-      // könnte); die Auswahl wird daraufhin gegen die Wirklichkeit nachgezogen.
+    const made = await run(() => api.createOrder(draft), (e) => {
+      // **Ein veralteter Pick ist eine neue Lage**: der Server nennt sie mit einem Code, die
+      // Auswahl wird daraufhin gegen die Wirklichkeit nachgezogen.
       const detail = (e as ApiError)?.detail as { code?: string } | undefined;
       if (detail?.code === 'pick_stale') setRefreshKey((n) => n + 1);
-    } finally {
-      setBusy(false);
-    }
+    });
+    if (made) onSaved(made);
   }
+
+  /** **Eine Handlung am Auftrag**: ein Befehl, die Antwort IST der neue Auftrag (in den Cache). */
+  const act = useCallback(async (fn: (id: number) => Promise<Order>) => {
+    if (objectId == null) return;
+    const o = await run(() => fn(objectId));
+    if (o) setLive(o);
+  }, [objectId, run, setLive]);
 
   const confirmStep = useCallback(async (stepId: number,
                                         instanceObjectId: number | null,
@@ -193,17 +195,9 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
                                          values: Record<string, Record<string, unknown>>,
                                          sources: number[] = [],
                                          place: number | null = null) => {
-    if (objectId == null) return;
-    setBusy(true); setError(null);
-    try {
-      setLive(await api.confirmStep(objectId, stepId, values,
-                                    instanceObjectId, verification, sources, place));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [objectId, setLive]);
+    await act((id) => api.confirmStep(id, stepId, values, instanceObjectId, verification,
+                                      sources, place));
+  }, [act]);
 
   /**
    * **Eine Handlung am Beleg** – derselbe Weg wie das Bestätigen: ein Aufruf, die
@@ -212,38 +206,16 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const runVoucher = useCallback(async (
     stepId: number, body: { action: string } & Record<string, unknown>,
   ) => {
-    if (objectId == null) return;
-    setBusy(true); setError(null);
-    try {
-      setLive(await api.updateVoucher(objectId, stepId, body));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [objectId, setLive]);
+    await act((id) => api.updateVoucher(id, stepId, body));
+  }, [act]);
+
+  /** **Die Wiederholung beenden** – derselbe Weg: ein Befehl, die Antwort ist der Auftrag. */
+  const endLoop = useCallback(() => act((id) => api.endLoop(id)), [act]);
 
   /**
-   * **Den Auftrag noch einmal holen** – ohne eine Handlung an ihm.
-   *
-   * Jede andere Aktualisierung ist die **Antwort** auf einen Befehl (`confirm`, `voucher`),
-   * und das ist die bessere Form: der Server sagt, was daraus wurde. Eine Online-Zahlung
-   * hat keine solche Antwort – gebucht wird sie vom Webhook –, also braucht genau sie
-   * diesen einen Weg.
+   * **Den Auftrag noch einmal holen** – ohne eine Handlung an ihm. Eine Online-Zahlung hat
+   * keine Antwort (gebucht wird sie vom Webhook), also braucht genau sie diesen Weg.
    */
-  /** **Die Wiederholung beenden** – derselbe Weg: ein Befehl, die Antwort ist der Auftrag. */
-  const endLoop = useCallback(async () => {
-    if (objectId == null) return;
-    setBusy(true); setError(null);
-    try {
-      setLive(await api.endLoop(objectId));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [objectId, setLive]);
-
   const { refetch } = orderQuery;
   const reload = useCallback(() => { void refetch(); }, [refetch]);
 
@@ -300,9 +272,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             onVoucher={runVoucher} onReload={reload}
             onDeviate={onDeviate} onEndLoop={endLoop} />
         ) : (
-          <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
-            {orderQuery.isFetching ? 'Lädt …' : null}
-          </p>
+          loadError ? null : <div style={{ maxWidth: 880, margin: '0 auto' }}><Skeleton block={140} lines={5} label="Auftrag wird geladen" /></div>
         )}
         {!isDraft && live?.object_id != null && (
           <DetailBody gap={22} style={{ paddingBottom: 40 }}>

@@ -21,6 +21,7 @@ import { HandgriffCard } from '@/components/erp/capture/handgriff-card';
 import { RecordingStrip, recordingWord } from '@/components/erp/capture/recorder';
 import type { Creatable } from '@/components/erp/feed-panel';
 import type { ErpRecordType, Recording, Talk, TalkFile } from '@/types';
+import { errorText } from '@/lib/use-action';
 
 /** Der Datensatz, der beim Sagen offen ist – der erste Hinweis für die KI (nur seine Nummer). */
 export interface CaptureHint { objectId: number; label: string }
@@ -123,7 +124,7 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
         // Abgewiesen (4xx): nichts ist gespeichert – der Text kommt ins Feld zurück. Sonst riss nur
         // die Leitung: die Nachricht steht, die KI arbeitet zu Ende (das Gespräch zeigt es).
         const refused = e instanceof ApiError && e.status >= 400 && e.status < 500;
-        const why = e instanceof Error ? e.message : 'Nicht gesendet.';
+        const why = errorText(e, 'Nicht gesendet.');
         setProblem(refused ? why : `${why} Die KI arbeitet weiter – das Gespräch zeigt ihre Antwort, sobald sie da ist.`);
         if (id) void client.invalidateQueries({ queryKey: qk.talk(id) });
         return !refused;

@@ -11,6 +11,7 @@ import { Segmented } from '@/components/erp/controls';
 import { OWN_OPTIONS } from '@/components/erp/organization-detail';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { CompanySettings, CompanyRef, UserProfile, UserRole } from '@/types';
+import { errorText } from '@/lib/use-action';
 
 /**
  * ►►► **Eine Person anlegen – ohne dass sie sich je angemeldet hat** (CRM Schritt 1). ◄◄◄
@@ -48,7 +49,7 @@ export function NewPerson({ isAdmin, initial, onSaved, onBack }: {
         company_object_id: company?.object_id ?? null,
       }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Anlegen nicht möglich.');
+      setError(errorText(e, 'Anlegen nicht möglich.'));
     } finally {
       setBusy(false);
     }
@@ -124,7 +125,7 @@ export function NewCompany({ isAdmin, initial, onSaved, onBack }: {
       onSaved(await api.createCompany({ company_name: name.trim(), legal_form: form.trim(),
                                          uid_number: uid.trim() || null, is_own: own }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Anlegen nicht möglich.');
+      setError(errorText(e, 'Anlegen nicht möglich.'));
     } finally {
       setBusy(false);
     }

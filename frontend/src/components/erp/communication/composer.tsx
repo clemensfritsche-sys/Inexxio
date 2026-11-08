@@ -9,6 +9,7 @@ import type { Message, MessageChannel, MessageIn, VoucherParty } from '@/types';
 import { notify, tell } from '@/lib/notice';
 import { DELIVERIES, Delivery, ICON_BTN, KINDS, Kind, Mode, Person, topicColor } from '@/components/erp/communication/shared';
 import { Sending } from '@/components/erp/communication/timeline';
+import { errorText } from '@/lib/use-action';
 
 // ─── Eingabe ────────────────────────────────────────────────────────────────
 
@@ -489,7 +490,7 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
       return true;
     } catch (e) {
       if (draft) restore(draft);
-      setError(e instanceof Error ? e.message : 'Konnte nicht gespeichert werden.');
+      setError(errorText(e, 'Konnte nicht gespeichert werden.'));
       return false;
     } finally {
       setBusy(false);
@@ -515,7 +516,7 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
     clearTimeout(p.timer);
     // Die Ansicht ist weg – scheitert es, bleibt die Meldung stehen, samt Text.
     void api.createMessage(p.payload).then(() => sent.current()).catch((e: unknown) => {
-      const why = e instanceof Error ? e.message : 'Unbekannter Fehler';
+      const why = errorText(e, 'Unbekannter Fehler');
       notify(`Nachricht «${p.payload.subject ?? ''}» wurde NICHT gespeichert (${why}). `
         + `Text: ${p.payload.body}`, Date.now(), { sticky: true });
     });

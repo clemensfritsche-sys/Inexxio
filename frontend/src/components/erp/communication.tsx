@@ -74,6 +74,7 @@ import { Person } from '@/components/erp/communication/shared';
 import { Sending } from '@/components/erp/communication/timeline';
 import { Composer, Target } from '@/components/erp/communication/composer';
 import { Mailboxes } from '@/components/erp/communication/mailboxes';
+import { errorText } from '@/lib/use-action';
 
 // ─── Die Ansicht ────────────────────────────────────────────────────────────
 
@@ -115,7 +116,7 @@ export function Communication({ person, company, ownCompany, me }: {
     if (!person) return;
     api.createMessage({ channel: 'intern', about: [m.sender.object_id], subject: m.reply_subject || null,
       body: '', incoming: false, delivery: 'mail' })
-      .then(changed).catch((e) => setError(e instanceof Error ? e.message : 'Konnte nicht gespeichert werden.'));
+      .then(changed).catch((e) => setError(errorText(e, 'Konnte nicht gespeichert werden.')));
   };
   const writable = !!person && !!me && channels.length > 0;
   // ►►► Steht etwas offen, ist die Eingabe schon die Antwort darauf – die jüngste offene,

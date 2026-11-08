@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Loader2, ShieldCheck } from 'lucide-react';
 import type { Stripe, StripeElements, StripePaymentElement } from '@stripe/stripe-js';
 import type { PaymentSetup } from '@/types';
+import { errorText } from '@/lib/use-action';
 
 /**
  * **Bezahlen — in UNSERER Karte, nicht auf einer fremden Seite** (§9.13): kein Zahllink;
@@ -66,7 +67,7 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
     let dead = false;
     prepare(orderObjectId, stepId)
       .then((s) => { if (!dead) setSetup(s); })
-      .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); });
+      .catch((e) => { if (!dead) setError(errorText(e)); });
     return () => { dead = true; };
   }, [prepare, orderObjectId, stepId]);
 
@@ -104,7 +105,7 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
         el.mount(mount);
         if (!dead) setReady({ stripe, elements });
       } catch (e) {
-        if (!dead) setError(e instanceof Error ? e.message : String(e));
+        if (!dead) setError(errorText(e));
       }
     })();
     return () => { dead = true; el?.destroy(); };

@@ -6,6 +6,7 @@ import { completeMagicLink } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { goTo, loginTarget } from '@/lib/login-target';
 import { cachedRole, rememberRole } from '@/lib/account-cache';
+import { errorText } from '@/lib/use-action';
 
 /** Rolle holen und das Ziel bestimmen – dieselbe Antwort wie Dialog und Route. */
 async function finish(): Promise<string> {
@@ -36,7 +37,7 @@ export default function VerifyPage() {
         setStatus('success');
         setTimeout(() => goTo(target), 1500);
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : '';
+        const msg = errorText(err, '');
         if (msg.includes('E-Mail-Adresse nicht gefunden')) {
           setStatus('needs-email');
         } else {
@@ -59,7 +60,7 @@ export default function VerifyPage() {
         setTimeout(() => goTo(target), 1500);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen.');
+      setError(errorText(err, 'Anmeldung fehlgeschlagen.'));
       setStatus('error');
     }
   }

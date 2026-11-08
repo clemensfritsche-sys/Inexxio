@@ -9,6 +9,7 @@ import { ObjectSelect } from '@/components/erp/object-select';
 import { ErrorText } from '@/components/erp/hints';
 import { KtField } from '@/components/form/kt-section';
 import type { CompanyRef, NewCompany } from '@/types';
+import { errorText } from '@/lib/use-action';
 
 /**
  * ►►► **Die Firma einer Person – GENANNT, nicht gesucht** (CRM). ◄◄◄
@@ -54,7 +55,7 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
       await act();
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Speichern nicht möglich.');
+      setError(errorText(e, 'Speichern nicht möglich.'));
       return false;
     } finally {
       setBusy(false);

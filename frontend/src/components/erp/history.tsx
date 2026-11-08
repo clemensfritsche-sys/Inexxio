@@ -30,6 +30,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import type { ChangeBlock, HistoryEntry, Message } from '@/types';
 import { Bubble, Divider, SendingBubble, type Sending } from '@/components/erp/communication/timeline';
 import { Pinned } from '@/components/erp/pinned';
+import { Skeleton } from './skeleton';
 
 /** Die Seiten des Verlaufs – eine Query je Nummer; dieselbe für den Verlauf und die
  *  Kommunikation darüber (React Query fragt nur einmal). */
@@ -153,7 +154,7 @@ export function History({ objectId, mirror = true, personId, meId, onReply, onDo
   if (!q.data && q.error) {
     return <p style={{ color: 'var(--danger)', fontSize: 13 }}>{q.error.message || 'Konnte nicht geladen werden.'}</p>;
   }
-  if (!q.data) return <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Lädt …</p>;
+  if (!q.data) return <Skeleton rows={3} label="Verlauf wird geladen" />;
   const entries = entriesOf(q.data.pages).reverse();
   const rows: ReactNode[] = [];
   if (!entries.length && !sending) {

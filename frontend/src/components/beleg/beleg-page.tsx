@@ -9,6 +9,7 @@ import { PayOnline } from '@/components/erp/pay-online';
 import { Paper, StageWord } from './paper';
 import { Stations } from './stations';
 import css from './beleg.module.css';
+import { errorText } from '@/lib/use-action';
 
 type Act = 'agree' | 'decline';
 
@@ -115,7 +116,7 @@ export function BelegPage() {
       apply(await (what === 'agree' ? api.acceptBeleg(token) : api.declineBeleg(token)), token);
       setAsking(false);
     } catch (e) {
-      setActError(e instanceof Error ? e.message : String(e));
+      setActError(errorText(e));
       void load(token);
     } finally {
       setBusy(null);

@@ -30,6 +30,8 @@ import { api } from '@/lib/api';
 import type { TerritoryMap as TerritoryMapData } from '@/types';
 import { WorldMap, regionAnchor } from '@/components/erp/world-map';
 import { MICRO_LABEL } from '@/components/erp/fields';
+import { Skeleton } from './skeleton';
+import { errorText } from '@/lib/use-action';
 
 // Kategoriale Identitäts-Farben (KEINE Ampel – hier steht Farbe für «welche Gesellschaft»,
 // nicht für Status). Der Betreiber trägt den warmen Grundton der Unternehmens-Kachel; die
@@ -67,7 +69,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
 
   const load = useCallback(async () => {
     try { setData(await api.getTerritories()); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Laden'); }
+    catch (e) { setError(errorText(e, 'Fehler beim Laden')); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -75,12 +77,12 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
     if (busy) return;
     setBusy(true); setError(null);
     try { setData(await api.assignTerritory(area, companyObjectId)); setSelected(null); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Zuweisung fehlgeschlagen'); }
+    catch (e) { setError(errorText(e, 'Zuweisung fehlgeschlagen')); }
     finally { setBusy(false); }
   }, [busy]);
 
   if (error && !data) return <div style={{ padding: 16, fontSize: 13, color: 'var(--danger)' }}>{error}</div>;
-  if (!data) return <div style={{ padding: 16, fontSize: 13, color: 'var(--fg-4)' }}>Lädt…</div>;
+  if (!data) return <Skeleton block={240} label="Gebietskarte wird geladen" style={{ padding: 16 }} />;
 
   const operatorId = data.operator_object_id ?? null;
   // Ton je Gesellschaft: Betreiber = warmer Grundton, sonst nach Reihenfolge der (nicht-

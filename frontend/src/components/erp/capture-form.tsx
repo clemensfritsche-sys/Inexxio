@@ -8,6 +8,7 @@ import { PhotoShot } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { inputCls, numericInputProps, numericOnly } from '@/components/erp/controls';
 import { Input } from '@/components/form/field';
+import { Skeleton } from './skeleton';
 
 /**
  * **Die Datenerfassung zur Laufzeit** — was das Modul festhält, bevor die Stücke vorrücken.
@@ -64,7 +65,7 @@ export function CaptureForm({ points, numbers, action, busy, onConfirm, onDirty 
   const ready = numbers != null && open.length === 0;
 
   if (numbers == null) {
-    return <p className="text-xs" style={{ color: 'var(--fg-3)' }}>lädt …</p>;
+    return <Skeleton lines={2} label="Nummern werden geladen" />;
   }
 
   return (
