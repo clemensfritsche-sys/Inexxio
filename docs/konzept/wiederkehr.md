@@ -1,7 +1,7 @@
 # Projektakte «Wiederkehrende Aufträge»
 
 > **Kopfstatus:** in Klärung · **nichts gebaut** · Lead: Claude · Entscheid: Clemens Fritsche ·
-> seit 06.11.2026 · zuletzt 08.11.2026 (siebte Runde)
+> seit 06.11.2026 · zuletzt 08.11.2026 (achte Runde) · Bauplan: `docs/konzept/wiederkehr-bauplan.md`
 > Bild (Ist-Stand 1:1, Schlaufe, Abo): https://claude.ai/artifact/Lk5AKy8G1CTWi68ZxA57uj
 > Diese Akte ist die **eine** Quelle für Ziel, Grundsätze, Vorschläge und Entscheide. Das Bild
 > zeigt, die Akte hält fest. Was hier nicht als entschieden steht, ist nicht entschieden.
@@ -76,9 +76,9 @@ Lieferung unterscheiden sich nur in der Konfiguration des Auftrags, nicht im Mod
    Steckt das Stück gerade in einem anderen Auftrag (auch einem von Hand angelegten), wartet
    sie. **Keine Periode geht verloren**: jede wird ein Auftrag, der Reihe nach. Aufträge von
    Hand sind jederzeit möglich und verschieben den Kalender nicht.
-6. **Jederzeit änderbar und beendbar, ohne Kündigungsfrist.** Ändert sich der Ablauf (z. B.
-   ein Prüfpunkt mehr), wird die Wiederkehr beendet und ein neuer Auftrag mit eigener
-   Wiederkehr angelegt.
+6. **Jederzeit beendbar, ohne Kündigungsfrist.** Ändert sich etwas (Takt, Ablauf, ein Prüfpunkt
+   mehr), wird die Wiederkehr beendet und ein neuer Auftrag mit eigener Wiederkehr angelegt
+   (präzisiert 08.11.2026, O14).
 7. **Der Vertrag ist die Wiederkehr.** Ein Papier ist höchstens ein Dokument daran. Abschliessen
    und kündigen durch den Kunden geschieht später online (eigenes Projekt, «wie bei jedem Abo»).
 8. **Alles ist ein Stück.** Ein fremder Kran ist ein Artikel mit Instanz, ein Abo auch (z. B.
@@ -208,6 +208,12 @@ nachbauen.
 - **Unveränderlich** ist das Log ohnehin; «nur anhängen» braucht keinen eigenen Trigger.
 - **Gestrichen:** die Anzeige «2 Aufträge bisher». Sie braucht niemand, der Verlauf zeigt die
   Aufträge. Bräuchte man sie, wäre sie eine Zählung von `loop.created` im Log.
+- **Und die Zeiterfassung?** (Rückfrage 08.11.2026) Sie bleibt, wie sie ist. Ihre Einträge
+  sind Daten, mit denen täglich gerechnet wird (Stundenkonto aus vielen Einträgen, Ersetzungen,
+  7-Tage-Regel, nur für die Person sichtbar); dafür ist eine eigene Tabelle richtig, und das Log
+  hält jede Zeile ohnehin selbst fest. Die Verträge (`time_contracts`) sind älter als das Log;
+  heute stünden sie vielleicht dort, aber umbauen brächte nichts. Die Wiederkehr berührt die
+  Zeiterfassung nicht.
 - **Die Alternative**, falls Einstellungen im Log stören: eine kleine Tabelle mit append-only
   Zeilen wie `time_contracts`, dazu eine Spalte am Auftrag für (Schlaufe, Periode) mit
   eindeutigem Index. Funktioniert genauso, ist eine Tabelle und eine Spalte mehr.
@@ -334,6 +340,23 @@ nachbauen.
   - **gerade nicht frei** (in einem Auftrag, gesperrt, verbaut): die Wiederholung **wartet**, bis
     es frei ist.
   - Was danach im laufenden Auftrag passiert, ist Sache des Auftrags (Abweichungen wie überall).
+
+### Letzte Prüfung auf Schlupflöcher (08.11.2026, Vorschläge)
+
+- **O14 · Ändern gibt es nicht.** Die Einstellung wird einmal gesetzt, danach nur beendet – wie ein
+  Artikel und ein freigegebener Auftrag. Sonst stünden Grundsatz 6 («änderbar») und 18
+  («beenden ist endgültig») gegeneinander.
+- **O15 · Wo man sie setzt:** nur an einem **regulären, freigegebenen** Auftrag (Grundsatz 3), der
+  **selbst keine Wiederholung** ist – sonst liefen zwei Schlaufen über dieselben Stücke. «Ab» ist
+  heute oder später, nie in der Vergangenheit (sonst entstünde beim Einschalten eine Reihe
+  nachgeholter Aufträge).
+- **O16 · Die automatische Zusage braucht die Schlaufe in der angenommenen Offerte.** Wird die
+  Schlaufe erst nach der Annahme gesetzt, hat die Partei der Wiederholung nie zugestimmt; dann
+  beginnt jede Wiederholung bei der Offerte. Der Satz zur Schlaufe ist Teil der angenommenen
+  Fassung (`offered_hash`).
+- **O17 · Verbaut ist «gerade nicht frei», nicht «endgültig weg».** Eine Schlaufe über ein
+  verbautes Stück wartet, bis es ausgebaut ist – womöglich lange. Sichtbar in «zu tun»; beenden
+  kann jeder. Endgültig ist nur `Verschrottet` (die eine Stelle: `statuses.terminal`).
 
 ## 6a · Sackgassen-Prüfung (07.11.2026)
 
