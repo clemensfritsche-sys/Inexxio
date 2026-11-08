@@ -33,8 +33,9 @@
    Schritte:** Offerte → Zusage → Rechnung. Hat die Partei die Wiederholung schon zugesagt und
    sind alle Preise vorgegeben, **macht das System Offerte und Zusage selbst** und schreibt
    dazu, worauf es sich stützt. Die Rechnung geht mit «Prüfen und freigeben».
-6. **Beenden** jederzeit, am **neuesten** Auftrag der Kette (dem ohne Nachfolger), endgültig. Was
-   läuft, läuft fertig. Ältere Aufträge zeigen nur «weiter in Auftrag …». Ändern gibt es nicht;
+6. **Beenden** jederzeit, am **neuesten** Auftrag der Kette (dem ohne Nachfolger), endgültig –
+   **auch wenn dieser schon abgeschlossen ist** und der Nachfolger erst später fällig wäre. Beenden
+   ändert den Auftrag nicht, es ist ein Ereignis im Log (`loop.ended`). Was läuft, läuft fertig. Ältere Aufträge zeigen nur «weiter in Auftrag …». Ändern gibt es nicht;
    weiter geht es mit einem neuen Auftrag. Setzen und beenden darf jede Person mit ERP-Zugang.
 
 **Was sich an Bestehendem ändert**
@@ -318,7 +319,10 @@ nachbauen.
   wie O3, aber der Grund vergeht nicht. Die Schlaufe steht rot auf «geht nicht mehr», die Zahl am
   Symbol ist rot, und es gibt **nur «Beenden»**, wie bei einem Dauerauftrag (Grundsatz 18). Von
   selbst endet nichts. Bild: Teil 3, Zustand «geht nicht mehr».
-- **Beenden**: «Ab heute beenden» in der Einstellung der Schlaufe, am neuesten Auftrag der Kette.
+- **Beenden**: «Ab heute beenden» in der Einstellung der Schlaufe, am neuesten Auftrag der Kette
+  (dem ohne Nachfolger) – gleich, ob er noch läuft oder schon abgeschlossen ist. Der Auftrag selbst
+  bleibt unverändert; geschrieben wird nur `loop.ended`. Ältere Aufträge der Kette haben einen
+  Nachfolger, bei ihnen gibt es nichts mehr zu beenden.
   Es wird eine Zeile «ab heute: beendet» (append-only, endgültig). Was schon entstanden ist,
   läuft normal zu Ende. Die Linie verschwindet; war sie schon kräftig (es gab Wiederholungen),
   bleibt sie nach prozessbild §8.1a kräftig stehen, und der Schalter sagt «einmalig».
