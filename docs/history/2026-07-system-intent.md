@@ -1,5 +1,9 @@
 # SYSTEM_INTENT — wofür dieses Modell da ist
 
+> **Archiv** (aus dem Hauptordner verschoben, November 2026): beschreibt die Absicht und die
+> Entscheide im Stand Juli 2026. Teile sind überholt (z. B. gibt es heute `Verbaut` und
+> `Verkauft`). Was gilt, steht in `CLAUDE.md`, `PROCESS_CORE.md` und `SYSTEM_LOGIC.md`.
+
 > Geschrieben **vor** dem Konzeptreview und ohne hineinzuschauen, was ich dabei finden
 > würde. Wenn die Absicht erst aus den Befunden entsteht, bestätigt sie sich selbst.
 

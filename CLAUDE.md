@@ -57,7 +57,7 @@ wieder entfernt wurde, steht in `docs/attic.md`.
 ## Monorepo-Struktur
 ```
 inexxio/
-├── CLAUDE.md · PROCESS_CORE.md · SYSTEM_LOGIC.md · SYSTEM_INTENT.md
+├── CLAUDE.md · PROCESS_CORE.md · SYSTEM_LOGIC.md · README.md
 ├── website/          ← öffentliche Website (Astro) – WEBSITE_PLAN.md, START.md
 ├── frontend/         ← Next.js: /erp (ERP), /konto, /login, /abmelden, /agb – frontend/CLAUDE.md
 ├── backend/          ← FastAPI – backend/CLAUDE.md
@@ -66,7 +66,7 @@ inexxio/
 ├── .github/workflows ← quality.yml (das Gate), deploy-dev.yml (develop), deploy-prod.yml (main)
 ├── infra/README.md   ← Infrastruktur, wie sie eingerichtet ist (Umgebungen, Kosten, Rollback)
 ├── scripts/          ← check-schema.sh (nach jedem Deploy) · dump-db.sh · reset-dev-db.sql
-└── docs/             ← adr/ (mit Kopfstatus) · attic.md · backlog.md (offen, auch die Befunde)
+└── docs/             ← adr/ (gültige, mit Kopfstatus; historische in history/adr/) · attic.md · backlog.md (offen, auch die Befunde)
                          · design-system/ · prozessbild.md · gmail-setup.md · stripe-setup.md
                          · passkeys.md · dokumente.md · history/
 ```

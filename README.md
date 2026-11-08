@@ -70,8 +70,8 @@ cd backend  && python -m scripts.deadcode   # findet, was niemand mehr liest   (
 | `docs/prozessbild.md` | Wie das Prozessbild gezeichnet wird |
 | `docs/backlog.md` | Was offen ist (benannt, nicht gebaut) |
 | `website/WEBSITE_PLAN.md` | Die geltenden Entscheide der Website |
-
-| `docs/adr/` | Architekturentscheide, jeder mit Kopfstatus |
+| `docs/konzept/` | Projektakten (Ziel, Entscheide, Bauplan je Vorhaben) |
+| `docs/adr/` | Gültige Architekturentscheide, jeder mit Kopfstatus (historische in `docs/history/adr/`) |
 | `docs/attic.md` | Was entfernt wurde, wo es liegt, welche Entscheidung darin steckt |
 | `docs/history/` | Archiv – beschreibt Zustände, die es nicht mehr gibt |
 
@@ -79,7 +79,7 @@ cd backend  && python -m scripts.deadcode   # findet, was niemand mehr liest   (
 | Phase | Zeitraum | Inhalt |
 |-------|----------|--------|
 | 1 – Fundament | Mt. 1–5 | Website, ERP Kern, Auth, Admin |
-| 2 – Kernprozesse | Mt. 6–10 | PO, Produktion, SO, Stripe, Shop |
+| 2 – Kernprozesse | Mt. 6–10 | Einkauf, Produktion, Verkauf, Stripe |
 | 3 – Erweiterungen | Mt. 11–16 | NCR, CAPA, Buchhaltung, HR |
 | 4 – KI | Mt. 17–22 | Bestellvorschlag, Semantische Suche |
 | 5 – Advanced | Mt. 23+ | Bexio, Onshape, ISO 14001 |
@@ -91,4 +91,4 @@ cd backend  && python -m scripts.deadcode   # findet, was niemand mehr liest   (
 | `main` | https://inexxio-prod.web.app | Push + **manuelle Freigabe** (Environment `production`) |
 
 Backend jeweils Cloud Run (`europe-west6`), Frontend Firebase Hosting.
-API-Docs lokal: http://localhost:8000/api/docs
+API-Docs lokal (nur mit `DEBUG`): http://localhost:8000/api/docs

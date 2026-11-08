@@ -137,7 +137,7 @@ Lieferschein). Die Entscheidungen:
 
 `services/ai/` · `routers/ai.py` · `schemas/ai.py` · `models/ai.py`
 
-Vier dünne Schichten (ADR 004, weiterhin unter `docs/adr/`): Gateway (Anbieter
+Vier dünne Schichten (ADR 004, heute im Archiv `docs/history/adr/004-ki-layer.md`): Gateway (Anbieter
 austauschbar), **KI-Identität** als System-Benutzer mit Objektnummer, **rechte-gescopte
 Werkzeuge** (jedes Tool wrappt die bestehende Authz – Scoping ist Authz, nicht Prompt)
 und die Autonomie-Regel: Entwürfe legt sie an, **Kritisches schlägt sie vor** und ein
@@ -161,7 +161,7 @@ Angebotszeile, die eine Anbindung füllt statt ein Mensch.
 Eine append-only Outbox (`events`) als «ökonomische Wahrheit» für KI und Automatisierung.
 Sie ist mitgegangen, weil sie nach dem Neuaufbau **kein einziger Schreiber mehr füllte** –
 der Endpunkt lieferte einen Strom aus, in den nichts mehr floss. Die Wahrheit über das
-Material steht seither im **Material-Journal** (heute `process.*` im Log, ADR 007); ein zweiter
+Material steht seither im **Material-Journal** (heute `process.*` im Log; ADR 007 im Archiv `docs/history/adr/`); ein zweiter
 Strom daneben wäre genau die zweite Wahrheit, die dieses Projekt nicht will. Die Tabelle
 `events` ist mit Migration `152` gefallen.
 
