@@ -10,15 +10,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Quality gates
-    uses: ./.github/workflows/quality.yml
-    with:
-      build: false          # gebaut wird einmal, im Deploy (Job «Build»), vor dem Ausrollen
-
+  # Das Gate läuft im Deploy selbst, gleichzeitig mit dem Build (deploy.yml).
   deploy:
     name: Dev
-    needs: quality
     uses: ./.github/workflows/deploy.yml
     permissions:
       contents: read

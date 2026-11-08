@@ -157,6 +157,16 @@ jobs:
         working-directory: website
         run: node scripts/export-erp.mjs --check
 
+      # **Die umgerechneten Bilder bleiben liegen** (Astro, `node_modules/.astro`): ohne sie rechnet
+      # jeder Build alle Bilder neu (gemessen 1:27 → 0:02). Nach `npm ci`, das node_modules leert.
+      - name: Bilder-Zwischenspeicher (Website)
+        if: ${{ inputs.build != false }}
+        uses: actions/cache@v4
+        with:
+          path: website/node_modules/.astro
+          key: astro-assets-${{ hashFiles('website/src/assets/**', 'website/package-lock.json') }}
+          restore-keys: astro-assets-
+
       - name: Build (Vorschau) inkl. Prüfungen
         if: ${{ inputs.build != false }}
         working-directory: website

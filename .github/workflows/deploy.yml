@@ -1,8 +1,9 @@
 name: Deploy (eine Umgebung)
 
 # ►►► EIN Ablauf für dev und prod. ◄◄◄ deploy-dev.yml und deploy-prod.yml rufen ihn mit
-# den Werten ihrer Umgebung auf, nachdem das Gate (quality.yml) grün ist. Drei Schritte:
+# den Werten ihrer Umgebung auf. Drei Schritte:
 #
+#   0. Gate      quality.yml – gleichzeitig mit dem Build; ohne Grün wird nichts ausgerollt.
 #   1. Build     Website + Frontend mit den Werten der Umgebung, zusammengeführt zur
 #                Hosting-Ausgabe (Artefakt). Scheitert er, ist noch nichts ausgerollt.
 #   2. Backend   Bild bauen, nach Cloud Run, danach: steht die Datenbank auf dem Stand?
@@ -51,6 +52,14 @@ on:
       service_account:            { required: false }
 
 jobs:
+  # **Das Gate und der Build laufen gleichzeitig** – ausgerollt wird erst, wenn beide grün sind
+  # (`backend` braucht beide). Der Build braucht die Prüfung nicht, nur das Ausrollen.
+  quality:
+    name: Quality gates
+    uses: ./.github/workflows/quality.yml
+    with:
+      build: false          # gebaut wird einmal, im Job «Build» daneben
+
   build:
     name: Build Website + Frontend (${{ inputs.env_name }})
     runs-on: ubuntu-latest
@@ -69,6 +78,15 @@ jobs:
       - name: Install website deps
         working-directory: website
         run: npm ci
+
+      # **Die umgerechneten Bilder bleiben liegen** (Astro, `node_modules/.astro`): ohne sie rechnet
+      # jeder Build alle Bilder neu (gemessen 1:27 → 0:02). Nach `npm ci`, das node_modules leert.
+      - name: Bilder-Zwischenspeicher (Website)
+        uses: actions/cache@v4
+        with:
+          path: website/node_modules/.astro
+          key: astro-assets-${{ hashFiles('website/src/assets/**', 'website/package-lock.json') }}
+          restore-keys: astro-assets-
 
       # Modus «preview», bis die Domain verbunden ist und jede Bildstelle ein echtes Foto
       # hat (website/START.md). Der Build prüft Links, Sitemap, Budget (check-site).
@@ -143,7 +161,7 @@ jobs:
     name: Backend → Cloud Run (${{ inputs.env_name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: build
+    needs: [quality, build]
     permissions:
       contents: read
       id-token: write

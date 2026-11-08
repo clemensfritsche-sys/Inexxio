@@ -9,18 +9,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Das Gate vor der Freigabe – niemand gibt etwas frei, das nicht grün ist.
-  quality:
-    name: Quality gates
-    uses: ./.github/workflows/quality.yml
-    with:
-      build: false          # gebaut wird einmal, im Deploy (Job «Build»), vor dem Ausrollen
-
+  # Die Freigabe zuerst; das Gate läuft danach im Deploy, gleichzeitig mit dem Build – ausgerollt
+  # wird nur, wenn es grün ist (deploy.yml).
   approve:
     name: Await production approval
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: quality
     environment: production
     steps:
       - run: echo "Freigegeben – ${{ github.sha }} von ${{ github.actor }}"

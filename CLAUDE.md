@@ -703,9 +703,11 @@ cd backend && alembic upgrade head
 ```
 
 ## Deployment
-- **Ein Ablauf** `.github/workflows/deploy.yml` (Gate → Build von Website + Frontend als
-  Artefakt → Backend nach Cloud Run + `check-schema.sh` → Hosting genau dieses Artefakts);
-  `deploy-dev.yml` und `deploy-prod.yml` rufen ihn nur mit den Werten ihrer Umgebung auf.
+- **Ein Ablauf** `.github/workflows/deploy.yml` (Gate **und** Build von Website + Frontend als
+  Artefakt **gleichzeitig** → erst wenn beide grün: Backend nach Cloud Run + `check-schema.sh` →
+  Hosting genau dieses Artefakts); `deploy-dev.yml` und `deploy-prod.yml` rufen ihn nur mit den
+  Werten ihrer Umgebung auf (Prod nach der Freigabe). Die umgerechneten Bilder der Website liegen
+  im Zwischenspeicher (`actions/cache`, `website/node_modules/.astro`). Rund 4–5 Minuten.
 - **Dev**: Push auf `develop`. Cloud Run `inexxio-backend-dev` (europe-west6, min 0 / max 2),
   Firebase Hosting `inexxio-dev` → https://inexxio-dev.web.app; nie indexiert (X-Robots-Tag).
 - **Prod**: Push auf `main`, mit manueller Freigabe (Environment `production`); setzt den

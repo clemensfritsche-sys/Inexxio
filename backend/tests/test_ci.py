@@ -37,17 +37,20 @@ def _runs(job: dict) -> str:
 
 
 def test_every_deploy_waits_for_the_one_gate():
-    """Bug-Formen: ein Deploy ohne Gate; ein ausrollender Job, der nicht (auch nicht über
-    eine Freigabe) auf das Gate wartet; eigene Prüfungen neben dem Gate."""
+    """Bug-Formen: ein Deploy ohne Gate; ein ausrollender Job, der nicht auf das Gate wartet;
+    eigene Prüfungen neben dem Gate; Prod ohne Freigabe. Das Gate steht in ``deploy.yml`` und
+    läuft dort **gleichzeitig mit dem Build** – nur das Ausrollen wartet darauf."""
+    jobs = _load("deploy.yml")["jobs"]
+    gates = {j for j, d in jobs.items() if d.get("uses") == "./.github/workflows/quality.yml"}
+    assert len(gates) == 1, "deploy.yml ruft das Gate nicht genau einmal auf."
+    for job, d in jobs.items():
+        if "gcloud run deploy" in _runs(d) or "firebase deploy" in _runs(d):
+            assert gates & _upstream(jobs, job), f"«{job}» rollt aus, ohne auf das Gate zu warten."
     for name in ("deploy-dev.yml", "deploy-prod.yml"):
-        jobs = _load(name)["jobs"]
-        gates = {j for j, d in jobs.items() if d.get("uses") == "./.github/workflows/quality.yml"}
-        assert gates, f"{name} ruft das Gate nicht auf."
-        rollout = [j for j, d in jobs.items() if d.get("uses") == "./.github/workflows/deploy.yml"]
-        assert rollout, f"{name} rollt nicht über deploy.yml aus."
-        for job in rollout:
-            assert gates & _upstream(jobs, job), f"{name}: «{job}» wartet nicht auf das Gate."
-        assert not [j for j, d in jobs.items() if "pytest" in _runs(d)], name
+        caller = _load(name)["jobs"]
+        assert any(d.get("uses") == "./.github/workflows/deploy.yml" for d in caller.values()), \
+            f"{name} rollt nicht über deploy.yml aus."
+        assert not [j for j, d in caller.items() if "pytest" in _runs(d)], name
     prod = _load("deploy-prod.yml")["jobs"]
     assert any(d.get("environment") == "production" for j, d in prod.items()
                if j in _upstream(prod, "deploy")), "Prod rollt ohne Freigabe aus."
