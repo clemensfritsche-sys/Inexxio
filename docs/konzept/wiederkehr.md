@@ -377,17 +377,21 @@ nachbauen.
 
 ### Schlussprüfung (08.11.2026)
 
-- **O18 · Wer merkt, dass eine Wiederholung entstanden ist?** Offen. Heute steht ein neuer Auftrag
+- **O18 · Wer merkt, dass eine Wiederholung entstanden ist?** – später, mit dem «zu tun»-Management (08.11.2026). Heute steht ein neuer Auftrag
   im Feed «Aufträge»; in «zu tun» kommt er erst, wenn ein Papier ansteht. Für eine Prüfung beim
   Kunden muss aber jemand losfahren. Vorschlag: nichts Neues – der Auftrag steht im Feed, und wer
   zuständig ist, regelt später das Projekt «Aufgaben». Alternative: eine interne Nachricht an die
   Person, die die Kette begann.
-- **O19 · Der Steuersatz wird nicht vorgegeben** (Vorgabe für Runde 1). Die Anschrift entscheidet
+- **O19 · Der Steuersatz wird nicht vorgegeben** – ok 08.11.2026. Die Anschrift entscheidet
   ihn heute (Inland, Export, Reverse Charge); eine Preisvorgabe im Modul enthält darum nur Text,
   Menge und Preis. Sonst stünden zwei Wahrheiten gegeneinander.
-- **O20 · Fällig ab 00:00 Uhr Schweizer Zeit am Termin** (Vorgabe). Der Takt legt den Nachfolger
-  im ersten Lauf danach an, sofern nichts fehlt.
-- **O21 · Ohne Anschrift kein automatisches Anbieten.** Fehlt im Adressbuch der Partei eine
+- **O20 · Termine wie üblich** – ok 08.11.2026: ein Termin ist ein **Kalendertag** in
+  Europe/Zurich (wie in der Zeiterfassung), keine Uhrzeit; gespeichert als Datum, gerechnet mit
+  Kalendermonaten (Monatsende → letzter Tag), fällig ab Tagesbeginn Schweizer Zeit, Sommerzeit
+  kümmert damit nicht. Der Takt legt den Nachfolger im ersten Lauf danach an.
+- **O21 · Ohne Anschrift kein automatisches Anbieten** – ok 08.11.2026, ohne Sonderlogik: es
+  gilt die Prüfung, die es schon gibt. Fehlt etwas, macht ein Mensch weiter; ist alles da, geht es
+  weiter. Fehlt im Adressbuch der Partei eine
   Standard-Anschrift, hält der Beleg bei der Offerte an wie bei einem fehlenden Preis
   (dieselbe Prüfung, die heute «Anbieten» sperrt).
 
