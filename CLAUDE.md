@@ -681,7 +681,10 @@ entfernt). Buchungsbelege unveränderlich (10 Jahre).
 6. **CLAUDE.md beschreibt nur den Ist-Stand.** Nach einer Runde wird der Stand hier
    nachgezogen; der **Rundenbericht** (was, warum, gemessen, verworfen) gehört als
    `docs/history/<JJJJ-MM-TT>-<thema>.md` nach `docs/history/`, nie hierher.
-7. **Rollback-Punkte als Commit-Hash nennen** – Git-Tags lassen sich aus der
+7. **Kein Pull Request nach `main`**, solange der Weg nach `main` nicht entschieden ist: gearbeitet
+   und deployt wird auf `develop`; ein offener PR `develop` → `main` lässt bei jedem Push die
+   Prüfung ein zweites Mal laufen (PR #236 deshalb im November 2026 geschlossen).
+8. **Rollback-Punkte als Commit-Hash nennen** – Git-Tags lassen sich aus der
    Cloud-Umgebung nicht pushen und sind auf dem Remote nicht nachweisbar.
 
 ## Lokale Entwicklung
