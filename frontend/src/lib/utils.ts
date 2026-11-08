@@ -31,14 +31,6 @@ export function formatAmount(v: string | number | null | undefined,
   return swiss(Number(v), decimals, decimals);
 }
 
-/**
- * Eine **Messgrösse** (Gewicht, Länge …): höchstens `maxDecimals` Nachkommastellen,
- * keine aufgefüllten Nullen – mit demselben festgeschriebenen Trenner wie `formatAmount`.
- */
-export function formatNumber(v: string | number, maxDecimals = 3): string {
-  return swiss(Number(v), 0, maxDecimals);
-}
-
 /** Die eine Stelle, an der eine Zahl ihre Schweizer Schreibweise bekommt. */
 function swiss(n: number, min: number, max: number): string {
   return n

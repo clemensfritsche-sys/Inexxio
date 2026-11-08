@@ -17,7 +17,7 @@ import {
 import type { Filled, Send } from './shared';
 
 /** Das Wort der Schwelle an einer Angebotszeile – in beiden Richtungen dasselbe. */
-export const AGREE_WORD = 'Offerte annehmen';
+const AGREE_WORD = 'Offerte annehmen';
 /** Was man an einer Angebotszeile tut, wenn die Gegenpartei den Preis nennt. */
 const QUOTE_WORD = 'Offerte erfassen';
 /** «Absage» – richtungsneutral. */

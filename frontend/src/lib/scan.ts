@@ -24,7 +24,7 @@ export function encodeObjectCode(objectId: number): string {
 }
 
 /** Extrahiert aus einem gescannten Rohtext die Objektnummer (oder null). */
-export function parseScannedCode(raw: string | null | undefined): number | null {
+function parseScannedCode(raw: string | null | undefined): number | null {
   if (!raw) return null;
   const match = raw.match(OBJECT_ID_RE);
   if (!match) return null;

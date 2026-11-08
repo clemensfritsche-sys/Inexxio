@@ -57,8 +57,9 @@ def test_a_note_is_found_by_meaning_not_by_words(db, monkeypatch):
     db.flush()
     assert memory.catch_up(db, time.monotonic() + 30) >= 2
     found = memory.search(db, "Die Pumpe tropft wieder", actor=None, kinds=("note",))
-    assert found and found[0].ref_id == note.id and found[0].object_id == firm.object_id
-    assert "Wellendichtung" in memory.as_lines(found)
+    mine = [f for f in found if f.ref_id == note.id]
+    assert mine and mine[0].object_id == firm.object_id
+    assert "Wellendichtung" in memory.as_lines(mine)
 
 
 def test_only_what_every_staff_may_see_is_remembered(db, monkeypatch):

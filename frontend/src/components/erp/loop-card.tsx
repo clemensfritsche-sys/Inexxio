@@ -51,7 +51,7 @@ export interface LoopDraft {
   takes: Record<number, string>;
 }
 
-export const NEW_LOOP: LoopDraft = {
+const NEW_LOOP: LoopDraft = {
   every: 'month', first: '', end: 'never', until: '', count: '', takes: {},
 };
 

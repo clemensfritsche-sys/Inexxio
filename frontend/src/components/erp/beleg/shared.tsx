@@ -67,7 +67,7 @@ export const DOC_FIELD: CSSProperties = {
 };
 
 /** Wo noch nichts dasteht («—»), muss der Wähler trotzdem zu treffen sein. */
-export const MIN_PICK = 44;
+const MIN_PICK = 44;
 
 /**
  * **Ein Wert, den man ändern kann** – die eine Hülle: `.ix-editable` (getönt, ohne

@@ -13,7 +13,7 @@ import { MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
 
 // ►►► **Die Anatomie eines Datensatz-Fensters** – Kopf (`DetailHeader`, `RecordIcon`), Breite
 // (`DetailBody`), Karten (`Card`, `SPEC`, `SpecHead`, `SpecSection`, `ReadField`) und
-// Abschnitte (`SectionSep`, `SectionTitle`, `PanelHeader`, `TodoChip`). ◄◄◄
+// Abschnitte (`SectionSep`, `TodoChip`). ◄◄◄
 
 // ─── Karte: der Container eines Formular-Abschnitts ──────────────────────────
 
@@ -191,42 +191,6 @@ export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-/** Einheitlicher Abschnitts-Titel (Symbol + Versalien-Label + optional ⓘ-Hover + rechte Slot). */
-export function SectionTitle({ icon: Icon, info, right, children }: {
-  icon?: ElementType; info?: string; right?: ReactNode; children: ReactNode;
-}) {
-  return (
-    <div
-      data-where-section={typeof children === 'string' ? children : undefined}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}
-    >
-      {Icon && <Icon size={13} style={{ color: 'var(--fg-4)' }} />}
-      <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)' }}>{children}</span>
-      {info && <InfoHint text={info} />}
-      {right && <span style={{ marginLeft: 'auto' }}>{right}</span>}
-    </div>
-  );
-}
-
-/** Einheitlicher Prozessschritt-Kopf: getöntes Symbol + Titel + optional ⓘ-Hover + rechter
- *  Slot (z. B. Status). EIN Look über alle Schritt-Panels (Bewegung/Ressource/…). */
-export function PanelHeader({ icon: Icon, title, tone = 'var(--accent)', info, right }: {
-  icon: ElementType; title: string; tone?: string; info?: string; right?: ReactNode;
-}) {
-  return (
-    // `data-where-section` benennt den Abschnitt für die Stecknadel (`lib/pin-point`): im Prozess-Editor
-    // sagt «Bewegung» mehr als jede Positions-Kette im Selektor.
-    <div data-where-section={title} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, background: `${tone}14`, color: tone, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={15} />
-      </span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-1)' }}>{title}</span>
-      {info && <InfoHint text={info} />}
-      {right && <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center' }}>{right}</span>}
     </div>
   );
 }

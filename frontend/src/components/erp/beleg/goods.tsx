@@ -210,7 +210,7 @@ function CustomsField({ name, label, unit, value, on, width, numeric, onChange, 
  * Wählbar ist nur, was die Anschrift zulässt (`vat_choices`); bei genau einer Wahl steht
  * der Satz fest.
  */
-export function vatText(label?: string | null, rate?: string | null): string {
+function vatText(label?: string | null, rate?: string | null): string {
   const name = label ?? '';
   if (!rate) return name || '—';
   return name ? `${rate} % · ${name}` : `${rate} %`;

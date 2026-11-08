@@ -12,7 +12,7 @@
  * - Ein Fehler lässt den Stand nicht still fallen: er geht an `onError`; `flush` versucht
  *   ihn erneut, eine neue Änderung ebenso. Von selbst wiederholt wird nichts (keine Schleife).
  */
-export type SaverStatus = 'dirty' | 'saving' | 'saved' | 'error';
+type SaverStatus = 'dirty' | 'saving' | 'saved' | 'error';
 
 export interface Saver<T> {
   /** Ein neuer Stand – er geht nach der Wartezeit hinaus. */

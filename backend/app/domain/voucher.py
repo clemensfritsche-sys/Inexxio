@@ -140,9 +140,6 @@ SHIPPING_FROM_LABEL = "Versand"
 #: Welche unserer Gesellschaften den Beleg stellt – vorgewählt, hier steht die Korrektur.
 ISSUER_LABEL = "Unsere Gesellschaft"
 
-#: Was man an der Schwelle tut: die **Offerte** annehmen – der Auftrag ist das Ergebnis
-#:. **Ein** Wort, weil es in beiden Richtungen dasselbe tut.
-AGREE_VERB = "Offerte annehmen"
 #: **Ein Wort für den Storno – in jeder Stufe.** Was er bewirkt, folgt aus der Stufe: vor
 #: der Zusage zieht er das Angebot zurück, danach den Auftrag, nach der Rechnung entsteht
 #: die Gutschrift von selbst.

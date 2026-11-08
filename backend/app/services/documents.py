@@ -189,7 +189,7 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
          source: str, refs: list[RefIn], actor: Optional[UserProfile],
          text: Optional[str] = None,
          keywords: Optional[str] = None, facts: Optional[dict] = None,
-         stored: Optional[Attachment] = None) -> tuple[Document, bool]:
+         ) -> tuple[Document, bool]:
     """►►► **Freigeben – die einzige Stelle, an der ein Dokument entsteht.** ◄◄◄
 
     Gibt ``(Dokument, schon_da)`` zurück: dieselbe Datei ein zweites Mal legt nichts an,
@@ -197,8 +197,7 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
     der Mensch (Regel 3); die Referenz darf leer sein.
 
     Ohne ``actor`` gibt das System frei (ein Beleg, den die Partei über ihren Link auslöst;
-    die Übernahme beim Start). ``stored`` übernimmt eine Datei, die schon im Korb liegt,
-    statt sie ein zweites Mal abzulegen."""
+    die Übernahme beim Start)."""
     art, name = dd.clean(art, dd.ART_MAX), dd.clean(name, dd.NAME_MAX)
     if not art or not name:
         raise HTTPException(status_code=400, detail="Ohne Art und Name lässt sich nichts freigeben.")
@@ -212,7 +211,7 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
     refs = _check_refs(db, refs)
     mime = sniff(raw, mime)
     by = actor.id if actor is not None else None
-    att = stored if stored is not None else attachments.store_raw(db, raw, filename, mime)
+    att = attachments.store_raw(db, raw, filename, mime)
     doc = Document(object_id=objects.next_object_id(db, "document"), art=art, name=name,
                    source=source, file_id=att.id, mime=mime, filename=filename or None,
                    byte_size=len(raw), sha256=digest, created_by=by,

@@ -501,8 +501,7 @@ class Planned:
     returns: bool
 
 
-def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
-          *, planned: Optional[list[Planned]] = None) -> Graph:
+def build(db: Session, order: Order, *, planned: Optional[list[Planned]] = None) -> Graph:
     """Der Graph dieses Auftrags: Knoten, Kanten, Positionen.
 
     Die Knotenfolge ist die Schrittliste, aufgefaltet um die Punkte, an denen etwas
@@ -511,13 +510,12 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
     steht im Log bzw. an der Verbindung – geraten wird nichts, und weggenommen wird
     auch nichts mehr: was einmal passiert ist, bleibt im Bild.
     """
-    if steps is None:
-        steps = (
-            db.query(ProcessStep)
-            .filter(ProcessStep.order_id == order.id)
-            .order_by(ProcessStep.position, ProcessStep.id)
-            .all()
-        )
+    steps = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id)
+        .order_by(ProcessStep.position, ProcessStep.id)
+        .all()
+    )
     tally = _tally(db, order.id)
     # ►► **Wer hier hinausging, ist nicht weitergelaufen.** ◄◄
     #

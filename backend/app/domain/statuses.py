@@ -282,9 +282,6 @@ ORDER_STATUSES: tuple[str, ...] = _on(ORDER)
 #: Artikel: freigegeben (er entsteht erst damit) oder ausser Betrieb.
 ARTICLE_STATUSES: tuple[str, ...] = _on(ARTICLE)
 
-#: Dokument: alle vier sind abgeleitet (``services/documents.status_of``).
-DOCUMENT_STATUSES: tuple[str, ...] = _on(DOCUMENT)
-
 #: **Die Endzustände eines Stücks.** Die eine Liste, aus der der Schutz entsteht – in der
 #: Anwendung (``process._pass``) wie in der Datenbank (``terminal_guard_sql``).
 TERMINAL_UNIT_STATUSES: tuple[str, ...] = tuple(

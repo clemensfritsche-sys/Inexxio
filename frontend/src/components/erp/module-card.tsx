@@ -30,7 +30,7 @@ interface DragProps {
  * die ein Modul färbt. Die Historie hängt nicht hier, sondern an der Kopfzeile der Karte
  * (`ModuleShell.history`, #790).
  */
-export function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)' }: {
+function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)' }: {
   icon: LucideIcon; tone: string;
   /** Die Fläche unter dem Symbol – die Modulfarbe, denn die Karte selbst ist weiss. */
   bg?: string;
@@ -54,7 +54,7 @@ export function ModuleMark({ icon: Icon, tone, bg = 'var(--bg-1)' }: {
  * `lead` und `trail` sind die Stellen, an denen ein Träger Eigenes einhängt (Ziehgriff,
  * Schloss, Chevron, Löschen) – der Rahmen selbst kennt davon nichts.
  */
-export function ModuleShell({ tone, icon, label, active, lead, trail, head, body,
+function ModuleShell({ tone, icon, label, active, lead, trail, head, body,
   history, children }: {
   tone: { fg: string; bg: string; border: string };
   icon: LucideIcon;

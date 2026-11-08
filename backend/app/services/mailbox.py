@@ -320,8 +320,7 @@ def _over(deadline: Optional[float]) -> bool:
     return deadline is not None and time.monotonic() >= deadline
 
 
-def sync_all(db: Session, *, force: bool = False,
-             deadline: Optional[float] = None) -> tuple[int, int]:
+def sync_all(db: Session, *, deadline: Optional[float] = None) -> tuple[int, int]:
     """Alle verbundenen Postfächer abgleichen und Fälliges senden. Gibt die Zahl neuer
     und die Zahl versendeter Nachrichten zurück. Ein Postfach, das gerade ein anderer
     abgleicht, wird übersprungen (``SKIP LOCKED``) – zwei Instanzen holen dieselbe Mail nie
@@ -342,7 +341,7 @@ def sync_all(db: Session, *, force: bool = False,
     for mb in boxes:
         if _over(deadline):
             break
-        if force or mb.synced_at is None or mb.synced_at < due:
+        if mb.synced_at is None or mb.synced_at < due:
             try:        # ein gestörtes Postfach hält die übrigen und den Versand nicht auf
                 with db.begin_nested():
                     new += _sync_one(db, mb, ours, tokens, deadline)

@@ -11,9 +11,6 @@ from sqlalchemy.orm import Session
 
 from ..models import Article, CompanySettings, Document, Instance, ObjectRef, Order, UserProfile
 
-OBJ_ID_START = 100_000_001
-
-
 def obj_nr(object_id: int | None) -> str:
     """9-stellige Objektnummer als Text – die EINE Formatierung (Spiegel des Frontend
     ``formatObjectId``). Ohne Nummer der Gedankenstrich, damit Belege/Labels nie «None» zeigen."""
