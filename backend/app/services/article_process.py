@@ -1,13 +1,8 @@
 """Der **Erzeugungsprozess** eines Artikels – Vorlage pflegen und kopieren.
 
-Die Vorlage kann nichts ausführen (PROCESS_CORE.md §8.2): es gibt hier keinen Endpunkt,
-der ein Stück bewegt, und keine Funktion, die einen Status setzt. Sie beantwortet genau
-zwei Fragen – *wie sieht der Prozess dieses Artikels aus* und *wie kommt er in einen
-Auftrag*.
-
-**Kopie, nicht Verweis** (Auftragspunkt §6): ``mirror`` liefert die Schritte als Werte
-samt Versionsstempel; der Auftrag schreibt sie als eigene Zeilen. Ein Verweis hiesse,
-dass eine Artikeländerung laufende Aufträge rückwirkend umschreibt.
+Die Vorlage führt nichts aus (PROCESS_CORE.md §8.2). **Kopie, nicht Verweis** (§6):
+``mirror`` liefert die Schritte als Werte samt Versionsstempel; der Auftrag schreibt sie als
+eigene Zeilen.
 """
 
 from typing import Any
@@ -32,11 +27,8 @@ def steps_of(db: Session, article: Article) -> list[ArticleProcessStep]:
 
 
 def step_counts(db: Session, article_ids: list[int]) -> dict[int, int]:
-    """Wie viele Schritte hat die Vorlage je Artikel? **Eine** Abfrage, kein N+1.
-
-    Die Auswahl im Definitionsbereich braucht das für jede Zeile: ohne Vorlage ist
-    «Neu» nicht wählbar, und der Grund muss im Klartext dastehen.
-    """
+    """Wie viele Schritte hat die Vorlage je Artikel? **Eine** Abfrage, kein N+1 – ohne
+    Vorlage ist «Neu» nicht wählbar."""
     from sqlalchemy import func
 
     if not article_ids:
@@ -54,15 +46,11 @@ def step_counts(db: Session, article_ids: list[int]) -> dict[int, int]:
 
 
 def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> list[ArticleProcessStep]:
-    """Den Erzeugungsprozess eines Artikels anlegen — **in einem Zug mit dem Artikel**.
+    """Den Erzeugungsprozess eines Artikels anlegen — **in einem Zug mit dem Artikel**;
+    danach ist er eingefroren (§6.5).
 
-    Es gibt keinen Pfad, der ihn danach ändert: der Artikel entsteht erst mit seiner
-    Freigabe, und ab da ist er eingefroren (§6.5). Ein «Modul nachträglich hinzufügen»
-    wäre eine Tür in einen Datensatz, der schon Aufträge speisen kann.
-
-    Der **Übergang wird nicht übernommen, sondern abgeleitet**: er gehört zum Modultyp
-    (``domain/modules``). Was der Entwurf schickt, ist Typ und Konfiguration – einen
-    **Namen** gibt es nicht mehr (Testnotiz #682): wie ein Modul heisst, sagt sein Typ.
+    Der Übergang wird vom Modultyp abgeleitet (``domain/modules``); einen Namen hat ein
+    Modul nicht – den sagt sein Typ.
     """
     if not raw:
         raise HTTPException(
@@ -79,17 +67,14 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
             position=position,
             module_type=module.key,
             status_before=module.status_before,
-            # Erst prüfen, dann ableiten: beim Aussondern hängt das Nachher an der
-            # Ausprägung (``Module.status_after_for``).
+            # Erst prüfen, dann ableiten (``Module.status_after_for``).
             status_after=module.status_after_for(config),
             config=config,
         )
         db.add(step)
         out.append(step)
-    # **Dieselbe Kettenregel wie beim Auftrag** (``domain/chain``). Sie hier zu prüfen ist
-    # kein Extra, sondern der richtige Zeitpunkt: der Artikel entsteht mit seiner Freigabe
-    # und ist danach eingefroren – eine Vorlage, deren Kette nicht schliesst, wäre erst
-    # beim ersten Auftrag aufgefallen, und dann liesse sie sich nicht mehr reparieren.
+    # **Dieselbe Kettenregel wie beim Auftrag** (``domain/chain``) – jetzt, weil die Vorlage
+    # danach eingefroren ist.
     chain.assert_closes([
         {"module_type": s.module_type, "status_before": s.status_before,
          "status_after": s.status_after}
@@ -99,20 +84,14 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
 
 
 def mirror(db: Session, article: Article) -> list[dict[str, Any]]:
-    """Die Vorlage als **Kopie** – Werte, kein Verweis, mit ihrer Herkunft.
-
-    Das Ergebnis geht unverändert in ``process_steps`` des Auftrags. Ist die Vorlage
-    leer, ist das kein leeres Ergebnis, sondern ein Fehler beim Aufrufer: ein
-    Erzeugungsauftrag ohne Prozess kann nichts erzeugen.
-    """
+    """Die Vorlage als **Kopie** – Werte, kein Verweis, mit ihrer Herkunft; unverändert für
+    ``process_steps`` des Auftrags. Leer ist ein Fehler beim Aufrufer."""
     return [
         {
             "module_type": s.module_type,
             "status_before": s.status_before,
             "status_after": s.status_after,
-            # **Die Konfiguration muss mit.** Ohne sie käme ein Datenerfassungs-Modul
-            # ohne seine Erfassungspunkte im Auftrag an – es stünde im Prozess und hätte
-            # nichts zu erfassen. Eine Kopie, die das Wesentliche weglässt, ist keine.
+            # Die Konfiguration muss mit (z. B. die Erfassungspunkte).
             "config": dict(s.config) if s.config else None,
             "source_article_id": article.id,
         }

@@ -112,7 +112,7 @@ def list_articles(
     _: UserProfile = Depends(require_employee),
 ):
     """Alle Artikel für den Feed."""
-    # **Nummer ODER Name** – die eine Suchbedingung des Hauses (`services/lookup`, #738).
+    # **Nummer ODER Name** – die eine Suchbedingung des Hauses (`services/lookup`).
     q = db.query(Article).filter(lookup.matches(search or "", Article.object_id, Article.name))
     rows = q.order_by(Article.object_id.desc()).limit(limit).offset(offset).all()
     return [_out(a) for a in rows]
@@ -147,8 +147,7 @@ def create_article(
     """
     article = articles_svc.create_article(
         db, data.model_dump(exclude_unset=True), actor_id=user.id)
-    # Die Ersetzung steht im Log beim **Vorgänger** (seine Zeile bekommt ``replaced_by_id``):
-    # dort sucht sie jemand, der wissen will, warum ein Artikel ausser Betrieb ging.
+    # Die Ersetzung steht im Log beim **Vorgänger** (``replaced_by_id``).
     db.flush()
     db.refresh(article)
     return _out(article)
@@ -217,13 +216,8 @@ def article_stock(
 
 
 # ---------------------------------------------------------------------------
-# Erzeugungsprozess – die Vorlage. Sie kann nichts ausführen (PROCESS_CORE.md §8.2):
-# es gibt hier keinen Endpunkt, der ein Stück bewegt, und keinen Status zu setzen.
-#
-# Und sie lässt sich **nicht nachträglich ändern**: sie entsteht mit dem Artikel
-# (``POST /erp/articles``) und ist ab da eingefroren. Ein «Modul hinzufügen»-Endpunkt
-# wäre eine Tür in einen Datensatz, der bereits Aufträge speist – und die Kopien in
-# laufenden Aufträgen trügen einen Stempel, der nicht mehr stimmt.
+# Erzeugungsprozess – die Vorlage. Sie führt nichts aus (PROCESS_CORE.md §8.2) und ist
+# mit dem Artikel eingefroren: kein Endpunkt bewegt ein Stück oder ändert die Vorlage.
 # ---------------------------------------------------------------------------
 
 @router.get("/{object_id}/process", response_model=ArticleProcess)

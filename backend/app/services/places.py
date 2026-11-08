@@ -1,42 +1,19 @@
 """**Wo ein Stück liegt** — ein Zeiger, kein Zustand.
 
-Der Ort einer Einzelinstanz ist ihr **Halter**, gespeichert an genau einer Stelle
-(``instance_units``). Er ändert nie einen Status und nie eine Zugehörigkeit; genau
-deshalb muss keine andere Regel im System von ihm wissen. Ein Stück darf gesperrt,
-verbaut oder in einer Abweichung sein — sein Ort ist trotzdem einfach der letzte Halter,
-an den es gebracht wurde.
-
-**Es gibt zwei Arten von Halter, und die Genauigkeit des Ortes ist die Genauigkeit
-seiner Quelle:**
+Der Ort einer Einzelinstanz ist ihr **Halter**, gespeichert nur in ``instance_units``. Er
+ändert nie Status oder Zugehörigkeit; darum muss keine andere Regel von ihm wissen.
 
 ``place_object_id``
-    Ein **gescannter** Halter: Instanz (Regal, Behälter, LKW), Benutzer, Unternehmen.
-    Was man scannt, ist ein Etikett — und ein Etikett hat die **Instanz**. Feiner geht es
-    nicht, ohne zu raten, welches Stück der Charge gemeint war.
-
+    Ein **gescannter** Halter: Instanz (Regal, Behälter, LKW), Benutzer, Unternehmen –
+    gescannt wird das Etikett der Instanz.
 ``place_unit_id``
-    Ein **Träger**: das eine Stück, in dem dieses Stück steckt. Beim Verbauen kennt das
-    Modul es genau (``consumption.plan`` teilt je Produkt-Stück zu) — diese Genauigkeit
-    wegzuwerfen wäre eine erfundene Unschärfe. Und die Instanz-Nummer stattdessen wäre
-    eine **Gruppe**: «in 100000123» sagt bei 600 Getrieben nicht, in welchem.
+    Ein **Träger**: das eine Stück, in dem dieses steckt (beim Verbauen genau bekannt).
 
-Höchstens eines von beiden ist gesetzt (``CHECK`` in der Tabelle) — der Ort bleibt
-**eine** Aussage, sie hat nur zwei mögliche Formen. Beides zusammen heisst hier
-``Place``.
-
-**Nicht die Genealogie.** Der Log sagt, *worin* verbaut wurde (``payload.into``) —
-unveränderlich, überlebt die Demontage. Diese Spalten sagen, *wo es jetzt liegt*, und
-werden beim Ausbau geräumt. Dass die beiden auseinander laufen können, ist der Beweis,
-dass es zwei Fragen sind (PROCESS_CORE §9.6).
-
-**Kein Typfeld daneben.** Objektnummern sind systemweit eindeutig, der Typ ist daraus
-ableitbar (``objects.resolve_object_type``). Was es nicht gibt, kann nicht veralten.
-
-**Die eine Regel des sonst dummen Feldes: keine Zyklen.** Läge Regal A im Behälter B und
-B im Regal A, liefe die Kette im Kreis — und mit ihr jede Bestandsansicht. Verhindert
-wird das beim Schreiben (``assert_placeable``), abgefangen beim Lesen (``seen`` +
-``MAX_STATIONS``): die Ansicht hängt nie, auch wenn eine Zeile an der Schreibprüfung
-vorbei entstand.
+Höchstens eines ist gesetzt (``CHECK``); zusammen heisst es ``Place``. Kein Typfeld – der
+Typ folgt aus der Objektnummer (``objects.resolve_object_type``). **Nicht die
+Genealogie**: *worin* verbaut wurde, sagt der Log (``payload.into``); hier steht, *wo es
+jetzt liegt* (PROCESS_CORE §9.6). **Keine Zyklen**: verhindert beim Schreiben
+(``assert_placeable``), abgefangen beim Lesen (``seen`` + ``MAX_STATIONS``).
 """
 
 from dataclasses import dataclass
@@ -52,23 +29,18 @@ from ..models import (
 from . import lookup, people, sites
 from .instances import number_of, unit_number
 
-#: Wie viele Stationen eine Kette höchstens hat. Die Grenze ist ein **Netz**, keine
-#: fachliche Aussage: eine echte Verschachtelung (Schraube › Getriebe › Behälter › Regal
-#: › Werk) ist vier tief. Wer zehn erreicht, hat einen Zyklus, den die Schreibprüfung
-#: nicht gesehen hat — und dann ist eine gekappte Kette besser als eine Ansicht, die hängt.
+#: Wie viele Stationen eine Kette höchstens hat – ein **Netz** gegen Zyklen, keine fachliche
+#: Aussage (echte Verschachtelung ist etwa vier tief).
 MAX_STATIONS = 10
 
-#: Halter, die eine **Anschrift** tragen. Bei ihnen endet die Kette: sie sind der Ort in
-#: der Welt, alles davor ist eine Verschachtelung darin.
+#: Halter, die eine **Anschrift** tragen – bei ihnen endet die Kette.
 ADDRESS_HOLDERS = ("user", "organization")
 
-#: Die beiden Arten von Halter. ``OBJECT`` trägt eine Objektnummer (Instanz · Benutzer ·
-#: Unternehmen), ``UNIT`` den internen Schlüssel einer Einzelinstanz — die hat bewusst
-#: keine Objektnummer (PROCESS_CORE §2.2).
+#: Die beiden Arten von Halter. ``OBJECT`` trägt eine Objektnummer, ``UNIT`` den internen
+#: Schlüssel einer Einzelinstanz (die hat keine Objektnummer, PROCESS_CORE §2.2).
 OBJECT, UNIT = "object", "unit"
 
-#: **Ein Ort** – die Art und der Schlüssel. Ein Tupel und keine Klasse, weil er als
-#: Schlüssel in Wörterbüchern steht: die Kettenauflösung gruppiert nach ihm.
+#: **Ein Ort** – Art und Schlüssel; ein Tupel, weil er als Schlüssel in Wörterbüchern steht.
 Place = tuple[str, int]
 
 
@@ -76,10 +48,8 @@ Place = tuple[str, int]
 class Station:
     """Eine Station der Kette — was sie ist und wie sie heisst.
 
-    ``object_id`` ist immer der **Datensatz**, den ein Klick öffnet. Bei einem Träger ist
-    das seine **Instanz**: das Stück selbst hat keinen eigenen Datensatz. Wie es heisst,
-    steht dann in ``number`` (``100000123-3``) – die Anzeige zieht sie der Objektnummer
-    vor, weil sie die genauere Aussage ist.
+    ``object_id`` ist der Datensatz, den ein Klick öffnet (bei einem Träger seine Instanz);
+    ``number`` (``100000123-3``) nennt das Stück genauer.
     """
 
     object_id: int
@@ -89,12 +59,7 @@ class Station:
 
 
 def place_of(unit: InstanceUnit) -> Optional[Place]:
-    """**Wo liegt dieses Stück?** — die eine Lesestelle für die beiden Spalten.
-
-    Wer sie einzeln liest, baut die Fallunterscheidung an jeder Stelle nach; und die
-    Stelle, an der jemand die zweite vergisst, ist die, an der ein verbautes Stück
-    plötzlich standortlos aussieht.
-    """
+    """**Wo liegt dieses Stück?** — die eine Lesestelle für die beiden Spalten."""
     if unit.place_unit_id:
         return (UNIT, int(unit.place_unit_id))
     if unit.place_object_id:
@@ -103,15 +68,10 @@ def place_of(unit: InstanceUnit) -> Optional[Place]:
 
 
 def stations_for(db: Session, object_ids: Iterable[int]) -> dict[int, Station]:
-    """Objektnummern → Halter, in **drei** Abfragen statt einer je Nummer.
+    """Objektnummern → Halter, in **drei** Abfragen statt einer je Nummer (gegen N+1).
 
-    Das ist der Grund, warum diese Funktion existiert und nicht ``station_of`` in einer
-    Schleife: eine Bestandsseite zeigt bis zu 60 Stücke, und jede Kettenstufe fragt
-    erneut. Je Nummer eine Abfrage wären Hunderte — die N+1-Falle.
-
-    Eine Nummer, die zu nichts auflöst, fehlt im Ergebnis. Das ist eine Antwort («diesen
-    Halter gibt es nicht mehr»), kein Fehler: die Anzeige zeigt dann die nackte Nummer,
-    statt zu verschwinden.
+    Eine Nummer, die zu nichts auflöst, fehlt im Ergebnis – die Anzeige zeigt dann die
+    nackte Nummer.
     """
     ids = {int(o) for o in object_ids if o}
     if not ids:
@@ -137,12 +97,8 @@ def stations_for(db: Session, object_ids: Iterable[int]) -> dict[int, Station]:
 
 
 def unit_stations(db: Session, unit_ids: Iterable[int]) -> dict[int, Station]:
-    """Träger-Stücke → Station, in **einer** Abfrage über drei Tabellen.
-
-    Die Station trägt die Objektnummer der **Instanz** (dorthin führt der Klick) und die
-    Stück-Nummer als Beschriftung – ein Stück hat keinen eigenen Datensatz, aber einen
-    eindeutigen Namen.
-    """
+    """Träger-Stücke → Station, in **einer** Abfrage: Objektnummer der Instanz, Stück-Nummer
+    als Beschriftung."""
     ids = {int(u) for u in unit_ids if u}
     if not ids:
         return {}
@@ -177,32 +133,23 @@ def _stations(db: Session, places: Iterable[Place]) -> dict[Place, Station]:
     return out
 
 
-#: Wie viele Treffer eine Suche höchstens liefert. Eine Vorschlagsliste ist eine
-#: Abkürzung, kein Katalog – wer scrollen muss, tippt schneller weiter.
+#: Wie viele Treffer eine Suche höchstens liefert.
 SEARCH_LIMIT = 8
 
 
 def search(db: Session, query: str, *, limit: int = SEARCH_LIMIT) -> list[Station]:
     """**Halter suchen — nach Nummer oder nach Namen.**
 
-    Die Frage, die jede Zielort-Eingabe stellt: «001» soll die Objektnummer treffen,
-    «Clemens» die Person, «Regal» den Behälter. Beides in einer Abfrage je Typ, statt
-    den Aufrufer wählen zu lassen, wonach er sucht – er weiss es nicht, er tippt.
-
-    **Gesucht wird nur, was auch Halter sein kann.** Das ist dieselbe Menge, die
-    ``station_of`` auflöst und die ``assert_placeable`` durchlässt: eine Vorschlagsliste,
-    die etwas anbietet, das die Prüfung danach abweist, wäre schlimmer als keine.
-
-    Artikel und Aufträge stehen darum nicht darin, obwohl sie Objektnummern tragen – und
-    **Träger-Stücke** ebenso wenig: sie entstehen beim Verbauen, nicht beim Scannen.
+    «001» trifft die Objektnummer, «Clemens» die Person, «Regal» den Behälter. Gesucht wird
+    nur, was Halter sein kann – dieselbe Menge, die ``station_of`` auflöst und
+    ``assert_placeable`` durchlässt (keine Artikel, Aufträge oder Träger-Stücke).
     """
     q = (query or "").strip()
     if not q:
         return []
     out: list[Station] = []
 
-    # **Dieselbe Bedingung wie jedes andere Referenzfeld** (``services/lookup``) – hier
-    # nur dreimal angewandt, weil ein Halter dreierlei sein kann.
+    # Dieselbe Bedingung wie jedes Referenzfeld (``services/lookup``), je Halter-Art.
     rows = (
         db.query(Instance.object_id, Article.name)
         .join(Article, Article.id == Instance.article_id)
@@ -247,13 +194,8 @@ def describe(db: Session, place: Optional[Place]) -> Optional[Station]:
 def chain(db: Session, place: Optional[Place]) -> list[Station]:
     """Die Kette von innen nach aussen: Getriebe › Behälter › Regal › Werk Nord.
 
-    Sie beginnt beim **unmittelbaren** Halter und endet, wenn einer davon eine Anschrift
-    trägt (Benutzer oder Unternehmen), wenn er nirgends liegt, oder wenn er nicht mehr
-    auflösbar ist. Eine leere Liste heisst schlicht: standortlos.
-
-    **Zyklensicher zweifach** — gesehene Orte und eine harte Obergrenze. Die
-    Schreibprüfung verhindert Zyklen bereits; hier steht das Netz für alles, was sie nie
-    gesehen hat.
+    Sie endet an einem Halter mit Anschrift, wo nichts mehr liegt oder nichts mehr auflöst;
+    leer heisst standortlos. Zyklensicher (gesehene Orte, Obergrenze).
     """
     if not place:
         return []
@@ -261,14 +203,10 @@ def chain(db: Session, place: Optional[Place]) -> list[Station]:
 
 
 def _places_of_instances(db: Session, object_ids: list[int]) -> dict[int, Place]:
-    """**Wo liegen diese Instanzen?** — eine Abfrage für alle, nicht eine je Instanz.
+    """**Wo liegen diese Instanzen?** — eine Abfrage für alle.
 
-    Der Ort hängt am Stück, nicht an der Gruppe (zwei Schrauben einer Charge dürfen an
-    zwei Orten liegen). Eine Instanz als *Halter* ist aber ein physisches Ding – ein
-    Regal, ein Behälter –, und das liegt an einem Ort. Beides trifft sich hier: liegen
-    alle ihre Stücke am selben Halter, ist das ihr Ort; sonst endet die Kette. Das deckt
-    den Normalfall (ein serialisiertes Regal = ein Stück) mit ab, ohne ihn als Sonderfall
-    zu behandeln – und es erfindet keine Antwort, wo es keine gibt.
+    Eine Instanz als Halter liegt dort, wo alle ihre Stücke am selben Halter liegen; sonst
+    endet die Kette – es wird keine Antwort erfunden.
     """
     if not object_ids:
         return {}
@@ -290,8 +228,7 @@ def _places_of_instances(db: Session, object_ids: list[int]) -> dict[int, Place]
             else (OBJECT, int(place_object_id)) if place_object_id
             else None
         )
-        # Zweiter, abweichender Ort → die Instanz liegt nicht an EINEM Ort. Hier endet
-        # die Kette, statt sich einen der beiden auszusuchen.
+        # Zweiter, abweichender Ort → kein EINER Ort; die Kette endet hier.
         seen[object_id] = place if object_id not in seen else (
             seen[object_id] if seen[object_id] == place else None
         )
@@ -299,11 +236,7 @@ def _places_of_instances(db: Session, object_ids: list[int]) -> dict[int, Place]
 
 
 def _places_of_units(db: Session, unit_ids: list[int]) -> dict[int, Place]:
-    """**Wo liegen diese Träger-Stücke?** — die Fortsetzung der Kette über ein Stück.
-
-    Ein Getriebe, in dem eine Schraube steckt, liegt selbst irgendwo; ohne diesen Schritt
-    endete die Kette beim Getriebe und die Schraube hätte keine Anschrift.
-    """
+    """**Wo liegen diese Träger-Stücke?** — die Fortsetzung der Kette über ein Stück."""
     if not unit_ids:
         return {}
     rows = (
@@ -336,20 +269,10 @@ def _next_places(db: Session, places: Iterable[Place]) -> dict[Place, Place]:
 
 
 def _walk(db: Session, places: Iterable[Place]) -> dict[Place, list[tuple[Place, Station]]]:
-    """Die Ketten **mehrerer** Halter — stufenweise, nicht je Halter einzeln.
+    """Die Ketten **mehrerer** Halter — stufenweise, nicht je Halter einzeln (gegen N+1).
 
-    Das ist der Unterschied zwischen einer Bestandsseite, die lädt, und einer, die
-    hängt: 60 Stücke in fünf Regalen sind **fünf** Ketten, und jede Stufe kostet
-    dieselben Abfragen, egal wie viele Halter noch offen sind. Je Halter einzeln
-    aufzulösen wären es fünf mal Tiefe mal vier – dieselbe Antwort, N+1-mal geholt.
-
-    Gleiche Halter teilen sich ihre Kette; sie wird einmal gebaut und mehrfach
-    zugeordnet.
-
-    Zurück kommt je Station **beides**: der Ort (womit sich Ketten vergleichen lassen –
-    ein Träger und seine Instanz tragen dieselbe Objektnummer) und die Station (womit
-    sie sich anzeigen lässt). Ein Lauf, zwei Projektionen; zwei Läufe wären zwei
-    Antworten auf dieselbe Frage.
+    Gleiche Halter teilen ihre Kette. Je Station kommt **beides** zurück: der Ort (zum
+    Vergleichen) und die Station (zum Anzeigen).
     """
     heads = {p for p in places if p}
     if not heads:
@@ -399,14 +322,8 @@ def _assert_placeable(db: Session, *, units: list[InstanceUnit], target: Place,
                       label: str) -> None:
     """Darf dieses Ziel diese Stücke aufnehmen? — die Prüfung vor **jedem** Schreiben.
 
-    Zwei Fragen, und beide müssen hier gestellt werden, weil das Feld danach nichts mehr
-    prüft: ist das Ziel eines der bewegten Stücke selbst (ein Ding liegt nicht in sich
-    selbst), und liegt es **in** einem von ihnen (das ergäbe einen Ort, der im Kreis
-    führt).
-
-    Verglichen werden **Orte**, nicht Beschriftungen: ein Träger und seine Instanz tragen
-    dieselbe Objektnummer, und ein Vergleich über sie hielte ein Stück für sein eigenes
-    Regal.
+    Das Ziel ist keines der Stücke und liegt nicht **in** einem von ihnen (kein Kreis).
+    Verglichen werden Orte, nicht Objektnummern (Träger und Instanz teilen eine).
     """
     own: set[Place] = {(OBJECT, i.object_id) for i in _instances_of(db, units)}
     own |= {(UNIT, u.id) for u in units}
@@ -445,10 +362,8 @@ def _instances_of(db: Session, units: list[InstanceUnit]) -> list[Instance]:
 def place(db: Session, *, units: list[InstanceUnit], target: int) -> Station:
     """**Die eine Schreibstelle für einen gescannten Halter.** Prüft, dann setzt.
 
-    Kein Statuswechsel, keine Zugehörigkeit, kein Log: dass ein Stück bewegt wurde, hält
-    der Ereignis-Log an seinem Modul fest (``process.confirm_step``), und dort steht es
-    mit Herkunft und Ziel. Ein zweiter Eintrag hier wäre eine zweite Wahrheit über
-    denselben Vorgang.
+    Kein Status, keine Zugehörigkeit, kein Log – die Bewegung hält das Modul im Log fest
+    (``process.confirm_step``).
     """
     station = assert_placeable(db, units=units, target=target)
     for unit in units:
@@ -459,10 +374,7 @@ def place(db: Session, *, units: list[InstanceUnit], target: int) -> Station:
 
 def place_in(db: Session, *, units: list[InstanceUnit], carrier: InstanceUnit) -> None:
     """**Die eine Schreibstelle für einen Träger** — dieses Stück steckt jetzt in jenem.
-
-    Gerufen vom Verbrauch, sonst von niemandem: nur dort steht fest, **welches** Stück
-    aufnimmt. Gescannt werden kann ein Träger nicht — er hat kein Etikett.
-    """
+    Nur vom Verbrauch gerufen (ein Träger hat kein Etikett)."""
     if not units:
         return
     _assert_placeable(
@@ -476,12 +388,8 @@ def place_in(db: Session, *, units: list[InstanceUnit], carrier: InstanceUnit) -
 
 def take_out(db: Session, units: list[InstanceUnit]) -> None:
     """**Ausbauen** – ein Stück, das in einem Träger steckt, liegt danach dort, wo der
-    Träger liegt.
-
-    Gerufen, wenn ein Auftrag ein verbautes Stück greift (``release.release``): das Greifen
-    IST der Ausbau. Der Zeiger auf den Träger wird geräumt, der Ort des Trägers übernommen
-    (liegt er nirgends, ist das Stück danach standortlos). Die Genealogie im Log bleibt.
-    """
+    Träger liegt (gerufen, wenn ein Auftrag es greift, ``release.release``). Die
+    Genealogie im Log bleibt."""
     inside = [u for u in units if u.place_unit_id]
     if not inside:
         return
@@ -496,13 +404,8 @@ def take_out(db: Session, units: list[InstanceUnit]) -> None:
 
 
 def forget(db: Session, units: list[InstanceUnit]) -> None:
-    """**Der Ort gilt nicht mehr** — die zweite Form von ``place``.
-
-    Gerufen, wenn ein Stück zur **Historie** wird (``Status.stock``): es liegt dann nicht
-    mehr im Regal, und der alte Halter wäre eine Behauptung über etwas, das dort nicht
-    mehr ist. Wer stattdessen einen neuen Ort hat – ein verbautes Stück seinen Träger –,
-    setzt ihn im selben Zug.
-    """
+    """**Der Ort gilt nicht mehr** — die zweite Form von ``place``, für ein Stück, das zur
+    Historie wird (``Status.stock``)."""
     for unit in units:
         unit.place_object_id = None
         unit.place_unit_id = None
@@ -512,24 +415,15 @@ def apply_for_step(
     db: Session, *, step: ProcessStep, units: list[InstanceUnit],
     target: Optional[int],
 ) -> dict[int, dict[str, object]]:
-    """**Was dieses Modul am Ort ändert** — und nichts, wenn es keiner ist, der bewegt.
+    """**Was dieses Modul am Ort ändert** — leer, wenn es nichts bewegt.
 
-    Die Ausführungsstelle (``process.confirm_step``) ruft das für **jedes** Modul auf und
-    fragt nicht nach dem Typ; die Antwort ist leer, wo nichts zu bewegen ist. Dieselbe
-    Bauart wie ``consumption.plan`` und ``capture.record_for_step``: der Fach-Dienst kennt
-    sein Modul, der eine Mechanismus kennt keines.
-
-    Zurück kommt, **was passiert ist** – je Stück Herkunft und Ziel. Das reist als
-    Payload in den Ereignis-Log, und damit steht die Bewegung dort, wo die Historie
-    ohnehin steht (§7.2), statt in einer zweiten Tabelle daneben. Wer den Transport
-    fährt, steht nicht hier: eine Spedition ist ein eigener Geldvorgang.
+    ``process.confirm_step`` ruft das für jedes Modul (wie ``consumption.plan``). Zurück
+    kommt je Stück Herkunft und Ziel – als Payload in den Log (§7.2).
     """
     goal = modules.get(step.module_type).movement_for(step.config, target=target)
     if goal is None:
         return {}
-    # **Erst lesen, dann schreiben**: die Herkunft gibt es nach dem Setzen nicht mehr.
-    # Sie kann beide Formen haben (Halter oder Träger) – darum der ``Place``, nicht die
-    # Objektnummer allein: ein ausgebautes Stück käme sonst «aus dem Nichts».
+    # Erst lesen, dann schreiben: die Herkunft (Halter oder Träger, darum ``Place``).
     before = {u.id: place_of(u) for u in units}
     station = place(db, units=units, target=goal)
     return {
@@ -545,25 +439,15 @@ def apply_for_step(
 # ---------------------------------------------------------------------------
 
 def for_units(db: Session, units: Iterable[InstanceUnit]) -> dict[int, list[Station]]:
-    """Je Einzelinstanz ihre Kette — aufgelöst **je Halter**, nicht je Stück.
-
-    Das ist die Stelle, an der die Skalierbarkeit entschieden wird: 60 Schrauben in einem
-    Regal sind **eine** Kette, nicht sechzig. Wer hier je Zeile auflöst, baut die
-    N+1-Falle.
-    """
+    """Je Einzelinstanz ihre Kette — aufgelöst **je Halter**, nicht je Stück (gegen N+1)."""
     at = {u.id: place_of(u) for u in units}
     chains = chains_for(db, [p for p in at.values() if p])
     return {uid: chains.get(p, []) for uid, p in at.items() if p}
 
 
 def common_holder(units: Iterable[InstanceUnit]) -> Optional[Place]:
-    """**Der Ort, an dem ALLE liegen** — oder ``None``.
-
-    Die Frage eines Moduls, das Material an einen Ort verlangt: wo arbeitet es? Liegen
-    seine Stücke an verschiedenen Orten (oder nirgends), gibt es darauf keine Antwort –
-    und dann wird auch keine verlangt. Eine erfundene wäre schlimmer: sie sperrte ein
-    Modul auf einen Ort, den nur ein Teil der Stücke teilt.
-    """
+    """**Der Ort, an dem ALLE liegen** — oder ``None`` (verschiedene Orte oder nirgends:
+    dann wird kein Ort verlangt)."""
     found: Optional[Place] = None
     for index, unit in enumerate(units):
         here = place_of(unit)
@@ -574,12 +458,8 @@ def common_holder(units: Iterable[InstanceUnit]) -> Optional[Place]:
 
 
 def within(db: Session, places: Iterable[Optional[Place]], holder: Place) -> set[Place]:
-    """**Welche dieser Orte liegen an (oder in) diesem Halter?**
-
-    «Am Ort» heisst nicht «identische Nummer»: die Schraube in der Kiste, die auf
-    Werkbank 5 steht, **ist** auf Werkbank 5. Geprüft wird darum, ob der verlangte Halter
-    in der **Kette** des Ortes steht – batchweise, eine Kette je Ort, nicht je Stück.
-    """
+    """**Welche dieser Orte liegen an (oder in) diesem Halter?** «Am Ort» heisst: der Halter
+    steht in der **Kette** des Ortes – eine Kette je Ort."""
     walked = _walk(db, [p for p in places if p])
     return {
         head for head, row in walked.items()

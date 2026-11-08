@@ -124,25 +124,20 @@ class CompanySettingsResponse(BaseModel):
 
     id: int
     object_id: Optional[int] = None
-    # **Abgeleitete** Rolle (kein gespeichertes Flag, kein Rang): ist dies das älteste
-    # Unternehmen = der Betreiber der Website (Impressum/Systemkonfiguration/Fallback)?
+    # **Abgeleitete** Rolle: ist dies der Betreiber der Website?
     is_operator: bool = False
-    # Trägt echte Ortsangaben? Ohne Anschrift ist eine Gesellschaft gültig, aber logistisch
-    # stumm (eine Bewegung dorthin bleibt innerbetrieblich statt Versand – ADR 005).
+    # Trägt echte Ortsangaben? Ohne Anschrift bleibt eine Bewegung dorthin innerbetrieblich
+    # (ADR 005).
     has_address: bool = False
-    # Aktiv? Eine geschlossene Gesellschaft bleibt als Datensatz lesbar (Halter historischer
-    # Instanzen, Absender alter Belege), ist aber nicht mehr verwendbar – und **endgültig**.
+    # Aktiv? Eine geschlossene Gesellschaft bleibt lesbar, ist aber nicht mehr verwendbar.
     is_active: bool = True
     #: Eine **unserer** Gesellschaften? Nur sie stellt Belege, beschäftigt Personal,
     #: besitzt Gebiete und kann Betreiber sein.
     is_own: bool = False
     company_name: str
     legal_form: str
-    # ►►► **Der Datensatzname** – Unternehmensname, Abstand, Rechtsform (Testnotiz #910).
-    # ◄◄◄ Eine **Projektion**, keine Spalte: die Regel (und die Ausnahme «Muster AG» +
-    # «AG» = «Muster AG», nicht «Muster AG AG») steht genau einmal in
-    # ``sites.legal_name``. Wer sie im Browser nachbaute, hätte die Ausnahme beim ersten
-    # Mal vergessen – und die zweite Fassung sähe trotzdem richtig aus.
+    # ►►► **Der Datensatzname** – Name, Rechtsform (``sites.legal_name``, nie «AG AG»). ◄◄◄
+    # Eine Projektion, keine Spalte.
     legal_name: str = ""
     street: Optional[str]
     street_nr: Optional[str]
@@ -152,18 +147,12 @@ class CompanySettingsResponse(BaseModel):
     currency: str = "CHF"
     uid_number: Optional[str]
     vat_number: Optional[str]
-    # ►►► **Die eigene IBAN steht ausgeschrieben da** (Testnotiz #870). ◄◄◄
-    #
-    # **Sie ist kein Geheimnis.** Sie steht auf jeder Rechnung, die wir stellen, und im
-    # QR-Code, den wir dem Zahlenden hinlegen – gegenüber genau den Personen, die sie hier
-    # sehen (Admin). Maskiert wird, was der Empfänger nicht sehen **soll**; hier war es
-    # das, was er sehen **muss**, um zu prüfen, ob es stimmt.
+    # ►►► **Die eigene IBAN steht ausgeschrieben da** ◄◄◄ – sie steht auf jeder Rechnung und
+    # im QR-Code; der Admin muss sie prüfen können.
     iban: Optional[str] = None
     email: str
     phone: Optional[str]
-    # **Abgeleitet, nicht gepflegt** (Testnotiz #309): die Adresse, unter der diese
-    # Installation läuft (``FRONTEND_BASE_URL``). Sie steht im Impressum und auf dem
-    # Beleg-Briefkopf – und wäre als Eingabefeld eine zweite Wahrheit neben dem Deployment.
+    # **Abgeleitet, nicht gepflegt**: die Adresse dieser Installation (``FRONTEND_BASE_URL``).
     website: str = ""
     #: Wer zu dieser Firma gehört – abgeleitet aus der Zuordnung an der Person.
     people: list[CompanyPerson] = []
@@ -244,8 +233,7 @@ class UserProfileResponse(BaseModel):
     phone: Optional[str]
 
     #: ►►► **Das Adressbuch** – beliebig viele Anschriften, je eine Standard-Liefer- und
-    #: Standard-Rechnungsadresse (``services/address_book``). Die festen Felder
-    #: ``address_*``/``invoice_*`` sind darin aufgegangen.
+    #: Standard-Rechnungsadresse (``services/address_book``).
     addresses: list[AddressOut] = []
 
     # Personal extras
@@ -278,11 +266,9 @@ class UserProfileUpdate(BaseModel):
     phone: Optional[str] = None
 
     # ─── Firma ─────────────────────────────────────────────────────────────────
-    #: ►►► **Die Firma ist ein Datensatz** (CRM Schritt 1). ◄◄◄ Gewählt wird sie
-    #: (``company_object_id``, ``None`` = Privatperson) oder genannt (``new_company`` –
-    #: dann wird sie gefunden, wenn sie eindeutig dieselbe ist, sonst angelegt). Ihre
-    #: **Angaben** ändert man an ihrem Datensatz, nicht hier: sonst änderte jeder Kunde
-    #: die Firmendaten seiner Kollegen.
+    #: ►►► **Die Firma ist ein Datensatz.** ◄◄◄ Gewählt (``company_object_id``, ``None`` =
+    #: Privatperson) oder genannt (``new_company`` → ``sites.resolve``). Ihre Angaben ändert
+    #: man an ihrem Datensatz, nicht hier.
     company_object_id: Optional[int] = None
     new_company: Optional[NewCompany] = None
 
@@ -291,12 +277,10 @@ class UserProfileUpdate(BaseModel):
     notification_inapp: Optional[bool] = None
 
 
-# Gültige Rollen – EINE Quelle der Wahrheit (``PATCH /erp/records/{id}``,
-# ``POST /erp/records``).
+# Gültige Rollen – EINE Quelle (``PATCH /erp/records/{id}``, ``POST /erp/records``).
 #
-# ►►► **Die Rolle ist der ZUGANG, nichts weiter** (Testnotiz #1043). ◄◄◄ Lieferant ↔
-# Kunde ist eine Aussage über **Vorgänge**, nicht über die Person. Jedes Tor im Haus fragt
-# ``people.STAFF_ROLES``.
+# ►►► **Die Rolle ist der ZUGANG, nichts weiter.** ◄◄◄ Lieferant ↔ Kunde ist eine Aussage
+# über Vorgänge. Jedes Tor fragt ``people.STAFF_ROLES``.
 Role = Literal["admin", "employee", "user"]
 
 
@@ -309,9 +293,7 @@ class ErpAdminUpdate(UserProfileUpdate):
     Bankverbindung nur ANZEIGEN, editieren konnte sie allein die Person in ihrem
     Konto. Damit lag die Wahrheit ausserhalb des ERP, also genau verkehrt herum.
     Durch die Vererbung kann die Liste auch nicht mehr auseinanderlaufen."""
-    # FIX: ``role`` war hier ein freier String (anders als beim Rollen-Endpoint) – ein
-    # Tippfehler wie "empoyee" hätte den Benutzer still aus allen Staff-Endpunkten
-    # ausgesperrt (Rollen werden exakt verglichen). Jetzt dieselbe Literal-Whitelist.
+    # Dieselbe Literal-Whitelist wie beim Anlegen – Rollen werden exakt verglichen.
     role: Optional[Role] = None
 
 

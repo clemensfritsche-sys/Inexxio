@@ -12,22 +12,9 @@ from .base import TimestampMixin
 class Article(Base, TimestampMixin):
     """Stammdaten-Datensatz für einen Artikel (Phase 2 – Produktion).
 
-    **«Ausser Betrieb» ist keine eigene Angabe** (Testnotiz #773). Ein Artikel wird nicht
-    versioniert, er wird **ersetzt** – und wer abgelöst ist, erzeugt nichts Neues mehr.
-    Das ist keine zweite Wirkung des Ersetzens, sondern seine Bedeutung; also gibt es
-    dafür auch keine zweite Spalte, keinen Schalter und keinen Endpunkt. Der Zustand ist
-    die **Projektion** von ``replaced_by_id`` (siehe ``status``).
-
-    *Vorher stand er als Spalte daneben, und das war genau die Falle, aus der schon
-    einmal ein Fehler kam:* zwei Angaben über dieselbe Sache, von denen die eine gesetzt
-    wurde und die andere gelesen – und sie konnten auseinanderlaufen, ohne dass es jemand
-    merkte (ein von Hand inaktiv gesetzter Artikel ohne Nachfolger war für immer
-    stillgelegt, denn den Weg zurück gab es nur über denselben Schalter).
-
-    **``is_active`` ist etwas anderes** und bleibt: der **Soft-Delete** («den Datensatz
-    gibt es nicht»). Er wird im Prozessbereich nirgends gesetzt und ist von aussen nicht
-    setzbar – zwei Achsen, die beide «aktiv» heissen, waren einmal die Ursache dafür,
-    dass eine Freigabe-Prüfung gar nichts abweisen konnte.
+    **«Ausser Betrieb» ist keine eigene Angabe.** Ein Artikel wird nicht versioniert, er
+    wird **ersetzt**; der Zustand ist die Projektion von ``replaced_by_id`` (``status``).
+    **``is_active``** ist eine andere Achse: der Soft-Delete, im Prozessbereich nie gesetzt.
     """
 
     __tablename__ = "articles"
@@ -37,15 +24,12 @@ class Article(Base, TimestampMixin):
         BigInteger, unique=True, nullable=True
     )
 
-    # **Kein ``status``-Mapping** (Testnotiz #773): der Zustand fällt aus
-    # ``replaced_by_id`` heraus – siehe die Eigenschaft ``status`` unten. Die Spalte steht
-    # noch in der Datenbank (``NOT NULL`` gelöst, Migration ``121``) bis zu ihrem Drop.
+    # **Kein ``status``-Mapping**: der Zustand folgt aus ``replaced_by_id`` (``status``).
+    # Die Spalte steht noch in der Datenbank bis zu ihrem Drop.
 
 
-    # Stammdaten. Pflicht ist einzig der **Name**; Einheit/Serialisierung tragen einen
-    # Default (Stk / unit), Grösse & Gewicht sind optional (physische Attribute, die z. B.
-    # ein Dokument-Artikel nicht braucht). Es gibt KEINE Typ-Unterscheidung physisch/nicht-
-    # physisch mehr: ob ein Dokument entsteht, entscheidet allein der Prozessschritt «document».
+    # Stammdaten. Pflicht ist nur der **Name**; Einheit/Serialisierung haben einen Default,
+    # Grösse und Gewicht sind optional.
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     unit: Mapped[str] = mapped_column(String(10), default="Stk", server_default="Stk", nullable=False)  # Stk | m | kg | l
     serialization: Mapped[str] = mapped_column(String(20), default="unit", server_default="unit", nullable=False)  # unit | batch
@@ -59,21 +43,14 @@ class Article(Base, TimestampMixin):
     min_order_qty: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # MOQ
     safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand
     supplier_article_number: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Lieferanten-Artikelnummer
-    # ►►► **Zoll: was die Ware IST, und woher sie kommt** (Arbeitsauftrag §3.1). ◄◄◄
-    #
-    # Beides ist eine Eigenschaft der **Sache**, nicht des Belegs – darum steht es hier
-    # und reist über die Spezifikation von selbst auf jede Offerte und jede Rechnung.
-    #
-    # **Der HS-Code ist weltweit einheitlich – in seinen ersten sechs Stellen.** Das
-    # Harmonisierte System ist ein Abkommen der Weltzollorganisation; rund 200 Länder
-    # wenden es an. Darüber hinaus ist es national (EU 8/10 Stellen, CH 8, US 10) – also
-    # speichern wir 6 bis 8: das Importland hängt seine eigene Verlängerung ohnehin an.
+    # ►►► **Zoll: was die Ware IST, und woher sie kommt.** ◄◄◄ Eigenschaften der Sache;
+    # sie reisen über die Spezifikation auf jeden Beleg. HS-Code: 6 bis 8 Stellen (die
+    # ersten sechs sind weltweit gleich, das Importland ergänzt).
     hs_code: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
     # **Ursprungsland ist NICHT aus dem HS-Code ableitbar** und auch nicht das
     # Versandland – es ist eine eigene Angabe (ISO-2, wie jedes Land im Haus).
     origin_country: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
-    # Gefahrgut: ein Spezifikationsfeld wie jedes andere – es steht am Artikel, nicht
-    # auf dem Beleg (dort steht nur, was der Empfänger wirklich braucht, #916).
+    # Gefahrgut: ein Spezifikationsfeld wie jedes andere – am Artikel, nicht auf dem Beleg.
     is_hazmat: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     # ►►► **Ware oder Dienstleistung** (Zahlungsmodul): bei Ware folgt der Steuersatz der
     # Lieferadresse (Ausland → Export), bei einer Dienstleistung dem Sitz des Empfängers
@@ -93,13 +70,8 @@ class Article(Base, TimestampMixin):
     def status(self) -> str:
         """►►► **Der fachliche Zustand — ABGELEITET, nicht gespeichert.** ◄◄◄
 
-        ``Freigegeben``, solange dieser Artikel die neueste Fassung ist; ``Inaktiv``,
-        sobald ein Nachfolger ihn abgelöst hat. Das ist die **ganze** Regel: ausser
-        Betrieb geht ein Artikel dadurch, dass ein anderer seinen Platz einnimmt.
-
-        Als Spalte war es die zweite Wahrheit neben ``replaced_by_id`` – und die zweite
-        ist die, die man beim nächsten Schreibpfad vergisst. Als Eigenschaft kann sie
-        gar nicht abweichen; ``articles.may_create`` liest darum die **Tatsache**
-        (``replaced_by_id``) und nicht dieses Wort.
+        ``Freigegeben``, solange dieser Artikel die neueste Fassung ist; ``Inaktiv``, sobald
+        ein Nachfolger ihn abgelöst hat. ``articles.may_create`` liest die Tatsache
+        (``replaced_by_id``), nicht dieses Wort.
         """
         return st.INAKTIV if self.replaced_by_id else st.FREIGEGEBEN

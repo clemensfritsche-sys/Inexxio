@@ -27,19 +27,13 @@ class InstanceUnitResponse(BaseModel):
     suffix: int
     number: str          # <Objektnummer der Instanz>-<suffix>, die sichtbare Identität
     status: str
-    #: In welchem Auftrag läuft dieses Stück gerade? ``None`` = in keinem. Das ist
-    #: dieselbe Aussage wie ``status == im_prozess``, nur brauchbar: sie sagt **wo**.
+    #: In welchem Auftrag läuft dieses Stück gerade? ``None`` = in keinem.
     order_object_id: Optional[int] = None
     #: **Wie viele Teile stecken darin?** Nur die Zahl – die Liste kommt auf Klick
-    #: (``GET …/units/{suffix}/genealogy``). Sie steht hier, damit die Zeile weiss, ob es
-    #: überhaupt etwas aufzuklappen gibt; ein Pfeil an jeder von 5000 Zeilen, hinter dem
-    #: nichts liegt, ist ein Versprechen, das die Liste nicht halten kann.
+    #: (``GET …/units/{suffix}/genealogy``).
     parts_count: int = 0
-    #: **Wo dieses Stück liegt** – unmittelbarer Halter plus die Kette darüber
-    #: (``services/places``). ``None`` heisst **standortlos**, und das ist ein regulärer
-    #: Zustand: ein frisch erzeugtes Stück liegt nirgends, bis ein Modul es irgendwohin
-    #: bringt. Aufgelöst wird die Kette je **Halter**, nicht je Stück – 60 Schrauben in
-    #: einem Regal sind eine Kette, nicht sechzig.
+    #: **Wo dieses Stück liegt** – Halter plus Kette (``services/places``). ``None`` heisst
+    #: standortlos, ein regulärer Zustand.
     place: Optional[UnitPlace] = None
     created_at: datetime
 
@@ -139,8 +133,7 @@ class GenealogyPart(BaseModel):
     status: str
     article_name: Optional[str] = None
     article_object_id: Optional[int] = None
-    #: In welchem Auftrag wurde es verbaut. Er steht immer dabei: die Zuordnung läuft
-    #: über ihn, und bei mehreren Erzeugnissen je Auftrag ist er die genauere Aussage.
+    #: In welchem Auftrag wurde es verbaut (die genauere Aussage bei mehreren Erzeugnissen).
     order_object_id: Optional[int] = None
     still_in: bool = True
 

@@ -56,12 +56,9 @@ class DefinitionLine(BaseModel):
     quantity: int = Field(ge=1)
     origin: str
     units: list[UnitPick] = Field(default_factory=list)
-    #: **Die Rückführung** – kehren Stücke, die aus einem laufenden Auftrag übernommen
-    #: werden, dorthin zurück (Abweichungsauftrag §3.3/§3.4)? Gespeichert wird sie an der
-    #: **Verbindung** (``order_units.return_to_order_id``), nicht am Auftrag; darum
-    #: funktionieren Schachtelung und Parallelität ohne Zusatzregel.
-    #:
-    #: Für freie Stücke bedeutungslos: sie kommen aus keinem Auftrag.
+    #: **Die Rückführung** – kehren übernommene Stücke in ihren Auftrag zurück (§3.3/§3.4)?
+    #: Gespeichert an der Verbindung (``order_units.return_to_order_id``); für freie Stücke
+    #: bedeutungslos.
     returns: bool = True
 
 
@@ -87,18 +84,15 @@ class OrderCreate(BaseModel):
     """Der Entwurf, so wie ihn die Oberfläche schickt."""
 
     lines: list[DefinitionLine] = Field(default_factory=list)
-    #: Der modellierte Prozess. Ein Auftrag mit einer ``Neu``-Zeile **ignoriert** ihn:
-    #: sein Prozess ist die Vorlage des Artikels, als Kopie. Etwas anderes zu schicken
-    #: änderte daran nichts.
+    #: Der modellierte Prozess; ein Auftrag mit einer ``Neu``-Zeile ignoriert ihn (sein
+    #: Prozess ist die Vorlage des Artikels, als Kopie).
     steps: list[ModuleInput] = Field(default_factory=list)
     #: **Die Schlaufe** – nur im Entwurf; mit der Freigabe eingefroren (Wiederkehr).
     loop: Optional[LoopIn] = None
 
 
-#: Die Marke, unter der ein Entwurf im Bild seines künftigen Nachbarn steht. Er hat noch
-#: keine Objektnummer (§6.1) – und soll auch keine bekommen, nur um gezeichnet zu werden.
-#: Null ist keine gültige Objektnummer (der Kreis beginnt bei 100'000'001), kollidiert
-#: also mit nichts.
+#: Die Marke, unter der ein Entwurf im Bild seines künftigen Nachbarn steht – er hat noch
+#: keine Objektnummer (§6.1); 0 kollidiert mit keiner.
 DRAFT_OBJECT_ID = 0
 
 
@@ -135,35 +129,22 @@ class ProcessStepResponse(ModuleFacts):
     status_after: str
     #: Was der Modultyp braucht – bei der Datenerfassung die Erfassungspunkte.
     config: Optional[dict] = None
-    #: **Worauf dieses Modul wartet** – Objektnummern der Abweichungen, deren Rückführung
-    #: aussteht. Nicht leer heisst: gesperrt. Die Sperre wird serverseitig durchgesetzt
-    #: (``process.confirm_step``); diese Liste ist die **Begründung** für die Oberfläche,
-    #: nicht ihre Regel. Abgeleitet, nicht gespeichert (``order_state.pending_returns``).
+    #: **Worauf dieses Modul wartet** – Abweichungen mit ausstehender Rückführung; nicht leer
+    #: heisst gesperrt. Die Begründung für die Oberfläche; durchgesetzt in
+    #: ``process.confirm_step``, abgeleitet aus ``order_state.pending_returns``.
     waiting_for: list[int] = Field(default_factory=list)
-    #: **Die Arbeitsliste dieses Moduls** – eine Zeile je wartender Instanz
-    #: (``order_state.step_work``). Ein Vorgang ist eine Instanz, weil der Scan eine Instanz
-    #: verifiziert; die Liste ist damit zugleich die Liste der zu scannenden Dinge.
+    #: **Die Arbeitsliste** – eine Zeile je wartender Instanz (``order_state.step_work``),
+    #: zugleich die Liste der zu scannenden Dinge.
     work: list["StepWork"] = Field(default_factory=list)
-    #: **Was dieses Modul verbraucht** – die Stückliste, gegen den Bestand gehalten
-    #: (``services/consumption``). Leer bei jedem Modul ohne Stückliste; die Oberfläche
-    #: braucht damit keine Fallunterscheidung nach dem Modultyp.
+    #: **Was dieses Modul verbraucht** (``services/consumption``); leer ohne Stückliste.
     needs: list["StepNeed"] = Field(default_factory=list)
-    #: **Wohin dieses Modul bringt** – das Ziel aus der Definition, aufgelöst auf seinen
-    #: Namen (``services/places``). ``None`` heisst bei einem Bewegungsmodul *nicht*
-    #: «vergessen», sondern «wird beim Ausführen gewählt» – die Oberfläche muss die
-    #: beiden Fälle auseinanderhalten, sonst sieht ein offenes Ziel aus wie ein Fehler.
-    #: Bei jedem anderen Modultyp schlicht leer.
+    #: **Wohin dieses Modul bringt** – aufgelöst auf den Namen (``services/places``). ``None``
+    #: heisst beim Bewegen «wird beim Ausführen gewählt», nicht «vergessen».
     target: Optional[PlaceRef] = None
-    #: ►►► **Der Beleg** (``services/voucher``) – der Geldvorgang des Moduls «Zahlung».
-    #: ``None`` bei jedem anderen Modultyp. Er hat seine **eigene** Maschine – darum lässt
-    #: sich ein Modul löschen, ohne dass hier eine fremde Zeile fällt.
+    #: ►►► **Der Beleg** (``services/voucher``) – nur beim Modul «Zahlung», sonst ``None``.
     voucher: Optional[VoucherEmbed] = None
-    #: ►►► **Warum lässt sich dieses Modul JETZT nicht abschliessen?** (#945) ◄◄◄
-    #:
-    #: ``None`` heisst «nichts steht im Weg». Der Satz kommt aus derselben Regel, die
-    #: ``confirm_step`` durchsetzt (``process.completion_problem``) – die Auskunfts-Form,
-    #: nicht eine zweite Bedingung: der Knopf «Vorgang abschliessen» gehört an **jedes**
-    #: Modul, aber angeboten werden darf er erst, wenn er etwas tun kann.
+    #: ►►► **Warum lässt sich dieses Modul JETZT nicht abschliessen?** ◄◄◄ ``None`` = nichts
+    #: im Weg. Auskunfts-Form von ``process.completion_problem`` (Regel in ``confirm_step``).
     blocked: Optional[str] = None
 
     @computed_field  # type: ignore[prop-decorator]
@@ -269,7 +250,7 @@ class StepWork(BaseModel):
     waiting: int
     #: Davon **gezogen** – nur diese werden erfasst (``domain/sampling``).
     sample: int
-    #: Die übrigen: sie laufen ohne Erfassung durch. Sichtbar, nicht stillschweigend.
+    #: Die übrigen: sie laufen ohne Erfassung durch.
     rest: int
     #: Hat die letzte Erfassung **nicht bestanden**? Dann rückt hier nichts vor (§4).
     held: bool = False
@@ -281,11 +262,10 @@ class NeedSource(BaseModel):
 
     instance_object_id: int
     free: int
-    #: **Davon am Arbeitsort.** Die Oberfläche kann «am Ort» nicht selbst ausrechnen –
-    #: es ist eine Aussage über die Kette. Ohne Ortsanforderung gleich ``free``.
+    #: **Davon am Arbeitsort** (eine Aussage über die Halter-Kette); ohne Ortsanforderung
+    #: gleich ``free``.
     here: int = 0
-    #: **Wo diese Kiste liegt.** Die Antwort auf «warum sind sie nicht hier» – eine Zahl
-    #: ohne den Ort daneben nennt das Problem und verschweigt seine Ursache.
+    #: **Wo diese Kiste liegt** – die Ursache, wenn sie nicht hier ist.
     place: Optional[PlaceRef] = None
 
 
@@ -314,13 +294,10 @@ class StepNeed(BaseModel):
     required: int
     #: Frei – **egal wo**.
     available: int
-    #: Davon **am Arbeitsort**. Ohne Ortsanforderung (``place is None``) gleich
-    #: ``available``; darunter heisst: es ist da, nur nicht hier.
+    #: Davon **am Arbeitsort**; ohne Ortsanforderung gleich ``available``.
     here: int = 0
-    #: **Wo das Material liegen muss** – der Ort des Produkts, abgeleitet und nicht
-    #: konfiguriert (``consumption.required_place``). ``None`` heisst: dieses Modul
-    #: verlangt keinen Ort – weil sein Typ keinen kennt, oder weil die Produkte nirgends
-    #: bzw. an verschiedenen Orten liegen. Wo nichts steht, wird nichts verlangt.
+    #: **Wo das Material liegen muss** – der Ort des Produkts, abgeleitet
+    #: (``consumption.required_place``). ``None``: kein Ort verlangt.
     place: Optional[PlaceRef] = None
     #: Woher genommen werden kann – die Kisten, die der Lagerist scannt.
     sources: list[NeedSource] = Field(default_factory=list)
@@ -347,10 +324,7 @@ class OrderUnitResponse(BaseModel):
     status: str
     current_step_id: Optional[int] = None
     active: bool
-    #: **Wann dieses Stück das Start-Objekt passiert hat** (Testnotiz #689). Aus dem
-    #: Ereignis-Log, nicht aus einer neuen Spalte: der Start ist ein Ereignis wie jedes
-    #: andere, und sein Zeitstempel steht dort bereits. Ein Feld daneben wäre eine Kopie,
-    #: die beim ersten Nacherfassen auseinanderläuft.
+    #: **Wann dieses Stück das Start-Objekt passiert hat** – aus dem Ereignis-Log.
     started_at: Optional[datetime] = None
 
 
@@ -482,11 +456,8 @@ class RelatedOrder(BaseModel):
     name: str
     status: str
     steps: list[ProcessStepResponse] = Field(default_factory=list)
-    #: **Sein** Graph – dieselbe Form wie in der Mitte, mit derselben Komponente
-    #: gezeichnet. Darin stehen auch die Kanten zu *diesem* Auftrag: ein übergeordneter
-    #: Auftrag trägt seine ``out``-Kante zu uns, wir tragen unsere zu den Abweichungen.
-    #: Beide Richtungen stammen damit aus dem Log dessen, bei dem sie passiert sind –
-    #: es gibt keine zweite Ableitung für die Gegenrichtung.
+    #: **Sein** Graph – dieselbe Form wie in der Mitte. Beide Richtungen der Kanten stammen
+    #: aus dem Log des Auftrags, bei dem sie passiert sind.
     flow: FlowGraph = Field(default_factory=FlowGraph)
     active_step_id: Optional[int] = None
     #: Wie viele Stücke dieses Auftrags stammen aus bzw. gehen an den gezeigten Auftrag.
@@ -541,28 +512,22 @@ class OrderResponse(BaseModel):
     object_id: int
     #: «Auftrag <Objektnummer>», bei der Freigabe gesetzt.
     name: str
-    #: **Abgeleitet** aus dem Zustand der Einzelinstanzen (``order_state.order_status``) –
-    #: es gibt keine Spalte dafür. Drei Werte: Im Prozess · Abgeschlossen · Abgebrochen.
+    #: **Abgeleitet** (``order_state.order_status``): Im Prozess · Abgeschlossen · Abgebrochen.
     status: str
     created_at: datetime
     updated_at: datetime
 
     lines: list[OrderLineResponse] = Field(default_factory=list)
     steps: list[ProcessStepResponse] = Field(default_factory=list)
-    #: **Das Bild** – Knoten, Kanten, Positionen (``services/flow``). Wo Linien verlaufen
-    #: und wie weit sie kräftig sind, ist Prozesslogik und gehört hierher, nicht in die
+    #: **Das Bild** – Knoten, Kanten, Positionen (``services/flow``); Prozesslogik, nicht
     #: Oberfläche.
     flow: FlowGraph = Field(default_factory=FlowGraph)
     events: list[ProcessEventResponse] = Field(default_factory=list)
-    #: Wie viele Einträge der Log **insgesamt** hat. Ist er länger als ``events``, sagt
-    #: die Oberfläche das – ein stumm gekappte Liste sähe aus wie die ganze Wahrheit.
+    #: Wie viele Einträge der Log **insgesamt** hat (``events`` ist gekappt).
     event_count: int = 0
 
-    #: **Die Journey** (Testnotiz-Auftrag Teil A) – woher die Stücke dieses Auftrags
-    #: kamen und wohin sie gingen. Beides **abgeleitet** aus dem Ereignis-Log
-    #: (``services/journey``), nicht gepflegt: Zeiger-Felder liefen irgendwann
-    #: auseinander, und dann wäre die Journey für genau das unbrauchbar, was sie
-    #: beweisen soll. Leer heisst «keiner» – kein Platzhalter, nichts erfunden.
+    #: **Die Journey** – woher die Stücke kamen und wohin sie gingen, abgeleitet aus dem
+    #: Log (``services/journey``). Leer heisst «keiner».
     journey_in: list[JourneyNeighbour] = Field(default_factory=list)
     journey_out: list[JourneyNeighbour] = Field(default_factory=list)
     #: Welches Modul ist jetzt dran – **abgeleitet**, nicht gespeichert.
@@ -570,17 +535,14 @@ class OrderResponse(BaseModel):
 
     # ── Struktur: übergeordnete Aufträge ↔ Abweichungen ──────────────────────
     #
-    # **«Abweichung» ist eine Auskunft, kein Feld** (§2): sie ergibt sich aus dem Log –
-    # der Start-Eintrag dieses Auftrags trägt ``status_before = im_prozess``, das Stück
-    # kam also aus einem laufenden Auftrag. Es gibt keinen Auftragstyp und keine Spalte.
+    # «Abweichung» ist eine Auskunft aus dem Log (§2), kein Feld und kein Auftragstyp.
     is_deviation: bool = False
     #: **Die Schlaufe** (Wiederkehr) – ``None``, wenn sich der Auftrag nicht wiederholt.
     loop: Optional[LoopView] = None
     #: Links: die Aufträge, aus denen dieser hier Stücke übernommen hat.
     parents: list[RelatedOrder] = Field(default_factory=list)
-    #: Rechts: die Aufträge, die diesem hier Stücke abgenommen haben. **Gekappt bei
-    #: ``RELATED_LIMIT``** – bei vielen Abweichungen wäre die Antwort sonst so gross wie
-    #: die Summe aller Abläufe. ``deviation_total`` nennt die wahre Zahl.
+    #: Rechts: die Aufträge, die diesem hier Stücke abgenommen haben – gekappt bei
+    #: ``RELATED_LIMIT``, die wahre Zahl in ``deviation_total``.
     deviations: list[RelatedOrder] = Field(default_factory=list)
     deviation_total: int = 0
 
@@ -623,10 +585,7 @@ class ArticleOption(BaseModel):
     serialization: str
     unit: str
     template_steps: int
-    #: **Warum «Neu» hier nicht geht** – oder ``None``. Der Satz kommt aus derselben
-    #: Regel, die die Freigabe abweist (``articles.may_create``); die Oberfläche
-    #: formuliert ihn nicht selbst. Zwei Formulierungen wären zwei Massstäbe, und der
-    #: mildere stünde an dem Knopf, der beim Klick scheitert.
+    #: **Warum «Neu» hier nicht geht** – oder ``None``; der Satz aus ``articles.may_create``.
     create_problem: Optional[str] = None
 
 
@@ -681,7 +640,6 @@ class UnitChoices(BaseModel):
     units: list[UnitOption] = Field(default_factory=list)
     total: int = 0
     states: list[StockState] = Field(default_factory=list)
-    #: Die Nummern der FIFO-Vorauswahl – älteste zuerst, nur was **im Regal liegt** und
-    #: in keinem laufenden Auftrag steckt. Ein gebundenes Stück zu nehmen ist eine
-    #: Entscheidung (daraus wird eine Abweichung) und darf nie die Voreinstellung sein.
+    #: Die Nummern der FIFO-Vorauswahl – älteste zuerst, nur was **im Regal liegt** und in
+    #: keinem laufenden Auftrag steckt (ein gebundenes Stück ist nie die Voreinstellung).
     preselect: list[str] = Field(default_factory=list)

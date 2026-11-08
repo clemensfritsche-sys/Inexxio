@@ -10,9 +10,9 @@ steht nur, was die Schlaufe ausmacht. Gespeichert wird nichts als **drei Ereigni
 | ``loop.next`` | der Nachfolger | ``from`` = der Vorgänger – **je Auftrag höchstens einer** |
 | ``loop.ended`` | der Auftrag | – (nur am neuesten der Kette) |
 
-Je Vorgänger höchstens ein ``loop.next`` sichert ein eindeutiger Index (Migration 173, gebaut
-wie ``ix_log_decided``) – ein zweiter Lauf scheitert an der Datenbank, nicht an einer Prüfung.
-Alles andere ist abgeleitet: läuft, fällig, wartet, geht nicht mehr, beendet, weiter in …
+Je Vorgänger höchstens ein ``loop.next`` sichert ein eindeutiger Index – ein zweiter Lauf
+scheitert an der Datenbank. Alles andere ist abgeleitet: läuft, fällig, wartet, geht nicht
+mehr, beendet, weiter in …
 
 **Zwei Formen einer Regel**: ``problem`` sagt, warum der Nachfolger gerade nicht entsteht (der
 Satz für Karte und «zu tun»); ``create_next`` fragt dieselbe Funktion, bevor es anlegt.
@@ -102,9 +102,8 @@ def freeze(db: Session, order: Order, draft: dict[str, Any],
            actor: Optional[UserProfile]) -> None:
     """►► **Mit der Freigabe einfrieren** – in derselben Transaktion wie der Auftrag. ◄◄
 
-    Geprüft ist die Schlaufe schon **vor** der Freigabe (``orders.create_order`` →
-    ``draft_problems``); jetzt stecken die Stücke im neuen Auftrag selbst, eine zweite Prüfung
-    hielte sie für «belegt». ``clean`` wirft trotzdem, falls die Einstellung unlesbar ist."""
+    Geprüft ist schon vor der Freigabe (``draft_problems``); jetzt stecken die Stücke im
+    Auftrag selbst. ``clean`` wirft, falls die Einstellung unlesbar ist."""
     raw = draft.get("loop")
     if not raw:
         return
@@ -301,12 +300,10 @@ def end(db: Session, order: Order) -> None:
 def _carry_agreement(db: Session, prev: Order, new: Order) -> None:
     """►► **Offerte → Zusage, durch das System – gestützt auf die Zusage zur Schlaufe.** ◄◄
 
-    Je Zahlungsmodul (gleiche Stelle im Prozess): hat die Partei beim Vorgänger zugesagt und
-    sind **alle** Preise vom Modul vorgegeben, führt das System ``ask`` und ``agree`` aus –
-    dieselben Verben wie ein Mensch, die Offerte entsteht als Dokument, hinaus geht nichts
-    (``voucher_docs.quietly``). Fehlt etwas, bleibt der Beleg bei der Offerte stehen, und ein
-    Mensch macht weiter (O1, O21). Jeder Schritt steht im Log, dazu ``loop.agreed`` mit der
-    ursprünglichen Zusage."""
+    Je Zahlungsmodul: hat die Partei beim Vorgänger zugesagt und sind **alle** Preise vom
+    Modul vorgegeben, führt das System ``ask`` und ``agree`` aus (dieselben Verben, nichts
+    geht hinaus, ``voucher_docs.quietly``); sonst bleibt der Beleg bei der Offerte stehen
+    (O1, O21). Dazu ``loop.agreed`` mit der ursprünglichen Zusage."""
     from ..domain import voucher as vo
     from . import voucher as vs, voucher_actions, voucher_docs, voucher_head
     before = {s.position: s for s in db.query(ProcessStep).filter(

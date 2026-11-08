@@ -1,26 +1,17 @@
 """►►► **Das KI-Tor – die einzige Stelle, die die KI aufruft.** ◄◄◄
 
-1. **Zugriff:** Jeder Aufruf nennt den Akteur, in dessen Namen er läuft (Log, Kosten). Was die
-   KI zu sehen bekommt, ist über ``services/access`` gefiltert – **mit den Rechten, die jedes
-   Personal hat** (``ai_tools.reader``): nie mehr als die Person, nie Privates. Ihr Ergebnis
-   (Vorschlag, Hinweis) sehen alle vom Personal.
+1. **Zugriff:** jeder Aufruf nennt den Akteur (Log, Kosten); die KI sieht nur, was jedes
+   Personal sehen darf (``services/access``, ``ai_tools.reader``) – nie Privates.
 2. **Aufgabe und Modell** stehen in EINER Tabelle (``TASKS``).
-3. **Feste Antwortform:** jede Aufgabe hat ein Pydantic-Schema; die Antwort wird dagegen
-   geprüft (structured outputs). Was nicht passt, gilt als Ausfall.
-4. **Die KI schreibt nie selbst.** Sie liefert Vorschläge; geschrieben wird über die
-   Fachdienste, nach dem Klick eines Menschen.
-5. **Deckel und Log:** jeder Aufruf ist ein Ereignis ``ai.call`` im Log (Handelnder ``ai`` im
-   Namen der Person) mit Aufgabe, Modell, Tokens und **Kosten in Franken** (``chf``); der
-   Tagesdeckel (``AI_DAILY_CAP_CHF``) zählt genau diese.
-6. **Lesen mit Werkzeugen** (``converse``): die KI schlägt im ERP nach – über die
-   Lese-Werkzeuge in ``services/ai_tools``, mit den Rechten jedes Personals. Auch Bedeutungs-Zahlen
-   (``embed``) und das Abschreiben von Gesprochenem (``transcribe``, Phase 4) – beide Vertex AI,
-   über EINE Stelle ``_vertex`` – gehen durch diese Tür.
+3. **Feste Antwortform:** je Aufgabe ein Pydantic-Schema; was nicht passt, gilt als Ausfall.
+4. **Die KI schreibt nie selbst** – sie schlägt vor, ein Mensch entscheidet.
+5. **Deckel und Log:** jeder Aufruf ist ein ``ai.call`` (Handelnder ``ai`` im Namen der
+   Person) mit Kosten in Franken (``chf``); der Tagesdeckel (``AI_DAILY_CAP_CHF``) zählt diese.
+6. **Lesen mit Werkzeugen** (``converse``, ``services/ai_tools``); Bedeutungs-Zahlen
+   (``embed``) und Abschreiben (``transcribe``) über Vertex AI, EINE Stelle ``_vertex``.
 
-**Ohne Schlüssel, am Deckel oder bei einem Fehler gibt es keinen Vorschlag – sonst nichts.**
-Alles geht auch ohne KI: Art und Name tippt der Mensch, gesucht wird in der Datenbank.
-**Warum es keinen gab, sagt** ``problem()`` in einem Satz (Schlüssel abgelehnt, Guthaben leer,
-Deckel …) – die Oberfläche zeigt ihn, damit ein Ausfall nie stumm bleibt.
+Ohne Schlüssel, am Deckel oder bei einem Fehler gibt es keinen Vorschlag – sonst geht alles
+auch ohne KI. Warum, sagt ``problem()`` in einem Satz; ein Ausfall bleibt nie stumm.
 """
 
 from __future__ import annotations
@@ -55,10 +46,9 @@ _UNTIL: ContextVar[Optional[float]] = ContextVar("ai_until", default=None)
 
 class until:
     """►► **Eine Zeitgrenze für alles, was in einem Ablauf an die KI geht** – ``with
-    ai.until(seconds):``. Eine Anfrage über Firebase Hosting bricht nach 60 s ab, ein Lauf des
-    Takts ebenso (Cloud Scheduler); jeder Aufruf darin (Ablegen, Bedeutungs-Zahlen, Folgen)
-    bekommt nur noch die Zeit, die bleibt – und **wiederholt nichts selbst** (``_retries``):
-    ein zweiter Versuch im SDK bräche die Grenze; wiederholen ist Sache des Takts. ◄◄"""
+    ai.until(seconds):``. Anfrage über Firebase Hosting und Takt brechen nach 60 s ab; jeder
+    Aufruf bekommt nur die Zeit, die bleibt, und **wiederholt nichts selbst** (``_retries``) –
+    wiederholen ist Sache des Takts. ◄◄"""
 
     def __init__(self, seconds: float):
         self.at = _time.monotonic() + seconds
@@ -126,28 +116,20 @@ class Task:
     effort: Optional[str] = None
 
 
-#: ►►► **Die Aufgaben – und welches Modell sie macht.** ◄◄◄ Lesen ist Masse (jede Datei),
-#: also das schnelle, günstige Modell; Verfassen schreibt ein Papier von ein paar Seiten –
-#: das mittlere Modell reicht dafür, das grösste kostete ein Vielfaches für denselben Brief.
-#: Ablegen, Folgen und Hinweise brauchen Urteil (wohin gehört das, was folgt daraus) – das
-#: mittlere Modell, mit wenig Nachdenken, damit es schnell bleibt.
-#: **Jede Anfrage läuft über Firebase Hosting, und das bricht nach 60 s ab** – was im Weg einer
-#: Anfrage läuft (lesen, verfassen, ablegen, Hinweise), bleibt darunter und versucht es nicht
-#: ein zweites Mal; der Takt (``follow``) ebenso – auch er hat nur 60 s.
+#: ►►► **Die Aufgaben – und welches Modell sie macht.** ◄◄◄ Lesen ist Masse: das schnelle,
+#: günstige Modell. Verfassen, Ablegen, Folgen und Hinweise: das mittlere Modell. Was im Weg
+#: einer Anfrage oder des Takts läuft, bleibt unter 60 s und versucht es nicht zweimal.
 TASKS: dict[str, Task] = {
-    # Lesen muss unter der Grenze von Firebase Hosting bleiben (60 s je Anfrage) – sonst bricht
-    # der Weg ab, bevor die Antwort kommt: 50 s, kein zweiter Versuch, eine kurze Antwort.
+    # Unter der Grenze des Hostings: 50 s, kein zweiter Versuch, eine kurze Antwort.
     "read": Task(model="claude-haiku-5-5", max_tokens=6000, timeout=50.0, retries=0),
-    # Ein Papier von zwei, drei Seiten – ebenfalls unter den 60 s des Hostings.
+    # Ein Papier von zwei, drei Seiten – ebenfalls unter den 60 s.
     "compose": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=55.0, retries=0),
-    # Ein Zug im Gespräch: nachschlagen, vorbereiten (jeder Handgriff mit Probelauf), antworten.
-    # Live gestreamt direkt am Dienst (``talk.stream``), nicht durch das Hosting: begrenzt durch
-    # die Schritte, den Deckel und «Stopp» – die Uhr ist nur das äussere Netz (Cloud Run 300 s).
-    # Im Takt hält ``until`` ihn kürzer.
+    # Ein Zug im Gespräch, live direkt am Dienst (``talk.stream``): begrenzt durch Schritte,
+    # Deckel und «Stopp»; die Uhr ist das äussere Netz (Cloud Run 300 s), im Takt ``until``.
     "talk": Task(model="claude-sonnet-5-5", max_tokens=6000, timeout=240.0, retries=0,
                  rounds=10, effort="low"),
-    # Was aus einer eingehenden Mail folgt – im Takt, der selbst nach 60 s abbricht: 45 s, kein
-    # zweiter Versuch (ein Fehlschlag kommt im nächsten Takt wieder, ``follow.TRIES``).
+    # Was aus einer eingehenden Mail folgt – im Takt: 45 s, kein zweiter Versuch
+    # (``follow.TRIES``).
     "follow": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=45.0, retries=0,
                    rounds=5, effort="low"),
     # Was an einem Datensatz jetzt wichtig ist (das Wissen im Angehefteten).
@@ -155,16 +137,14 @@ TASKS: dict[str, Task] = {
                 rounds=3, effort="low"),
 }
 
-#: ►►► **Was ein Aufruf kostet** – USD je Million Tokens (Eingabe, Ausgabe), Stand der
-#: Preisliste 11/2026. Haiku 5.5 kostet über 100'000 Eingabe-Tokens je Aufruf das Fünffache
-#: (``LONG_PROMPT``). Ein Modell, das hier fehlt, zählt zum teuersten Preis – lieber zu früh
-#: am Deckel als unbemerkt darüber. ◄◄◄
+#: ►►► **Was ein Aufruf kostet** – USD je Million Tokens (Eingabe, Ausgabe). Haiku über
+#: 100'000 Eingabe-Tokens: das Fünffache (``LONG_PROMPT``). Ein fehlendes Modell zählt zum
+#: teuersten Preis – lieber zu früh am Deckel. ◄◄◄
 PRICES: dict[str, tuple[float, float]] = {
     "claude-haiku-5-5": (0.10, 0.50),
     "claude-sonnet-5-5": (2.00, 10.00),
     "gemini-embedding-001": (0.15, 0.0),
-    # Abschreiben (Phase 4): Audio-Eingabe ist bei Gemini teurer als Text. Preisliste prüfen –
-    # bis dahin bewusst hoch angesetzt (lieber zu früh am Deckel).
+    # Abschreiben: Audio ist bei Gemini teurer als Text – bewusst hoch angesetzt.
     "gemini-3.5-flash": (1.00, 6.00),
 }
 LONG_PROMPT = {"claude-haiku-5-5": (100_000, (0.50, 2.50))}
@@ -428,15 +408,14 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
 #: Das Hilfsmodell für Bedeutungs-Zahlen und ihre Länge (``ai_memory.embedding``).
 EMBED_MODEL = "gemini-embedding-001"
 EMBED_DIMS = 768
-#: ►► **Das Modell, das abschreibt** (Phase 4 · Sprache) – an EINER Stelle. Gemini 2.5 ist auf
-#:    Vertex seit Oktober 2026 abgeschaltet. ◄◄
+#: ►► **Das Modell, das abschreibt** (Phase 4 · Sprache) – an EINER Stelle. ◄◄
 TRANSCRIBE_MODEL = "gemini-3.5-flash"
 #: Der Auftrag zum Abschreiben – wörtlich, eine Datei.
 ABSCHRIFT = (Path(__file__).resolve().parents[1] / "assets" / "ai" / "abschrift.md").read_text("utf-8")
 
 
-#: Nach einer Abweisung (nicht eingerichtet, kein Recht, Modell unbekannt) wird ein Modell eine
-#: Stunde lang nicht mehr gefragt – sonst stünde jeder Takt einen Fehlversuch mehr im Log.
+#: Nach einer Abweisung (nicht eingerichtet, kein Recht, Modell unbekannt) ruht ein Modell
+#: eine Stunde.
 _VERTEX_PAUSE_S = 3600.0
 #: Je Modell: bis wann (``time.monotonic``) es nach einer Abweisung ruht.
 _vertex_paused: dict[str, float] = {}
@@ -445,8 +424,8 @@ _REFUSED: ContextVar[bool] = ContextVar("ai_refused", default=False)
 #: Wurde beim letzten Abschreiben gefragt, und es kam nichts Brauchbares – Zeit überschritten,
 #: 5xx, 429, abgeschnitten (``MAX_TOKENS``)? Ein neuer Versuch kann helfen, aber nicht ewig.
 _FAULTED: ContextVar[bool] = ContextVar("ai_faulted", default=False)
-#: So viele Tokens zählt Gemini je Sekunde Audio – daraus die geschätzten Kosten eines Aufrufs,
-#: dessen Antwort nie kam (die Rechnung kommt trotzdem; der Deckel muss sie sehen).
+#: Tokens je Sekunde Audio – für die geschätzten Kosten eines Aufrufs ohne Antwort (der
+#: Deckel muss sie sehen).
 AUDIO_TOKENS_PER_SECOND = 32
 
 
@@ -617,13 +596,12 @@ def _transcript(data: dict[str, Any]) -> tuple[Optional[str], dict[str, Any]]:
 
 def transcribe(db: Session, raw: bytes, mime: str, *, actor: Optional[UserProfile],
                seconds: float = 0.0) -> Optional[str]:
-    """►►► **Gesprochenes abschreiben** (Phase 4, Gemini über Vertex AI, Region
-    ``VERTEX_GEMINI_REGION`` – leer: ``VERTEX_REGION``) – der Text (leer bei Stille) oder
-    ``None``: ``problem()`` sagt warum, ``refused()`` ob Gemini **den Inhalt** ablehnte (dann
-    hilft kein zweiter Versuch), ``faulted()`` ob gefragt wurde, ohne brauchbare Antwort (Zeit,
-    5xx, 429, abgeschnitten – ein neuer Versuch kann helfen). Durch dieselbe Tür wie jeder
-    Aufruf: Deckel, ``until`` (keine Wiederholung), Pause nach Abweisung, ein ``ai.call`` mit
-    Kosten – kam keine Antwort, mit den **geschätzten** Kosten aus ``seconds`` Audio. ◄◄◄"""
+    """►►► **Gesprochenes abschreiben** (Gemini über Vertex AI, ``VERTEX_GEMINI_REGION``,
+    leer: ``VERTEX_REGION``) – der Text (leer bei Stille) oder ``None``: ``problem()`` sagt
+    warum, ``refused()`` ob Gemini den Inhalt ablehnte (kein zweiter Versuch hilft),
+    ``faulted()`` ob ohne brauchbare Antwort (ein neuer Versuch kann helfen). Dieselbe Tür:
+    Deckel, ``until``, Pause nach Abweisung, ein ``ai.call`` – ohne Antwort mit den aus
+    ``seconds`` geschätzten Kosten. ◄◄◄"""
     _PROBLEM.set("")
     _REFUSED.set(False)
     _FAULTED.set(False)

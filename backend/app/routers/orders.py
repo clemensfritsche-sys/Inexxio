@@ -56,18 +56,11 @@ from ..services.instances import find_units, unit_number, unit_number_matches, u
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
-#: Wie viele Log-Einträge das Detail mitliefert. Bei 5000 Stück hat der Log 10 000
-#: Einträge; alle mitzuschicken machte die Antwort megabytegross, ohne dass jemand sie
-#: liest. Die Gesamtzahl steht daneben (``event_count``) – gekappt, aber nicht verschwiegen.
+#: Wie viele Log-Einträge das Detail mitliefert; die Gesamtzahl steht daneben (``event_count``).
 EVENT_LIMIT = 200
 
-#: Wie viele Abweichungen die Spalte daneben **vollständig** zeigt.
-#:
-#: Sie zeigen ihren echten Ablauf, nicht ein Symbol – bei zwanzig Abweichungen wären das
-#: zwanzig vollständige Prozesse in einer Antwort und in einer Spalte. Gruppieren wäre
-#: hier falsch: zwei Abweichungen sind zwei **verschiedene** Abläufe, eine Gruppe daraus
-#: sagte nichts. Also ehrlich abschneiden und die wahre Zahl daneben nennen
-#: (``deviation_total``) – wer mehr sehen will, öffnet sie einzeln.
+#: Wie viele Abweichungen die Spalte **vollständig** zeigt (je ihr echter Ablauf, nie
+#: gruppiert); die wahre Zahl steht daneben (``deviation_total``).
 RELATED_LIMIT = 3
 
 
@@ -101,13 +94,10 @@ def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
         if drawn:
             out.append(row)
             continue
-        # **Die Arbeitsliste** – je wartender Instanz eine Zeile. Sie steht am Schritt,
-        # weil ein Vorgang eine Instanz ist (Scan-Regel §3): was zu scannen ist, ist
-        # dieselbe Liste wie das, was zu tun ist.
+        # **Die Arbeitsliste** – je wartender Instanz eine Zeile (Scan-Regel §3).
         row.work = [StepWork(**w) for w in order_state.step_work(db, order, s)]
-        # **Was das Modul verbraucht** – gerechnet gegen das, was jetzt davorsteht
-        # (``services/consumption``). Die Zahl entsteht beim Erreichen, also hier und
-        # nicht in der Definition; ein Modul ohne Stückliste liefert eine leere Liste.
+        # **Was das Modul verbraucht** – gerechnet beim Erreichen gegen das, was davorsteht
+        # (``services/consumption``).
         row.needs = [
             StepNeed(
                 article_object_id=n.article_object_id, article_name=n.article_name,
@@ -122,18 +112,14 @@ def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
             for n in consumption_svc.needs(
                 db, s, products=order_state.units_before(db, order, s))
         ]
-        # **Wohin es geht** – aufgelöst, nicht als nackte Zahl. Die Oberfläche zeigt den
-        # Namen des Halters; ihn dort nachzuschlagen wäre eine Abfrage je Schritt.
+        # **Wohin es geht** – aufgelöst zum Namen des Halters.
         row.target = _place_ref(db, (s.config or {}).get("target"))
-        # **Der Beleg** – der Geldvorgang dieses Moduls, ``None`` bei jedem anderen
-        # Modultyp. Eine **Gegenpartei** sieht ihn, aber nur ihre eigene Angebotszeile
-        # und keine Zahl über Forderung und Geld: gefiltert wird beim Aufbau der
-        # Antwort, nicht in der Oberfläche.
+        # **Der Beleg** (nur Modul «Zahlung»). Eine Gegenpartei sieht nur ihre eigene
+        # Angebotszeile und keine Zahl über Forderung und Geld – gefiltert hier.
         paper = voucher_view.embed_data(db, order=order, step=s, viewer=viewer)
         row.voucher = VoucherEmbed(**paper) if paper else None
-        # **Und warum es jetzt nicht abzuschliessen ist** (#945) – dieselbe Regel, die
-        # ``confirm_step`` durchsetzt, nur als Auskunft. ``None`` bei jedem Modul ohne
-        # Geldvorgang.
+        # **Warum es jetzt nicht abzuschliessen ist** – die Regel von ``confirm_step`` als
+        # Auskunft.
         row.blocked = voucher_svc.completion_problem(db, step=s)
         out.append(row)
     _keep(db)
@@ -224,9 +210,7 @@ def _internal(db: Session, order: Order) -> dict:
     numbers = _event_numbers(db, events)
     actors = people.names(db, {e.actor_id for e in events if e.actor_id})
     came_from, went_to = journey_svc.neighbours(db, order)
-    # **Ein Graph, ein Bild.** Die Spalten daneben und die Linien dorthin kommen aus
-    # derselben Kantenliste: ein Nachbar steht genau dann im Bild, wenn es seine
-    # Abzweigung gibt.
+    # **Ein Graph, ein Bild.** Spalten und Linien kommen aus derselben Kantenliste.
     graph = flow_svc.build(db, order)
     branches = graph.neighbours
     return {
@@ -435,8 +419,8 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
                            status_before=m.status_before, status_after=m.status_after)
             for m in modules.MODULES.values()
         ],
-        # **Keine Steuersätze im Modul-Katalog** (#851): der Satz hängt an der **Sache**
-        # und reist mit dem Vorgang (``VoucherEmbed.vat_rates``).
+        # Keine Steuersätze im Modul-Katalog: der Satz hängt an der Sache
+        # (``VoucherEmbed.vat_rates``).
         capture_types=[CaptureTypeInfo(key=t.key, label=t.label) for t in capture_types.ALL],
     )
 
@@ -494,9 +478,7 @@ def unit_options(
     if status:
         q = q.filter(InstanceUnit.status.in_(status))
     if search and search.strip():
-        # **Die Form der Nummer kennt `services/instances`**, nicht dieser Endpunkt:
-        # «-7» meint den Suffix, «00123» die Instanz, «100000123-7» beides. Hier
-        # ausgeschrieben träfe «9» jede Instanz mit einer 9 in der Nummer.
+        # Die Form der Nummer kennt `services/instances` («-7» Suffix, «00123» Instanz).
         q = q.filter(unit_number_matches(search, Instance.object_id, InstanceUnit.suffix))
 
     total = q.with_entities(func.count(InstanceUnit.id)).order_by(None).scalar() or 0
@@ -520,11 +502,10 @@ def _unit_options(db: Session, rows: Sequence[tuple]) -> list[UnitOption]:
             status=unit.status,
             article_object_id=art.object_id if art else None,
             article_name=art.name if art else None,
-            # **Dieselbe Frage wie in der Freigabe** (``statuses.is_selectable``): frei,
-            # in einem laufenden Auftrag, gesperrt oder verbaut – all das lässt sich
-            # nehmen. Nicht nehmen lässt sich, was es physisch nicht mehr gibt.
+            # Dieselbe Frage wie in der Freigabe (``statuses.is_selectable``): nicht nehmen
+            # lässt sich nur, was es physisch nicht mehr gibt.
             available=st.is_selectable(unit.status),
-            # **Und die zweite, die FIFO stellt**: liegt es im Regal? Verbaut heisst nein.
+            # Und die Frage von FIFO: liegt es im Regal? Verbaut heisst nein.
             in_stock=st.stock_kind(unit.status) == st.LIVE,
             in_order=running.get(unit.id),
         )
@@ -608,10 +589,8 @@ def _preview_parents(db: Session, draft: dict) -> list[RelatedOrder]:
     rows = db.query(Order).filter(Order.object_id.in_(list(want))).all()
     if not rows:
         return []
-    # An welchem Punkt hängen die gewählten Stücke? Die offene Zeile des Quell-Auftrags
-    # sagt es – eine Abfrage, keine Rekonstruktion.
-    # Nummer → Einzelinstanz über die **eine** Auflösung (`instances.find_units`); eine
-    # eigene Abfrage hier wäre eine zweite Lesart derselben Schreibweise.
+    # Die offene Zeile des Quell-Auftrags sagt, an welchem Punkt die Stücke hängen; die
+    # Nummer löst `instances.find_units` auf.
     chosen = {u.id for u in find_units(db, picked).values()}
     holds = {
         (m.order_id, m.instance_unit_id): m.current_step_id
@@ -815,8 +794,7 @@ def step_record(
 # ►►► DER BELEG — das Modul «Zahlung» (docs/history/2026-09-neuaufbau-zahlungsmodul.md)
 # ---------------------------------------------------------------------------
 #
-# Eigene Wege statt einer Verzweigung in einem geteilten Endpunkt – so lässt sich ein
-# Modul löschen, ohne die anderen anzufassen.
+# Eigene Wege statt einer Verzweigung in einem geteilten Endpunkt.
 
 def _voucher_step(db: Session, order, step_id: int, user: UserProfile):
     """**Der Beleg eines Moduls – und ob dieser Betrachter ihn sieht.**
