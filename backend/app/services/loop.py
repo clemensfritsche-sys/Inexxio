@@ -360,7 +360,7 @@ def view(db: Session, order: Order) -> Optional[dict[str, Any]]:
     elif is_ended(db, order):
         state = ENDED_STATE
         ended = _event(db, ENDED, order.object_id)
-        reason = f"Beendet am {ended.at.astimezone(clock.ZONE).strftime('%d.%m.%Y')}." \
+        reason = f"Beendet am {clock.day(ended.at)}." \
             if ended is not None else None
     elif not dl.go_on(loop):
         state = DONE

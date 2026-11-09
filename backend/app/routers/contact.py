@@ -29,12 +29,7 @@ Nie ein stilles «Danke».
 """
 from __future__ import annotations
 
-import re
-import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from html import escape
-from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
@@ -45,115 +40,28 @@ from starlette.datastructures import UploadFile
 
 from ..core.actor import public
 from ..core.database import DB
-from ..services import inquiry as svc, people, visitor
+from ..services import inquiry as svc, visitor
 from ..domain.errors import Rejected
 from ..core import report
 
 router = APIRouter(prefix="/api/v1/contact", tags=["contact"])
 
-#: Das Vokabular der Website (generiert, siehe Moduldoku) – gelesen an EINER Stelle.
+#: Das Vokabular der Website (generiert, ``services/inquiry``) – gelesen an EINER Stelle.
 VOCAB: dict = svc.VOCAB
-MSG: dict[str, str] = VOCAB["messages"]
-LIMITS: dict[str, int] = VOCAB["limits"]
-PHOTOS: dict = VOCAB["photos"]
-
-#: Derselbe Ausdruck wie im Browser (``website/src/config/inquiry.mjs`` → ``patterns``); die
-#: E-Mail-Regel ist ``people.is_email`` (derselbe Ausdruck, ``tests/test_frontend_mirrors``).
-PHONE_RE = re.compile(VOCAB["patterns"]["phone"])
-SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
-CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+MSG, PHOTOS = svc.MSG, svc.PHOTOS
+Inquiry = svc.Inquiry
 #: Obergrenze der ganzen Anfrage: Fotos plus grosszügig Platz für die Textfelder.
 MAX_BODY = int(PHOTOS["maxTotalBytes"]) + 1024 * 1024
 #: Gesendete Anfragen je Absender und Stunde (``services/visitor``).
 RATE_LIMIT = 5
 
 
-# ------------------------------------------------------------------ Einlesen und Prüfen
-
-@dataclass
-class Photo:
-    filename: str
-    data: bytes
-
-
-@dataclass
-class Inquiry:
-    source: str
-    values: dict[str, str]
-    photos: list[Photo] = field(default_factory=list)
-    newsletter: bool = False
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    received_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-def clean(raw: object, multiline: bool = False) -> str:
-    """Text bereinigen: Steuerzeichen weg, Zeilenenden vereinheitlicht, einzeilige Felder
-    ohne Umbruch (sie landen im Betreff einer E-Mail)."""
-    text = raw if isinstance(raw, str) else ""
-    text = CONTROL_RE.sub("", text.replace("\r\n", "\n").replace("\r", "\n"))
-    if not multiline:
-        text = " ".join(text.split())
-    return text.strip()
-
-
-def _check_fields(values: dict[str, str], errors: dict[str, str]) -> None:
-    for name, limit in LIMITS.items():
-        if name in values and len(values[name]) > limit:
-            errors.setdefault(name, MSG["tooLong"].replace("{max}", str(limit)))
-    if not values["message"]:
-        errors.setdefault("message", MSG["message"])
-    if not values["name"]:
-        errors.setdefault("name", MSG["name"])
-    phone, email = values["phone"], values["email"]
-    # Die E-Mail ist Pflicht: über sie wird die Person gefunden (oder angelegt), und
-    # dorthin gehen Bestätigung und Antwort. Das Telefon ist freiwillig.
-    if not email:
-        errors.setdefault("email", MSG["emailMissing"])
-    if phone and not PHONE_RE.match(phone):
-        errors.setdefault("phone", MSG["phone"])
-    if email and not people.is_email(email):
-        errors.setdefault("email", MSG["email"])
-
-
-def _mb(n: int) -> str:
-    return f"{n / 1024 / 1024:.1f} MB".replace(".", ",")
-
-
-async def _read_photos(uploads: list, errors: dict[str, str]) -> list[Photo]:
-    files = [u for u in uploads if isinstance(u, UploadFile) and (u.filename or "").strip()]
-    if not files:
-        return []
-    if len(files) > int(PHOTOS["max"]):
-        errors["photos"] = MSG["photosCount"].replace("{max}", str(PHOTOS["max"])).replace("{count}", str(len(files)))
-        return []
-    photos: list[Photo] = []
-    total = 0
-    for upload in files:
-        name = Path(upload.filename or "foto").name
-        ext = Path(name).suffix.lower()
-        if ext not in PHOTOS["extensions"]:
-            errors["photos"] = MSG["photosType"].replace("{name}", name[:80])
-            return []
-        data = await upload.read()
-        total += len(data)
-        safe = re.sub(r"[^\w.\-]+", "_", name)[-80:] or f"foto{ext}"
-        photos.append(Photo(filename=safe, data=data))
-    if total > int(PHOTOS["maxTotalBytes"]):
-        errors["photos"] = MSG["photosSize"].replace("{size}", _mb(total)).replace("{max}", _mb(int(PHOTOS["maxTotalBytes"])))
-        return []
-    return photos
-
-
-FIELDS = ("message", "name", "company", "phone", "email")
-
-
-async def _parse(form_data, errors: dict[str, str]) -> Inquiry:
-    source = clean(form_data.get("source")).lower()
-    values = {name: clean(form_data.get(name), multiline=(name == "message")) for name in FIELDS}
-    _check_fields(values, errors)
-    photos = await _read_photos(form_data.getlist("photos"), errors)
-    return Inquiry(source=source if SOURCE_RE.match(source) else "/kontakt",
-                   values=values, photos=photos, newsletter=bool(clean(form_data.get("newsletter"))))
+async def _files(uploads: list) -> list[tuple[str, bytes]]:
+    """Die hochgeladenen Fotos als (Name, Bytes) – leere Felder zählen nicht."""
+    found = [u for u in uploads if isinstance(u, UploadFile) and (u.filename or "").strip()]
+    if len(found) > int(PHOTOS["max"]):      # nicht alle lesen – die Zahl allein ist der Fehler
+        return [(u.filename, b"") for u in found]
+    return [(u.filename, await u.read()) for u in found]
 
 
 # ------------------------------------------------------------------ Darstellung
@@ -261,7 +169,7 @@ async def submit_inquiry(request: Request, db: Session = DB) -> Response:
     wants_json = "application/json" in request.headers.get("accept", "")
     length = request.headers.get("content-length", "")
     if length.isdigit() and int(length) > MAX_BODY:
-        limit = _mb(int(PHOTOS["maxTotalBytes"]))
+        limit = svc.mb(int(PHOTOS["maxTotalBytes"]))
         return _failed(None, 413, f"Die Anfrage ist zu gross – Dateien zusammen höchstens {limit}.", wants_json)
     try:
         form_data = await request.form(max_files=int(PHOTOS["max"]) + 5, max_fields=60)
@@ -271,16 +179,15 @@ async def submit_inquiry(request: Request, db: Session = DB) -> Response:
 
     # Spam erzeugt nichts: alles hier steht VOR dem ersten Zugriff auf die Datenbank.
     ip = visitor.sender_key(request)
-    if clean(form_data.get("hp")):  # Honigtopf: Menschen sehen das Feld nicht
+    if svc.clean(form_data.get("hp")):  # Honigtopf: Menschen sehen das Feld nicht
         report.info(f"INQUIRY spam (honeypot) ip={ip}")
         return JSONResponse({"ok": True}) if wants_json else RedirectResponse(VOCAB["pages"]["thanks"], 303)
-    elapsed = clean(form_data.get("t"))
+    elapsed = svc.clean(form_data.get("t"))
     if elapsed.isdigit() and int(elapsed) < int(VOCAB["minSeconds"]) * 1000:
         report.info(f"INQUIRY too fast ({elapsed} ms) ip={ip}")
         return _failed(None, 400, MSG["tooFast"], wants_json)
 
-    errors: dict[str, str] = {}
-    inq = await _parse(form_data, errors)
+    inq, errors = svc.read(form_data, await _files(form_data.getlist("photos")))
     if errors:
         return _invalid(errors, inq, wants_json)
     if not visitor.allow_send("contact", request, RATE_LIMIT):
@@ -293,13 +200,8 @@ async def submit_inquiry(request: Request, db: Session = DB) -> Response:
 def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> Response:
     """Ins ERP – und erst wenn das steht, «Danke». Scheitert es, sagt die Seite es mit
     Telefon und mailto; die Anfrage steht dann im Log."""
-    v = inq.values
-    data = svc.Inquiry(name=v["name"], email=v["email"].lower(), message=v["message"],
-                       phone=v["phone"], company=v["company"], source=inq.source,
-                       photos=[svc.Photo(p.filename, p.data) for p in inq.photos],
-                       newsletter=inq.newsletter)
     try:
-        msg = svc.record(db, data, country)
+        msg = svc.record(db, inq, country)
         db.flush()      # was beim Speichern scheitern kann, scheitert hier – vor dem «Danke»
     except Rejected as exc:  # ein Bild, das sich nicht lesen lässt
         db.rollback()
@@ -308,13 +210,13 @@ def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> 
             if exc.status in (400, 413) else _unsent(db, inq, exc, wants_json)
     except Exception as exc:
         return _unsent(db, inq, exc, wants_json)
-    confirmed = _confirm(db, msg, data)
+    confirmed = _confirm(db, msg, inq)
     report.info(f"INQUIRY stored id={inq.id} message={msg.id} channel={msg.channel} "
           f"photos={len(inq.photos)} confirmation={'ja' if confirmed else 'nein'}")
     return _done(inq, wants_json)
 
 
-def _confirm(db: Session, msg, inq: svc.Inquiry) -> bool:
+def _confirm(db: Session, msg, inq: Inquiry) -> bool:
     """Die Bestätigung ist Kür: gespeichert ist die Anfrage schon. Was hier scheitert,
     steht im Log – und eine angelegte Bestätigung holt der nächste Abgleich nach."""
     m = VOCAB["mail"]

@@ -118,10 +118,22 @@ def test_a_customer_gets_nothing_from_the_tools(db, make_person):
     assert ai_tools.find(db, customer, other.last_name or "x") == "Nichts gefunden."
 
 
-def test_record_shows_no_secrets_or_technique(db):
+def test_record_reads_through_the_route_a_person_sees(db):
+    """Änderungsakte B2. Bug-Form: ``record`` las die Spalten der Tabelle mit einer Liste, was
+    die KI *nicht* sehen soll – jede neue Spalte ging ungefragt an sie. Jetzt liest sie die Route,
+    die den Datensatz auch einem Menschen zeigt: dieselben Felder, dieselben Rechte."""
+    import json
+
+    from app.schemas.admin import UserProfileResponse
+
     person = new_person(db, "employee")
-    text = ai_tools.record(db, person, person.object_id)
-    assert person.email in text and "firebase_uid" not in text and "\nid:" not in text
+    head, _, body = ai_tools.record(db, person, person.object_id).partition("\n")
+    shown = json.loads(body)
+    assert str(person.object_id) in head and shown["email"] == person.email
+    assert set(shown) <= set(UserProfileResponse.model_fields)
+
+    from app.services import objects
+    assert set(ai_tools.ROUTES) | {"document"} == set(objects.TYPES)       # jeder Typ hat seinen Weg
 
 
 # ─── 3.7 Der Deckel in Franken ──────────────────────────────────────────────────────────

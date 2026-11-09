@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .core.config import get_settings
 from .domain.errors import Rejected, rejected
-from .core import outside
+from .core import locks, outside
 from .core.actor import system_session
 from .core.database import Base
 from .domain import log as log_domain
@@ -32,11 +32,6 @@ settings = get_settings()
 
 # Auch was Bibliotheken über ``logging`` melden, geht durch die eine Meldestelle (``core/report``).
 logging.basicConfig(level=logging.INFO, handlers=[report.Handler()], force=True)
-
-
-#: Der Start läuft je Datenbank einmal zur Zeit – mehrere Worker und Instanzen warten
-#: aufeinander, statt dieselben Trigger gleichzeitig neu zu schreiben.
-_STARTUP_LOCK_KEY = 778_899_001
 
 
 def _log_secrets() -> dict[str, list[str]]:
@@ -106,7 +101,8 @@ def _startup() -> None:
     """Was aus dem Code folgt – das Schema baut allein die Migration (``start.sh``)."""
     db = system_session("start")
     try:
-        db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _STARTUP_LOCK_KEY})
+        # einmal zur Zeit je Datenbank: Worker und Instanzen warten aufeinander
+        locks.xact(db, locks.STARTUP)
         _sync_database_rules(db)
         db.commit()
     finally:

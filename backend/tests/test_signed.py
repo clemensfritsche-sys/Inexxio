@@ -30,13 +30,13 @@ def test_purpose_forgery_and_expiry(monkeypatch):
     monkeypatch.setattr(get_settings(), "link_secret", "neu-geheim")
     t = signed.sign({"c": "c1"}, "mailbox", 60)
     assert signed.read(t, "mailbox") == {"c": "c1"}
-    with pytest.raises(signed.Invalid):
+    with pytest.raises(signed.BadLink):
         signed.read(t, "unsubscribe")                           # ein Zweck je Link
     raw, _, sig = t.partition(".")
-    with pytest.raises(signed.Invalid):
+    with pytest.raises(signed.BadLink):
         signed.read(f"{raw}.{'0' * len(sig)}", "mailbox")       # gefälscht
     monkeypatch.setattr(time, "time", lambda: 10**12)
-    with pytest.raises(signed.Invalid):
+    with pytest.raises(signed.BadLink):
         signed.read(t, "mailbox")                               # abgelaufen
     with pytest.raises(ValueError):
         signed.sign({"u": 1}, "x")                              # reserviert

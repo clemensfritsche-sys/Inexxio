@@ -30,10 +30,8 @@ from ..schemas.communication import ChannelOut, MessageIn, MessageOut, OpenCount
 from ..domain.policy import STAFF_ROLES
 from ..domain.errors import Invalid, NotFound
 from ..domain import policy
+from ..core import clock
 
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _aware(t: datetime) -> datetime:
@@ -139,7 +137,7 @@ def _assert_people(db: Session, ids: set[int]) -> None:
 def _assert_records(db: Session, ids: set[int]) -> None:
     """**«Betrifft» darf jeder Datensatz sein** – eine Person, eine Firma, ein Auftrag, ein
     Artikel, eine Instanz, ein Dokument. Er muss nur existieren."""
-    from .records import labels
+    from .record_labels import labels
     missing = sorted(ids - set(_people(db, ids)) - set(labels(db, ids)))
     if missing:
         raise Invalid(f"Datensatz «{missing[0]}» gibt es nicht.")
@@ -189,7 +187,7 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     elif body and dc.is_mail(data.channel) and policy.is_staff(actor):
         _assert_mail(data, roles)
     msg = Message(sender_object_id=sender, channel=data.channel, subject=subject, body=body,
-                  at=_aware(data.at) if data.at else _now(), created_by=actor.id)
+                  at=_aware(data.at) if data.at else clock.utcnow(), created_by=actor.id)
     write(db, msg, roles)
     _hand_to_mailbox(db, msg, roles)
     return msg
@@ -226,7 +224,7 @@ def _create_group(db: Session, data: MessageIn, actor: UserProfile,
     in einem Klick hielten ihn sonst minutenlang fest. Gibt die erste zurück."""
     ids = _assert_group(db, data, actor, body)
     people = _people(db, ids)
-    at = _aware(data.at) if data.at else _now()
+    at = _aware(data.at) if data.at else clock.utcnow()
     first: Optional[Message] = None
     for oid in ids:
         msg = Message(sender_object_id=actor.object_id, channel=data.channel, subject=subject,
@@ -348,7 +346,7 @@ _ANSWERED = """EXISTS (
 
 
 def _rule_params() -> dict:
-    return {"staff": list(STAFF_ROLES), "now": _now(),
+    return {"staff": list(STAFF_ROLES), "now": clock.utcnow(),
             "inside": [k for k, c in dc.CHANNELS.items() if not c.outside]}
 
 
@@ -459,7 +457,7 @@ def history(db: Session, *, person: Optional[int] = None, company: Optional[int]
 
 def _names(db: Session, ids: Iterable[int]) -> dict[int, str]:
     """Wie ein beteiligter Datensatz heisst, der keine Person ist («Auftrag · …»)."""
-    from .records import labels
+    from .record_labels import labels
     return {k: r.label for k, r in labels(db, ids).items()}
 
 
@@ -474,7 +472,7 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
     for p in parties:
         by_msg[p.message_id][p.role].append(p.object_id)
     done = answered(db, [m.id for m in msgs])
-    now = _now()
+    now = clock.utcnow()
     labels = _labels(db, [m.channel for m in msgs])
     firms = _firms(db, people)
     return [_out(m, by_msg[m.id], m.id in done, people, now, labels, firms, names)
@@ -589,7 +587,6 @@ def move_note(db: Session, message_id: int, to_object_id: int, actor: UserProfil
     ``create`` (dieselben Regeln, derselbe Handelnde). Gibt (Vermerk, neue Notiz) zurück.
 
     Angestossen wird das heute nur im Dienst (die KI schlägt es in Phase 3 vor)."""
-    from ..core.clock import ZONE
     from .objects import obj_nr
     note = db.query(Message).filter(Message.id == message_id, Message.is_active.is_(True)).first()
     if note is None or note.channel != dc.NOTE:
@@ -605,7 +602,7 @@ def move_note(db: Session, message_id: int, to_object_id: int, actor: UserProfil
     def called(oid: int) -> str:
         return f"{obj_nr(oid)} {names[oid]}" if names.get(oid) else obj_nr(oid)
     subject = note.subject or "Notiz"
-    when = _aware(note.at).astimezone(ZONE).strftime("%d.%m.%Y %H:%M")
+    when = clock.stamp(_aware(note.at))
     void = create(db, MessageIn(
         channel=dc.NOTE, about=home, subject=subject,
         body=f"Ungültig – gehört zu {called(to_object_id)}: die Notiz «{subject}» "

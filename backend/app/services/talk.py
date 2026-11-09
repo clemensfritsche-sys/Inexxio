@@ -29,10 +29,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..core import clock
+from ..core import clock, locks
 from ..models import UserProfile
 from ..schemas.assistant import FileRef, TalkMessage, TalkOut
-from . import ai, handgriff, log, records
+from . import ai, handgriff, log, record_labels
 from ..domain.errors import Forbidden, Invalid, NotFound, Rejected
 from ..domain import policy
 from ..core import report
@@ -173,7 +173,7 @@ def say(db: Session, person: UserProfile, body: str, *, talk: Optional[int] = No
         first = assert_may(db, talk, person)
         home = first.object_id
     else:
-        if hint is not None and records.labels(db, [hint]).get(hint) is None:
+        if hint is not None and record_labels.labels(db, [hint]).get(hint) is None:
             raise Invalid(f"Datensatz «{hint}» gibt es nicht.")
         home = hint or person.object_id
     payload: dict[str, Any] = {"by": "person", "text": body[:MAX_SPOKEN if recording else MAX_TEXT]}
@@ -203,11 +203,11 @@ def _transcript(db: Session, talk_id: int, person: UserProfile) -> list[dict[str
     from . import attachments, memory
     first = _first(db, talk_id)
     hint = (first.payload or {}).get("hint")
-    now = clock.now().strftime("%d.%m.%Y %H:%M")
+    now = clock.stamp(clock.now())
     head = [f"Heute: {now}. Es spricht {person.display_name} ({person.object_id}, "
             f"Rolle {person.role})."]
     if hint:
-        rec = records.labels(db, [hint]).get(hint)
+        rec = record_labels.labels(db, [hint]).get(hint)
         head.append(f"Offen war der Datensatz {hint}" + (f" ({rec.type}: {rec.name})." if rec else "."))
     blocks: list[dict[str, Any]] = [{"type": "text", "text": "\n".join(head)}]
     t = view(db, talk_id)
@@ -292,16 +292,10 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
                        doing="führt aus: Handgriff")] if live else [])]
 
 
-#: Der Raum der Sperre «die KI antwortet gerade in diesem Gespräch» – Stream und Takt antworten
-#: nie beide.
-_LOCK_SPACE = 5052
-
-
 def _claim(db: Session, talk_id: int) -> bool:
     """Die Sperre auf dieses Gespräch, bis zum Ende der Transaktion – ``False``, wenn schon
     jemand antwortet."""
-    return bool(db.execute(text("SELECT pg_try_advisory_xact_lock(:s, :k)"),
-                           {"s": _LOCK_SPACE, "k": talk_id & 0x7FFF_FFFF}).scalar())
+    return locks.xact(db, locks.TALK, talk_id, wait=False)
 
 
 def _waiting(db: Session, talk_id: int) -> bool:

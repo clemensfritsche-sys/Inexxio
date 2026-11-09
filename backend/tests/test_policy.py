@@ -55,3 +55,19 @@ def test_every_staff_member_edits_customers_but_only_the_admin_staff_and_roles(m
         erp._may_edit(staff, customer, role=True)
     assert "role" in ErpAdminUpdate(role="employee").model_fields_set
     assert erp._record(customer, viewer=staff).may_edit and not erp._record(colleague, viewer=staff).may_edit
+
+
+def test_the_doors_of_the_routes_read_the_rules():
+    """Bug-Form: ``require_role("admin")`` prüfte an der Tabelle vorbei – eigener Satz, eigene Liste."""
+    from typing import get_args
+
+    from app.core import auth
+    from app.schemas.admin import Role
+
+    assert get_args(Role) == policy.ROLES
+    staff, customer, admin = _who("employee"), _who("user"), _who("admin")
+    assert auth.require_employee(staff) is staff and auth.require_admin(admin) is admin
+    with pytest.raises(Forbidden, match=policy.RULES["erp"].why):
+        auth.require_employee(customer)
+    with pytest.raises(Forbidden, match=policy.RULES["admin"].why):
+        auth.require_admin(staff)

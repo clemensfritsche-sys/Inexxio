@@ -16,7 +16,6 @@ from __future__ import annotations
 import hashlib
 import io
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 from sqlalchemy import String, func, or_
@@ -24,8 +23,9 @@ from sqlalchemy.orm import Session
 
 from ..domain import documents as dd
 from ..models import Attachment, Document, DocumentRef, DocumentSignature, UserProfile
-from . import access, attachments, objects, records
+from . import access, attachments, objects, record_labels
 from ..domain.errors import Conflict, Invalid, NotFound
+from ..core import clock
 
 
 @dataclass(frozen=True)
@@ -337,7 +337,7 @@ def delete(db: Session, doc: Document, reason: str, actor: UserProfile) -> None:
     for s in db.query(DocumentSignature).filter(DocumentSignature.document_id == doc.id).all():
         s.image = None
     doc.file_id, doc.sha256, doc.text, doc.keywords, doc.facts = None, None, None, None, None
-    doc.deleted_at, doc.deleted_by, doc.delete_reason = datetime.now(timezone.utc), actor.id, reason
+    doc.deleted_at, doc.deleted_by, doc.delete_reason = clock.utcnow(), actor.id, reason
     if att is not None:
         from . import attachments
         db.flush()
@@ -378,8 +378,8 @@ def preview_png(raw: bytes, mime: str, width: int = 360) -> Optional[bytes]:
         return None
 
 
-def label_refs(db: Session, refs: list[DocumentRef]) -> dict[int, records.Record]:
-    return records.labels(db, (r.object_id for r in refs))
+def label_refs(db: Session, refs: list[DocumentRef]) -> dict[int, record_labels.Record]:
+    return record_labels.labels(db, (r.object_id for r in refs))
 
 
 def pages_to_pdf(pages: list[bytes]) -> bytes:

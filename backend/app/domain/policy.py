@@ -21,10 +21,10 @@ from typing import Any, Optional
 
 from .errors import Forbidden
 
-ADMIN_ROLE = "admin"
-ROLES = ("admin", "employee", "user")
+ADMIN_ROLE, EMPLOYEE_ROLE, USER_ROLE = "admin", "employee", "user"
+ROLES = (ADMIN_ROLE, EMPLOYEE_ROLE, USER_ROLE)
 #: Wer ins ERP darf – im Frontend gespiegelt (``lib/record-status.isStaff``).
-STAFF_ROLES = ("admin", "employee")
+STAFF_ROLES = (ADMIN_ROLE, EMPLOYEE_ROLE)
 
 STAFF, ADMIN, SELF = "staff", "admin", "self"
 
@@ -37,6 +37,9 @@ class Rule:
 
 #: ►►► **Die Regeltabelle.** Handlung → wer darf, und der Satz, wenn nicht. ◄◄◄
 RULES: dict[str, Rule] = {
+    # Die Türen der Routen (``core/auth.require_employee`` · ``require_admin``)
+    "erp": Rule(STAFF, "Dafür fehlt Ihnen die Berechtigung."),
+    "admin": Rule(ADMIN, "Das darf nur der Admin."),
     # Personen und Firmen
     "person.edit": Rule(STAFF, "Personen ändern nur Mitarbeitende."),
     "person.staff": Rule(ADMIN, "Rollen und die Angaben von Mitarbeitenden ändert nur der Admin."),

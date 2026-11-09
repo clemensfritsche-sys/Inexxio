@@ -15,7 +15,7 @@ Die KI liest dafür, was jedes Personal sehen darf (``ai_tools.reader``).
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -26,6 +26,7 @@ from ..models import UserProfile
 from ..schemas.assistant import KnowledgeOut, PinnedOut
 from . import ai, handgriff, history, log, surroundings
 from ..domain.errors import Rejected
+from ..core import clock
 
 #: So viele Aussagen höchstens – «so wenig wie möglich, auch nichts».
 MAX = 3
@@ -83,8 +84,8 @@ PRIVATE = "Diesen Datensatz sieht nicht jedes Personal – die KI sieht ihn nich
 
 def _content(db: Session, object_id: int, reader: UserProfile, entries: list[Any],
              near: list[int]) -> list[dict[str, Any]]:
-    from . import ai_tools, records
-    names = records.labels(db, near[1:])
+    from . import ai_tools, record_labels
+    names = record_labels.labels(db, near[1:])
     lines = ["Der Datensatz, der gerade geöffnet wird:", ai_tools.record(db, reader, object_id), "",
              "Sein Verlauf, die neuesten zuerst:"]
     lines += [f"[{i}] {ai_tools.entry_line(e)}" for i, e in enumerate(entries, 1)] or ["(leer)"]
@@ -102,7 +103,7 @@ def refresh(db: Session, object_id: int, viewer: UserProfile) -> PinnedOut:
     history.assert_visible(db, object_id, viewer)
     pin = _latest(db, object_id)
     stale, mark = _stale(db, object_id, pin)
-    if not stale or (pin is not None and datetime.now(timezone.utc) - pin.at < QUIET):
+    if not stale or (pin is not None and clock.utcnow() - pin.at < QUIET):
         return pinned(db, object_id, viewer)
     reader = ai_tools.reader()
     try:

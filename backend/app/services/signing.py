@@ -18,7 +18,6 @@ from __future__ import annotations
 import base64
 import io
 import secrets
-from datetime import datetime, timezone
 from html import escape
 from typing import Any, Optional
 
@@ -29,7 +28,7 @@ from ..core.config import get_settings
 from ..domain import communication as dc
 from ..domain import documents as dd
 from ..models import Document, DocumentLink, DocumentSignature, Message, UserProfile
-from . import document, documents, mail_layout, sites
+from . import a4, documents, mail_layout, sites
 from ..domain.errors import Conflict, Gone, Invalid, NotFound, TooLarge
 
 #: So gross darf ein Unterschriftszug sein (PNG).
@@ -107,7 +106,7 @@ def _mail(db: Session, doc: Document, person: UserProfile, link: DocumentLink, n
                                    title=title, text="", label="Unterschreiben" if asked else "Öffnen",
                                    url=link_url(link.token))))
     msg = Message(sender_object_id=actor.object_id or company.object_id, channel=channel,
-                  subject=title, body=mail.body, html=mail.html, at=datetime.now(timezone.utc),
+                  subject=title, body=mail.body, html=mail.html, at=clock.utcnow(),
                   created_by=actor.id, outgoing=live)
     write(db, msg, {"to": [person.object_id], "cc": [], "bcc": [], "about": []})
     if live:
@@ -138,9 +137,9 @@ def doc_of(db: Session, link: DocumentLink) -> Document:
 def signed_html(html: str, sigs: list[DocumentSignature]) -> str:
     """►►► **Das Papier mit seinen Unterschriften** – abgeleitet, nie gespeichert. ◄◄◄"""
     for s in sigs:
-        mark = document.SIG_MARK.format(s.person_object_id)
+        mark = a4.SIG_MARK.format(s.person_object_id)
         if s.signed_at and s.image:
-            day = s.signed_at.astimezone(clock.ZONE).strftime("%d.%m.%Y %H:%M")
+            day = clock.stamp(s.signed_at)
             put = (f'<img alt="Unterschrift" src="data:image/png;base64,'
                    f'{base64.b64encode(s.image).decode("ascii")}"><span>{escape(day)}</span>')
         elif s.declined_at:
@@ -183,7 +182,7 @@ def sign(db: Session, link: DocumentLink, image_data_url: str) -> None:
     Papiers, das unterschrieben wurde."""
     doc, sig = _mine(db, link)
     image = _png(image_data_url)
-    sig.image, sig.signed_at, sig.sha256 = image, datetime.now(timezone.utc), doc.sha256
+    sig.image, sig.signed_at, sig.sha256 = image, clock.utcnow(), doc.sha256
     db.flush()
 
 
@@ -193,7 +192,7 @@ def decline(db: Session, link: DocumentLink, reason: str) -> None:
     if not reason:
         raise Invalid("Bitte nennen Sie kurz den Grund.")
     doc, sig = _mine(db, link)
-    sig.declined_at, sig.reason = datetime.now(timezone.utc), reason
+    sig.declined_at, sig.reason = clock.utcnow(), reason
     db.flush()
 
 

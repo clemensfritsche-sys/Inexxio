@@ -1,10 +1,11 @@
 from sqlalchemy import Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
-from datetime import datetime, timezone
+from datetime import datetime
+from ..core import clock
 
 
 def utcnow():
-    return datetime.now(timezone.utc)
+    return clock.utcnow()
 
 
 class TimestampMixin:

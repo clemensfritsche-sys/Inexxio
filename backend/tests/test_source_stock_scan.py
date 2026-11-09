@@ -327,7 +327,7 @@ def test_the_object_registry_claims_only_what_it_can_serve():
     Nummer), und die Sequence vergibt nie rückwärts.
     """
     src = _read(BACKEND / "app" / "services" / "objects.py")
-    models = src.split("_TYPE_MODELS = {")[1].split("}")[0]
+    models = src.split("TYPES: dict[str, Kind] = {")[1].split("}")[0]
     served = _read(BACKEND / "app" / "routers" / "documents.py")
     assert '"document"' not in models or '@router.get("/{object_id}"' in served, (
         "Der Scan löst auf einen Typ auf, den kein Endpunkt liefert.")

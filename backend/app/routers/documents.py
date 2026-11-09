@@ -20,8 +20,8 @@ from ..schemas.documents import (
     TemplateIn, ComposeIn, ComposeOut,
 )
 from ..services import log
-from ..services import (access, ai, composing, document, documents as docs, fields, legal,
-                        people, reading, records, signing, sites)
+from ..services import (access, ai, composing, a4, documents as docs, fields, legal,
+                        people, reading, record_labels, signing, sites)
 from ..services import requirements as reqs
 from ..domain.errors import Conflict, Invalid
 from ..domain import policy
@@ -60,7 +60,7 @@ def _legal_html(db: Session, doc: Document) -> Optional[str]:
         return None
     values = legal.of_operator(db)
     text = legal.parse(kind, legal.valid_from_of(doc), legal.fill(raw.decode("utf-8", "replace"), values))
-    return document.standalone(text, sender=legal.sender_line(values))
+    return a4.standalone(text, sender=legal.sender_line(values))
 
 
 def detail(db: Session, doc: Document) -> DocumentDetail:
@@ -107,7 +107,7 @@ def search_targets(q: str = "", db: Session = DB,
                    _: UserProfile = Depends(require_employee)):
     """Ein Datensatz für eine Referenz – Nummer ODER Name."""
     return [RecordOut(object_id=r.object_id, type=r.type, label=r.label)
-            for r in records.search(db, q)]
+            for r in record_labels.search(db, q)]
 
 
 @router.get("/of/{object_id}", response_model=list[DocumentSummary])

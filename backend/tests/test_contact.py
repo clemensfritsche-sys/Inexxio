@@ -227,8 +227,8 @@ def test_only_images_within_count_and_size(world):
 
 
 def test_overlong_text_is_refused_with_the_limit(world):
-    res = world.client.post("/api/v1/contact", data=form(message="x" * (contact.LIMITS["message"] + 1)), headers=JSON)
-    assert res.status_code == 422 and str(contact.LIMITS["message"]) in res.json()["fields"]["message"]
+    res = world.client.post("/api/v1/contact", data=form(message="x" * (svc.LIMITS["message"] + 1)), headers=JSON)
+    assert res.status_code == 422 and str(svc.LIMITS["message"]) in res.json()["fields"]["message"]
 
 
 # ------------------------------------------------------------------ Spam erzeugt nichts
@@ -311,7 +311,7 @@ def _texts(value):
 def test_the_vocabulary_is_complete_and_consistent():
     """Jedes Feld, das die Website beschriftet, prüft der Server – und umgekehrt."""
     labelled = {name for name, _ in contact.VOCAB["labels"]}
-    assert labelled == set(contact.FIELDS)
+    assert labelled == set(svc.FIELDS)
     for key in ("message", "name", "emailMissing", "phone", "email",
                 "photosCount", "photosType", "photosSize", "tooFast", "tooLong"):
         assert contact.MSG.get(key), key
@@ -342,7 +342,7 @@ def test_the_words_and_patterns_of_an_inquiry_stand_once():
     """Muster, Beschriftungen und der Name kommen aus dem Vokabular der Website – weder der
     Endpunkt noch das Formular noch die Nachricht im ERP schreiben sie ein zweites Mal."""
     assert people.EMAIL.pattern == contact.VOCAB["patterns"]["email"]
-    assert contact.PHONE_RE.pattern == contact.VOCAB["patterns"]["phone"]
+    assert svc.PHONE_RE.pattern == contact.VOCAB["patterns"]["phone"]
     form_ts = (WEBSITE / "src" / "scripts" / "form.ts").read_text("utf-8")
     assert not re.search(r"=\s*/\^", form_ts), "form.ts trägt wieder ein eigenes Muster"
     router = inspect.getsource(contact)

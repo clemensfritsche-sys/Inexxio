@@ -32,7 +32,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..core import outside
+from ..core import locks, outside
 from ..core.actor import act
 from ..core.database import AMBIENT, SessionLocal
 from ..models import UserProfile
@@ -233,17 +233,21 @@ def said(detail: Any) -> str:
 
 
 def look(path: str, params: Optional[dict[str, Any]] = None,
-         viewer: Optional[UserProfile] = None) -> Outcome:
+         viewer: Optional[UserProfile] = None, db: Optional[Session] = None) -> Outcome:
     """►►► **Lesen, was das ERP zeigt** – eine lesende Route, durch dieselbe Tür wie ein Klick,
     mit den Rechten, die jedes Personal hat (``ai_tools.reader``) – oder mit denen von ``viewer``,
-    wenn das Ergebnis allein bei ihm bleibt (MCP). In eigener Sitzung, danach
-    verworfen und ohne Weg nach aussen: ein Lesepfad, der nebenbei schreibt, hinterlässt nichts. ◄◄◄"""
+    wenn das Ergebnis allein bei ihm bleibt (MCP). In eigener Sitzung – oder in ``db`` hinter
+    einem Sicherungspunkt (sieht, was diese Sitzung sieht) –, danach verworfen und ohne Weg
+    nach aussen: ein Lesepfad, der nebenbei schreibt, hinterlässt nichts. ◄◄◄"""
     from ..core.auth import ACTING
     from .ai_tools import reader
     if operation_for("GET", path, reads()) is None:
         return Outcome(400, detail=f"«GET {path}» ist nichts, was das ERP zeigt.")
-    db = SessionLocal()
-    act(db, "ai", viewer.object_id if viewer is not None else None, "handgriff")
+    own = db is None
+    if own:
+        db = SessionLocal()
+        act(db, "ai", viewer.object_id if viewer is not None else None, "handgriff")
+    point = None if own else db.begin_nested()
     tokens = (AMBIENT.set(db), ACTING.set(viewer or reader()))
     try:
         with outside.probe():
@@ -251,10 +255,13 @@ def look(path: str, params: Optional[dict[str, Any]] = None,
         data, detail, hand = _detail(res)
         return Outcome(res.status_code, data, detail, hand)
     finally:
-        db.rollback()
         AMBIENT.reset(tokens[0])
         ACTING.reset(tokens[1])
-        db.close()
+        if own:
+            db.rollback()
+            db.close()
+        elif point.is_active:
+            point.rollback()
 
 
 @dataclass(frozen=True)
@@ -297,8 +304,6 @@ def _place(ref: int, results: dict[int, int]) -> str:
 #: So lange wartet ein Handgriff höchstens auf eine Sperre – danach ist es ein klarer 409, nie ein
 #: Hängen (die Anfrage, die ihn startet, wartet auf ihn).
 LOCK_TIMEOUT = "8s"
-#: Der Raum der Advisory-Sperre «dieser Handgriff läuft gerade» (je Handgriff ein Schlüssel).
-_LOCK_SPACE = 5051
 
 
 def _busy(detail: str) -> bool:
@@ -372,8 +377,7 @@ def call(person_id: int, steps: list[Step], *, probe: bool, results: Optional[di
 
 def _taken(db: Session, hid: int) -> bool:
     """Sperre auf diesen Handgriff (bis zum Ende der Transaktion), dann: ist er noch offen?"""
-    db.execute(text("SELECT pg_advisory_xact_lock(:s, :k)"),
-               {"s": _LOCK_SPACE, "k": hid & 0x7FFF_FFFF})
+    locks.xact(db, locks.HANDGRIFF, hid)
     return bool(db.execute(text(
         "SELECT EXISTS (SELECT 1 FROM log WHERE event IN ('handgriff.done', 'handgriff.dropped') "
         "AND (payload ->> 'handgriff')::bigint = :h)"), {"h": hid}).scalar())
@@ -672,8 +676,8 @@ def state_of(h: Handgriff, waiting: bool) -> str:
 def view(db: Session, found: list[Handgriff]) -> list[Any]:
     """Die Karten – Name des Datensatzes, Quelle, Zustand, worauf sie warten."""
     from ..schemas.assistant import HandgriffOut
-    from . import records
-    names = records.labels(db, [h.object_id for h in found])
+    from . import record_labels
+    names = record_labels.labels(db, [h.object_id for h in found])
     open_ids = {h.id for h in load(db, sorted({d for h in found for d in h.depends})) if h.is_open}
     mails = _mail_sources(db, [int(h.payload["mail"]) for h in found if h.payload.get("mail")])
     out = []

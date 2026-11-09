@@ -20,8 +20,9 @@ Bestätigung, bleibt sie als «muss noch hinaus» stehen und geht beim nächsten
 
 import json
 import re
+import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -48,6 +49,18 @@ SUMMARY_MAX: int = VOCAB["subject"]["max"]
 LABELS: dict[str, str] = dict(VOCAB["labels"])
 
 
+#: Was das Formular prüft – dieselben Grenzen und Wörter wie im Browser.
+MSG: dict[str, str] = VOCAB["messages"]
+LIMITS: dict[str, int] = VOCAB["limits"]
+PHOTOS: dict = VOCAB["photos"]
+#: Derselbe Ausdruck wie im Browser (``website/src/config/inquiry.mjs`` → ``patterns``); die
+#: E-Mail-Regel ist ``people.is_email`` (derselbe Ausdruck, ``tests/test_frontend_mirrors``).
+PHONE_RE = re.compile(VOCAB["patterns"]["phone"])
+SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
+CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+FIELDS = ("message", "name", "company", "phone", "email")
+
+
 @dataclass
 class Photo:
     filename: str
@@ -56,6 +69,7 @@ class Photo:
 
 @dataclass
 class Inquiry:
+    """►► Die EINE Form einer Anfrage – vom Formular bis zur Nachricht. ◄◄"""
     name: str
     email: str
     message: str
@@ -66,6 +80,83 @@ class Inquiry:
     #: Das Häkchen «Post von INEXXIO» – eine Bitte, noch keine Anmeldung: angemeldet
     #: ist erst, wer in der Eingangsbestätigung klickt (Double Opt-in).
     newsletter: bool = False
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    received_at: datetime = field(default_factory=lambda: clock.utcnow())
+
+    @property
+    def values(self) -> dict[str, str]:
+        """Die Felder des Formulars, wie es sie nennt."""
+        return {name: getattr(self, name) for name in FIELDS}
+
+
+# ─── Einlesen und Prüfen (rein: Text und Bytes hinein, Anfrage und Fehler hinaus) ─────────
+
+def clean(raw: object, multiline: bool = False) -> str:
+    """Text bereinigen: Steuerzeichen weg, Zeilenenden vereinheitlicht, einzeilige Felder
+    ohne Umbruch (sie landen im Betreff einer E-Mail)."""
+    text = raw if isinstance(raw, str) else ""
+    text = CONTROL_RE.sub("", text.replace("\r\n", "\n").replace("\r", "\n"))
+    if not multiline:
+        text = " ".join(text.split())
+    return text.strip()
+
+
+def _check_fields(values: dict[str, str], errors: dict[str, str]) -> None:
+    for name, limit in LIMITS.items():
+        if name in values and len(values[name]) > limit:
+            errors.setdefault(name, MSG["tooLong"].replace("{max}", str(limit)))
+    if not values["message"]:
+        errors.setdefault("message", MSG["message"])
+    if not values["name"]:
+        errors.setdefault("name", MSG["name"])
+    phone, email = values["phone"], values["email"]
+    # Die E-Mail ist Pflicht: über sie wird die Person gefunden (oder angelegt), und
+    # dorthin gehen Bestätigung und Antwort. Das Telefon ist freiwillig.
+    if not email:
+        errors.setdefault("email", MSG["emailMissing"])
+    if phone and not PHONE_RE.match(phone):
+        errors.setdefault("phone", MSG["phone"])
+    if email and not people.is_email(email):
+        errors.setdefault("email", MSG["email"])
+
+
+def mb(n: int) -> str:
+    return f"{n / 1024 / 1024:.1f} MB".replace(".", ",")
+
+
+def _photos(files: list[tuple[str, bytes]], errors: dict[str, str]) -> list[Photo]:
+    """Die Fotos (Name, Bytes) – Anzahl, Endung und Gesamtgrösse wie im Browser."""
+    if len(files) > int(PHOTOS["max"]):
+        errors["photos"] = MSG["photosCount"].replace("{max}", str(PHOTOS["max"])).replace("{count}", str(len(files)))
+        return []
+    photos: list[Photo] = []
+    for given, data in files:
+        name = Path(given or "foto").name
+        ext = Path(name).suffix.lower()
+        if ext not in PHOTOS["extensions"]:
+            errors["photos"] = MSG["photosType"].replace("{name}", name[:80])
+            return []
+        safe = re.sub(r"[^\w.\-]+", "_", name)[-80:] or f"foto{ext}"
+        photos.append(Photo(filename=safe, data=data))
+    total = sum(len(p.data) for p in photos)
+    if total > int(PHOTOS["maxTotalBytes"]):
+        errors["photos"] = MSG["photosSize"].replace("{size}", mb(total)).replace("{max}", mb(int(PHOTOS["maxTotalBytes"])))
+        return []
+    return photos
+
+
+def read(form: dict[str, object], files: list[tuple[str, bytes]]) -> tuple[Inquiry, dict[str, str]]:
+    """►► Das Formular als Anfrage – und was daran fehlt (Feld → Satz; leer = gut). ◄◄"""
+    errors: dict[str, str] = {}
+    values = {name: clean(form.get(name), multiline=(name == "message")) for name in FIELDS}
+    _check_fields(values, errors)
+    photos = _photos(files, errors)
+    source = clean(form.get("source")).lower()
+    inq = Inquiry(name=values["name"], email=values["email"].lower(), message=values["message"],
+                  phone=values["phone"], company=values["company"],
+                  source=source if SOURCE_RE.match(source) else "/kontakt",
+                  photos=photos, newsletter=bool(clean(form.get("newsletter"))))
+    return inq, errors
 
 
 def company_for(db: Session, country: Optional[str]):
@@ -110,7 +201,7 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
         files.append({"name": p.filename, "size": len(p.data), "mime": att.mime,
                       "url": attachments.public_url(att)})
     msg = Message(sender_object_id=person, channel=dc.company(firm.object_id),
-                  subject=subject_of(inq.message), body=_body(inq), at=datetime.now(timezone.utc),
+                  subject=subject_of(inq.message), body=_body(inq), at=clock.utcnow(),
                   created_by=None, attachments=files or None)
     write(db, msg, {"to": [], "cc": [], "bcc": [], "about": []})
     db.flush()
@@ -141,7 +232,7 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
                                kicker=words["kicker"], extra=more)
     msg = Message(sender_object_id=box.owner_object_id, channel=inquiry.channel,
                   subject=subject, body=mail.body, html=mail.html,
-                  at=datetime.now(timezone.utc), created_by=None, outgoing=True)
+                  at=clock.utcnow(), created_by=None, outgoing=True)
     write(db, msg, {"to": [inquiry.sender_object_id], "cc": [], "bcc": [], "about": []})
     mailbox.send_after(db)
     return True

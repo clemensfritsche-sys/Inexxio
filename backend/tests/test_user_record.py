@@ -471,7 +471,7 @@ def test_the_staff_pair_has_exactly_one_home():
             f"«{rel}» definiert STAFF_ROLES ein zweites Mal (a).")
         assert not pair.search(src), f"«{rel}» zählt das Personal-Paar selbst auf (b)."
     auth = (BACKEND / "app" / "core" / "auth.py").read_text("utf-8")
-    assert "require_employee = require_role(*STAFF_ROLES)" in auth, (
+    assert 'require_employee = _door("erp")' in auth, (
         "Die Tür zählt die Personal-Rollen selbst auf (c).")
 
 

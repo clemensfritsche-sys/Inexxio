@@ -74,8 +74,8 @@ def gemini(monkeypatch):
 
 
 def later(monkeypatch, delta):
-    real = recordings._now
-    monkeypatch.setattr(recordings, "_now", lambda: real() + delta)
+    real = recordings.clock.utcnow
+    monkeypatch.setattr(recordings.clock, "utcnow", lambda: real() + delta)
 
 
 def begin(client, hint=None, mime="audio/webm;codecs=opus"):

@@ -23,6 +23,8 @@ import calendar
 from datetime import date, timedelta
 from typing import Any, Optional
 
+from ..core import clock
+
 #: ►► **Die Takte** – Schlüssel, Wort und Abstand in Monaten (Woche: 0 = sieben Tage). ◄◄
 EVERY: dict[str, tuple[str, int]] = {
     "week": ("wöchentlich", 0),
@@ -89,7 +91,7 @@ def sentence(loop: dict[str, Any]) -> str:
 
 def _day(value: Any) -> str:
     d = value if isinstance(value, date) else date.fromisoformat(str(value))
-    return d.strftime("%d.%m.%Y")
+    return clock.day(d)
 
 
 def go_on(loop: dict[str, Any]) -> bool:

@@ -68,7 +68,7 @@ class Text:
     @property
     def day(self) -> str:
         """Das Datum, wie es auf dem Papier steht – «01.01.2026»."""
-        return self.valid_from.strftime("%d.%m.%Y")
+        return clock.day(self.valid_from)
 
     @property
     def word(self) -> str:
@@ -248,7 +248,7 @@ def _file_template(db, company: Any, kind: str, found: tuple[date, str], valid: 
     word = KINDS[kind][0]
     doc, _ = documents.file(
         db, raw=found[1].encode("utf-8"), filename=f"{word}.md", mime=MARKDOWN, art=word,
-        name=f"Vorlage vom {found[0].strftime('%d.%m.%Y')}", source="compose", refs=[],
+        name=f"Vorlage vom {clock.day(found[0])}", source="compose", refs=[],
         actor=actor, facts={"kind": kind, "valid_from": valid.isoformat(),
                             "template": found[0].isoformat()})
     return doc

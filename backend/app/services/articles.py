@@ -117,7 +117,7 @@ def create_article(db: Session, draft: dict[str, Any], *, actor_id: int | None) 
 
 def _predecessor_for(db: Session, object_id: Any) -> Optional[Article]:
     """Den zu ersetzenden Artikel laden und **vor** der Nummernvergabe prüfen; Selbstbezug
-    und Kreis prüft ``_assert_replaceable`` danach."""
+    und Kreis prüft ``assert_replaceable`` danach."""
     if object_id is None:
         return None
     found = db.query(Article).filter(Article.object_id == int(object_id)).first()

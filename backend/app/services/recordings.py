@@ -30,7 +30,7 @@ Stopp schickt nur sie. Die Ereignisse stehen nicht im Verlauf (``history.HIDDEN_
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from sqlalchemy import func, text
@@ -40,9 +40,10 @@ from sqlalchemy.orm import Session
 from ..core import locks
 from ..models import RecordingChunk, UserProfile
 from ..schemas.recordings import Recording
-from . import ai, attachments, log, records, talk
+from . import ai, attachments, log, record_labels, talk
 from ..domain.errors import Conflict, Forbidden, Invalid, NotFound, Rejected, TooLarge
 from ..domain import policy
+from ..core import clock
 
 #: Ein Stück ist höchstens so gross (30 s Opus mit 24 kbit/s sind ~90 KB).
 MAX_CHUNK = 4 * 1024 * 1024
@@ -82,12 +83,7 @@ LATE = "nach einem Tag nicht abgeschrieben"
 NO_TIME = "Keine Zeit mehr für diesen Abschnitt – es geht gleich weiter."
 BUSY = "Diese Aufnahme wird gerade anderswo abgeschrieben – gleich noch einmal."
 _END = ("recording.done", "recording.failed")
-#: Der Namensraum der Sperre je Aufnahme (Advisory-Lock mit zwei Schlüsseln, wie der Takt).
-LOCK_SPACE = 778_900
 
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 # ─── Lesen: eine Aufnahme aus dem Log und ihren Stücken ────────────────────────────────
@@ -190,7 +186,7 @@ def _own(db: Session, rec_id: int, actor: UserProfile) -> Rec:
 def state_of(rec: Rec, now: Optional[datetime] = None) -> str:
     if rec.end is not None:
         return "done" if rec.end[0] == "recording.done" else "failed"
-    if not rec.finished(now or _now()):
+    if not rec.finished(now or clock.utcnow()):
         return "recording"
     return "transcribing" if len(rec.texts) < rec.segments else "filing"
 
@@ -226,7 +222,7 @@ SELECT s.id FROM log s
 def open_for(db: Session, actor: UserProfile, limit: int = 20) -> list[Recording]:
     """►► **Meine Aufnahmen, die nicht fertig sind** – und die in den letzten ``FAILED_DAYS``
     gescheiterten, mit Grund (nie still verloren); die neuesten zuerst. ◄◄"""
-    since = _now() - timedelta(days=FAILED_DAYS)
+    since = clock.utcnow() - timedelta(days=FAILED_DAYS)
     return [view(db, load(db, r.id), actor)
             for r in db.execute(_OPEN, {"me": actor.object_id, "n": limit, "since": since})]
 
@@ -241,7 +237,7 @@ def start(db: Session, hint: Optional[int], mime: str, actor: UserProfile,
     mime = (mime or "").strip()
     if not mime.lower().startswith("audio/"):
         raise Invalid(f"«{mime[:60]}» ist keine Tonaufnahme.")
-    if hint is not None and records.labels(db, [hint]).get(hint) is None:
+    if hint is not None and record_labels.labels(db, [hint]).get(hint) is None:
         raise Invalid(f"Datensatz «{hint}» gibt es nicht.")
     payload: dict[str, Any] = {"hint": hint, "mime": mime}
     if in_talk is not None:
@@ -298,7 +294,7 @@ def add_chunk(db: Session, rec_id: int, segment: int, seq: int, raw: bytes,
     in_bucket = attachments.put_object(object_name(rec_id, segment, seq), raw, ai.audio_type(rec.mime))
     row = {"recording": rec_id, "segment": segment, "seq": seq, "byte_size": len(raw),
            "data": None if in_bucket else raw,
-           "created_at": _now(), "updated_at": _now()}
+           "created_at": clock.utcnow(), "updated_at": clock.utcnow()}
     stmt = insert(RecordingChunk).values(**row)
     db.execute(stmt.on_conflict_do_update(
         constraint="uq_recording_chunks_piece",
@@ -427,18 +423,18 @@ def _say(db: Session, rec: Rec, person: UserProfile) -> int:
     der Takt."""
     if rec.talk is not None:
         return talk.say(db, person, _whole(rec), talk=rec.talk, recording=rec.id)
-    hint = rec.hint if rec.hint and records.labels(db, [rec.hint]).get(rec.hint) else None
+    hint = rec.hint if rec.hint and record_labels.labels(db, [rec.hint]).get(rec.hint) else None
     return talk.say(db, person, _whole(rec), hint=hint, recording=rec.id)
 
 
 def _lock(rec_id: int):
     """Die Sperre je Aufnahme (über Commits hinweg, ``core/locks``) – ``None``, wenn Anfrage oder
     Takt sie gerade halten."""
-    return locks.hold(LOCK_SPACE, rec_id & 0x7FFF_FFFF)
+    return locks.hold(locks.RECORDING, locks.key(rec_id))
 
 
 def _unlock(con, rec_id: int) -> None:
-    locks.let_go(con, LOCK_SPACE, rec_id & 0x7FFF_FFFF)
+    locks.let_go(con, locks.RECORDING, locks.key(rec_id))
 
 
 def advance(db: Session, rec_id: int) -> Optional[str]:
@@ -451,7 +447,7 @@ def advance(db: Session, rec_id: int) -> Optional[str]:
         return BUSY
     try:
         rec = load(db, rec_id)
-        if rec.end is not None or not rec.finished(_now()):
+        if rec.end is not None or not rec.finished(clock.utcnow()):
             return None
         person = db.query(UserProfile).filter(UserProfile.object_id == rec.actor_id).first()
         if person is None:
@@ -491,7 +487,7 @@ SELECT s.id FROM log s
 def due(db: Session, limit: int = 10) -> list[int]:
     """Aufnahmen, die gestoppt oder abgebrochen und nicht fertig sind – die ältesten zuerst;
     wer zuletzt scheiterte, nach hinten (eine schwierige hält die übrigen nicht auf)."""
-    now = _now()
+    now = clock.utcnow()
     return [r.id for r in db.execute(_DUE, {"since": now - KEEP, "quiet": now - QUIET, "n": limit})]
 
 
@@ -523,7 +519,7 @@ def _rescue(db: Session, rec: Rec) -> bool:
 def sweep(db: Session) -> dict[str, int]:
     """►► **Aufräumen**: eine Aufnahme, die nach ``KEEP`` nicht fertig ist → ``recording.failed``
     mit Grund (ihre Stücke gehen mit); jedes Stück, das älter ist als ``KEEP``, geht auch. ◄◄"""
-    cut = _now() - KEEP
+    cut = clock.utcnow() - KEEP
     failed = 0
     for r in db.execute(_STALE, {"cut": cut}).all():
         con = _lock(r.id)

@@ -101,8 +101,8 @@ def find_operator(db: Session) -> CompanySettings | None:
 
 
 def operator(db: Session) -> CompanySettings:
-    """Der **Betreiber** – Schreib-Form: legt ihn an, falls die DB leer ist, und committet
-    dann einmalig. Wer nicht committen darf, nimmt ``find_operator``."""
+    """Der **Betreiber** – Schreib-Form: legt ihn an, falls die DB leer ist (gespeichert mit der
+    Anfrage bzw. vom Start). Wer nur lesen will, nimmt ``find_operator``."""
     company = find_operator(db)
     if company is None:
         # Die erste Gesellschaft ist ausdrücklich Betreiber (der Alters-Fallback ist nur das

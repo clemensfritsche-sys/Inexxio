@@ -29,7 +29,8 @@ from ..models import UserProfile
 from ..schemas.newsletter import ConsentRow, NewsletterIn, NewsletterState
 from ..services import newsletter as svc, people, visitor
 from ..services.people import is_email, normalize_email
-from .contact import VOCAB, clean, page
+from ..services.inquiry import VOCAB, clean
+from .contact import page
 from ..domain.errors import Invalid, Rejected
 from ..core import report
 

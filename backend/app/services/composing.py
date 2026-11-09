@@ -2,7 +2,7 @@
 
 Der Mensch sagt, was er braucht; die KI schreibt das Papier (Art, Name, Titel, Einleitung,
 Abschnitte) und schlägt vor, wer unterschreibt. Gesetzt wird es in der EINEN Vorlage
-(``document.written``), auf A4-Seiten wie jeder Beleg. Das Gespräch lebt im Browser: jede
+(``a4.written``), auf A4-Seiten wie jeder Beleg. Das Gespräch lebt im Browser: jede
 Runde schickt den Verlauf und den letzten Stand mit, gespeichert wird nichts – ein Dokument
 entsteht erst mit der Freigabe (Regel 2).
 
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from ..core import clock
 from ..models import UserProfile
-from . import ai, document, legal, people, sites
+from . import ai, a4, legal, people, sites
 
 
 class Section(BaseModel):
@@ -90,10 +90,10 @@ def signers_of(db: Session, names: list[str]) -> list[dict]:
 def render(db: Session, paper: Paper, signers: list[tuple[int, str]]) -> str:
     """Das Papier als A4-HTML in der Vorlage – mit den Linien der Unterzeichner."""
     values = legal.values_of(sites.find_operator(db))
-    w = document.Writing(
+    w = a4.Writing(
         word=paper.art.strip() or "Dokument", title=paper.title.strip() or paper.name,
-        day=clock.today().strftime("%d.%m.%Y"), intro=[p for p in paper.intro if p.strip()],
+        day=clock.day(clock.today()), intro=[p for p in paper.intro if p.strip()],
         sections=[legal.Section(title=s.title, blocks=[("p", p) for p in s.paragraphs if p.strip()]
                                 + [("li", b) for b in s.bullets if b.strip()])
                   for s in paper.sections])
-    return document.written(w, sender=legal.sender_line(values), signers=signers)
+    return a4.written(w, sender=legal.sender_line(values), signers=signers)

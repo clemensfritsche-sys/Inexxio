@@ -24,3 +24,14 @@ def test_nothing_is_none_and_nonsense_is_a_sentence():
         number.decimal("zwölf")
     assert number.lenient("Total CHF 1'234.50 inkl. MWST") == Decimal("1234.50")
     assert number.lenient("kein Betrag") is None
+
+
+def test_a_measured_value_reads_like_every_number():
+    """Bug-Form: der Soll-Ist-Vergleich hatte einen eigenen Leser – «1'250» war «fehlt»."""
+    from app.domain.capture_types.measure import TYPE as measure
+
+    point = measure.clean({"label": "Drehmoment", "target": "1'250", "tolerance": "5"})
+    assert point["target"] == 1250.0
+    assert measure.missing(point, "1’252") is False
+    assert measure.verdict(point, "1’252") is True
+    assert measure.verdict(point, "1 260") is False

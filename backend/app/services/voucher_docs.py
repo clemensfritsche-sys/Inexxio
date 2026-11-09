@@ -2,7 +2,7 @@
 
 Bei jedem Schritt, den die Partei sehen soll (Offerte, Auftragsbestätigung, Rechnung,
 Quittung, Stornierung, Gutschrift, Mahnung), entsteht **ein Dokument**: das Papier aus der
-einen Vorlage (``services/document``), eingefroren in der Ablage (Pflichtfeld ``voucher.doc``,
+einen Vorlage (``services/a4``), eingefroren in der Ablage (Pflichtfeld ``voucher.doc``,
 10 Jahre; was es ist, steht in ``facts``), mit **einem gewöhnlichen Link** an die Partei
 (``document_links`` – derselbe wie für jedes gesendete Dokument, Seite ``/dokument``) und **eine
 Mail** über das Postfach der Gesellschaft. Die Mail steht im Verlauf der Person wie jede andere.
@@ -18,7 +18,7 @@ import logging
 import secrets
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 from html import escape
 from typing import Any, Iterator, Optional
@@ -31,7 +31,7 @@ from ..domain import currency as cur
 from ..domain import incoterms as inc
 from ..domain import voucher as vo
 from ..models import Document, DocumentLink, DocumentRef, Message, Order, UserProfile, Voucher
-from . import address, document, legal, mail_layout, sites
+from . import address, a4, legal, mail_layout, sites
 from . import voucher as vs
 from . import voucher_actions as va
 from . import voucher_head as vh
@@ -85,7 +85,7 @@ REMINDER_LEADS = (
 
 def _day(d: Optional[date]) -> str:
     """Ein Tag, wie er auf dem Papier steht – «24.10.2026»."""
-    return d.strftime("%d.%m.%Y") if d else ""
+    return clock.day(d)
 
 
 def _money(value: Optional[Decimal], code: str) -> str:
@@ -118,7 +118,7 @@ def _days_word(days: Optional[int], *, lead: bool) -> str:
 # ---------------------------------------------------------------------------
 
 def build(db: Session, *, row: Voucher, kind: str, party: int,
-          actor: Optional[UserProfile] = None, level: Optional[int] = None) -> document.Doc:
+          actor: Optional[UserProfile] = None, level: Optional[int] = None) -> a4.Doc:
     """►►► **Was auf dem Papier steht** – aus dem Beleg, an einer Stelle. ◄◄◄"""
     order = db.query(Order).filter(Order.id == row.order_id).first()
     head = vh.document_head(db, row, won=True, party_id=party)
@@ -131,7 +131,7 @@ def build(db: Session, *, row: Voucher, kind: str, party: int,
     to = [theirs.get("name") or "", theirs.get("attn") or "",
           *[x for x in (theirs.get("address") or []) if x not in HOME_LINES]]
     word = vo.document_word(kind, level)
-    doc = document.Doc(
+    doc = a4.Doc(
         word=word, number=_number(row, kind, order), to=to,
         facts=_facts(db, row, kind, party, actor, theirs),
         currency=row.currency, sender=sender,
@@ -187,7 +187,7 @@ def _facts(db: Session, row: Voucher, kind: str, party: int,
     return facts
 
 
-def _lines(db: Session, row: Voucher, kind: str, doc: document.Doc) -> None:
+def _lines(db: Session, row: Voucher, kind: str, doc: a4.Doc) -> None:
     """Positionen, Summe und Steuer – eine Position mit null steht nicht darauf."""
     code = row.currency
     serials = vs.serials_of(db, row)
@@ -210,7 +210,7 @@ def _lines(db: Session, row: Voucher, kind: str, doc: document.Doc) -> None:
         if ln["part"] is not None:
             sub.append(f'<span class="part">Teilbetrag {_money(net, code)} von '
                        f'{_money(full, code)}</span>')
-        doc.lines.append(document.Line(
+        doc.lines.append(a4.Line(
             qty=str(ln["quantity"]), name=ln["article_name"] or "", sub=" · ".join(sub),
             price=_money(Decimal(ln["price"]), code), amount=_money(net, code)))
     rows = list(row.vat or []) if (row.billed_on and kind != vo.OFFER_DOC
@@ -277,7 +277,7 @@ def _entry_text(e) -> str:
                                   e.reference or "") if x)
 
 
-def _reminder(db: Session, row: Voucher, doc: document.Doc, level: int) -> None:
+def _reminder(db: Session, row: Voucher, doc: a4.Doc, level: int) -> None:
     code = row.currency
     money = vs.balance_of(db, row)
     doc.letter = f"<p>{escape(_reminder_text(row, level, row.number or ''))}</p>"
@@ -287,7 +287,7 @@ def _reminder(db: Session, row: Voucher, doc: document.Doc, level: int) -> None:
     doc.total = _money(money.open, code)
 
 
-def _payslip(db: Session, row: Voucher, theirs: dict[str, Any]) -> Optional[document.Payslip]:
+def _payslip(db: Session, row: Voucher, theirs: dict[str, Any]) -> Optional[a4.Payslip]:
     """►►► **Der Schweizer Zahlteil** – aus denselben QR-Daten wie die Auskunft
     (``voucher.transfer_of``), nur wo er gelten kann. ◄◄◄"""
     if not vs.inbound(row):
@@ -296,7 +296,7 @@ def _payslip(db: Session, row: Voucher, theirs: dict[str, Any]) -> Optional[docu
     if t.problem:
         return None
     iban = t.iban or ""
-    return document.Payslip(
+    return a4.Payslip(
         iban=" ".join(iban[i:i + 4] for i in range(0, len(iban), 4)),
         creditor=[t.creditor.get("name") or "", t.creditor.get("street") or "",
                   " ".join(x for x in (t.creditor.get("zip"), t.creditor.get("city")) if x)],
@@ -355,7 +355,7 @@ def _reminder_text(row: Voucher, level: Optional[int], number: str) -> str:
         number=number, due=_day(row.due_on), billed=_day(row.billed_on))
 
 
-def _file(db: Session, *, row: Voucher, kind: str, level: Optional[int], doc: document.Doc,
+def _file(db: Session, *, row: Voucher, kind: str, level: Optional[int], doc: a4.Doc,
           party: int, actor: Optional[UserProfile]):
     """►►► **Das Papier ist ein Dokument** – in der einen Ablage, im Pflichtfeld
     ``voucher.doc`` des Zahlungsmoduls (nie löschbar, 10 Jahre) und bei der Partei. ◄◄◄"""
@@ -368,7 +368,7 @@ def _file(db: Session, *, row: Voucher, kind: str, level: Optional[int], doc: do
                             field="voucher.doc"),
             documents.RefIn(object_id=party)]
     paper, existed = documents.file(
-        db, raw=document.render(doc).encode("utf-8"), filename=f"{word} {doc.number}.html",
+        db, raw=a4.render(doc).encode("utf-8"), filename=f"{word} {doc.number}.html",
         mime="text/html", art=word, name=name or word, source="voucher", refs=refs,
         actor=actor if policy.is_staff(actor) else None,
         facts={"kind": kind, "number": doc.number, "level": level,
@@ -386,7 +386,7 @@ def paper_of(db: Session, rec: vs.Paper) -> str:
     return raw.decode("utf-8", "replace") if raw is not None else ""
 
 
-def _mail(db: Session, *, row: Voucher, token: str, doc: document.Doc, kind: str,
+def _mail(db: Session, *, row: Voucher, token: str, doc: a4.Doc, kind: str,
           party: int, actor: Optional[UserProfile], level: Optional[int]) -> Optional[Message]:
     """**Die Mail zum Dokument** – über das Postfach der Gesellschaft, im Verlauf der Person.
     Ohne verbundenes Postfach wird sie nur erfasst (wie jede Mail des Hauses)."""
@@ -426,7 +426,7 @@ def _mail(db: Session, *, row: Voucher, token: str, doc: document.Doc, kind: str
     sender = (actor.object_id if staff else
               (box.owner_object_id if box is not None else company.object_id))
     msg = Message(sender_object_id=sender, channel=channel, subject=title, body=mail.body,
-                  html=mail.html, at=datetime.now(timezone.utc),
+                  html=mail.html, at=clock.utcnow(),
                   created_by=actor.id if staff else None, outgoing=live)
     write(db, msg, {"to": [party], "cc": [], "bcc": [], "about": []})
     if live:

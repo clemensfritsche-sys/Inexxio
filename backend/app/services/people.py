@@ -123,7 +123,7 @@ def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) ->
         else user.company_object_id
     if role == user.role and "company_object_id" not in fields:
         return
-    who = "Administrator" if role == "admin" else "Mitarbeiter"
+    who = "Administrator" if role == policy.ADMIN_ROLE else "Mitarbeiter"
     if company is None:
         raise Invalid(f"«{user.display_name}» braucht eine unserer Gesellschaften, um als "
                          f"{who} zu arbeiten – auf einem Beleg steht, wer ihn stellt.")

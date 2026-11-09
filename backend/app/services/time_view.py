@@ -20,6 +20,7 @@ from ..schemas.timekeeping import (
 )
 from . import timekeeping as t
 from ..domain import policy
+from ..core import clock
 
 
 def vocab(proof: Optional[dict] = None) -> TimeVocab:
@@ -35,7 +36,7 @@ def vocab(proof: Optional[dict] = None) -> TimeVocab:
 
 def _when(book: t.Book, r: TimeEntry) -> tuple[str, str]:
     by = book.names.get(r.created_by or 0, "?")
-    return by, t.local(r.created_at).strftime("%d.%m.%Y %H:%M")
+    return by, clock.stamp(t.local(r.created_at))
 
 
 def _mark(book: t.Book, r: TimeEntry) -> Optional[Mark]:
@@ -73,7 +74,7 @@ def _absence(book: t.Book, actor: UserProfile, a: TimeEntry, d: date, today: dat
         minutes_on_day=round(t.absence_minutes(book, a, d)), note=a.note,
         proof_url=a.proof_url, proof_needed=due is not None,
         proof_missing=due is not None and due <= today and not a.proof_url,
-        replaces=replaces, can_void=not t.locked(actor, a.day, today))
+        replaces=replaces, can_void=not tk.closed(a.day, today))
 
 
 def _day(book: t.Book, actor: UserProfile, day: t.Day, today: date, now) -> DayOut:
@@ -85,7 +86,7 @@ def _day(book: t.Book, actor: UserProfile, day: t.Day, today: date, now) -> DayO
         day=d, workday=t.is_workday(book, d), holiday=t.holiday(book, d),
         soll=round(day.soll), ist=round(day.ist), credit=round(day.credit),
         today=d == today, future=d > today,
-        locked=t.locked(actor, d, today) and t.contract_on(book, d) is not None,
+        locked=tk.closed(d, today) and t.contract_on(book, d) is not None,
         open=day.open, hints=day.hints,
         stamps=[StampOut(id=s.id, kind=s.kind, at=s.at, time=t.clock(s.at), mark=_mark(book, s),
                          missing_out=s.id in missing) for s in stamps],

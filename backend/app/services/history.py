@@ -35,7 +35,7 @@ from ..domain.log import TABLE_WORDS
 from ..models import Document, DocumentRef, UserProfile
 from ..schemas.history import (ChangeBlock, DocumentEntry, FieldChange, HistoryEntry,
                                HistoryPage, LogRow)
-from . import access, communication, records
+from . import access, communication, record_labels
 from ..domain.errors import Invalid, NotFound
 
 #: ►►► **Was der Verlauf aus dem Log NICHT zeigt – die eine Ausnahmeliste.** ◄◄◄
@@ -228,7 +228,7 @@ def _messages(db: Session, oid: int, before: Optional[Key], n: int) -> list[Hist
 def _names(db: Session, ids: set[int]) -> dict[int, str]:
     people = {u.object_id: u.display_name for u in
               db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all()} if ids else {}
-    rest = records.labels(db, ids - set(people))
+    rest = record_labels.labels(db, ids - set(people))
     return {**people, **{k: r.label for k, r in rest.items()}}
 
 
@@ -237,7 +237,7 @@ def _names(db: Session, ids: set[int]) -> dict[int, str]:
 def assert_visible(db: Session, oid: int, viewer: UserProfile) -> Optional[UserProfile]:
     """Wer den Datensatz öffnen darf, sieht seinen Verlauf. Gibt die Person zurück, wenn der
     Datensatz eine ist (ihre Zeiterfassung hat eine eigene Regel)."""
-    found = records.labels(db, [oid]).get(oid)
+    found = record_labels.labels(db, [oid]).get(oid)
     if found is None:
         raise NotFound(f"Datensatz «{oid}» gibt es nicht.")
     if found.type == "document":

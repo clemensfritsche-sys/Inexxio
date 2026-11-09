@@ -19,7 +19,6 @@ Die Wörter kommen von der Website (``website/src/config/newsletter.mjs`` →
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Iterable, Optional
 from urllib.parse import quote
 
@@ -35,15 +34,13 @@ from . import mail_layout
 from .inquiry import VOCAB as _SITE
 from .people import is_email, normalize_email
 from ..domain.errors import Conflict, NotFound, Unavailable
+from ..core import clock
 
 WORDS: dict[str, str] = _SITE["newsletter"]
 #: Der Satz, dem zugestimmt wird – gespeichert mit jeder Anmeldung.
 WORDING: str = WORDS["consent"]
 API = "/api/v1/newsletter"
 
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +81,7 @@ def set_state(db: Session, oid: int, on: bool, source: str,
     if (now.subscribed if now else False) == on:
         return False
     db.add(NewsletterConsent(person_object_id=oid, subscribed=on, source=source,
-                             wording=WORDING if on else None, at=_now(),
+                             wording=WORDING if on else None, at=clock.utcnow(),
                              created_by=actor_id))
     db.flush()
     return True
@@ -116,7 +113,7 @@ def read(token: str, purpose: str) -> Link:
         data = signed.read(token, purpose)
         person = int(data["p"]) if data.get("p") else None
         email = normalize_email(str(data.get("m") or ""))
-    except (signed.Invalid, TypeError, ValueError):
+    except (signed.BadLink, TypeError, ValueError):
         raise ValueError(WORDS["invalid"])
     if person is None and not is_email(email):
         raise ValueError(WORDS["invalid"])
@@ -221,7 +218,7 @@ def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
     mail = _request(db, channel, box, person.display_name if by_name else "",
                     confirm_url(source, person=oid))
     msg = Message(sender_object_id=box.owner_object_id, channel=channel,
-                  subject=WORDS["confirmSubject"], body=mail.body, html=mail.html, at=_now(),
+                  subject=WORDS["confirmSubject"], body=mail.body, html=mail.html, at=clock.utcnow(),
                   created_by=None, outgoing=True)
     write(db, msg, {"to": [oid], "cc": [], "bcc": [], "about": []})
     mailbox.send_after(db)

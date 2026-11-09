@@ -25,7 +25,7 @@ from . import report
 _PURPOSE, _EXPIRES = "u", "e"
 
 
-class Invalid(ValueError):
+class BadLink(ValueError):
     """Unlesbar, gefälscht, für einen anderen Zweck oder abgelaufen."""
 
 
@@ -65,17 +65,17 @@ def sign(payload: dict[str, Any], purpose: str, ttl: Optional[int] = None) -> st
 
 
 def read(token: str, purpose: str) -> dict[str, Any]:
-    """Der Inhalt eines Tokens – oder ``Invalid``."""
+    """Der Inhalt eines Tokens – oder ``BadLink``."""
     raw, _, sig = (token or "").partition(".")
     if not raw or not any(hmac.compare_digest(sig, _mac(k, raw)) for k in _keys()):
-        raise Invalid("Der Link ist ungültig.")
+        raise BadLink("Der Link ist ungültig.")
     try:
         data = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
     except ValueError:
-        raise Invalid("Der Link ist ungültig.")
+        raise BadLink("Der Link ist ungültig.")
     if not isinstance(data, dict) or data.pop(_PURPOSE, None) != purpose:
-        raise Invalid("Der Link ist ungültig.")
+        raise BadLink("Der Link ist ungültig.")
     expires = data.pop(_EXPIRES, None)
     if expires is not None and expires < time.time():
-        raise Invalid("Der Link ist abgelaufen.")
+        raise BadLink("Der Link ist abgelaufen.")
     return data

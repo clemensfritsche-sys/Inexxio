@@ -6,7 +6,7 @@ Was er tut, steht **an dieser einen Stelle**: ``TASKS``, eine Liste von Aufgaben
 
 * **eigene Sitzung, eigene Transaktion** – das System handelt (``system_session("job")``);
 * **wiederholbar** – ein zweiter Lauf direkt danach findet nichts mehr zu tun;
-* **einzeln gesperrt** – ein Advisory-Lock je Aufgabe (``pg_try_advisory_lock``, auf einer
+* **einzeln gesperrt** – ein Advisory-Lock je Aufgabe (``core/locks.hold``, auf einer
   eigenen Verbindung, über Commits hinweg): läuft sie gerade anderswo, wird sie
   **übersprungen**, nicht verdoppelt;
 * **mit Zeitgrenze** – nach ``START_WITHIN`` Sekunden beginnt keine Aufgabe und kein Schritt
@@ -35,8 +35,6 @@ START_WITHIN = 20.0
 #: Bis dahin muss auch die KI fertig sein (Sekunden ab Beginn) – Cloud Scheduler wartet 60 s.
 FINISH_WITHIN = 50.0
 
-#: Der Namensraum der Sperren des Takts (erste Hälfte des Advisory-Locks mit zwei Schlüsseln).
-LOCK_SPACE = 778_899
 
 
 @dataclass(frozen=True)
@@ -162,16 +160,16 @@ TASKS: tuple[Task, ...] = (
 
 def lock_key(name: str) -> int:
     """Der Schlüssel der Sperre einer Aufgabe – aus ihrem Namen, also für immer derselbe."""
-    return zlib.crc32(f"tick:{name}".encode()) & 0x7FFF_FFFF
+    return locks.key(zlib.crc32(f"tick:{name}".encode()))
 
 
 def _acquire(name: str):
     """Die Sperre der Aufgabe – ``None``, wenn sie gerade jemand hält (``core/locks``)."""
-    return locks.hold(LOCK_SPACE, lock_key(name))
+    return locks.hold(locks.TICK, lock_key(name))
 
 
 def _release(con, name: str) -> None:
-    locks.let_go(con, LOCK_SPACE, lock_key(name))
+    locks.let_go(con, locks.TICK, lock_key(name))
 
 
 def _counts(done: Optional[dict[str, Any]]) -> dict[str, int]:

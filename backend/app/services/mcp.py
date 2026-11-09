@@ -144,7 +144,7 @@ def register(data: dict[str, Any]) -> dict[str, Any]:
 def client_of(client_id: str) -> dict[str, Any]:
     try:
         return signed.read(client_id, "mcp.client")
-    except signed.Invalid:
+    except signed.BadLink:
         raise Problem("invalid_client", "Diesen Client kennt das ERP nicht.", 401)
 
 
@@ -172,7 +172,7 @@ def ask(q: dict[str, str]) -> str:
 def _ask(r: str) -> dict[str, Any]:
     try:
         return signed.read(r, "mcp.ask")
-    except signed.Invalid as e:
+    except signed.BadLink as e:
         raise Problem("invalid_request", f"{e} Bitte im Claude-Client neu verbinden.")
 
 
@@ -218,7 +218,7 @@ def _read(raw: str, purpose: str) -> dict[str, Any]:
     """Ein Zugang oder eine Erneuerung – nur, wenn sie für DIESES ERP ausgestellt wurde."""
     t = signed.read(raw, purpose)
     if t.get("a") != resource():
-        raise signed.Invalid("Dieser Zugang gilt für ein anderes ERP.")
+        raise signed.BadLink("Dieser Zugang gilt für ein anderes ERP.")
     return t
 
 
@@ -233,7 +233,7 @@ def token(db: Session, form: dict[str, str]) -> dict[str, Any]:
     if kind == "authorization_code":
         try:
             c = signed.read(form.get("code", ""), "mcp.code")
-        except signed.Invalid:
+        except signed.BadLink:
             raise Problem("invalid_grant", "Der Code ist ungültig oder abgelaufen.")
         if (c["c"] != _fingerprint(form.get("client_id", "")) or c["ru"] != form.get("redirect_uri")
                 or not _verifier_ok(form.get("code_verifier", ""), c["ch"])):
@@ -256,7 +256,7 @@ def _refresh(db: Session, form: dict[str, str]) -> dict[str, Any]:
     gebrauchte wieder, hat sie jemand abgefangen: die Verbindung wird getrennt (RFC 9700 §4.14)."""
     try:
         t = _read(form.get("refresh_token", ""), "mcp.refresh")
-    except signed.Invalid:
+    except signed.BadLink:
         raise Problem("invalid_grant", "Die Erneuerung ist ungültig oder abgelaufen.")
     if t["c"] != _fingerprint(form.get("client_id", "")):
         raise Problem("invalid_grant", "Diese Erneuerung gehört einem anderen Client.")
@@ -303,7 +303,7 @@ def bearer(db: Session, header: Optional[str]) -> tuple[UserProfile, int]:
     try:
         t = _read(raw.strip(), "mcp.access")
         return _grant_holder(db, t["g"], t["p"]), t["g"]
-    except (signed.Invalid, Problem) as e:
+    except (signed.BadLink, Problem) as e:
         raise Problem("invalid_token", str(e), 401)
 
 

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..core.actor import public
 from ..core.database import DB
-from ..services import document, geoip, legal
+from ..services import a4, geoip, legal
 from ..domain.errors import NotFound
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
@@ -46,4 +46,4 @@ def legal_text(kind: str, request: Request, country: Optional[str] = None,
     if text is None:
         raise NotFound(f"Der Rechtstext «{kind}» ist nicht hinterlegt.")
     return LegalOut(kind=kind, word=text.word, title=text.title, valid_from=text.key,
-                    html=document.standalone(text, sender=legal.sender_line(values)))
+                    html=a4.standalone(text, sender=legal.sender_line(values)))

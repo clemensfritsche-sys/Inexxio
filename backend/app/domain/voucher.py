@@ -364,7 +364,7 @@ def assert_ownership(value: Any) -> Optional[str]:
 
 
 #: ►►► **Die Dokumente, die hinausgehen** – je Art ihr Wort auf dem Papier. ◄◄◄ Eingefroren
-#: bei jedem Versand (``services/document``); nur, wo **wir** den Beleg stellen.
+#: bei jedem Versand (``services/a4``); nur, wo **wir** den Beleg stellen.
 OFFER_DOC, CONFIRM_DOC, INVOICE_DOC = "offer", "confirmation", "invoice"
 RECEIPT_DOC, STORNO_DOC, CREDIT_DOC, REMINDER_DOC = "receipt", "storno", "credit", "reminder"
 DOCUMENTS: dict[str, str] = {

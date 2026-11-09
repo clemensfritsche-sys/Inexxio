@@ -146,7 +146,7 @@ IMMUTABLE_TRUNCATE = "trg_log_no_truncate"
 #: Inhalt – er liegt unveränderlich in seiner Zeile; doppelt wüchse das Log mit jeder Mail.
 LONG_VALUE = 2000
 #: Der Siegel-Lauf: einer zur Zeit, die anderen gehen weiter, statt zu warten.
-SEAL_LOCK = 778_899_003
+from ..core.locks import SEAL as SEAL_LOCK  # noqa: E402 – die Liste der Sperren
 
 
 def missing(tables: list[str]) -> list[str]:

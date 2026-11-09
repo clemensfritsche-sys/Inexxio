@@ -6,7 +6,6 @@ kein zweiter Schreibweg. Die Regeln stehen in PROCESS_CORE.md.
 """
 
 import re
-from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import insert, select, update
@@ -32,6 +31,7 @@ from .order_state import (
     steps_of,
 )
 from ..domain.errors import Conflict, Failed, Invalid, NotFound
+from ..core import clock
 
 #: Wie die Instanz vor der Eingabe verifiziert wurde – Scan oder Tastatur, beides ist eine
 #: Bestätigung und steht im Log.
@@ -111,7 +111,7 @@ def _pass(
             .execution_options(synchronize_session=False)
         )
     # Am Ende angekommen: das Stück verlässt den Auftrag, die Exklusivität fällt weg.
-    released = None if next_step_id is not None else datetime.now(timezone.utc)
+    released = None if next_step_id is not None else clock.utcnow()
     for part in _chunks(membership_ids):
         db.execute(
             update(OrderUnit)

@@ -6,6 +6,9 @@ Sequence** (``object_id_seq``) – atomar und race-sicher, auch unter Last und o
 Tabellen-Scan. Jede vergebene Nummer steht mit ihrem Typ in der Registry ``objects``.
 """
 
+from dataclasses import dataclass
+from typing import Any, Iterable
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -17,21 +20,22 @@ def obj_nr(object_id: int | None) -> str:
     return str(object_id).zfill(9) if object_id else "—"
 OBJECT_ID_SEQUENCE = "object_id_seq"
 
-# Objekttyp ↔ Modell – die Typen, die eine Nummer tragen. Prozesse sind KEINE
-# eigenständigen Objekte mehr (Schritte hängen am Artikel/Auftrag, ohne Nummer).
-#
-# Hier steht **nur, was ein Endpunkt auch liefern kann**. Ein Typ ohne Ansicht ist eine
-# Behauptung – und sie kostet: jede Auflösung einer unbekannten Nummer durchsuchte eine
-# Tabelle, die es gar nicht mehr gibt.
-_TYPE_MODELS = {
-    "user": UserProfile,
-    "article": Article,
-    "order": Order,
-    "instance": Instance,
-    # Das Unternehmen selbst ist ebenfalls ein nummerierter ERP-Datensatz.
-    "organization": CompanySettings,
-    # Jede freigegebene Datei (``models/document``) – ein Datensatz wie jeder andere.
-    "document": Document,
+@dataclass(frozen=True)
+class Kind:
+    model: Any
+    word: str       # dasselbe Wort wie im Feed
+
+
+#: ►►► **Die Typen, die eine Nummer tragen – EINE Tabelle** (Typ → Tabelle, Wort). ◄◄◄
+#: Hier steht nur, was ein Endpunkt auch liefern kann; Prozesse sind keine eigenen Objekte
+#: (Schritte hängen am Artikel/Auftrag, ohne Nummer).
+TYPES: dict[str, Kind] = {
+    "user": Kind(UserProfile, "Benutzer"),
+    "article": Kind(Article, "Artikel"),
+    "order": Kind(Order, "Auftrag"),
+    "instance": Kind(Instance, "Instanz"),
+    "organization": Kind(CompanySettings, "Unternehmen"),
+    "document": Kind(Document, "Dokument"),
 }
 
 # **Der Nummernraum ist eine andere Aussage als der Typ.** Ein Typ kann verschwinden,
@@ -43,7 +47,7 @@ _TYPE_MODELS = {
 def _register(db: Session, ids: list[int], object_type: str) -> None:
     """Vergebene Objektnummern in der zentralen Registry eintragen – in der Transaktion
     des Aufrufers. Ohne Typ keine Nummer: die Registry ist die eine Auskunft."""
-    if object_type not in _TYPE_MODELS:
+    if object_type not in TYPES:
         raise ValueError(f"Objekttyp «{object_type}» gibt es nicht.")
     for oid in ids:
         db.add(ObjectRef(object_id=oid, object_type=object_type))
@@ -78,3 +82,12 @@ def resolve_object_type(db: Session, object_id: int) -> str | None:
     (``next_object_id`` verlangt den Typ)."""
     ref = db.query(ObjectRef.object_type).filter(ObjectRef.object_id == object_id).first()
     return ref[0] if ref else None
+
+
+def types_of(db: Session, object_ids: Iterable[int]) -> dict[int, str]:
+    """Der Typ jeder Nummer aus der Registry – eine Abfrage für alle."""
+    ids = {int(i) for i in object_ids if i}
+    if not ids:
+        return {}
+    rows = db.query(ObjectRef.object_id, ObjectRef.object_type).filter(ObjectRef.object_id.in_(ids))
+    return {oid: t for oid, t in rows if t in TYPES}

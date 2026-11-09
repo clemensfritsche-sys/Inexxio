@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Document, Order, UserProfile, Voucher, VoucherQuote
 from ..domain import number
-from . import ai, objects, records
+from . import ai, objects, record_labels
 from .requirements import FIELD_KEYS, Requirement, open_for
 
 
@@ -172,7 +172,7 @@ def propose(db: Session, *, raw: bytes, mime: str, actor: UserProfile,
     if chosen is not None:
         values = {v.label: v.value for v in (found.values if found else [])}
         ok, why = check(chosen, values) if found else (True, "Aus dem Modul geöffnet.")
-        label = records.labels(db, [chosen.object_id]).get(chosen.object_id)
+        label = record_labels.labels(db, [chosen.object_id]).get(chosen.object_id)
         out.refs = [Ref(chosen.object_id, f"{label.label if label else chosen.object_id}"
                         f" · {chosen.label.replace(' fehlt', '')}", chosen.part, chosen.field)]
         out.values = {FIELD_KEYS.get(k, k): v for k, v in values.items()}
@@ -181,12 +181,12 @@ def propose(db: Session, *, raw: bytes, mime: str, actor: UserProfile,
         return out
     hit = _by_number(db, found.numbers) if found is not None else None
     if hit is not None:
-        rec = records.labels(db, [hit[0]]).get(hit[0])
+        rec = record_labels.labels(db, [hit[0]]).get(hit[0])
         out.refs = [Ref(hit[0], rec.label if rec else str(hit[0]))]
         out.why = f"Die Nummer {hit[1]} steht auf dem Dokument."
         return out
     if sender_object_id:
-        rec = records.labels(db, [sender_object_id]).get(sender_object_id)
+        rec = record_labels.labels(db, [sender_object_id]).get(sender_object_id)
         if rec is not None:
             out.refs = [Ref(sender_object_id, rec.label)]
             out.why = "Der Absender ist bekannt."

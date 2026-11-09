@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 from urllib.parse import urlparse
 
 from fastapi import Request
@@ -46,6 +46,7 @@ from ..core.config import get_settings
 from ..models import UserProfile, WebAuthnChallenge, WebAuthnCredential
 from ..domain.errors import Conflict, Failed, Forbidden, Invalid, NotFound, Unauthorized
 from ..core import report
+from ..core import clock
 
 settings = get_settings()
 
@@ -80,7 +81,7 @@ def _issue_challenge(db: Session, purpose: str, user_id: int | None) -> bytes:
         challenge=bytes_to_base64url(challenge),
         purpose=purpose,
         user_id=user_id,
-        expires_at=datetime.now(timezone.utc) + CHALLENGE_TTL,
+        expires_at=clock.utcnow() + CHALLENGE_TTL,
     ))
     db.flush()
     return challenge
@@ -106,7 +107,7 @@ def _consume_challenge(db: Session, credential: dict, purpose: str) -> bytes:
     expires = row.expires_at
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
-    expired = expires < datetime.now(timezone.utc)
+    expired = expires < clock.utcnow()
     db.delete(row)
     db.flush()
     if expired:
@@ -116,7 +117,7 @@ def _consume_challenge(db: Session, credential: dict, purpose: str) -> bytes:
 
 def _purge_expired(db: Session) -> None:
     db.query(WebAuthnChallenge).filter(
-        WebAuthnChallenge.expires_at < datetime.now(timezone.utc)
+        WebAuthnChallenge.expires_at < clock.utcnow()
     ).delete(synchronize_session=False)
     db.flush()
 
@@ -193,7 +194,7 @@ def complete_registration(
         device_name=name,
         device_type=device_type,
         backed_up=bool(verified.credential_backed_up),
-        last_used_at=datetime.now(timezone.utc),
+        last_used_at=clock.utcnow(),
     )
     db.add(row)
     db.flush()
@@ -252,7 +253,7 @@ def complete_authentication(db: Session, request: Request, credential: dict) -> 
         raise Forbidden("Konto nicht aktiv.")
 
     row.sign_count = verified.new_sign_count
-    row.last_used_at = datetime.now(timezone.utc)
+    row.last_used_at = clock.utcnow()
     db.flush()     # die letzte Anmeldung schreibt ``core/auth`` aus dem Token (``auth_time``)
 
     return mint_firebase_token(user)

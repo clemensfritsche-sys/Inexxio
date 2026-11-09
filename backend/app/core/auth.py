@@ -22,7 +22,6 @@ from .database import DB
 from ..models import UserProfile
 from ..services import people
 from ..domain import policy
-from ..domain.policy import STAFF_ROLES
 from ..domain.errors import Forbidden, Unauthorized
 from . import report
 
@@ -69,7 +68,7 @@ def _is_initial_admin(email: str) -> bool:
 def _create_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfile:
     """Eine neue Person zur bestätigten Adresse (``people.ensure``). ``user`` = darf nicht ins
     ERP; Admin wird nur ``initial_admin_email``."""
-    role = "admin" if _is_initial_admin(email) else "user"
+    role = policy.ADMIN_ROLE if _is_initial_admin(email) else policy.USER_ROLE
     name = (decoded.get("name") or "").strip().split(maxsplit=1)
     user = people.ensure(db, email, uid=uid, role=role,
                          first=name[0] if name else None,
@@ -115,7 +114,7 @@ def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict
     changed = False
     verified = _verified(decoded)
     if not policy.is_admin(user) and verified and _is_initial_admin(email):
-        user.role = "admin"
+        user.role = policy.ADMIN_ROLE
         changed = True
     # Die Anmelde-E-Mail ändert das Konto über einen Bestätigungslink an die NEUE Adresse
     # (``verifyBeforeUpdateEmail``); hier landet sie mit dem Token – dieselbe Regel wie vor
@@ -176,13 +175,13 @@ def get_current_user(
 get_current_user.log_actor = True       # der Wächter: diese Abhängigkeit setzt den Handelnden
 
 
-def require_role(*roles: str):
+def _door(action: str):
+    """Eine Tür einer Route – die Regel steht in ``policy.RULES``, nicht hier."""
     def checker(user: UserProfile = Depends(get_current_user)) -> UserProfile:
-        if user.role not in roles:
-            raise Forbidden("Dafür fehlt Ihnen die Berechtigung.")
+        policy.require(user, action)
         return user
     return checker
 
 
-require_admin = require_role("admin")
-require_employee = require_role(*STAFF_ROLES)
+require_admin = _door("admin")
+require_employee = _door("erp")

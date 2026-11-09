@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from ..domain import voucher as vo
 from ..models import Order, UserProfile, Voucher
-from . import documents, records, timekeeping
+from . import documents, record_labels, timekeeping
 from ..domain import policy
 
 
@@ -99,7 +99,7 @@ def of_vouchers(db: Session) -> list[Requirement]:
             continue
         part = f"step:{row.step_id}"
         party = vs.party_of(db, row)
-        name = records.labels(db, [party]).get(party) if party else None
+        name = record_labels.labels(db, [party]).get(party) if party else None
         party_name = name.name if name else "der Partei"
         if (not vo.of(row.direction).collects and row.stage == vo.AGREED
                 and documents.field_document(db, order.object_id, "voucher.original", part) is None):

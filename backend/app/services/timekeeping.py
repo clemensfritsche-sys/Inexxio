@@ -27,11 +27,12 @@ from ..models import CompanySettings, Holiday, TimeContract, TimeEntry, UserProf
 from . import sites
 from ..domain.errors import Forbidden, Invalid, rejected
 from ..domain import policy
+from ..core.clock import utcnow
 
 
 def now_utc() -> datetime:
     """Die Serverzeit – ein Stempel trägt nie die Uhr des Geräts."""
-    return datetime.now(timezone.utc)
+    return utcnow()
 
 
 def local(at: datetime) -> datetime:
@@ -490,11 +491,6 @@ def may_see(actor: UserProfile, person: UserProfile) -> bool:
     return policy.may(actor, "time.see", person.object_id)
 
 
-def locked(actor: UserProfile, d: date, today: date) -> bool:
-    """Abgeschlossen: älter als ``CORRECTION_DAYS`` – für alle (``tk.closed``)."""
-    return tk.closed(d, today)
-
-
 # ─── Die eine Schreibstelle ─────────────────────────────────────────────────────────
 
 Problem = tuple[int, str]
@@ -531,7 +527,7 @@ def stamp_problem(book: Book, actor: UserProfile, kind: str, at: datetime, now: 
                   old: Optional[TimeEntry] = None) -> Optional[Problem]:
     """Darf dieser Stempel so stehen? Gemeinsam für Wisch, Nachtrag und Korrektur."""
     d, today = local(at).date(), local(now).date()
-    if locked(actor, d, today) or (old is not None and locked(actor, old.day, today)):
+    if tk.closed(d, today) or (old is not None and tk.closed(old.day, today)):
         return _locked(old.day if old is not None and old.day < d else d)
     if at > now + timedelta(seconds=tk.DOUBLE_SWIPE_S):
         return 400, f"Liegt in der Zukunft – jetzt ist es {clock(now)}."
@@ -601,7 +597,7 @@ def _absence(book: Book, actor: UserProfile, data, now: datetime
         return None, (400, f"«Bis» liegt vor dem {tk.dmy(d)}.")
     if (until - d).days > 366:
         return None, (400, "Eine Absenz dauert höchstens ein Jahr – bitte aufteilen.")
-    if locked(actor, d, today):
+    if tk.closed(d, today):
         return None, _locked(d)
     if not is_workday(book, d):
         return None, (400, f"Der {tk.dmy(d)} ist kein Arbeitstag.")
@@ -639,7 +635,7 @@ def _other(book: Book, actor: UserProfile, data, now: datetime
         old = _live_row(book, data.replaces_id, tk.STAMPS + ("absence",))
         if old is None:
             return None, (404, f"Den Eintrag «{data.replaces_id}» gibt es nicht (mehr).")
-        if locked(actor, old.day, today):
+        if tk.closed(old.day, today):
             return None, _locked(old.day)
         if old.kind in tk.STAMPS:
             seq = sequence_problem(around(

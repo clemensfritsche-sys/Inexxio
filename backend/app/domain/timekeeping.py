@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Optional
 
+from ..core import clock
+
 #: Was ein Eintrag ist. Eine Tabelle für alles, was einen Tag füllt oder ein Konto bewegt:
 #: ``in``/``out`` (Stempel) · ``absence`` · ``booking`` (nur Admin) · ``void`` (nimmt einen
 #: Eintrag zurück, gelöscht wird nichts). Eine Änderung ist ein neuer Eintrag mit
@@ -227,7 +229,7 @@ def hm(minutes: float) -> str:
 
 
 def dmy(d: date) -> str:
-    return d.strftime("%d.%m.%Y")
+    return clock.day(d)
 
 
 def proof_from(art: Art, overrides: dict) -> Optional[int]:

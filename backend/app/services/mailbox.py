@@ -46,6 +46,7 @@ from ..domain.errors import Conflict, Forbidden, Invalid, NotFound, Unavailable
 from ..domain import policy
 from .mail_parse import MAX_BODY, NEVER, _attachments, _bulk, _parts, _strip_quote, _text
 from ..core import report
+from ..core import clock
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -73,9 +74,6 @@ def ready() -> bool:
     s = get_settings()
     return bool(s.google_client_id and s.google_client_secret)
 
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 # ---------------------------------------------------------------------------
@@ -180,8 +178,8 @@ def callback(db: Session, code: str, state: str) -> str:
     try:
         data = signed.read(state, STATE_PURPOSE)
         channel, actor_oid = str(data["c"]), int(data["a"])
-    except (signed.Invalid, KeyError, TypeError, ValueError) as exc:
-        return f"{exc} Bitte erneut verbinden." if isinstance(exc, signed.Invalid) else \
+    except (signed.BadLink, KeyError, TypeError, ValueError) as exc:
+        return f"{exc} Bitte erneut verbinden." if isinstance(exc, signed.BadLink) else \
             "Die Anfrage ist ungültig – bitte erneut verbinden."
     actor = db.query(UserProfile).filter(UserProfile.object_id == actor_oid).first()
     if actor is None or not may_connect(actor, channel):
@@ -325,7 +323,7 @@ def sync_all(db: Session, *, deadline: Optional[float] = None) -> tuple[int, int
     Lauf; ein angefangener Schritt ist durch die Zeitgrenzen der Abrufe begrenzt."""
     if not ready():
         return 0, 0
-    due = _now() - SYNC_EVERY
+    due = clock.utcnow() - SYNC_EVERY
     boxes = (db.query(Mailbox)
              .filter(Mailbox.is_active.is_(True), Mailbox.problem.is_(None))
              .with_for_update(skip_locked=True).all())
@@ -377,7 +375,7 @@ def _sync_one(db: Session, mb: Mailbox, ours: dict[str, Optional[int]],
         count += _ingest_one(db, mb, r.json(), ours)
     if latest:
         mb.history_id = latest
-    mb.synced_at = _now()
+    mb.synced_at = clock.utcnow()
     return count
 
 
@@ -401,7 +399,7 @@ def _mark_read(db: Session, mb: Mailbox,
     gelesen heisst nicht erledigt. Fehlt dem Postfach die Freigabe (vor dem Umstellen
     verbunden), bleibt alles, wie es ist – bis es neu verbunden wird."""
     from .communication import answered
-    since = _now() - MARK_WITHIN
+    since = clock.utcnow() - MARK_WITHIN
     msgs = db.query(Message).filter(
         Message.channel == mb.channel, Message.gmail_id.isnot(None),
         Message.read_marked.is_(False), Message.is_active.is_(True),
@@ -610,7 +608,7 @@ def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None,
                                                 Mailbox.problem.is_(None))
     ids = [i for (i,) in db.query(Message.id).filter(
         Message.outgoing.is_(True), Message.is_active.is_(True),
-        Message.at <= _now(), Message.channel.in_(ready_boxes))
+        Message.at <= clock.utcnow(), Message.channel.in_(ready_boxes))
         .order_by(Message.at, Message.id).limit(20)]
     sent = 0
     for mid in ids:
@@ -670,7 +668,7 @@ def _give_up(db: Session, msg: Message, reason: str) -> None:
         MessageParty.message_id == msg.id, MessageParty.role.in_(("to", "cc", "bcc"))).all()]
     note = Message(sender_object_id=to, channel="intern", subject=msg.subject,
                    body=(f"Diese Mail ging nach {MAX_ATTEMPTS} Versuchen nicht hinaus: {reason} "
-                         f"Bitte prüfen und neu senden."), at=_now(), created_by=None)
+                         f"Bitte prüfen und neu senden."), at=clock.utcnow(), created_by=None)
     write(db, note, {"to": [to], "cc": [], "bcc": [], "about": about})
     report.warn(f"MAILBOX gave up on {msg.id}: {reason}")
 

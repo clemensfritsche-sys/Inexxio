@@ -6,7 +6,6 @@ Stücke passieren das Start-Objekt, übernommene verlassen ihren Auftrag (``_han
 Die Regeln stehen in PROCESS_CORE.md.
 """
 
-from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlalchemy import update
@@ -30,6 +29,7 @@ from .instances import find_units
 from .order_state import _chunks, held_by, holders
 from .process import _join, _pass, _run_through, lock_orders
 from ..domain.errors import Conflict, Invalid, NotFound
+from ..core import clock
 
 
 # ---------------------------------------------------------------------------
@@ -467,7 +467,7 @@ def _hand_over(db: Session, *, order: Order, lines: list[_Line],
             for m, u in taken
         ],
     )
-    now = datetime.now(timezone.utc)
+    now = clock.utcnow()
     for part in _chunks([m.id for m, _ in taken]):
         db.execute(
             update(OrderUnit)

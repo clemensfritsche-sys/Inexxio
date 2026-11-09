@@ -174,11 +174,11 @@ def test_a_task_running_elsewhere_is_skipped():
     task = tick.Task(name, lambda *_: ran.append("x") or {})
     with engine.connect() as other:
         other.execute(text("SELECT pg_advisory_lock(:s, :k)"),
-                      {"s": tick.LOCK_SPACE, "k": tick.lock_key(name)})
+                      {"s": tick.locks.TICK, "k": tick.lock_key(name)})
         out = tick.run((task,))
         assert (out[0].state, ran) == ("skipped", [])
         other.execute(text("SELECT pg_advisory_unlock(:s, :k)"),
-                      {"s": tick.LOCK_SPACE, "k": tick.lock_key(name)})
+                      {"s": tick.locks.TICK, "k": tick.lock_key(name)})
     assert tick.run((task,))[0].state == "ok" and ran == ["x"]
     assert tick.run((task,))[0].state == "ok" and ran == ["x", "x"], \
         "die Sperre ist nach dem Lauf frei"

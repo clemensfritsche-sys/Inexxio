@@ -8,6 +8,7 @@ Messeinheiten nie – sie werden angezeigt.
 
 from typing import Any, Optional
 
+from .. import number
 from .base import CaptureType, bad
 
 #: Wie lang eine Einheit sein darf («mm», «°C», «N·m»); mehr gehört in die Beschriftung.
@@ -15,13 +16,13 @@ UNIT_MAX = 8
 
 
 def _number(value: Any) -> Optional[float]:
-    """Zahl oder ``None``. Ein Komma wird akzeptiert – getippt wird es ohnehin."""
-    if value is None or value == "":
-        return None
+    """Zahl oder ``None`` – gelesen wie jede Zahl im ERP (``domain/number``: «1'250», «1,5»).
+    Gespeichert wird sie als ``float`` (die Einstellung ist JSON)."""
     try:
-        return float(str(value).replace(",", "."))
-    except (TypeError, ValueError):
+        found = number.decimal(value)
+    except ValueError:
         return None
+    return None if found is None else float(found)
 
 
 class Measure(CaptureType):

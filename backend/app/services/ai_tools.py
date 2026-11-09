@@ -10,7 +10,7 @@ Dokumentteile (``access.may``, ``history.page`` filtern das). Wer handelt, steht
 
 Vier Werkzeuge, alle **nur lesend** und alle mit ``reader`` als Betrachter (``tools_for``):
 
-* ``find`` – «welchen Datensatz meinst du?»: Nummer ODER Name (``records.search``, dieselbe
+* ``find`` – «welchen Datensatz meinst du?»: Nummer ODER Name (``record_labels.search``, dieselbe
   Suche wie jedes Referenzfeld);
 * ``record`` – das Wichtigste eines Datensatzes: seine Angaben (ohne Geheimes und Technisches),
   bei einem Dokument Text und Stichworte – nur, wenn der Akteur es sehen darf
@@ -32,22 +32,24 @@ from typing import Any, Callable, Optional
 
 from sqlalchemy.orm import Session
 
-from ..domain.log import SECRET_COLUMNS
-from ..models import (Article, CompanySettings, Document, DocumentRef, Instance, Order,
-                      UserProfile)
-from . import access, records
+from ..models import (Document, DocumentRef, UserProfile)
+from . import access, record_labels
 from .ai import Tool
 from ..domain.errors import Rejected
 from ..domain import policy
 
-#: Spalten, die keine Angabe für die KI sind: Schlüssel, Technik, Zeitstempel der Zeile.
-_SKIP = frozenset({"id", "firebase_uid", "photo_url", "created_at", "updated_at", "is_active",
-                   "file_id", "sha256", "uid_key", "name_key", "article_id",
-                   "replaces_object_id"}) | SECRET_COLUMNS
-
-#: Je Typ das Modell, dessen Zeile die Nummer trägt.
-_MODELS: dict[str, Any] = {"user": UserProfile, "organization": CompanySettings,
-                           "order": Order, "article": Article, "instance": Instance}
+#: ►► **Wo die KI einen Datensatz liest: die Route, die ihn auch einem Menschen zeigt** – mit
+#: denselben Rechten und derselben Auswahl der Felder; eine neue Spalte erreicht sie nur, wenn die
+#: Route sie zeigt. (Dokumente: ``_document`` – dazu der gelesene Text, nach ``access``.) ◄◄
+ROUTES: dict[str, str] = {
+    "user": "/api/v1/erp/records/{}",
+    "organization": "/api/v1/admin/companies/{}",
+    "article": "/api/v1/erp/articles/{}",
+    "order": "/api/v1/erp/orders/{}",
+    "instance": "/api/v1/erp/instances/{}",
+}
+#: So viel einer Antwort geht an die KI (Zeichen).
+RECORD_MAX = 6000
 
 #: So viele Einträge des Verlaufs gibt ``history`` höchstens.
 HISTORY_LIMIT = 20
@@ -61,21 +63,18 @@ def _value(v: Any) -> Optional[str]:
         return v.isoformat()
     if isinstance(v, Decimal):
         return format(v.normalize(), "f")
-    if isinstance(v, (dict, list)):
-        return None
     s = str(v)
     return s if len(s) <= _CUT else s[:_CUT] + "…"
 
 
-def _columns(row: Any) -> list[str]:
-    out = []
-    for col in row.__table__.columns:
-        if col.name in _SKIP:
-            continue
-        text = _value(getattr(row, col.key, None))
-        if text is not None:
-            out.append(f"{col.name}: {text}")
-    return out
+def _pruned(v: Any) -> Any:
+    """Ohne Leeres – was nichts sagt, kostet nur."""
+    if isinstance(v, dict):
+        out = {k: _pruned(x) for k, x in v.items()}
+        return {k: x for k, x in out.items() if x not in (None, "", [], {})}
+    if isinstance(v, list):
+        return [x for x in (_pruned(x) for x in v) if x not in (None, "", [], {})]
+    return v
 
 
 def _not_found(object_id: Any) -> str:
@@ -90,7 +89,7 @@ def _document(db: Session, viewer: UserProfile, object_id: int) -> str:
                                         DocumentRef.is_active.is_(True)).all()
     if not access.may(viewer, refs):
         return _not_found(object_id)
-    names = records.labels(db, [r.object_id for r in refs])
+    names = record_labels.labels(db, [r.object_id for r in refs])
     lines = [f"Dokument {object_id}", f"art: {doc.art}", f"name: {doc.name}",
              f"angelegt: {doc.created_at.isoformat() if doc.created_at else ''}"]
     if doc.deleted_at:
@@ -112,25 +111,17 @@ def record(db: Session, viewer: UserProfile, object_id: Any) -> str:
         oid = int(object_id)
     except (TypeError, ValueError):
         return _not_found(object_id)
-    found = records.labels(db, [oid]).get(oid)
+    found = record_labels.labels(db, [oid]).get(oid)
     if found is None or not policy.is_staff(viewer):
         return _not_found(oid)
     if found.type == "document":
         return _document(db, viewer, oid)
-    model = _MODELS[found.type]
-    row = db.query(model).filter(model.object_id == oid).first()
-    lines = [f"{found.label} ({oid})"] + (_columns(row) if row is not None else [])
-    if found.type == "user" and row is not None and row.company_object_id:
-        company = records.labels(db, [row.company_object_id]).get(row.company_object_id)
-        if company:
-            lines.append(f"firma: {company.label} ({company.object_id})")
-    if found.type == "order" and row is not None:
-        from . import order_state
-        lines.append(f"status: {order_state.order_status(db, row)}")
-        steps = order_state.steps_of(db, row)
-        if steps:
-            lines.append("module: " + " → ".join(s.module_type for s in steps))
-    return "\n".join(lines)
+    from . import handgriff
+    out = handgriff.look(ROUTES[found.type].format(oid), viewer=viewer, db=db)
+    if not out.ok:
+        return _not_found(oid)
+    text = json.dumps(_pruned(out.data), ensure_ascii=False, default=str, separators=(",", ":"))
+    return f"{found.label} ({oid})\n" + (text if len(text) <= RECORD_MAX else text[:RECORD_MAX] + "…")
 
 
 def entry_line(e: Any) -> str:
@@ -174,7 +165,7 @@ def find(db: Session, viewer: UserProfile, q: Any) -> str:
     """Datensätze nach Nummer oder Name – wie jedes Referenzfeld."""
     if not policy.is_staff(viewer):
         return "Nichts gefunden."
-    found = records.search(db, str(q or ""))
+    found = record_labels.search(db, str(q or ""))
     if not found:
         return "Nichts gefunden."
     return "\n".join(f"{r.object_id} · {r.label}" for r in found)
