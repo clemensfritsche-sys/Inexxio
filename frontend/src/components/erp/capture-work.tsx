@@ -105,7 +105,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
     if (place) setPlaced((s) => ({ ...s, [w.instance_object_id]: place }));
     if (!points.length) { setNumbers((s) => ({ ...s, [w.instance_object_id]: [] })); return; }
     void api.stepHold(orderObjectId, stepId, w.instance_object_id, 'sample')
-      .then((r) => setNumbers((s) => ({ ...s, [w.instance_object_id]: r.numbers })));
+      .then((r) => setNumbers((s) => ({ ...s, [w.instance_object_id]: r.numbers ?? [] })));
   }
 
   /** Was ein Vorgang an der Ware scannt: die Instanz, danach jede Kiste, aus der er nimmt.
@@ -490,7 +490,7 @@ function Hold({ work, orderObjectId, stepId, onDeviate }: {
   const failed = work.failed_numbers ?? [];
 
   const open = () => onDeviate && run(async () => {
-    const [{ numbers }, instance] = await Promise.all([
+    const [{ numbers = [] }, instance] = await Promise.all([
       api.stepHold(orderObjectId, stepId, work.instance_object_id, 'failed'),
       api.getInstance(work.instance_object_id),
     ]);

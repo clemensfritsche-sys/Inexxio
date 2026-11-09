@@ -152,7 +152,8 @@ Skill `inexxio-design-system`.
   `CompanySettingsResponse`, `CompanySettingsUpdate`, `PublicDocument`, `Deal`) – kein
   `components['schemas'][…]` an der Aufrufstelle, kein handgeschriebener Typ oder Mapper
   daneben: das Frontend spricht die Feldnamen des Backends (`street_nr`, `zip_code`,
-  `uid_number`).
+  `uid_number`). `lib/api.ts` liest `paths` direkt (siehe «API-Client»); ein Alias, den niemand
+  mehr liest, fällt weg.
 - `src/lib/status-catalog.ts` – aus `backend/app/domain/statuses.py`
   (`python -m scripts.dump_statuses`). Eine **Quelle, kein Spiegel**: Beschriftung,
   Ampelton, Achsen, Bestand/Historie, Endgültigkeit kommen von dort. `lib/process-status.ts`
@@ -162,7 +163,7 @@ Skill `inexxio-design-system`.
   Modul-/Erfassungssymbole und `MODULE_FORM`-Schlüssel (`lib/modules.ts`), `CapturePoint`,
   Aussondern-Modi, Geld-Richtungen. Quelltext-Wächter liegen nach Bereich in
   `backend/tests/test_source_*.py`; jeder Aufruf in `lib/api.ts` muss eine Backend-Route
-  treffen (`test_api_routes.py`).
+  treffen (Compiler über `paths`, dazu `test_api_routes.py`).
 
 ## Datenfluss (`lib/feed.ts`, `lib/use-feed.ts`, `lib/queries.ts`, `lib/use-feed-lists.ts`)
 - **Ein `QueryClient` im ERP-Layout** (`app/(erp)/layout.tsx` → `useFeedClient`), dieselbe Bauart
@@ -188,7 +189,7 @@ Skill `inexxio-design-system`.
   ausgeführter Handgriff lädt **alles** nach, er kann alles, was das ERP kann). Die Antwort einer Handlung
   geht per `setQueryData` in den Cache. **Prüfen und Vorschau** (Auftrag, Artikel,
   Zeiterfassung) über `useDebouncedQuery`: Eingabe 250 ms entprellt und Teil des Schlüssels,
-  `keepPreviousData`, überholte Anfragen brechen ab (`api.get/post(…, { signal })`).
+  `keepPreviousData`, überholte Anfragen brechen ab (die Methoden von `api` nehmen `{ signal }`).
 - **Invalidiert wird an EINER Stelle**: `lib/api.ts` meldet jede erfolgreiche Anfrage, die
   kein GET ist, mit ihrem Pfad (`DATA_CHANGED`); `useFeedClient` invalidiert die Bereiche aus
   `touchedBy(path)` – Listen des Feeds **und** Detailansichten (Tabelle `TOUCHES` in
@@ -206,6 +207,21 @@ Skill `inexxio-design-system`.
   Fehler über `tell()` («Nicht geladen: Aufträge – …»); der alte Stand bleibt stehen.
 
 ## API-Client (`lib/api.ts`)
+**Getippt aus dem Backend**: jede Methode (`api.getCompany(id)`) ist eine Zeile über **eine**
+Anfrage `call(method, '/api/v1/admin/companies/{object_id}', { path, query, body }, { signal })`;
+Pfad (mit den Namen des Backends), Methode, Pfad-Parameter, Query, JSON-Rumpf und Antwort kommen
+aus `paths` in `src/types/api.ts` – ein Pfad oder eine Methode, die es nicht gibt, ein falsches
+Feld im Rumpf, ein fehlender Pflicht-Parameter ist ein **Typfehler**. Rückgabetypen werden nicht
+von Hand geschrieben; Parameter, die den Rumpf durchreichen, heissen `In<'post', '<pfad>'>`.
+`fill` setzt die Parameter ein (kodiert) und baut die Query (leere Werte fallen weg, eine Liste
+wiederholt den Schlüssel). Verengt wird an EINER Stelle (`Narrowed`): Rolle der Person, Status/
+Einheit/Serialisierung des Artikels (`UserProfile`, `Article` aus `types/index.ts`). **Von Hand**
+bleibt nur, was kein JSON ist, je mit Pfad als `Route<…>` und Antwort als `Res<…>`: Dateien
+(`upload` – multipart; `uploadAttachment` einmal versucht, ohne Wiederholung), Blobs
+(`messageAttachment`, `attachmentBlob`), der NDJSON-Stream `say` (Rumpf getippt), die Optionen der
+Passkeys (Backend sagt nur «Objekt») und `getMapsKey` (Route ohne Antwortform). Der Wächter
+`backend/tests/test_api_routes.py` prüft jedes Paar Methode + Pfad zusätzlich gegen die
+registrierten Routen und weist einen `/api/v1/`-Pfad ab, der an den Typen vorbei gebaut wird.
 Fetch-Wrapper mit Bearer-Token (Firebase). **Den Token setzt niemand**: `request()` fragt
 ihn je Anfrage beim Provider, den `lib/firebase.ts` registriert (Firebase hält ihn vor und
 erneuert ihn selbst; nach einem 401 einmal erzwungen frisch); ohne Anmeldung geht die

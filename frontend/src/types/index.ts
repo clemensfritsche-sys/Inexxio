@@ -69,7 +69,6 @@ export type OrderSummary = components['schemas']['OrderSummary'];
 /** Die Wiederholung eines Auftrags (Projektakte `docs/konzept/wiederkehr.md`). */
 export type LoopView = components['schemas']['LoopView'];
 export type LoopIn = components['schemas']['LoopIn'];
-export type OrderValidation = components['schemas']['OrderValidation'];
 export type ProcessStepResponse = components['schemas']['ProcessStepResponse'];
 export type ProcessEventResponse = components['schemas']['ProcessEventResponse'];
 export type UnitOption = components['schemas']['UnitOption'];
@@ -87,13 +86,9 @@ export type ProcessGraph = components['schemas']['FlowGraph'];
 export type GraphNode = components['schemas']['FlowNode'];
 export type GraphEdge = components['schemas']['FlowEdge'];
 export type GraphUnits = components['schemas']['FlowUnits'];
-export type OrderUnitPage = components['schemas']['OrderUnitPage'];
 
 /** Der Erzeugungsprozess eines Artikels – die Vorlage, die ein Erzeugungsauftrag kopiert. */
 export type ArticleProcess = components['schemas']['ArticleProcess'];
-
-/** Ein Auftragsentwurf – lebt NUR im Browser (keine Zeile, keine Nummer, kein Autosave). */
-export type OrderDraft = Record<string, unknown>;
 
 export type Passkey = components['schemas']['PasskeyResponse'];
 // Eine Instanz (Gruppe von Einzelinstanzen) mit ihrem Detail.
@@ -105,10 +100,6 @@ export type InstanceSummary = components['schemas']['InstanceSummary'];
 export type InstanceUnit = components['schemas']['InstanceUnitResponse'];
 // Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.
 export type StockState = components['schemas']['StockState'];
-// Der Bestand eines Artikels: Aufstellung über alles + eine Seite Instanzen.
-export type ArticleStock = components['schemas']['ArticleStock'];
-// Eine Seite Einzelinstanz-Nummern (Ebene 3, auf Klick).
-export type UnitPage = components['schemas']['UnitPage'];
 export type Genealogy = components['schemas']['Genealogy'];
 export type GenealogyPart = components['schemas']['GenealogyPart'];
 
@@ -151,8 +142,6 @@ export type ModuleCatalog = components['schemas']['ModuleCatalog'];
  */
 export type VoucherEmbed = components['schemas']['VoucherEmbed'];
 export type PaperOut = components['schemas']['PaperOut'];
-/** Die Vorschau der Papiere einer Handlung (`voucher_docs.preview`). */
-export type VoucherPapers = components['schemas']['PapersOut'];
 /** **Eine Angebotszeile** – eine Gegenpartei, ein Preis, zwei Fristen; `id` adressiert die Zeile. */
 export type VoucherQuoteOut = components['schemas']['VoucherQuoteOut'];
 /** **Ein Beleg, den dieser hier mindern könnte** – meist aus einem anderen Auftrag. */
@@ -171,13 +160,11 @@ export type PlaceRef = components['schemas']['PlaceRef'];
  * (`holder`). Leer heisst standortlos – ein regulärer Zustand.
  */
 export type UnitPlace = components['schemas']['UnitPlace'];
-export type ArticleValidation = components['schemas']['ArticleValidation'];
 export type CompanyRef = components['schemas']['CompanyRef'];
 /** **Eine Anschrift im Adressbuch einer Person** (`services/address_book`). */
 export type AddressEntry = components['schemas']['AddressOut'];
 export type AddressInput = components['schemas']['AddressIn'];
 export type NewCompany = components['schemas']['NewCompany'];
-export type PersonCreate = components['schemas']['PersonCreate'];
 export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization' | 'document';
 
 /** **Ein Dokument** – jede freigegebene Datei (`services/documents`). */
@@ -186,7 +173,6 @@ export type DocumentDetail = components['schemas']['DocumentDetail'];
 export type DocumentRefOut = components['schemas']['DocumentRefOut'];
 export type DocumentProposal = components['schemas']['ProposalOut'];
 export type DocumentTarget = components['schemas']['TargetIn'];
-export type RecordRef = components['schemas']['RecordOut'];
 
 /**
  * **Ein Unternehmen** (`company_settings`), wie der Server es liefert – mit den Feldnamen
@@ -201,8 +187,6 @@ export type CompanySettingsUpdate = components['schemas']['CompanySettingsUpdate
 export type Message = components['schemas']['MessageOut'];
 export type MessageIn = components['schemas']['MessageIn'];
 export type MessageChannel = components['schemas']['ChannelOut'];
-/** **Der Verlauf eines Datensatzes** (`services/history`) – eine Seite, die neuesten zuerst. */
-export type HistoryPage = components['schemas']['HistoryPage'];
 export type HistoryEntry = components['schemas']['HistoryEntry'];
 export type ChangeBlock = components['schemas']['ChangeBlock'];
 /** **Was an einem Datensatz zu tun ist** – die Zahl am Symbol in Feed und Kopf (Nachrichten,
@@ -222,8 +206,6 @@ export type EntryPreview = components['schemas']['EntryPreview'];
 export type TimeContractIn = components['schemas']['ContractIn'];
 export type CompanyTimeView = components['schemas']['CompanyTimeView'];
 export type HolidayOut = components['schemas']['HolidayOut'];
-export type HolidayIn = components['schemas']['HolidayIn'];
-export type TimeRulesIn = components['schemas']['TimeRulesIn'];
 export type NewsletterState = components['schemas']['NewsletterState'];
 export type Mailbox = components['schemas']['MailboxOut'];
 /** **Eine Zeile der Zahlungen** einer Person bzw. einer eigenen Gesellschaft – eine Ableitung
@@ -240,14 +222,7 @@ export type Station = components['schemas']['StationOut'];
 export type PublicDocument = components['schemas']['PublicDocument'];
 /** Claude verbinden (MCP): wer will, die Adresse zurück, meine Verbindungen. */
 export type McpAsk = components['schemas']['AskOut'];
-export type McpApprove = components['schemas']['ApproveOut'];
 export type McpGrant = components['schemas']['GrantOut'];
-/** AGB, Datenschutz oder Impressum als A4-Dokument bzw. Link auf die Datei. */
-export type LegalText = components['schemas']['LegalOut'];
-/** Eine Runde Verfassen (KI) – das Papier als A4-HTML, nichts gespeichert. */
-export type ComposeResult = components['schemas']['ComposeOut'];
-/** Ein hochgeladenes Bild, das kein Dokument ist (die gezeichnete Unterschrift). */
-export type UploadResult = components['schemas']['UploadResult'];
 
 // ─── Phase 5 · Der Assistent (docs/konzept/phase5-bauplan.md) ─────────────────
 
@@ -256,9 +231,6 @@ export type UploadResult = components['schemas']['UploadResult'];
 export type Talk = components['schemas']['TalkOut'];
 export type TalkFile = components['schemas']['FileRef'];
 export type Handgriff = components['schemas']['HandgriffOut'];
-export type HandgriffOperation = components['schemas']['OperationOut'];
-export type HandgriffRun = components['schemas']['RunOut'];
-export type HandgriffProbe = components['schemas']['ProbeOut'];
 export type Pinned = components['schemas']['PinnedOut'];
 
 /** Eine **Aufnahme** (Phase 4): Nummer = Log-Id von `recording.start`; `talk`, sobald der Text

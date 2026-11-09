@@ -13,7 +13,7 @@ import { qk, useDebouncedQuery } from '@/lib/queries';
 import { useSearch } from '@/lib/use-search';
 
 /** Namensvorschläge – eine stabile Funktion, damit die Suche nicht bei jedem Rendern neu läuft. */
-const suggestNames = (q: string) => api.articleNameSuggestions(q, 8);
+const suggestNames = (q: string) => api.articleNameSuggestions(q);
 import type { Article, ArticleBom, ArticleInput, ArticleLink, ArticleUnit, ArticleSerialization, ArticleNameSuggestion } from '@/types';
 import type { ModuleDraft } from '@/lib/modules';
 import { moduleFromConfig, toModulePayload } from '@/lib/modules';
@@ -158,7 +158,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
   };
   // Der Entwurf, wie ihn die Freigabe schickt. Was fehlt, sagt der Server
   // (``POST /erp/articles/validate``) – ein Massstab, nicht zwei.
-  const payload: ArticleInput & { steps: unknown[] } = useMemo(() => ({
+  const payload: ArticleInput & { steps: ReturnType<typeof toModulePayload>[] } = useMemo(() => ({
     name: form.name.trim(),
     unit: form.unit as ArticleUnit,
     serialization: form.serialization as ArticleSerialization,

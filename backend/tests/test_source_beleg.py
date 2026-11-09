@@ -897,13 +897,13 @@ def test_the_correction_target_is_searched_like_every_reference():
     correction = _code(_component(src, "Correction"))
     assert "<DocFind" in correction, "«Korrektur zu» ist wieder ein `<select>` (a)."
     # **Und der Suchtext erreicht den Server** – gelesen im Rumpf **dieser** Methode:
-    # `?search=${encodeURIComponent(…)}` steht in `api.ts` auch an der Halter-Suche, und
+    # `query: { search … }` steht in `api.ts` auch an der Halter-Suche, und
     # ein Wächter, der die ganze Datei liest, war damit von ihr erfüllt (gemessen – die
     # eigene Bug-Form ging durch).
     whole = _read(FRONTEND / "lib" / "api.ts")
     start = _at(whole, "voucherCorrectable")
     api = _code(whole[start:whole.index("\n  }", start)])
-    assert re.search(r"search=\$\{encodeURIComponent", api), (
+    assert re.search(r"query: \{ search: search\b", api), (
         "Der Suchtext erreicht den Server nicht (b) – dann filtert der Browser eine "
         "Seite, die ohnehin gekappt ist."
     )

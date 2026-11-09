@@ -509,7 +509,7 @@ def test_there_is_one_person_search_and_it_knows_the_firm():
     assert "/api/v1/erp/orders/voucher-parties" not in paths, (
         "Der Alias der alten Personensuche ist wieder da (d) – zwei Wege zu einer Suche.")
     client = (BACKEND.parent / "frontend" / "src" / "lib" / "api.ts").read_text("utf-8")
-    assert "/api/v1/erp/people?" in client and "voucher-parties" not in client, (
+    assert "'/api/v1/erp/people'" in client and "voucher-parties" not in client, (
         "Das Frontend ruft noch den alten Pfad (e).")
 
 

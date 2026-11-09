@@ -1,6 +1,7 @@
 """Quelltext-Wächter: Person, Firma, Adressen, Rolle.
 """
 
+import json
 import re
 
 from tests._source import (
@@ -190,7 +191,13 @@ def test_a_company_is_named_the_same_in_the_feed_and_in_its_window():
     )
     assert "CompanySettings = components['schemas']['CompanySettingsResponse']" in types, "(a)"
     # (c) **Abgeleitet heisst: nicht zurückschreiben** – die Änderung hat ihren eigenen Typ.
-    assert re.search(r"updateCompany\(objectId: number, data: CompanySettingsUpdate\)", api), (
+    # Der Client nimmt, was die Route nimmt (`In<…>` aus den generierten Typen), und die
+    # Route nimmt `CompanySettingsUpdate`.
+    route = "/api/v1/admin/companies/{object_id}"
+    spec = json.loads(_read(BACKEND / "openapi.json"))["paths"][route]["patch"]["requestBody"]
+    assert re.search(r"updateCompany\(objectId: number, body: In<'patch', '" + re.escape(route)
+                     + r"'>\)", api) and spec["content"]["application/json"]["schema"][
+                         "$ref"].endswith("/CompanySettingsUpdate"), (
         "Die Änderung eines Unternehmens ist nicht mehr `CompanySettingsUpdate` (c) – der "
         "abgeleitete Name könnte als zweite Wahrheit zurück an den Server gehen."
     )
