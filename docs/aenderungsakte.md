@@ -290,6 +290,10 @@ Später/nur bei Bedarf: B9, C6. Nicht: A4.
 - **B2 – zu wissen**: die KI sieht jetzt genau, was die Route einem Personal zeigt – an einer Person
   auch die technische Kennung `firebase_uid` (die Personen-Seite zeigt sie). Soll sie weg, dann
   aus der Seite – und damit auch für die KI.
-- **Offen** (nicht entschieden): A1–A3 (tote Spalten, doppelte Indizes, Postfach-Adresse), B8,
+- **A1–A3 umgesetzt** (Commits `9c2cd8ba` · Deploy 2 mit Migration 182): sechs tote Spalten und vier
+  doppelte Indizes weg. **Bleiben bewusst:** `log_seal.sealed_at` (Nachweis, wann versiegelt wurde) und
+  `mailboxes.address` (Kennung des Gmail-Kontos – «neu verbunden macht weiter» braucht sie, weil die
+  Kontakt-E-Mail beim Trennen geleert wird).
+- **Offen** (nicht entschieden): B8,
   B9 (Beleg einmal laden – später, wenn am Beleg gebaut wird), C6 (Stile, später). Fund aus C3:
   Inter wird im ERP zweimal geladen, mit Gewichten über 700.
