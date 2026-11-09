@@ -279,3 +279,17 @@ Frontend); die wichtigsten Funde von Hand nachgeprüft. Entscheide E1–E14 nich
 ### Empfehlung
 Runde 1 (klein, sicher): A1, A2, A3, B3, B4, B6, B7, C1, C2, C3. Runde 2: B1, B2, B5, B8, C4, C5.
 Später/nur bei Bedarf: B9, C6. Nicht: A4.
+
+### Entscheid des Inhabers (09.11.2026) und Stand
+- **Umgesetzt** (dev, Commits `bbeb8e6f` · `58a22e42` · `8de31580` · `f41a568d` · `fd126e1f`):
+  B1–B7, C1–C5. Bericht: `docs/history/2026-11-09-aufraeumen-runde.md`; Urteil je alter Test:
+  `docs/history/2026-11-09-tests-neu.md`.
+- **Bewusst nicht** (aus B7): KI-Kosten als `Decimal` – eine Schätzung für den Deckel, kein
+  gebuchtes Geld; die Umwandlung für das JSON des Logs brächte nur Aufwand. Der alte Schlüssel in
+  `core/signed` bleibt: Abmeldelinks ohne Ablauf, die schon hinausgingen, müssen gültig bleiben.
+- **B2 – zu wissen**: die KI sieht jetzt genau, was die Route einem Personal zeigt – an einer Person
+  auch die technische Kennung `firebase_uid` (die Personen-Seite zeigt sie). Soll sie weg, dann
+  aus der Seite – und damit auch für die KI.
+- **Offen** (nicht entschieden): A1–A3 (tote Spalten, doppelte Indizes, Postfach-Adresse), B8,
+  B9 (Beleg einmal laden – später, wenn am Beleg gebaut wird), C6 (Stile, später). Fund aus C3:
+  Inter wird im ERP zweimal geladen, mit Gewichten über 700.
