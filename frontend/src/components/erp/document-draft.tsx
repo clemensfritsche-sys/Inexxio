@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Loader2, PenLine, ScanLine, Sparkles, TriangleAlert, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAction } from '@/lib/use-action';
+import { useDialog } from '@/lib/use-dialog';
 import { DetailBody, DetailHeader, HeaderAction } from '@/components/erp/detail-frame';
 import { ErrorText } from '@/components/erp/hints';
 import { MICRO_LABEL } from '@/components/erp/fields';
@@ -17,6 +19,7 @@ import {
   DocumentLayout, DocumentPaper, MicroLabel, findTargets, type TargetOption,
 } from '@/components/erp/document-detail';
 import type { DocumentDetail, DocumentProposal, DocumentTarget } from '@/types';
+import { NOTHING } from '@/lib/when';
 
 /** Woher ein Entwurf kommt – derselbe Wortschatz wie `domain/documents.SOURCES`. */
 type DraftSource = 'file' | 'scan' | 'compose' | 'mail' | 'form' | 'capture' | 'voucher';
@@ -76,8 +79,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
   const [reading, setReading] = useState(false);
   /** Warum das Lesen nicht ging – die Anfrage selbst scheiterte (Netz, Zeitgrenze). */
   const [readError, setReadError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const { busy, error, run } = useAction();
   const [existing, setExisting] = useState<DocumentDetail | null>(null);
   /** Wer unterschreiben soll – beim Verfassen von der KI vorgeschlagen, sonst von Hand. */
   const [signers, setSigners] = useState<SignerRef[]>([]);
@@ -123,10 +125,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
     setFiles(Array.from(list));
   }
 
-  async function release() {
-    setBusy(true);
-    setError('');
-    try {
+  const release = () => run(async () => {
       const target = refs.find((r) => r.target)?.target ?? null;
       const res = await api.fileDocument(files, {
         art: art.trim(), name: name.trim(), source: source ?? 'file',
@@ -139,12 +138,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
       // gesetzt), ohne Feld bietet die Seite das vorhandene Dokument an.
       if (res.existed && !target) setExisting(res.document);
       else onFiled(res.document, proposal);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  });
 
   const ready = files.length > 0 && art.trim() && name.trim() && !busy;
   const why = !files.length ? 'Erst eine Quelle wählen.' : !art.trim() || !name.trim()
@@ -155,7 +149,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <DetailHeader type="document" title={art || name ? `${art || '…'} · ${name || '…'}` : null}
-        placeholder="Neues Dokument" objectIdText="—" objectIdHint="Die Nummer entsteht mit der Freigabe."
+        placeholder="Neues Dokument" objectIdText={NOTHING} objectIdHint="Die Nummer entsteht mit der Freigabe."
         onBack={onCancel}
         actions={<>
           <HeaderAction label={busy ? 'Freigeben…' : 'Freigeben'} disabled={!ready} hint={why} onClick={release} />
@@ -349,14 +343,20 @@ function Pages({ files }: { files: Blob[] }) {
 export function DraftSheet(props: React.ComponentProps<typeof DocumentDraft>) {
   // An `body` gehängt: ein Vorfahr mit `transform` (eine Modul-Karte) machte aus «fixed» sonst
   // «in der Karte».
-  return <Sheet><DocumentDraft {...props} /></Sheet>;
+  return <Sheet label="Neues Dokument" onClose={props.onCancel}><DocumentDraft {...props} /></Sheet>;
 }
 
-/** **Ein Blatt über der ganzen Seite** – Entwurf, Vorschau eines Papiers. */
-export function Sheet({ children }: { children: React.ReactNode }) {
+/** **Ein Blatt über der ganzen Seite** – Entwurf, Vorschau eines Papiers. Ein Dialog wie jeder
+ *  (`lib/use-dialog`): Escape schliesst, der Fokus geht hinein und zurück. */
+export function Sheet({ label, onClose, children }: {
+  label: string; onClose: () => void; children: React.ReactNode;
+}) {
+  const dialog = useDialog(onClose);
   return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 55, display: 'flex', flexDirection: 'column',
-                  background: 'var(--bg-2)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+    <div ref={dialog.ref} onKeyDown={dialog.onKeyDown} role="dialog" aria-modal="true" aria-label={label}
+      tabIndex={-1}
+      style={{ position: 'fixed', inset: 0, zIndex: 55, display: 'flex', flexDirection: 'column', outline: 'none',
+               background: 'var(--bg-2)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       {children}
     </div>,
     document.body,

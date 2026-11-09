@@ -25,7 +25,7 @@ import { SaveStatusIndicator } from '@/components/form/save-status';
 import { TerritoryMap } from '@/components/erp/territory-map';
 import { ObjId } from '@/components/erp/obj-id';
 import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
-import { errorText } from '@/lib/use-action';
+import { useAction } from '@/lib/use-action';
 
 // Das Land als Klarname (`toIso2` in address-field.tsx); breiter als bei einer Personenadresse.
 const COMPANY_COUNTRIES: [string, string][] = [
@@ -157,9 +157,8 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
   const setBase = (c: CompanySettings) => qc.setQueryData(qk.company(objectId), c);
   const [form, setForm] = useState<OrgForm>(() => buildForm(record));
   const [tab, setTab] = useState<OrgTab>('stamm');
-  const [opBusy, setOpBusy] = useState(false);
-  const [opError, setOpError] = useState<string | null>(null);
-  const [closeBusy, setCloseBusy] = useState(false);
+  // Eigen ↔ fremd, Betreiber, Schliessen: eine Handlung zur Zeit, ein Satz bei einem Fehler.
+  const { busy: opBusy, error: opError, run } = useAction('Nicht möglich');
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const mapsKey = useMapsApiKey();
 
@@ -209,45 +208,23 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
 
   /** «Eigenes Unternehmen» umschalten – nur ein Admin; der Dienst weist ab, wo etwas
    *  daran hängt (Betreiber, Personal). */
-  async function setOwn(next: boolean) {
-    if (record.object_id == null) return;
-    setOpBusy(true); setOpError(null);
-    try {
-      const updated = await api.updateCompany(record.object_id, { is_own: next });
-      setBase(updated);
-      onSaved(updated);
-    } catch (e) {
-      setOpError(errorText(e, 'Nicht möglich'));
-    } finally { setOpBusy(false); }
-  }
-
-  /** Diese Gesellschaft zum Betreiber der Website machen (genau eine trägt den Titel). */
-  async function makeOperator() {
-    if (record.object_id == null) return;
-    setOpBusy(true); setOpError(null);
-    try {
-      const updated = await api.setCompanyOperator(record.object_id);
+  const apply = (call: (id: number) => Promise<CompanySettings>) => {
+    const id = record.object_id;
+    if (id == null) return;
+    return run(async () => {
+      const updated = await call(id);
       setBase(updated);
       onSaved(updated);   // Eltern-Feed lädt die Liste neu → alter Betreiber verliert den Titel
-    } catch (e) {
-      setOpError(errorText(e, 'Betreiber konnte nicht gesetzt werden'));
-    } finally { setOpBusy(false); }
-  }
+    });
+  };
+  const setOwn = (next: boolean) => apply((id) => api.updateCompany(id, { is_own: next }));
+
+  /** Diese Gesellschaft zum Betreiber der Website machen (genau eine trägt den Titel). */
+  const makeOperator = () => apply((id) => api.setCompanyOperator(id));
 
   /** Schliessen ↔ wieder öffnen – ein Klick, umkehrbar (keine Rückfrage nötig). */
-  async function toggleClosed() {
-    if (record.object_id == null) return;
-    setCloseBusy(true); setOpError(null);
-    try {
-      const updated = base.is_active === false
-        ? await api.reopenCompany(record.object_id)
-        : await api.deactivateCompany(record.object_id);
-      setBase(updated);
-      onSaved(updated);
-    } catch (e) {
-      setOpError(errorText(e, 'Nicht möglich'));
-    } finally { setCloseBusy(false); }
-  }
+  const toggleClosed = () => apply((id) => (base.is_active === false
+    ? api.reopenCompany(id) : api.deactivateCompany(id)));
 
   const address: Address = {
     street: [form.street, form.street_nr].filter(Boolean).join(' '),
@@ -286,14 +263,14 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
             <button className="erp-idbtn"
               data-tip="Unternehmen wieder öffnen" data-tip-pos="bottom"
               aria-label="Unternehmen wieder öffnen"
-              onClick={toggleClosed} disabled={closeBusy}>
+              onClick={toggleClosed} disabled={opBusy}>
               <RotateCcw size={14} />
             </button>
           ) : (
             <button className="erp-idbtn erp-idbtn-danger"
               data-tip="Unternehmen schliessen – lässt sich wieder öffnen" data-tip-pos="bottom"
               aria-label="Unternehmen schliessen"
-              onClick={toggleClosed} disabled={closeBusy}>
+              onClick={toggleClosed} disabled={opBusy}>
               <Ban size={14} />
             </button>
           ))}

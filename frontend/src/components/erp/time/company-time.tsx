@@ -17,9 +17,10 @@ import { StageAction } from '@/components/erp/module-ui';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '@/lib/api';
 import { qk } from '@/lib/queries';
-import { dayShort, parseDay } from '@/lib/when';
+import { NOTHING, dayShort, parseDay } from '@/lib/when';
 import { todoChanged } from '@/lib/todo';
 import { useAutosaveValue } from '@/lib/use-autosave';
+import { useAction } from '@/lib/use-action';
 import type { CompanyTimeView, HolidayOut, TodoItem } from '@/types';
 import { HR, IconButton, Note, QuietButton, ROW_FORM, Sect, TimeField, timeIcon } from './time-ui';
 import { Skeleton } from '../skeleton';
@@ -27,7 +28,7 @@ import { Skeleton } from '../skeleton';
 const GRID = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 190px), 1fr))', gap: '8px 20px' } as const;
 
 function err(e: unknown): string {
-  return e instanceof ApiError ? e.message : 'Keine Verbindung – nicht gespeichert.';
+  return e instanceof ApiError && e.code !== 'offline' ? e.message : 'Keine Verbindung – nicht gespeichert.';
 }
 
 /**
@@ -50,7 +51,7 @@ function CantonSelect({ v, company, onView }: {
   return (
     <Select name="canton" value={canton} onChange={setCanton}
       style={{ padding: '4px 8px', borderRadius: 8, border: '1px solid var(--border-1)', background: 'var(--bg-1)', fontSize: 13 }}>
-      <option value="">–</option>
+      <option value="">{NOTHING}</option>
       {v.cantons.map(([c, name]) => <option key={c} value={c}>{c} · {name}</option>)}
     </Select>
   );
@@ -62,18 +63,15 @@ function Holidays({ v, company, onView, onYear, todo }: {
 }) {
   const [prop, setProp] = useState<(HolidayOut & { on: boolean })[] | null>(null);
   const [add, setAdd] = useState<{ d: string; n: string } | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const run = (p: Promise<CompanyTimeView>) => {
-    setBusy(true); setMsg(null);
-    p.then((x) => { onView(x); setProp(null); setAdd(null); todoChanged(); })
-      .catch((e) => setMsg(err(e))).finally(() => setBusy(false));
-  };
-  const load = () => {
-    setBusy(true); setMsg(null);
-    api.holidayProposal(company, v.year).then((list) => setProp(list.map((h) => ({ ...h, on: !h.taken }))))
-      .catch((e) => setMsg(err(e))).finally(() => setBusy(false));
-  };
+  const { busy, error: msg, setError: setMsg, run: act } = useAction();
+  const run = (call: () => Promise<CompanyTimeView>) => act(async () => {
+    const x = await call();
+    onView(x); setProp(null); setAdd(null); todoChanged();
+  }, (e) => setMsg(err(e)));
+  const load = () => act(async () => {
+    const list = await api.holidayProposal(company, v.year);
+    setProp(list.map((h) => ({ ...h, on: !h.taken })));
+  }, (e) => setMsg(err(e)));
   const canton = v.cantons.find(([c]) => c === v.canton);
   const year = onYear;
   const n = prop?.filter((h) => h.on && !h.taken).length ?? 0;
@@ -101,7 +99,7 @@ function Holidays({ v, company, onView, onYear, todo }: {
               {v.can_edit && h.id != null && (
                 <span className="ix-rowactions ix-actions">
                   <IconButton icon={Trash2} label="Feiertag entfernen" height={22}
-                    onClick={() => run(api.removeHoliday(company, h.id as number, v.year))} />
+                    onClick={() => run(() => api.removeHoliday(company, h.id as number, v.year))} />
                 </span>
               )}
             </span>
@@ -132,7 +130,7 @@ function Holidays({ v, company, onView, onYear, todo }: {
           </div>
           {!prop.length && <Note>Der Vorschlag ist leer – Feiertage lassen sich von Hand eintragen.</Note>}
           <StageAction icon={Check} label={`Übernehmen (${n})`} disabled={!n || busy}
-            onClick={() => run(api.addHolidays(company, prop.filter((h) => h.on && !h.taken)
+            onClick={() => run(() => api.addHolidays(company, prop.filter((h) => h.on && !h.taken)
               .map((h) => ({ day: h.day, name: h.name })), v.year))} />
         </>
       )}
@@ -141,7 +139,7 @@ function Holidays({ v, company, onView, onYear, todo }: {
           <TimeField id="nh-d" name="day" label="Datum" value={add.d} onChange={(d) => setAdd({ ...add, d })} bad={!iso} placeholder="TT.MM.JJJJ" width={140} />
           <TimeField id="nh-n" name="name" label="Bezeichnung" value={add.n} onChange={(x) => setAdd({ ...add, n: x })} placeholder="z. B. Ortsfeiertag" width={220} />
           <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!iso || !add.n.trim() || busy}
-            onClick={() => iso && run(api.addHolidays(company, [{ day: iso, name: add.n.trim() }], v.year))}>
+            onClick={() => iso && run(() => api.addHolidays(company, [{ day: iso, name: add.n.trim() }], v.year))}>
             <Plus size={15} />Hinzufügen</button>
         </div>
       )}

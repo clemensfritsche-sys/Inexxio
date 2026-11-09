@@ -5,7 +5,7 @@ import { ExternalLink } from 'lucide-react';
 import { api } from '@/lib/api';
 import { tell } from '@/lib/notice';
 import { useAutosaveSignature } from '@/lib/use-autosave';
-import { day } from '@/lib/when';
+import { NOTHING, day } from '@/lib/when';
 import { numericInputProps, numericOnly } from '@/components/erp/controls';
 import { Input } from '@/components/form/field';
 import {
@@ -84,7 +84,7 @@ function SavedTerm({ d, label, field, busy, on, days, terms, hint, onAction }: {
 
 /** Was eine Frist heisst – das Wort der Liste oder «N Tage». */
 function termWord(value: string, terms: { days: number; label: string }[]): string {
-  if (value === '') return '—';
+  if (value === '') return NOTHING;
   const named = terms.find((t) => String(t.days) === value);
   return named ? named.label : `${value} Tag${value === '1' ? '' : 'e'}`;
 }
@@ -129,7 +129,7 @@ export function Term({ name, label, on, value, terms, hint, freeMin, freeLabel, 
         <DocPick name={name} on={on} value={named ? value : ''} text={termWord(value, terms)} aria={label}
           missing={value === ''} face={VALUE} tip={hint}
           options={[
-            ...(value === '' ? [{ value: '', label: '—' }] : []),
+            ...(value === '' ? [{ value: '', label: NOTHING }] : []),
             ...terms.map((t) => ({ value: String(t.days), label: t.label })),
             { value: TERM_FREE, label: freeLabel },
           ]}
@@ -155,7 +155,7 @@ function Delivery({ d, onAction }: { d: Filled; onAction: Send }) {
     return (
       <Stacked label={label}>
         <FixedValue hint={d.fixed_hint} face={VALUE}>
-          {[d.incoterm, place].filter(Boolean).join(' ') || '—'}
+          {[d.incoterm, place].filter(Boolean).join(' ') || NOTHING}
         </FixedValue>
       </Stacked>
     );
@@ -164,7 +164,7 @@ function Delivery({ d, onAction }: { d: Filled; onAction: Send }) {
     return (
       <Stacked label={label}>
         <span style={VALUE} {...(chosen ? { 'data-tip': chosen.hint } : {})}>
-          {[d.incoterm, place].filter(Boolean).join(' ') || '—'}
+          {[d.incoterm, place].filter(Boolean).join(' ') || NOTHING}
         </span>
       </Stacked>
     );
@@ -172,9 +172,9 @@ function Delivery({ d, onAction }: { d: Filled; onAction: Send }) {
   return (
     <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
       <Stacked label={label}>
-        <DocPick name="incoterm" on value={d.incoterm ?? ''} text={chosen ? chosen.key : '—'} aria={label}
+        <DocPick name="incoterm" on value={d.incoterm ?? ''} text={chosen ? chosen.key : NOTHING} aria={label}
           face={VALUE} missing={!chosen}
-          options={[{ value: '', label: '—' },
+          options={[{ value: '', label: NOTHING },
                     ...(d.incoterms ?? []).map((t) => ({ value: t.key,
                                                          label: `${t.key} · ${t.label}` }))]}
           onChange={(v) => void onAction({ action: 'incoterm', incoterm: v || null })} />
@@ -199,7 +199,7 @@ function Delivery({ d, onAction }: { d: Filled; onAction: Send }) {
 function Ownership({ d, onAction }: { d: Filled; onAction: Send }) {
   const options = d.ownership_options ?? [];
   const chosen = options.find((o) => o.key === d.ownership);
-  const text = chosen?.label ?? '—';
+  const text = chosen?.label ?? NOTHING;
   const tip = 'Wem die Stücke danach gehören – an die Partei: am Ziel des Auftrags werden sie '
     + '«Verkauft»; an uns: sie bleiben unser Bestand. Bewusst wählen, frei bis zur Zusage.';
   if (isFixed(d, 'ownership')) {
@@ -213,7 +213,7 @@ function Ownership({ d, onAction }: { d: Filled; onAction: Send }) {
     <Stacked label={d.ownership_label}>
       <DocPick name="ownership" on={may(d, 'ownership')} value={d.ownership ?? ''} text={text}
         aria={d.ownership_label} tip={tip} face={VALUE} missing={!chosen}
-        options={[...(chosen ? [] : [{ value: '', label: '—' }]),
+        options={[...(chosen ? [] : [{ value: '', label: NOTHING }]),
                   ...options.map((o) => ({ value: o.key, label: o.label }))]}
         onChange={(ownership) => { if (ownership) void onAction({ action: 'ownership', ownership }); }} />
     </Stacked>

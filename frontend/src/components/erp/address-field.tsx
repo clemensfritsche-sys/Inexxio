@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MapPin, Pencil, Search, CheckCircle2, LocateFixed, Loader2 } from 'lucide-react';
 import { useGoogleMaps } from '@/lib/use-google-maps';
 import { Input, Select } from '@/components/form/field';
+import { RequiredMark } from '@/components/erp/controls';
 
 export type Address = {
   /** Strasse inkl. Hausnummer – genau so, wie Google sie liefert (eine Zeile). */
@@ -120,7 +121,7 @@ export function AddressField({
   const labelNode = (
     <span style={S.label}>
       {label}
-      {missing && <span style={{ color: 'var(--warning)', marginLeft: 3, fontWeight: 700 }}>*</span>}
+      {missing && <RequiredMark />}
     </span>
   );
 

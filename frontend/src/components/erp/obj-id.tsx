@@ -39,7 +39,7 @@ export function ObjId({ value, mono = true, label }: {
       type="button"
       className="erp-objid"
       onClick={(e) => { e.stopPropagation(); nav(value); }}
-      title="Datensatz öffnen"
+      data-tip="Datensatz öffnen"
       style={baseStyle}
     >
       {text}

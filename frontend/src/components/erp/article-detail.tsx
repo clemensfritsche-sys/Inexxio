@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Package, FileText, Trash2, AlertTriangle,
@@ -8,7 +8,7 @@ import {
   Scaling, Hash, Link2, Weight, Sparkles, Plus, Shield,
   ClipboardPlus, ArrowRight, Blocks, Wrench, Tag,
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { qk, useDebouncedQuery } from '@/lib/queries';
 import { useSearch } from '@/lib/use-search';
 
@@ -28,8 +28,8 @@ import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN } from '@/lib/process-status';
 
 import { ErrorText } from '@/components/erp/hints';
-import { IconSwitch, inputCls } from '@/components/erp/controls';
-import { Input, Select } from '@/components/form/field';
+import { IconSwitch, Label, inputCls } from '@/components/erp/controls';
+import { Field, Input, Select } from '@/components/form/field';
 import { DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, SectionSep } from '@/components/erp/detail-frame';
 import { History } from '@/components/erp/history';
 import { MICRO_LABEL } from '@/components/erp/fields';
@@ -38,7 +38,9 @@ import { ObjectSelect } from '@/components/erp/object-select';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
-import { errorText } from '@/lib/use-action';
+import { useAction } from '@/lib/use-action';
+import { useOutside } from '@/lib/use-outside';
+import { NOTHING } from '@/lib/when';
 
 // Artikel-Lebenszyklus: der Artikel entsteht erst mit seiner Freigabe (vollständige
 // Spezifikation UND mindestens ein Modul) und ist danach eingefroren. Ausser Betrieb geht er,
@@ -100,11 +102,6 @@ function fromValues(base: Form, v: Record<string, string>): Form {
     ...(v.is_hazmat === 'true' ? { is_hazmat: 'ja' } : v.is_hazmat === 'false' ? { is_hazmat: '' } : {}) };
 }
 
-// Vorübergehender Transportfehler (Server nicht erreichbar / Kaltstart) vs. fachlicher Fehler.
-function isTransient(msg: string): boolean {
-  return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
-}
-
 export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onCreateOrder }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   /** Anlage aus einem Handgriff: die Werte, die die KI kannte. */
@@ -128,8 +125,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
     onCreateOrder?.(record.object_id);
   }
   const [form, setForm] = useState<Form>(() => seedFrom(record, initial));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy: saving, error, setError, run } = useAction('Freigabe fehlgeschlagen');
 
   // **Der Entwurf lebt hier, nicht in der Datenbank.** Spezifikation und Prozess sind
   // zwei Hälften derselben Anlage: der Artikel entsteht erst, wenn beide stehen.
@@ -198,18 +194,12 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
 
   /** **Freigeben = Anlegen**: ein Aufruf, eine Transaktion; erst hier entstehen Datensatz und Nummer. */
   async function release() {
-    setSaving(true);
-    setError(null);
-    try {
+    await run(async () => {
       onSaved(await api.createArticle(payload));
       // Eine Ersetzung ändert **zwei** Datensätze – der Vorgänger ist jetzt inaktiv.
       if (replaces) onRefresh?.();
-    } catch (e) {
-      const msg = errorText(e, 'Freigabe fehlgeschlagen');
-      setError(isTransient(msg) ? `${msg} – bitte erneut versuchen.` : msg);
-    } finally {
-      setSaving(false);
-    }
+    // Kein Netz (Kaltstart, Funkloch) ist kein fachlicher Fehler – noch einmal geht.
+    }, (e) => { if (e instanceof ApiError && e.code === 'offline') setError(`${e.message} – bitte erneut versuchen.`); });
   }
 
   // **Ein Entwurf hat keinen Zustand** – es gibt ihn ja noch nicht.
@@ -222,7 +212,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
       <DetailHeader
         type="article" title={form.name || null} placeholder="Neuer Artikel"
         objectId={isCreate ? null : record.object_id}
-        objectIdText={isCreate ? '—' : undefined}
+        objectIdText={isCreate ? NOTHING : undefined}
         objectIdHint={isCreate
           ? 'Die Objektnummer entsteht erst mit der Freigabe. Bis dahin existiert dieser Artikel nur in diesem Fenster.'
           : undefined}
@@ -279,8 +269,8 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
                     <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
                   </div>
                   <div style={GRID2}>
-                    <EditField name="size" label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" error={form.size ? errs.size : null} />
-                    <EditField name="weight_kg" label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
+                    <Field name="size" label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" error={form.size ? errs.size : null} />
+                    <Field name="weight_kg" label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
                   </div>
                   {/* Bei Bedarf hinzugefügte optionale Felder + abgeleitete Auto-Werte (nur wenn vorhanden). */}
                   {added.length > 0 && (
@@ -345,14 +335,7 @@ function NameField({ value, onChange, error }: {
   const { hits: sugs } = useSearch<ArticleNameSuggestion>(value, open ? suggestNames : null,
     { delay: 200, minLength: 0 });
 
-  // Klick ausserhalb schliesst die Vorschlagsliste.
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
+  useOutside(open, () => setOpen(false), [boxRef]);
 
   const q = value.trim().toLowerCase();
   const exact = sugs.find((s) => s.name.toLowerCase() === q && s.count > 0);
@@ -360,7 +343,7 @@ function NameField({ value, onChange, error }: {
 
   return (
     <div ref={boxRef} style={{ position: 'relative' }}>
-      <FieldLabel required>Name</FieldLabel>
+      <Label required={!value.trim()}>Name</Label>
       <Input
         name="name"
         value={value}
@@ -437,11 +420,7 @@ function SectionAddButton({ added, onAdd }: {
 }) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function h(e: MouseEvent) { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false); }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
+  useOutside(open, () => setOpen(false), [boxRef]);
   const available = ADD_MENU.filter((f) => !added.includes(f.key));
   if (available.length === 0) return null;
   return (
@@ -480,9 +459,9 @@ function OptField({ f, form, onSet, onRemove }: {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <FieldLabel>{f.label}</FieldLabel>
-        <button type="button" onClick={() => onRemove(f.key)} title="Feld entfernen"
-          style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 0, marginBottom: 6 }}>
+        <Label>{f.label}</Label>
+        <button type="button" onClick={() => onRemove(f.key)} data-tip="Feld entfernen" aria-label="Feld entfernen"
+          style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 0, marginBottom: 4 }}>
           <Trash2 size={13} />
         </button>
       </div>
@@ -498,33 +477,6 @@ function OptField({ f, form, onSet, onRemove }: {
   );
 }
 
-// Eingabefeld-Klasse analog Design-`.fin`.
-// Feld-Label der Spezifikation (Design `.lbl`); Pflicht-Stern in Marken-Rot.
-function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
-  return (
-    <label style={{ ...MICRO_LABEL, display: 'block', color: 'var(--fg-3)', marginBottom: 9 }}>
-      {children}{required && <span style={{ color: 'var(--inexxio-red)' }}> *</span>}
-    </label>
-  );
-}
-
-// Eingabe-Feld (Entwurf): Overline-Label + `.fin`-Input + Fehler/Hinweis.
-function EditField({ name, label, value, onChange, placeholder, hint, error, required, full }: {
-  name: string; label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; hint?: string; error?: string | null; required?: boolean; full?: boolean;
-}) {
-  return (
-    <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <Input name={name} value={value} placeholder={placeholder} onChange={onChange}
-        className={inputCls} style={error ? { borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)' } : undefined} />
-      {error ? <ErrorText msg={error} /> : hint ? (
-        <div style={{ marginTop: 8, font: '500 12.5px var(--font-body)', color: 'var(--fg-4)' }}>{hint}</div>
-      ) : null}
-    </div>
-  );
-}
-
 /**
  * **Schieberegler** für Mengeneinheit und Serialisierung: die Bewegung des Reiters zeigt den
  * Ausschluss; nur die aktive Option trägt ihr Wort, die übrigen sind Symbol mit Hover.
@@ -535,7 +487,7 @@ function IconPick({ label, value, onChange, options, required }: {
 }) {
   return (
     <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
+      <Label required={required && !value}>{label}</Label>
       <IconSwitch labelActiveOnly value={value} onChange={onChange}
         options={options.map((o) => ({ value: o.value, icon: o.icon, label: o.label }))} />
     </div>

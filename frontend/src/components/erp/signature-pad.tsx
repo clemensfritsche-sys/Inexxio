@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Eraser, Check, Loader2, PenLine } from 'lucide-react';
 import { api, attachmentUrl } from '@/lib/api';
-import { errorText } from '@/lib/use-action';
+import { useAction } from '@/lib/use-action';
 
 /**
  * Digitale Unterschrift: auf die Fläche zeichnen (Maus/Finger), «Übernehmen» lädt sie als
@@ -31,8 +31,7 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint, on
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const dirty = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { busy, error: err, setError: setErr, run } = useAction('Unterschrift konnte nicht gespeichert werden');
 
   // Weisser Grund + Stift-Setup (feste interne Auflösung → konstante Proportion).
   function prime(ctx: CanvasRenderingContext2D) {
@@ -81,16 +80,13 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint, on
 
   async function accept() {
     if (!dirty.current) { setErr('Bitte zuerst unterschreiben.'); return; }
-    setBusy(true); setErr(null);
-    try {
+    await run(async () => {
       const blob: Blob = await new Promise((res, rej) =>
         canvasRef.current!.toBlob((b) => (b ? res(b) : rej()), 'image/png'));
       if (onSigned) { await onSigned(blob); return; }
       const { url } = await api.uploadAttachment(new File([blob], 'unterschrift.png', { type: 'image/png' }));
       onChange(url);
-    } catch (e) {
-      setErr(errorText(e, 'Unterschrift konnte nicht gespeichert werden'));
-    } finally { setBusy(false); }
+    });
   }
 
   if (value) {

@@ -20,7 +20,7 @@ import { Fingerprint, X, Loader2, CheckCircle2 } from 'lucide-react';
 import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { platformPasskeyAvailable, registerPasskey, isPasskeyCancellation } from '@/lib/passkey';
-import { errorText } from '@/lib/use-action';
+import { useAction } from '@/lib/use-action';
 import { useDialog } from '@/lib/use-dialog';
 
 const KEY = 'inexxio_passkey_nudge';
@@ -46,9 +46,8 @@ function suppressed(): boolean {
 
 export function PasskeyNudge() {
   const [show, setShow] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { busy, error: err, setError: setErr, run } = useAction('Passkey konnte nicht eingerichtet werden.');
 
   useEffect(() => {
     let cancelled = false;
@@ -82,21 +81,14 @@ export function PasskeyNudge() {
     setShow(false);
   }
 
-  async function create() {
-    setBusy(true); setErr(null);
-    try {
+  function create() {
+    return run(async () => {
       await registerPasskey();
       writeState({ ...readState(), done: true });
       setDone(true);
       setTimeout(() => setShow(false), 2200);
-    } catch (e) {
-      // Abbruch (Dialog geschlossen) ist kein Fehler – Karte offen lassen, erneut möglich.
-      if (!isPasskeyCancellation(e)) {
-        setErr(errorText(e, 'Passkey konnte nicht eingerichtet werden.'));
-      }
-    } finally {
-      setBusy(false);
-    }
+    // Abbruch (Dialog geschlossen) ist kein Fehler – Karte offen lassen, erneut möglich.
+    }, (e) => { if (isPasskeyCancellation(e)) setErr(null); });
   }
 
   return (

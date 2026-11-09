@@ -46,7 +46,7 @@ export function ClaudeCard() {
             <span className="kt-card-tag">Verbunden</span>
             <div className="kt-card-text">{g.client}<small>Erlaubt {when(g.at)}</small></div>
           </div>
-          <button type="button" className="kt-round" onClick={() => cut(g.id)} aria-label="Trennen" title="Trennen">
+          <button type="button" className="kt-round" onClick={() => cut(g.id)} aria-label="Trennen" data-tip="Trennen">
             <Unlink size={16} />
           </button>
         </div>

@@ -5,6 +5,7 @@ import { ChevronDown, GitBranch, Package, Plus, ScanLine, Sprout, Trash2, X } fr
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { qk, useSettled } from '@/lib/queries';
+import { useOutside } from '@/lib/use-outside';
 import type { ArticleOption, UnitChoices, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { FieldAction, IconSwitch, inputCls } from '@/components/erp/controls';
@@ -387,17 +388,9 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
   }
 
   // **Ein Klick daneben schliesst die Liste** – wie jede andere Auswahl im Haus.
+  // Der Scan-Dialog liegt über der Seite, gehört aber zur Liste (er setzt die Suche).
   const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: PointerEvent) => {
-      const t = e.target as Element;
-      // Der Scan-Dialog liegt über der Seite, gehört aber zur Liste (er setzt die Suche).
-      if (box.current && !box.current.contains(t) && !t.closest?.('[role="dialog"]')) setTouched(false);
-    };
-    document.addEventListener('pointerdown', away);
-    return () => document.removeEventListener('pointerdown', away);
-  }, [open]);
+  useOutside(open, () => setTouched(false), [box], '[role="dialog"]');
 
   return (
     <div className="mt-2" ref={box}>

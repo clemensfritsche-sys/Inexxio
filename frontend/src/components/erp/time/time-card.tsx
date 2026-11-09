@@ -28,13 +28,15 @@ import { type Capture, TimeDayDetail, usePreview } from './time-day';
 import { TimeSwipe } from './time-swipe';
 import { Note, daysLabel, hours, sgn, vacationText } from './time-ui';
 import { tell } from '@/lib/notice';
+import { useAction } from '@/lib/use-action';
 import { Skeleton } from '../skeleton';
 
 const OFFLINE = 'Keine Verbindung – nicht gespeichert. Bitte erneut versuchen, sobald das Netz da ist.';
 const OFFLINE_SWIPE = 'Keine Verbindung – nicht gestempelt. Bitte erneut wischen, sobald das Netz da ist.';
 
+/** Der Satz des Servers – ohne Netz der eigene Satz, was nun zu tun ist. */
 function message(e: unknown, offline: string): string {
-  return e instanceof ApiError ? e.message : offline;
+  return e instanceof ApiError && e.code !== 'offline' ? e.message : offline;
 }
 
 function shiftMonth(month: string, step: number): string {
@@ -64,8 +66,7 @@ export function TimeCard({ person }: { person: number }) {
   const [sel, setSel] = useState<string | null>(null);
   const [cap, setCap] = useState<Capture | null>(null);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [swipeErr, setSwipeErr] = useState<string | null>(null);
+  const { busy, error: swipeErr, setError: setSwipeErr, run } = useAction();
   /** Ein Satz ohne Fehler (zweiter Wisch, der nichts geschrieben hat). */
   const [notice, setNotice] = useState<string | null>(null);
   const preview = usePreview(person, cap);
@@ -94,18 +95,14 @@ export function TimeCard({ person }: { person: number }) {
 
   const swipe = async () => {
     if (!view || busy) return;
-    setBusy(true); setSwipeErr(null); setNotice(null);
+    setNotice(null);
     const key = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-    try {
+    await run(async () => {
       const v = await api.timeSwipe(person, view.present_since ? 'out' : 'in', key, view.month);
       show(v);
       setNotice(v.notice ?? null);
       todoChanged();
-    } catch (e) {
-      setSwipeErr(message(e, OFFLINE_SWIPE));
-    } finally {
-      setBusy(false);
-    }
+    }, (e) => setSwipeErr(message(e, OFFLINE_SWIPE)));
   };
   /** Ein Eintrag – `null` = geklappt, sonst der Satz. */
   const entry = async (data: TimeEntryIn): Promise<string | null> => {

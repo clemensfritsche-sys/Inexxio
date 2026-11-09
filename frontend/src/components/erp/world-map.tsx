@@ -105,15 +105,15 @@ export function regionAnchor(region: string): { x: number; y: number } {
  * Die Karte. Farbe und Auswahl kommen von aussen (die Gebietsansicht kennt die
  * Gesellschaften) – diese Datei kennt nur Geografie.
  */
-export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
+export function WorldMap({ fill, stroke, selected, onSelect, tip, label }: {
   /** Füllfarbe je Regions-Code. */
   fill: (region: string) => string;
   /** Randfarbe je Region – die Kontur der Landmasse. */
   stroke: (region: string) => string | null;
   selected?: string | null;
   onSelect?: (region: string) => void;
-  /** Hover-Text je Region (z. B. «Europa · Inexxio AG»). */
-  title?: (region: string) => string;
+  /** Hover-Text je Region (z. B. «Europa · Inexxio AG») – die eine Blase (`data-tip`). */
+  tip?: (region: string) => string;
   /** Beschriftung IN der Fläche: Gebiet + wer es fakturiert. */
   label?: (region: string) => { title: string; sub: string; ink: string } | null;
 }) {
@@ -139,10 +139,9 @@ export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
         const marked = selected === region || hover === region;
         return (
           <g key={region} onClick={onSelect ? () => onSelect(region) : undefined}
-            onMouseEnter={() => setHover(region)}
+            onMouseEnter={() => setHover(region)} data-tip={tip?.(region)}
             filter="url(#ix-map-round)"
             style={{ cursor: onSelect ? 'pointer' : 'default' }}>
-            {title && <title>{title(region)}</title>}
             <path d={d} fill={marked && ring ? ring : fill(region)} stroke="none" />
           </g>
         );

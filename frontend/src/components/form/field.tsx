@@ -1,5 +1,5 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
-import { inputClass, inputCls } from '@/components/erp/controls';
+import { Label, inputClass, inputCls } from '@/components/erp/controls';
 import { useField, type FieldNote, type FieldSpec } from './use-field';
 
 /**
@@ -27,12 +27,10 @@ const NOTE_COLOR: Record<FieldNote['tone'], string> = {
   danger: 'var(--danger)', warning: 'var(--warning)', quiet: 'var(--fg-4)',
 };
 function Note({ note }: { note: FieldNote | null }) {
-  return note && <p style={{ fontSize: 12, color: NOTE_COLOR[note.tone], margin: 0 }}>{note.text}</p>;
+  return note && <p style={{ fontSize: 12, color: NOTE_COLOR[note.tone], margin: '4px 0 0' }}>{note.text}</p>;
 }
 
-const COLUMN = { display: 'flex', flexDirection: 'column', gap: 4 } as const;
-const LABEL = { fontSize: 13, fontWeight: 500, color: 'var(--fg-2)', display: 'flex', alignItems: 'center',
-  gap: 6 } as const;
+const COLUMN = { display: 'flex', flexDirection: 'column' } as const;
 
 interface FieldProps extends FieldSpec {
   label: string;
@@ -49,10 +47,7 @@ export function Field({ label, placeholder, list, rows, ...spec }: FieldProps) {
   const className = inputClass(f.tone);
   return (
     <div style={COLUMN}>
-      <label style={LABEL}>
-        {label}
-        {f.empty && <span style={{ color: 'var(--warning)', marginLeft: -3, fontWeight: 700 }}>*</span>}
-      </label>
+      <Label required={f.empty}>{label}</Label>
       {rows ? (
         <textarea rows={rows} placeholder={placeholder} className={className} {...f.control} />
       ) : (
@@ -74,7 +69,7 @@ export function SelectField({ label, options, ...spec }: SelectFieldProps) {
   const f = useField(spec);
   return (
     <div style={COLUMN}>
-      <label style={LABEL}>{label}</label>
+      <Label>{label}</Label>
       <select value={f.control.value} onChange={f.control.onChange}
         className={`${inputCls} cursor-pointer`}>
         {options.map((o) => (

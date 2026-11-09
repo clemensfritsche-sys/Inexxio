@@ -4,7 +4,7 @@ import { useCallback, useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
-import { day } from '@/lib/when';
+import { NOTHING, day } from '@/lib/when';
 import { ObjId } from '@/components/erp/obj-id';
 import type { VoucherCorrectable, VoucherSide } from '@/types';
 import {
@@ -106,7 +106,7 @@ const PERSON = 'person';
  * der Beleg an die Firma (z. H. der Person) oder an die Person privat geht.
  */
 function SideName({ side, d, onAction }: { side: VoucherSide | null; d: Filled; onAction: Send }) {
-  if (!side) return <span style={{ ...NAME_FACE, color: 'var(--fg-3)' }}>—</span>;
+  if (!side) return <span style={{ ...NAME_FACE, color: 'var(--fg-3)' }}>{NOTHING}</span>;
   if (side.ours) return <Issuer d={d} side={side} onAction={onAction} />;
   const c = side.choice;
   if (c?.company) {
@@ -120,7 +120,7 @@ function SideName({ side, d, onAction }: { side: VoucherSide | null; d: Filled; 
     );
   }
   if (!side.name && side.object_id == null) {
-    return <span style={{ ...NAME_FACE, color: 'var(--fg-3)' }}>—</span>;
+    return <span style={{ ...NAME_FACE, color: 'var(--fg-3)' }}>{NOTHING}</span>;
   }
   return (
     <span className="truncate" style={{ ...NAME_FACE, minWidth: 0 }}>
@@ -177,11 +177,11 @@ function Anschrift({ label, lines, side, pick, onPick }: {
       {options.length > 1 ? (
         <DocPick name="address" on value={String(pick ?? '')} text={lines.join('\n')} face={face}
           aria={label ?? 'Anschrift'} tip="Andere Anschrift aus dem Adressbuch wählen"
-          options={[...(pick == null ? [{ value: '', label: '—' }] : []),
+          options={[...(pick == null ? [{ value: '', label: NOTHING }] : []),
                     ...options.map((o) => ({ value: String(o.id), label: o.label }))]}
           onChange={(v) => { if (v) onPick(Number(v)); }} />
       ) : (
-        <span style={face}>{lines.join('\n') || '—'}</span>
+        <span style={face}>{lines.join('\n') || NOTHING}</span>
       )}
     </span>
   );

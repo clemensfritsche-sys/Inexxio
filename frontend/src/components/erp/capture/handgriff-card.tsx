@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Check, Clock, Hand, Loader2, Pencil, Sparkles, X } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAction } from '@/lib/use-action';
 import { tell } from '@/lib/notice';
-import { when, whenTitle } from '@/lib/when';
+import { NOTHING, when, whenTitle } from '@/lib/when';
 import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { Field, SelectField } from '@/components/form/field';
@@ -33,21 +34,14 @@ export function HandgriffCard({ h, onChanged }: {
   /** Nach einer Handlung – das Gespräch bzw. das Angeheftete lädt nach (`lib/feed`). */
   onChanged?: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState('');
+  const { busy, error: problem, run } = useAction('Ging nicht.');
   const [editing, setEditing] = useState(false);
   const capture = useCapture();
   const open = h.state === 'open';
   const draft = capture ? draftOf(h, capture) : null;
   const isNote = isNoteBody(h.body);
 
-  async function act(run: () => Promise<unknown>, what: string) {
-    setBusy(true);
-    setProblem('');
-    try { await run(); onChanged?.(); }
-    catch (e) { setProblem(e instanceof Error ? e.message : `${what} ging nicht.`); }
-    finally { setBusy(false); }
-  }
+  const act = (call: () => Promise<unknown>) => run(async () => { await call(); onChanged?.(); });
 
   return (
     <div className="erp-hg" data-state={h.state}>
@@ -69,7 +63,7 @@ export function HandgriffCard({ h, onChanged }: {
       </div>
       {editing && open && (
         <ChangeForm h={h} onCancel={() => setEditing(false)}
-          onRun={(body) => act(() => api.runHandgriff(h.id, body).then(() => setEditing(false)), 'Ausführen')} />
+          onRun={(body) => act(() => api.runHandgriff(h.id, body).then(() => setEditing(false)))} />
       )}
       {problem && <p role="alert" className="erp-capture-problem"><AlertCircle size={15} aria-hidden />{problem}</p>}
       {open && !editing && (
@@ -79,7 +73,7 @@ export function HandgriffCard({ h, onChanged }: {
               <Hand size={14} />Öffnen
             </button>
           ) : (
-            <button type="button" disabled={busy || !!h.missing} onClick={() => void act(() => api.runHandgriff(h.id), 'Ausführen')}
+            <button type="button" disabled={busy || !!h.missing} onClick={() => void act(() => api.runHandgriff(h.id))}
               data-tip={h.missing ? `Erst ergänzen – ${h.missing}` : undefined}
               className={h.missing ? 'erp-actbtn erp-actbtn-neutral erp-hg-btn' : 'erp-actbtn erp-actbtn-primary erp-hg-btn'}>
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}{isNote ? 'Ablegen' : 'Ausführen'}
@@ -97,7 +91,7 @@ export function HandgriffCard({ h, onChanged }: {
             </button>
           )}
           <span style={{ flex: 1 }} />
-          <button type="button" disabled={busy} onClick={() => void act(() => api.dropHandgriff(h.id), 'Weg')}
+          <button type="button" disabled={busy} onClick={() => void act(() => api.dropHandgriff(h.id))}
             aria-label="Weg" data-tip="Weg – geschieht nicht" className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon erp-hg-x">
             <X size={14} />
           </button>
@@ -240,12 +234,12 @@ function SchemaField({ name, prop, required, value, onChange }: {
   const label = prop.description ? `${name} – ${prop.description}` : name;
   if (prop.enum) {
     return <SelectField name={name} label={label} required={required} value={String(value ?? '')}
-      onChange={(v) => onChange(v || null)} options={[{ value: '', label: '–' }, ...prop.enum.map((e) => ({ value: e, label: e }))]} />;
+      onChange={(v) => onChange(v || null)} options={[{ value: '', label: NOTHING }, ...prop.enum.map((e) => ({ value: e, label: e }))]} />;
   }
   if (prop.type === 'boolean') {
     return <SelectField name={name} label={label} value={value === true ? 'ja' : value === false ? 'nein' : ''}
       onChange={(v) => onChange(v === 'ja' ? true : v === 'nein' ? false : null)}
-      options={[{ value: '', label: '–' }, { value: 'ja', label: 'ja' }, { value: 'nein', label: 'nein' }]} />;
+      options={[{ value: '', label: NOTHING }, { value: 'ja', label: 'ja' }, { value: 'nein', label: 'nein' }]} />;
   }
   if (prop.type === 'integer' && name.endsWith('object_id')) {
     return <ObjectSelect label={label} value={typeof value === 'number' ? value : null} required={required}

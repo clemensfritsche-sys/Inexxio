@@ -17,7 +17,7 @@ import type { TerritoryMap as TerritoryMapData } from '@/types';
 import { WorldMap, regionAnchor } from '@/components/erp/world-map';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { Skeleton } from './skeleton';
-import { errorText } from '@/lib/use-action';
+import { errorText, useAction } from '@/lib/use-action';
 
 // Kategoriale Identitäts-Farben (KEINE Ampel): Farbe = «welche Gesellschaft». Drei Stärken
 // je Ton: `dot` (Punkt/Kontur), `land` (Landfläche), `bg` (Chips und Zeilen).
@@ -38,9 +38,8 @@ function countryLabel(code: string, dn: Intl.DisplayNames | null): string {
 
 export function TerritoryMap({ highlight, embedded }: { highlight?: number | null; embedded?: boolean }) {
   const [data, setData] = useState<TerritoryMapData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, setError, run } = useAction('Zuweisung fehlgeschlagen');
   const [selected, setSelected] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -51,16 +50,13 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
   const load = useCallback(async () => {
     try { setData(await api.getTerritories()); }
     catch (e) { setError(errorText(e, 'Fehler beim Laden')); }
-  }, []);
+  }, [setError]);
   useEffect(() => { load(); }, [load]);
 
   const assign = useCallback(async (area: string, companyObjectId: number | null) => {
     if (busy) return;
-    setBusy(true); setError(null);
-    try { setData(await api.assignTerritory(area, companyObjectId)); setSelected(null); }
-    catch (e) { setError(errorText(e, 'Zuweisung fehlgeschlagen')); }
-    finally { setBusy(false); }
-  }, [busy]);
+    await run(async () => { setData(await api.assignTerritory(area, companyObjectId)); setSelected(null); });
+  }, [busy, run]);
 
   if (error && !data) return <div style={{ padding: 16, fontSize: 13, color: 'var(--danger)' }}>{error}</div>;
   if (!data) return <Skeleton block={240} label="Gebietskarte wird geladen" style={{ padding: 16 }} />;
@@ -120,7 +116,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
           onSelect={(code) => { setSelected(selected === code ? null : code); setAdding(false); }}
           fill={(code) => toneOf(regionOwner(code)).land}
           stroke={(code) => toneOf(regionOwner(code)).ring}
-          title={(code) => `${data.regions.find((r) => r.code === code)?.label ?? code} · ${nameOf(regionOwner(code))}`}
+          tip={(code) => `${data.regions.find((r) => r.code === code)?.label ?? code} · ${nameOf(regionOwner(code))}`}
           label={(code) => {
             const r = data.regions.find((x) => x.code === code);
             if (!r) return null;
@@ -190,7 +186,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
                       {nameOf(c.company_object_id)}
                     </span>
                     <button type="button" disabled={busy} onClick={() => assign(c.code, regionOwner(c.region))}
-                      title="Ausnahme entfernen – folgt wieder der Region"
+                      data-tip="Ausnahme entfernen – folgt wieder der Region"
                       style={{ marginLeft: 'auto', display: 'inline-flex', background: 'none', border: 'none',
                         padding: 2, cursor: busy ? 'default' : 'pointer', color: 'var(--fg-4)' }}>
                       <X size={13} />

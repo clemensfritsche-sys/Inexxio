@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { StatusDot } from '@/components/erp/fields';
 import { formatAmount } from '@/lib/utils';
+import { NOTHING } from '@/lib/when';
 
 /**
  * **Die Bauteile, aus denen ein Prozessschrittmodul besteht** – Fläche, Kopf, Zeile, Betrag,
@@ -42,9 +43,9 @@ export const FIELD_GAP = 12;
 
 /**
  * **Ein Knopf ist ein Symbol, und beim Zeigen klappt sein Name daneben auf** (`.ix-tuck`) –
- * nur in einer Leiste, die nicht umbricht (`Actions`). **In einer Zeile (`InRow`) klappt er
- * nicht aus**, der Name steht in der Blase. Der `tip` hängt an einer Hülle, weil `.ix-tuck`
- * `overflow: hidden` ist.
+ * nur in einer Leiste, die nicht umbricht (`.ix-actions`). **In einer Zeile (`InRow`) klappt er
+ * nicht aus**, der Name steht in der Blase. Der `tip` hängt an einer Hülle, weil ein gesperrter
+ * Knopf den Zeiger nicht in jedem Browser meldet.
  */
 const InRow = createContext(false);
 
@@ -172,18 +173,15 @@ export function StageAction({ icon: Icon, label, disabled, onClick }: {
   );
 }
 
-/** **Die Zeile, in der Handlungs-Knöpfe stehen** – sie bricht nicht um (siehe `ActionButton`). */
-export function Actions({ children }: { children: ReactNode }) {
-  return <div className="ix-actions">{children}</div>;
-}
-
 /**
  * **EIN Betrag — Zahl, Währung, Zustandsfarbe.** Die Währung ist ein Kind der Zahl und erbt
  * ihre Farbe; formatiert wird hier, sonst nirgends. `currency` darf ein Knoten sein (Wähler).
  */
-export function Amount({ value, currency, decimals = 2, color, size = 13, weight = 600,
+export function Amount({ value, sign, currency, decimals = 2, color, size = 13, weight = 600,
                          tip, children }: {
   value?: string | number | null;
+  /** Ein Vorzeichen vor der Zahl (`+` Einnahme, `−`/`-` Ausgabe) – nur, wo es eine Zahl gibt. */
+  sign?: string;
   /** Der Code – oder der Wähler, wo er einer ist. Ohne Angabe steht nur die Zahl. */
   currency?: ReactNode;
   decimals?: number;
@@ -202,7 +200,7 @@ export function Amount({ value, currency, decimals = 2, color, size = 13, weight
         color, font: `${weight} ${size}px var(--font-body)`,
         fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
       }}>
-      {children ?? formatAmount(value, decimals)}
+      {children ?? (value == null || value === '' ? NOTHING : `${sign ?? ''}${formatAmount(value, decimals)}`)}
       {currency != null && currency !== '' && (
         <span style={{ color: 'inherit', opacity: 0.72, fontSize: size - 1,
                        fontWeight: 500, marginLeft: 4, flex: 'none' }}>{currency}</span>

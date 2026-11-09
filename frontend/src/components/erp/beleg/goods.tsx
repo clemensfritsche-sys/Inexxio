@@ -12,6 +12,7 @@ import {
   DOC_FIELD, DocPick, Editable, FixedValue, LABEL, Section, may,
 } from './shared';
 import type { Filled, Send } from './shared';
+import { NOTHING } from '@/lib/when';
 
 type Line = Filled['lines'][number];
 
@@ -130,7 +131,7 @@ function LineTitle({ line }: { line: Line }) {
   return (
     <span className="flex items-baseline" style={{ gap: 8, minWidth: 0 }}>
       <span className="truncate" style={{ fontSize: 13, color: 'var(--fg-1)' }}>
-        {line.article_name || '—'}
+        {line.article_name || NOTHING}
       </span>
       <span data-tip={line.is_service
         ? 'Steuersatz nach dem Sitz des Empfängers – keine Lieferbedingung'
@@ -212,7 +213,7 @@ function CustomsField({ name, label, unit, value, on, width, numeric, onChange, 
  */
 function vatText(label?: string | null, rate?: string | null): string {
   const name = label ?? '';
-  if (!rate) return name || '—';
+  if (!rate) return name || NOTHING;
   return name ? `${rate} % · ${name}` : `${rate} %`;
 }
 
@@ -281,7 +282,7 @@ function Part({ d, line, on, value, onChange, onDone }: {
     if (line.part == null) return null;
     return (
       <span style={{ fontSize: 11.5, color: 'var(--fg-3)', textAlign: 'right' }}>
-        Teilbetrag {line.part} von {line.full ?? '—'}{share ? ` (${share})` : ''}
+        Teilbetrag {line.part} von {line.full ?? NOTHING}{share ? ` (${share})` : ''}
       </span>
     );
   }
@@ -291,7 +292,7 @@ function Part({ d, line, on, value, onChange, onDone }: {
         onChange={(v) => { onChange(v === FULL ? null : (line.part ?? '')); }} />
       {value !== null && (
         <span className="inline-flex items-baseline" style={{ gap: 6 }}>
-          <Editable title={`Teilbetrag, netto – von ${line.full ?? '—'} ${d.currency}`}
+          <Editable title={`Teilbetrag, netto – von ${line.full ?? NOTHING} ${d.currency}`}
             missing={value.trim() === ''}>
             <Input name="part" {...numericInputProps} value={value} aria-label="Teilbetrag" autoFocus={!line.part}
               onChange={(v) => onChange(numericOnly(v, { decimals: d.currency_decimals }))}

@@ -335,7 +335,17 @@
    Footer.astro) – übernommen beim Bauen (`website/scripts/export-shell.mjs` →
    `src/generated/site-shell.json`, `components/layout/site-shell.tsx`), samt Stylesheet und
    Skript. Die Kopfhöhe (`--site-header-h`) kommt aus demselben Stylesheet. Rückmeldung
-   04.10.2026: «Ein Header für beides» – der frühere Nachbau ist gelöscht. */
+   04.10.2026: «Ein Header für beides» – der frühere Nachbau ist gelöscht.
+
+   ►►► **Unser Reset gilt nicht in ihnen.** ◄◄◄ Der Grund-Reset von Tailwind (Preflight) liegt
+   im ERP über der ganzen Seite, auf der Website nicht. Gemessen (Chromium, Kopf auf `/agb`
+   gegen `/newsletter`, 1440 und 390 px): Knöpfe erbten die Laufweite der Seite (`button {
+   letter-spacing: inherit }` – «DE» und «Deutsch» 1 px schmaler) und Symbole sassen anders
+   (`svg { vertical-align: middle }`). Hier wird beides auf den Stand des Browsers
+   zurückgesetzt, wie ihn die Website hat – ohne Gewicht (`:where`), damit jede Regel des
+   Kopfes selbst gewinnt. Gewollt verschieden bleibt nur das Glas (`html[data-site]`). */
+.ix-shell :where(button, input, select, textarea) { letter-spacing: normal; }
+.ix-shell :where(img, svg, video, canvas, audio, iframe, embed, object) { vertical-align: baseline; }
 
 .ix-eyebrow {
   font: 600 11px/1.2 var(--font-body);
@@ -370,17 +380,6 @@
 @layer components {
   .container { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8; }
   .section { @apply py-16 sm:py-24; }
-  .btn-primary {
-    @apply inline-flex items-center gap-2 font-semibold px-5 py-2.5 rounded-xl transition-all duration-200;
-    background: var(--inexxio-red);
-    color: #fff;
-    box-shadow: var(--shadow-sm);
-  }
-  .btn-primary:hover {
-    background: var(--inexxio-red-deep);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-  }
   .card {
     @apply rounded-xl;
     background: #fff;
@@ -396,72 +395,38 @@
    Elemente daher als Klassen, nicht als style-Objekt.
    ============================================================ */
 
-/* ── Hover-Tooltip: [data-tip="…"] – dunkel, erscheint oben ──────────────────
-   **Er existiert erst beim Hover** (`display: none`), und das ist keine Kosmetik:
-   ein absolut positioniertes Kind zählt zur *scrollable overflow area* seiner
-   Vorfahren – auch unsichtbar bei `opacity: 0`. Eine bis zu 240 px breite Blase an
-   einem 46-px-Symbol schob damit den nächsten `overflow-auto`-Container über seine
-   Breite hinaus, und der Browser bot **seitwärts scrollen** über leere Fläche an.
-
-   Seitwärts scrollen ist im Inexxio-UI verboten, ausser es ist ausdrücklich gewollt
-   (Testnotiz #703). Gescrollt wird senkrecht. Darum darf nichts, was man nicht sieht,
-   die Breite bestimmen – der Übergang entfällt dafür, und das passt: der Hover soll
-   ohnehin sofort kommen (#618). */
-[data-tip] { position: relative; }
-[data-tip]::after {
-  content: attr(data-tip);
-  display: none;
-  position: absolute;
-  bottom: calc(100% + 9px);
-  left: 50%;
-  transform: translateX(-50%) translateY(3px);
-  background: var(--inexxio-black);
-  color: #fff;
-  font: 500 12px/1.35 var(--font-body);
+/* ── Hover-Blase: [data-tip="…"] ─────────────────────────────────────────────
+   **EINE Blase, gezeigt von `components/erp/hints.TipHost`** (Wurzel-Layout) – am `body`,
+   `position: fixed` aus dem Rechteck des Auslösers. Früher war sie ein `::after` am Element:
+   ein `overflow: hidden` eines Vorfahren schnitt sie ab, und sie erbte dessen Schrift (eine
+   Überschrift in Grossbuchstaben machte die Blase gross). Am `body` erbt sie nichts und kippt
+   am Fensterrand. `position: relative` bleibt am Auslöser, wie es immer war – Kinder, die sich
+   danach richten, behalten ihren Platz; ohne Gewicht (`:where`), damit eine Klasse, die das
+   Element selbst platziert (der PDF-Knopf am Papier), gewinnt. */
+:where([data-tip]) { position: relative; }
+.ix-tip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  z-index: 1000;
+  max-width: min(280px, calc(100vw - 16px));
   width: max-content;
-  max-width: 240px;
-  white-space: normal;
-  text-align: center;
   padding: 6px 10px;
   border-radius: var(--r-sm);
-  pointer-events: none;
-  z-index: 60;
+  background: var(--bg-dark);
+  color: var(--fg-on-dark);
+  font: 500 12px/1.4 var(--font-body);
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
   box-shadow: var(--shadow-md);
+  pointer-events: none;
 }
-[data-tip]:hover::after { display: block; transform: translateX(-50%) translateY(0); }
-/* **Ohne Zeigegerät ist der Fokus der Hover.** Ein Tipp auf ein fokussierbares Element
-   setzt den Fokus – dieselbe Blase, derselbe Weg, kein zweites Muster.
-
-   **Mit Maus gilt das nur für die Tastatur** (`:focus-visible`). Ein Klick setzt ebenfalls
-   Fokus, und die Blase blieb danach stehen, bis man woandershin klickte: beim Aufklappen
-   einer Stück-Pille hing ihr «Nummern anzeigen» über der Liste, während der Zeiger schon
-   auf einer Nummer stand – **zwei Blasen gleichzeitig**, die eine ohne Bezug zum Zeiger.
-   Getrennt nach Eingabeart, weil die Frage «wo zeige ich hin» genau daran hängt. */
-@media (hover: none) {
-  [data-tip]:focus::after,
-  [data-tip]:focus-within::after { display: block; transform: translateX(-50%) translateY(0); }
-}
-@media (hover: hover) {
-  [data-tip]:focus-visible::after { display: block; transform: translateX(-50%) translateY(0); }
-}
-/* **Mehrzeilig** (Historie am Prozessobjekt): Zeilenumbrüche aus `attr()` gelten nur
-   mit `pre-line`, und eine Liste liest sich linksbündig. Eigene Variante statt einer
-   Änderung an allen Blasen – ein einzeiliger Hinweis bleibt zentriert. */
-[data-tip][data-tip-list]::after {
-  white-space: pre-line; text-align: left; max-width: 340px; font-variant-numeric: tabular-nums;
-}
-/* **Die innere Blase gewinnt.** Liegt ein `[data-tip]` in einem anderen, ist beim Zeigen
-   auf das innere auch das äussere «hover» – und es erschienen **zwei** Blasen übereinander
-   (gemeldet an der Stück-Pille: «seit wann steht es hier» und «Datensatz öffnen»). Welche
-   gemeint ist, sagt der Cursor: die am genaueren Element. Als Regel hier statt als
-   Einzelfall dort – sonst wächst dieselbe Doppelung beim nächsten geschachtelten Hinweis
-   wieder nach. */
-[data-tip]:has([data-tip]:hover)::after,
-[data-tip]:has([data-tip]:focus)::after { display: none; }
-/* nach unten öffnen (für Elemente ganz oben) */
-[data-tip][data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 9px); transform: translateX(-50%) translateY(-3px); }
-[data-tip][data-tip-pos="bottom"]:hover::after { display: block; transform: translateX(-50%) translateY(0); }
-[data-tip][data-tip-hidden]::after { display: none; }
+/* **Mehrzeilig** (Historie am Prozessobjekt): Zeilen aus `\n`, Zahlen tabellarisch. */
+.ix-tip[data-list] { white-space: pre-line; max-width: min(340px, calc(100vw - 16px)); font-variant-numeric: tabular-nums; }
 
 /* ── Detail-Kopf: Icon-Knöpfe (QR, Abweichung, Werkzeuge) ── */
 /* Symbol-Aktionen neben der Objektnummer. Alle tragen eine dezente Tönung – ein Knopf ohne
@@ -853,7 +818,7 @@ html[data-embed] .ix-shell { display: none !important; }
    Dauer. Hier darf er IM FLUSS wachsen: der Umschalter ist eine kurze Reihe, die
    Optionen links vom Cursor bleiben stehen, und der gleitende Reiter wird gemessen,
    folgt der neuen Breite also von selbst. */
-.ix-seg .ix-seg-label { display: flex; opacity: 0; transition: opacity .15s ease; }
+.ix-seg .ix-seg-label { display: flex; opacity: 0; transition: opacity .15s ease; text-transform: none; letter-spacing: normal; }
 .ix-seg:hover .ix-seg-label, .ix-seg:focus-visible .ix-seg-label { opacity: 1; }
 .ix-seg .ix-seg-label > span {
   max-width: 0; overflow: hidden; white-space: nowrap;
@@ -911,8 +876,9 @@ html[data-embed] .ix-shell { display: none !important; }
    umbricht** (`.ix-actions`) – dort schiebt er nur seine Nachbarn zur Seite und bleibt
    selbst unter dem Zeiger.
 
-   **Der Grund gehört nicht hinein**: `overflow: hidden` schneidet ein `::after` weg, also
-   trägt ein gesperrter Knopf seine Begründung an einer **Hülle** (`<span data-tip>`). */
+   **Der Grund ist die Blase, nicht der Name**: ein gesperrter Knopf trägt seine Begründung
+   an einer **Hülle** (`<span data-tip>`) – ein gesperrtes Element meldet den Zeiger nicht in
+   jedem Browser. Der Name schreibt sich wie die Blase: Satzschreibung, wie er dasteht. */
 .ix-tuck {
   position: relative;
   display: inline-flex;
@@ -933,6 +899,9 @@ html[data-embed] .ix-shell { display: none !important; }
 .ix-tuck > svg { flex: none; }
 .ix-tuck-name {
   font: 600 12.5px var(--font-body);
+  /* Satzschreibung wie die Blase – nie geerbt von einer Überschrift darum herum. */
+  text-transform: none;
+  letter-spacing: normal;
   max-width: 0;
   opacity: 0;
   transition: max-width 0.16s ease, opacity 0.12s ease;
@@ -995,13 +964,9 @@ html[data-embed] .ix-shell { display: none !important; }
    nachbaute, bräuchte einen `onMouseEnter`-Zustand je Zeile – und beim nächsten Bauteil
    fehlte er.
 
-   ►►► **Und sie gilt für JEDE Zeile, nicht für eine** (Testnotizen #989/#993). ◄◄◄
-
-   Sie hing an `.erp-partyrow`, also an genau einer Liste. Gemeldet wurde dasselbe an den
-   Geld-Zeilen – «Stornieren» und «Korrigieren» standen dort als freistehende Knöpfe unter
-   jeder Zeile, in derselben Grösse wie eine Buchung. Eine Zeilenaktion ist aber eine
-   **Gattung**: `.ix-row` markiert die Zeile, `.ix-rowactions` die Knöpfe darin, und jede
-   künftige Liste erbt beides, ohne dass jemand dieses Blatt anfasst.
+   **Sie gilt für JEDE Zeile, nicht für eine**: eine Zeilenaktion ist eine **Gattung** –
+   `.ix-row` markiert die Zeile, `.ix-rowactions` die Knöpfe darin, und jede künftige Liste
+   erbt beides, ohne dass jemand dieses Blatt anfasst.
 
    *Kein Überlauf-Menü: bei ein bis zwei Aktionen wäre es ein Klick mehr für etwas, das
    man auch zeigen kann – und ein Menü, das sich öffnet, ist wieder eine Fläche, die die

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, CircleSlash, ClipboardList, ExternalLink, Send as SendIcon, X } from 'lucide-react';
 import { api } from '@/lib/api';
-import { happened } from '@/lib/when';
+import { NOTHING, happened } from '@/lib/when';
 import { QUOTE_STATE, VOUCHER_STAGE } from '@/lib/modules';
 import { ObjId } from '@/components/erp/obj-id';
 import { numericInputProps, numericOnly } from '@/components/erp/controls';
@@ -330,14 +330,14 @@ function QuoteForm({ d, f, setF }: {
       <div className="flex flex-wrap items-end" style={{ gap: '8px 18px', minWidth: 0 }}>
         <Stacked label="Bestellnummer">
           <Editable title="Seine Bestellnummer bzw. Auftragsnummer">
-            <Input name="reference" value={f.reference} aria-label="Bestellnummer" placeholder="—"
+            <Input name="reference" value={f.reference} aria-label="Bestellnummer" placeholder={NOTHING}
               onChange={(reference) => set({ reference })}
               style={{ ...DOC_FIELD, width: 150, fontSize: 13 }} />
           </Editable>
         </Stacked>
         <Stacked label="Link zur Bestellung">
           <Editable title="Bei einem Online-Kauf: der Link zur Bestellung">
-            <Input name="link" value={f.link} aria-label="Link zur Bestellung" placeholder="—"
+            <Input name="link" value={f.link} aria-label="Link zur Bestellung" placeholder={NOTHING}
               onChange={(link) => set({ link })}
               style={{ ...DOC_FIELD, width: 190, fontSize: 13 }} />
           </Editable>

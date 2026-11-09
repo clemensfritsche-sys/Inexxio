@@ -17,9 +17,14 @@ const FOCUSABLE = 'input:not([disabled]), textarea:not([disabled]), select:not([
  *   `'none'` überlässt ihn dem Dialog.
  * - **Fokus zurück** beim Schliessen – dorthin, wo er vorher war.
  * - **Escape schliesst** (`onClose`; ohne `onClose` ist der Dialog gerade nicht schliessbar, z. B.
- *   während einer Aufnahme).
+ *   während einer Aufnahme) – **nur den obersten**: liegt ein Dialog über einem anderen (der
+ *   Scanner über dem Entwurf), schliesst Escape den, der zuletzt aufging.
  * - **Tab bleibt im Dialog** (`onKeyDown` an den Dialog hängen): die Bedienelemente im Kreis.
  */
+/** Die offenen Dialoge, der zuletzt geöffnete zuoberst – Escape gilt dem obersten, der gerade
+ *  schliessbar ist (ein Hinweis ohne `onClose` hält niemanden auf). */
+const open: { current: (() => void) | null | undefined }[] = [];
+
 export function useDialog<T extends HTMLElement = HTMLDivElement>(
   onClose?: (() => void) | null,
   opts: { focus?: 'first' | 'self' | 'none'; modal?: boolean } = {},
@@ -30,6 +35,8 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(
   const focus = opts.focus ?? 'first';
 
   useEffect(() => {
+    const me = close;
+    open.push(me);
     const before = document.activeElement as HTMLElement | null;
     const node = ref.current;
     if (node && focus !== 'none' && !node.contains(document.activeElement)) {
@@ -37,10 +44,12 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(
       (target ?? node).focus();
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && close.current) close.current();
+      if (e.key !== 'Escape' || !close.current) return;
+      if ([...open].reverse().find((d) => d.current) === me) close.current();
     };
     window.addEventListener('keydown', onKey);
     return () => {
+      open.splice(open.indexOf(me), 1);
       window.removeEventListener('keydown', onKey);
       if (before && document.contains(before)) before.focus?.();
     };

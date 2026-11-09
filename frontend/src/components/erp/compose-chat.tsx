@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { api } from '@/lib/api';
+import { errorText, useAction } from '@/lib/use-action';
 import { inputCls } from '@/components/erp/controls';
 
 /** Was eine Runde dem Entwurf übergibt: das Papier und was dazu gehört. */
@@ -24,7 +25,7 @@ type Turn = { who: 'user' | 'ai'; text: string };
 export function ComposeChat({ onPaper }: { onPaper: (paper: ComposedPaper) => void }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useAction();
   const current = useRef<Record<string, unknown> | null>(null);
 
   async function say() {
@@ -33,19 +34,15 @@ export function ComposeChat({ onPaper }: { onPaper: (paper: ComposedPaper) => vo
     const next: Turn[] = [...turns, { who: 'user', text: said }];
     setTurns(next);
     setText('');
-    setBusy(true);
-    try {
+    // Ein Fehler ist eine Antwort im Gespräch – dort, wo die Antwort gestanden hätte.
+    await run(async () => {
       const r = await api.composeDocument(next, current.current);
       setTurns((t) => [...t, { who: 'ai', text: r.reply || '…' }]);
       if (r.paper && r.html) {
         current.current = r.paper as Record<string, unknown>;
         onPaper({ html: r.html, art: r.art ?? '', name: r.name ?? '', signers: r.signers ?? [] });
       }
-    } catch (e) {
-      setTurns((t) => [...t, { who: 'ai', text: (e as Error).message }]);
-    } finally {
-      setBusy(false);
-    }
+    }, (e) => setTurns((t) => [...t, { who: 'ai', text: errorText(e) }]));
   }
 
   return (

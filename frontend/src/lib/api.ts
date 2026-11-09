@@ -91,6 +91,22 @@ function aborted(options: RequestInit): boolean {
   return !!options.signal?.aborted;
 }
 
+/** **Kein Netz ist eine eigene Art Fehler** (`code: 'offline'`, Status 0) – die Oberfläche fragt
+ *  `e.code === 'offline'`, nie den Wortlaut. */
+function offline(): ApiError {
+  return new ApiError('Keine Verbindung zum Server', 0, 'offline');
+}
+
+/** `fetch`, dessen Netzfehler `offline()` ist; ein Abbruch bleibt ein Abbruch. */
+async function reach(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (e) {
+    if (aborted(init)) throw e;
+    throw offline();
+  }
+}
+
 /**
  * **«Ich habe Daten geändert» – an EINER Stelle gesagt**: nach jeder erfolgreichen Anfrage,
  * die kein GET ist. Der Feed (`lib/feed.ts`) invalidiert, was der **Pfad** betrifft.
@@ -154,7 +170,7 @@ class ApiClient {
     const method = (options.method ?? 'GET').toUpperCase();
     const idempotent = method === 'GET' || method === 'HEAD';
     const MAX_ATTEMPTS = 3;
-    let lastError: Error = new Error('Keine Verbindung zum Server');
+    let lastError: Error = offline();
     let refreshed = false;   // Token-Erneuerung: höchstens EINMAL je Anfrage
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -163,7 +179,7 @@ class ApiClient {
         response = await fetch(`${API_BASE}${path}`, { ...options, headers });
       } catch (e) {
         if (aborted(options)) throw e;
-        lastError = new Error('Keine Verbindung zum Server');
+        lastError = offline();
         if (attempt < MAX_ATTEMPTS) { await this.backoff(attempt); continue; }
         throw lastError;
       }
@@ -578,13 +594,13 @@ class ApiClient {
     let res: Response | null = null;
     for (const force of [false, true]) {
       const token = this.tokenProvider ? await this.tokenProvider(force).catch(() => null) : null;
-      res = await fetch(`${base}${path}`, {
+      res = await reach(`${base}${path}`, {
         method: 'POST', body, signal: opts.signal,
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
       if (res.status !== 401 || !this.tokenProvider) break;
     }
-    if (!res || !res.ok || !res.body) throw res ? await this.apiError(res) : new Error('Keine Verbindung zum Server');
+    if (!res || !res.ok || !res.body) throw res ? await this.apiError(res) : offline();
     notifyDataChanged(path);
     let last: Talk | null = null;
     for await (const line of ndjson(res.body)) {
@@ -916,7 +932,7 @@ class ApiClient {
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(`${API_BASE}/api/v1/erp/attachments`, { method: 'POST', headers, body: form });
+    const res = await reach(`${API_BASE}/api/v1/erp/attachments`, { method: 'POST', headers, body: form });
     if (!res.ok) throw await this.apiError(res);
     return res.json();
   }

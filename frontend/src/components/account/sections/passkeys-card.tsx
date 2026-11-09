@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { registerPasskey, passkeySupported, isPasskeyCancellation } from '@/lib/passkey';
 import type { Passkey } from '@/types';
 import { when } from '@/lib/when';
-import { errorText } from '@/lib/use-action';
+import { errorText, useAction } from '@/lib/use-action';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Datum und Uhrzeit stehen im Haus an EINER Stelle (`lib/when`, Testnotiz #992).
@@ -25,30 +25,22 @@ export function PasskeysCard() {
     qc.setQueryData<Passkey[]>(['me', 'passkeys'], (rows = []) =>
       typeof next === 'function' ? next(rows) : next);
   const [supported, setSupported] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState('');
+  const { busy: adding, error, setError, run } = useAction('Passkey konnte nicht hinzugefügt werden.');
 
   useEffect(() => { setSupported(passkeySupported()); }, []);
 
   async function handleAdd() {
     if (adding) return;
-    setError('');
-    setAdding(true);
-    try {
+    await run(async () => {
       // Kein Name nötig – wird serverseitig automatisch vergeben (durchnummeriert).
       const created = await registerPasskey();
       setPasskeys((prev) => [created, ...prev]);
-    } catch (err: unknown) {
-      if (!isPasskeyCancellation(err)) {
-        setError(errorText(err, 'Passkey konnte nicht hinzugefügt werden.'));
-      }
-    } finally {
-      setAdding(false);
-    }
+    // Abbruch (Dialog geschlossen) ist kein Fehler.
+    }, (err) => { if (isPasskeyCancellation(err)) setError(null); });
   }
 
   async function handleDelete(id: number) {
-    setError('');
+    setError(null);
     const prev = passkeys;
     setPasskeys((rows) => rows.filter((p) => p.id !== id));
     try {
@@ -85,7 +77,7 @@ export function PasskeysCard() {
               <small>Hinzugefügt {formatDate(pk.created_at)}{pk.last_used_at ? ` · zuletzt ${formatDate(pk.last_used_at)}` : ''}</small>
             </div>
           </div>
-          <button type="button" className="kt-round" onClick={() => handleDelete(pk.id)} aria-label="Passkey entfernen" title="Passkey entfernen">
+          <button type="button" className="kt-round" onClick={() => handleDelete(pk.id)} aria-label="Passkey entfernen" data-tip="Passkey entfernen">
             <Trash2 size={16} />
           </button>
         </div>

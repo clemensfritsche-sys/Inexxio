@@ -11,7 +11,8 @@ import { Segmented } from '@/components/erp/controls';
 import { OWN_OPTIONS } from '@/components/erp/organization-detail';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { CompanySettings, CompanyRef, UserProfile, UserRole } from '@/types';
-import { errorText } from '@/lib/use-action';
+import { useAction } from '@/lib/use-action';
+import { NOTHING } from '@/lib/when';
 
 /**
  * ►►► **Eine Person anlegen – ohne dass sie sich je angemeldet hat** (CRM Schritt 1). ◄◄◄
@@ -34,26 +35,15 @@ export function NewPerson({ isAdmin, initial, onSaved, onBack }: {
   const [company, setCompany] = useState<CompanyRef | null>(null);
   // Die zuletzt gezeigten Vorschläge – die Wahl gibt nur die Nummer zurück.
   const found = useRef<CompanyRef[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const { busy, error, run } = useAction('Anlegen nicht möglich.');
 
   const missing = [!first.trim() && 'Vorname', !last.trim() && 'Nachname',
                    !email.trim() && 'E-Mail'].filter(Boolean) as string[];
 
-  async function create() {
-    setBusy(true);
-    setError('');
-    try {
-      onSaved(await api.createErpRecord({
-        first_name: first, last_name: last, email, role,
-        company_object_id: company?.object_id ?? null,
-      }));
-    } catch (e) {
-      setError(errorText(e, 'Anlegen nicht möglich.'));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const create = () => run(async () => onSaved(await api.createErpRecord({
+    first_name: first, last_name: last, email, role,
+    company_object_id: company?.object_id ?? null,
+  })));
 
   const roles = [{ value: 'user', label: 'Benutzer' },
                  ...(isAdmin ? [{ value: 'employee', label: 'Mitarbeiter' },
@@ -63,7 +53,7 @@ export function NewPerson({ isAdmin, initial, onSaved, onBack }: {
   return (
     <div className="flex-1 overflow-y-auto">
       <DetailHeader type="user" title={title || null} placeholder="Neue Person"
-        objectIdText="—" objectIdHint="Die Objektnummer entsteht beim Anlegen."
+        objectIdText={NOTHING} objectIdHint="Die Objektnummer entsteht beim Anlegen."
         onBack={onBack}
         actions={<HeaderAction label="Anlegen" disabled={busy || missing.length > 0}
           hint={missing.length ? `Es fehlt: ${missing.join(', ')}.` : undefined}
@@ -112,29 +102,19 @@ export function NewCompany({ isAdmin, initial, onSaved, onBack }: {
   const [form, setForm] = useState(initial?.legal_form ?? '');
   const [uid, setUid] = useState(initial?.uid_number ?? '');
   const [own, setOwn] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const { busy, error, run } = useAction('Anlegen nicht möglich.');
   const forms = legalForms('CH');
   const missing = [!name.trim() && 'Firmenname', !form.trim() && 'Rechtsform']
     .filter(Boolean) as string[];
 
-  async function create() {
-    setBusy(true);
-    setError('');
-    try {
-      onSaved(await api.createCompany({ company_name: name.trim(), legal_form: form.trim(),
-                                         uid_number: uid.trim() || null, is_own: own }));
-    } catch (e) {
-      setError(errorText(e, 'Anlegen nicht möglich.'));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const create = () => run(async () => onSaved(await api.createCompany({
+    company_name: name.trim(), legal_form: form.trim(), uid_number: uid.trim() || null, is_own: own,
+  })));
 
   return (
     <div className="flex-1 overflow-y-auto">
       <DetailHeader type="organization" title={name.trim() || null} placeholder="Neue Firma"
-        objectIdText="—" objectIdHint="Die Objektnummer entsteht beim Anlegen."
+        objectIdText={NOTHING} objectIdHint="Die Objektnummer entsteht beim Anlegen."
         onBack={onBack}
         actions={<HeaderAction label="Anlegen" disabled={busy || missing.length > 0}
           hint={missing.length ? `Es fehlt: ${missing.join(', ')}.` : undefined}

@@ -18,6 +18,7 @@ import { MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
 import { inputClass } from '@/components/erp/controls';
 import { Input } from '@/components/form/field';
 import { TONE } from '@/lib/status-tone';
+import { NOTHING } from '@/lib/when';
 
 /** Lucide-Name (Backend) → Symbol. */
 export const TIME_ICONS: Record<string, ElementType> = {
@@ -99,7 +100,7 @@ export const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 /** «Mo–Fr» oder «Mo, Mi, Fr». */
 export function daysLabel(days: number[]): string {
   const d = [...days].sort((a, b) => a - b);
-  if (!d.length) return '–';
+  if (!d.length) return NOTHING;
   const run = d.every((x, i) => x === d[0] + i);
   return run && d.length > 2 ? `${WEEKDAYS[d[0]]}–${WEEKDAYS[d[d.length - 1]]}` : d.map((x) => WEEKDAYS[x]).join(', ');
 }

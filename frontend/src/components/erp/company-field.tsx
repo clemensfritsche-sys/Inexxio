@@ -9,7 +9,7 @@ import { ObjectSelect } from '@/components/erp/object-select';
 import { ErrorText } from '@/components/erp/hints';
 import { KtField } from '@/components/form/kt-section';
 import type { CompanyRef, NewCompany } from '@/types';
-import { errorText } from '@/lib/use-action';
+import { useAction } from '@/lib/use-action';
 
 /**
  * ►►► **Die Firma einer Person – GENANNT, nicht gesucht** (CRM). ◄◄◄
@@ -42,25 +42,12 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
   look?: 'erp' | 'kt';
 }) {
   const kt = look === 'kt';
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const { busy, error, setError, run: act } = useAction('Speichern nicht möglich.');
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<NewCompany>({ company_name: '', legal_form: '', uid_number: '' });
   const forms = legalForms(country ?? 'CH');
 
-  async function run(act: () => Promise<unknown>) {
-    setBusy(true);
-    setError('');
-    try {
-      await act();
-      return true;
-    } catch (e) {
-      setError(errorText(e, 'Speichern nicht möglich.'));
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
+  const run = async (call: () => Promise<unknown>) => !!(await act(async () => { await call(); return true; }));
 
   async function create() {
     if (!onCreate) return;
@@ -124,12 +111,12 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" className="kt-pill" disabled={!ready || busy}
-                title={ready ? undefined : 'UID – oder Firmenname und Rechtsform – fehlen.'}
+                data-tip={ready ? undefined : 'UID – oder Firmenname und Rechtsform – fehlen.'}
                 onClick={() => void create()}>
                 Firma übernehmen
               </button>
               <button type="button" className="kt-pill kt-pill--ghost" disabled={busy}
-                onClick={() => { setAdding(false); setError(''); }}>
+                onClick={() => { setAdding(false); setError(null); }}>
                 Abbrechen
               </button>
             </div>
@@ -158,12 +145,12 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
           </div>
           <div className="flex gap-2">
             <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!ready || busy}
-              title={ready ? undefined : 'UID – oder Firmenname und Rechtsform – fehlen.'}
+              data-tip={ready ? undefined : 'UID – oder Firmenname und Rechtsform – fehlen.'}
               onClick={() => void create()}>
               Firma übernehmen
             </button>
             <button type="button" className="erp-actbtn erp-actbtn-neutral" disabled={busy}
-              onClick={() => { setAdding(false); setError(''); }}>
+              onClick={() => { setAdding(false); setError(null); }}>
               Abbrechen
             </button>
           </div>
@@ -199,7 +186,7 @@ function Current({ company, busy, readOnly, onUnlink, kt }: {
         </div>
         {!readOnly && (
           <button type="button" className="kt-round" disabled={busy} onClick={onUnlink}
-            title="Zuordnung lösen – danach bestellen Sie privat." aria-label="Zuordnung lösen">
+            data-tip="Zuordnung lösen – danach bestellen Sie privat." aria-label="Zuordnung lösen">
             <Unlink size={16} />
           </button>
         )}
@@ -216,7 +203,7 @@ function Current({ company, busy, readOnly, onUnlink, kt }: {
       </div>
       {!readOnly && (
         <button type="button" className="erp-actbtn erp-actbtn-neutral" disabled={busy}
-          onClick={onUnlink} title="Die Zuordnung lösen – danach bestellt die Person privat.">
+          onClick={onUnlink} data-tip="Die Zuordnung lösen – danach bestellt die Person privat.">
           <Unlink size={13} /> Lösen
         </button>
       )}

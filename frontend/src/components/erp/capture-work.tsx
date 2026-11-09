@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine, Truck } from 'lucide-react';
 import { absentOn404, api } from '@/lib/api';
+import { tell } from '@/lib/notice';
+import { useAction } from '@/lib/use-action';
 import type { CapturePoint, PlaceRef, StepNeed, StepWork } from '@/types';
 import { MOVE_MODULE } from '@/lib/modules';
 import { formatObjectId } from '@/lib/utils';
@@ -484,27 +486,21 @@ function Hold({ work, orderObjectId, stepId, onDeviate }: {
   work: StepWork; orderObjectId: number; stepId: number;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useAction();
   const failed = work.failed_numbers ?? [];
 
-  async function open() {
-    if (!onDeviate) return;
-    setBusy(true);
-    try {
-      const [{ numbers }, instance] = await Promise.all([
-        api.stepHold(orderObjectId, stepId, work.instance_object_id, 'failed'),
-        api.getInstance(work.instance_object_id),
-      ]);
-      if (!numbers.length || instance.article_object_id == null) return;
-      onDeviate({
-        articleObjectId: instance.article_object_id,
-        unitNumbers: numbers,
-        fromOrder: orderObjectId,
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
+  const open = () => onDeviate && run(async () => {
+    const [{ numbers }, instance] = await Promise.all([
+      api.stepHold(orderObjectId, stepId, work.instance_object_id, 'failed'),
+      api.getInstance(work.instance_object_id),
+    ]);
+    if (!numbers.length || instance.article_object_id == null) return;
+    onDeviate({
+      articleObjectId: instance.article_object_id,
+      unitNumbers: numbers,
+      fromOrder: orderObjectId,
+    });
+  }, tell('Abweichung', 'Nicht vorbereitet'));
 
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">

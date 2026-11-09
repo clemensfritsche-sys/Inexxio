@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from 'clsx';
+import { NOTHING } from './when';
 
 /** Klassen zusammensetzen (Bedingungen, Listen) – ohne Mischen: wer zwei widersprüchliche
  *  Klassen setzt, setzt eine zu viel. */
@@ -17,7 +18,7 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatAmount(v: string | number | null | undefined,
                              decimals = 2): string {
-  if (v == null || v === '') return '—';
+  if (v == null || v === '') return NOTHING;
   return swiss(Number(v), decimals, decimals);
 }
 
@@ -45,6 +46,6 @@ export function userDisplayName(user: {
 /** **Die EINE Schreibweise einer Objektnummer**: neunstellig, führende Nullen, **ohne**
  *  Tausender-Trennung – ein Bezeichner, keine Menge. */
 export function formatObjectId(id: number | null | undefined): string {
-  if (!id) return '—';
+  if (!id) return NOTHING;
   return String(id).padStart(9, '0');
 }

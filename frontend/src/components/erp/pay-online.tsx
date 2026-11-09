@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Loader2, ShieldCheck } from 'lucide-react';
 import type { Stripe, StripeElements, StripePaymentElement } from '@stripe/stripe-js';
 import type { PaymentSetup } from '@/types';
-import { errorText } from '@/lib/use-action';
+import { errorText, useAction } from '@/lib/use-action';
 
 /**
  * **Bezahlen — in UNSERER Karte, nicht auf einer fremden Seite** (§9.13).
@@ -30,9 +30,8 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
   const host = useRef<HTMLDivElement | null>(null);
   const [setup, setSetup] = useState<PaymentSetup | null>(null);
   const [ready, setReady] = useState<{ stripe: Stripe; elements: StripeElements } | null>(null);
-  const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, setError, run } = useAction();
 
   // Die Vorbereitung erzeugt beim Dienst eine Absicht und ändert an unserem Vorgang nichts.
   useEffect(() => {
@@ -41,7 +40,7 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
       .then((s) => { if (!dead) setSetup(s); })
       .catch((e) => { if (!dead) setError(errorText(e)); });
     return () => { dead = true; };
-  }, [prepare, orderObjectId, stepId]);
+  }, [prepare, orderObjectId, stepId, setError]);
 
   // Das SDK kommt erst auf Klick (`await import`).
   useEffect(() => {
@@ -80,11 +79,9 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
       }
     })();
     return () => { dead = true; el?.destroy(); };
-  }, [setup]);
+  }, [setup, setError]);
 
-  const pay = useCallback(async () => {
-    if (!ready || !setup) return;
-    setBusy(true); setError(null);
+  const pay = useCallback(() => ready && setup && run(async () => {
     const known = setup.billing;
     const { error: err } = await ready.stripe.confirmPayment({
       elements: ready.elements,
@@ -110,12 +107,11 @@ export function PayOnline({ orderObjectId, stepId, prepare, label, onDone, onClo
       },
       redirect: 'if_required',
     });
-    setBusy(false);
     // Die Meldung des Dienstes nennt den Grund – kein eigener Satz.
-    if (err) { setError(err.message ?? 'Die Zahlung ist nicht zustande gekommen.'); return; }
+    if (err) throw new Error(err.message ?? 'Die Zahlung ist nicht zustande gekommen.');
     setDone(true);
     onDone();
-  }, [ready, setup, onDone]);
+  }), [ready, setup, onDone, run]);
 
   if (done) {
     return (

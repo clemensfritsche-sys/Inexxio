@@ -31,7 +31,11 @@ setzt Klassen zusammen, mischt keine).
   es nach `src/generated/site-shell.json` (nicht im Repo; ohne Website-Build ein leerer
   Platzhalter, im Deploy Pflicht über `SHELL_REQUIRED=1`). `components/layout/site-shell.tsx`
   setzt es ein. Wer Kopf oder Fuss ändern will, ändert `website/src/components/Header.astro`
-  bzw. `Footer.astro`.
+  bzw. `Footer.astro`. **Gleich bis aufs Glas** (gemessen in Chromium, 1440/390 px): Tailwinds
+  Preflight wird in `.ix-shell` zurückgenommen (`globals.css`: Laufweite der Knöpfe,
+  `vertical-align` der Symbole), `<html lang="de-CH">` wie die Website. Gewollt verschieden:
+  Glas und Schleier nur unter `html[data-site]`; im ERP ist die Kopf-Karte deckend weiss mit
+  Haarlinie (`--line`).
 - Das Frontend schreibt nur den **Anzeige-Cache** (`lib/account-cache.ts`: vier Schlüssel,
   gelesen und geschrieben nur über `cachedRole`/`rememberRole`/`rememberName`/
   `rememberContact`/`rememberPhoto`/`clearAccountCache`; Name, Kontakt und Bild schreibt
@@ -70,7 +74,7 @@ src/components/
 │                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)
 ├── form/      ← field + use-field (**der Feld-Baustein**, siehe unten), save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
 └── layout/    ← site-shell, account-sync
-src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.ts (generiert) ·
+src/lib/       ← api.ts · modules.ts · scan.ts · when.ts (auch `NOTHING`) · status-catalog.ts (generiert) ·
                  process-status.ts · status-tone.ts · record-status.ts (isStaff) · account-cache.ts ·
                  login-target.ts · legal-forms.ts · feed.ts (was ein Pfad ändert, `TOUCHES`) ·
                  queries.ts (Schlüssel der Detailansichten, `useDebouncedQuery`) ·
@@ -82,7 +86,7 @@ src/lib/       ← api.ts · modules.ts · scan.ts · when.ts · status-catalog.
                  Aufnahmen, das Angeheftete – die Queries des Assistenten) · pin-point.ts (die
                  Stecknadel: auf eine Stelle zeigen, «Stelle: …», Artikel «ERP»/«Website»)
                  … und **alle Hooks** als `use-*.ts`
-                 (use-autosave, use-search, use-profile-completion, use-google-maps,
+                 (use-action, use-dialog, use-outside, use-autosave, use-search, use-profile-completion, use-google-maps,
                  use-maps-key, use-feed, use-feed-lists, use-mail-sync, use-url-params,
                  use-recorder = Mikrofon, `MediaRecorder`, Pegel, Wake Lock);
                  nur Kamera und Decoder liegen beim Scanner (components/scan/)
@@ -95,8 +99,8 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `skeleton.tsx` | **Laden = die graue Form dessen, was kommt**: `Skeleton` (`lines` · `rows` · `block`) und `DetailSkeleton` (ganzes Fenster) – an jeder Stelle, die auf den Server wartet; kein «Lädt …», kein Kreisel. Der Schimmer ist `.erp-skel` (still bei «weniger Bewegung») |
 | `fields.tsx` | Grundtöne: `MICRO_LABEL`, `StatusDot` (der eine Zustandspunkt, 6 px), `StatusBadge`, `Row` |
 | `detail-frame.tsx` | Anatomie eines Datensatz-Fensters: `DetailHeader`, `RecordIcon` (+ `IconMark`, Zahl «zu tun» aus `lib/todo`), `HeaderAction`, `DetailBody`/`DETAIL_MAXW`, `Card` (`info`, `extra`, `unclipped`, `anchor`), `SPEC`, `SpecHead`, `SpecSection`, `ReadField` (Link nur ins Web, `lib/web-link`), `SectionSep`, `TodoChip` |
-| `controls.tsx` | Bedienelemente: **die eine Feldform** `inputClass` (normal · warn · read) / `inputCls`, `Label`, `IconSwitch`, `Segmented`, `Dialog` (modal; das Verhalten aus `lib/use-dialog`), `Palette`, `numericOnly`, `FieldAction` |
-| `search-select.tsx`, `hints.tsx` | `SearchSelect`/`OptionRow` (Liste per Portal am `body`) · `Tooltip`, `InfoHint`, `ErrorText` |
+| `controls.tsx` | Bedienelemente: **die eine Feldform** `inputClass` (normal · warn · read) / `inputCls`, **die eine Beschriftung** `Label` (13 px, `fg-2`, Satzschreibung; Pflicht = `RequiredMark`, ein `*` in `--warning`), `IconSwitch`, `Segmented`, `Dialog` (modal; das Verhalten aus `lib/use-dialog`), `Palette`, `numericOnly`, `FieldAction` |
+| `search-select.tsx`, `hints.tsx` | `SearchSelect`/`OptionRow` (Liste per Portal am `body`) · **die eine Hover-Blase** `TipHost` (Wurzel-Layout) + `Tooltip`, `InfoHint`, `ErrorText` |
 | `feed-panel.tsx`, `detail-pane.tsx` | Die zwei Hälften der Feed-Seite: Liste (Suche, Typ-Filter, Zeilen, «+») · Detail (was angelegt wird oder ausgewählt ist, im `ErrorBoundary`; **jede Ansicht und das «+» laden erst beim Öffnen**, `next/dynamic` mit `DetailSkeleton`) |
 | `module-ui.tsx` | Bauteile eines Prozessschrittmoduls (Tabelle unten) |
 | `object-select.tsx` | **Jedes Referenzfeld** («welchen Datensatz meinst du?»), Kamera im Feld |
@@ -220,8 +224,24 @@ ob man etwas **darf**, sagt der Server (`can`, `may_edit`). Ein Fehler ist ein `
 
 ## Regeln, die jede Oberfläche erbt
 - **Ein Dialog verhält sich überall gleich** (`lib/use-dialog.ts`, `useDialog(onClose, {focus})`):
-  Fokus hinein und zurück, Escape schliesst, Tab bleibt im Dialog; das Aussehen bleibt beim Dialog
-  (Anmelden, Scannen, «+», Passkey-Hinweis, `controls.Dialog`). Wächter `scripts/dialog.test.mjs`.
+  Fokus hinein und zurück, Escape schliesst **den obersten** (liegt der Scanner über dem Entwurf,
+  nur den Scanner), Tab bleibt im Dialog; das Aussehen bleibt beim Dialog (Anmelden, Scannen,
+  Dokumentscanner, «+», Passkey-Hinweis, `controls.Dialog`, das Blatt `document-draft.Sheet` für
+  Entwurf und Papier-Vorschau). Eine Liste in einem Dialog (`SearchSelect`) fängt ihr Escape selbst.
+  Wächter `scripts/dialog.test.mjs`.
+- **Ein Klick daneben schliesst – über `lib/use-outside.ts`** (`useOutside(open, close, [refs],
+  ignore?)`, `pointerdown`): jedes Aufklapp-Menü und jede Liste; kein eigener Lauscher am
+  Dokument (Wächter `scripts/hints.test.mjs`, Ausnahme die Stecknadel).
+- **Eine Hover-Blase** (`components/erp/hints.tsx`): wer etwas erklärt, setzt `data-tip="…"`
+  (oder `Tooltip`/`InfoHint`); gezeigt wird sie von `TipHost` im Wurzel-Layout – **am `body`**,
+  aus dem Rechteck des Auslösers, kippt am Fensterrand, erbt nichts (keine Grossschreibung einer
+  Überschrift), Satzschreibung wie geschrieben; die innere gewinnt; `data-tip-pos`
+  (`bottom|left|right`), `data-tip-list` (Zeilen), `data-tip-hidden`. **Kein natives `title=`**
+  (ausser `iframe`: dort ist es der Name), kein `role="tooltip"`, kein `content: attr(…)` daneben
+  – Wächter `scripts/hints.test.mjs`. `.ix-tuck` (Name klappt am Symbol aus) und `.ix-seg-label`
+  sind kein Hinweis, sondern der Name des Knopfs – auch sie in Satzschreibung.
+- **Leer ist `NOTHING`** (`lib/when.ts`, «—») – kein Strich als Literal (Wächter
+  `scripts/hints.test.mjs`); `formatAmount` und `day`/`when` geben ihn selbst.
 - **Im ERP wird gespeichert, nicht abgeschickt**: `lib/use-autosave.ts`
   (`useAutosaveValue` für einen Wert, `useAutosaveSignature` für einen Satz Werte; debounced
   `AUTOSAVE_DELAY` = 3 s, Enter sofort, Rückmeldung im Karten-Kopf). Kein Speichern-Knopf.
@@ -240,10 +260,14 @@ ob man etwas **darf**, sagt der Server (`can`, `may_edit`). Ein Fehler ist ein `
   Konto, Prozess-Editor). Ein loses `<input>`/`<select>`/`<textarea>` unter
   `components/{erp,account,beleg}` weist ESLint ab (`RAW_FIELD`); die Ausnahmen (Suchfelder,
   Nachrichten-Eingabe, Kästchen, Dateiwahl) stehen dort mit Grund.
-- **Eine Handlung am Server = `useAction`** (`lib/use-action.ts`): `run(fn, onError?)` setzt `busy`,
-  leert den Fehler, gibt das Ergebnis zurück oder den Satz des Servers in `error`; der Fehlertext
-  steht EINMAL in `errorText(e, fallback?)`. (Ausnahme: Module, die ein Test einzeln übersetzt –
-  `use-autosave`, `use-recorder` – können keine Nachbarn importieren.)
+- **Eine Handlung am Server = `useAction`** (`lib/use-action.ts`): `useAction(fallback?)`,
+  `run(fn, onError?)` setzt `busy`, leert den Fehler, gibt das Ergebnis zurück oder den Satz des
+  Servers in `error` (`onError` darf ihn ersetzen, z. B. «ohne Netz»); der Fehlertext steht EINMAL
+  in `errorText(e, fallback?)`. Ein eigenes `[busy, setBusy]` um einen `api.…`-Aufruf weist
+  `scripts/action.test.mjs` ab (Ausnahmen mit Grund dort). (Ausnahme: Module, die ein Test einzeln
+  übersetzt – `use-autosave`, `use-recorder` – können keine Nachbarn importieren.)
+- **Kein Netz ist eine eigene Art Fehler**: `lib/api.ts` wirft dann `ApiError` mit `code:
+  'offline'` (Status 0) – gefragt wird `e.code === 'offline'`, nie der Wortlaut.
 - **Ein gescheiterter Abruf ist nie stumm** (`lib/notice.ts`): wer bei einem Fehler nichts
   anderes zu tun hat, schreibt `.catch(tell('Aufträge'))` – unten rechts steht dann «Nicht
   geladen: Aufträge – <Grund>» (`components/layout/notice-host.tsx`, im Wurzel-Layout),
@@ -258,7 +282,7 @@ ob man etwas **darf**, sagt der Server (`can`, `may_edit`). Ein Fehler ist ein `
   setzt Zeit + Zustandswort. Die Wörter stehen im Modul, nicht im ICU. Wächter:
   `scripts/when.test.mjs`.
 - **Beträge** über `module-ui.Amount` (Währung als Kind der Zahl, gleiche Farbe, Stellenzahl
-  der Währung).
+  der Währung, Vorzeichen über `sign`).
 - **Ein Knopf, der nie etwas tun kann, steht nicht da**; ein Knopf, der *noch nicht* kann,
   ist gesperrt und nennt den **Grund vom Server** im Hover. Ob man kann, sagt `can`.
 - **Kein natives `<select>` über Datensätze** – dafür `ObjectSelect`; Aufzählungen (Währung,
@@ -272,10 +296,10 @@ ob man etwas **darf**, sagt der Server (`can`, `may_edit`). Ein Fehler ist ein `
 | Bauteil | Was es ist |
 |---|---|
 | `MODULE_CARD` · `MODULE_TITLE` | Fläche und Name der Modul-Karte (weiss wie jeder Datensatz; die Modulfarbe sitzt in der Marke und im Rahmen, wenn das Modul dran ist). Gesetzt in `ModuleShell`. |
-| `ActionButton` · `Actions` | Ein Knopf ist ein Symbol, beim Zeigen klappt der Name daneben auf (`.ix-tuck`); `Actions` gibt ihm eine eigene, nicht umbrechende Zeile. |
+| `ActionButton` | Ein Knopf ist ein Symbol, beim Zeigen klappt der Name daneben auf (`.ix-tuck`) – in einer eigenen, nicht umbrechenden Zeile (`.ix-actions`). |
 | `StageAction` | Die Handlung, die eine Sache weiterbringt (volle Breite, 42 px) – Beleg und Zeiterfassung. |
 | `LedgerRow` · `RowActions` | Zeilen-Grammatik `[Identifikator] [Meta] … [Aktion] [Datum] [Betrag]`, strikt einreihig; Zeilenaktionen am Ende, im Ruhezustand unsichtbar, auf Touch dauerhaft – und **in einer Zeile klappt kein Name aus** (Blase statt `.ix-tuck`). |
-| `Amount` | EIN Betrag – Zahl, Währung, Zustandsfarbe. |
+| `Amount` | EIN Betrag – Zahl, Vorzeichen, Währung, Zustandsfarbe; leer `NOTHING`. |
 | `ValueBar` | Ein Anteil an einem Ganzen (Leiste + Punkt + Wort + Zahl); die Beschriftung ist das Bedienelement. `StockBar` ist ihre Ausprägung für den Bestand. |
 | `ACT_H` · `FIELD_GAP` | Knopfhöhen und Feldabstand an einer Stelle. |
 

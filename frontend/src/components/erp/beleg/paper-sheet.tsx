@@ -7,6 +7,8 @@ import { Segmented } from '@/components/erp/controls';
 import { DocumentPaper } from '@/components/erp/document-detail';
 import { Sheet } from '@/components/erp/document-draft';
 import type { PaperOut } from '@/types';
+import { useAction } from '@/lib/use-action';
+import { NOTHING } from '@/lib/when';
 
 /**
  * ►►► **Die Vorschau eines Papiers – vor der Freigabe.** ◄◄◄ Genau das Papier, das die
@@ -18,20 +20,15 @@ export function PaperSheet({ papers, onCancel, onRelease }: {
   papers: PaperOut[]; onCancel: () => void; onRelease: () => Promise<void>;
 }) {
   const [at, setAt] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const { busy, error, run } = useAction();
   const shown = papers[Math.min(at, papers.length - 1)];
   const title = `${shown.word}${shown.number ? ` ${shown.number}` : ''}`;
 
-  async function release() {
-    setBusy(true);
-    setError('');
-    try { await onRelease(); } catch (e) { setError((e as Error).message); setBusy(false); }
-  }
+  const release = () => run(onRelease);
 
   return (
-    <Sheet>
-      <DetailHeader type="document" title={title} objectIdText="—"
+    <Sheet label={title} onClose={onCancel}>
+      <DetailHeader type="document" title={title} objectIdText={NOTHING}
         objectIdHint="Die Nummer entsteht mit der Freigabe." onBack={onCancel}
         actions={<>
           <HeaderAction label={busy ? 'Freigeben…' : 'Freigeben'} disabled={busy}

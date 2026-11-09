@@ -123,10 +123,10 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
           </div>
           {!readOnly && editing !== a.id && (
             <div style={{ display: 'flex', gap: cards ? 6 : 2, flexShrink: 0 }}>
-              <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} title="Ändern" aria-label="Ändern"
+              <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} data-tip="Ändern" aria-label="Ändern"
                 onClick={() => setEditing(a.id)}><Pencil size={cards ? 16 : 14} /></button>
               {removable && (
-                <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} title="Entfernen" aria-label="Entfernen"
+                <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} data-tip="Entfernen" aria-label="Entfernen"
                   onClick={() => void remove(a.id)}><Trash2 size={cards ? 16 : 14} /></button>
               )}
             </div>
@@ -222,7 +222,7 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
           <SaveStatusIndicator status={status} errorMsg={errorMsg} />
           {removable && (
             <button type="button" className="erp-actbtn erp-actbtn-icon"
-              title="Lieferadresse entfernen" aria-label="Lieferadresse entfernen"
+              data-tip="Lieferadresse entfernen" aria-label="Lieferadresse entfernen"
               onClick={() => void remove()}>
               <Trash2 size={14} />
             </button>

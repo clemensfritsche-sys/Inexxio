@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { AlertTriangle, RotateCcw, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { TONE } from '@/lib/status-tone';
-import { day, when } from '@/lib/when';
+import { NOTHING, day, when } from '@/lib/when';
 import { VOUCHER_STAGE } from '@/lib/modules';
 import { PayOnline } from '@/components/erp/pay-online';
 import { DocLink, DocumentField, readValue } from '@/components/erp/document-field';
@@ -145,7 +145,7 @@ function Deviation({ d, busy, form, setForm }: {
   // Zugesagt ist der Betrag der gewählten Angebotszeile – vom Server (`amount`,
   // `voucher.agreed_amount`), nicht hier aus Rechnung minus Abweichung zurückgerechnet.
   const gap = Number(d.deviation);
-  const agreed = d.amount ?? '—';
+  const agreed = d.amount ?? NOTHING;
   const sign = gap > 0 ? '+' : '−';
   const open = form?.kind === 'accept';
   return (
@@ -531,8 +531,8 @@ function Transfer({ orderObjectId, stepId }: { orderObjectId: number; stepId: nu
     }}>
       <div className="flex flex-col" style={{ gap: 4, flex: '1 1 200px', minWidth: 0 }}>
         <Fixed label="Empfänger" value={info.creditor} />
-        <Fixed label="IBAN" value={info.iban ?? '—'} />
-        <Fixed label="Referenz" value={info.reference || '—'}
+        <Fixed label="IBAN" value={info.iban ?? NOTHING} />
+        <Fixed label="Referenz" value={info.reference || NOTHING}
           hint={`Aus der Rechnungsnummer ${info.invoice} abgeleitet (ISO 11649)`} />
         <Fixed label="Betrag" value={`${info.amount} ${info.currency}`} />
       </div>

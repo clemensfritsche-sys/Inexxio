@@ -5,7 +5,7 @@ import { api, attachmentUrl } from '@/lib/api';
 import type { RecordEntry, RecordValue } from '@/types';
 import { statusCfg } from '@/lib/process-status';
 import { UnitNumber } from '@/components/erp/unit-number';
-import { when, whenTitle } from '@/lib/when';
+import { NOTHING, when, whenTitle } from '@/lib/when';
 import { MICRO_LABEL, StatusDot } from '@/components/erp/fields';
 import { Skeleton } from './skeleton';
 import { errorText } from '@/lib/use-action';
@@ -145,7 +145,7 @@ function Value({ value }: { value: RecordValue }) {
 
 function Media({ value, label }: { value: unknown; label: string }) {
   const url = typeof value === 'string' && value ? value : null;
-  if (!url) return <span className="text-xs" style={{ color: 'var(--fg-4)' }}>—</span>;
+  if (!url) return <span className="text-xs" style={{ color: 'var(--fg-4)' }}>{NOTHING}</span>;
   return (
     <a href={attachmentUrl(url)} target="_blank" rel="noopener noreferrer"
       className="rounded-ds-md overflow-hidden inline-block"
@@ -162,6 +162,6 @@ function describe(value: RecordValue): string {
   const raw = value.value;
   if (raw === true) return 'gut';
   if (raw === false) return 'schlecht';
-  if (raw === null || raw === undefined || raw === '') return '—';
+  if (raw === null || raw === undefined || raw === '') return NOTHING;
   return String(raw);
 }

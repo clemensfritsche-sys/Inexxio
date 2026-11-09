@@ -20,7 +20,7 @@ import { KtField, KtSection } from '@/components/form/kt-section';
 import { PasskeysCard } from './passkeys-card';
 import { ClaudeCard } from './claude-card';
 import { isStaff } from '@/lib/record-status';
-import { errorText } from '@/lib/use-action';
+import { errorText, useAction } from '@/lib/use-action';
 
 /** Die neue Adresse über eine Neuanmeldung hinweg (der Magic Link öffnet oft einen neuen Tab). */
 const PENDING = 'inexxio_new_email';
@@ -39,8 +39,7 @@ function reason(e: unknown): string {
 export function SecuritySection({ profile }: { profile: UserProfile }) {
   const [step, setStep] = useState<Step>('idle');
   const [email, setEmail] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const { busy, error, setError, run } = useAction();
 
   // Zurück von der Neuanmeldung: die gemerkte Adresse steht wieder im Feld.
   useEffect(() => {
@@ -48,7 +47,7 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
     if (pending) { localStorage.removeItem(PENDING); setEmail(pending); setStep('form'); }
   }, []);
 
-  function cancel() { setStep('idle'); setError(''); setEmail(''); }
+  function cancel() { setStep('idle'); setError(null); setEmail(''); }
 
   async function send(retried = false): Promise<void> {
     try {
@@ -64,15 +63,10 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy || !email.trim()) return;
-    setBusy(true); setError('');
-    try {
+    await run(async () => {
       await api.checkMyEmail(email.trim());
       await send();
-    } catch (err) {
-      setError(reason(err));
-    } finally {
-      setBusy(false);
-    }
+    }, (err) => setError(reason(err)));
   }
 
   async function signInAgain() {
@@ -131,7 +125,7 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
           )}
         </div>
         {step === 'idle' && (
-          <button type="button" className="kt-round" title="Ändern" aria-label="E-Mail-Adresse ändern"
+          <button type="button" className="kt-round" data-tip="Ändern" aria-label="E-Mail-Adresse ändern"
             onClick={() => setStep('form')}>
             <Pencil size={16} />
           </button>

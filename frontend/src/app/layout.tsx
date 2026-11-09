@@ -11,6 +11,7 @@ import { SiteFooter, SiteHeader, SiteShellHead } from '@/components/layout/site-
 import { AccountSync } from '@/components/layout/account-sync';
 import { ScanProvider } from '@/components/scan/scan-provider';
 import { NoticeHost } from '@/components/layout/notice-host';
+import { TipHost } from '@/components/erp/hints';
 
 const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
 
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // `suppressHydrationWarning`: early.js der Website setzt am <html> «js» und den
     // Anmeldezustand, bevor React übernimmt – gewollt, nicht verschieden.
-    <html lang="de" suppressHydrationWarning>
+    <html lang="de-CH" suppressHydrationWarning>
       <head>
         <SiteShellHead />
       </head>
@@ -50,6 +51,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SiteFooter />
         {/* Ein gescheiterter Abruf ist nie stumm (`lib/notice`). */}
         <NoticeHost />
+        {/* EINE Hover-Blase für jedes `data-tip` (`components/erp/hints`). */}
+        <TipHost />
       </body>
     </html>
   );

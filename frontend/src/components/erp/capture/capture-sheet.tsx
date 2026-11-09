@@ -21,7 +21,7 @@ import { HandgriffCard } from '@/components/erp/capture/handgriff-card';
 import { RecordingStrip, recordingWord } from '@/components/erp/capture/recorder';
 import type { Creatable } from '@/components/erp/feed-panel';
 import type { ErpRecordType, Recording, Talk, TalkFile } from '@/types';
-import { errorText } from '@/lib/use-action';
+import { errorText, useAction } from '@/lib/use-action';
 import { useDialog } from '@/lib/use-dialog';
 
 /** Der Datensatz, der beim Sagen offen ist – der erste Hinweis für die KI (nur seine Nummer). */
@@ -430,12 +430,9 @@ function Skeleton({ steps, onStop }: { steps?: string[]; onStop?: () => void }) 
 
 /** Eine Aufnahme, die nicht abgeschrieben werden konnte – der Grund, dann Verwerfen. */
 function FailedRecording({ recording, onDone }: { recording: Recording; onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-  async function dismiss() {
-    setBusy(true);
-    try { await api.dismissRecording(recording.id); onDone(); }
-    catch (e) { tell('Aufnahme', 'Nicht verworfen')(e); setBusy(false); }
-  }
+  const { busy, run } = useAction();
+  const dismiss = () => run(async () => { await api.dismissRecording(recording.id); onDone(); },
+                            tell('Aufnahme', 'Nicht verworfen'));
   return (
     <div className="erp-capture-part" role="alert">
       <p className="erp-capture-problem" style={{ margin: 0 }}>

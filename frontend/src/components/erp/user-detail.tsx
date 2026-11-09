@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Communication } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
-import { day, when } from '@/lib/when';
+import { NOTHING, day, when } from '@/lib/when';
 import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
 import { Card, DetailBody, DetailHeader, SectionSep, TodoChip } from '@/components/erp/detail-frame';
@@ -27,7 +27,7 @@ import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
 import type { ErpAdminUpdate, NewsletterState, Todo, UserProfile, UserRole } from '@/types';
 import { qk } from '@/lib/queries';
-import { errorText } from '@/lib/use-action';
+import { errorText, useAction } from '@/lib/use-action';
 
 // **Keine Reiter**: Kommunikation und Stammdaten stehen auf EINER Seite. «Bestellungen» und
 // «Dokumente» kommen mit ihren Bereichen zurück (docs/attic.md).
@@ -92,13 +92,12 @@ function NewsletterConsent({ person }: { person: number }) {
     meta: { what: 'Newsletter-Stand' },
   }).data ?? null;
   const [note, setNote] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useAction();
   // Die Antwort IST der neue Stand; die Bitte steht danach im Verlauf (`lib/feed.TOUCHES`).
-  const act = (call: Promise<NewsletterState>, done: string) => {
-    setBusy(true); setNote(null);
-    call.then((s) => { qc.setQueryData(qk.newsletter(person), s); setNote(done); })
-      .catch((e) => setNote(errorText(e, 'Hat nicht geklappt.')))
-      .finally(() => setBusy(false));
+  const act = async (call: () => Promise<NewsletterState>, done: string) => {
+    setNote(null);
+    const s = await run(call, (e) => setNote(errorText(e, 'Hat nicht geklappt.')));
+    if (s) { qc.setQueryData(qk.newsletter(person), s); setNote(done); }
   };
   const on = !!state?.subscribed;
   const link = { border: 0, background: 'none', padding: 0, font: 'inherit', fontSize: 13,
@@ -114,10 +113,10 @@ function NewsletterConsent({ person }: { person: number }) {
         {state && (on
           ? <button type="button" style={link} disabled={busy}
               data-tip="Im Namen der Person abmelden – z. B. wenn sie es am Telefon sagt"
-              onClick={() => act(api.unsubscribeNewsletter(person), 'Abgemeldet.')}>Abmelden</button>
+              onClick={() => act(() => api.unsubscribeNewsletter(person), 'Abgemeldet.')}>Abmelden</button>
           : <button type="button" style={link} disabled={busy}
               data-tip="Schickt die Bitte um Bestätigung – angemeldet ist sie erst mit ihrem Klick"
-              onClick={() => act(api.inviteNewsletter(person), 'Einladung verschickt – sie steht oben im Verlauf.')}>
+              onClick={() => act(() => api.inviteNewsletter(person), 'Einladung verschickt – sie steht oben im Verlauf.')}>
               Einladung senden</button>)}
       </div>
       {note && <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: 0 }}>{note}</p>}
@@ -247,7 +246,7 @@ function signInLabel(provider: string | null | undefined): string {
     emailLink: 'Anmeldelink',
     password: 'Passwort',
   };
-  return provider ? (map[provider] ?? provider) : '—';
+  return provider ? (map[provider] ?? provider) : NOTHING;
 }
 
 function passkeyLabel(count: number | null | undefined): string {

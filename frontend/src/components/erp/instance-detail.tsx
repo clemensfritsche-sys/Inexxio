@@ -13,6 +13,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
 import { DetailSkeleton } from './skeleton';
+import { NOTHING } from '@/lib/when';
 
 /**
  * Instanz-Detail – eine **Gruppe** und ihre Einzelinstanzen.
@@ -59,7 +60,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
                   <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                     {rec.article_object_id != null
                       ? <ObjId value={rec.article_object_id} />
-                      : <span className="text-fg-4">—</span>}
+                      : <span className="text-fg-4">{NOTHING}</span>}
                     <span>{rec.article_name ?? 'Unbekannter Artikel'}</span>
                   </span>
                 }

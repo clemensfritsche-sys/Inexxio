@@ -60,8 +60,7 @@ function ModuleShell({ tone, icon, label, active, lead, trail, head, body,
   body?: React.HTMLAttributes<HTMLDivElement>;
   /**
    * **Die Historie hängt an der KOPFZEILE** – über die ganze Kartenbreite; nicht am Rahmen und
-   * nie an der Beschriftung (`truncate` schnitte das `::after` weg). Eigene Blasen gewinnen
-   * (`:has` in `globals.css`).
+   * nicht nur an der Beschriftung. Eigene Blasen darin gewinnen (die innere, `hints.TipHost`).
    */
   history?: string;
   children?: ReactNode;

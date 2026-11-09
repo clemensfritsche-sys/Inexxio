@@ -33,6 +33,7 @@ import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/
 import { LoopDraftCard, LoopRunCard, loopPayload, type LoopDraft } from '@/components/erp/loop-card';
 import { Skeleton } from '@/components/erp/skeleton';
 import { useAction } from '@/lib/use-action';
+import { NOTHING } from '@/lib/when';
 
 /**
  * Auftrag – Detailfenster.
@@ -189,7 +190,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
         title={live?.name ?? null}
         placeholder="Neuer Auftrag"
         objectId={live?.object_id ?? record?.object_id ?? null}
-        objectIdText={isDraft ? '—' : undefined}
+        objectIdText={isDraft ? NOTHING : undefined}
         objectIdHint={isDraft
           ? 'Die Objektnummer entsteht erst mit der Freigabe. Bis dahin existiert dieser Auftrag nur in diesem Fenster.'
           : undefined}

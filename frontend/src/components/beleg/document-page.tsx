@@ -13,7 +13,7 @@ import { Paper, StageWord } from './paper';
 import { Stations } from './stations';
 import { DealActions, NoteBlock, type DealAct } from './deal';
 import css from './beleg.module.css';
-import { errorText } from '@/lib/use-action';
+import { errorText, useAction } from '@/lib/use-action';
 
 /** Nach einer Kartenzahlung: so oft und so lange fragen wir nach, ob sie gebucht ist. */
 const POLL_TRIES = 6;
@@ -180,16 +180,11 @@ function DealSection({ token, deal, paid, onPaid, onView, reload }: {
 
 /** ►► **Unterschreiben** – ein Zug auf der Fläche; Ablehnen fragt nach dem Grund. Endgültig. ◄◄ */
 function Signing({ token, view, onView }: { token: string; view: View; onView: (v: View) => void }) {
-  const [error, setError] = useState<string | null>(null);
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { busy, error, run } = useAction();
 
-  const act = async (run: () => Promise<View>) => {
-    setBusy(true); setError(null);
-    try { onView(await run()); setDeclining(false); } catch (e) { setError(errorText(e)); }
-    finally { setBusy(false); }
-  };
+  const act = (call: () => Promise<View>) => run(async () => { onView(await call()); setDeclining(false); });
   const actions = view.actions ?? [];
   return (
     <>

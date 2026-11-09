@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, CameraOff, Check, Loader2, RotateCcw, X, Zap } from 'lucide-react';
 import { useCamera } from '@/components/scan/use-camera';
+import { useDialog } from '@/lib/use-dialog';
 import { type Cv, type Pixels, type Quad, detect, frame, loadCv, moved, warp } from '@/lib/doc-scan';
 
 /** So breit wird das Live-Bild für die Suche verkleinert – schnell genug für 4 Bilder je Sekunde. */
@@ -35,6 +36,8 @@ export function DocScanner({ onDone, onCancel }: {
   const [shot, setShot] = useState<Shot | null>(null);
   const [pages, setPages] = useState<Blob[]>([]);
   const [busy, setBusy] = useState(false);
+  // Ein Dialog wie jeder (`lib/use-dialog`): Escape bricht ab; der Fokus bleibt am Blatt (Kamera).
+  const dialog = useDialog(onCancel, { focus: 'self' });
 
   useEffect(() => {
     let gone = false;
@@ -55,8 +58,10 @@ export function DocScanner({ onDone, onCancel }: {
   }, [cv]);
 
   return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#0b0b0c', color: '#fff',
-                  display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+    <div ref={dialog.ref} onKeyDown={dialog.onKeyDown} role="dialog" aria-modal="true"
+      aria-label="Dokument scannen" tabIndex={-1}
+      style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#0b0b0c', color: '#fff', outline: 'none',
+               display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
         <button type="button" onClick={onCancel} aria-label="Abbrechen" style={CHIP}><X size={15} /></button>
         <span style={{ flex: 1, fontSize: 13, opacity: 0.8 }}>

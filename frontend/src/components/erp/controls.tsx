@@ -157,12 +157,23 @@ export function numericOnly(
 /** Tastatur/Verhalten passend zum Zahlenfeld (Mobile: Ziffernblock). */
 export const numericInputProps = { inputMode: 'decimal' as const, autoComplete: 'off' };
 
+/**
+ * ►►► **Die eine Beschriftung eines Feldes** – über jedem Feld dieselbe: Satzschreibung, 13 px,
+ * `fg-2`, darunter 4 px. `required` setzt das eine Pflichtzeichen (`*` in `--warning`: «hier
+ * fehlt etwas», kein Fehler). `form/field.Field` setzt es, solange das Feld leer ist. ◄◄◄
+ */
 export function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
-    <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-4)', marginBottom: 4 }}>
-      {children}{required && <span style={{ color: 'var(--danger)' }}> *</span>}
-    </div>
+    <label style={{ display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 500,
+                    color: 'var(--fg-2)', marginBottom: 4 }}>
+      {children}{required && <RequiredMark />}
+    </label>
   );
+}
+
+/** **Das eine Pflichtzeichen** – auch an Beschriftungen in eigener Haut (Adresse im Konto). */
+export function RequiredMark() {
+  return <span style={{ color: 'var(--warning)', fontWeight: 700, marginLeft: 3 }} aria-hidden>*</span>;
 }
 
 /**

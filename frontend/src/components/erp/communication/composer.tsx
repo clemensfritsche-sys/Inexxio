@@ -5,11 +5,12 @@ import { ArrowDownUp, Check, ChevronDown, Clock, Lock, Mail, Reply, Send, X } fr
 import meta from '@/lib/site-meta.json';
 import { api } from '@/lib/api';
 import { useSearch } from '@/lib/use-search';
+import { useOutside } from '@/lib/use-outside';
 import type { Message, MessageChannel, MessageIn, VoucherParty } from '@/types';
 import { notify, tell } from '@/lib/notice';
 import { DELIVERIES, Delivery, ICON_BTN, KINDS, Kind, Mode, Person, topicColor } from '@/components/erp/communication/shared';
 import { Sending } from '@/components/erp/communication/timeline';
-import { errorText } from '@/lib/use-action';
+import { errorText, useAction } from '@/lib/use-action';
 
 // ─── Eingabe ────────────────────────────────────────────────────────────────
 
@@ -188,12 +189,7 @@ function From({ mails, value, onChange, me }: {
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
+  useOutside(open, () => setOpen(false), [box]);
   if (!mails.length) {
     return <span style={{ fontSize: 13, color: 'var(--danger)', paddingTop: 4 }}
       data-tip="Ein Postfach verbindet ein Admin am Datensatz der Gesellschaft">
@@ -392,8 +388,7 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
   const setIncoming: Set<boolean> = (v) => patch({ incoming: v });
   // Bei einer Antwort stehen die Empfänger als eine Zeile da; «ändern» klappt sie auf.
   const [edit, setEdit] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, setError, run } = useAction('Konnte nicht gespeichert werden.');
   // ►►► Zugeklappt EINE Zeile wie bei WhatsApp – der Rest erscheint beim Hineinklicken. ◄◄◄
   // Offen bleibt sie, solange darin etwas steht oder eine Nachricht ihre drei Sekunden wartet.
   const [open, setOpen] = useState(false);
@@ -480,21 +475,15 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
   const clear = () => { setOpen(false); setEdit(false); setDraft(blank(person, mode)); };
 
   const post = async (payload: MessageIn, draft?: Draft) => {
-    setBusy(true); setError(null);
-    try {
+    const ok = await run(async () => {
       await api.createMessage(payload);
       sent.current();
       // Ein Rundschreiben geht über den Abgleich hinaus – gleich jetzt, nicht erst beim
       // nächsten Lauf (je Lauf eine Handvoll; der Rest folgt im Hintergrund).
       if (payload.delivery !== 'mail') void api.syncMail().then(() => sent.current()).catch(tell('Postfach', 'Nicht abgeglichen'));
       return true;
-    } catch (e) {
-      if (draft) restore(draft);
-      setError(errorText(e, 'Konnte nicht gespeichert werden.'));
-      return false;
-    } finally {
-      setBusy(false);
-    }
+    }, () => { if (draft) restore(draft); });
+    return ok ?? false;
   };
 
   /** Die zurückgehaltene Mail sofort hinausschicken – nach Ablauf, vor einer zweiten oder

@@ -3,10 +3,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
-import { formatAmount } from '@/lib/utils';
 import type { PaymentRow } from '@/types';
 import { Amount } from '@/components/erp/module-ui';
 import { useErpNav } from '@/components/erp/obj-id';
+import { NOTHING } from '@/lib/when';
 
 /**
  * ►►► **Die Zahlungen einer Person bzw. einer eigenen Gesellschaft – eine Ableitung.** ◄◄◄
@@ -78,8 +78,8 @@ function PaymentLine({ row, withParty, first }: {
         {withParty && (
           <span className="truncate sm:w-[150px] sm:flex-none" style={{
             minWidth: 0, fontSize: 12.5, color: 'var(--fg-1)',
-          }} {...(row.party_object_id != null ? { title: String(row.party_object_id) } : {})}>
-            {row.party_name ?? '—'}
+          }} {...(row.party_object_id != null ? { 'data-tip': String(row.party_object_id) } : {})}>
+            {row.party_name ?? NOTHING}
           </span>
         )}
       </span>
@@ -89,10 +89,8 @@ function PaymentLine({ row, withParty, first }: {
         fontVariantNumeric: 'tabular-nums',
       }}>{order != null ? `Auftrag ${order}` : ''}</span>
       <span style={{ flex: 'none', textAlign: 'right' }}>
-        <Amount currency={row.currency} color={TONE[row.state] ?? 'var(--fg-1)'} size={13.5}
-          weight={500} tip={tip}>
-          {row.amount != null ? `${row.sign}${formatAmount(row.amount, decimalsOf(row.amount))}` : '—'}
-        </Amount>
+        <Amount value={row.amount} sign={row.sign} decimals={row.amount ? decimalsOf(row.amount) : 2}
+          currency={row.currency} color={TONE[row.state] ?? 'var(--fg-1)'} size={13.5} weight={500} tip={tip} />
       </span>
     </button>
   );

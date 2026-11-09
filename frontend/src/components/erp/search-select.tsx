@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
 import { useSearch } from '@/lib/use-search';
+import { useOutside } from '@/lib/use-outside';
 import { FieldAction, Label, inputCls } from '@/components/erp/controls';
 
 /**
@@ -107,23 +108,16 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
     };
   }, [open, measure]);
 
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      const t = e.target as Node;
-      // Die Liste ist kein Nachfahre des Feldes – ohne diese zweite Frage schlösse `mousedown`
-      // sie, bevor der Klick auf eine Zeile ankommt.
-      if (ref.current?.contains(t) || listRef.current?.contains(t)) return;
-      setOpen(false); setQuery('');
-    }
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
+  // Die Liste ist kein Nachfahre des Feldes – darum zählt sie mit, sonst schlösse der Druck
+  // sie, bevor der Klick auf eine Zeile ankommt.
+  useOutside(open, () => { setOpen(false); setQuery(''); }, [ref, listRef]);
 
   // Esc schliesst – wie überall im Haus.
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { setOpen(false); setQuery(''); }
+      // Nur die Liste – nicht auch den Dialog, in dem das Feld steht (`lib/use-dialog` hört am `window`).
+      if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); setQuery(''); }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -141,7 +135,7 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      {label && <Label required={required}>{label}</Label>}
+      {label && <Label required={required && !value}>{label}</Label>}
       <div style={{ position: 'relative' }}>
         <input
           value={open ? query : (selected ? optionText(selected) : '')}

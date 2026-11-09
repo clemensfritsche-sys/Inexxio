@@ -79,7 +79,7 @@ function SearchBar({ search, onSearch, onScan }: {
           className="flex-1 min-w-0 border-none outline-none bg-transparent text-sm text-fg-1 placeholder:text-fg-4"
         />
         {search && (
-          <button type="button" onClick={() => onSearch('')} title="Eingabe löschen" aria-label="Eingabe löschen"
+          <button type="button" onClick={() => onSearch('')} data-tip="Eingabe löschen" aria-label="Eingabe löschen"
             className="flex-none w-8 h-8 rounded-ds-sm flex items-center justify-center bg-bg-3 text-fg-3 hover:text-fg-1 transition-colors">
             <X size={13} />
           </button>

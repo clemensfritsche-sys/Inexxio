@@ -22,7 +22,7 @@ const STAMP_DOT = { marginRight: 8, verticalAlign: 1 };
 import { LedgerRow, StageAction } from '@/components/erp/module-ui';
 import { api, assetUrl } from '@/lib/api';
 import { useDebouncedQuery } from '@/lib/queries';
-import { day as dayText, dayShort, dayTitle, parseDay } from '@/lib/when';
+import { NOTHING, day as dayText, dayShort, dayTitle, parseDay } from '@/lib/when';
 import type { EntryPreview, TimeAbsence, TimeDay, TimeEntryIn, TimeStamp, TimeView } from '@/types';
 import {
   IconBar, IconButton, Note, Pill, QuietButton, ROW_FORM, TimeField, hm, parseClock,
@@ -244,7 +244,7 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
               {s.missing_out && (
                 <LedgerRow ident={<><StatusDot color="var(--danger)" style={STAMP_DOT} />Gehen</>}
                   actions={editable ? <IconButton icon={Plus} label="Erfassen" onClick={() => setCap(captureFor(d.day, 'out'))} /> : undefined}
-                  date={<Pill tone="pending" label="fehlt" />} amount={<span style={{ color: 'var(--fg-4)' }}>–</span>} />
+                  date={<Pill tone="pending" label="fehlt" />} amount={<span style={{ color: 'var(--fg-4)' }}>{NOTHING}</span>} />
               )}
             </div>
           ))}
