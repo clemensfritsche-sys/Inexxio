@@ -277,8 +277,11 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Index `(topic, at)`, gesetzt nur vom Modell mit dem Betreff, `Message._topic`). **Offen** = an
   uns, Zeitpunkt erreicht, keine spätere Nachricht von uns mit demselben Betreff; **überfällig
   nach 2 h** – «beantwortet» ist EINE Abfrage (`communication._ANSWERED`), die je Kandidatin nur
-  ihr Anliegen liest. Intern heisst intern (nur Mitarbeitende); wer von aussen schreibt, bekommt
-  die Antwort von aussen. Die Beteiligten sind **Datensätze** (`message_parties.object_id`):
+  ihr Anliegen liest; eine Antwort zählt erst, wenn sie draussen ist (nicht wartend, nicht
+  aufgegeben – `mail.gave_up`). **Die Richtung ist eine Tatsache der Nachricht**
+  (`messages.inbound`, gesetzt, wenn sie entsteht) – nicht die Rolle des Absenders: schreibt ein
+  Mitarbeiter von seiner privaten Adresse an das Postfach, kam die Mail von aussen. Intern heisst
+  intern (nur Mitarbeitende); was von aussen kam, bekommt die Antwort nach aussen. Die Beteiligten sind **Datensätze** (`message_parties.object_id`):
   An/Cc/Bcc immer Personen, **«Betrifft» jeder Datensatz**. Verlauf einer Firma = der ihrer
   Personen. Feed-Zeichen am Symbol (`detail-frame` → `RecordIcon`).
 - **Notiz** (Kanal `note`, `domain/communication.NOTE`): Wissen an einem Datensatz, keine Bitte –
@@ -304,8 +307,13 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Absender wird Person (`people.ensure`), Massenpost nicht; eine eigene Adresse ist nie eine
   Person; eine Mail, die sich nicht verarbeiten lässt, wird übersprungen (Log). Senden: jede
   Mail genau einmal (einzeln gesperrt, sofort festgeschrieben), nur über ein verbundenes
-  Postfach; **nie doppelt**: die Kennung einer Mail ist ihre Nummer im ERP (`Message-ID`), vor jedem
-  Senden fragt Gmail danach; nach drei Abweisungen durch Gmail steht der Grund als interne Nachricht im Verlauf.
+  Postfach; **nie doppelt**: jede Mail, die hinaus soll, bekommt ihre Kennung (`Message-ID`, zufällig,
+  `@mail.inexxio`) mit der Nachricht gespeichert (`Message._message_id`), vor jedem Senden fragt Gmail
+  danach, und der Abgleich holt eine eigene Kennung nie herein; nach drei Abweisungen durch Gmail steht
+  der Grund als interne Nachricht im Verlauf. **Was die Gesellschaft schreibt, schreibt die
+  Gesellschaft**: automatische Mails (Bestätigung, Newsletter-Bitte, Beleg ohne Mensch) und was direkt
+  in Gmail hinausging, haben die Gesellschaft als Absenderin, nicht den Admin des Postfachs. Ist
+  das Postfach einer Mail getrennt, wählt die Antwort ihres von Hand – nie still ein anderes.
   **Nie verloren**: dasselbe Postfach neu verbunden macht weiter, wo es aufhörte; ist Gmails Stand zu
   alt, kommen alle Mails seit dem letzten Abgleich (seitenweise). Erledigt im ERP =
   gelesen in Gmail. **Ein Anhang** bleibt in Gmail, bis ihn jemand öffnet – dann geht er in den

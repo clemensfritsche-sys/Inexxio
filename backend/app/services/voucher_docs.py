@@ -423,11 +423,12 @@ def _mail(db: Session, *, row: Voucher, token: str, doc: a4.Doc, kind: str,
     signer = mail_layout.as_signer(actor) if staff else None
     mail = mail_layout.compose(title, body, firm, signer,
                                extra=mail_layout.Extra(paper=paper))
-    sender = (actor.object_id if staff else
-              (box.owner_object_id if box is not None else company.object_id))
+    # Wer nicht als Mensch unterschreibt, schreibt nicht – dann die Gesellschaft. Gibt es
+    # eine Anbindung, wartet die Mail auf ihr Postfach, statt still als «gesendet» dazustehen.
+    sender = actor.object_id if staff else company.object_id
     msg = Message(sender_object_id=sender, channel=channel, subject=title, body=mail.body,
                   html=mail.html, at=clock.utcnow(),
-                  created_by=actor.id if staff else None, outgoing=live)
+                  created_by=actor.id if staff else None, outgoing=mailbox.ready())
     write(db, msg, {"to": [party], "cc": [], "bcc": [], "about": []})
     if live:
         mailbox.send_after(db)

@@ -107,7 +107,7 @@ def _mail(db: Session, doc: Document, person: UserProfile, link: DocumentLink, n
                                    url=link_url(link.token))))
     msg = Message(sender_object_id=actor.object_id or company.object_id, channel=channel,
                   subject=title, body=mail.body, html=mail.html, at=clock.utcnow(),
-                  created_by=actor.id, outgoing=live)
+                  created_by=actor.id, outgoing=mailbox.ready())
     write(db, msg, {"to": [person.object_id], "cc": [], "bcc": [], "about": []})
     if live:
         mailbox.send_after(db)

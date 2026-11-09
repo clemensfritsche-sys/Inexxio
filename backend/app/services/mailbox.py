@@ -112,10 +112,16 @@ def address_of(db: Session, channel: str) -> str:
 
 
 def _ours(db: Session) -> dict[str, Optional[int]]:
-    """Adresse → wer dahinter schreibt (Objektnummer, ``None`` = unbekannt)."""
-    out: dict[str, Optional[int]] = {a: None for a in _company_addresses(db)}
+    """Eigene Adresse → die Gesellschaft, die dahinter schreibt (Objektnummer). **Was von
+    einer eigenen Adresse hinausgeht, schreibt die Gesellschaft** – nicht der Mensch, der
+    das Postfach verbunden hat; wer es in Gmail tippte, weiss das ERP nicht."""
+    from .sites import selectable_companies
+    out: dict[str, Optional[int]] = {}
+    for c in selectable_companies(db):
+        if normalize_email(c.email):
+            out[normalize_email(c.email)] = c.object_id
     for mb in db.query(Mailbox).filter(Mailbox.is_active.is_(True)).all():
-        out[mb.address] = mb.owner_object_id
+        out[mb.address] = dc.company_of(mb.channel)
     return out
 
 
@@ -497,8 +503,10 @@ def ingest(db: Session, mb: Mailbox, raw: dict[str, Any],
     rfc = (head.get("message-id") or "").strip()[:255] or None
     if rfc and db.query(Message.id).filter(Message.rfc_id == rfc).first():
         return False
+    if not inbound and dc.ours(rfc):
+        return False        # vom ERP ohne Nachricht geschickt (Bitte an eine blosse Adresse)
     sender = (ensure(db, sender_addr, name).object_id if inbound
-              else ours.get(sender_addr) or mb.owner_object_id)
+              else ours.get(sender_addr) or dc.company_of(mb.channel) or mb.owner_object_id)
     roles: dict[str, list[int]] = {"to": [], "cc": [], "bcc": [], "about": []}
     for role in ("to", "cc"):
         for n, addr in getaddresses([head.get(role, "")]):
@@ -507,11 +515,11 @@ def ingest(db: Session, mb: Mailbox, raw: dict[str, Any],
                 roles[role].append(ensure(db, addr, n).object_id)
     msg = Message(
         sender_object_id=sender, channel=mb.channel,
-        subject=dc.subject_line(head.get("subject")),
+        subject=dc.subject_line(head.get("subject")) or dc.NO_SUBJECT,
         body=_strip_quote(_text(payload))[:MAX_BODY],
         at=datetime.fromtimestamp(int(raw.get("internalDate", 0)) / 1000, timezone.utc),
         created_by=None, gmail_id=raw.get("id"), thread_id=raw.get("threadId"),
-        rfc_id=rfc, attachments=_attachments(payload) or None)
+        rfc_id=rfc, attachments=_attachments(payload) or None, inbound=inbound)
     try:
         with db.begin_nested():
             write(db, msg, roles)
@@ -658,7 +666,10 @@ def _give_up(db: Session, msg: Message, reason: str) -> None:
     Verlauf steht unter ihrem Betreff eine interne Nachricht mit dem Grund – an den, der sie
     geschrieben hat (sonst an den Inhaber des Postfachs), betreffend ihre Empfänger."""
     from .communication import write
+    from . import log
     msg.outgoing = False
+    log.event(db, "mail.gave_up", msg.sender_object_id, {"reason": reason[:500]},
+              table="messages", row=msg.id)
     mb = active(db, msg.channel)
     writer = db.query(UserProfile.object_id).filter(
         UserProfile.id == msg.created_by).scalar() if msg.created_by else None
@@ -706,7 +717,7 @@ def send(db: Session, msg: Message,
     # stehen und der nächste Abgleich schickte sie ein zweites Mal.
     msg.outgoing = False
     msg.gmail_id, msg.thread_id = sent.get("id"), sent.get("threadId")
-    msg.rfc_id = _rfc_id(token, msg.gmail_id) or mime["Message-ID"]
+    msg.rfc_id = msg.rfc_id or _rfc_id(token, msg.gmail_id) or mime["Message-ID"]
     msg.subject = msg.subject or mime["Subject"] or None
     html_part = mime.get_body(("html",))
     msg.html = msg.html or (html_part.get_content() if html_part is not None else None)
@@ -746,6 +757,7 @@ def send_direct(db: Session, channel: str, to: str, subject: str, mail: Any) -> 
     mime["From"] = formataddr((layout.sender_name(None), mb.address))
     mime["To"] = to
     mime["Subject"] = subject
+    mime["Message-ID"] = dc.new_message_id()     # der Abgleich holt sie nie herein
     mime.set_content(mail.text)
     mime.add_alternative(mail.html, subtype="html")
     raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
@@ -845,7 +857,7 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
         if addrs:
             mime[header] = ", ".join(addrs)
     mime["Subject"] = msg.subject or ""
-    mime["Message-ID"] = own_message_id(msg, mb)
+    mime["Message-ID"] = msg.rfc_id or own_message_id(msg, mb)
     unsubscribe = _unsubscribe(mime, parties) if msg.newsletter else None
     if parent is not None:
         mime["In-Reply-To"] = parent.rfc_id

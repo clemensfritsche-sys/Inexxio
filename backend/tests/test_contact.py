@@ -122,7 +122,11 @@ def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
     conf = world.db.query(Message).join(MessageParty, MessageParty.message_id == Message.id).filter(
         MessageParty.object_id == inq.sender_object_id, Message.id != inq.id).one()
     assert world.sent == [conf.id]
-    assert conf.sender_object_id == world.staff.object_id and conf.channel == CHANNEL
+    # Geschrieben hat sie niemand – sie kommt von der Gesellschaft, nicht vom Admin, der
+    # das Postfach verband.
+    from app.domain import communication as dcom
+    assert conf.sender_object_id == dcom.company_of(CHANNEL) and conf.channel == CHANNEL
+    assert not conf.inbound and inq.inbound
     assert conf.subject == contact.VOCAB["mail"]["confirmSubject"]
     # Zwei Betreffs, zwei Anliegen: die Bestätigung erledigt die Anfrage nicht.
     from app.domain import communication as dcm
@@ -168,7 +172,7 @@ def test_a_failing_confirmation_does_not_fail_the_inquiry(world, monkeypatch):
     assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
     (inq,) = inquiries(world.db, data["email"])
     conf = world.db.query(Message).filter(Message.channel == CHANNEL, Message.id > inq.id,
-                                          Message.sender_object_id == world.staff.object_id).one()
+                                          Message.inbound.is_(False)).one()
     assert conf.outgoing
 
 

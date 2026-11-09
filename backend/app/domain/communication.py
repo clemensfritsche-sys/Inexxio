@@ -157,6 +157,11 @@ def subject_line(raw: Optional[str]) -> Optional[str]:
     return " ".join((raw or "").split())[:255] or None
 
 
+#: Der Betreff einer Mail, die ohne einen kam – auch sie ist ein Anliegen, und eine Antwort
+#: muss es erledigen können (``reply_subject``).
+NO_SUBJECT = "(ohne Betreff)"
+
+
 def title(subject: Optional[str]) -> str:
     """Wie das Anliegen dasteht – der Betreff ohne Vorsilben, Schreibweise wie gesendet."""
     return re.sub(r"\s+", " ", _PREFIX.sub("", subject or "")).strip()
@@ -168,16 +173,34 @@ def reply_subject(subject: Optional[str]) -> str:
     return f"Re: {t}" if t else ""
 
 
-def to_us(*, channel_key: str, sender_staff: bool, to_staff: bool) -> bool:
+def to_us(*, channel_key: str, inbound: bool, to_staff: bool) -> bool:
     """**Ist diese Nachricht an UNS gerichtet?** – die eine Frage hinter «offen».
 
-    Uns = jeder Kanal der eigenen Gesellschaft und jeder Mitarbeiter. Also: wer von
-    aussen schreibt, schreibt an uns; und wer intern einen Mitarbeiter im «An» nennt
-    (auch sich selbst – das ist die Erinnerung), ebenso. Ein Gespräch (``live``) und eine
-    Notiz warten auf niemanden (``quiet``)."""
+    Uns = jeder Kanal der eigenen Gesellschaft und jeder Mitarbeiter. Also: was von aussen
+    kam (``inbound`` – die Richtung der Nachricht, nicht die Rolle des Absenders), ist an
+    uns; und wer intern einen Mitarbeiter im «An» nennt (auch sich selbst – das ist die
+    Erinnerung), ebenso. Ein Gespräch (``live``) und eine Notiz warten auf niemanden
+    (``quiet``)."""
     if quiet(channel_key):
         return False
-    return (not sender_staff) or to_staff
+    return inbound or to_staff
+
+
+#: Der Teil rechts vom «@» jeder Kennung, die wir vergeben – daran erkennt der Abgleich
+#: eine Mail, die das ERP selbst geschrieben hat.
+MESSAGE_ID_HOST = "mail.inexxio"
+
+
+def new_message_id() -> str:
+    """Eine neue ``Message-ID`` (RFC 5322) – zufällig, also auch über Umgebungen und eine
+    neu aufgesetzte Datenbank hinweg eindeutig."""
+    import uuid
+    return f"<{uuid.uuid4().hex}@{MESSAGE_ID_HOST}>"
+
+
+def ours(message_id: Optional[str]) -> bool:
+    """Hat das ERP diese Kennung vergeben?"""
+    return (message_id or "").strip().endswith(f"@{MESSAGE_ID_HOST}>")
 
 
 # ---------------------------------------------------------------------------

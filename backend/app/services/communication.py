@@ -187,7 +187,8 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     elif body and dc.is_mail(data.channel) and policy.is_staff(actor):
         _assert_mail(data, roles)
     msg = Message(sender_object_id=sender, channel=data.channel, subject=subject, body=body,
-                  at=_aware(data.at) if data.at else clock.utcnow(), created_by=actor.id)
+                  at=_aware(data.at) if data.at else clock.utcnow(), created_by=actor.id,
+                  inbound=data.incoming or not policy.is_staff(actor))
     write(db, msg, roles)
     _hand_to_mailbox(db, msg, roles)
     return msg
@@ -295,9 +296,9 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
     outward = roles["to"] or roles["cc"] or roles["bcc"]
     if not (dc.is_mail(msg.channel) and outward and mailbox.ready()):
         return
-    sender = _people(db, [msg.sender_object_id]).get(msg.sender_object_id)
-    if not policy.is_staff(sender):
+    if msg.inbound:
         return          # eine eingegangene Mail, von Hand erfasst – sie ging nie hinaus
+    sender = _people(db, [msg.sender_object_id]).get(msg.sender_object_id)
     mailbox.assert_may_send(db, msg.channel, sender)
     msg.outgoing = True
     if now:
@@ -312,34 +313,40 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
 
 #: ►►► **Beantwortet ist, was eine spätere Nachricht VON UNS mit demselben Betreff
 #: erreicht** – als Bedingung über eine Kandidatin ``m`` (Spalten ``id``, ``at``,
-#: ``sender_object_id``, ``topic``). ◄◄◄ Die eine Fassung der Regel; ``answered`` fragt sie
-#: für eine Liste, ``open_counts`` für alle, die an uns gehen. Je Kandidatin liest sie nur
-#: ihr eigenes Anliegen ab ihrem Zeitpunkt (Index ``ix_messages_topic_at``).
+#: ``sender_object_id``, ``topic``, ``inbound``). ◄◄◄ Die eine Fassung der Regel; ``answered``
+#: fragt sie für eine Liste, ``open_counts`` für alle, die an uns gehen. Je Kandidatin liest
+#: sie nur ihr eigenes Anliegen ab ihrem Zeitpunkt (Index ``ix_messages_topic_at``).
 #:
+#: * **von uns** heisst: sie ging hinaus (``inbound`` aus) – die Richtung der Nachricht,
+#:   nicht die Rolle ihres Absenders;
+#: * **und sie ist auch draussen**: eine Mail, die noch wartet (``outgoing``) oder an der
+#:   Gmail aufgab (``mail.gave_up``), hat niemanden erreicht und beantwortet nichts;
 #: * **erreicht**: ihr Absender ist an der Antwort beteiligt (Absender, An, Cc, Bcc,
 #:   Betrifft) – damit erledigt eine Antwort alle offenen Nachrichten des Anliegens;
-#: * **wer fragt, beantwortet seine Frage nicht selbst** – ausser der Erinnerung an mich
-#:   (ich stehe in ihrem «An»);
-#: * **wer von aussen schreibt, bekommt die Antwort von aussen** (eine Mail, ein Anruf);
-#:   intern erledigt ihn nur die Nachricht ohne Text («Erledigt ohne Antwort»). «Ohne
+#: * **wer fragt, beantwortet seine Frage nicht selbst** – ausser was von aussen kam (ein
+#:   Mitarbeiter von seiner privaten Adresse) und der Erinnerung an mich (ich stehe in
+#:   ihrem «An»);
+#: * **was von aussen kam, bekommt die Antwort nach aussen** (eine Mail, ein Anruf);
+#:   intern erledigt es nur die Nachricht ohne Text («Erledigt ohne Antwort»). «Ohne
 #:   Text» heisst: kein Zeichen ausser Leerraum (``!~ '\S'``, wie ``str.strip``).
 #: * eine **geplante** Antwort (Zeitpunkt in der Zukunft) beantwortet noch nichts.
 #: Wer zu uns gehört – einmal je Abfrage gelesen (``MATERIALIZED``: ein paar Zeilen, und der
-#: Planer schätzt danach richtig, statt jede Nachricht teuer einzupreisen).
+#: Planer schätzt danach richtig, statt jede Nachricht teuer einzupreisen). Gebraucht nur
+#: noch für «an einen Mitarbeiter» (die Erinnerung, die interne Frage).
 _STAFF = ("WITH staff AS MATERIALIZED (SELECT object_id FROM user_profiles "
           "WHERE role = ANY(:staff) AND object_id IS NOT NULL) ")
 
 _ANSWERED = """EXISTS (
   SELECT 1 FROM messages r
    WHERE r.topic = m.topic AND r.is_active AND r.at <= :now AND r.id <> m.id
-     AND r.channel <> 'note'
-     AND r.sender_object_id IN (SELECT object_id FROM staff)
+     AND r.channel <> 'note' AND NOT r.inbound AND NOT r.outgoing
+     AND NOT EXISTS (SELECT 1 FROM log g WHERE g.event = 'mail.gave_up'
+                       AND g.table_name = 'messages' AND g.row_key = r.id::text)
      AND (r.at > m.at OR (r.at = m.at AND r.id > m.id))
-     AND (r.sender_object_id <> m.sender_object_id OR EXISTS (
+     AND (m.inbound OR r.sender_object_id <> m.sender_object_id OR EXISTS (
             SELECT 1 FROM message_parties own WHERE own.message_id = m.id
                AND own.role = 'to' AND own.object_id = m.sender_object_id))
-     AND (r.channel <> ALL(:inside) OR r.body !~ '\\S'
-          OR m.sender_object_id IN (SELECT object_id FROM staff))
+     AND (r.channel <> ALL(:inside) OR r.body !~ '\\S' OR NOT m.inbound)
      AND (r.sender_object_id = m.sender_object_id OR EXISTS (
             SELECT 1 FROM message_parties w WHERE w.message_id = r.id
                AND w.object_id = m.sender_object_id)))"""
@@ -359,7 +366,7 @@ def answered(db: Session, ids: list[int]) -> set[int]:
     wartet seine Nachricht weiter: sie ist jünger als die Antwort."""
     if not ids:
         return set()
-    rows = db.execute(text(f"{_STAFF}SELECT m.id FROM messages m WHERE m.id = ANY(:ids) "
+    rows = db.execute(text(f"SELECT m.id FROM messages m WHERE m.id = ANY(:ids) "
                            f"AND {_ANSWERED}"),
                       {"ids": list(ids), **_rule_params()})
     return {i for (i,) in rows}
@@ -467,7 +474,8 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
     msgs = db.query(Message).filter(Message.id.in_(ids)).order_by(Message.at, Message.id).all()
     parties = db.query(MessageParty).filter(MessageParty.message_id.in_(ids)).all()
     people = _people(db, [m.sender_object_id for m in msgs] + [p.object_id for p in parties])
-    names = _names(db, {p.object_id for p in parties} - set(people))
+    names = _names(db, ({p.object_id for p in parties}
+                        | {m.sender_object_id for m in msgs}) - set(people))
     by_msg: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     for p in parties:
         by_msg[p.message_id][p.role].append(p.object_id)
@@ -486,7 +494,7 @@ def _state(m, roles: dict[str, list[int]], answered: bool,
     zwei Zahlen für dieselbe Nachricht."""
     at = _aware(m.at)
     is_open = (at <= now and not answered and dc.to_us(
-        channel_key=m.channel, sender_staff=staff(m.sender_object_id),
+        channel_key=m.channel, inbound=m.inbound,
         to_staff=any(staff(i) for i in roles.get("to", []))))
     return is_open, is_open and now - at > dc.OVERDUE_AFTER
 
@@ -497,13 +505,14 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
          firms: Optional[dict[int, str]] = None,
          names: Optional[dict[int, str]] = None) -> MessageOut:
     from .mailbox import gmail_url
-    sender = _ref(people, m.sender_object_id, firms)
 
     def ref(i: int) -> PersonRef:
-        """Eine Person wie immer; ein anderer Datensatz («Betrifft») mit seinem Namen."""
+        """Eine Person wie immer; ein anderer Datensatz («Betrifft», die Gesellschaft als
+        Absenderin einer automatischen Mail) mit seinem Namen."""
         if i in people or not names or i not in names:
             return _ref(people, i, firms)
         return PersonRef(object_id=i, name=names[i])
+    sender = ref(m.sender_object_id)
     refs = {r: [ref(i) for i in roles.get(r, [])] for r in dc.ROLES}
     at = _aware(m.at)
     is_open, overdue = _state(m, roles, answered, lambda i: _is_staff(people, i), now)
@@ -517,7 +526,7 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
         reply_subject=dc.reply_subject(m.subject),
         reply_all=[_ref(people, i, firms) for i in reply_all(m.sender_object_id, roles)
                    if i in people],
-        ours=sender.staff, open=is_open,
+        ours=not m.inbound, open=is_open,
         overdue=overdue, planned=at > now,
         pending=bool(m.outgoing), attachments=m.attachments or [],
         gmail_url=gmail_url(address, m) if address else None,
@@ -529,9 +538,9 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
 #: «offen». Was wir selbst hinausschicken, ist nie offen; ein stiller Kanal (Gespräch,
 #: Notiz) auch nicht. Was hier steht, entscheidet danach ``_state`` – die eine Regel.
 _UNANSWERED = text(f"""{_STAFF}
-SELECT m.id, m.at, m.channel, m.sender_object_id FROM messages m
+SELECT m.id, m.at, m.channel, m.sender_object_id, m.inbound FROM messages m
  WHERE m.is_active AND m.at <= :now AND m.channel <> ALL(:quiet)
-   AND (m.sender_object_id NOT IN (SELECT object_id FROM staff)
+   AND (m.inbound
         OR m.id IN (SELECT t.message_id FROM message_parties t
                      WHERE t.role = 'to' AND t.object_id IN (SELECT object_id FROM staff)))
    AND NOT {_ANSWERED}""")

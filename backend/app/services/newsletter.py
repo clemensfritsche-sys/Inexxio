@@ -217,7 +217,7 @@ def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
         raise NotFound(f"Person «{oid}» gibt es nicht.")
     mail = _request(db, channel, box, person.display_name if by_name else "",
                     confirm_url(source, person=oid))
-    msg = Message(sender_object_id=box.owner_object_id, channel=channel,
+    msg = Message(sender_object_id=dc.company_of(channel), channel=channel,
                   subject=WORDS["confirmSubject"], body=mail.body, html=mail.html, at=clock.utcnow(),
                   created_by=None, outgoing=True)
     write(db, msg, {"to": [oid], "cc": [], "bcc": [], "about": []})

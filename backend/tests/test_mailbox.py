@@ -9,6 +9,7 @@ import base64
 import random
 
 import pytest
+from app.domain import communication as dc
 from app.domain.errors import Rejected
 
 from tests.support import after_save
@@ -75,18 +76,19 @@ def test_what_we_send_from_gmail_is_ours_and_captures_the_recipient(world):
     raw = _gmail(f"Inexxio <{COMPANY}>", to="Neu Kunde <neu@kunde.ch>", labels=("SENT",))
     assert mb.ingest(db, box, raw)
     out = _one(db, raw["id"])
-    assert out.sender.object_id == staff.object_id and out.ours and not out.open
+    # Wer es in Gmail tippte, weiss das ERP nicht – es schrieb die Gesellschaft.
+    assert out.sender.object_id == dc.company_of(box.channel) and out.ours and not out.open
     assert [p.name for p in out.to] == ["Neu Kunde"]
 
 
 def test_a_user_with_our_address_is_never_the_sender_and_never_created(world):
     """Die Frage des Nutzers: trägt ein Benutzer dieselbe Adresse wie das Unternehmen,
-    zählt sie trotzdem als «wir» – der Absender ist der Mitarbeiter hinter dem Postfach."""
+    zählt sie trotzdem als «wir» – der Absender ist die Gesellschaft hinter dem Postfach."""
     db, staff, box = world
     twin = _person(db, "user", email=COMPANY)
     raw = _gmail(COMPANY, to="a@b.ch", labels=("SENT",))
     mb.ingest(db, box, raw)
-    assert _one(db, raw["id"]).sender.object_id == staff.object_id != twin.object_id
+    assert _one(db, raw["id"]).sender.object_id == dc.company_of(box.channel) != twin.object_id
     assert "bereits" in mb._store(db, "u1", staff, COMPANY, "t", "1")
 
 
@@ -256,6 +258,7 @@ def test_a_sent_mail_stays_sent_when_the_follow_up_read_fails(world, monkeypatch
     msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Offerte",
                                     body="Offerte"), staff)
     msg.outgoing = True
+    given = msg.rfc_id
 
     class Sent:
         status_code, text = 200, ""
@@ -269,7 +272,7 @@ def test_a_sent_mail_stays_sent_when_the_follow_up_read_fails(world, monkeypatch
     monkeypatch.setattr(mb, "_get", down)
     assert mb.send(db, msg)
     assert (msg.outgoing, msg.gmail_id) == (False, "g-sent")
-    assert msg.rfc_id == mb.own_message_id(msg, box), "Die eigene Kennung trägt den Faden weiter."
+    assert msg.rfc_id == given and dc.ours(given), "Die eigene Kennung trägt den Faden weiter."
 
 
 def test_two_syncs_never_send_the_same_mail_twice(monkeypatch):
@@ -451,7 +454,7 @@ def test_a_subject_is_one_line(world):
 def test_a_mail_that_already_went_out_is_never_sent_twice(world, monkeypatch):
     """Änderungsakte V3 – Bug-Form: der Dienst starb nach dem Senden, vor dem Speichern; der
     nächste Abgleich schickte dieselbe Mail ein zweites Mal. Jetzt findet Gmail sie unter ihrer
-    Kennung (ihrer Nummer im ERP), und sie wird nur noch vermerkt."""
+    Kennung (vergeben, bevor sie hinaus soll), und sie wird nur noch vermerkt."""
     db, staff, box = world
     lea = _person(db)
     msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Offerte 9",
@@ -467,7 +470,7 @@ def test_a_mail_that_already_went_out_is_never_sent_twice(world, monkeypatch):
     monkeypatch.setattr(mb, "_post", lambda *_a: pytest.fail("ein zweites Mal gesendet"))
     assert mb.send(db, msg)
     assert (msg.outgoing, msg.gmail_id, msg.thread_id) == (False, "g-1", "t-1")
-    assert asked[0] == f"rfc822msgid:{mb.own_message_id(msg, box)}"
+    assert asked[0] == f"rfc822msgid:{msg.rfc_id}" and dc.ours(msg.rfc_id)
 
 
 def test_reconnecting_the_same_mailbox_goes_on_where_it_stopped(world):

@@ -202,7 +202,7 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
                       "url": attachments.public_url(att)})
     msg = Message(sender_object_id=person, channel=dc.company(firm.object_id),
                   subject=subject_of(inq.message), body=_body(inq), at=clock.utcnow(),
-                  created_by=None, attachments=files or None)
+                  created_by=None, attachments=files or None, inbound=True)
     write(db, msg, {"to": [], "cc": [], "bcc": [], "about": []})
     db.flush()
     return msg
@@ -230,7 +230,7 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     more.action = offer(db, inquiry.sender_object_id, inq.newsletter)
     mail = mail_layout.compose(subject, lead(words), firm, None,
                                kicker=words["kicker"], extra=more)
-    msg = Message(sender_object_id=box.owner_object_id, channel=inquiry.channel,
+    msg = Message(sender_object_id=dc.company_of(inquiry.channel), channel=inquiry.channel,
                   subject=subject, body=mail.body, html=mail.html,
                   at=clock.utcnow(), created_by=None, outgoing=True)
     write(db, msg, {"to": [inquiry.sender_object_id], "cc": [], "bcc": [], "about": []})

@@ -27,7 +27,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from ..core.database import Base
-from ..domain.communication import topic as _topic_of
+from ..domain.communication import new_message_id, topic as _topic_of
 from .base import SoftDeleteMixin, TimestampMixin, utcnow
 
 
@@ -50,6 +50,13 @@ class Message(Base, TimestampMixin, SoftDeleteMixin):
                                          default=utcnow, index=True)
     #: Wer sie erfasst hat (``user_profiles.id``) – nicht zwingend der Absender.
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger)
+    #: ►►► **Kam sie von aussen zu uns?** ◄◄◄ Die Richtung ist eine Tatsache der Nachricht,
+    #: nicht der Person: schreibt ein Mitarbeiter von seiner privaten Adresse an das
+    #: Postfach, kam die Mail von aussen; schickt die Gesellschaft selbst (Bestätigung,
+    #: Beleg), ging sie hinaus. Gesetzt, wenn sie entsteht – «offen», «beantwortet» und die
+    #: Seite im Verlauf lesen nur sie.
+    inbound: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
+                                          server_default="false")
 
     # ── Postfach (CRM Schritt 3, ``services/mailbox``) ─────────────────────────────
     #: Die Mail selbst bleibt in Gmail; hier steht nur, wie man sie dort wiederfindet.
@@ -89,6 +96,16 @@ class Message(Base, TimestampMixin, SoftDeleteMixin):
         # «offen» fragt je Anliegen nach späteren Nachrichten (``communication.answered``).
         Index("ix_messages_topic_at", "topic", "at"),
     )
+
+    @validates("outgoing")
+    def _message_id(self, _key: str, outgoing: bool) -> bool:
+        """►►► **Die Kennung einer Mail, die hinaus soll – vergeben, bevor sie geht.** ◄◄◄
+        Zufällig und weltweit eindeutig (``Message-ID``), gespeichert mit der Nachricht:
+        der Versand fragt Gmail danach (nie doppelt), und der Abgleich erkennt die eigene
+        Mail im Ordner «Gesendet» wieder (nie ein zweites Mal hereingeholt)."""
+        if outgoing and not self.rfc_id:
+            self.rfc_id = new_message_id()
+        return outgoing
 
     @validates("subject")
     def _topic(self, _key: str, subject: Optional[str]) -> Optional[str]:

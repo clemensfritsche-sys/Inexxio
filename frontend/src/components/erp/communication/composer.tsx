@@ -198,8 +198,10 @@ function From({ mails, value, onChange, me }: {
   // ►►► Wie der Absender im Verlauf (`author`): «Gesellschaft · Mensch». ◄◄◄
   // Die Adresse des Postfachs steht im Hover, nicht im Chip.
   const text = (c: MessageChannel) => (c.name ? `${c.name} · ${me.name}` : me.name);
-  const cur = value ?? mails[0];
-  if (mails.length === 1) {
+  // Ohne Wahl (die Mail kam in einem Postfach an, das nicht mehr verbunden ist) wählt der
+  // Mensch – es wird nie still ein anderes genommen.
+  const cur = value;
+  if (mails.length === 1 && cur) {
     return <span style={CHIP} data-tip={cur.label}><span className="truncate">{text(cur)}</span></span>;
   }
   return (
@@ -207,17 +209,20 @@ function From({ mails, value, onChange, me }: {
       alignItems: 'center', minHeight: 28 }}>
       <button type="button" onClick={() => setOpen(!open)} aria-haspopup="listbox"
         aria-expanded={open} aria-label="Von" style={{ ...CHIP, border: 0, cursor: 'pointer',
-          fontFamily: 'inherit', fontWeight: 400, lineHeight: '26px', padding: '0 6px 0 10px' }}>
-        <span className="truncate" data-tip={cur.label}>{text(cur)}</span>
+          fontFamily: 'inherit', fontWeight: 400, lineHeight: '26px', padding: '0 6px 0 10px',
+          ...(cur ? {} : { color: 'var(--danger)' }) }}>
+        {cur ? <span className="truncate" data-tip={cur.label}>{text(cur)}</span>
+          : <span className="truncate" data-tip="Das Postfach, in dem diese Mail ankam, ist nicht verbunden">
+            Postfach wählen</span>}
         <ChevronDown size={13} style={{ flex: 'none', color: 'var(--fg-3)' }} />
       </button>
       {open && (
         <div role="listbox" aria-label="Von" style={LIST}>
           {mails.map((c) => (
-            <button key={c.key} type="button" role="option" aria-selected={c.key === cur.key}
+            <button key={c.key} type="button" role="option" aria-selected={c.key === cur?.key}
               onClick={() => { onChange(c.key); setOpen(false); }} style={HIT}
               className="bg-transparent hover:bg-bg-2">
-              <span className="truncate" style={{ fontWeight: c.key === cur.key ? 600 : 400 }}>{text(c)}</span>
+              <span className="truncate" style={{ fontWeight: c.key === cur?.key ? 600 : 400 }}>{text(c)}</span>
               <span className="truncate" style={{ marginLeft: 'auto', color: 'var(--fg-3)', fontSize: 12 }}>{c.label}</span>
             </button>
           ))}
@@ -400,35 +405,47 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
   sent.current = onSent;
 
   const calledIn = mode === 'phone' && incoming;
-  // Pflicht bleibt nur der Absender dessen, worauf ich antworte – ausser ich bin es selbst.
-  const asker = reply && reply.sender.object_id !== me.object_id ? reply.sender.object_id : null;
+  // Pflicht bleibt nur der Absender dessen, worauf ich antworte – ausser ich bin es selbst und
+  // schrieb von uns aus (kam es von aussen, auch von meiner privaten Adresse, gilt die Antwort mir).
+  const asker = reply && (reply.sender.object_id !== me.object_id || !reply.ours)
+    ? reply.sender.object_id : null;
   // Intern geht nichts an ihn – dort ist die Antwort an ihn gar nicht gemeint.
   // Ein Anruf geht ohnehin an genau diese Person – dort wird nichts gewählt.
   const free = mode === 'phone' || mode === 'internal';
   const locked = new Set(asker !== null && !free ? [asker] : []);
   const reached = asker === null || free || [...to, ...cc].some((p) => p.object_id === asker);
   const cameIn = reply && mails.find((c) => c.key === reply.channel.key)?.key;
+  // Die Mail kam in einem Postfach an, das nicht mehr verbunden ist: gewählt wird von Hand.
+  const lost = mode === 'email' && !!reply?.channel.mail && !cameIn && !mailKey;
   const channel = mode === 'email'
-    ? mails.find((c) => c.key === (mailKey ?? cameIn)) ?? mails[0]
+    ? (lost ? undefined : mails.find((c) => c.key === (mailKey ?? cameIn)) ?? mails[0])
     : channels.find((c) => c.kind === mode && !c.mail);
-  const fixed = !!reply;
-  const theSubject = reply ? reply.reply_subject : subject;
+  // Eine Antwort trägt den Betreff ihres Anliegens fest – so erledigt sie es. Hat die Mail
+  // keinen, wird er getippt.
+  const fixed = !!reply?.reply_subject;
+  const theSubject = reply?.reply_subject || subject;
 
   // ►►► «Antworten»: fester Betreff, alle Beteiligten – wie «Allen antworten». ◄◄◄ Wer im
-  // «Cc» stand, bleibt im «Cc»; ich selbst falle heraus.
+  // «Cc» stand, bleibt im «Cc»; ich selbst falle heraus – ausser die Mail kam von mir von
+  // aussen (meine private Adresse): dann geht die Antwort an mich.
   useEffect(() => {
     if (!target) return;
     const m = target.m;
     const next = MODE_OF[m.channel.kind] ?? 'email';
-    const all = m.reply_all.filter((p) => p.object_id !== me.object_id);
+    const all = m.reply_all.filter((p) => p.object_id !== me.object_id
+      || (!m.ours && p.object_id === m.sender.object_id));
+    // Ohne Postfach wird es eine interne Nachricht – an sie geht nur, wer zu uns gehört; der
+    // Kunde steht dann im «Betrifft».
+    const inside = next === 'email' && !mails.length;
     const inCc = new Set(m.cc.map((p) => p.object_id));
     setEdit(false); setError(null);
     if (!target.quiet) setOpen(true);
     patch({
       reply: m, mailKey: undefined, incoming: false, delivery: 'mail',
-      mode: next === 'email' && !mails.length ? 'internal' : next,
-      to: all.filter((p) => !inCc.has(p.object_id)), cc: all.filter((p) => inCc.has(p.object_id)),
-      showCc: all.some((p) => inCc.has(p.object_id)), showBcc: false,
+      mode: inside ? 'internal' : next,
+      to: inside ? [] : all.filter((p) => !inCc.has(p.object_id)),
+      cc: inside ? [] : all.filter((p) => inCc.has(p.object_id)),
+      showCc: !inside && all.some((p) => inCc.has(p.object_id)), showBcc: false,
     });
     if (target.quiet) return;     // vorbelegt beim Öffnen – kein Sprung, kein Fokus
     textRef.current?.focus();
@@ -464,7 +481,9 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
 
   /** Warum noch nicht gesendet werden kann – dieselben Regeln wie im Dienst, hier nur
    *  früher gesagt: am Knopf, im Hover. ``null`` = vollständig. */
-  const problem = !channel ? (mode === 'email' ? 'Kein Postfach verbunden' : 'Kein Kanal verfügbar')
+  const problem = !channel ? (mode === 'email'
+    ? (lost ? 'Postfach wählen – das dieser Mail ist nicht verbunden' : 'Kein Postfach verbunden')
+    : 'Kein Kanal verfügbar')
     : mode === 'email' && !to.length ? 'Mindestens ein Empfänger im «An»'
       : !theSubject.trim() ? 'Betreff fehlt'
           : !reached ? `${reply?.sender.name} muss im «An» oder «Cc» stehen`
