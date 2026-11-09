@@ -616,7 +616,9 @@ CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
   baut der Testlauf aus den Migrationen), generierte Dateien (`openapi.json`, `api.ts`,
   `status-catalog.ts`) aktuell; Website `npm test`, `astro check`, `export-erp.mjs
   --check`, Build mit `check-site`. Aus dem Deploy baut das Gate nicht (`build: false`).
-- **Tests prüfen Verhalten, nicht Quelltext**; Personen und Firmen kommen aus
+- **Tests prüfen Verhalten, nicht Quelltext** – Regeln der Oberfläche prüft die Oberfläche selbst
+  (`frontend/scripts/*.test.mjs`, auf dem Syntaxbaum, `scripts/lib/source.mjs`); kein Backend-Test liest
+  ihren Quelltext (Wächter `test_tests_read_behaviour`); Personen und Firmen kommen aus
   `tests/factories.py` (Fixtures `make_person`, `make_firm`, `own_company`), die
   Beleg-Szene aus `tests/scenes/voucher.py`.
 - **Lokal testen wie die CI**: gegen ein Schema, das nur aus den Migrationen kommt

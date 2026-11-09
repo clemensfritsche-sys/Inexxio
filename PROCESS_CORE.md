@@ -283,7 +283,7 @@ nach vorn, nie an seiner Stelle.** Ein Modul, das bei `held` Formular und Scan-K
 die Entscheidung ersetzt, erfindet eine Sperre ohne Schlüssel, die es im Dienst nicht gibt.
 Wächter:
 `test_capture_module.test_a_hold_is_never_a_dead_end` und
-`test_source_process.test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it`.
+`frontend/scripts/process-ui.test.mjs` («ein Halt steht neben dem Weg nach vorn»).
 
 ### 4.6 Ein terminales Modul ist ein AUSGANG, kein Durchgang
 

@@ -31,3 +31,16 @@ def test_every_rejection_has_one_shape():
     assert anonymous.status_code in (401, 403) and set(anonymous.json()) == {"detail", "code"}
     assert Conflict("x", code="pick_stale").body() == {"detail": "x", "code": "pick_stale"}
     assert rejected(404, "weg").status == 404 and rejected(418, "?").status == 400
+
+
+def test_an_invalid_input_says_what_is_missing_and_where():
+    """**Rohe Validator-Texte gehören nicht ins UI** (#686): «Field required» ist wahr und
+    unbrauchbar. Jede Eingabe, die das Schema abweist, kommt in derselben Form zurück –
+    Klartext, mit dem Feld, an EINER Stelle (``main.validation_error_handler``)."""
+    client = TestClient(app)
+    r = client.post("/api/v1/auth/passkeys/login/verify", json={})
+    assert r.status_code == 422, r.text
+    body = r.json()
+    assert body["code"] == "invalid"
+    assert "fehlt" in body["detail"] and "Field required" not in body["detail"], body
+    assert body["detail"].startswith("credential"), f"Die Meldung nennt das Feld nicht: {body}"

@@ -162,6 +162,12 @@ class ArticleCreate(BaseModel):
             raise ValueError(f"CAD-Link «{v}» muss mit http:// oder https:// beginnen")
         return v
 
+    @field_validator("origin_country")
+    @classmethod
+    def _origin_iso2(cls, v: Optional[str]) -> Optional[str]:
+        """**Ein Land, eine Schreibweise** – «ch» und «CH» wären auf dem Beleg zwei Länder."""
+        return v.upper() if v else v
+
     @field_validator("name")
     @classmethod
     def _name_not_empty(cls, v: str) -> str:

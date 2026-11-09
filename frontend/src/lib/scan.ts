@@ -135,6 +135,21 @@ export function offersFor(step: ScanStep | undefined): ScanCandidate[] {
   return wanted.map((objectId) => ({ objectId, label: scanKindLabel(step) }));
 }
 
+/**
+ * ►►► **Ware zuerst, Ziel zuletzt** – der Ziel-Scan ist die Quittung der Ablage. ◄◄◄ Zuerst
+ * gescannt wäre der Zielort eine Absichtserklärung. Eine Fuhre geht an EINEN Ort: auch im
+ * Sammel-Scan stehen alle Waren vorn und das Ziel einmal am Ende. Die beiden Hälften gehören
+ * zusammen – {@link deliveredTo} liest das Ziel dort, wo diese Funktion es hinstellt.
+ */
+export function deliverySteps(goods: ScanStep[], target: ScanStep | null): ScanStep[] {
+  return target ? [...goods, target] : goods;
+}
+
+/** Das Ziel eines Vorgangs aus {@link deliverySteps}: die letzte Nummer – ohne Ziel keines. */
+export function deliveredTo(objectIds: number[], withTarget: boolean): number | null {
+  return withTarget ? Number(objectIds[objectIds.length - 1]) || null : null;
+}
+
 // ─── Die Deutung – austauschbar, heute genau eine ────────────────────────────
 // Der Dialog besitzt die Kamera; was ein Ergebnis BEDEUTET, steht hier. Drei Fragen:
 //   read    – was steht in diesem Rohtext?

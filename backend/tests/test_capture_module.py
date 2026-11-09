@@ -912,3 +912,52 @@ def test_a_failed_sample_keeps_the_rest_from_running_through():
     finally:
         db.rollback()
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Die Erfassungspunkte – was erfasst ist, was fehlt, was ein Urteil trägt
+# ---------------------------------------------------------------------------
+
+def test_everything_captured_is_mandatory_and_named_when_missing():
+    """**Alles, was angelegt ist, ist Pflicht** – es gibt keinen Schalter «Pflicht ja/nein»,
+    und was fehlt, nennt die Prüfung beim Namen."""
+    import pytest
+    from app.domain import capture_types as ct
+    from app.domain.errors import Invalid
+    from app.schemas.process import CapturePoint
+
+    assert "required" not in CapturePoint.model_fields
+    points = ct.clean_points([{"label": "Länge", "type": "measure", "target": 10, "tolerance": 1},
+                              {"label": "Notiz", "type": "text"}])
+    with pytest.raises(Invalid) as e:
+        ct.check_values(points, {points[0]["key"]: 10})
+    assert "Notiz" in str(e.value.detail) and "Länge" not in str(e.value.detail)
+    ct.check_values(points, {points[0]["key"]: 10, points[1]["key"]: "ok"})
+
+
+def test_a_verdict_needs_something_judgeable():
+    """``None`` heisst «nichts Bewertbares dabei». Ein erfundenes «bestanden» wäre eine
+    Aussage, die niemand getroffen hat; «nicht angetippt» ist kein «nein»."""
+    from app.domain import capture_types as ct
+
+    assert ct.verdict([{"key": "n", "type": "text"}], {"n": "x"}) is None
+    assert ct.verdict([{"key": "f", "type": "photo"}], {"f": "x"}) is None
+    assert ct.verdict([{"key": "l", "type": "measure"}], {"l": 5}) is None
+    measure = {"key": "l", "type": "measure", "target": 10, "tolerance": 1}
+    assert ct.verdict([measure], {"l": 10.5}) == "passed"
+    assert ct.verdict([measure], {"l": 12}) == "failed"
+    assert ct.verdict([{"key": "g", "type": "bool"}], {"g": True}) == "passed"
+    assert ct.verdict([{"key": "g", "type": "bool"}], {"g": False}) == "failed"
+    assert ct.get("bool").missing({"key": "g", "type": "bool"}, None) is True
+    assert ct.get("bool").missing({"key": "g", "type": "bool"}, False) is False
+
+
+def test_a_picture_is_exactly_one_shot():
+    """**Genau eine Aufnahme je Einzelinstanz**, nicht optional – durchgesetzt im Dienst, nicht
+    durch einen ausgegrauten Knopf. Bei mehreren bliebe offen, welche gemeint ist (#718/#720)."""
+    from app.domain import capture_types as ct
+
+    photo, point = ct.get("photo"), {"key": "bild", "label": "Bild", "type": "photo"}
+    assert photo.missing(point, None) and photo.missing(point, "")
+    assert photo.missing(point, ["/x/a.jpg", "/x/b.jpg"]), "eine Liste gilt als Aufnahme"
+    assert not photo.missing(point, "/x/aufnahme.jpg")

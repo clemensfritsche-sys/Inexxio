@@ -102,8 +102,8 @@ const config = [
     files: ['**/*.ts', '**/*.tsx'],
     rules: {
       // **Ein Knopf ohne Wirkung fällt auf** – die TypeScript-Fassung kennt auch Typen;
-      // die Basisregel ist dafür aus. Ein Wächter liest diese Zeilen
-      // (`backend/tests/test_source_ui.py`).
+      // die Basisregel ist dafür aus. Dass ESLint jede Hausregel als Fehler abweist, fährt
+      // `scripts/house.test.mjs` an Beispielen.
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['error', {
         args: 'none',

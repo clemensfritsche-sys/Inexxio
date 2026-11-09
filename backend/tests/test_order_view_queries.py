@@ -39,3 +39,18 @@ def test_a_neighbour_costs_only_what_the_picture_reads(db):
     with _counted(db) as graph:
         flow_svc.build(db, child)
     assert len(neighbour) < len(graph) + len(full), (len(full), len(graph), len(neighbour))
+
+
+def test_many_deviations_are_cut_off_and_say_so(db):
+    """**Bei vielen Abweichungen wird abgeschnitten – und die wahre Zahl genannt** (§4).
+
+    Gruppieren wäre falsch (zwei Abweichungen sind zwei Abläufe); eine stumm gekappte Liste
+    sähe aus wie alles. Bug-Form: ``deviation_total`` = Länge der gekappten Liste."""
+    w = World(db)
+    art = w.article()
+    parent = w.produce(art, orders_router.RELATED_LIMIT + 2)
+    for number in w.numbers(parent)[: orders_router.RELATED_LIMIT + 1]:
+        w.take(art, [number], steps=[w.capture()], from_order=parent.object_id)
+    view = orders_router.internal_view(db, parent)
+    assert len(view["deviations"]) == orders_router.RELATED_LIMIT
+    assert view["deviation_total"] == orders_router.RELATED_LIMIT + 1

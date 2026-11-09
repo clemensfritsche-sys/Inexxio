@@ -36,6 +36,35 @@ def test_a_quantity_is_never_a_stored_field():
         assert not stored, f"«{model.__tablename__}» speichert eine Menge: {stored}."
 
 
+def test_a_group_has_no_state_of_its_own():
+    """**Nur das Stück hat einen Zustand** – Auftrag und Instanz leiten ab, gespeichert wird er
+    dort nie (#675: eine Charge mit gemischten Stücken hätte keine richtige Antwort). Die
+    Spalten ``orders.status``/``instances.status`` standen einmal da und schrieb niemand."""
+    from app.models import Instance, Order
+    from app.schemas.instance import InstanceResponse, InstanceSummary, InstanceUnitResponse
+
+    for model in (Order, Instance):
+        assert "status" not in model.__table__.columns, f"«{model.__tablename__}» speichert einen Zustand."
+    for schema in (InstanceResponse, InstanceSummary):
+        assert "status" not in schema.model_fields, f"{schema.__name__} behauptet einen Zustand."
+    assert "status" in InstanceUnitResponse.model_fields
+
+
+def test_the_start_of_a_piece_is_read_from_the_log(db):
+    """**Wann ein Stück in einen Auftrag eintrat, sagt der Log** – je Auftrag, ohne Spalte."""
+    from app.services import order_state
+
+    w = World(db)
+    article = w.article()
+    parent = w.produce(article, 2)
+    numbers = w.numbers(parent)
+    child = w.take(article, numbers[:1], steps=[World.capture()], from_order=parent.object_id)
+    ids = [w.unit(n).id for n in numbers]
+    assert set(order_state.started_at(db, parent, ids)) == set(ids)
+    assert set(order_state.started_at(db, child, ids)) == {ids[0]}, (
+        "Ein Stück, das diesen Auftrag nie betrat, hat hier keinen Start.")
+
+
 @pytest.mark.parametrize("serialization, instances", [("unit", 3), ("batch", 1)])
 def test_a_piece_draws_no_object_number_and_counts_within_its_instance(db, serialization,
                                                                        instances):
@@ -106,6 +135,10 @@ def test_orders_and_instances_have_no_path_to_change_or_delete():
             assert not methods & {"PATCH", "PUT", "DELETE"}, (
                 f"«{path}» ändert oder löscht einen Auftrag ({methods}) – was an einem "
                 f"Auftrag geschieht, ist eine Handlung (POST) mit Eintrag im Log.")
+        if path.startswith("/api/v1/erp/articles/{"):
+            assert not methods & {"POST", "PATCH", "PUT", "DELETE"}, (
+                f"«{path}» schreibt an einen freigegebenen Artikel ({methods}) – geändert wird "
+                f"er nie; eine Änderung ist ein neuer Artikel, der ihn ersetzt.")
         if path.startswith("/api/v1/erp/instances"):
             assert not methods & {"POST", "PATCH", "PUT", "DELETE"}, (
                 f"«{path}» schreibt eine Instanz ({methods}) – sie entsteht nur über einen "

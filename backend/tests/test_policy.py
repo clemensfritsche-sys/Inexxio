@@ -71,3 +71,21 @@ def test_the_doors_of_the_routes_read_the_rules():
         auth.require_employee(customer)
     with pytest.raises(Forbidden, match=policy.RULES["admin"].why):
         auth.require_admin(staff)
+
+
+def test_only_staff_moves_a_piece_through_a_module():
+    """**Ein Modul bestätigt nur das Personal** – eine Gegenpartei sieht ihr Modul, bewegt aber
+    kein Stück (dafür hat sie das Verb am Beleg, dessen Tor ``can`` ist). Die Oberfläche
+    fragt dafür ``internal``, nie eine Rolle; die Tür der Route ist ``require_employee``.
+
+    Bug-Form: die Bestätigung hängt nur an der Anmeldung (``get_current_user``) – dann
+    bekäme eine Gegenpartei einen Knopf, der wirkt."""
+    from app.core import auth
+    from app.main import app
+    from fastapi.routing import iter_route_contexts
+
+    confirm = [c for c in iter_route_contexts(app.routes)
+               if c.path.endswith("/steps/{step_id}/confirm")]
+    assert len(confirm) == 1, "Die Route des Bestätigens nicht gefunden – der Wächter wäre blind."
+    doors = {d.call for d in confirm[0].route.dependant.dependencies}
+    assert auth.require_employee in doors

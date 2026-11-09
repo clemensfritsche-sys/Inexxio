@@ -340,11 +340,10 @@ def test_the_mailto_way_out_carries_the_subject_of_the_erp_message(world, monkey
 
 def test_the_words_and_patterns_of_an_inquiry_stand_once():
     """Muster, Beschriftungen und der Name kommen aus dem Vokabular der Website – weder der
-    Endpunkt noch das Formular noch die Nachricht im ERP schreiben sie ein zweites Mal."""
+    Endpunkt noch die Nachricht im ERP schreiben sie ein zweites Mal (das Formular liest
+    dasselbe Vokabular, ``website/src/scripts/form.ts``: ``vocab.patterns``)."""
     assert people.EMAIL.pattern == contact.VOCAB["patterns"]["email"]
     assert svc.PHONE_RE.pattern == contact.VOCAB["patterns"]["phone"]
-    form_ts = (WEBSITE / "src" / "scripts" / "form.ts").read_text("utf-8")
-    assert not re.search(r"=\s*/\^", form_ts), "form.ts trägt wieder ein eigenes Muster"
     router = inspect.getsource(contact)
     assert not re.search(r're\.compile\(r"[^"]*(@|\\d\]\[)', router), "eigenes Muster im Endpunkt"
     assert "ehemals" not in router

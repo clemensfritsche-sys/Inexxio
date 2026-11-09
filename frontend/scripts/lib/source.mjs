@@ -140,3 +140,49 @@ export function stripComments(text) {
   }
   return out;
 }
+
+/**
+ * **Ein Modul aus `src` laden, um seine Funktionen zu fahren** (statt seinen Text zu lesen).
+ * Transpiliert (ohne Typprüfung); jeder Import wird aufgelöst:
+ * - steht seine Quelle in `stubs` (`{ '@/lib/feed': "export const DATA_CHANGED = 'x';" }`),
+ *   tritt dieser Ersatz an seine Stelle – für Nachbarn, die im Test nichts zu suchen haben;
+ * - `@/…` und `./…` werden ebenso geladen (rekursiv, mit denselben `stubs`);
+ * - ein Paket (`lucide-react`, `react`) kommt aus `node_modules` des Frontends.
+ *
+ *     const { needOffer } = await load('lib/need.ts');
+ */
+export async function load(rel, stubs = {}) {
+  const url = moduleUrl(rel, stubs, new Map());
+  return import(url);
+}
+
+function moduleUrl(rel, stubs, seen) {
+  if (seen.has(rel)) return seen.get(rel);
+  const js = ts.transpileModule(read(rel), {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+    fileName: rel,
+  }).outputText;
+  const out = js.replace(/(from\s+|import\s*\(\s*|import\s+)(['"])([^'"]+)\2/g, (whole, head, q, spec) => {
+    const target = spec in stubs ? stubUrl(stubs[spec])
+      : spec.startsWith('@/') ? moduleUrl(resolveSrc(spec.slice(2)), stubs, seen)
+        : spec.startsWith('.') ? moduleUrl(resolveSrc(join(dirname(rel), spec)), stubs, seen)
+          : import.meta.resolve(spec);
+    return `${head}${q}${target}${q}`;
+  });
+  const url = `data:text/javascript;base64,${Buffer.from(out).toString('base64')}`;
+  seen.set(rel, url);
+  return url;
+}
+
+function stubUrl(code) {
+  return `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+}
+
+function resolveSrc(bare) {
+  for (const ext of ['.ts', '.tsx', '/index.ts', '/index.tsx', '']) {
+    try {
+      if (statSync(resolve(SRC, bare + ext)).isFile()) return relative(SRC, resolve(SRC, bare + ext));
+    } catch { /* nächste Endung */ }
+  }
+  throw new Error(`load: «${bare}» nicht gefunden unter src`);
+}

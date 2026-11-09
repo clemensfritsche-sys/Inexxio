@@ -7,6 +7,8 @@ import { tell } from '@/lib/notice';
 import { useAction } from '@/lib/use-action';
 import type { CapturePoint, PlaceRef, StepNeed, StepWork } from '@/types';
 import { MOVE_MODULE } from '@/lib/modules';
+import { needOffer } from '@/lib/need';
+import { deliveredTo, deliverySteps } from '@/lib/scan';
 import { formatObjectId } from '@/lib/utils';
 import { ObjId } from '@/components/erp/obj-id';
 import { useScan } from '@/components/scan/scan-provider';
@@ -134,9 +136,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
         .then((rows) => rows.map((p) => ({ objectId: p.object_id, label: p.label }))),
     });
 
-  const scanSteps = (w: StepWork) => [
-    ...goodsSteps(w), ...(moves ? [placeStep()] : []),
-  ];
+  const scanSteps = (w: StepWork) => deliverySteps(goodsSteps(w), moves ? placeStep() : null);
 
   /**
    * **Der Sammel-Scan ist die Scan-Sequenz**: ein Dialog, ein Schritt je Instanz. Kein zweiter
@@ -147,9 +147,9 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
     // Der Zielort wird EINMAL gescannt, nicht je Instanz – eine Fuhre geht an einen Ort.
     // Verschiedene Ziele: Zeilen einzeln bestätigen.
     scan({
-      steps: [...open.flatMap(goodsSteps), ...(moves ? [placeStep()] : [])],
+      steps: deliverySteps(open.flatMap(goodsSteps), moves ? placeStep() : null),
       onComplete: (ids, how) => {
-        const to = moves ? Number(ids[ids.length - 1]) || null : null;
+        const to = deliveredTo(ids, moves);
         open.forEach((w) => accept(w, how, to));
       },
     });
@@ -181,8 +181,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
           numbers={numbers[w.instance_object_id] ?? null}
           onScan={() => scan({
             steps: scanSteps(w),
-            onComplete: (ids, how) =>
-              accept(w, how, moves ? Number(ids[ids.length - 1]) || null : null),
+            onComplete: (ids, how) => accept(w, how, deliveredTo(ids, moves)),
           })}
           onDirty={onDirty}
           onDeviate={onDeviate}
@@ -256,29 +255,8 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
   const sources = need.sources ?? [];
   const plan = chosen ?? planBoxes(need, mine);
 
-  /**
-   * ►►► **Verglichen wird gegen den Bedarf des MODULS, nicht gegen den Anteil dieser
-   * Zeile.** ◄◄◄
-   * Zugeteilt wird erst beim Bestätigen (`consumption.plan`, FIFO, im Log `payload.into`) –
-   * Reservierungen gibt es nicht. Der gemeinsame freie Bestand wird darum gegen
-   * `need.required` gehalten (Menge je Stück × alle Stücke vor dem Modul), denselben Massstab,
-   * gegen den `plan` prüft.
-   */
-  const required = need.required;
-  /** Wie viele Produkt-Stücke an diesem Modul davorstehen – die Bezugsgrösse der Zahl. */
-  const units = need.per_unit > 0 ? required / need.per_unit : 0;
-
-  // ►► **Keine Option anbieten, die gerade keinen Sinn ergibt.** ◄◄
-  //
-  //   am Arbeitsort genug         →  nichts. Einfach scannen.
-  //   genug da, liegt nur woanders →  «Holen lassen» – die Handlung ist ein Transport.
-  //   reicht nicht, Bestand da    →  «Andere Instanz wählen».
-  //   gar kein Bestand            →  nur «Nachschub». Wählen liesse sich nichts.
-  const enough = need.available >= required;
-  const empty = need.available <= 0;
-  const here = need.place ? (need.here ?? 0) : need.available;
-  // Die Menge ist da, nur nicht hier. Der einzige Fall, den ein Transport löst.
-  const misplaced = enough && here < required;
+  // Gegen den Bedarf des MODULS, und nur anbieten, was gerade Sinn ergibt (`lib/need`).
+  const { required, units, here, enough, misplaced, choose, haul, supply } = needOffer(need);
 
   return (
     <div className="flex flex-col gap-1 py-1.5">
@@ -322,22 +300,22 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
               ))}</>
             : 'kein Bestand'}
         </span>
-        {(misplaced || (!enough && !empty)) && (
+        {choose && (
           <button type="button" onClick={() => setOpen(!open)}
             className="text-[11.5px] underline" style={{ color: 'var(--fg-3)' }}
             data-tip="Aus einer anderen Instanz nehmen – die Wahl gilt, es wird nicht ausgewichen">
             Andere Instanz wählen
           </button>
         )}
-        {misplaced && onHaul && (
+        {haul > 0 && onHaul && (
           <button type="button" className="erp-actbtn ml-auto" style={{ height: 28 }}
-            onClick={() => onHaul(required - here)}
+            onClick={() => onHaul(haul)}
             data-tip={"Öffnet einen ganz gewöhnlichen Auftragsentwurf: dieses Material "
               + "holen und hierher bringen. Angelegt wird nichts."}>
             <Truck size={13} /> Holen lassen
           </button>
         )}
-        {empty && onSupply && (
+        {supply && onSupply && (
           <button type="button" className="erp-actbtn ml-auto" style={{ height: 28 }}
             onClick={onSupply}
             data-tip="Öffnet einen ganz gewöhnlichen Auftragsentwurf mit diesem Artikel">

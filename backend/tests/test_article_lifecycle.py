@@ -410,39 +410,6 @@ def test_a_replaced_predecessor_stays_in_the_chain_and_produces_nothing():
         db.close()
 
 
-def test_the_replacement_hint_says_what_it_costs_and_what_stays():
-    """**Der Satz muss beide Hälften nennen** – die Wirkung *und* was bleibt.
-
-    Ersetzen ist seit #773 die **einzige** Art, einen Artikel ausser Betrieb zu nehmen –
-    und sie ist nicht umkehrbar. Ein Hinweis, der nur «geht ausser Betrieb» sagt, klingt
-    darum nach «weg», und das schreckt zu Recht ab: bestehende Stücke bleiben ja, sie
-    lassen sich weiter ab Lager abwickeln, und Neues entsteht beim Nachfolger.
-
-    Bug-Form: die halbe Aussage, die formal stimmt und in der Praxis abschreckt – hier
-    einmal in die eine Richtung («umkehrbar», was nicht mehr gilt) und einmal in die
-    andere («ausser Betrieb», ohne zu sagen, was bleibt).
-    """
-    src = (BACKEND.parent / "frontend" / "src" / "components" / "erp"
-           / "article-detail.tsx").read_text(encoding="utf-8")
-    # **Gelesen wird die Komponente, nicht die Datei.** Ein Satz irgendwo sonst in
-    # `article-detail.tsx` würde den Wächter sonst beruhigen, ohne dass er dort steht,
-    # wo man wählt – gemessen: mit dem Dateiende als Grenze geht genau das durch.
-    body = src[src.index("function ReplacesPicker"):]
-    hint = body[:body.index("\n}\n") + 3]
-    assert "erzeugt nichts Neues" in hint, (
-        "Der Hinweis muss die **Wirkung** nennen – das ist die eine Sache, die das "
-        "Ersetzen am Vorgänger ändert."
-    )
-    assert "ab Lager" in hint, (
-        "…und was bleibt: bestehende Stücke laufen weiter. Ohne diese Hälfte liest sich "
-        "«ausser Betrieb» wie «gelöscht», und niemand traut sich."
-    )
-    assert "umkehrbar" not in hint, (
-        "Umkehrbar ist es seit #773 nicht mehr – ein Satz, der es behauptet, ist die "
-        "gefährlichere Hälfte."
-    )
-
-
 def test_an_article_is_replaced_at_most_once():
     """**Ein Vorgänger hat genau einen Nachfolger** – und die Ablehnung nennt ihn.
 
@@ -571,3 +538,15 @@ def test_the_bom_is_loaded_at_the_detail_only():
         db.rollback()
         db.close()
 
+
+
+def test_the_origin_country_has_one_spelling():
+    """**Zolltarifnummer und Ursprungsland gehören der Sache** (§3.1) – gepflegt am Artikel,
+    vom Beleg nur vorbelegt. Das Land kommt in einer Schreibweise an, gleich was getippt wurde:
+    «ch» und «CH» wären auf dem Beleg zwei Länder. Früher stellte das nur die Oberfläche sicher
+    (``toUpperCase()`` im Artikel-Editor) – ein anderer Weg zur Route (ein Handgriff der KI)
+    hätte es umgangen. Bug-Form: das Land reist ungenormt in die Datenbank."""
+    from app.schemas.article import ArticleCreate
+    assert ArticleCreate(name="Welle", origin_country=" ch ").origin_country == "CH"
+    assert ArticleCreate(name="Welle", origin_country="").origin_country is None
+    assert ArticleCreate(name="Welle", hs_code=" 8431.10 ").hs_code == "8431.10"

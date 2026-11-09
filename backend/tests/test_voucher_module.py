@@ -3006,3 +3006,143 @@ def test_two_simultaneous_views_do_not_collide_on_a_new_line():
         second.close()
     assert not failed, f"Die zweite Anzeige ist gescheitert: {failed[0]}"
     assert lines == 1, f"Eine Position steht {lines}-mal auf dem Beleg."
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► WAS FRÜHER ALS TEXT DER OBERFLÄCHE GEPRÜFT WURDE (C5, `test_source_beleg`)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_the_module_takes_only_what_it_offers_and_needs_no_scan(db):
+    """**Das Geldmodul nimmt nur seine Angaben – und es verlangt keinen Scan.**
+
+    Ein Schalter «Zahlung abwarten» war eine zweite Aussage neben der Zahlungsfrist (#854),
+    ein Betrag in der Definition wäre bei der zweiten Ausführung falsch, der Satz «Was ist
+    zu tun?» gehört an das Modul (#805). Was die Oberfläche nicht anbietet, verwirft der
+    Dienst. Und ein Geldvorgang bewegt keine Stücke: es gibt nichts zu scannen – die Frage
+    reist mit dem Schritt (``verifies``), damit die Oberfläche sie nicht raten muss.
+
+    Bug-Formen: (a) ``prepaid``/``amount``/``subject`` kommen an; (b) der Beleg-Schritt sagt
+    ``verifies`` wie ein physisches Modul.
+    """
+    from app.domain import modules as dmod
+    from app.services import order_view
+    cfg = dmod.get(dmod.BELEG).clean_config({
+        "direction": "in", "prepaid": True, "amount": "100.00", "subject": "Kran",
+        "quantity": 3, "payment_days": 0})
+    for gone in ("prepaid", "amount", "subject", "quantity"):
+        assert gone not in cfg, f"«{gone}» kommt im Geldmodul an (a)."
+    assert cfg["payment_days"] == 0, "Null Tage Frist IST die Vorauszahlung – sie bleibt."
+    order, step, _row, _who, _art = _scene(db)
+    shown = {s.module_type: s.verifies for s in order_view.steps_view(db, order)}
+    assert shown["beleg"] is False, "Der Beleg verlangt einen Scan (b)."
+    assert shown["datenerfassung"] is True, "Die Gegenprobe: ein physisches Modul verlangt ihn."
+
+
+def test_one_field_asked_two_questions_so_there_are_two():
+    """►►► **«Was ist zu tun?» ≠ «Wie bestelle ich bei ihm?»** ◄◄◄
+
+    *«Bei der Verkaufsabwicklung habe ich keine Ahnung, was ich dort reinschreiben soll. Es
+    ist ein Mussfeld – die Logik geht bei Verkaufsteilen nicht auf.»* Die eine Pflichtangabe
+    je Partner meinte zwei Dinge: **was zu tun ist** (am Modul, freiwillig – leer heisst
+    «gemäss Spezifikation») und **wie man bei ihm bestellt** (je Partner, Pflicht – aber nur,
+    wo wir bestellen, ``Direction.party_ref``).
+
+    Bug-Formen: (a) die Bestellangabe ist beim Verkauf Pflicht; (b) ein dort gesendeter Wert
+    wird gespeichert; (c) sie ist beim Einkauf freiwillig; (d) der Auftrag am Modul wird
+    Pflicht; (e) er kommt nicht an; (f) seine Länge ist ungeprüft.
+    """
+    from app.domain.errors import Rejected
+    from app.domain import modules as dmod
+    from app.domain import voucher as vo
+
+    module = dmod.get(dmod.BELEG)
+    sale = module.clean_config({"direction": "in",
+                                "parties": [{"party": 100000001, "ref": "Art. 4711"}]})
+    assert sale["parties"][0]["ref"] == "", "Beim Verkauf wird die Bestellangabe gespeichert (b)."
+    module.clean_config({"direction": "in", "parties": [{"party": 100000001}]})   # (a)
+    with pytest.raises(Rejected) as e:
+        module.clean_config({"direction": "out", "parties": [{"party": 100000001, "ref": "  "}]})
+    assert vo.ORDER_REF in str(e.value.detail), "Der Satz nennt die Angabe nicht (c)."
+    buy = module.clean_config({"direction": "out",
+                               "parties": [{"party": 100000001, "ref": "Art. 4711"}]})
+    assert buy["parties"][0]["ref"] == "Art. 4711"
+    assert module.clean_config({"direction": "in"})[module.INSTRUCTION] == "", "(d)"
+    got = module.clean_config({"direction": "in", "instruction": " Härten auf 58 HRC "})
+    assert module.instruction_of(got) == "Härten auf 58 HRC", "(e)"
+    with pytest.raises(Rejected):
+        module.clean_config({"direction": "in", "instruction": "x" * (vo.MAX_TASK + 1)})
+
+
+def test_nobody_confirms_a_payment_module_by_hand(db):
+    """►►► **Ein Zahlungsmodul hat keinen Bestätigen-Knopf** (Runde 25.10.2026, #848/#950). ◄◄◄
+
+    Die Stücke ziehen von selbst weiter – mit der Zusage, bei einer Vorauszahlung mit dem Geld.
+    Das Wort des Moduls sagt, was geschieht, und die Tür nennt den Grund, warum es keinen
+    Knopf gibt – **in jeder Stufe**, auch wenn alles bezahlt ist.
+
+    Bug-Formen: (a) das Modul nennt wieder eine Handlung («Vorgang abschliessen»); (b) nach
+    Zusage und Zahlung lässt ``completion_problem`` einen Knopf zu; (c) die Tür lässt von
+    Hand durch.
+    """
+    from app.domain import modules as dmod
+    from app.domain import voucher as vo
+    from app.domain.errors import Rejected
+    from app.services import voucher as svc, voucher_actions, voucher_money
+
+    for direction in (vo.IN, vo.OUT):
+        word = dmod.get(dmod.BELEG).action_for({"direction": direction})
+        assert word == "Zieht von selbst weiter", f"(a): «{word}»"
+    order, step, row, _who, _art = _agreed(db, quantity=1, price="100.00")
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    voucher_money.record_payment(db, row=row, amount=svc.balance_of(db, row).open,
+                                 reference=f"bar-{uuid.uuid4().hex[:8]}", method=vo.CASH)
+    db.flush()
+    assert svc.completion_problem(db, step=step) == svc.PASSES_ITSELF, "(b)"
+    with pytest.raises(Rejected) as e:
+        svc.assert_completable(db, step=step)
+    assert e.value.detail == svc.PASSES_ITSELF, "(c)"
+
+
+def test_the_payment_form_is_ours_and_knows_what_we_know(db, monkeypatch):
+    """►►► **Bezahlt wird BEI UNS – und was wir wissen, fragen wir nicht.** ◄◄◄
+
+    Vorher war es ein Zahllink auf eine fremde Seite. Jetzt entsteht nur eine
+    Zahlungsabsicht; das Formular ist unseres. Name, E-Mail und Rechnungsadresse reisen mit
+    der Vorbereitung mit (``voucher_head.billing_of`` – dieselbe Auskunft wie für die
+    QR-Rechnung, #865). Der Dienst verschickt keine eigene Quittung (fremdes Briefpapier) und
+    führt keinen eigenen Kunden-Datensatz (eine zweite Stammdaten-Stelle).
+
+    Bug-Formen: (a) ein Zahllink-Endpunkt ist zurück; (b) die Vorbereitung liefert die
+    bekannten Angaben nicht; (c) ``receipt_email`` oder ein ``customer`` gehen an den
+    Dienst; (d) die Karte bekommt das Wort ihres Knopfs nicht vom Server.
+    """
+    from app.main import app
+    from app.domain import voucher as vo
+    from app.services import stripe_pay, voucher_head, voucher_view
+    from tests._routes import api_routes
+
+    assert not [p for p, _ in api_routes(app) if "payment-link" in p], "(a)"
+    _fake_stripe(monkeypatch)
+    sent: list[dict] = []
+
+    class _Intent:
+        @staticmethod
+        def create(**kw):
+            sent.append(kw)
+            return SimpleNamespace(client_secret="pi_x_secret_y")
+
+    class _Api:
+        PaymentIntent = _Intent
+
+    monkeypatch.setattr(stripe_pay, "_api", lambda: _Api)
+    from app.services import voucher_actions
+    order, step, row, _who, _art = _agreed(db, quantity=1, price="100.00")
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    db.flush()
+    got = stripe_pay.prepare(db, row=row, order=order, viewer=None)
+    assert got["billing"] == voucher_head.billing_of(db, row) and got["billing"], "(b)"
+    assert len(sent) == 1
+    for gone in ("receipt_email", "customer"):
+        assert gone not in sent[0], f"«{gone}» geht an den Zahlungsdienst (c)."
+    shown = voucher_view.embed_data(db, order=order, step=step, viewer=None)
+    assert shown["pay_online_word"] == vo.PAY_ONLINE_WORD, "(d)"

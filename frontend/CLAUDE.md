@@ -162,7 +162,7 @@ Skill `inexxio-design-system`.
   (`python -m scripts.dump_vocab`): Instanz-Arten, Modulschlüssel und Farbfamilien,
   Erfassungstypen, `CapturePoint`, Aussondern-Modi, Geld-Richtungen/-Stufen/-Vorgaben,
   Eigentum, Incoterms, Angebotszustände, Versandarten, Kanal-Arten, Symbole der Zeiterfassung,
-  Takte der Wiederholung, `DRAFT_OBJECT_ID`. **Keine Spiegel von Hand**: was die Oberfläche
+  Takte der Wiederholung, `DRAFT_OBJECT_ID`, Rollen (`ROLES`, `STAFF_ROLES` – gelesen von `isStaff`). **Keine Spiegel von Hand**: was die Oberfläche
   selbst hält (Symbol, Farbwert, Hover-Satz), ist gegen die Schlüssel getippt
   (`MODULE_ICON: Record<ModuleKey, LucideIcon>`, `MODULE_FORM`, `MODULE_FIELDS`,
   `MODULE_TONE`, `CAPTURE_ICON`, `KIND_LABEL`, `TIME_ICONS`, …) – ein neuer oder entfernter
@@ -171,8 +171,9 @@ Skill `inexxio-design-system`.
 - **Quelltext-Wächter** in Node lesen den Syntaxbaum über `scripts/lib/source.mjs` (`files`,
   `parse`, `walk`/`find`, `calls`, `jsx`, `imports`, `exports`, `strings`, `stripComments`);
   was kein Typ prüfen kann, steht so (`scripts/vocab-use.test.mjs`: Modulfarben nur in
-  `lib/modules`, Beleg-Stufen nur über `VOUCHER_STAGE`). Ältere liegen noch nach Bereich in
-  `backend/tests/test_source_*.py`; jeder Aufruf in `lib/api.ts` muss eine Backend-Route
+  `lib/modules`, Beleg-Stufen nur über `VOUCHER_STAGE`). **Kein Backend-Test liest den Quelltext
+  der Oberfläche** (Wächter `backend/tests/test_tests_read_behaviour.py`; Urteile je alter Test:
+  `docs/history/2026-11-09-tests-neu.md`); jeder Aufruf in `lib/api.ts` muss eine Backend-Route
   treffen (Compiler über `paths`, dazu `test_api_routes.py`).
 
 ## Datenfluss (`lib/feed.ts`, `lib/use-feed.ts`, `lib/queries.ts`, `lib/use-feed-lists.ts`)
@@ -180,9 +181,7 @@ Skill `inexxio-design-system`.
   im Konto (`lib/use-feed.newQueryClient`: Fehler über `tell`, kein zweiter Wiederholungsweg). Was
   das ERP vom Server liest, ist eine Query – **die einzige Datenquelle**; ein `api.…` in einem
   `useEffect` gibt es nur für Handlungen, öffentliche Seiten und die Anmeldung, je mit Grund
-  (Wächter `scripts/queries.test.mjs`) (Wächter: kein
-  `useState<…[]>` je Liste neben dem Feed, keine Antwort einer lesenden Anfrage in einem
-  eigenen Zustand einer `*-detail.tsx`, `test_source_process`).
+  (Wächter `scripts/queries.test.mjs`, für das ganze Frontend).
 - **Feed** (`app/(erp)/erp/page.tsx` → `lib/use-feed-lists.ts`): `['feed', 'people' |
   'articles' | 'orders' | 'companies' | 'todo']`, mit der Suche `['feed', 'instances', q]`
   (seitenweise, `useInfiniteQuery`, 100 je Seite) und `['feed', 'documents', q]`; dazu
@@ -244,7 +243,7 @@ Konstruktor über den Prototyp** – eine als Wert weitergereichte Methode
 prüfen die Anmeldung in ihren Layouts über **ein** Bauteil, `components/auth/auth-gate.tsx`
 (Redirect auf `/login?from=…`; `staffOnly` am ERP schickt Nicht-Personal ins Konto), das
 Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)`, Admin nur `isAdmin(role)`
-(`lib/record-status.ts`, Spiegel von `domain/policy`; ESLint verbietet Rollenvergleiche daneben) –
+(`lib/record-status.ts`, liest `STAFF_ROLES` aus `lib/vocab`, generiert aus `domain/policy`; ESLint verbietet Rollenvergleiche daneben) –
 ob man etwas **darf**, sagt der Server (`can`, `may_edit`). Ein Fehler ist ein `ApiError`
 (`message` = Satz des Servers, `code` = Art oder eigener Code wie `pick_stale`, `field`).
 
@@ -413,12 +412,12 @@ Ein Ziel gilt nur, wenn es – so aufgelöst, wie der Browser es auflöst (`new 
 derselben Herkunft bleibt (`isSafeTarget`, auch für «daneben klicken»). Die Rückkehr vom
 Magic Link (`/login/verify`) ist dieselbe Lightbox (`.ix-login-scrim` + `.ix-login-card`).
 Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.test.mjs`; jede
-`ix-`-Klasse im Markup hat einen Stil (`test_source_ui`).
+`ix-`-Klasse im Markup hat einen Stil (`scripts/design.test.mjs`).
 
 ## Konventionen
 - `'use client'` nur, wo nötig. Lucide React für alle Icons. TypeScript strict, kein `any`.
 - **`@typescript-eslint/no-unused-vars` ist scharf** (`eslint.config.mjs`, CI; kennt auch
-  ungenutzte Typen; ein Wächter in `test_source_ui` liest die Datei) – ein ungenutzter Zustand
+  ungenutzte Typen; `scripts/house.test.mjs` prüft an Beispielen, dass ESLint abweist) – ein ungenutzter Zustand
   ist die Form, in der ein Knopf ohne Wirkung auftritt. Von den Hook-Regeln gelten die beiden
   von vorher (`rules-of-hooks`, `exhaustive-deps`); die Compiler-Regeln von
   `eslint-plugin-react-hooks` 7 sind aus, weil das Projekt den React Compiler nicht einsetzt. Ein `export`, den keine andere Datei liest, gibt es nicht

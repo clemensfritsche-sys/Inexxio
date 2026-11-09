@@ -363,3 +363,22 @@ def test_the_rule_names_no_status_and_lives_in_one_place():
     assert proc_src.count("is_terminal(unit.status)") == 1, (
         "Die Frage «darf ein Auftrag das greifen» steht mehr als einmal im Code."
     )
+
+
+def test_the_catalog_names_the_axes_and_the_buckets():
+    """**Was ein Zustand ist, steht an ihm** – keine Liste daneben.
+
+    * Ein Auftrag ist **Im Prozess · Abgeschlossen · Abgebrochen**; «Freigegeben» ist die
+      Aktion, mit der er entstand, kein Zustand (§6.1).
+    * Jeder Stück-Zustand sagt selbst, ob er Bestand oder Historie ist; ein unbekannter Wert
+      wird gemeldet (eigene Gruppe), nicht geraten – und ein Eintrag ohne Angabe lässt die App
+      gar nicht erst starten.
+    """
+    from app.domain import statuses as st
+
+    assert st.ORDER_STATUSES == (st.IM_PROZESS, st.ABGESCHLOSSEN, st.ABGEBROCHEN)
+    for value in st.UNIT_STATUSES:
+        assert st.stock_kind(value) in (st.LIVE, st.HISTORY), value
+    assert st.stock_kind("gibt-es-nicht") == st.UNKNOWN
+    with pytest.raises(ValueError, match="stock"):
+        st._check(st.CATALOG + (st.Status("neu", "Neu", "done", (st.UNIT,)),))

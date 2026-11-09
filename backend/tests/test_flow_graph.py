@@ -14,9 +14,9 @@ Die Summe der Positionen = Stückzahl des Auftrags  ``test_every_unit_has_…``
 Zähler und Aufklappen fragen **dieselbe** Position ``test_the_count_and_the_list_…``
 Jede Kante hat **genau einen** Zustand             strukturell (``bool``)
 Eine kräftige Kante wird **nie wieder** schwach    ``test_a_walked_edge_…``
-Jeder Pfad stammt aus dem **einen** Generator      ``test_every_line_comes_…``
-Keine zwei Kanten teilen sich einen **Kanal**      ``test_no_two_branches_…``
-Keine Kante überlagert einen **Knoten-Container**  ``test_a_line_docks_at_a_port_…``
+Jeder Pfad stammt aus dem **einen** Generator      ``process-lines.test.mjs`` (Frontend)
+Keine zwei Kanten teilen sich einen **Kanal**      ``process-lines.test.mjs`` (Frontend)
+Keine Kante überlagert einen **Knoten-Container**  ``process-lines.test.mjs`` (Ports)
 =================================================  ===============================
 
 Wird eine verletzt, ist das ein **sauberer Fehler** – im Bild eine rote Notiz statt
@@ -30,7 +30,6 @@ SQLite geprüft wäre eine andere Wahrheit geprüft als die, die läuft.
 import pathlib
 import re
 
-from tests._source import _diagram
 from tests.runner import session
 from app.services.instances import unit_numbers
 from app.services import order_state
@@ -38,7 +37,6 @@ from app.services import release as release_svc
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
-FRONTEND = ROOT / "frontend" / "src"
 
 
 def _read(path: pathlib.Path) -> str:
@@ -46,74 +44,9 @@ def _read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _code(src: str) -> str:
-    """Nur der Code. Eine **Begründung**, warum etwas weg ist, darf den Namen nennen."""
-    return "\n".join(
-        line for line in src.split("\n")
-        if not line.lstrip().startswith(("*", "//", "/*"))
-    )
-
-
 # ---------------------------------------------------------------------------
-# Der Vertrag: das Backend weiss, das Frontend zeichnet
+# Der Vertrag: das Backend weiss, das Frontend zeichnet (Linien: frontend/scripts/process-lines.test.mjs)
 # ---------------------------------------------------------------------------
-
-def test_the_backend_is_master_and_the_frontend_only_draws():
-    """**Prozesslogik gehört auf den Server.** Die Oberfläche layoutet und zeichnet.
-
-    Vorher baute sie die Knotenfolge selbst zusammen und leitete aus den *aktuellen*
-    Stück-Gruppen ab, wie weit die Linie kräftig läuft. Das war eine zweite Ableitung
-    neben dem Server – und welche von beiden stimmt, sah man erst am Bildschirm.
-    """
-    cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
-    diagram = _diagram()
-
-    for name in ("flowNodes", "walkedEdges", "statePointId", "branchPoints"):
-        assert name not in cols and name not in diagram, (
-            f"«{name}» ist zurück – das Frontend leitet den Graph wieder selbst ab."
-        )
-    # Die Kante bringt ihren Zustand mit; niemand rechnet ihn nach.
-    assert "walked={e.walked}" in diagram, "Die Kante trägt ihren Zustand nicht selbst."
-    assert "rel.flow" in cols, "Der Nachbar zeichnet nicht seinen eigenen Graph."
-    # Die Mitte bekommt ihren Graph vom Aufrufer – am laufenden Auftrag ist das der des
-    # Servers. Wer ihn dort nicht durchreicht, zeichnet wieder etwas Eigenes.
-    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    assert "graph: order.flow" in detail, "Die Mitte zeichnet nicht den Graph des Servers."
-
-
-def test_every_line_comes_from_the_one_generator():
-    """**Ein Pfad-Generator, ein Eckenradius, zwei Stärken.**
-
-    Wird irgendwo eine Linie ausserhalb von ``polyPath``/``Stroke`` gezeichnet, ist es
-    falsch gebaut: dann kann sich eine Stelle anders entscheiden, und genau daraus
-    entstanden die Abweichungen zwischen Achse, Ausscherung und Rückführung.
-    """
-    flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
-    diagram = _diagram()
-    cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
-
-    assert flow.count("export function polyPath(") == 1
-    assert flow.count("export const BEND") == 1, "Der Eckenradius steht nicht an einer Stelle."
-    assert (diagram + cols).count("<path") == 1, (
-        "Es gibt mehr als eine Stelle, die eine Prozesslinie zeichnet."
-    )
-    # Und der Generator glättet das Zittern selbst – kein Korrekturversatz am Aufruf.
-    assert "function straighten(" in flow, (
-        "Ein zu kurzes Zwischenstück wird nicht begradigt – dann wackelt jede Linie, "
-        "deren Anker zufällig fast auf einer Höhe liegen."
-    )
-    # **Kein Korrekturversatz an einer gemessenen Koordinate.** Ein «+ 4» hinter einem
-    # Anker ist kein Layout, sondern ein Pflaster über einer Geometrie, die nicht
-    # aufgeht – und das nächste Pflaster liegt dann woanders. Benannte Masse (``LEAD``,
-    # ``BEND``, ``metrics.gap``) sind erlaubt: die stehen an einer Stelle.
-    for name, src in (("process-columns", cols), ("process-diagram", diagram)):
-        stray = re.search(r"\.(cx|cy|top|bottom|left|right)\s*[+-]\s*\d", src)
-        assert not stray, (
-            f"{name} korrigiert eine gemessene Koordinate mit einer nackten Zahl "
-            f"(«{stray.group(0)}») – ein Versatz an der Aufrufstelle ist der Anfang "
-            f"einer zweiten Geometrie."
-        )
-
 
 def test_the_graph_is_derived_from_the_log():
     """**Was passiert ist, ist passiert.** Der Graph liest den Log, nicht den Zustand.
@@ -590,108 +523,8 @@ def test_branches_at_one_point_get_their_own_pair_and_never_overlap():
         db.close()
 
 
-def test_no_two_branches_share_a_channel():
-    """**Mehrere Abzweigungen sind kein Sonderfall, sondern n statt 1.**
-
-    Laufen zwei Abweichungen gleichzeitig, brauchen ihre senkrechten Stücke verschiedene
-    Spuren – sonst liegen die Linien exakt übereinander, und aus zwei Wegen wird optisch
-    einer. Das ist seit Jahrzehnten gelöst (ELK nennt die Spuren *tracks*): zwei
-    Segmente, deren **Spannen sich überschneiden**, bekommen verschiedene Spuren; für
-    Intervalle ist gierig nach Anfang sortiert optimal.
-
-    Geprüft wird, dass die Zuteilung **an einer Stelle** entsteht und nirgends
-    danebengerechnet wird. Eine zweite Zuteilung wäre wieder «meistens passt es».
-    """
-    flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
-    cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
-
-    assert flow.count("export function channels(") == 1, (
-        "Die Kanalzuteilung steht nicht an genau einer Stelle."
-    )
-    assert "open[i].end < s.from" in flow, (
-        "Die Spannen sind halboffen – zwei Abzweigungen, die sich eine Zeile teilen, "
-        "bekämen denselben Kanal und lägen aufeinander."
-    )
-    assert "channelX(centre," in cols and flow.count("export function channelX(") == 1, (
-        "Die x-Koordinate eines Kanals entsteht nicht aus der Zuteilung."
-    )
-    assert "channels(spans(left))" in cols and "channels(spans(right))" in cols, (
-        "Nicht jede Seite bekommt ihre eigene Zuteilung."
-    )
-    # **Die Lücke folgt der Zuteilung, nicht umgekehrt.** Ein festes Mass wäre bei zwei
-    # Abweichungen zu eng – und «zu eng» heisst hier: übereinander.
-    assert "gutterFor(Math.max(" in cols and "gutter={gutter}" in cols, (
-        "Die Spurlücke wächst nicht mit der Zahl der Kanäle."
-    )
-    # Und Nachbarn, deren Spannen sich überschneiden, stehen **untereinander**: im
-    # selben Rasterfeld lägen sie sonst als zwei Rasterelemente aufeinander.
-    assert "if (last && s.from <= last.to)" in cols, (
-        "Überschneidende Nachbarn werden nicht zu einem Band zusammengefasst – im "
-        "Raster stünden sie dann in derselben Zelle, also übereinander."
-    )
 
 
-def test_a_line_docks_at_a_port_and_the_layer_is_never_clipped():
-    """**Ports und ein Linien-Layer** – die beiden Befunde 2.3 und 2.4 hatten eine Wurzel.
-
-    Eine Linie endete «irgendwo am Knoten» und lief darum je nach Modulhöhe hinein; und
-    sie wurde vom Rahmen beschnitten, wenn sie einen Pixel darüber hinausging. Beides
-    ist dieselbe Frage: **wo hört eine Linie auf?**
-
-    Die Antwort ist die der etablierten Werkzeuge (React Flow *Handles*, bpmn-js
-    *docking points*, Miro-Ankerpunkte): sie hört an einem **Port** auf – einem Punkt
-    auf dem Rand, der aus der Messung kommt. Sie kennt die Fläche eines Knotens gar
-    nicht mehr. Und gezeichnet wird auf **einem** Layer über der ganzen Prozessfläche,
-    den kein Geschwister-Container beschneidet.
-    """
-    flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
-    cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
-    diagram = _diagram()
-
-    assert flow.count("export function port(") == 1, "Der Andockpunkt entsteht nicht an einer Stelle."
-    # Jedes Ende einer Linie ist ein Port – auch die Achse, damit es nur eine Regel gibt.
-    assert "port(A, 'bottom'), port(B, 'top')" in diagram, (
-        "Die Achse dockt nicht an Ports an."
-    )
-    for side in ("'center'", "'top'", "'bottom'"):
-        assert f"port(there.a, {side})" in cols or f"port(here.a, {side})" in cols, (
-            f"Die Querverbindung nutzt den Port {side} nicht."
-        )
-    # **Ein Layer, und er beschneidet nichts.** Ohne `overflow: visible` fehlte eine
-    # Linie still, sobald sie einen Pixel über die gemessene Rahmenhöhe hinauslief.
-    assert flow.count("<svg") == 1, "Es gibt mehr als einen Linien-Layer."
-    assert "overflow: 'visible'" in flow, (
-        "Der Linien-Layer beschneidet wieder – dann fehlt eine Linie, statt dass sie "
-        "sichtbar zu weit läuft."
-    )
-    # Platz wird im **Layout** gemacht, nicht mit einem Versatz an der Linie.
-    assert "paddingTop: TOP_LEAD, paddingBottom: BOTTOM_LEAD" in cols, (
-        "Der Rahmen macht oben und unten keinen Platz für die ein- und ausmündenden "
-        "Linien – dann läuft eine davon über den Rand."
-    )
-    # Und der Knoten nennt sich, damit «keine Linie überlagert einen Knoten» nachmessbar
-    # ist statt behauptet.
-    assert "data-flow-node={id}" in flow, "Ein Knoten ist im DOM nicht als solcher erkennbar."
-    # **Ein Takt für das ganze Bild.** An jedem Prozesspunkt setzt ein Bogen an; liegen
-    # zwei Punkte näher als zwei Radien, überlagern sich die Bögen und kreuzen sich.
-    # Zwei Rhythmen – einer im Raster, einer in der Spalte – hiessen: in der einen
-    # Ansicht stimmt es, in der anderen nicht.
-    assert "export const FLOW_GAP = 2 * BEND;" in flow, (
-        "Der senkrechte Takt ist keine Ableitung des Radius mehr. Zwischen einem "
-        "Abzweigepunkt und SEINEM Rückführpunkt liegen zwei Waagrechte (hinaus bei "
-        "`fork + BEND`, herein bei `join − BEND`); übrig bleibt `FLOW_GAP + POINT − "
-        "2·BEND`. Beim früheren `2·BEND − 8` war das **ein** Pixel – im Bild eine "
-        "einzige Linie (gemessen: 1,6 px Abstand über 172 px gemeinsame Länge)."
-    )
-    assert "export const POINT = 9;" in flow and "width: POINT, height: POINT" in diagram, (
-        "Die Punktgrösse steht nicht mehr an der einen Stelle, aus der der Takt sie "
-        "liest – dann rechnet der Takt mit einer Zahl, die die Komponente nicht hat."
-    )
-    assert "rowGap: FLOW_GAP" in cols and "gap: FLOW_GAP" in diagram, (
-        "Raster und Spalte laufen in verschiedenen Takten – dann überlagert es in genau "
-        "einer der beiden Ansichten. Genau so ist es aufgetreten: in der Mitte stimmte "
-        "es, in der Nachbarspalte lagen die beiden Waagrechten aufeinander."
-    )
 
 
 def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
@@ -778,49 +611,6 @@ def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
         db.close()
 
 
-def test_the_planned_return_is_the_line_itself():
-    """**Ob zurückgeführt wird, sagt die Linie – nicht ein Knopfpaar** (Auftrag §5).
-
-    Im laufenden Bild ist es längst so: eine gekappte Ausleihe hat schlicht keinen
-    Rückweg, und das Fehlen ist die Aussage. Der Entwurf sagte es daneben, mit zwei
-    Knöpfen an der Stückauswahl – also an einer anderen Stelle als seine Wirkung.
-
-    Seit der Vorschau (§2) ist die Linie die **echte**: sie führt zum Quell-Auftrag, der
-    daneben steht, und kommt aus dem Server. Der frühere Ersatz-Knoten unter dem Ende
-    (``ReturnSwitch``) ist damit weg – zwei Rückweg-Linien für eine Entscheidung wären
-    eine zu viel, und die zweite wäre die erfundene.
-
-    Was bleibt, ist die Regel Wort für Wort: **ein Klick schaltet sie an und aus**, der
-    Schalter bleibt, wenn die Linie geht (sonst wäre die Entscheidung einmalig), und es
-    gibt keinen dritten Linientyp. *Wo* er steht – am Anfang der Linie, als letzte Zeile
-    der Spalte –, prüft ``test_the_return_switch_sits_where_its_line_starts``.
-    """
-    diagram = _code(_diagram())
-    cols = _read(FRONTEND / "components/erp/process-columns.tsx")
-    lines = _read(FRONTEND / "components/erp/definition-lines.tsx")
-    detail = _read(FRONTEND / "components/erp/order-detail.tsx")
-
-    for gone in ("ReturnSwitch", "ReturnLink", "kind: 'back'", "edge:end:back"):
-        assert gone not in diagram, (
-            f"«{gone}» ist zurück – der Ersatz-Rückweg steht neben dem echten, und das "
-            f"Bild zeigt dieselbe Entscheidung zweimal."
-        )
-    assert "onToggleReturn" in cols and "function ReturnRow(" in diagram, (
-        "Es gibt keinen Schalter mehr – dann ist die Entscheidung im Entwurf nicht mehr "
-        "zu treffen."
-    )
-    assert "onToggleReturn" in detail and "l.returns" in detail, (
-        "Der Klick landet nicht mehr an der Definitionszeile, an der die Entscheidung hängt."
-    )
-    assert "ReturnBtn" not in lines and "onReturns" not in lines, (
-        "Die Rückführung wird wieder neben der Stückauswahl entschieden – zwei Orte für "
-        "dieselbe Aussage."
-    )
-    for banned in ("strokeDasharray", "dashed'"):
-        assert banned not in diagram and banned not in cols, (
-            f"«{banned}» im Prozessbild: es gibt zwei Stärken und sonst nichts – ob "
-            f"zurückgeführt wird, sagt die Anwesenheit der Linie."
-        )
 
 
 def test_the_line_says_the_past_and_the_pill_says_the_present():
@@ -891,60 +681,6 @@ def test_the_line_says_the_past_and_the_pill_says_the_present():
         db.close()
 
 
-def test_the_journey_is_a_tree_on_the_same_line():
-    """**Herkunft und Verbleib hängen am Strang, nicht daneben** (Auftrag §6).
-
-    Oben und unten stand eine Textzeile mit den Nachbar-Aufträgen, und **daneben** ein
-    Container mit der Definition («3× Blech, neu erzeugt»). Zwei Anzeigen derselben
-    Sache: jedes Stück kam entweder aus einem Auftrag (steht in ``journey_in``) oder ist
-    hier entstanden (steht als ``neu``-Zeile) – gegen echtes PostgreSQL gemessen, über
-    Erzeugung, Lagerzugriff, zwei Vorgänger und Abweichung.
-
-    Geblieben ist **ein** Baum am selben Strang. Drei Eigenschaften tragen ihn:
-
-    * **Eine Bedingung** dafür, ob es die Zeile gibt (``hasJourney``) – das Raster mit
-      drei Spuren und die Spalte darin zählen sonst verschiedene Zeilen, und alles
-      darunter sitzt eine daneben.
-    * **Eine Liste** für Chips und Äste (``journeyKeys``) – sonst entsteht ein Ast ohne
-      Chip oder ein Chip ohne Ast. Genau diese Klasse Fehler war Befund 2.
-    * **Gruppiert, gekappt, nicht verschwiegen**: je Nachbar eine Verzweigung mit Anzahl,
-      höchstens ``JOURNEY_LIMIT``, der Rest gezählt. Bei 5000 Stück sieht man dasselbe
-      wie bei drei.
-    """
-    diagram = _diagram()
-    cols = _read(FRONTEND / "components/erp/process-columns.tsx")
-    detail = _read(FRONTEND / "components/erp/order-detail.tsx")
-
-    assert "export const hasJourney" in diagram, (
-        "Die Bedingung für die Herkunfts-Zeile hat keinen Ort mehr."
-    )
-    assert diagram.count("journeyIn: hasJourney(") == 1 and "hasJourney(inStops" in cols, (
-        "Raster und Spalte entscheiden wieder verschieden, ob es die Zeile gibt."
-    )
-    assert "export function journeyKeys" in diagram, "Die Ast-Schlüssel sind keine Liste mehr."
-    # **Dieselben Variablen speisen beides**: die Äste (über `journeyKeys`) und die Chips
-    # (über die Spalte). Sie stehen im selben Rahmen und werden dort einmal berechnet –
-    # ein zweiter Rahmen mit eigener Rechnung war genau die Stelle, an der ein Ast ohne
-    # Chip entstehen konnte.
-    assert "journeyKeys(inStops, origins)" in cols, "Die Äste kommen nicht aus der Liste."
-    assert "journeyIn={inStops} journeyOut={outStops} origins={origins}" in cols, (
-        "Chips und Äste kommen nicht mehr aus denselben Variablen – dann gibt es Chips "
-        "ohne Linie oder Linien ohne Chip."
-    )
-    assert cols.count("journeyKeys(") == 2, (
-        "Die Ast-Schlüssel werden an mehr als einer Stelle gerechnet."
-    )
-    assert "slice(0, JOURNEY_LIMIT)" in diagram and "rest=" in diagram, (
-        "Die Journey ist nicht mehr gekappt oder sagt es nicht – eine stumme Liste sähe "
-        "aus wie alles."
-    )
-    assert "flexWrap: 'nowrap'" in diagram, (
-        "Die Journey-Zeile bricht um – dann fällt ein Ast der oberen Reihe durch die "
-        "untere (§4)."
-    )
-    assert "DefinitionSummary" not in detail, (
-        "Der Definitions-Container ist zurück – er sagt ein zweites Mal, was am Baum steht."
-    )
 
 
 def test_the_count_and_the_list_ask_the_same_position():
@@ -953,30 +689,40 @@ def test_the_count_and_the_list_ask_the_same_position():
     Die Pille zählte aus dem Graph, das Dropdown holte «alle Stücke an Schritt X» – zwei
     Quellen, und an einem Punkt mit Teilung liefen sie auseinander: «1 Stk», und im
     Aufklappen zwei Nummern. Jetzt ist die Zuordnung **die Kante**: ``build`` zählt, was
-    sie enthält, ``units_on`` schlägt genau dieselbe Liste nach.
+    sie enthält, die Route ``…/units?edge=`` listet genau dieselben Stücke.
+
+    Gefahren über den ganzen Lebenslauf (ausgeschert, zurück, fertig) – bei jedem Übergang
+    ändert sich die Zuordnung. Bug-Form: die Liste sucht sich ihre Stücke selbst (nach
+    Schritt), dann stehen an einer Teilung mehr Nummern als an der Pille.
     """
-    svc = _read(BACKEND / "app" / "services" / "flow.py")
-    assert "members: list[int]" in svc, "Die Kante trägt ihre Mitglieder nicht."
-    assert "units=_counted(members)" in svc, (
-        "Die Zahl an der Pille wird nicht aus den Mitgliedern gerechnet."
-    )
-    body = svc[svc.index("def units_on("):]
-    body = body[:body.index("\ndef ")]
-    assert "build(db, order)" in body and "OrderUnit" not in body, (
-        "Das Aufklappen fragt wieder eigenständig ab – das ist die zweite Quelle."
-    )
-    proc = _read(BACKEND / "app" / "services" / "order_state.py")
-    page = proc[proc.index("def units_page("):]
-    page = page[:page.index("\ndef ")]
-    assert "membership_ids" in page and "current_step_id" not in page, (
-        "Die Seite sucht sich ihre Stücke selbst zusammen, statt die Zuordnung des "
-        "Bildes zu übernehmen."
-    )
-    api = _read(FRONTEND / "lib" / "api.ts")
-    assert "getOrderUnits(objectId: number, edge: string" in api, (
-        "Die Oberfläche fragt nicht nach der Kante – dann kann sie eine andere Menge "
-        "bekommen als die, die sie gezählt hat."
-    )
+    from app.models import ProcessStep
+    from app.routers.orders import list_units
+    from app.services import flow
+
+    db = session()
+    try:
+        parent, child, _ = _scenario(db)
+
+        def same():
+            g = flow.build(db, parent)
+            for e in g.edges:
+                counted = sum(p.count for p in e.units)
+                page = list_units(parent.object_id, edge=e.id, limit=500, offset=0, db=db, _=None)
+                assert page.total == counted == len(page.units), (
+                    f"Kante «{e.id}»: die Pille zählt {counted}, die Liste zeigt {page.total}.")
+            assert any(sum(p.count for p in e.units) for e in g.edges), "Kein Stück im Bild."
+
+        same()
+        _confirm(db, child, db.query(ProcessStep).filter(ProcessStep.order_id == child.id).one())
+        db.flush()
+        same()
+        _confirm(db, parent, db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one())
+        db.flush()
+        same()
+    finally:
+        db.rollback()
+        db.close()
+
 
 
 def test_a_finished_order_does_not_retell_what_happened_elsewhere():

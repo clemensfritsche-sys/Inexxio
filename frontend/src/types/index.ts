@@ -6,12 +6,13 @@
 // NICHT von Hand editieren — stattdessen Backend-Schema ändern und neu generieren.
 
 import type { components } from './api';
+import type { Role } from '@/lib/vocab';
 
 // ─── User ─────────────────────────────────────────────────────────────────────
 
 // **Die Rolle beantwortet genau eine Frage: darf diese Person ins ERP?** Lieferant ↔ Kunde
-// ist eine Eigenschaft des Vorgangs. Spiegel von `schemas/admin.Role` (Wächter).
-export type UserRole = 'admin' | 'employee' | 'user';
+// ist eine Eigenschaft des Vorgangs. Generiert aus `domain/policy.ROLES` (`lib/vocab`).
+export type UserRole = Role;
 
 type UserProfileApi = components['schemas']['UserProfileResponse'];
 

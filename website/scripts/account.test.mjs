@@ -17,7 +17,7 @@ const read = (p) => readFileSync(resolve(ROOT, p), 'utf8');
 const website = read('src/scripts/account.ts');
 const early = read('src/scripts/early.js');
 const cache = read('../frontend/src/lib/account-cache.ts');
-const gate = read('../frontend/src/lib/record-status.ts');
+const vocab = read('../frontend/src/lib/vocab.ts');
 const firebase = read('../frontend/src/lib/firebase.ts');
 
 const keysIn = (src) => [...src.matchAll(/'(inexxio_user_\w+)'/g)].map((m) => m[1]).sort();
@@ -28,12 +28,14 @@ test('beide Seiten kennen dieselben vier Schlüssel', () => {
   assert.deepEqual(keysIn(website), front);
 });
 
-test('early.js liest denselben Rollen-Schlüssel und dieselben Personal-Rollen wie isStaff', () => {
+test('early.js liest denselben Rollen-Schlüssel und dieselben Personal-Rollen wie das ERP', () => {
   assert.match(early, /localStorage\.getItem\('inexxio_user_role'\)/);
-  const body = gate.slice(gate.indexOf('export function isStaff('));
+  // Die Personal-Rollen stehen generiert im Vokabular (`policy.STAFF_ROLES` → lib/vocab.ts,
+  // dort liest sie `isStaff`).
+  const generated = vocab.match(/export const STAFF_ROLES = (\[[^\]]*\])/);
+  assert.ok(generated, 'STAFF_ROLES fehlt in frontend/src/lib/vocab.ts – der Wächter muss nachgezogen werden');
+  const front = JSON.parse(generated[1]).sort();
   const staff = (src) => [...src.matchAll(/role === '(\w+)'/g)].map((m) => m[1]).sort();
-  const front = staff(body.slice(0, body.indexOf('}')));
-  assert.ok(front.length > 0, 'isStaff nennt keine Rolle mehr – der Wächter muss nachgezogen werden');
   assert.deepEqual(staff(early), front);
   // Dieselbe Regel steht in account.ts (syncRole) – für einen Cache, der sich NACH dem Laden
   // ändert (Konto/ERP schreiben ihn nach der Anmeldung).

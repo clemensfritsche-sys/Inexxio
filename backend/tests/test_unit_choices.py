@@ -291,3 +291,27 @@ def test_the_page_can_be_searched_and_filtered():
     finally:
         w.db.rollback()
         w.db.close()
+
+
+def test_no_view_gets_every_piece_at_once():
+    """**Niemals alle Nummern auf einmal** – an keiner Stelle, nicht nur im Reiter.
+
+    Die Instanz trägt ihre Nummern nicht mit (eine 5000er-Charge wären 5000 Zeilen in jeder
+    Antwort); es gibt sie nur seitenweise, mit der wahren Gesamtzahl."""
+    from app.models import Instance
+    from app.schemas.instance import InstanceResponse
+    from app.services import instances as inst_svc
+
+    assert "units" not in InstanceResponse.model_fields
+    db = session()
+    try:
+        w = World(db)
+        order = w.produce(w.article(serialization="batch"), 7)
+        inst = db.query(Instance).filter(Instance.object_id == w.instances(order)[0]).one()
+        rows, total = inst_svc.units_page(db, inst, limit=3, offset=0)
+        assert (len(rows), total) == (3, 7)
+        rest, _ = inst_svc.units_page(db, inst, limit=3, offset=6)
+        assert len(rest) == 1
+    finally:
+        db.rollback()
+        db.close()

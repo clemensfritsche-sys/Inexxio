@@ -193,3 +193,57 @@ def test_two_confirms_on_one_order_draw_the_next_sample_once():
         b.rollback()
         b.close()
         a.close()
+
+
+def test_the_release_conditions_are_named_by_the_service():
+    """**Was zur Freigabe fehlt, sagt der Dienst – in Sätzen, an einer Stelle.**
+
+    Auftrag: mindestens ein Stück und ein Modul. Artikel: die Pflichtangaben und ein Modul;
+    eine unfertige Modul-Definition (ein Erfassungspunkt ohne Bezeichnung, #695) ist eine
+    fehlende Angabe mit Satz – kein roher Feldpfad bei jedem Tastendruck. Die Oberfläche fragt
+    diese Prüfung ab (`/validate`), statt sie nachzuformulieren.
+    """
+    from app.schemas.process import ModuleInput
+    from app.services import articles, orders as orders_svc
+
+    assert orders_svc.validate_draft(None, {}) == [
+        "mindestens eine Einzelinstanz", "mindestens ein Prozessschrittmodul"]
+
+    spec = {"name": "X", "size": "1x1", "weight_kg": 0}
+    capture = {"module_type": "datenerfassung", "config": {"points": [{"label": "OK", "type": "bool"}]}}
+    assert articles.validate_draft({**spec, "steps": []}) == ["mindestens ein Prozessschrittmodul"]
+    assert articles.validate_draft({"steps": [capture]}) == ["Artikelname", "Abmessungen", "Gewicht"]
+    assert articles.validate_draft({**spec, "steps": [capture]}) == [], "ein Gewicht von 0 ist ein Wert"
+
+    unfinished = {"module_type": "datenerfassung", "config": {"points": [{"label": "", "type": "bool"}]}}
+    ModuleInput.model_validate(unfinished)     # das Schema lässt den halben Entwurf durch …
+    [problem] = articles.validate_draft({**spec, "steps": [unfinished]})
+    assert "Erfassungspunkt 1 braucht noch eine Bezeichnung" in problem   # … die Freigabe nennt ihn
+
+
+def test_a_piece_leaves_a_module_only_if_its_type_lets_it_go(monkeypatch):
+    """**Ob ein Stück ein Modul verlassen darf, sagt der Modultyp** (``units_may_leave``).
+
+    Heute lassen alle Module los; die Frage hat trotzdem ihre eine Stelle in der Freigabe. Ein
+    Modul, das nach aussen wirkt, hält sein Stück: eine Abweichung, die es greifen will, wird
+    abgewiesen und nennt das Stück.
+    """
+    import pytest
+    from app.domain import modules
+    from app.domain.errors import Rejected
+
+    w = World(session())
+    try:
+        art = w.article()
+        parent = w.produce(art, 2)
+        numbers = w.numbers(parent)
+        monkeypatch.setattr(modules.get(modules.DATENERFASSUNG), "units_may_leave", False)
+        with pytest.raises(Rejected) as refused:
+            w.take(art, numbers[:1], steps=[World.capture()], from_order=parent.object_id)
+        assert refused.value.status == 409 and numbers[0] in str(refused.value.detail)
+
+        monkeypatch.undo()
+        assert w.take(art, numbers[:1], steps=[World.capture()], from_order=parent.object_id)
+    finally:
+        w.db.rollback()
+        w.db.close()

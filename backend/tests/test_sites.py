@@ -8,6 +8,7 @@ echtes Postgres.
 """
 
 import ast
+import uuid
 import inspect
 from pathlib import Path
 
@@ -282,18 +283,51 @@ def test_the_public_settings_name_only_the_maps_key_and_invent_nothing():
 
 
 def test_no_analytics_script_and_no_consent_layer():
-    """Plausible war die **einzige** optionale Kategorie der Einwilligung – mit ihr gehen
-    das Skript, der Cookie-Dialog und die Mess-Haken der Website (E5). Ein Haken, der
-    nichts sendet, ist Code ohne Wirkung; eine Einwilligung ohne Gegenstand ist eine Frage,
-    auf die keine Antwort etwas ändert."""
-    root = APP.parents[1]
-    hits = []
-    for base in ("frontend/src", "website/src"):
-        for p in (root / base).rglob("*"):
-            if p.suffix not in {".ts", ".tsx", ".astro", ".mjs"} or "generated" in p.parts:
-                continue
-            text = p.read_text(encoding="utf-8")
-            for needle in ("plausible", "data-track", "cookie-consent", "data-consent"):
-                if needle in text.lower():
-                    hits.append(f"{p.relative_to(root)}: {needle}")
-    assert not hits, hits
+    """Plausible war die **einzige** optionale Kategorie der Einwilligung – mit ihr gingen das
+    Skript, der Cookie-Dialog und die Mess-Haken der Website (E5). Was ein Browser von hier
+    laden oder wohin er senden darf, sagt die CSP der Hosting-Site (`firebase.json`): nur die
+    Dienste, die das System braucht (Anmeldung, Karten, Zahlung, der eigene Dienst). Ein
+    Mess-Dienst kommt nur über eine neue Adresse herein – und dann bricht dieser Test.
+
+    Bug-Form: `https://plausible.io` (oder ein anderer Fremddienst) in `script-src`/`connect-src`."""
+    import json
+    hosting = json.loads((APP.parents[1] / "firebase.json").read_text(encoding="utf-8"))["hosting"]
+    sites = hosting if isinstance(hosting, list) else [hosting]
+    csp = [h["value"] for site in sites for block in site.get("headers", ())
+           for h in block["headers"] if h["key"] == "Content-Security-Policy"]
+    assert csp, "Keine CSP gefunden – der Wächter wäre blind."
+    allowed = ("'self'", "'unsafe-inline'", "'unsafe-eval'", "https://*.firebaseapp.com",
+               "https://maps.googleapis.com", "https://apis.google.com", "https://www.gstatic.com",
+               "https://js.stripe.com", "https://api.stripe.com", "https://*.a.run.app",
+               "https://identitytoolkit.googleapis.com", "https://securetoken.googleapis.com",
+               "https://places.googleapis.com")
+    for policy in csp:
+        rules = dict((d.split()[0], d.split()[1:]) for d in policy.split(";") if d.strip())
+        for directive in ("script-src", "connect-src"):
+            foreign = [src for src in rules.get(directive, []) if src not in allowed]
+            assert not foreign, f"{directive} erlaubt einen fremden Dienst: {foreign}"
+
+
+def test_a_company_is_named_with_its_legal_form_everywhere(db, make_firm):
+    """►►► **Unternehmensname · Abstand · Rechtsform – an EINER Stelle** (#910, #984). ◄◄◄
+
+    Genannt wird dieselbe Gesellschaft in der Detailantwort (Feed und Kopfzeile lesen sie),
+    auf der Gebietskarte und in der Halter-Suche – überall ``sites.legal_name``, mit seiner
+    Ausnahme («Muster AG» + «AG» bleibt «Muster AG»). Die Oberfläche liest ihn
+    (``organizationName``) und baut ihn nie selbst (``frontend/scripts/house.test.mjs``).
+
+    Bug-Formen: (a) eine Antwort trägt den blossen Spaltenwert; (b) «AG AG»."""
+    from app.routers.admin import _company_responses, _territory_map_response
+    from app.services import places
+    from app.services.sites import legal_name
+
+    tag = uuid.uuid4().hex[:6]
+    firm = make_firm(f"Werk{tag}", "AG", own=True)
+    twice = make_firm(f"Muster{tag} AG", "AG")
+    assert legal_name(twice) == f"Muster{tag} AG", "(b)"
+    want = f"Werk{tag} AG"
+    assert _company_responses(db, [firm])[0].legal_name == want, "(a) Detail"
+    names = {c.object_id: c.name for c in _territory_map_response(db).companies}
+    assert names.get(firm.object_id) == want, "(a) Gebietskarte"
+    found = {s.object_id: s.label for s in places.search(db, f"Werk{tag}")}
+    assert found.get(firm.object_id) == want, "(a) Halter-Suche"

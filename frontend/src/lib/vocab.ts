@@ -115,6 +115,14 @@ export const LOOP_TAKES = {
 } as const;
 export type LoopTake = keyof typeof LOOP_TAKES;
 
+/** Die Rollen – die Rolle ist der Zugang (`policy.ROLES`). */
+export const ROLES = ["admin", "employee", "user"] as const;
+export type Role = (typeof ROLES)[number];
+
+/** Wer ins ERP darf (`policy.STAFF_ROLES`) – gefragt nur über `record-status.isStaff`. */
+export const STAFF_ROLES = ["admin", "employee"] as const;
+export type StaffRole = (typeof STAFF_ROLES)[number];
+
 /** Wie ein Entwurf im Prozessbild heisst (`schemas/order.DRAFT_OBJECT_ID`). */
 export const DRAFT_OBJECT_ID = 0;
 

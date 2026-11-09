@@ -485,8 +485,8 @@ def test_there_is_one_person_search_and_it_knows_the_firm():
     einen Deploy lang daneben und ist mit Cleanup Paket F/G entfernt.
 
     Bug-Formen: (a) ``places`` sucht wieder selbst (ohne Firma); (b) ``voucher`` hat
-    wieder eine eigene Suche; (c) der neue Pfad fehlt; (d) der Alias ist wieder da;
-    (e) das Frontend ruft den alten Pfad.
+    wieder eine eigene Suche; (c) der neue Pfad fehlt; (d) der Alias ist wieder da – das
+    Frontend ruft nur Pfade, die es gibt (``lib/api.ts`` ist gegen die Routen getippt).
     """
     from app.main import app
     from app.services import places
@@ -508,9 +508,6 @@ def test_there_is_one_person_search_and_it_knows_the_firm():
     assert "/api/v1/erp/people" in paths, "Der Pfad der Personensuche fehlt (c)."
     assert "/api/v1/erp/orders/voucher-parties" not in paths, (
         "Der Alias der alten Personensuche ist wieder da (d) – zwei Wege zu einer Suche.")
-    client = (BACKEND.parent / "frontend" / "src" / "lib" / "api.ts").read_text("utf-8")
-    assert "'/api/v1/erp/people'" in client and "voucher-parties" not in client, (
-        "Das Frontend ruft noch den alten Pfad (e).")
 
 
 def test_a_firm_name_is_never_invented():
@@ -518,3 +515,14 @@ def test_a_firm_name_is_never_invented():
     «Inexxio AG». Jede Anlage nennt den Namen; das Modell hat keinen Vorgabewert.
     Bug-Form: ``company_name`` trägt wieder ``default="Inexxio AG"``."""
     assert CompanySettings.__table__.c.company_name.default is None
+
+
+def test_a_person_is_never_deactivated_only_re_roled():
+    """**Man deaktiviert keine Menschen** (Testnotiz #755). Wer das Unternehmen verlässt, wird
+    vom Mitarbeiter zum Benutzer und darf weiter bei uns einkaufen; «Deaktivieren» sperrte ihn
+    aus. Bug-Form: eine Tür zum Deaktivieren (oder ihr Gegenstück) ist zurück – das Frontend
+    ruft nur Pfade, die es gibt (``lib/api.ts`` ist gegen die Routen getippt)."""
+    from app.main import app
+    from tests._routes import api_routes
+    doors = [p for p, _ in api_routes(app) if "deactivate" in p or "reactivate" in p]
+    assert not doors, f"Eine Person wird wieder deaktiviert: {doors}"

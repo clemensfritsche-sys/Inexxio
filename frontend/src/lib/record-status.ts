@@ -2,7 +2,7 @@ import { Briefcase, Shield, UserCircle } from 'lucide-react';
 import type { Article, CompanySettings, UserProfile } from '@/types';
 import { TONE, type StatusCfg } from '@/lib/status-tone';
 import { FREIGEGEBEN, INAKTIV, statusCfg } from '@/lib/process-status';
-import { lookup, type InstanceKind } from '@/lib/vocab';
+import { STAFF_ROLES, lookup, type InstanceKind, type Role } from '@/lib/vocab';
 
 /**
  * **Der Zustand eines ERP-Datensatzes – EINE Regel für alle Typen**; Feed und Detail lesen
@@ -20,22 +20,22 @@ import { lookup, type InstanceKind } from '@/lib/vocab';
  * ►►► **Drei Rollen, und sie sagen den ZUGANG** ◄◄◄ – Lieferant ↔ Kunde ist eine Eigenschaft
  * des Vorgangs, nicht der Person.
  */
-export const ROLE_CFG: Record<string, StatusCfg> = {
+export const ROLE_CFG: Record<Role, StatusCfg> = {
   admin: { label: 'Admin', ...TONE.done, icon: Shield },
   employee: { label: 'Mitarbeiter', ...TONE.done, icon: Briefcase },
   user: { label: 'Benutzer', ...TONE.done, icon: UserCircle },
 };
 
 export function userStatus(u: Pick<UserProfile, 'role'>): StatusCfg {
-  return ROLE_CFG[u.role] ?? ROLE_CFG.user;
+  return lookup(ROLE_CFG, u.role) ?? ROLE_CFG.user;
 }
 
 /**
- * ►►► **Darf diese Person ins ERP?** ◄◄◄ Spiegel von `domain/policy.STAFF_ROLES` – erlaubend
- * gefragt, damit ein unbekannter Rollenwert nicht hereinkommt.
+ * ►►► **Darf diese Person ins ERP?** ◄◄◄ `domain/policy.STAFF_ROLES`, generiert (`lib/vocab`) –
+ * erlaubend gefragt, damit ein unbekannter Rollenwert nicht hereinkommt.
  */
 export function isStaff(role: string | null | undefined): boolean {
-  return role === 'admin' || role === 'employee';
+  return (STAFF_ROLES as readonly string[]).includes(role ?? '');
 }
 
 /** Ist das der Admin? – nur für Anzeigen; ob man etwas darf, sagt der Server. */

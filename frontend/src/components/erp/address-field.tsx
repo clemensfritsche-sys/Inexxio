@@ -56,7 +56,7 @@ type PlacePick = {
   lat?: number; lng?: number;
 };
 
-function parsePlace(place: google.maps.places.PlaceResult): PlacePick {
+export function parsePlace(place: google.maps.places.PlaceResult): PlacePick {
   const comps = place.address_components ?? [];
   const get = (t: string) => comps.find((c) => c.types.includes(t))?.long_name ?? '';
   const short = (t: string) => comps.find((c) => c.types.includes(t))?.short_name ?? '';

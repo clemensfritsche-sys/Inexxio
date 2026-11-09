@@ -9,6 +9,7 @@ import { Communication } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
 import { NOTHING, day, when } from '@/lib/when';
 import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
+import { ROLES, lookup } from '@/lib/vocab';
 import { api } from '@/lib/api';
 import { Card, DetailBody, DetailHeader, SectionSep, TodoChip } from '@/components/erp/detail-frame';
 import { StatusDot } from '@/components/erp/fields';
@@ -173,12 +174,9 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
         {/* ►►► **Die Rolle ist der ZUGANG** (`people.STAFF_ROLES`). ◄◄◄ Lieferant ↔ Kunde ist
             eine Eigenschaft des Vorgangs, nicht der Person. */}
         {canEdit && isAdmin ? (
-          <SelectField name="role" label="Rolle" value={role} onChange={(x) => set('role', x as UserRole)} options={[
-            { value: 'admin', label: 'Admin' }, { value: 'employee', label: 'Mitarbeiter' },
-            { value: 'user', label: 'Benutzer' },
-          ]} />
+          <SelectField name="role" label="Rolle" value={role} onChange={(x) => set('role', x as UserRole)} options={ROLES.map((r) => ({ value: r, label: ROLE_CFG[r].label }))} />
         ) : (
-          <AField name="role" label="Rolle" value={ROLE_CFG[role]?.label ?? role} readOnly />
+          <AField name="role" label="Rolle" value={lookup(ROLE_CFG, role)?.label ?? role} readOnly />
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
