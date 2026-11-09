@@ -6412,8 +6412,8 @@ export interface components {
             hint_object_id?: number | null;
             /** Files */
             files?: components["schemas"]["FileRef"][];
-            /** Recording */
-            recording?: number | null;
+            /** Recordings */
+            recordings?: number[];
         };
         /** TalkMessage */
         TalkMessage: {

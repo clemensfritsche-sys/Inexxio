@@ -25,6 +25,11 @@ export const CHUNK_MS = 30_000;
 export const SEGMENT_MS = 5 * 60_000;
 export const MAX_MS = 3 * 60 * 60_000;
 export const BITRATE = 24_000;
+/** So lange Stille, dann hält die Aufnahme von selbst an (wie bei Claude, dort 15 s – im Feld
+ *  denkt man länger nach). */
+export const SILENCE_MS = 30_000;
+/** Ab diesem Pegel (0…1, `use-recorder.levelOf`: −60…−10 dB) spricht jemand – darunter ist Raum. */
+export const VOICE_LEVEL = 0.35;
 /** Die Pausen vor den Wiederholungen eines Stücks – danach immer `RETRY_MAX_MS`, ohne Ende. */
 export const RETRY_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000, 16_000];
 const RETRY_MAX_MS = 30_000;
@@ -37,6 +42,20 @@ export const STOP_WAIT_MS = 60_000;
 /** Die Pause vor dem `n`-ten neuen Versuch (ab 0): 1, 2, 4, 8, 16, dann 30 s. */
 function retryPause(n: number): number {
   return n < RETRY_MS.length ? RETRY_MS[n] : RETRY_MAX_MS;
+}
+
+/**
+ * **Stille erkennen** – `hear(pegel, jetzt)` sagt `true`, sobald seit dem letzten Laut (oder dem
+ * Start) `SILENCE_MS` vergangen sind. Eine Zahl, kein Zustand daneben.
+ */
+export function silence(start: number, ms = SILENCE_MS, voice = VOICE_LEVEL) {
+  let heard = start;
+  return {
+    hear(level: number, now: number): boolean {
+      if (level >= voice) heard = now;
+      return now - heard >= ms;
+    },
+  };
 }
 
 /** Was der Browser aufnehmen kann – Opus in WebM, sonst MP4 (Safari), sonst seine Vorgabe (''). */

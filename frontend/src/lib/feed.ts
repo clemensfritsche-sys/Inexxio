@@ -87,18 +87,18 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   ['admin', ['companies', 'todo', 'company', 'documentsOf', ...LOGGED]],
   // Phase 5 · Der Assistent: ein Handgriff kann ALLES ändern, was das ERP kann – er lädt
   // alles nach (wie ein unbekannter Pfad). Sagen, Weglegen, eine Datei ändern nur Gespräche,
-  // «zu tun» und das Angeheftete; das Wissen neu wählen nur das Angeheftete.
+  // «zu tun», «Auf einen Blick» und die Aufnahmen (gesendet ist gesendet); das Wissen neu wählen
+  // nur «Auf einen Blick».
   ['=erp/assistant/handgriffe/*/run', AREAS],
   ['=erp/assistant/handgriffe/*/done', AREAS],
-  ['=erp/assistant/handgriffe/*/probe', []],
   ['=erp/assistant/files', []],
   ['erp/assistant/pins', ['pins']],
-  ['erp/assistant', ['talks', 'todo', 'pins']],
+  ['erp/assistant', ['talks', 'todo', 'pins', 'recordings']],
   // Phase 4 · Sprache: ein Stück (alle 30 s) ändert nichts, was eine Ansicht zeigt; «weiter
-  // abschreiben» bringt den Text ins Gespräch; Start und Stopp ändern die offenen Aufnahmen
-  // und «zu tun».
+  // abschreiben» bringt den Text (er geht in die Eingabe); Start und Stopp ändern die offenen
+  // Aufnahmen und «zu tun».
   ['=erp/recordings/*/chunks', []],
-  ['=erp/recordings/*/advance', ['todo', 'talks', 'recordings']],
+  ['=erp/recordings/*/advance', ['todo', 'recordings']],
   ['erp/recordings', ['todo', 'recordings']],
 ];
 

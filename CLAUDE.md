@@ -389,18 +389,21 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   solange ein Handgriff offen ist oder die KI nicht geantwortet hat; abgeschlossen wird es nicht
   mehr gezeigt. Was die KI selbst weglegt (einen Handgriff ersetzt), steht nicht im Gespräch –
   die Person sieht nur das Ergebnis. Diese Ereignisse stehen nicht im Verlauf (`history.HIDDEN_EVENTS`).
-- **Das «+»** (`components/erp/capture/capture-sheet.tsx`): Eingabe wie bei Claude (Stecknadel als
-  Chip «📍 …» darin), darüber das Gespräch (Blasen, Vorschlag-Karten `handgriff-card.tsx`), «←»
+- **Das «+»** (`components/erp/capture/capture-sheet.tsx`): Eingabe wie bei Claude – **das Feld
+  bleibt immer stehen** (Stecknadel und Anhänge als Chips darin; Dateien auch mit Ctrl+V oder
+  hineinziehen); **vor dem Senden gibt es nichts am Server**, was im Feld steht, ist der Entwurf
+  (`lib/draft`, nur im Browser, bleibt beim Schliessen). Darüber das Gespräch (Blasen, die Antwort
+  der KI als Markdown – sie formatiert, wie sie will; Vorschlag-Karten `handgriff-card.tsx`), «←»
   zurück zur Übersicht: «Offene Gespräche» und «Neu anlegen». **Die Antwort kommt live**
   (`talk.stream`, NDJSON): die Nachricht steht sofort, darunter jeder Schritt der KI («liest …»,
-  «bereitet vor: …»), dann ihr Text Wort für Wort (`{text}`), und «Stopp» (`talk.stop`). Das Gespräch läuft
+  «bereitet vor: …»), dann ihr Text Wort für Wort (`{text}`); solange ist ➤ der Stopp (`talk.stop`). Das Gespräch läuft
   **direkt am Dienst** (`BACKEND_URL`, `GET …/assistant/door`) – nicht durch das Hosting mit seinen
   60 s; begrenzt durch Schritte, Deckel und «Stopp», die Uhr (240 s, Cloud Run 300 s) ist nur das
   Netz. Die KI arbeitet in eigenem Faden und eigener Sitzung; reisst die Leitung, arbeitet sie zu
   Ende. Eine Sperre je Gespräch: Stream und Takt antworten nie beide. 📷/📄 legen die Datei in den Korb und hängen sie an die Nachricht – die KI liest sie
   und bereitet das Dokument vor («Öffnen» öffnet den Dokument-Entwurf mit der Datei; mit
   der Freigabe ist der Vorschlag erledigt, `…/done`). Die Zahl am «+» = meine offenen Gespräche und
-  Aufnahmen, deren Text noch nicht gesendet ist (`lib/assistant.useUnfinished`).
+  Aufnahmen, die nicht abgeschrieben werden konnten (`lib/assistant.useUnfinished`).
 - **Die Stecknadel = Rückmeldung zur Software** (`lib/pin-point.ts`): auf eine Stelle zeigen →
   «Stelle: Seite · Datensatz · Herkunft (`data-where-*`) · Element» vor dem Text; der Hinweis ist
   der Artikel **«ERP»** (auf `/erp`) bzw. **«Website»**.
@@ -444,16 +447,18 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
 - **Deckel in Franken** (`AI_DAILY_CAP_CHF`, 10 je Schweizer Tag, Preise in `ai.PRICES`); ab 80 %
   ein Hinweis in «zu tun» des Admins (am Betreiber, mit Betrag; am Deckel rot).
 - **Sprache** (Phase 4, `docs/konzept/phase4-bauplan.md`, `services/recordings.py`,
-  `components/erp/capture/recorder.tsx`): «Aufnehmen» im «+» (Zeit, Pegel, Stopp; Bildschirm
-  bleibt an). Der Browser schickt **alle 30 s ein Stück**, je **5 Minuten ein Abschnitt** (eine
+  `components/erp/capture/recorder.tsx`): «Aufnehmen» im «+» – dezent in der Leiste der Eingabe
+  (Punkt, Zeit, Pegel von rechts nach links, ■; Bildschirm bleibt an); **30 s Stille halten von
+  selbst an** (`lib/recorder.silence`). Der Browser schickt **alle 30 s ein Stück**, je **5 Minuten ein Abschnitt** (eine
   eigene Datei); ein Stück wird wiederholt, solange die Seite lebt (aufgegeben nur bei einer
   Abweisung); fällt das Mikrofon aus, endet die Aufnahme sauber. Bricht sie ab, gilt sie nach
   **30 Minuten Ruhe** als gestoppt – nichts bis dahin geht verloren. **Gemini** (Vertex AI, `ai.transcribe`, `gemini-3.5-flash`, dieselbe Tür
   und derselbe Deckel) schreibt je Abschnitt ab – Hochdeutsch in Schweizer Schreibweise, auch bei
-  Mundart; der Text kommt **in die Eingabe** (`recording.done.text`, mit der Stecknadel davor, im
-  Gespräch, in dem gesprochen wurde, `recording.start.talk`) – die Person ergänzt und **schickt ihn
-  selbst** (`TalkIn.recording`); bis dahin steht die Aufnahme unter «Offene Gespräche» («antippen»
-  legt den Text in die Eingabe, ✕ verwirft). Was sich nicht abschreiben lässt (kein Stück 0, über 15 MB, zweimal abgelehnt,
+  Mundart; der Text kommt **ans Ende des Feldes** (`recording.done.text`, die Stecknadel davor;
+  währenddessen «schreibt ab …» im Feld) – die Person ergänzt und **schickt ihn selbst**; erst mit
+  dem Senden gilt die Aufnahme als gesendet (`TalkIn.recordings`, im `talk`-Ereignis). Eine
+  Aufnahme ist kein Gespräch: sie steht nicht unter «Offene Gespräche» und zählt nicht, ausser sie
+  liess sich nicht abschreiben. Was sich nicht abschreiben lässt (kein Stück 0, über 15 MB, zweimal abgelehnt,
   sechsmal gescheitert), wird **mit Vermerk** «[Abschnitt n: …]» übersprungen. **Vom Gesprochenen
   bleibt nur der Text:** die Stücke
   (`recording_chunks`, Bytes über `attachments.put_object` in einem **eigenen Bucket ohne Soft
@@ -819,7 +824,7 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   und Gesellschaft; Senden je Empfänger mit Link ohne Ablauf, Unterschreiben auf `/dokument`.
 - **Der Assistent** (Phasen 3–5): das «+» als Gespräch wie bei Claude (Schreiben, Aufnehmen im
   Feld, Foto, Datei, Stecknadel; auch auf der Website für Personal); die Antwort live, Wort für
-  Wort; die KI bereitet Vorschläge vor – alles, was das ERP kann, mit Probelauf; im Gespräch nur
+  Wort, als Markdown; Diktieren ins Feld mit Auto-Stopp nach 30 s Stille; die KI bereitet Vorschläge vor – alles, was das ERP kann, mit Probelauf; im Gespräch nur
   «Öffnen», übernommen nur von der Person am Datensatz, genau einmal; Vorschläge aus Mails am
   Datensatz; «Auf einen Blick» mit dem Wissen, das jetzt zählt (im Takt vorbereitet); im Wissen
   suchen nach Bedeutung; Deckel in Franken (siehe «Der Assistent»); Rückmeldungen zur Software

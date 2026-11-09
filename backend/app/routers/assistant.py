@@ -29,7 +29,7 @@ def say(data: TalkIn, db: Session = DB, user: UserProfile = Depends(require_empl
     dann antwortet die KI live (je Zeile: das Gespräch, ein Schritt oder ein Stück Text, am Ende
     das Gespräch mit Antwort und Vorschlägen)."""
     tid = talk.say(db, user, data.text, talk=data.talk, hint=data.hint_object_id,
-                   files=data.files, recording=data.recording)
+                   files=data.files, recordings=data.recordings)
     return StreamingResponse(talk.stream(user.id, tid), media_type="application/x-ndjson",
                              headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 

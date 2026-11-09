@@ -15066,16 +15066,13 @@
             "maxItems": 10,
             "title": "Files"
           },
-          "recording": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Recording"
+          "recordings": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Recordings"
           }
         },
         "type": "object",

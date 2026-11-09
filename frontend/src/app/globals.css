@@ -643,6 +643,17 @@ fieldset:disabled .ix-editable.is-missing {
 .erp-bubble { align-self: flex-start; max-width: 88%; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px;
   border-radius: 14px 14px 14px 4px; background: var(--bg-2); font-size: 13.5px; line-height: 1.45; color: var(--fg-1); }
 .erp-bubble-me { align-self: flex-end; border-radius: 14px 14px 4px 14px; background: var(--accent-soft); }
+.erp-md { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.erp-md p, .erp-md ul, .erp-md ol, .erp-md blockquote, .erp-md pre { margin: 0; }
+.erp-md ul, .erp-md ol { padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
+.erp-md ul { list-style: disc; } .erp-md ol { list-style: decimal; }
+.erp-md .erp-md-h { font-weight: 600; color: var(--fg-1); }
+.erp-md code { font: 12.5px var(--font-mono); background: var(--bg-3); border-radius: 4px; padding: 0 4px; }
+.erp-md pre { background: var(--bg-3); border-radius: 8px; padding: 8px 10px; overflow-x: auto; }
+.erp-md pre code { background: none; padding: 0; white-space: pre; }
+.erp-md blockquote { border-left: 2px solid var(--border-2); padding-left: 10px; color: var(--fg-2); }
+.erp-md a { color: var(--accent); text-decoration: underline; }
+.erp-composer-drop { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .erp-talk-file { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 3px 8px; border-radius: 999px;
   border: 1px solid var(--border-1); background: var(--bg-1); font-size: 12px; color: var(--fg-2); overflow-wrap: anywhere; }
 .erp-composer-files { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
@@ -693,20 +704,18 @@ fieldset:disabled .ix-editable.is-missing {
 }
 .erp-send-go { background: var(--inexxio-red); color: #fff; cursor: pointer; }
 .erp-send-go:hover { background: var(--inexxio-red-deep); }
-/* Die Aufnahme im Feld: rot umrandet, Punkt · Zeit · Pegel · Stopp. */
-.erp-composer-rec { border-color: var(--inexxio-red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--inexxio-red) 13%, transparent); }
-.erp-composer-rec:focus-within { border-color: var(--inexxio-red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--inexxio-red) 13%, transparent); }
-.erp-rec-line { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+/* Die Aufnahme in der Leiste (Punkt · Zeit · Pegel · Stopp) und der Stopp, während die KI antwortet. */
+.erp-rec-line { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; height: 36px; }
 .erp-rec-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--fg-4); }
 .erp-rec-dot[data-live] { background: var(--inexxio-red); animation: erp-rec-blink 1.4s ease-in-out infinite; }
 @keyframes erp-rec-blink { 50% { opacity: .35; } }
-.erp-rec-time { font: 600 16px var(--font-mono); color: var(--fg-1); font-variant-numeric: tabular-nums; flex: none; min-width: 52px; }
-.erp-rec-level { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; height: 28px; overflow: hidden; }
-.erp-rec-level > span { width: 3px; flex: none; border-radius: 2px; background: var(--inexxio-red); transition: height .1s linear; }
-.erp-send-stop { background: var(--inexxio-red); color: #fff; cursor: pointer; }
-.erp-send-stop:hover:not(:disabled) { background: var(--inexxio-red-deep); }
+.erp-rec-time { font: 500 13px var(--font-mono); color: var(--fg-2); font-variant-numeric: tabular-nums; flex: none; min-width: 44px; }
+.erp-rec-level { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 2px; height: 24px; overflow: hidden; }
+.erp-rec-level > span { width: 3px; flex: none; border-radius: 2px; background: var(--fg-3); transition: height .1s linear; }
+.erp-send-stop { background: var(--fg-1); color: var(--bg-1); cursor: pointer; }
+.erp-send-stop:hover:not(:disabled) { background: var(--fg-2); }
 .erp-send-stop:disabled { opacity: .6; cursor: default; }
-.erp-rec-trouble { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12.5px; color: var(--fg-3); }
+.erp-rec-trouble { display: flex; align-items: center; gap: 6px; flex: none; margin: 0; font-size: 12px; color: var(--fg-3); }
 /* Skeleton: die Form des Ergebnisses, grau, mit leisem Schimmer. */
 .erp-skel {
   display: block; border-radius: 6px;

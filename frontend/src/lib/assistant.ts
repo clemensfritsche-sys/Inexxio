@@ -44,18 +44,19 @@ export function useOpenRecordings() {
 }
 
 /**
- * ►►► **Die Zahl am «+»** – meine offenen Gespräche und Aufnahmen, deren Text noch nicht gesendet
- * ist (abgeschrieben, unterwegs oder gescheitert). Dieselben Listen wie «Offene Gespräche» im «+» – EINE Quelle; an der Person
- * zählt es nicht (`services/todo`). ◄◄◄
+ * ►►► **Die Zahl am «+»** – meine offenen Gespräche und Aufnahmen, die nicht abgeschrieben werden
+ * konnten. Eine Aufnahme, die gerade abgeschrieben wird oder deren Text in der Eingabe wartet, ist
+ * kein Gespräch – sie zählt nicht. Dieselben Listen wie «Offene Gespräche» im «+» – EINE Quelle; an
+ * der Person zählt es nicht (`services/todo`). ◄◄◄
  */
 export function useUnfinished(): { count: number; failed: boolean } {
   const talks = useOpenTalks().data ?? [];
-  const recordings = useOpenRecordings().data ?? [];
-  return { count: talks.length + recordings.length, failed: recordings.some((r) => r.state === 'failed') };
+  const failed = (useOpenRecordings().data ?? []).filter((r) => r.state === 'failed');
+  return { count: talks.length + failed.length, failed: failed.length > 0 };
 }
 
 /**
- * ►►► **Das Angeheftete** – kommt sofort mit dem letzten Stand; sagt der Server `stale` (im
+ * ►►► **Auf einen Blick** – kommt sofort mit dem letzten Stand; sagt der Server `stale` (im
  * Umfeld hat sich seither etwas geändert), wählt die KI einmal neu, still im Hintergrund. ◄◄◄
  * Sonst fragt nichts die KI – kein Aufruf, keine Kosten (`services/pins`).
  */

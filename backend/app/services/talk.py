@@ -58,8 +58,9 @@ def clean(body: str) -> str:
 
 
 FORMAT = """
-Deine Antwort an die Person: direkt auf das, was sie sagt oder fragt, kurz, in reinem Text (kein
-Markdown, keine Sternchen; eine Aufzählung mit «–»). Erzähl nicht, was du nicht getan hast. Was
+Deine Antwort an die Person: direkt auf das, was sie sagt oder fragt, kurz. Formatieren darfst du
+mit Markdown, wo es lesbarer wird (fett, Listen, Überschriften, Code). Erzähl nicht, was du nicht
+getan hast. Was
 folgt, bereitest du mit `vorbereiten` als Vorschlag vor (je Handlung einer), bevor du antwortest –
 auch wenn Werte fehlen, die nur die Person kennt: dann füllst du, was du weisst, und sie ergänzt
 es, wo sie den Vorschlag öffnet; frag nicht vorher danach. Ausführen tust du nie: die Person
@@ -158,18 +159,22 @@ def open_ids(db: Session, viewer: UserProfile, limit: int = 50) -> list[int]:
 
 def say(db: Session, person: UserProfile, body: str, *, talk: Optional[int] = None,
         hint: Optional[int] = None, files: Optional[list[FileRef]] = None,
-        recording: Optional[int] = None) -> int:
+        recordings: Optional[list[int]] = None) -> int:
     """►►► **Die Person sagt etwas** – eine Nachricht ``talk``, sofort. Ohne ``talk`` beginnt ein
-    Gespräch (am offenen Datensatz ``hint``, sonst an der Person). Gibt das Gespräch zurück. ◄◄◄"""
+    Gespräch (am offenen Datensatz ``hint``, sonst an der Person). ``recordings`` = die Aufnahmen,
+    deren Text darin steht (erst jetzt gelten sie als gesendet). Gibt das Gespräch zurück. ◄◄◄"""
+    recordings = sorted(set(recordings or []))
     body = clean(body).strip()
     if not body and not files:
         raise Invalid("Eine Nachricht braucht Text oder eine Datei.")
-    if len(body) > (MAX_SPOKEN if recording else MAX_TEXT):
+    limit = MAX_SPOKEN if recordings else MAX_TEXT
+    if len(body) > limit:
         raise Invalid(f"Die Nachricht ist zu lang ({len(body)} Zeichen).")
-    if recording is not None:
-        from . import recordings
-        if recordings.load(db, recording).actor_id != person.object_id:
-            raise Forbidden(f"Aufnahme «{recording}» ist nicht deine.")
+    if recordings:
+        from . import recordings as spoken
+        for rid in recordings:
+            if spoken.load(db, rid).actor_id != person.object_id:
+                raise Forbidden(f"Aufnahme «{rid}» ist nicht deine.")
     if talk is not None:
         first = assert_may(db, talk, person)
         home = first.object_id
@@ -177,15 +182,15 @@ def say(db: Session, person: UserProfile, body: str, *, talk: Optional[int] = No
         if hint is not None and record_labels.labels(db, [hint]).get(hint) is None:
             raise Invalid(f"Datensatz «{hint}» gibt es nicht.")
         home = hint or person.object_id
-    payload: dict[str, Any] = {"by": "person", "text": body[:MAX_SPOKEN if recording else MAX_TEXT]}
+    payload: dict[str, Any] = {"by": "person", "text": body[:limit]}
     if talk is not None:
         payload["talk"] = talk
     else:
         payload["hint"] = hint
     if files:
         payload["files"] = [f.model_dump() for f in files]
-    if recording:
-        payload["recording"] = recording
+    if recordings:
+        payload["recordings"] = recordings
     mid = log.event(db, "talk", home, payload, kind="person", actor=person.object_id)
     return talk or mid
 

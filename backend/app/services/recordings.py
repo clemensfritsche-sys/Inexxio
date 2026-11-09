@@ -18,7 +18,7 @@ Schreiben (Phase 5). Vom Gesprochenen bleibt nur der Text.
   zu oft gescheitert), wird **mit Vermerk übersprungen** – nie endlos versucht, nie still weg;
   ist alles abgeschrieben, steht der ganze Text in ``recording.done`` → Stücke gelöscht. **Der
   Text wartet auf die Person**: das «+» legt ihn in die Eingabe, sie ergänzt ihn und schickt ihn
-  selbst (``talk.say`` mit ``recording``) – nichts geht ungefragt los. Läuft in der Anfrage (die
+  selbst (``talk.say`` mit ``recordings``) – nichts geht ungefragt los. Läuft in der Anfrage (die
   Oberfläche fragt nach) **und** im Takt (``due``).
 * ``sweep`` (im Takt) – eine Aufnahme, die nach ``KEEP`` nicht fertig ist, wird mit dem, was
   abgeschrieben ist, fertig (sonst ``recording.failed``); ihre Stücke gehen, und kein Stück bleibt
@@ -216,9 +216,11 @@ _OPEN = text(f"""
 SELECT s.id FROM log s
  WHERE s.event = 'recording.start' AND s.actor_id = :me
    AND NOT EXISTS (SELECT 1 FROM log e WHERE (e.payload ->> 'recording')::bigint = s.id
-                     AND (e.event IN ('talk', 'recording.dismissed')
+                     AND (e.event = 'recording.dismissed'
                           OR (e.event IN ('recording.done', 'recording.failed')
                               AND (e.at < :since OR {_SILENT}))))
+   AND NOT EXISTS (SELECT 1 FROM log t WHERE t.event = 'talk' AND t.actor_id = :me
+                     AND t.payload -> 'recordings' @> jsonb_build_array(s.id))
  ORDER BY s.id DESC LIMIT :n""")
 
 

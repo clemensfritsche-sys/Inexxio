@@ -5,7 +5,8 @@
  * Attrappen. Die Bug-Formen: die Stück-Zählung läuft über den Abschnitt hinaus weiter · das
  * letzte Stück eines Abschnitts trägt die Nummer des nächsten · Stücke überholen einander ·
  * ein Stück wird aufgegeben, solange die Seite lebt (Netz weg) · ein hängender Versuch hält alles
- * auf · eine Abweisung verschwindet stumm · der Stopp wartet nicht auf das letzte Stück.
+ * auf · eine Abweisung verschwindet stumm · der Stopp wartet nicht auf das letzte Stück · die
+ * Stille hält zu früh an (ein Laut setzt sie nicht zurück) oder nie.
  *
  *     node --test scripts/recorder.test.mjs
  */
@@ -231,4 +232,14 @@ test('der Stopp wartet auf das stop-Ereignis, nicht auf eine kurze Frist', async
   await stopped;
   assert.deepEqual(sent, ['jetzt', 'letztes']);
   assert.equal(R.STOP_WAIT_MS, 60_000);
+});
+
+test('30 s Stille halten an – jeder Laut beginnt die Stille neu, Raumrauschen nicht', () => {
+  const q = R.silence(0);
+  assert.equal(q.hear(0.1, 29_900), false, 'noch keine 30 s');
+  assert.equal(q.hear(0.6, 29_950), false, 'ein Laut');
+  assert.equal(q.hear(0.2, 59_900), false, 'seit dem Laut keine 30 s');
+  assert.equal(q.hear(0.2, 59_950), true, 'jetzt 30 s Stille');
+  assert.equal(R.silence(0).hear(0, R.SILENCE_MS - 1), false);
+  assert.equal(R.SILENCE_MS, 30_000);
 });

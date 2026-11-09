@@ -21,9 +21,9 @@ class TalkIn(BaseModel):
     talk: Optional[int] = None
     hint_object_id: Optional[int] = None
     files: list[FileRef] = Field(default_factory=list, max_length=10)
-    #: Die Aufnahme, deren abgeschriebener Text in dieser Nachricht steht (die Person hat ihn in
-    #: der Eingabe ergänzt und selbst geschickt).
-    recording: Optional[int] = None
+    #: Die Aufnahmen, deren abgeschriebener Text in dieser Nachricht steht (die Person hat ihn in
+    #: der Eingabe ergänzt und selbst geschickt) – erst damit gelten sie als gesendet.
+    recordings: list[int] = Field(default_factory=list, max_length=20)
 
 
 class DoorOut(BaseModel):

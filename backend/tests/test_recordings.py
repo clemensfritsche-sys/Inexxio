@@ -129,7 +129,7 @@ def test_a_recording_becomes_one_text_in_the_order_of_its_segments(db, api, gemi
     assert db.query(Log).filter(Log.event == "talk", Log.actor_id == me.object_id).count() == 0
     assert [r["id"] for r in c.get(f"{BASE}/open").json()] == [rec["id"]]
     tid = talk.say(db, me, spoken(got) + "\nUnd bitte Rückruf notieren.", hint=firm.object_id,
-                   recording=rec["id"])
+                   recordings=[rec["id"]])
     first = db.query(Log).filter(Log.id == tid).one()
     assert first.actor_id == me.object_id and first.object_id == firm.object_id
     assert c.get(f"{BASE}/open").json() == []
@@ -723,5 +723,5 @@ def test_speaking_in_an_open_conversation_continues_it(db, api, gemini, monkeypa
     gemini(said("Dann gesprochen."))
     got = c.post(f"{BASE}/{rid}/advance").json()
     assert got["talk"] == tid and got["text"] == "Dann gesprochen."
-    talk.say(db, me, got["text"], talk=got["talk"], recording=rid)
+    talk.say(db, me, got["text"], talk=got["talk"], recordings=[rid])
     assert [m.text for m in talk.view(db, tid).messages] == ["Zuerst getippt.", "Dann gesprochen."]

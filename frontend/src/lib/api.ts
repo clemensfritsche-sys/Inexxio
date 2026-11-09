@@ -591,7 +591,7 @@ class ApiClient {
   /**
    * ►►► **Dem Assistenten etwas sagen – die Antwort kommt live** (wie bei Claude). ◄◄◄ Ohne `talk`
    * beginnt ein Gespräch (am offenen Datensatz `hint`); ohne Text, aber mit `talk`, antwortet die KI
-   * auf das, was dasteht. `recording` = die Aufnahme, aus der der Text stammt. Je Zeile des Streams:
+   * auf das, was dasteht. `recordings` = die Aufnahmen, deren Text darin steht. Je Zeile des Streams:
    * `onTalk` (das Gespräch – sofort mit der Nachricht, am Ende mit der Antwort), `onStep` (was die KI
    * gerade tut), `onText` (ein Stück ihrer Antwort, Wort für Wort). Läuft direkt am
    * Dienst – ohne die 60 s des Hostings; begrenzt durch Schritte, Deckel und «Stopp».
@@ -599,7 +599,7 @@ class ApiClient {
    */
   async say(text: string, opts: {
     talk?: number | null; hint?: number | null; files?: In<'post', '/api/v1/erp/assistant/talks'>['files'];
-    recording?: number | null;
+    recordings?: number[];
     onTalk?: (t: Talk) => void; onStep?: (step: string) => void; onText?: (piece: string) => void;
     signal?: AbortSignal;
   } = {}): Promise<Talk> {
@@ -607,7 +607,7 @@ class ApiClient {
     const payload: In<'post', '/api/v1/erp/assistant/talks'> = {
       text, ...(opts.talk ? { talk: opts.talk } : {}), ...(opts.hint ? { hint_object_id: opts.hint } : {}),
       ...(opts.files?.length ? { files: opts.files } : {}),
-      ...(opts.recording ? { recording: opts.recording } : {}),
+      ...(opts.recordings?.length ? { recordings: opts.recordings } : {}),
     };
     const body = JSON.stringify(payload);
     const base = await this.talkDoor();
@@ -691,14 +691,10 @@ class ApiClient {
 
   // ─── Phase 4 · Sprache: Aufnehmen (docs/konzept/phase4-bauplan.md) ─────────
   /** Eine Aufnahme beginnen – `hint` = der Datensatz, der dabei offen war; `context` = die
-   *  Stecknadel («Stelle: …»), sie steht später vor dem abgeschriebenen Text; `talk` = das offene
-   *  Gespräch, in das der Text geht (wie getippt). */
-  startRecording(mime: string, hint?: number | null, context?: string | null, talk?: number | null) {
+   *  Stecknadel («Stelle: …»), sie kommt mit dem abgeschriebenen Text zurück. */
+  startRecording(mime: string, hint?: number | null, context?: string | null) {
     return this.call('post', '/api/v1/erp/recordings', {
-      body: {
-        mime, ...(hint ? { hint_object_id: hint } : {}), ...(context ? { context } : {}),
-        ...(talk ? { talk } : {}),
-      },
+      body: { mime, ...(hint ? { hint_object_id: hint } : {}), ...(context ? { context } : {}) },
     });
   }
 

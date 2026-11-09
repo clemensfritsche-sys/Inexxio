@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { notify, tell } from '@/lib/notice';
 import {
-  BITRATE, RecordingSession, UploadQueue, pickMime, type QueueState, type RecorderLike,
+  BITRATE, RecordingSession, UploadQueue, pickMime, silence, type QueueState, type RecorderLike,
 } from '@/lib/recorder';
 import type { Recording } from '@/types';
 
@@ -19,7 +19,8 @@ import type { Recording } from '@/types';
  * genauso an – im Hintergrund, ohne `onStopped`; abgeschrieben wird sie dann im Takt.
  *
  * **Freigegeben wird immer**: Spuren des Mikrofons gestoppt, `AudioContext` geschlossen, Wake
- * Lock gelöst, Zeitgeber weg – beim Stopp, beim Fehler und beim Entfernen.
+ * Lock gelöst, Zeitgeber weg – beim Stopp, beim Fehler und beim Entfernen. **30 s Stille**
+ * halten an wie «Stopp» (`lib/recorder.silence`).
  *
  * **Nichts geht verloren, nichts läuft still weiter:** fällt das Mikrofon aus (Fehler des
  * Recorders, Spur beendet, länger stumm), endet die Aufnahme sauber mit einer Meldung; wird die
@@ -91,7 +92,7 @@ function levelOf(buf: Float32Array): number {
 const sleep = (ms: number) => new Promise<void>((r) => { setTimeout(r, ms); });
 
 export function useRecorder(hint: number | null, onStopped: (r: Recording) => void,
-  context?: string | null, talk?: number | null) {
+  context?: string | null) {
   const [phase, setPhase] = useState<RecorderPhase>('starting');
   const [problem, setProblem] = useState('');
   const [span, setSpan] = useState<{ from: number; to: number | null } | null>(null);
@@ -101,10 +102,9 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
   const stopRef = useRef<() => void>(() => undefined);
   const doneRef = useRef(onStopped);
   doneRef.current = onStopped;
-  // Hinweis, Stecknadel und Gespräch gelten, wie sie beim Start waren.
+  // Hinweis und Stecknadel gelten, wie sie beim Start waren.
   const hintRef = useRef(hint);
   const contextRef = useRef(context ?? null);
-  const talkRef = useRef(talk ?? null);
 
   useEffect(() => {
     let dead = false;
@@ -198,11 +198,15 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
       analyser.fftSize = 1024;
       audio.createMediaStreamSource(src).connect(analyser);
       const buf = new Float32Array(analyser.fftSize);
+      // 30 s Stille → von selbst anhalten, wie mit «Stopp» (`lib/recorder.silence`).
+      const quiet = silence(Date.now());
       const t = setInterval(() => {
         analyser.getFloatTimeDomainData(buf);
         const v = levelOf(buf);
+        const at = Date.now();
         setLevels((l) => [...l.slice(1), v]);
-        setNow(Date.now());
+        setNow(at);
+        if (quiet.hear(v, at)) void finish();
       }, LEVEL_MS);
       timers.push(() => clearInterval(t));
     };
@@ -218,7 +222,7 @@ export function useRecorder(hint: number | null, onStopped: (r: Recording) => vo
         const opts: MediaRecorderOptions = { audioBitsPerSecond: BITRATE, ...(mimeType ? { mimeType } : {}) };
         let spare: MediaRecorder | null = new MediaRecorder(stream, opts);
         const rec = await api.startRecording(spare.mimeType || mimeType || 'audio/webm', hintRef.current,
-          contextRef.current, talkRef.current);
+          contextRef.current);
         if (dead) {
           freeMic();
           busy = false;
