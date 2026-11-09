@@ -109,7 +109,7 @@ def _tools(db: Session, msg: Message, sender: UserProfile, reader: UserProfile) 
     """Lesen, nachschlagen, vorbereiten – ohne Weglegen und Ausführen: aus einer Mail wird nur
     vorbereitet (die Handgriffe stehen am Datensatz, wer ihn öffnet, entscheidet)."""
     from . import talk
-    keep = ("find", "record", "history", "wissen", "handlungen", "handlung")
+    keep = ("find", "record", "history", "wissen", "handlung", "abrufen")
     tools = [t for t in talk.tools(db, reader, 0, sender.object_id) if t.name in keep]
 
     def prepare(a: dict[str, Any]) -> str:
@@ -150,7 +150,9 @@ def follow_one(db: Session, message_id: int) -> Optional[int]:
         return None
     from .talk import AUFTRAG
     before = _made(db, msg.id)
-    answer = ai.converse(db, task="follow", actor=reader, system=AUFTRAG + "\n" + FOLLOW_FORMAT,
+    from . import ai_tools
+    answer = ai.converse(db, task="follow", actor=reader,
+                         system=AUFTRAG + "\n" + FOLLOW_FORMAT + "\n" + ai_tools.catalog(),
                          content=_content(db, msg, sender, reader), schema=FollowAnswer,
                          tools=_tools(db, msg, sender, reader))
     if answer is None:

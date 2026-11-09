@@ -15,7 +15,7 @@ import type { ChangeEvent, KeyboardEvent } from 'react';
  *   Formular schickt sich ab. Ein Feld nur zur Anzeige tut nichts. Mehrzeilig gibt es kein
  *   `onEnter` – dort ist Enter eine neue Zeile.
  *
- * Was die KI an einem Feld ändern will, ist ein **Handgriff** im Angehefteten (Phase 5) – das
+ * Was die KI an einem Feld ändern will, ist ein **Vorschlag** «Auf einen Blick» (Phase 5) – das
  * Feld selbst trägt kein Zeichen.
  */
 export interface FieldSpec {

@@ -46,8 +46,8 @@ export default function ConnectClaude() {
           <div className={css.note}>
             <h2 className={css.noteTitle}>{ask.client} möchte mit dem ERP arbeiten – in Ihrem Namen.</h2>
             <p className={css.noteText}>
-              Er liest, was Sie im ERP sehen, und bereitet Handgriffe vor. Ausführen tun Sie im ERP
-              (Angeheftetes am Datensatz). Trennen können Sie jederzeit unter Konto · Sicherheit.
+              Er liest, was Sie im ERP sehen, und bereitet Vorschläge vor. Übernehmen tun Sie im ERP
+              («Auf einen Blick» am Datensatz). Trennen können Sie jederzeit unter Konto · Sicherheit.
             </p>
             <p className={css.noteText}>Zurück geht es an: <code style={{ wordBreak: 'break-all' }}>{ask.redirect}</code></p>
           </div>

@@ -25,7 +25,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, ContextManager, Iterator, Optional
 
-from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -58,21 +57,17 @@ def clean(body: str) -> str:
     return (body or "").translate(_CONTROL)
 
 
-class Answer(BaseModel):
-    """Was die KI sagt – kurz, wie man im Betrieb redet. Die Handgriffe hat sie mit
-    ``vorbereiten`` schon angelegt; hier nennt sie sie nicht noch einmal."""
-    text: str = Field(description="Deine Antwort an die Person, kurz und schlicht")
-
-
 FORMAT = """
-Antwortformat: `text` – deine Antwort an die Person: direkt auf das, was sie sagt oder fragt,
-kurz, in reinem Text (kein Markdown, keine Sternchen; eine Aufzählung mit «–»). Erzähl nicht,
-was du nicht getan hast. Was folgt, bereitest du mit `vorbereiten` vor (je Handlung ein
-Handgriff), bevor du antwortest – auch wenn Werte fehlen, die nur die Person kennt: dann füllst
-du, was du weisst, und sie ergänzt es im Entwurf; frag nicht vorher danach. Was das ERP zeigt
-(Listen, Auswahlen, Bestand, Module), liest du mit `abrufen`. Wissen (was ist, was gesagt wurde)
-legst du als Notiz am richtigen Datensatz ab: Handlung «POST /api/v1/erp/messages» mit `channel`
-"note", `about` = der Datensatz, `subject` und `body`.
+Deine Antwort an die Person: direkt auf das, was sie sagt oder fragt, kurz, in reinem Text (kein
+Markdown, keine Sternchen; eine Aufzählung mit «–»). Erzähl nicht, was du nicht getan hast. Was
+folgt, bereitest du mit `vorbereiten` als Vorschlag vor (je Handlung einer), bevor du antwortest –
+auch wenn Werte fehlen, die nur die Person kennt: dann füllst du, was du weisst, und sie ergänzt
+es, wo sie den Vorschlag öffnet; frag nicht vorher danach. Ausführen tust du nie: die Person
+öffnet jeden Vorschlag dort, wo er wirkt, und übernimmt ihn selbst. Die Handlungen des ERP stehen
+unten; ihre Felder liest du mit `handlung`, was das ERP zeigt (Listen, Auswahlen, Bestand,
+Module) mit `abrufen`. Wissen (was ist, was gesagt wurde) legst du als Notiz am richtigen
+Datensatz ab: Handlung «POST /api/v1/erp/messages» mit `channel` "note", `about` = der Datensatz,
+`subject` und `body`.
 """
 
 
@@ -169,6 +164,12 @@ def say(db: Session, person: UserProfile, body: str, *, talk: Optional[int] = No
     body = clean(body).strip()
     if not body and not files:
         raise Invalid("Eine Nachricht braucht Text oder eine Datei.")
+    if len(body) > (MAX_SPOKEN if recording else MAX_TEXT):
+        raise Invalid(f"Die Nachricht ist zu lang ({len(body)} Zeichen).")
+    if recording is not None:
+        from . import recordings
+        if recordings.load(db, recording).actor_id != person.object_id:
+            raise Forbidden(f"Aufnahme «{recording}» ist nicht deine.")
     if talk is not None:
         first = assert_may(db, talk, person)
         home = first.object_id
@@ -199,8 +200,9 @@ def _reply(db: Session, person: UserProfile, talk_id: int, body: str, home: int)
 # ---------------------------------------------------------------------------
 
 def _transcript(db: Session, talk_id: int, person: UserProfile) -> list[dict[str, Any]]:
-    """Das Gespräch, wie die KI es liest – mit den Dateien als Bild bzw. PDF."""
-    from . import attachments, memory
+    """Das Gespräch, wie die KI es liest – der offene Datensatz gleich dabei (wie ihn jedes
+    Personal sieht), die Dateien als Bild bzw. PDF."""
+    from . import ai_tools, attachments, memory
     first = _first(db, talk_id)
     hint = (first.payload or {}).get("hint")
     now = clock.stamp(clock.now())
@@ -208,7 +210,8 @@ def _transcript(db: Session, talk_id: int, person: UserProfile) -> list[dict[str
             f"Rolle {person.role})."]
     if hint:
         rec = record_labels.labels(db, [hint]).get(hint)
-        head.append(f"Offen war der Datensatz {hint}" + (f" ({rec.type}: {rec.name})." if rec else "."))
+        head.append(f"Offen war der Datensatz {hint}" + (f" ({rec.type}: {rec.name})." if rec else ".")
+                    + "\n" + ai_tools.record(db, ai_tools.reader(), hint))
     blocks: list[dict[str, Any]] = [{"type": "text", "text": "\n".join(head)}]
     t = view(db, talk_id)
     said = " ".join(m.text for m in t.messages if m.by == "person")[-4000:]
@@ -234,7 +237,7 @@ def _transcript(db: Session, talk_id: int, person: UserProfile) -> list[dict[str
                                "data": base64.b64encode(raw).decode()}})
             blocks.append({"type": "text", "text": f"[Datei «{f.name}» – Schlüssel {f.token}]"})
     if t.handgriffe:
-        lines = ["Handgriffe in diesem Gespräch:"]
+        lines = ["Vorschläge in diesem Gespräch:"]
         lines += [f"- [{h.id}] {h.state}: {h.line} ({h.method} {h.path})" for h in t.handgriffe]
         blocks.append({"type": "text", "text": "\n".join(lines)})
     return blocks
@@ -256,13 +259,11 @@ def _last_said(db: Session, talk_id: int) -> int:
         "AND (id = :t OR (payload ->> 'talk')::bigint = :t)"), {"t": talk_id}).scalar() or 0)
 
 
-def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
-          live: bool = False) -> list[ai.Tool]:
-    """Lesen wie jedes Personal (``ai_tools``), dazu die Handlungen des ERP: nachschlagen,
-    vorbereiten (mit Probelauf), weglegen. **Ausführen** gibt es nur, wenn die Person gerade
-    spricht (``live``) – und nur für einen Handgriff dieses Gesprächs, den sie vor ihrer letzten
-    Nachricht schon sah. Im Takt (niemand da) und aus Mails nie: das ist eine Regel im Code, nicht
-    nur ein Satz an die KI."""
+def tools(db: Session, person: UserProfile, talk_id: int, home: int) -> list[ai.Tool]:
+    """Lesen wie jedes Personal (``ai_tools``), dazu die Handlungen des ERP: Felder nachlesen,
+    abrufen, vorbereiten (mit Probelauf), weglegen. **Ausführen gibt es nicht** – die Person
+    übernimmt jeden Vorschlag selbst, dort, wo er wirkt. Die Liste der Handlungen steht im Auftrag
+    (``ai_tools.catalog``), darum fehlt das Nachschlagen nach Stichwörtern."""
     from . import ai_tools
 
     def prepare(method: str, path: str, body: Any, line: str, depends: list[int]):
@@ -274,22 +275,10 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int, *,
         handgriff.drop(db, person, h.id, by="ai")
         return f"Handgriff {h.id} ist weggelegt."
 
-    def execute(a: dict[str, Any]) -> str:
-        h = _mine(db, talk_id, int(a.get("handgriff") or 0))
-        if h.id > _last_said(db, talk_id):
-            return ("Nicht ausgeführt: diesen Handgriff hat die Person noch nicht gesehen – "
-                    "sie entscheidet an der Karte oder mit ihrer nächsten Nachricht.")
-        h, out = handgriff.run(db, person, h.id)
-        return f"Ausgeführt ({h.id})." if out.ok else f"Nicht ausgeführt: {out.detail or out.hand}"
-
-    return [*ai_tools.tools_for(db), *ai_tools.erp_tools(prepare),
-            ai.Tool("weglegen", "Einen Handgriff dieses Gesprächs weglegen (die Person will ihn "
+    return [*ai_tools.tools_for(db), *ai_tools.erp_tools(prepare, lookup=False),
+            ai.Tool("weglegen", "Einen Vorschlag dieses Gesprächs weglegen (die Person will ihn "
                     "nicht, oder du ersetzt ihn durch einen neuen).",
-                    {"handgriff": {"type": "integer"}}, drop, doing="legt weg: Handgriff"),
-            *([ai.Tool("ausfuehren", "Einen Handgriff dieses Gesprächs ausführen – NUR, wenn die "
-                       "Person es in ihrer letzten Nachricht ausdrücklich sagt («ja, ausführen», "
-                       "«leg es ab»).", {"handgriff": {"type": "integer"}}, execute,
-                       doing="führt aus: Handgriff")] if live else [])]
+                    {"handgriff": {"type": "integer"}}, drop, doing="legt weg: Vorschlag")]
 
 
 def _claim(db: Session, talk_id: int) -> bool:
@@ -320,28 +309,34 @@ BUSY = "Die KI antwortet schon."
 HALTED = "Angehalten."
 
 
-def answer(db: Session, talk_id: int, person: UserProfile, *, live: bool = False,
-           on_step: Optional[Callable[[str], None]] = None) -> Optional[str]:
-    """►►► **Die KI antwortet** – liest, schlägt nach, bereitet vor, antwortet. ``None`` = sie
-    hat geantwortet (oder es war nichts zu tun), sonst warum nicht (``ai.problem``). ``live`` =
-    die Person ist dabei (nur dann darf ein Wort von ihr ausführen); ``on_step`` hört jeden
-    Schritt. Antwortet schon jemand (Stream oder Takt), wartet diese Antwort nicht darauf. ◄◄◄"""
+def answer(db: Session, talk_id: int, person: UserProfile, *,
+           on_step: Optional[Callable[[str], None]] = None,
+           on_text: Optional[Callable[[str], None]] = None) -> Optional[str]:
+    """►►► **Die KI antwortet** – liest, bereitet vor, antwortet. ``None`` = sie hat geantwortet
+    (oder es war nichts zu tun), sonst warum nicht (``ai.problem``). ``on_step`` hört jeden
+    Schritt, ``on_text`` jedes Stück ihrer Antwort (live im «+»). Antwortet schon jemand (Stream
+    oder Takt), wartet diese Antwort nicht darauf.
+
+    **Schnell, weil sie mitbekommt, was sie braucht:** den offenen Datensatz (im Gespräch) und die
+    Liste der Handlungen (im Auftrag, im Zwischenspeicher) – sie schlägt nicht erst nach. ◄◄◄"""
+    from . import ai_tools
     first = _first(db, talk_id)
     if not _claim(db, talk_id):
         return BUSY
     if not _waiting(db, talk_id):
         return None
     content = _transcript(db, talk_id, person) if ai.available(db) else []
-    said = ai.converse(db, task="talk", actor=person, system=AUFTRAG + "\n" + FORMAT,
-                       content=content, schema=Answer,
-                       tools=tools(db, person, talk_id, first.object_id, live=live),
-                       on_step=on_step, stopped=lambda: _stopped(db, talk_id))
+    said = ai.converse(db, task="talk", actor=person,
+                       system=AUFTRAG + "\n" + FORMAT + "\n" + ai_tools.catalog(),
+                       content=content, schema=None,
+                       tools=tools(db, person, talk_id, first.object_id),
+                       on_step=on_step, on_text=on_text, stopped=lambda: _stopped(db, talk_id))
     if said is None and ai.problem() == ai.STOPPED:
         _reply(db, person, talk_id, HALTED, first.object_id)
         return None
     if said is None:
         return ai.problem() or "Die KI hat nicht geantwortet."
-    _reply(db, person, talk_id, said.text or "Erledigt.", first.object_id)
+    _reply(db, person, talk_id, said or "Erledigt.", first.object_id)
     return None
 
 
@@ -358,8 +353,9 @@ ALIVE_S = 15
 
 
 def stream(person_id: int, talk_id: int) -> Iterator[bytes]:
-    """►►► **Die Antwort live** (Projektakte, «wie Claude»): je Zeile ein JSON – ``{"step": …}``
-    für jeden Schritt der KI, am Ende ``{"talk": …}`` (das Gespräch, wie die Oberfläche es zeigt).
+    """►►► **Die Antwort live** (Projektakte, «wie Claude»): je Zeile ein JSON – zuerst ``{"talk": …}``
+    (die Nachricht steht), dann ``{"step": …}`` je Schritt der KI und ``{"text": …}`` je Stück ihrer
+    Antwort, am Ende ``{"talk": …}`` (das Gespräch, wie die Oberfläche es zeigt).
     Die KI arbeitet in eigenem Faden und eigener Sitzung; reisst die Leitung ab, arbeitet sie
     zu Ende und speichert – das Gespräch zeigt es beim nächsten Öffnen. Begrenzt durch Schritte,
     Deckel und «Stopp», nicht durch eine Uhr. ◄◄◄"""
@@ -411,7 +407,8 @@ def _answer_in(db: Session, person_id: int, talk_id: int,
             return
         act(db, "person", person.object_id, "ui")
         put({"talk": view(db, talk_id).model_dump(mode="json")})     # die Nachricht steht sofort
-        trouble = answer(db, talk_id, person, live=True, on_step=lambda st: put({"step": st}))
+        trouble = answer(db, talk_id, person, on_step=lambda st: put({"step": st}),
+                         on_text=lambda piece: put({"text": piece}))
         if trouble and trouble != BUSY and ai.available(db):
             log.event(db, "talk.failed", None, {"talk": talk_id, "problem": trouble})
         db.commit()

@@ -1,7 +1,11 @@
 # Phase 5 · Der Assistent – Bauplan
 
 > **Kopfstatus:** gebaut (08.11.2026, alle drei Durchläufe in einem Zug; Abweichungen vom Plan
-> in §11) · gehört zur Projektakte
+> in §11) · **teilweise überholt durch Runde 15** (09.11.2026,
+> `docs/history/2026-11-09-assistent-runde15.md`): die KI führt nie aus, im Gespräch nur «Öffnen»
+> und ✕, übernommen wird am Datensatz («Auf einen Blick», alt → neu); «Ändern», der Probelauf
+> einer geänderten Fassung und «inzwischen geändert» sind entfernt; der Text einer Aufnahme kommt
+> in die Eingabe. Es gilt CLAUDE.md «Der Assistent». · gehört zur Projektakte
 > `docs/konzept/lernende-firma.md` (§6 Phase 5). Mockup und Konzept (Runde 14):
 > https://claude.ai/artifact/8jAy56JQ1jEESPwgRHPSSK
 > **Ersetzt**, sobald gebaut: Erfassung, Vorschläge, «Stimmt so», das Zeichen am Feld und die

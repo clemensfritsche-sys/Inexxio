@@ -1,9 +1,9 @@
-"""Phase 5 · Der Assistent – Gespräch, Handgriff, das Angeheftete (nur Personal).
+"""Der Assistent – Gespräch, Vorschlag (im Code: Handgriff), «Auf einen Blick» (nur Personal).
 
-Der Vertrag steht in ``docs/konzept/phase5-bauplan.md``. Die KI führt hier nichts von sich aus
-aus: sie bereitet Handgriffe vor; ausgeführt wird nur, was die Person tippt oder sagt – durch die
-echte Route, mit ihren Rechten (``services/handgriff``). Was hier steht, ist selbst kein
-Handgriff (der Assistent bereitet nichts an sich selbst vor).
+Der Vertrag steht in ``docs/konzept/phase5-bauplan.md``. Die KI führt nie etwas aus: sie bereitet
+Vorschläge vor; übernommen wird ein Vorschlag nur von der Person, dort, wo er wirkt – im Entwurf
+oder am Datensatz, durch die echte Route, mit ihren Rechten (``services/handgriff``). Was hier
+steht, ist selbst keine Handlung für die KI.
 """
 
 from fastapi import APIRouter, Depends, File, UploadFile
@@ -14,10 +14,9 @@ from ..core.auth import require_employee
 from ..core.config import get_settings
 from ..core.database import DB
 from ..models import UserProfile
-from ..schemas.assistant import (DoneIn, DoorOut, FileRef, HandgriffOut, OperationOut, PinnedOut, ProbeOut,
-                                 RunIn, RunOut, TalkIn, TalkOut)
+from ..schemas.assistant import DoneIn, DoorOut, FileRef, HandgriffOut, PinnedOut, RunOut, TalkIn, TalkOut
 from ..services import ai, attachments, handgriff, pins, talk
-from ..domain.errors import Gone, Invalid, rejected
+from ..domain.errors import rejected
 
 router = APIRouter(prefix="/api/v1/erp/assistant", tags=["assistent"])
 
@@ -27,15 +26,10 @@ router = APIRouter(prefix="/api/v1/erp/assistant", tags=["assistent"])
                               "description": "Je Zeile ein JSON: {step} je Schritt, am Ende {talk}."}})
 def say(data: TalkIn, db: Session = DB, user: UserProfile = Depends(require_employee)):
     """**Dem Assistenten etwas sagen** – die Nachricht ist gespeichert, bevor die Antwort beginnt;
-    dann antwortet die KI live (je Zeile ein Schritt, am Ende das Gespräch). Ohne Text, aber mit
-    ``talk``: die KI antwortet auf das, was schon dasteht (nach einer Aufnahme)."""
-    if data.text.strip() or data.files:
-        tid = talk.say(db, user, data.text, talk=data.talk, hint=data.hint_object_id,
-                       files=data.files)
-    elif data.talk is not None:
-        tid = talk.assert_may(db, data.talk, user).id
-    else:
-        raise Invalid("Eine Nachricht braucht Text oder eine Datei.")
+    dann antwortet die KI live (je Zeile: das Gespräch, ein Schritt oder ein Stück Text, am Ende
+    das Gespräch mit Antwort und Vorschlägen)."""
+    tid = talk.say(db, user, data.text, talk=data.talk, hint=data.hint_object_id,
+                   files=data.files, recording=data.recording)
     return StreamingResponse(talk.stream(user.id, tid), media_type="application/x-ndjson",
                              headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
@@ -82,34 +76,14 @@ def get_handgriff(handgriff_id: int, db: Session = DB,
     return handgriff.view(db, [handgriff.assert_may(db, handgriff_id, user)])[0]
 
 
-@router.get("/handgriffe/{handgriff_id}/operation", response_model=OperationOut)
-def operation_of(handgriff_id: int, db: Session = DB,
-                 user: UserProfile = Depends(require_employee)):
-    """Die Handlung hinter einem Handgriff – ihre Felder für «Ändern» (aus der Route)."""
-    h = handgriff.assert_may(db, handgriff_id, user)
-    op = handgriff.operation_for(h.payload["method"], handgriff.fill_or_raw(h.payload["path"]))
-    if op is None:
-        raise Gone("Diese Handlung gibt es im ERP nicht mehr.")
-    return OperationOut(key=op.key, summary=op.summary, admin=op.admin, hand=op.hand, schema=op.schema)
-
-
 @router.post("/handgriffe/{handgriff_id}/run", response_model=RunOut)
-def run(handgriff_id: int, data: RunIn, db: Session = DB,
-        user: UserProfile = Depends(require_employee)):
-    """**Ausführen** – genau einmal, mit meinen Rechten, durch die echte Route. ``body`` nur, wenn
-    ich die Werte geändert habe. Geht es nicht, sagt der Satz der Route warum (409/4xx)."""
-    h, out = handgriff.run(db, user, handgriff_id, data.body)
+def run(handgriff_id: int, db: Session = DB, user: UserProfile = Depends(require_employee)):
+    """**Übernehmen** – am Datensatz, genau einmal, mit meinen Rechten, durch die echte Route. Geht
+    es nicht, sagt der Satz der Route warum (409/4xx)."""
+    h, out = handgriff.run(db, user, handgriff_id)
     if not out.ok:
-        raise rejected(out.status if out.status >= 400 else 409, out.detail or f"Das geht nur von Hand ({out.hand}).")
+        raise rejected(out.status if out.status >= 400 else 409, out.detail or "Das ging nicht.")
     return RunOut(handgriff=handgriff.view(db, [h])[0], data=out.data)
-
-
-@router.post("/handgriffe/{handgriff_id}/probe", response_model=ProbeOut)
-def probe(handgriff_id: int, data: RunIn, db: Session = DB,
-          user: UserProfile = Depends(require_employee)):
-    """Eine geänderte Fassung prüfen («Ändern») – der Probelauf derselben Route, nichts bleibt."""
-    out = handgriff.probe(db, user, handgriff_id, data.body)
-    return ProbeOut(ok=out.ok, detail=out.detail, hand=out.hand)
 
 
 @router.post("/handgriffe/{handgriff_id}/drop", response_model=HandgriffOut)

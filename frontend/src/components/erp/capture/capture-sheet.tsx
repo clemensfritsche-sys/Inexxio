@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowUp, Camera, Check, ChevronRight, FileText, Loader2, MessageSquare, Mic, MapPin, Plus, Square, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowUp, Camera, Check, ChevronRight, FileText, Loader2, MessageSquare, Mic, MapPin, Square, X } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { notify, tell } from '@/lib/notice';
 import { when } from '@/lib/when';
@@ -46,8 +46,11 @@ const CREATE: { type: Creatable; record: ErpRecordType; label: string }[] = [
 type Phase =
   | { k: 'idle' }
   | { k: 'recording' }
-  | { k: 'working'; recording?: Recording; steps?: string[] }
+  | { k: 'working'; recording?: Recording; steps?: string[]; said?: string }
   | { k: 'failed'; recording: Recording };
+
+/** Der abgeschriebene Text einer Aufnahme – er liegt in der Eingabe, bis die Person ihn schickt. */
+interface Spoken { id: number; text: string }
 
 /**
  * ►►► **«+» = der Assistent – EIN Gespräch, wie das Eingabefeld bei Claude.** ◄◄◄
@@ -56,12 +59,13 @@ type Phase =
  * Oben die Eingabe: schreiben (Enter = ab, Umschalt+Enter = neue Zeile), 📷 Foto und 📄 Datei
  * (sie kommen **ins Gespräch** – die KI liest sie und bereitet das Dokument vor), 📌 Stecknadel
  * (auf eine Stelle zeigen – Rückmeldung zur Software, am Artikel «ERP» bzw. «Website»),
- * 🎤 Aufnehmen. Darunter das Gespräch: was ich sagte, was die KI antwortet, und die **Handgriffe**
- * als Karten – jeder einzeln: Ausführen, Entwurf öffnen, Ändern, Weg. Dann «Offene Gespräche» und
- * «Neu anlegen».
+ * 🎤 Aufnehmen (der abgeschriebene Text kommt **in die Eingabe** – ergänzen, dann senden).
+ * Darunter das Gespräch: was ich sagte, was die KI antwortet (live, Wort für Wort), und ihre
+ * **Vorschläge** als Karten – je einzeln: Öffnen (Entwurf oder Datensatz, dort «Übernehmen»), ✕.
+ * «←» führt zurück zur Übersicht: «Offene Gespräche» und «Neu anlegen».
  *
  * **Das Fenster ändert sich nie** – man arbeitet nur darin: die Aufnahme läuft *im* Feld, während
- * die KI antwortet, steht das Skeleton dort, wo die Antwort erscheint. Schliessen (daneben tippen,
+ * die KI antwortet, steht ihr Text dort, wo die Antwort erscheint. Schliessen (daneben tippen,
  * Esc) geht immer, **ausser während einer Aufnahme**; was offen ist, bleibt unter «Offene
  * Gespräche» (die Zahl am «+»). Antwortet die KI erst nach dem Schliessen, meldet es sich.
  */
@@ -78,6 +82,7 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
   const [place, setPlace] = useState('');
   const [picking, setPicking] = useState(false);
   const [problem, setProblem] = useState('');
+  const [spoken, setSpoken] = useState<Spoken | null>(null);
   /** Die Stecknadel fand den Artikel der Software nicht – leise gesagt, nicht verschwiegen. */
   const [homeless, setHomeless] = useState('');
   const alive = useAlive();
@@ -92,28 +97,42 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
 
   const { pin, forget } = usePin({ host, hint, setPicking, setPlace, setAbout, setHomeless });
   const keep = (t: Talk) => { client.setQueryData(qk.talk(t.id), t); setTalkId(t.id); };
-  const fresh = () => { forget(); setPhase({ k: 'idle' }); setTalkId(null); setPlace(''); setAbout(hint); setProblem(''); setHomeless(''); };
+  const fresh = () => {
+    forget(); setPhase({ k: 'idle' }); setTalkId(null); setPlace(''); setAbout(hint); setProblem(''); setHomeless(''); setSpoken(null);
+  };
+  /** Eine abgeschriebene Aufnahme – ihr Text in die Eingabe, die Stecknadel davor, im Gespräch, in
+   *  dem gesprochen wurde. Geschickt wird von der Person. */
+  const heard = (r: Recording) => {
+    setPhase({ k: 'idle' });
+    if (r.talk) setTalkId(r.talk);
+    if (r.context) setPlace(r.context);
+    setSpoken({ id: r.id, text: r.text ?? '' });
+  };
 
   /** Ein Schritt der KI, live – er steht unter dem Gespräch, bis die Antwort da ist. */
   const step = (st: string) => {
     if (alive.current) setPhase((p) => (p.k === 'working' ? { ...p, steps: [...(p.steps ?? []), st] } : p));
   };
+  /** Ein Stück ihrer Antwort, Wort für Wort. */
+  const piece = (t: string) => {
+    if (alive.current) setPhase((p) => (p.k === 'working' ? { ...p, said: (p.said ?? '') + t } : p));
+  };
 
   /**
    * ►► **Sagen und live zuhören** – die Nachricht steht sofort im Gespräch, darunter, was die KI
-   * gerade tut, dann ihre Antwort. Ohne Text (nach einer Aufnahme) antwortet sie auf das, was
-   * dasteht. Antwortet sie, nachdem das «+» zu ist, meldet es sich. ◄◄
+   * gerade tut, dann ihre Antwort, Wort für Wort. Antwortet sie, nachdem das «+» zu ist, meldet es
+   * sich. ◄◄
    */
-  async function live(text: string, files: TalkFile[], talk: number | null): Promise<boolean> {
+  async function live(text: string, files: TalkFile[], talk: number | null, recording: number | null): Promise<boolean> {
     setPhase({ k: 'working', steps: [] });
     setProblem('');
     let id = talk;                                // ein neues Gespräch hat seine Nummer ab der ersten Zeile
     try {
       await api.say(text, {
-        talk, hint: talk ? null : about?.objectId, files,
-        onTalk: (x) => { id = x.id; if (alive.current) keep(x); }, onStep: step,
+        talk, hint: talk ? null : about?.objectId, files, recording,
+        onTalk: (x) => { id = x.id; if (alive.current) keep(x); }, onStep: step, onText: piece,
       });
-      if (alive.current) setPlace('');
+      if (alive.current) { setPlace(''); setSpoken(null); }
       else notify('Der Assistent hat geantwortet – das Gespräch steht im «+».', Date.now(), { tone: 'info' });
       return true;
     } catch (e) {
@@ -132,7 +151,8 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
       if (alive.current) setPhase({ k: 'idle' });
     }
   }
-  const send = (text: string, files: TalkFile[]) => live(place ? `${place}\n\n${text}` : text, files, talkId);
+  const send = (text: string, files: TalkFile[]) =>
+    live(place ? `${place}\n\n${text}` : text, files, talkId, spoken?.id ?? null);
   const halt = () => { if (talkId) api.stopTalk(talkId).catch(tell('Gespräch', 'Nicht angehalten')); };
 
   // Beim Zeigen tritt das «+» nur beiseite (unsichtbar, nicht ausgehängt) – der getippte Text,
@@ -144,11 +164,11 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
         role="dialog" aria-modal="true" aria-label="Assistent" className="erp-capture-sheet"
         {...{ [PIN_UI]: 'true' }} onClick={(e) => e.stopPropagation()}>
         <div className="erp-capture-body">
-          {talk && <TalkView talk={talk} working={phase.k === 'working'} steps={phase.k === 'working' ? phase.steps : undefined}
-            onStop={phase.k === 'working' && !phase.recording ? halt : undefined} onFresh={fresh}
+          {talk && <TalkView talk={talk} phase={phase}
+            onStop={phase.k === 'working' && !phase.recording ? halt : undefined} onBack={fresh} onLeave={onClose}
             onChanged={() => void client.invalidateQueries({ queryKey: qk.talk(talk.id) })} />}
-          {!talk && phase.k === 'working' && <Skeleton steps={phase.steps} />}
-          <Composer phase={phase} place={place} about={talk ? null : about} talk={talk?.id ?? null}
+          {!talk && phase.k === 'working' && <Skeleton steps={phase.steps} said={phase.said} />}
+          <Composer phase={phase} place={place} about={talk ? null : about} talk={talk?.id ?? null} spoken={spoken}
             onDropPlace={() => { forget(); setPlace(''); setAbout(hint); setHomeless(''); }}
             onSend={send} onPin={pin}
             onRecord={() => { setProblem(''); setPhase({ k: 'recording' }); }}
@@ -157,13 +177,13 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
           {!talk && <HintLine about={about} onDrop={phase.k === 'idle' && about ? () => setAbout(null) : undefined} />}
           {homeless && <p className="erp-capture-hint" style={{ marginTop: -6 }}>{homeless}</p>}
           {problem && <p role="alert" className="erp-capture-problem"><AlertCircle size={15} aria-hidden />{problem}</p>}
-          <Transcribing phase={phase} alive={alive}
-            onTalk={(t) => { keep(t); void live('', [], t.id); }}
+          <Transcribing phase={phase} alive={alive} onDone={heard}
             onFailed={(recording) => setPhase({ k: 'failed', recording })} />
           {phase.k === 'failed' && <FailedRecording recording={phase.recording} onDone={fresh} />}
           <div className="erp-capture-rest" aria-disabled={phase.k !== 'idle' || undefined}>
             <OpenList current={talkId} onTalk={(t) => { keep(t); setPhase({ k: 'idle' }); }}
-              onRecording={(r) => setPhase(r.state === 'failed' ? { k: 'failed', recording: r } : { k: 'working', recording: r })} />
+              onRecording={(r) => (r.state === 'done' ? heard(r)
+                : setPhase(r.state === 'failed' ? { k: 'failed', recording: r } : { k: 'working', recording: r }))} />
             {!talk && <CreateTiles onCreate={onCreate} />}
           </div>
         </div>
@@ -255,8 +275,8 @@ function HintLine({ about, onDrop }: { about: CaptureHint | null; onDrop?: () =>
  * Anhang in die nächste Nachricht (sie liegen dann im Korb). Während einer Aufnahme ist sie die
  * Aufnahme (`RecordingStrip`); während die KI antwortet, wartet sie. ◄◄
  */
-function Composer({ phase, place, about, talk, onDropPlace, onSend, onPin, onRecord, onStopped, onMicFailed }: {
-  phase: Phase; place: string; about: CaptureHint | null; talk: number | null; onDropPlace: () => void;
+function Composer({ phase, place, about, talk, spoken, onDropPlace, onSend, onPin, onRecord, onStopped, onMicFailed }: {
+  phase: Phase; place: string; about: CaptureHint | null; talk: number | null; spoken: Spoken | null; onDropPlace: () => void;
   onSend: (text: string, files: TalkFile[]) => Promise<boolean>;
   onPin: () => void; onRecord: () => void; onStopped: (r: Recording) => void; onMicFailed: (why: string) => void;
 }) {
@@ -267,6 +287,10 @@ function Composer({ phase, place, about, talk, onDropPlace, onSend, onPin, onRec
   const photo = useRef<HTMLInputElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const idle = phase.k === 'idle';
+  // Der abgeschriebene Text einer Aufnahme kommt in die Eingabe – hinter das, was schon dasteht.
+  useEffect(() => {
+    if (spoken?.text) setText((t) => (t.trim() ? `${t.trimEnd()}\n\n${spoken.text}` : spoken.text));
+  }, [spoken?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- einmal je Aufnahme
   const ready = idle && !uploading && (!!text.trim() || files.length > 0);
   async function attach(list: FileList | null) {
     if (!list?.length) return;
@@ -295,15 +319,15 @@ function Composer({ phase, place, about, talk, onDropPlace, onSend, onPin, onRec
   }
   return (
     <div className={idle ? 'erp-composer' : 'erp-composer erp-composer-wait'}>
-      {place && (
-        <div className="erp-composer-place">
-          <MapPin size={14} aria-hidden style={{ flex: 'none' }} />
-          <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{place}</span>
-          {idle && <button type="button" onClick={onDropPlace} aria-label="Stelle entfernen" className="erp-capture-x"><X size={13} /></button>}
-        </div>
-      )}
-      {(files.length > 0 || uploading > 0) && (
+      {(place || files.length > 0 || uploading > 0) && (
         <div className="erp-composer-files">
+          {place && (
+            <span className="erp-talk-file erp-composer-pin" data-tip={place}>
+              <MapPin size={13} aria-hidden style={{ flex: 'none' }} />
+              <span className="truncate" style={{ minWidth: 0 }}>{place.replace(/^Stelle:\s*/, '')}</span>
+              {idle && <button type="button" onClick={onDropPlace} aria-label="Stelle entfernen" className="erp-capture-x"><X size={12} /></button>}
+            </span>
+          )}
           {files.map((f) => (
             <span key={f.token} className="erp-talk-file">
               <FileText size={13} aria-hidden />{f.name}
@@ -343,28 +367,34 @@ function Composer({ phase, place, about, talk, onDropPlace, onSend, onPin, onRec
 
 /**
  * ►► **Das Gespräch** – was ich sagte (rechts), was die KI antwortet (links), die Handgriffe als
- * Karten, der Reihe nach. Oben «Neues Gespräch»; während die KI antwortet, das Skeleton. ◄◄
+ * Karten, der Reihe nach. Oben «←» zur Übersicht; während die KI antwortet, ihr Text live. ◄◄
  */
-function TalkView({ talk, working, steps, onStop, onFresh, onChanged }: {
-  talk: Talk; working: boolean; steps?: string[]; onStop?: () => void; onFresh: () => void; onChanged: () => void;
+function TalkView({ talk, phase, onStop, onBack, onLeave, onChanged }: {
+  talk: Talk; phase: Phase; onStop?: () => void; onBack: () => void; onLeave: () => void; onChanged: () => void;
 }) {
+  const working = phase.k === 'working';
+  const steps = working ? phase.steps : undefined;
+  const said = working ? phase.said : undefined;
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }); },
-    [talk.messages.length, talk.handgriffe.length, steps?.length]);
+    [talk.messages.length, talk.handgriffe.length, steps?.length, said?.length]);
   const items = [
     ...talk.messages.map((m) => ({ at: m.at, id: m.id, el: <Bubble key={`m${m.id}`} m={m} /> })),
-    ...talk.handgriffe.map((h) => ({ at: h.at, id: h.id, el: <HandgriffCard key={`h${h.id}`} h={h} onChanged={onChanged} /> })),
+    ...talk.handgriffe.map((h) => ({ at: h.at, id: h.id,
+      el: <HandgriffCard key={`h${h.id}`} h={h} onChanged={onChanged} onLeave={onLeave} /> })),
   ].sort((a, b) => a.id - b.id);
   return (
     <div className="erp-talk">
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button type="button" onClick={onBack} disabled={working || phase.k === 'recording'} className="erp-icbtn"
+          aria-label="Zur Übersicht" data-tip="Zur Übersicht – das Gespräch bleibt unter «Offene Gespräche»">
+          <ArrowLeft size={16} />
+        </button>
         <MessageSquare size={14} aria-hidden style={{ color: 'var(--fg-3)' }} />
         <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)', flex: 1 }}>Gespräch{talk.hint_object_id ? <> · <ObjId value={talk.hint_object_id} /></> : null}</span>
-        <button type="button" onClick={onFresh} disabled={working} className="erp-actbtn erp-actbtn-neutral"
-          style={{ height: 28, padding: '0 10px', fontSize: 12 }}><Plus size={13} />Neues Gespräch</button>
       </div>
       {items.map((x) => x.el)}
-      {working && <Skeleton steps={steps} onStop={onStop} />}
+      {working && <Skeleton steps={steps} said={said} onStop={onStop} />}
       {!working && talk.problem && <p className="erp-capture-hint" role="status">{talk.problem}</p>}
       <div ref={end} />
     </div>
@@ -380,9 +410,9 @@ function Bubble({ m }: { m: Talk['messages'][number] }) {
   );
 }
 
-/** Eine Aufnahme wird abgeschrieben – das «+» folgt ihr, bis der Text im Gespräch steht. */
-function Transcribing({ phase, alive, onTalk, onFailed }: {
-  phase: Phase; alive: { current: boolean }; onTalk: (t: Talk) => void; onFailed: (r: Recording) => void;
+/** Eine Aufnahme wird abgeschrieben – das «+» folgt ihr, bis der Text in der Eingabe steht. */
+function Transcribing({ phase, alive, onDone, onFailed }: {
+  phase: Phase; alive: { current: boolean }; onDone: (r: Recording) => void; onFailed: (r: Recording) => void;
 }) {
   const recording = phase.k === 'working' ? phase.recording : undefined;
   useEffect(() => {
@@ -390,7 +420,7 @@ function Transcribing({ phase, alive, onTalk, onFailed }: {
     const run = follow(recording, () => undefined);
     run.promise.then((r) => {
       if (!alive.current) return;
-      if (r.state === 'done' && r.talk) onTalk(r.talk); else onFailed(r);
+      if (r.state === 'done') onDone(r); else onFailed(r);
     }, tell('Aufnahme', 'Nicht abgeschrieben'));
     return run.leave;
     // Eine Schleife je Aufnahme – die Rückrufe ändern sich mit jedem Zeichnen, die Aufnahme nicht.
@@ -403,7 +433,7 @@ function Transcribing({ phase, alive, onTalk, onFailed }: {
  * ►► **Während die KI arbeitet** – was sie gerade tut, Schritt für Schritt («liest …», «bereitet vor:
  * …»), darunter die graue Form der Antwort; «Stopp» hält sie vor dem nächsten Schritt an. ◄◄
  */
-function Skeleton({ steps, onStop }: { steps?: string[]; onStop?: () => void }) {
+function Skeleton({ steps, said, onStop }: { steps?: string[]; said?: string; onStop?: () => void }) {
   return (
     <div className="erp-capture-skel" aria-busy="true" aria-label="Der Assistent antwortet">
       {(steps ?? []).length > 0 && (
@@ -416,8 +446,9 @@ function Skeleton({ steps, onStop }: { steps?: string[]; onStop?: () => void }) 
           ))}
         </ol>
       )}
-      <span className="erp-skel" style={{ height: 12, width: '72%' }} />
-      <span className="erp-skel" style={{ height: 12, width: '54%' }} />
+      {said && <div className="erp-bubble" aria-live="polite"><span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{said}</span></div>}
+      {!said && <span className="erp-skel" style={{ height: 12, width: '72%' }} />}
+      {!said && <span className="erp-skel" style={{ height: 12, width: '54%' }} />}
       {onStop && (
         <button type="button" onClick={onStop} className="erp-actbtn erp-actbtn-neutral"
           style={{ height: 28, padding: '0 10px', fontSize: 12, alignSelf: 'flex-start' }}>
@@ -453,20 +484,23 @@ function OpenList({ current, onTalk, onRecording }: {
   current: number | null; onTalk: (t: Talk) => void; onRecording: (r: Recording) => void;
 }) {
   const talks = (useOpenTalks().data ?? []).filter((t) => t.id !== current);
-  // Fertige stehen schon als Gespräch da.
-  const recordings = (useOpenRecordings().data ?? []).filter((r) => r.state !== 'done');
+  // Abgeschriebene warten darauf, dass jemand ihren Text schickt – antippen legt ihn in die Eingabe.
+  const recordings = useOpenRecordings().data ?? [];
   if (!talks.length && !recordings.length) return null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)' }}>Offene Gespräche</span>
       {recordings.map((r) => (
-        <button key={`r${r.id}`} type="button" onClick={() => onRecording(r)} data-tip={r.problem ?? undefined}
-          className={r.state === 'failed' ? 'erp-capture-row erp-capture-row-warn' : 'erp-capture-row'}>
-          <Mic size={15} style={{ flex: 'none', color: r.state === 'failed' ? 'var(--danger)' : 'var(--fg-3)' }} />
-          <span className="truncate" style={{ flex: 1, minWidth: 0 }}>{recordingWord(r)}</span>
-          <span className="tabular-nums erp-capture-when">{runtime(r.seconds * 1000)} · {when(r.at)}</span>
-          <ChevronRight size={15} aria-hidden style={{ flex: 'none', color: 'var(--fg-4)' }} />
-        </button>
+        <div key={`r${r.id}`} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button type="button" onClick={() => onRecording(r)} data-tip={r.problem ?? r.text ?? undefined}
+            className={r.state === 'failed' ? 'erp-capture-row erp-capture-row-warn' : 'erp-capture-row'} style={{ flex: 1, minWidth: 0 }}>
+            <Mic size={15} style={{ flex: 'none', color: r.state === 'failed' ? 'var(--danger)' : 'var(--fg-3)' }} />
+            <span className="truncate" style={{ flex: 1, minWidth: 0 }}>{recordingWord(r)}</span>
+            <span className="tabular-nums erp-capture-when">{runtime(r.seconds * 1000)} · {when(r.at)}</span>
+            <ChevronRight size={15} aria-hidden style={{ flex: 'none', color: 'var(--fg-4)' }} />
+          </button>
+          {r.state === 'done' && <DismissRecording id={r.id} />}
+        </div>
       ))}
       {talks.map((t) => {
         const open = t.handgriffe.filter((h) => h.state === 'open' || h.state === 'waiting').length;
@@ -482,6 +516,16 @@ function OpenList({ current, onTalk, onRecording }: {
         );
       })}
     </div>
+  );
+}
+
+/** Eine abgeschriebene Aufnahme verwerfen – ihr Text wird nicht gebraucht. */
+function DismissRecording({ id }: { id: number }) {
+  const { busy, run } = useAction();
+  return (
+    <button type="button" disabled={busy} aria-label="Verwerfen" data-tip="Verwerfen – der Text wird nicht gesendet"
+      onClick={() => void run(() => api.dismissRecording(id), tell('Aufnahme', 'Nicht verworfen'))}
+      className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon erp-hg-x"><X size={14} /></button>
   );
 }
 

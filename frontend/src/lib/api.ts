@@ -591,19 +591,23 @@ class ApiClient {
   /**
    * ►►► **Dem Assistenten etwas sagen – die Antwort kommt live** (wie bei Claude). ◄◄◄ Ohne `talk`
    * beginnt ein Gespräch (am offenen Datensatz `hint`); ohne Text, aber mit `talk`, antwortet die KI
-   * auf das, was dasteht (nach einer Aufnahme). Je Zeile des Streams: `onTalk` (das Gespräch – sofort
-   * mit der Nachricht, am Ende mit der Antwort), `onStep` (was die KI gerade tut). Läuft direkt am
+   * auf das, was dasteht. `recording` = die Aufnahme, aus der der Text stammt. Je Zeile des Streams:
+   * `onTalk` (das Gespräch – sofort mit der Nachricht, am Ende mit der Antwort), `onStep` (was die KI
+   * gerade tut), `onText` (ein Stück ihrer Antwort, Wort für Wort). Läuft direkt am
    * Dienst – ohne die 60 s des Hostings; begrenzt durch Schritte, Deckel und «Stopp».
    * Von Hand, weil die Antwort ein NDJSON-Stream ist; der Rumpf ist trotzdem getippt.
    */
   async say(text: string, opts: {
     talk?: number | null; hint?: number | null; files?: In<'post', '/api/v1/erp/assistant/talks'>['files'];
-    onTalk?: (t: Talk) => void; onStep?: (step: string) => void; signal?: AbortSignal;
+    recording?: number | null;
+    onTalk?: (t: Talk) => void; onStep?: (step: string) => void; onText?: (piece: string) => void;
+    signal?: AbortSignal;
   } = {}): Promise<Talk> {
     const path: Route<'post'> = '/api/v1/erp/assistant/talks';
     const payload: In<'post', '/api/v1/erp/assistant/talks'> = {
       text, ...(opts.talk ? { talk: opts.talk } : {}), ...(opts.hint ? { hint_object_id: opts.hint } : {}),
       ...(opts.files?.length ? { files: opts.files } : {}),
+      ...(opts.recording ? { recording: opts.recording } : {}),
     };
     const body = JSON.stringify(payload);
     const base = await this.talkDoor();
@@ -620,9 +624,10 @@ class ApiClient {
     notifyDataChanged(path);
     let last: Talk | null = null;
     for await (const line of ndjson(res.body)) {
-      const item = line as { talk?: Talk; step?: string; error?: string };
+      const item = line as { talk?: Talk; step?: string; text?: string; error?: string };
       if (item.talk) { last = item.talk; opts.onTalk?.(item.talk); }
       if (item.step) opts.onStep?.(item.step);
+      if (item.text) opts.onText?.(item.text);
       if (item.error) throw new Error(item.error);
     }
     notifyDataChanged(path);
@@ -658,23 +663,9 @@ class ApiClient {
     return this.request<Blob>(fill(route, { path: { token } }), {}, 'blob');
   }
 
-  /** Die Handlung hinter einem Handgriff – ihre Felder für «Ändern». */
-  handgriffOperation(id: number, req?: Req) {
-    return this.call('get', '/api/v1/erp/assistant/handgriffe/{handgriff_id}/operation',
-      { path: { handgriff_id: id } }, req);
-  }
-
-  /** **Ausführen** – genau einmal, mit meinen Rechten; `body` nur mit geänderten Werten. */
-  runHandgriff(id: number, body?: In<'post', '/api/v1/erp/assistant/handgriffe/{handgriff_id}/run'>['body']) {
-    return this.call('post', '/api/v1/erp/assistant/handgriffe/{handgriff_id}/run',
-      { path: { handgriff_id: id }, body: body === undefined ? {} : { body } });
-  }
-
-  /** Eine geänderte Fassung prüfen – der Probelauf derselben Route, nichts bleibt. */
-  probeHandgriff(id: number, body: In<'post', '/api/v1/erp/assistant/handgriffe/{handgriff_id}/probe'>['body'],
-                 req?: Req) {
-    return this.call('post', '/api/v1/erp/assistant/handgriffe/{handgriff_id}/probe',
-      { path: { handgriff_id: id }, body: { body } }, req);
+  /** **Übernehmen** – genau einmal, mit meinen Rechten, durch die echte Route (am Datensatz). */
+  runHandgriff(id: number) {
+    return this.call('post', '/api/v1/erp/assistant/handgriffe/{handgriff_id}/run', { path: { handgriff_id: id } });
   }
 
   /** **Weg** – der Handgriff geschieht nicht. */

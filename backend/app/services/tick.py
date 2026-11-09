@@ -84,7 +84,7 @@ def _ai(db, deadline: float) -> dict[str, int]:
 
 def _ai_steps(db, deadline: float) -> dict[str, int]:
     import time as _t
-    from . import ai, follow, memory, talk
+    from . import ai, follow, memory, pins, talk
     done: dict[str, int] = {}
     if ai.available(db) and _t.monotonic() < deadline:
         done["answered"] = talk.catch_up(db, deadline)
@@ -93,6 +93,8 @@ def _ai_steps(db, deadline: float) -> dict[str, int]:
         db.commit()
     if _t.monotonic() < deadline:          # Bedeutungs-Zahlen brauchen nur Vertex
         done["remembered"] = memory.catch_up(db, deadline, MEMORY_PER_RUN)
+    if ai.available(db) and _t.monotonic() < deadline:   # «Auf einen Blick» vorab
+        done["glanced"] = pins.ahead(db, deadline)
     return {k: v for k, v in done.items() if v}
 
 

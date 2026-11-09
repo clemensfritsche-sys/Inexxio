@@ -29,11 +29,28 @@ class _Script:
 
     def __init__(self, *answers):
         self.answers, self.seen = list(answers), []
-        self.messages = SimpleNamespace(parse=self._parse)
+        self.messages = SimpleNamespace(parse=self._parse, stream=self._stream)
 
     def _parse(self, **kw):
         self.seen.append(kw)
         return self.answers.pop(0)
+
+    def _stream(self, **kw):
+        """Text gestreamt (``ai._turn`` ohne geprüfte Form): je Textblock ein Stück."""
+        answer = self._parse(**kw)
+
+        class Live:
+            text_stream = [b.text for b in answer.content if getattr(b, "type", "") == "text"]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def get_final_message(self):
+                return answer
+        return Live()
 
 
 def _ready(monkeypatch, script, spent=0.0):

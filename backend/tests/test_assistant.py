@@ -95,7 +95,7 @@ def _prepare(i, key, path, body, line, wait=()):
 def _turns(*calls, say="Erledigt."):
     """Eine KI, die je Zug ein Werkzeug ruft und dann antwortet."""
     steps = [_answer(stop="tool_use", content=[c]) for c in calls]
-    return _Script(*steps, _answer(parsed=talk.Answer(text=say)))
+    return _Script(*steps, _answer(content=[_Block(type="text", text=say)]))
 
 
 def _note(about, body="Kran 3 quietscht"):
@@ -129,11 +129,11 @@ def test_the_ai_prepares_and_only_the_person_executes(db, api, house, monkeypatc
     assert h["state"] == "open" and h["object_id"] == firm.object_id and t["open"]
     assert t["messages"][-1]["by"] == "ai"
     assert db.query(Message).filter(Message.body == body).count() == 0, "(a)"
-    r = api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run", json={})
+    r = api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run")
     assert r.status_code == 200, r.text
     db.expire_all()
     assert db.query(Message).filter(Message.id == r.json()["data"]["id"]).one().channel == "note"
-    again = api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run", json={})
+    again = api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run")
     assert again.status_code == 409, "(b)"
     assert talk.view(db, t["id"]).open is False
 
@@ -155,12 +155,12 @@ def test_what_builds_on_another_waits_and_then_gets_its_number(db, api, house, m
     t = _say(api, boss, "Und notiere: Kontakt über die Messe.", talk=t["id"])
     b = next(h for h in t["handgriffe"] if h["id"] != a["id"])
     assert b["state"] == "waiting" and b["waits_for"] == [a["id"]]
-    blocked = api.as_(boss).post(f"/api/v1/erp/assistant/handgriffe/{b['id']}/run", json={})
+    blocked = api.as_(boss).post(f"/api/v1/erp/assistant/handgriffe/{b['id']}/run")
     assert blocked.status_code == 409 and "Wartet" in blocked.json()["detail"]
-    made = api.as_(boss).post(f"/api/v1/erp/assistant/handgriffe/{a['id']}/run", json={}).json()
+    made = api.as_(boss).post(f"/api/v1/erp/assistant/handgriffe/{a['id']}/run").json()
     firm_nr = made["handgriff"]["result"]
     assert firm_nr
-    note = api.as_(boss).post(f"/api/v1/erp/assistant/handgriffe/{b['id']}/run", json={})
+    note = api.as_(boss).post(f"/api/v1/erp/assistant/handgriffe/{b['id']}/run")
     assert note.status_code == 200, note.text
     db.expire_all()
     from app.models import MessageParty
@@ -169,25 +169,29 @@ def test_what_builds_on_another_waits_and_then_gets_its_number(db, api, house, m
     assert about.object_id == firm_nr
 
 
-def test_what_changed_since_it_was_prepared_is_not_overwritten(db, api, house, monkeypatch):
-    """(c) Telefon alt → neu vorbereitet; jemand ändert die Person dazwischen – Ausführen weist
-    ab und nennt die Änderung. Mit bewusst geänderten Werten geht es."""
+def test_a_change_shows_old_and_new_as_it_is_now(db, api, house, monkeypatch):
+    """(c) Telefon alt → neu vorbereitet: der Vorschlag zeigt am Datensatz, was er ändert – «alt»
+    aus derselben Route, **wie es jetzt ist**. Ändert jemand dazwischen, zeigt er den neuen Stand,
+    und «Übernehmen» tut genau das Gezeigte (Bug-Form: «alt» eingefroren, still überschrieben)."""
     boss, staff, _firm = house
     path = f"/api/v1/erp/records/{staff.object_id}"
     _ready(monkeypatch, _turns(_prepare(1, "PATCH /api/v1/erp/records/{object_id}", path,
                                         {"phone": "+41 52 111 11 11"}, "Telefon neu")))
     (h,) = _say(api, boss, "Neue Nummer.", hint_object_id=staff.object_id)["handgriffe"]
+    (change,) = h["changes"]
+    assert change["field"] == "phone" and change["after"] == "+41 52 111 11 11"
     other = session()
     p = other.query(UserProfile).filter(UserProfile.id == staff.id).one()
     act(other, "person", boss.object_id, "ui")
-    p.first_name = "Geändert"
+    p.phone = "+41 52 999 99 99"
     other.commit()
     other.close()
-    r = api.as_(boss).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run", json={})
-    assert r.status_code == 409 and "Seit der Vorbereitung geändert" in r.json()["detail"], "(c)"
-    r = api.as_(boss).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run",
-                           json={"body": {"phone": "+41 52 222 22 22"}})
+    (seen,) = api.as_(boss).get(f"/api/v1/erp/assistant/handgriffe/{h['id']}").json()["changes"]
+    assert seen["before"] == "+41 52 999 99 99", "(c) wie es jetzt ist"
+    r = api.as_(boss).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run")
     assert r.status_code == 200, r.text
+    db.expire_all()
+    assert "111 11 11" in db.query(UserProfile).filter(UserProfile.id == staff.id).one().phone
 
 
 def test_the_ai_cannot_prepare_what_the_person_may_not_do(db, api, house, monkeypatch):
@@ -242,7 +246,7 @@ def test_drop_and_the_conversation_closes(db, api, house, monkeypatch):
     hid = t["handgriffe"][0]["id"]
     assert api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{hid}/drop").status_code == 200
     assert t["id"] not in talk.open_ids(db, staff)
-    assert api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{hid}/run", json={}).status_code == 409
+    assert api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{hid}/run").status_code == 409
 
 
 def test_a_handgriff_from_a_mail_counts_at_its_record(db, house):
@@ -280,20 +284,18 @@ def test_the_pinned_knowledge_asks_the_ai_only_after_a_change(db, house, monkeyp
     assert len(script.seen) == 2
 
 
-def test_a_handgriff_needing_the_hand_is_opened_not_run(db, house):
-    """Ein Dokument mit Datei geht nur von Hand – der Handgriff entsteht, Ausführen weist ab,
-    «von Hand erledigt» schliesst ihn."""
+def test_a_document_is_made_in_its_draft(db, house):
+    """Ein Dokument braucht seine Datei – der Vorschlag entsteht ohne Probelauf (die Datei kommt
+    mit dem Entwurf); «im Entwurf erledigt» schliesst ihn, und er nennt, was entstand."""
     boss, _staff, firm = house
     hid, out = handgriff.prepare(db, boss, method="POST", path="/api/v1/erp/documents",
                                  body={"art": "Lieferschein", "name": "LS 1"}, line="Dokument",
                                  home=firm.object_id, talk=None)
     assert hid and out.ok
-    (h,) = handgriff.view(db, handgriff.load(db, [hid]))
-    assert h.hand
-    with pytest.raises(Rejected) as e:
-        handgriff.run(db, boss, hid)
-    assert e.value.status == 409
-    assert handgriff.settle(db, boss, hid, None).done is not None
+    done = handgriff.settle(db, boss, hid, 100000123)
+    assert done.done is not None and done.done["result"] == 100000123
+    with pytest.raises(Rejected):
+        handgriff.settle(db, boss, hid, None)
 
 
 def test_while_someone_types_the_knowledge_is_chosen_at_most_once_in_a_while(db, house, monkeypatch):
@@ -309,37 +311,19 @@ def test_while_someone_types_the_knowledge_is_chosen_at_most_once_in_a_while(db,
     assert len(script.seen) == 1
 
 
-def test_the_ai_executes_only_what_the_person_saw_and_said_here(db, api, house, monkeypatch):
-    """(a) «ausführen» gibt es nur, wenn die Person gerade spricht, nur für einen Handgriff
-    **dieses** Gesprächs, den sie vor ihrer letzten Nachricht sah – nie einen aus einer Mail, nie
-    im selben Zug, in dem er entstand, nie im Takt. Eine Regel im Code, nicht nur ein Satz."""
+def test_the_ai_never_executes(db, house):
+    """Die KI bereitet vor, ausführen tut nur die Person – im Gespräch, aus Mails und über MCP
+    gibt es kein Werkzeug dafür (Bug-Form: «ausführen auf ein Wort» kommt zurück)."""
+    from app.services import follow, mcp
     boss, staff, firm = house
+    names = {t.name for t in talk.tools(db, staff, 1, firm.object_id)}
+    names |= {t.name for t in mcp.tools(db, staff, 1)}
     msg = Message(sender_object_id=firm.object_id, channel="note", subject="Mail", body="x")
     db.add(msg)
     db.flush()
-    mailed, _ = handgriff.prepare(db, boss, method="POST", path="/api/v1/erp/messages",
-                                  body=_note(firm.object_id), line="aus Mail", home=firm.object_id,
-                                  mail=msg.id)
-    body = f"Sofort ({random.randint(1, 10**9)})"
-    script = _turns(_prepare(1, "POST /api/v1/erp/messages", "/api/v1/erp/messages",
-                             _note(firm.object_id, body), "Notiz"),
-                    _tool("ausfuehren", 2, handgriff=mailed))
-    _ready(monkeypatch, script)
-    t = _say(api, staff, "Leg alles ab.")
-    (mine,) = t["handgriffe"]
-    # Ein Handgriff aus einer Mail: nicht dieses Gespräch – abgewiesen, nichts geschieht.
-    result = script.seen[2]["messages"][-1]["content"][0]["content"]
-    assert "gehört nicht zu diesem Gespräch" in result, "(a) eine Mail"
-    assert handgriff.get(db, mailed).is_open
-    assert db.query(Message).filter(Message.body == body).count() == 0
-    # Im nächsten Zug, auf ihr Wort: jetzt geht es.
-    script2 = _turns(_tool("ausfuehren", 4, handgriff=mine["id"]))
-    _ready(monkeypatch, script2)
-    t = _say(api, staff, "Ja, ablegen.", talk=t["id"])
-    assert next(h for h in t["handgriffe"] if h["id"] == mine["id"])["state"] == "done"
-    # Im Takt ist niemand da – es gibt das Werkzeug gar nicht.
-    names = [x.name for x in talk.tools(db, staff, t["id"], firm.object_id)]
-    assert "ausfuehren" not in names and "vorbereiten" in names
+    names |= {t.name for t in follow._tools(db, msg, boss, staff)}
+    assert "vorbereiten" in names
+    assert not {n for n in names if "ausf" in n or n in ("run", "execute")}
 
 
 def test_a_rolled_back_savepoint_keeps_the_mails_of_the_request(db):
@@ -375,20 +359,20 @@ def test_a_crafted_path_is_no_handgriff():
 # ─── Feinschliff: unvollständig, lesen, live, Stopp ─────────────────────────────────────
 
 def test_missing_values_make_a_card_that_waits_for_the_person(db, api, house, monkeypatch):
-    """Fehlen nur Werte (die Route sagt 400/422), wird es trotzdem eine Karte – mit dem Satz der
-    Route; «Ausführen» weist ab, bis die Person ergänzt. Was sie nicht darf, wird nie eine
-    (``test_the_ai_cannot_prepare_what_the_person_may_not_do``)."""
+    """Fehlen nur Werte (die Route sagt 400/422), wird es trotzdem ein Vorschlag – die Person
+    ergänzt sie im Entwurf; «Übernehmen» ohne sie sagt den Satz der Route. Was sie nicht darf,
+    wird nie einer (``test_the_ai_cannot_prepare_what_the_person_may_not_do``)."""
     _boss, staff, _firm = house
     script = _turns(_prepare(1, "POST /api/v1/erp/articles", "/api/v1/erp/articles",
                              {"name": "ERP"}, "Artikel «ERP» anlegen"))
     _ready(monkeypatch, script)
     t = _say(api, staff, "Leg den Artikel ERP an.")
     (h,) = t["handgriffe"]
-    assert h["state"] == "open" and "Abmessungen" in h["missing"]
+    assert h["state"] == "open"
     result = script.seen[1]["messages"][-1]["content"][0]["content"]
     assert "unvollständig" in result
-    r = api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run", json={})
-    assert r.status_code == 409 and "Unvollständig" in r.json()["detail"]
+    r = api.as_(staff).post(f"/api/v1/erp/assistant/handgriffe/{h['id']}/run")
+    assert r.status_code == 400 and "Abmessungen" in r.json()["detail"]   # der Satz der Route
 
 
 def test_the_ai_reads_what_every_staff_member_sees(db, house):
@@ -411,7 +395,8 @@ def test_the_answer_streams_its_steps(db, api, house, monkeypatch):
                                         _note(firm.object_id), "Notiz an die Firma")))
     lines = _lines(api.as_(staff).post("/api/v1/erp/assistant/talks", json={"text": "Notiz bitte."}))
     assert {"step": "bereitet vor: Notiz an die Firma"} in lines
-    assert lines[-1]["talk"]["messages"][-1]["by"] == "ai"
+    assert {"text": "Erledigt."} in lines                                 # Wort für Wort
+    assert lines[-1]["talk"]["messages"][-1] | {"text": "Erledigt."} == lines[-1]["talk"]["messages"][-1]
     calls = db.query(Log).filter(Log.event == "ai.call").order_by(Log.id.desc()).limit(2).all()
     assert all("ms" in c.payload for c in calls)
 
@@ -443,3 +428,41 @@ def test_what_the_ai_replaced_is_not_shown(db, house):
     handgriff.drop(db, staff, ids[0], by="ai")
     handgriff.drop(db, staff, ids[1])
     assert [h.id for h in talk.view(db, tid).handgriffe] == [ids[1]]
+
+
+# ─── Runde 15: schneller, vorab, nur das Ergebnis ──────────────────────────────────────
+
+def test_the_ai_gets_what_it_needs_up_front(db, api, house, monkeypatch):
+    """Schnell, weil sie nicht erst nachschlägt: die Liste der Handlungen steht im Auftrag (aus
+    den Routen, im Zwischenspeicher), der offene Datensatz im Gespräch – nachschlagen nach
+    Stichwörtern gibt es im «+» nicht mehr."""
+    _boss, staff, firm = house
+    script = _turns()
+    _ready(monkeypatch, script)
+    _say(api, staff, "Was ist hier los?", hint_object_id=firm.object_id)
+    sent = script.seen[0]
+    system = sent["system"][0]["text"]
+    assert "POST /api/v1/erp/messages" in system and "GET /api/v1/erp/orders/module-catalog" in system
+    assert sent["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert firm.company_name in sent["messages"][0]["content"][0]["text"]
+    assert "handlungen" not in {t["name"] for t in sent["tools"]}
+
+
+def test_at_a_glance_is_ready_before_anyone_opens(db, house, monkeypatch):
+    """«Auf einen Blick» rechnet der Takt vorab – für einen Datensatz, den jemand öffnete und in
+    dessen Umfeld sich seither etwas änderte; danach ist nichts mehr fällig (Bug-Form: es wird
+    erst beim Öffnen gerechnet, oder bei jedem Lauf neu)."""
+    import time
+    boss, _staff, firm = house
+    monkeypatch.setattr(pins, "QUIET", pins.timedelta(0))
+    script = _Script(_answer(parsed=pins.PinAnswer(items=[])), _answer(parsed=pins.PinAnswer(items=[])))
+    _ready(monkeypatch, script)
+    monkeypatch.setattr(pins, "_OPENED", talk.text("SELECT :o AS object_id WHERE :days > 0 AND :n > 0")
+                        .bindparams(o=firm.object_id))
+    pins.refresh(db, firm.object_id, boss)                 # jemand öffnete ihn
+    act(db, "person", boss.object_id, "ui")
+    log.event(db, "test.change", firm.object_id, {})       # etwas ändert sich
+    assert pins.ahead(db, time.monotonic() + 30) == 1
+    assert pins.ahead(db, time.monotonic() + 30) == 0      # nichts mehr fällig
+    assert len(script.seen) == 2
+    assert pins.pinned(db, firm.object_id, boss).stale is False

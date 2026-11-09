@@ -15,7 +15,7 @@ export interface DraftFromHandgriff {
 
 /**
  * **Was ein Handgriff im Feed auslösen kann** – an EINER Stelle (Feed-Seite bzw. `/erp/erfassen`)
- * gehalten, damit das Angeheftete in jedem Verlauf dieselben Wege nimmt wie das «+»:
+ * gehalten, damit «Auf einen Blick» in jedem Verlauf dieselben Wege nimmt wie das «+»:
  *
  * - `openDraft` – «Entwurf öffnen»: der **bestehende** Anlege-Entwurf, vorausgefüllt; angelegt
  *   wird erst mit seiner Freigabe (kein zweiter Anlageweg), danach ist der Handgriff erledigt.

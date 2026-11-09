@@ -2406,8 +2406,8 @@ export interface paths {
         /**
          * Say
          * @description **Dem Assistenten etwas sagen** – die Nachricht ist gespeichert, bevor die Antwort beginnt;
-         *     dann antwortet die KI live (je Zeile ein Schritt, am Ende das Gespräch). Ohne Text, aber mit
-         *     ``talk``: die KI antwortet auf das, was schon dasteht (nach einer Aufnahme).
+         *     dann antwortet die KI live (je Zeile: das Gespräch, ein Schritt oder ein Stück Text, am Ende
+         *     das Gespräch mit Antwort und Vorschlägen).
          */
         post: operations["say_api_v1_erp_assistant_talks_post"];
         delete?: never;
@@ -2537,26 +2537,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/operation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Operation Of
-         * @description Die Handlung hinter einem Handgriff – ihre Felder für «Ändern» (aus der Route).
-         */
-        get: operations["operation_of_api_v1_erp_assistant_handgriffe__handgriff_id__operation_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/assistant/handgriffe/{handgriff_id}/run": {
         parameters: {
             query?: never;
@@ -2568,30 +2548,10 @@ export interface paths {
         put?: never;
         /**
          * Run
-         * @description **Ausführen** – genau einmal, mit meinen Rechten, durch die echte Route. ``body`` nur, wenn
-         *     ich die Werte geändert habe. Geht es nicht, sagt der Satz der Route warum (409/4xx).
+         * @description **Übernehmen** – am Datensatz, genau einmal, mit meinen Rechten, durch die echte Route. Geht
+         *     es nicht, sagt der Satz der Route warum (409/4xx).
          */
         post: operations["run_api_v1_erp_assistant_handgriffe__handgriff_id__run_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/probe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Probe
-         * @description Eine geänderte Fassung prüfen («Ändern») – der Probelauf derselben Route, nichts bleibt.
-         */
-        post: operations["probe_api_v1_erp_assistant_handgriffe__handgriff_id__probe_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3498,6 +3458,24 @@ export interface components {
             label: string;
         };
         /**
+         * Change
+         * @description Was ein Vorschlag an einem Feld ändert – wie es jetzt ist und wie es würde.
+         */
+        Change: {
+            /** Field */
+            field: string;
+            /**
+             * Before
+             * @default
+             */
+            before: string;
+            /**
+             * After
+             * @default
+             */
+            after: string;
+        };
+        /**
          * ChangeBlock
          * @description **Eine Handlung** (``request_id``) – wer, woher, und was sich änderte.
          */
@@ -4138,7 +4116,7 @@ export interface components {
         };
         /**
          * DoneIn
-         * @description Von Hand erledigt (Entwurf freigegeben, Datei abgelegt) – was dabei entstand.
+         * @description Im Entwurf erledigt (freigegeben) – was dabei entstand.
          */
         DoneIn: {
             /** Result */
@@ -4473,7 +4451,8 @@ export interface components {
         };
         /**
          * HandgriffOut
-         * @description **Ein Handgriff, wie die Karte ihn zeigt.**
+         * @description **Ein Vorschlag, wie die Oberfläche ihn zeigt** – im Gespräch mit «Öffnen», am Datensatz
+         *     mit «Übernehmen» (oder im Entwurf).
          */
         HandgriffOut: {
             /** Id */
@@ -4506,16 +4485,6 @@ export interface components {
             source: string;
             /** Talk */
             talk?: number | null;
-            /**
-             * Hand
-             * @default
-             */
-            hand: string;
-            /**
-             * Missing
-             * @default
-             */
-            missing: string;
             /** Waits For */
             waits_for?: number[];
             /**
@@ -4523,6 +4492,8 @@ export interface components {
              * @default
              */
             summary: string;
+            /** Changes */
+            changes?: components["schemas"]["Change"][];
         };
         /** HintOut */
         HintOut: {
@@ -5246,24 +5217,6 @@ export interface components {
             object_type: string;
         };
         /**
-         * OperationOut
-         * @description Eine Handlung des ERP – für «Ändern»: ihre Felder (JSON-Schema der Route).
-         */
-        OperationOut: {
-            /** Key */
-            key: string;
-            /** Summary */
-            summary: string;
-            /** Admin */
-            admin: boolean;
-            /** Hand */
-            hand: boolean;
-            /** Schema */
-            schema?: {
-                [key: string]: unknown;
-            };
-        };
-        /**
          * OrderCreate
          * @description Der Entwurf, so wie ihn die Oberfläche schickt.
          */
@@ -5645,7 +5598,8 @@ export interface components {
         };
         /**
          * PinnedOut
-         * @description **Das Angeheftete** – offene Handgriffe (zuerst), dann das Wissen, das jetzt zählt.
+         * @description **Auf einen Blick** – offene Vorschläge am Datensatz (zuerst), dann das Wissen, das jetzt
+         *     zählt.
          */
         PinnedOut: {
             /** Handgriffe */
@@ -5684,24 +5638,6 @@ export interface components {
             label: string;
             /** Number */
             number?: string | null;
-        };
-        /**
-         * ProbeOut
-         * @description Der Probelauf einer geänderten Fassung: geht es – sonst der Satz der Route.
-         */
-        ProbeOut: {
-            /** Ok */
-            ok: boolean;
-            /**
-             * Detail
-             * @default
-             */
-            detail: string;
-            /**
-             * Hand
-             * @default
-             */
-            hand: string;
         };
         /**
          * ProcessEventResponse
@@ -6074,8 +6010,8 @@ export interface components {
          * @description ►►► **Eine Aufnahme** – ``id`` ist die Nummer ihres ``recording.start`` im Log. ◄◄◄
          *
          *     ``state``: ``recording`` (kein Stopp, nicht abgebrochen) · ``transcribing`` (gestoppt,
-         *     Abschnitte fehlen) · ``filing`` (Text da, die Nachricht entsteht) · ``done`` (die Nachricht
-         *     steht im Gespräch, ``talk`` gesetzt) · ``failed`` (``problem``).
+         *     Abschnitte fehlen) · ``filing`` (alles abgeschrieben, wird fertig) · ``done`` (``text`` steht
+         *     bereit – das «+» legt ihn in die Eingabe) · ``failed`` (``problem``).
          */
         Recording: {
             /** Id */
@@ -6109,7 +6045,12 @@ export interface components {
              * @default 0
              */
             seconds: number;
-            talk?: components["schemas"]["TalkOut"] | null;
+            /** Text */
+            text?: string | null;
+            /** Talk */
+            talk?: number | null;
+            /** Context */
+            context?: string | null;
             /** Problem */
             problem?: string | null;
         };
@@ -6191,14 +6132,6 @@ export interface components {
             /** Via */
             via?: components["schemas"]["ArticleLink"][];
             replaced_by?: components["schemas"]["ArticleLink"] | null;
-        };
-        /**
-         * RunIn
-         * @description Ausführen – ``body`` nur, wenn die Person die Werte geändert hat («Ändern», Entwurf).
-         */
-        RunIn: {
-            /** Body */
-            body?: unknown | null;
         };
         /** RunOut */
         RunOut: {
@@ -6479,6 +6412,8 @@ export interface components {
             hint_object_id?: number | null;
             /** Files */
             files?: components["schemas"]["FileRef"][];
+            /** Recording */
+            recording?: number | null;
         };
         /** TalkMessage */
         TalkMessage: {
@@ -11961,7 +11896,7 @@ export interface operations {
             };
         };
     };
-    operation_of_api_v1_erp_assistant_handgriffe__handgriff_id__operation_get: {
+    run_api_v1_erp_assistant_handgriffe__handgriff_id__run_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11978,77 +11913,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OperationOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    run_api_v1_erp_assistant_handgriffe__handgriff_id__run_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                handgriff_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RunIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
                     "application/json": components["schemas"]["RunOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    probe_api_v1_erp_assistant_handgriffe__handgriff_id__probe_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                handgriff_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RunIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProbeOut"];
                 };
             };
             /** @description Validation Error */

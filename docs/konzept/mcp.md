@@ -1,6 +1,6 @@
 # MCP – das ERP im eigenen Claude (Projektakte)
 
-Stand: 08.11.2026 · gebaut: Lesen und Vorbereiten · offen: Ausführen
+Stand: 09.11.2026 · gebaut: Lesen und Vorbereiten · entschieden: kein Ausführen über MCP
 
 ## Ziel
 
@@ -56,8 +56,9 @@ In Claude: Einstellungen · Connectors · «Eigenen Connector hinzufügen» → 
 claude mcp add --transport http inexxio https://inexxio-dev.web.app/api/v1/mcp
 ```
 
-## Nächster Schritt: Ausführen
+## Entschieden: kein Ausführen über MCP
 
-Ein Werkzeug `ausfuehren` (über `handgriff.run`, genau einmal, mit den Rechten der Person) – wie
-im «+» nur für einen Handgriff, den die Person ausdrücklich bestätigt. Anmeldung, Rechte und Log
-bleiben, wie sie sind.
+Seit Runde 15 führt **keine KI** aus – weder das «+» noch Claude über MCP. Ein Vorschlag aus
+Claude steht in «Auf einen Blick» am Datensatz; dort sieht die Person, was sich ändert (alt →
+neu), und übernimmt ihn. Ein Werkzeug `ausfuehren` gibt es darum nicht
+(`docs/history/2026-11-09-assistent-runde15.md`).

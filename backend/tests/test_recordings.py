@@ -19,7 +19,6 @@ from app.core.config import get_settings
 from app.models import Log, RecordingChunk
 from app.services import ai, attachments, history, recordings, talk, tick, todo
 from tests.factories import new_firm, new_person
-from tests.test_ai_core import _Script, _answer
 from tests.test_assistant import api  # noqa: F401 – die Fixture: echte Routen, dieselbe Sitzung
 
 BASE = "/api/v1/erp/recordings"
@@ -95,8 +94,8 @@ def chunks(db, rid):
 
 
 def spoken(got) -> str:
-    """Der Text, den die Aufnahme ins Gespräch brachte."""
-    return got["talk"]["messages"][0]["text"]
+    """Der abgeschriebene Text, der in die Eingabe geht."""
+    return got["text"]
 
 
 def events(db, name, rid):
@@ -106,9 +105,9 @@ def events(db, name, rid):
 
 # ─── Der Weg: Start → Stücke → Stopp → Abschreiben → Gespräch ──────────────────────────
 
-def test_a_recording_becomes_one_message_in_the_order_of_its_segments(db, api, gemini):  # noqa: F811
-    """Bug-Form: Stücke in der Reihenfolge des Ankommens statt nach Nummer, Abschnitte
-    vertauscht, das Audio bleibt nach der Abschrift liegen."""
+def test_a_recording_becomes_one_text_in_the_order_of_its_segments(db, api, gemini):  # noqa: F811
+    """Bug-Formen: Stücke in der Reihenfolge des Ankommens statt nach Nummer, Abschnitte
+    vertauscht, das Audio bleibt nach der Abschrift liegen; der Text geht ungefragt los."""
     me = new_person(db, "employee")
     firm = new_firm(db, "Kran")
     c = api.as_(me)
@@ -124,15 +123,15 @@ def test_a_recording_becomes_one_message_in_the_order_of_its_segments(db, api, g
     assert g.audio(0) == (b"seg0-0seg0-1", "audio/webm") and g.audio(1)[0] == b"seg1-0"
     assert "gemini-3.5-flash:generateContent" in g.seen[0]["url"]
     assert "Schweizer Schreibweise" in g.seen[0]["body"]["systemInstruction"]["parts"][0]["text"]
-    t = got["talk"]
     assert spoken(got) == "Schlauch am Kran ersetzt.\n\nHerr Meier ruft morgen an."
-    assert t["hint_object_id"] == firm.object_id and t["waiting"] and t["problem"]
-    first = db.query(Log).filter(Log.id == t["id"]).one()
-    assert first.actor_id == me.object_id and first.object_id == firm.object_id
     assert chunks(db, rec["id"]) == 0
-    assert [e.payload["talk"] for e in events(db, "recording.done", rec["id"])] == [t["id"]]
-    # Das Gespräch ist offen (die KI hat noch nicht geantwortet) – im Namen der Person.
-    assert t["id"] in talk.open_ids(db, me)
+    # Der Text wartet auf die Person – keine Nachricht, bis sie ihn selbst schickt.
+    assert db.query(Log).filter(Log.event == "talk", Log.actor_id == me.object_id).count() == 0
+    assert [r["id"] for r in c.get(f"{BASE}/open").json()] == [rec["id"]]
+    tid = talk.say(db, me, spoken(got) + "\nUnd bitte Rückruf notieren.", hint=firm.object_id,
+                   recording=rec["id"])
+    first = db.query(Log).filter(Log.id == tid).one()
+    assert first.actor_id == me.object_id and first.object_id == firm.object_id
     assert c.get(f"{BASE}/open").json() == []
 
 
@@ -263,7 +262,7 @@ def test_without_vertex_or_at_the_cap_it_waits_and_nothing_is_lost(db, api, gemi
     assert [e.payload["fault"] for e in events(db, "recording.segment_failed", rec["id"])] == [True, True]
     assert chunks(db, rec["id"]) == 1
     gemini(said("Doch noch."))
-    assert c.post(f"{BASE}/{rec['id']}/advance").json()["talk"]["messages"][0]["text"] == "Doch noch."
+    assert c.post(f"{BASE}/{rec['id']}/advance").json()["text"] == "Doch noch."
 
 
 def test_a_segment_refused_twice_is_skipped_with_a_note(db, api, gemini):  # noqa: F811
@@ -295,7 +294,7 @@ def test_silence_is_no_message(db, api, gemini):  # noqa: F811
     c.post(f"{BASE}/{rec['id']}/stop", json={"segments": 1})
     gemini(said("   "))
     got = c.post(f"{BASE}/{rec['id']}/advance").json()
-    assert got["state"] == "failed" and got["problem"] == recordings.NOTHING and got["talk"] is None
+    assert got["state"] == "failed" and got["problem"] == recordings.NOTHING and got["text"] is None
     assert db.query(Log).filter(Log.event == "talk", Log.actor_id == me.object_id).count() == 0
     assert chunks(db, rec["id"]) == 0
 
@@ -333,7 +332,7 @@ def test_a_stray_chunk_older_than_a_day_goes_too(db, api, gemini, monkeypatch): 
     rec = begin(api.as_(me))
     send(api.as_(me), rec["id"], 0, 0)
     act(db, "person", me.object_id, "ui")
-    recordings._end(db, recordings.load(db, rec["id"]), "recording.done", {"talk": None})
+    recordings._end(db, recordings.load(db, rec["id"]), "recording.done", {"text": ""})
     db.add(RecordingChunk(recording=rec["id"], segment=0, seq=5, byte_size=1, data=b"x"))
     db.flush()
     later(monkeypatch, timedelta(hours=25))
@@ -498,8 +497,8 @@ def test_the_events_of_a_recording_are_not_in_the_history(db, api, gemini):  # n
 
 
 def test_the_tick_finishes_a_recording_without_a_browser(db, api, gemini, monkeypatch):  # noqa: F811
-    """Tab zu nach dem Stopp: der Takt schreibt ab und bringt den Text ins Gespräch; das Gespräch
-    wartet dann auf die KI (live im «+», sonst ``talk.catch_up`` im Takt)."""
+    """Tab zu nach dem Stopp: der Takt schreibt ab; der Text wartet auf die Person (beim nächsten
+    Öffnen des «+» in der Eingabe) – ungefragt geht nichts los."""
     me = new_person(db, "employee")
     c = api.as_(me)
     rec = begin(c)
@@ -507,18 +506,13 @@ def test_the_tick_finishes_a_recording_without_a_browser(db, api, gemini, monkey
         send(c, rec["id"], seg, 0)
     c.post(f"{BASE}/{rec['id']}/stop", json={"segments": 2})
     gemini(said("Erster."), said("Zweiter."))
-    script = _Script(_answer(parsed=talk.Answer(text="Notiert.")))
-    monkeypatch.setattr(ai, "ready", lambda: True)
-    monkeypatch.setattr(ai, "_client", lambda *a: script)
     act(db, "system", None, "job")
     done = tick._voice(db, time.monotonic() + 30)
     assert done["finished"] == 1
     (end,) = events(db, "recording.done", rec["id"])
-    t = talk.view(db, end.payload["talk"])
-    assert t.messages[0].text == "Erster.\n\nZweiter." and t.messages[0].by == "person"
-    assert t.waiting                                               # die KI ist dran
-    assert talk.answer(db, t.id, me) is None
-    assert talk.view(db, t.id).messages[-1].text == "Notiert."
+    assert end.payload["text"] == "Erster.\n\nZweiter."
+    assert db.query(Log).filter(Log.event == "talk", Log.actor_id == me.object_id).count() == 0
+    assert [r["text"] for r in c.get(f"{BASE}/open").json()] == ["Erster.\n\nZweiter."]
     assert any(t.name == "voice" for t in tick.TASKS)
     assert tick._voice(db, time.monotonic() + 30) == {"failed": 0, "dropped": 0}
 
@@ -538,8 +532,7 @@ def test_what_is_written_after_a_day_is_kept_the_rest_is_noted(db, api, gemini, 
     assert recordings.sweep(db)["failed"] == 0
     (done,) = events(db, "recording.done", rec["id"])
     assert done.payload["partial"] is True and chunks(db, rec["id"]) == 0
-    text = talk.view(db, done.payload["talk"]).messages[0].text
-    assert text == "Erster Teil steht.\n\n[Abschnitt 2: nach einem Tag nicht abgeschrieben]"
+    assert done.payload["text"] == "Erster Teil steht.\n\n[Abschnitt 2: nach einem Tag nicht abgeschrieben]"
 
 
 # ─── Prüfung Phase 4: nichts geht verloren, Zeit und Kosten ────────────────────────────
@@ -647,8 +640,9 @@ def test_failed_recordings_are_visible_silence_is_not(db, api, gemini):  # noqa:
     assert c.post(f"{BASE}/{running}/dismiss").status_code == 409
 
 
-def test_the_pin_context_stands_before_the_transcript(db, api, gemini):  # noqa: F811
-    """Die Stecknadel beim Sprechen: Seite und Element stehen vor dem abgeschriebenen Text."""
+def test_the_pin_context_comes_back_beside_the_transcript(db, api, gemini):  # noqa: F811
+    """Die Stecknadel beim Sprechen kommt neben dem Text zurück (das «+» zeigt sie als Kärtchen
+    und setzt sie beim Senden davor, wie beim Tippen) – nie doppelt im Text."""
     me = new_person(db, "employee")
     c = api.as_(me)
     r = c.post(BASE, json={"mime": "audio/webm", "context": "Stelle: /erp · «Freigeben»\x00"})
@@ -657,7 +651,8 @@ def test_the_pin_context_stands_before_the_transcript(db, api, gemini):  # noqa:
     c.post(f"{BASE}/{rid}/stop", json={"segments": 1})
     gemini(said("Der Knopf ist doppelt."))
     got = c.post(f"{BASE}/{rid}/advance").json()
-    assert spoken(got) == "Stelle: /erp · «Freigeben»\n\nDer Knopf ist doppelt."
+    assert spoken(got) == "Der Knopf ist doppelt."
+    assert got["context"] == "Stelle: /erp · «Freigeben»"
 
 
 def test_sweep_commits_before_it_unlocks_and_lock_frees_its_connection(db, api, gemini, monkeypatch):  # noqa: F811
@@ -715,7 +710,8 @@ def test_gemini_has_its_own_region_and_a_404_names_model_and_region(db, gemini, 
 
 
 def test_speaking_in_an_open_conversation_continues_it(db, api, gemini, monkeypatch):  # noqa: F811
-    """Wer im offenen Gespräch spricht, redet dort weiter – wie getippt; es beginnt kein neues."""
+    """Wer im offenen Gespräch spricht, redet dort weiter – wie getippt; es beginnt kein neues. Der
+    Text kommt mit seinem Gespräch zurück, die Person schickt ihn dort."""
     me = new_person(db, "employee")
     tid = talk.say(db, me, "Zuerst getippt.")
     c = api.as_(me)
@@ -725,7 +721,7 @@ def test_speaking_in_an_open_conversation_continues_it(db, api, gemini, monkeypa
     send(c, rid, 0, 0)
     c.post(f"{BASE}/{rid}/stop", json={"segments": 1})
     gemini(said("Dann gesprochen."))
-    c.post(f"{BASE}/{rid}/advance")
-    (end,) = events(db, "recording.done", rid)
-    assert end.payload["talk"] == tid
+    got = c.post(f"{BASE}/{rid}/advance").json()
+    assert got["talk"] == tid and got["text"] == "Dann gesprochen."
+    talk.say(db, me, got["text"], talk=got["talk"], recording=rid)
     assert [m.text for m in talk.view(db, tid).messages] == ["Zuerst getippt.", "Dann gesprochen."]

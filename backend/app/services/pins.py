@@ -95,27 +95,35 @@ def _content(db: Session, object_id: int, reader: UserProfile, entries: list[Any
 
 
 def refresh(db: Session, object_id: int, viewer: UserProfile) -> PinnedOut:
-    """►►► **Neu wählen – nur, wenn sich im Umfeld etwas geändert hat.** ◄◄◄ Die KI liest den
-    Datensatz, seinen Verlauf und sein Umfeld (als ``reader``; ``viewer`` handelt) und wählt das
-    Wissen: ein neues ``pin`` mit der Marke, auch ein leeres. Ohne KI bleibt der letzte Stand."""
+    """►►► **Neu wählen – nur, wenn sich im Umfeld etwas geändert hat.** ◄◄◄ Ohne KI, ohne
+    Änderung oder innerhalb von ``QUIET`` bleibt der letzte Stand."""
+    history.assert_visible(db, object_id, viewer)
+    problem = _choose(db, object_id, viewer)
+    return pinned(db, object_id, viewer, problem=problem)
+
+
+def _choose(db: Session, object_id: int, actor: UserProfile) -> Optional[str]:
+    """Das Wissen wählen, wenn es fällig ist: ein neues ``pin`` mit der Marke, auch ein leeres.
+    Die KI liest den Datensatz, seinen Verlauf und sein Umfeld als ``reader``; ``actor`` handelt
+    (die Person, die öffnet – oder im Takt jedes Personal). ``None`` = gewählt oder nichts fällig,
+    sonst warum nicht."""
     from . import ai_tools
     from .talk import AUFTRAG
-    history.assert_visible(db, object_id, viewer)
     pin = _latest(db, object_id)
     stale, mark = _stale(db, object_id, pin)
     if not stale or (pin is not None and clock.utcnow() - pin.at < QUIET):
-        return pinned(db, object_id, viewer)
+        return None
     reader = ai_tools.reader()
     try:
         entries = history.page(db, object_id, reader, limit=ENTRIES).entries
     except Rejected:
-        return pinned(db, object_id, viewer, problem=PRIVATE)
+        return PRIVATE
     near = surroundings.of(db, object_id)
     content = _content(db, object_id, reader, entries, near) if ai.available(db) else []
-    answer = ai.converse(db, task="pin", actor=viewer, system=AUFTRAG + "\n" + FORMAT,
+    answer = ai.converse(db, task="pin", actor=actor, system=AUFTRAG + "\n" + FORMAT,
                          content=content, schema=PinAnswer, tools=ai_tools.tools_for(db))
     if answer is None:
-        return pinned(db, object_id, viewer, problem=ai.problem() or "Die KI hat nichts gewählt.")
+        return ai.problem() or "Die KI hat nichts gewählt."
     items = []
     for k in answer.items:
         body = " ".join(k.text.split())
@@ -124,8 +132,43 @@ def refresh(db: Session, object_id: int, viewer: UserProfile) -> PinnedOut:
         entry = entries[k.entry - 1] if k.entry and 0 < k.entry <= len(entries) else None
         items.append(_source(body, entry))
     log.event(db, "pin", object_id, {"items": items, "seen": mark}, kind="ai",
-              actor=viewer.object_id)
-    return pinned(db, object_id, viewer)
+              actor=actor.object_id)
+    return None
+
+
+#: So viele Datensätze rechnet der Takt je Lauf höchstens vorab – und nur solche, die in dieser
+#: Zeit jemand geöffnet hat (sie tragen ein ``pin``).
+AHEAD = 10
+AHEAD_DAYS = 30
+
+_OPENED = text("""
+SELECT object_id FROM log WHERE event = 'pin' AND at >= now() - make_interval(days => :days)
+ GROUP BY object_id ORDER BY max(id) DESC LIMIT :n""")
+
+
+def ahead(db: Session, deadline: float) -> int:
+    """►►► **«Auf einen Blick» vorab rechnen** (im Takt) – für Datensätze, die jemand öffnet und
+    in deren Umfeld sich seither etwas geändert hat. Beim nächsten Öffnen steht es dann sofort da
+    (wie die Zusammenfassung bei Gemini in Gmail). Dieselbe Wahl wie beim Öffnen (``_choose``),
+    als jedes Personal; speichert je Datensatz. ◄◄◄"""
+    import time
+    from . import ai_tools
+    reader = ai_tools.reader()
+    n = 0
+    for (oid,) in db.execute(_OPENED, {"days": AHEAD_DAYS, "n": AHEAD * 3}).all():
+        if n >= AHEAD or time.monotonic() >= deadline or not ai.available(db):
+            break
+        before = _latest(db, oid)
+        try:
+            history.assert_visible(db, oid, reader)
+            _choose(db, oid, reader)
+        except Rejected:
+            continue
+        after = _latest(db, oid)
+        if after is not None and (before is None or after.id != before.id):
+            n += 1
+        db.commit()
+    return n
 
 
 def _source(body: str, entry: Any) -> dict[str, Any]:

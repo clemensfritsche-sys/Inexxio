@@ -29,6 +29,7 @@ import json
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Callable, Optional
+from functools import lru_cache
 
 from sqlalchemy.orm import Session
 
@@ -208,19 +209,34 @@ def tools_for(db: Session, viewer: Optional[UserProfile] = None) -> list[Tool]:
 Prepare = Callable[[str, str, Any, str, list[int]], tuple[Optional[int], Any]]
 
 
+def _op_line(o: Any) -> str:
+    return (f"{o.key} – {o.summary}" + (" (lesen: `abrufen`)" if o.method == "GET" else "")
+            + (" (nur Admin)" if o.admin else "") + (" (mit Datei: im Entwurf)" if o.hand else ""))
+
+
+@lru_cache(maxsize=1)
+def catalog() -> str:
+    """►►► **Was das ERP kann – als Text für den Auftrag** (Schlüssel und Satz je Handlung). ◄◄◄
+    Niemand pflegt sie: sie entsteht aus den Routen (``handgriff.operations`` · ``reads``), einmal
+    je Start. Steht sie im Auftrag, schlägt die KI nicht erst nach (ein Zug weniger); im
+    Zwischenspeicher des Anbieters kostet sie einen Zehntel."""
+    from . import handgriff
+    return ("Die Handlungen des ERP (schreibende mit `vorbereiten`, lesende mit `abrufen`):\n"
+            + "\n".join(_op_line(o) for o in (*handgriff.operations(), *handgriff.reads())))
+
+
 def erp_tools(prepare: Prepare, viewer: Optional[UserProfile] = None,
-              where: Callable[[int], str] = lambda hid: "") -> list[Tool]:
+              where: Callable[[int], str] = lambda hid: "", *, lookup: bool = True) -> list[Tool]:
     """►►► **Was das ERP kann – EINE Stelle für jede KI** (das «+», Claude über MCP): nachschlagen,
     abrufen (eine lesende Route mit den Rechten von ``viewer``, sonst ``reader``), vorbereiten
-    (Probelauf, dann ein Handgriff; ``prepare`` sagt, wo er hingehört; ``where`` hängt an, wo ihn
-    die Person findet). Ausführen gehört nicht hierher – das entscheidet die Person. ◄◄◄"""
+    (Probelauf, dann ein Vorschlag; ``prepare`` sagt, wo er hingehört; ``where`` hängt an, wo ihn
+    die Person findet). Ausführen gehört nicht hierher – das tut die Person. ``lookup=False``:
+    die Liste der Handlungen steht schon im Auftrag (``catalog``), nachschlagen entfällt. ◄◄◄"""
     from . import handgriff
 
     def find_ops(a: dict[str, Any]) -> str:
         found = handgriff.find(str(a.get("woerter") or ""))
-        return "\n".join(f"{o.key} – {o.summary}" + (" (lesen: `abrufen`)" if o.method == "GET" else "")
-                         + (" (nur Admin)" if o.admin else "")
-                         + (" (nur von Hand: Datei)" if o.hand else "") for o in found) or "Nichts."
+        return "\n".join(_op_line(o) for o in found) or "Nichts."
 
     def fetch(a: dict[str, Any]) -> str:
         try:
@@ -250,16 +266,15 @@ def erp_tools(prepare: Prepare, viewer: Optional[UserProfile] = None,
         if hid is None:
             return f"Geht nicht ({out.status}): {out.detail}"
         if handgriff.incomplete(out):
-            return (f"Vorbereitet als Handgriff {hid}, noch unvollständig: {out.detail} – die Person "
-                    f"ergänzt es im Entwurf.{where(hid)}")
-        return (f"Vorbereitet als Handgriff {hid}" + (f" – geht nur von Hand ({out.hand})." if out.hand
-                                                       else ".") + where(hid))
+            return (f"Vorbereitet als Vorschlag {hid}, noch unvollständig: {out.detail} – die Person "
+                    f"ergänzt es, wo sie ihn öffnet.{where(hid)}")
+        return f"Vorbereitet als Vorschlag {hid}.{where(hid)}"
 
     int_list = {"type": "array", "items": {"type": "integer"}}
     return [
-        Tool("handlungen", "Was das ERP kann und zeigt, zu Stichwörtern: Schlüssel und Satz "
+        *([] if not lookup else [Tool("handlungen", "Was das ERP kann und zeigt, zu Stichwörtern: Schlüssel und Satz "
              "(lesende mit `abrufen`, schreibende mit `vorbereiten`).",
-             {"woerter": {"type": "string"}}, find_ops, doing="schlägt nach:"),
+             {"woerter": {"type": "string"}}, find_ops, doing="schlägt nach:")]),
         Tool("handlung", "Felder einer Handlung bzw. Angaben einer Abfrage (Schlüssel "
              "«METHODE /pfad»).", {"handlung": {"type": "string"}}, describe,
              doing="liest die Handlung"),
@@ -268,11 +283,12 @@ def erp_tools(prepare: Prepare, viewer: Optional[UserProfile] = None,
              "(oder {}).",
              {"pfad": {"type": "string"}, "abfrage_json": {"type": "string"}}, fetch,
              doing="ruft ab:"),
-        Tool("vorbereiten", "Einen Handgriff vorbereiten – mit Probelauf. `handlung` ist der "
-             "Schlüssel, `pfad` der konkrete Pfad (Platzhalter durch Nummern ersetzt), "
-             "`werte_json` die Werte als JSON, `zeile` ein Satz, was geschieht, mit Nummer "
-             "und Name. Braucht er, was ein anderer Handgriff anlegt: dessen Nummer in "
-             "`wartet_auf` und in den Werten {\"$handgriff\": nummer}.",
+        Tool("vorbereiten", "Einen Vorschlag vorbereiten – mit Probelauf; die Person öffnet und "
+             "übernimmt ihn selbst. `handlung` ist der Schlüssel, `pfad` der konkrete Pfad "
+             "(Platzhalter durch Nummern ersetzt), `werte_json` die Werte als JSON, `zeile` ein "
+             "kurzer Satz in Alltagssprache, was geschieht, mit dem Namen. Braucht er, was ein "
+             "anderer Vorschlag anlegt: dessen Nummer in `wartet_auf` und in den Werten "
+             "{\"$handgriff\": nummer}.",
              {"handlung": {"type": "string"}, "pfad": {"type": "string"},
               "werte_json": {"type": "string"}, "zeile": {"type": "string"},
               "wartet_auf": int_list}, prepared, doing="bereitet vor:", shows="zeile"),

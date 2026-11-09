@@ -83,7 +83,7 @@ src/lib/       ← api.ts · modules.ts · scan.ts · when.ts (auch `NOTHING`) �
                  Browser: Abschnitte, Stücke, Warteschlange – Wächter `scripts/recorder.test.mjs`,
                  der Anschluss `scripts/use-recorder.test.mjs`) · transcribe.ts (eine Aufnahme
                  zu Ende abschreiben lassen, auch wenn das «+» zu ist) · assistant.ts (Gespräche,
-                 Aufnahmen, das Angeheftete – die Queries des Assistenten) · pin-point.ts (die
+                 Aufnahmen, «Auf einen Blick» – die Queries des Assistenten) · pin-point.ts (die
                  Stecknadel: auf eine Stelle zeigen, «Stelle: …», Artikel «ERP»/«Website»)
                  … und **alle Hooks** als `use-*.ts`
                  (use-action, use-dialog, use-outside, use-autosave, use-search, use-profile-completion, use-google-maps,
@@ -110,8 +110,8 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter «Verlauf»): die Ansicht (`communication.tsx`: Postfach, `History`, Eingabe) · `timeline` (die Blase einer Nachricht, Tagestrenner, die wartende Mail) · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – `DELIVERIES` aus `lib/vocab`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |
 | `new-record.tsx` | Person und Firma anlegen (Entwurf; `initial` = vorausgefüllt aus einem Handgriff) |
-| `capture/` | **«+» = der Assistent – EIN Gespräch wie bei Claude** (Phase 5): `capture-sheet` (die Eingabe: Text, Enter = senden; 📷/📄 hängen die Datei an die Nachricht (Korb), 📌 Stecknadel (`lib/pin-point`), 🎤 Aufnahme im Feld; darüber das Gespräch – Blasen und Handgriff-Karten; während die KI antwortet, live jeder ihrer Schritte und «Stopp» (`api.say` liest den NDJSON-Stream direkt am Dienst, `api.stopTalk`), «Neues Gespräch»; darunter «Offene Gespräche» und «Neu anlegen»; während einer Aufnahme nicht schliessbar; `host` = wo die Stecknadel zeigt) · `handgriff-card` (**ein Handgriff** – Zeile, Datensatz, Quelle, Werte, «Fehlt noch: …»; Ausführen/Ablegen (gesperrt, solange Werte fehlen) · Entwurf öffnen (überall, wo es «Neu anlegen» gibt: `DRAFTS`) · Ändern (Felder aus dem Schema der Route, Probelauf) · Weg · Öffnen; dieselbe Karte im Angehefteten) · `recorder` (`RecordingStrip` – im offenen Gespräch geht der Text dorthin; `recordingWord`) · `capture-context` (`openDraft` – «Entwurf öffnen», gehalten von der Feed-Seite bzw. `/erp/erfassen`) |
-| `pinned.tsx` | **Das Angeheftete** unten im Verlauf (`History`): offene Handgriffe (dieselbe Karte), dann das Wissen, das jetzt zählt (Datum, Quelle); neu gewählt still im Hintergrund, wenn sich im Umfeld etwas änderte (`lib/assistant.usePinned`); Sprungziel `data-todo="handgriffe"` |
+| `capture/` | **«+» = der Assistent – EIN Gespräch wie bei Claude** (Phase 5): `capture-sheet` (die Eingabe: Text, Enter = senden; 📷/📄 hängen die Datei an die Nachricht (Korb), 📌 Stecknadel als Chip «📍 …» (`lib/pin-point`), 🎤 Aufnahme im Feld – der abgeschriebene Text kommt in die Eingabe, gesendet von der Person (`api.say({recording})`); darüber das Gespräch – Blasen und Vorschlag-Karten; während die KI antwortet, live jeder ihrer Schritte, dann ihr Text Wort für Wort, und «Stopp» (`api.say` liest den NDJSON-Stream direkt am Dienst, `api.stopTalk`); «←» zurück zur Übersicht: «Offene Gespräche» (auch abgeschriebene Aufnahmen) und «Neu anlegen»; während einer Aufnahme nicht schliessbar; `host` = wo die Stecknadel zeigt) · `handgriff-card` (**ein Vorschlag** – Zeile, Datensatz, Quelle; im Gespräch nur **Öffnen** (Entwurf über `DRAFTS`, sonst der Datensatz über `useErpNav`) und ✕; am Datensatz (`at="record"`) was sich ändert, alt → neu, und **Übernehmen** bzw. «Entwurf öffnen») · `recorder` (`RecordingStrip`; `recordingWord`) · `capture-context` (`openDraft` – der Entwurf, gehalten von der Feed-Seite bzw. `/erp/erfassen`) |
+| `pinned.tsx` | **Auf einen Blick** unten im Verlauf (`History`): offene Vorschläge (dieselbe Karte, hier mit alt → neu und «Übernehmen»), dann das Wissen, das jetzt zählt (Datum, Quelle); meist im Takt vorbereitet, sonst neu gewählt still im Hintergrund, wenn sich im Umfeld etwas änderte (`lib/assistant.usePinned`); Sprungziel `data-todo="handgriffe"` |
 | `process-designer.tsx`, `definition-lines.tsx` | Prozess-Editor (Artikel-Vorlage, Auftragsentwurf) · Bedarf/Stückliste |
 | `loop-card.tsx` | **Die Wiederholung** unter dem Ende: im Entwurf einschalten und einstellen (`LoopDraftCard`, Nutzlast `loopPayload`), am laufenden Auftrag Zustand + Satz + «Beenden» (`LoopRunCard`, `api.endLoop`); die Linie links zurück zum Start ist `process-columns.LoopLine` (Zeile `loop` in `columnRows`) |
 | `flow-column.tsx`, `module-card.tsx`, `process-columns.tsx`, `process-flow.tsx` | Prozessbild: die Spalte (`FlowColumn`, Achse, Zustände, Herkunft) · die Modul-Karte (`ModuleShell`, `StepCard`, `ModuleMark`) · drei Spuren · **ein** Liniengenerator (`polyPath`); die reinen Funktionen in `lib/process-graph.ts` (Wächter `scripts/process-graph.test.mjs`) |
@@ -194,8 +194,8 @@ Skill `inexxio-design-system`.
   Zeiterfassung (`qk.time` · `qk.companyTime`), Protokoll · Überweisung · korrigierbare Rechnungen
   (unter dem Auftrag: `qk.stepRecord` · `transfer` · `correctable`), Seltenes (`qk.catalog`: Modul-Katalog, Ort, Artikel);
   **Phase 4/5** `qk.openRecordings` · `qk.openTalks` · `qk.talk` · `qk.pins` (`lib/assistant.ts`; `feed.LOGGED` =
-  Verlauf + Angeheftetes lädt jede Änderung am Datensatz nach – offen ist abgeleitet; ein
-  ausgeführter Handgriff lädt **alles** nach, er kann alles, was das ERP kann). Die Antwort einer Handlung
+  Verlauf + «Auf einen Blick» lädt jede Änderung am Datensatz nach – offen ist abgeleitet; ein
+  übernommener Vorschlag lädt **alles** nach, er kann alles, was das ERP kann). Die Antwort einer Handlung
   geht per `setQueryData` in den Cache. **Prüfen und Vorschau** (Auftrag, Artikel,
   Zeiterfassung) über `useDebouncedQuery`: Eingabe 250 ms entprellt und Teil des Schlüssels,
   `keepPreviousData`, überholte Anfragen brechen ab (die Methoden von `api` nehmen `{ signal }`).
@@ -279,7 +279,7 @@ ob man etwas **darf**, sagt der Server (`can`, `may_edit`). Ein Fehler ist ein `
   entsteht, hat seinen Platz von Anfang an.
 - **Ein Feld = der Feld-Baustein** (`components/form/use-field.ts` + `field.tsx`): die Logik
   steht EINMAL in `useField` (Wert, Pflicht, weiche Format-Prüfung, Meldung, Enter = fertig;
-  was die KI an einem Feld ändern will, ist ein Handgriff im Angehefteten – das Feld trägt kein
+  was die KI an einem Feld ändern will, ist ein Vorschlag «Auf einen Blick» – das Feld trägt kein
   Zeichen); `Field` · `SelectField`
   sind die Standardform, `Input` · `Select` · `TextArea` dieselbe Logik in freiem Aussehen (Beleg,
   Konto, Prozess-Editor). Ein loses `<input>`/`<select>`/`<textarea>` unter

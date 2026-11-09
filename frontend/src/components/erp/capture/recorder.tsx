@@ -17,9 +17,9 @@ import type { Recording } from '@/types';
  */
 export function RecordingStrip({ hint, talk, context, onStopped, onFailed }: {
   hint: number | null;
-  /** Das offene Gespräch – der Text geht dorthin, wie getippt. */
+  /** Das offene Gespräch – der Text kommt dort in die Eingabe. */
   talk: number | null;
-  /** Die Stecknadel («Stelle: …») – steht später vor dem abgeschriebenen Text. */
+  /** Die Stecknadel («Stelle: …») – kommt mit dem Text zurück in die Eingabe. */
   context: string | null;
   onStopped: (r: Recording) => void;
   onFailed: (why: string) => void;
@@ -75,7 +75,7 @@ export function recordingWord(r: Recording): string {
     case 'transcribing': return r.segments > 1
       ? `Aufnahme · schreibt ab … ${Math.min(r.transcribed, r.segments)} von ${r.segments}` : 'Aufnahme · schreibt ab …';
     case 'filing': return 'Aufnahme · legt ab …';
-    case 'done': return 'Aufnahme abgeschrieben';
+    case 'done': return 'Aufnahme abgeschrieben – antippen, um den Text zu senden';
     case 'failed': return r.problem ? `Aufnahme fehlgeschlagen – ${r.problem}` : 'Aufnahme fehlgeschlagen';
   }
 }

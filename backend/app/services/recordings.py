@@ -16,12 +16,13 @@ Schreiben (Phase 5). Vom Gesprochenen bleibt nur der Text.
 * ``advance`` – so weit, wie die Zeit reicht (``ai.until``): je Abschnitt ``ai.transcribe`` →
   ``recording.segment``. Was sich nicht abschreiben lässt (kein Stück 0, zu gross, abgelehnt,
   zu oft gescheitert), wird **mit Vermerk übersprungen** – nie endlos versucht, nie still weg;
-  ist alles abgeschrieben, **eine** Nachricht im Gespräch mit dem ganzen Text →
-  ``recording.done`` → Stücke gelöscht; dann, wenn Zeit bleibt, antwortet die KI. Läuft in der
-  Anfrage (die Oberfläche fragt nach) **und** im Takt (``due``).
+  ist alles abgeschrieben, steht der ganze Text in ``recording.done`` → Stücke gelöscht. **Der
+  Text wartet auf die Person**: das «+» legt ihn in die Eingabe, sie ergänzt ihn und schickt ihn
+  selbst (``talk.say`` mit ``recording``) – nichts geht ungefragt los. Läuft in der Anfrage (die
+  Oberfläche fragt nach) **und** im Takt (``due``).
 * ``sweep`` (im Takt) – eine Aufnahme, die nach ``KEEP`` nicht fertig ist, wird mit dem, was
-  abgeschrieben ist, die Nachricht (sonst ``recording.failed``); ihre Stücke gehen, und kein
-  Stück bleibt länger als ``KEEP``.
+  abgeschrieben ist, fertig (sonst ``recording.failed``); ihre Stücke gehen, und kein Stück bleibt
+  länger als ``KEEP``.
 
 **Nur die Person, die aufnimmt** (und der Admin) sieht ihre Aufnahme (``_may``); Stücke und
 Stopp schickt nur sie. Die Ereignisse stehen nicht im Verlauf (``history.HIDDEN_EVENTS``).
@@ -192,18 +193,19 @@ def state_of(rec: Rec, now: Optional[datetime] = None) -> str:
 
 
 def view(db: Session, rec: Rec, viewer: UserProfile, *, problem: Optional[str] = None) -> Recording:
-    """►► **Eine Aufnahme, wie die Oberfläche sie zeigt** (``Recording``). ◄◄"""
+    """►► **Eine Aufnahme, wie die Oberfläche sie zeigt** (``Recording``) – fertig mit ihrem Text,
+    der in die Eingabe geht. ◄◄"""
     state = state_of(rec)
-    found = None
+    said = None
     if rec.end is not None:
         problem = rec.end[1].get("problem") or problem
-        tid = rec.end[1].get("talk")
-        if tid and _may(rec, viewer):
-            found = talk.view(db, int(tid))
+        if state == "done" and _may(rec, viewer):
+            said = rec.end[1].get("text") or _whole(rec)
     return Recording(id=rec.id, at=rec.at, hint_object_id=rec.hint, mime=rec.mime, state=state,
                      segments=rec.segments, transcribed=len(rec.texts),
                      seconds=sum(rec.seconds_of(s) for s in range(rec.segments)),
-                     talk=found, problem=(problem or None) if state != "done" else None)
+                     text=said, talk=rec.talk, context=rec.context or None,
+                     problem=(problem or None) if state != "done" else None)
 
 
 #: Ein Ende, das zählt: fertig – oder gescheitert, aber nicht bloss still («Nichts zu hören»,
@@ -214,14 +216,16 @@ _OPEN = text(f"""
 SELECT s.id FROM log s
  WHERE s.event = 'recording.start' AND s.actor_id = :me
    AND NOT EXISTS (SELECT 1 FROM log e WHERE (e.payload ->> 'recording')::bigint = s.id
-                     AND (e.event IN ('recording.done', 'recording.dismissed')
-                          OR (e.event = 'recording.failed' AND (e.at < :since OR {_SILENT}))))
+                     AND (e.event IN ('talk', 'recording.dismissed')
+                          OR (e.event IN ('recording.done', 'recording.failed')
+                              AND (e.at < :since OR {_SILENT}))))
  ORDER BY s.id DESC LIMIT :n""")
 
 
 def open_for(db: Session, actor: UserProfile, limit: int = 20) -> list[Recording]:
-    """►► **Meine Aufnahmen, die nicht fertig sind** – und die in den letzten ``FAILED_DAYS``
-    gescheiterten, mit Grund (nie still verloren); die neuesten zuerst. ◄◄"""
+    """►► **Meine Aufnahmen, die auf mich warten** – laufende, fertig abgeschriebene, deren Text ich
+    noch nicht geschickt habe (sie geht in die Eingabe), und gescheiterte mit Grund; alles höchstens
+    ``FAILED_DAYS`` alt (nie still verloren), die neuesten zuerst. ◄◄"""
     since = clock.utcnow() - timedelta(days=FAILED_DAYS)
     return [view(db, load(db, r.id), actor)
             for r in db.execute(_OPEN, {"me": actor.object_id, "n": limit, "since": since})]
@@ -250,13 +254,12 @@ def start(db: Session, hint: Optional[int], mime: str, actor: UserProfile,
 
 
 def dismiss(db: Session, rec_id: int, actor: UserProfile) -> Rec:
-    """►► **Eine gescheiterte Aufnahme verwerfen** – sie verschwindet aus dem «+» (``recording.dismissed``);
-    das Log behält sie. Nur, was gescheitert ist (was läuft, endet mit Stopp, was fertig ist, ist
-    eine Nachricht im Gespräch); zweimal ist einmal. ◄◄"""
+    """►► **Eine Aufnahme verwerfen** – eine gescheiterte, oder eine fertige, deren Text die Person
+    nicht schicken will; sie verschwindet aus dem «+» (``recording.dismissed``), das Log behält sie.
+    Was läuft, endet mit Stopp; zweimal ist einmal. ◄◄"""
     rec = get(db, rec_id, actor)
-    if state_of(rec) != "failed":
-        raise Conflict(f"Aufnahme «{rec_id}» ist nicht gescheitert – verwerfen geht "
-                                        "nur dort.")
+    if state_of(rec) not in ("failed", "done"):
+        raise Conflict(f"Aufnahme «{rec_id}» läuft noch – zuerst stoppen.")
     gone = db.execute(text("SELECT 1 FROM log WHERE event = 'recording.dismissed' "
                            "AND (payload ->> 'recording')::bigint = :i"), {"i": rec_id}).first()
     if gone is None:
@@ -389,8 +392,10 @@ def _end(db: Session, rec: Rec, event: str, payload: dict[str, Any]) -> None:
 
 def _whole(rec: Rec) -> str:
     """Der ganze Text in der Reihenfolge der Abschnitte; **jede Lücke als Vermerk**
-    «[Abschnitt n: Grund]» – auch «keine Stücke angekommen»: man sieht, wo etwas fehlt."""
-    out = [rec.context] if rec.context else []
+    «[Abschnitt n: Grund]» – auch «keine Stücke angekommen»: man sieht, wo etwas fehlt. Die
+    Stecknadel (``context``) steht nicht darin: das «+» zeigt sie als Kärtchen und setzt sie beim
+    Senden davor, wie beim Tippen."""
+    out: list[str] = []
     for s in range(rec.segments):
         t = rec.texts.get(s) or {"skipped": NO_CHUNKS}
         if (t.get("text") or "").strip():
@@ -401,30 +406,18 @@ def _whole(rec: Rec) -> str:
 
 
 def _finish(db: Session, rec: Rec, person: UserProfile) -> Optional[str]:
-    """Alles abgeschrieben → **eine** Nachricht im Gespräch (im Namen der Person) → ``recording.done`` →
-    Stücke weg; antworten tut die KI live im «+» (sonst der Takt, ``talk.catch_up``).
-    Ohne jeden Text: ``recording.failed`` – war nur nichts zu hören (keine Stücke, Stille), ist
-    das ``silent`` und kein Fehlschlag."""
+    """Alles abgeschrieben → ``recording.done`` mit dem ganzen Text → Stücke weg. Der Text wartet
+    auf die Person (die Eingabe im «+»). Ohne jeden Text: ``recording.failed`` – war nur nichts zu
+    hören (keine Stücke, Stille), ist das ``silent`` und kein Fehlschlag."""
     if not any((t.get("text") or "").strip() for t in rec.texts.values()):
         refused = any(t.get("skipped") and t["skipped"] != NO_CHUNKS for t in rec.texts.values())
         _end(db, rec, "recording.failed",
              {"problem": UNREADABLE} if refused else {"problem": NOTHING, "silent": True})
         db.commit()
         return None
-    tid = _say(db, rec, person)
-    _end(db, rec, "recording.done", {"talk": tid})
+    _end(db, rec, "recording.done", {"text": _whole(rec)})
     db.commit()
     return None
-
-
-def _say(db: Session, rec: Rec, person: UserProfile) -> int:
-    """Der abgeschriebene Text als Nachricht der Person – im Gespräch, in dem sie sprach (sonst
-    beginnt er eines am Hinweis). Antworten tut die KI live im «+» (``talk.stream``), ohne «+»
-    der Takt."""
-    if rec.talk is not None:
-        return talk.say(db, person, _whole(rec), talk=rec.talk, recording=rec.id)
-    hint = rec.hint if rec.hint and record_labels.labels(db, [rec.hint]).get(rec.hint) else None
-    return talk.say(db, person, _whole(rec), hint=hint, recording=rec.id)
 
 
 def _lock(rec_id: int):
@@ -511,8 +504,7 @@ def _rescue(db: Session, rec: Rec) -> bool:
         return False
     for s in range(rec.segments):
         rec.texts.setdefault(s, {"skipped": LATE})
-    tid = _say(db, rec, person)
-    _end(db, rec, "recording.done", {"talk": tid, "partial": True})
+    _end(db, rec, "recording.done", {"text": _whole(rec), "partial": True})
     return True
 
 

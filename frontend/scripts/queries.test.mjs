@@ -24,7 +24,6 @@ const ALLOWED = new Map([
   ['app/(erp)/erp/verbinden/page.tsx · mcpRequest', 'einmal je Aufruf – der signierte Auftrag läuft nach zehn Minuten ab'],
   ['lib/use-maps-key.ts · getMapsKey', 'auch ausserhalb eines Query-Clients (Konto, Website-Rahmen); ein Merker je Seite'],
   ['components/erp/address-book.tsx · addAddress', 'eine Handlung (speichern), kein Lesen'],
-  ['components/erp/capture/handgriff-card.tsx · probeHandgriff', 'ein Probelauf (Handlung), kein Lesen'],
   ['components/erp/document-detail.tsx · readDocumentLater', 'eine Handlung: die KI liest nach'],
   ['components/erp/document-draft.tsx · readDraft', 'eine Handlung: die KI liest den Entwurf'],
   ['lib/assistant.ts · refreshPins', 'eine Handlung: das Wissen neu wählen'],

@@ -6260,7 +6260,7 @@
           "assistent"
         ],
         "summary": "Say",
-        "description": "**Dem Assistenten etwas sagen** – die Nachricht ist gespeichert, bevor die Antwort beginnt;\ndann antwortet die KI live (je Zeile ein Schritt, am Ende das Gespräch). Ohne Text, aber mit\n``talk``: die KI antwortet auf das, was schon dasteht (nach einer Aufnahme).",
+        "description": "**Dem Assistenten etwas sagen** – die Nachricht ist gespeichert, bevor die Antwort beginnt;\ndann antwortet die KI live (je Zeile: das Gespräch, ein Schritt oder ein Stück Text, am Ende\ndas Gespräch mit Antwort und Vorschlägen).",
         "operationId": "say_api_v1_erp_assistant_talks_post",
         "requestBody": {
           "content": {
@@ -6539,61 +6539,13 @@
         }
       }
     },
-    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/operation": {
-      "get": {
-        "tags": [
-          "assistent"
-        ],
-        "summary": "Operation Of",
-        "description": "Die Handlung hinter einem Handgriff – ihre Felder für «Ändern» (aus der Route).",
-        "operationId": "operation_of_api_v1_erp_assistant_handgriffe__handgriff_id__operation_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "handgriff_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Handgriff Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/assistant/handgriffe/{handgriff_id}/run": {
       "post": {
         "tags": [
           "assistent"
         ],
         "summary": "Run",
-        "description": "**Ausführen** – genau einmal, mit meinen Rechten, durch die echte Route. ``body`` nur, wenn\nich die Werte geändert habe. Geht es nicht, sagt der Satz der Route warum (409/4xx).",
+        "description": "**Übernehmen** – am Datensatz, genau einmal, mit meinen Rechten, durch die echte Route. Geht\nes nicht, sagt der Satz der Route warum (409/4xx).",
         "operationId": "run_api_v1_erp_assistant_handgriffe__handgriff_id__run_post",
         "security": [
           {
@@ -6611,16 +6563,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RunIn"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -6628,64 +6570,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RunOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/assistant/handgriffe/{handgriff_id}/probe": {
-      "post": {
-        "tags": [
-          "assistent"
-        ],
-        "summary": "Probe",
-        "description": "Eine geänderte Fassung prüfen («Ändern») – der Probelauf derselben Route, nichts bleibt.",
-        "operationId": "probe_api_v1_erp_assistant_handgriffe__handgriff_id__probe_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "handgriff_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Handgriff Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RunIn"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProbeOut"
                 }
               }
             }
@@ -8804,6 +8688,30 @@
         "title": "CaptureTypeInfo",
         "description": "Ein wählbarer Erfassungspunkt-Typ."
       },
+      "Change": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "before": {
+            "type": "string",
+            "title": "Before",
+            "default": ""
+          },
+          "after": {
+            "type": "string",
+            "title": "After",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "field"
+        ],
+        "title": "Change",
+        "description": "Was ein Vorschlag an einem Feld ändert – wie es jetzt ist und wie es würde."
+      },
       "ChangeBlock": {
         "properties": {
           "actor_kind": {
@@ -10433,7 +10341,7 @@
         },
         "type": "object",
         "title": "DoneIn",
-        "description": "Von Hand erledigt (Entwurf freigegeben, Datei abgelegt) – was dabei entstand."
+        "description": "Im Entwurf erledigt (freigegeben) – was dabei entstand."
       },
       "DoorOut": {
         "properties": {
@@ -11207,16 +11115,6 @@
             ],
             "title": "Talk"
           },
-          "hand": {
-            "type": "string",
-            "title": "Hand",
-            "default": ""
-          },
-          "missing": {
-            "type": "string",
-            "title": "Missing",
-            "default": ""
-          },
           "waits_for": {
             "items": {
               "type": "integer"
@@ -11228,6 +11126,13 @@
             "type": "string",
             "title": "Summary",
             "default": ""
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            },
+            "type": "array",
+            "title": "Changes"
           }
         },
         "type": "object",
@@ -11243,7 +11148,7 @@
           "source"
         ],
         "title": "HandgriffOut",
-        "description": "**Ein Handgriff, wie die Karte ihn zeigt.**"
+        "description": "**Ein Vorschlag, wie die Oberfläche ihn zeigt** – im Gespräch mit «Öffnen», am Datensatz\nmit «Übernehmen» (oder im Entwurf)."
       },
       "HintOut": {
         "properties": {
@@ -12726,40 +12631,6 @@
         "title": "ObjectResolution",
         "description": "Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."
       },
-      "OperationOut": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "summary": {
-            "type": "string",
-            "title": "Summary"
-          },
-          "admin": {
-            "type": "boolean",
-            "title": "Admin"
-          },
-          "hand": {
-            "type": "boolean",
-            "title": "Hand"
-          },
-          "schema": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Schema"
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "summary",
-          "admin",
-          "hand"
-        ],
-        "title": "OperationOut",
-        "description": "Eine Handlung des ERP – für «Ändern»: ihre Felder (JSON-Schema der Route)."
-      },
       "OrderCreate": {
         "properties": {
           "lines": {
@@ -13625,7 +13496,7 @@
           "knowledge"
         ],
         "title": "PinnedOut",
-        "description": "**Das Angeheftete** – offene Handgriffe (zuerst), dann das Wissen, das jetzt zählt."
+        "description": "**Auf einen Blick** – offene Vorschläge am Datensatz (zuerst), dann das Wissen, das jetzt\nzählt."
       },
       "PlaceRef": {
         "properties": {
@@ -13661,30 +13532,6 @@
         ],
         "title": "PlaceRef",
         "description": "Ein Halter: Objektnummer, Typ, Name.\n\n``kind`` ist **abgeleitet** (``objects.resolve_object_type``) und nicht gespeichert –\nes sagt der Oberfläche nur, welches Symbol sie zeichnet. ``label`` ist der Name des\nDatensatzes, nicht seine Nummer: die steht daneben und ist klickbar."
-      },
-      "ProbeOut": {
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "title": "Ok"
-          },
-          "detail": {
-            "type": "string",
-            "title": "Detail",
-            "default": ""
-          },
-          "hand": {
-            "type": "string",
-            "title": "Hand",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "ok"
-        ],
-        "title": "ProbeOut",
-        "description": "Der Probelauf einer geänderten Fassung: geht es – sonst der Satz der Route."
       },
       "ProcessEventResponse": {
         "properties": {
@@ -14452,15 +14299,38 @@
             "title": "Seconds",
             "default": 0
           },
-          "talk": {
+          "text": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TalkOut"
+                "type": "string"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Text"
+          },
+          "talk": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Talk"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
           },
           "problem": {
             "anyOf": [
@@ -14482,7 +14352,7 @@
           "state"
         ],
         "title": "Recording",
-        "description": "►►► **Eine Aufnahme** – ``id`` ist die Nummer ihres ``recording.start`` im Log. ◄◄◄\n\n``state``: ``recording`` (kein Stopp, nicht abgebrochen) · ``transcribing`` (gestoppt,\nAbschnitte fehlen) · ``filing`` (Text da, die Nachricht entsteht) · ``done`` (die Nachricht\nsteht im Gespräch, ``talk`` gesetzt) · ``failed`` (``problem``)."
+        "description": "►►► **Eine Aufnahme** – ``id`` ist die Nummer ihres ``recording.start`` im Log. ◄◄◄\n\n``state``: ``recording`` (kein Stopp, nicht abgebrochen) · ``transcribing`` (gestoppt,\nAbschnitte fehlen) · ``filing`` (alles abgeschrieben, wird fertig) · ``done`` (``text`` steht\nbereit – das «+» legt ihn in die Eingabe) · ``failed`` (``problem``)."
       },
       "RecordingIn": {
         "properties": {
@@ -14682,22 +14552,6 @@
         ],
         "title": "RetiredInput",
         "description": "Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels."
-      },
-      "RunIn": {
-        "properties": {
-          "body": {
-            "anyOf": [
-              {},
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Body"
-          }
-        },
-        "type": "object",
-        "title": "RunIn",
-        "description": "Ausführen – ``body`` nur, wenn die Person die Werte geändert hat («Ändern», Entwurf)."
       },
       "RunOut": {
         "properties": {
@@ -15178,7 +15032,7 @@
         "properties": {
           "text": {
             "type": "string",
-            "maxLength": 20000,
+            "maxLength": 200000,
             "title": "Text",
             "default": ""
           },
@@ -15211,6 +15065,17 @@
             "type": "array",
             "maxItems": 10,
             "title": "Files"
+          },
+          "recording": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recording"
           }
         },
         "type": "object",

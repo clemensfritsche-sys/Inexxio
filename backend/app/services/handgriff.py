@@ -407,8 +407,8 @@ def dumps(body: Any) -> str:
 # Der vorbereitete Handgriff – Ereignisse im Log
 # ---------------------------------------------------------------------------
 #
-# ``handgriff``          am Datensatz, den er betrifft: {talk?, mail?, method, path, body, line,
-#                        depends, seen, hand?, by} – vorbereitet, der Probelauf gelang
+# ``handgriff``          am Datensatz, den er betrifft: {talk? · mail? · mcp?, method, path, body,
+#                        line, depends} – vorbereitet, der Probelauf gelang (oder es fehlen Werte)
 # ``handgriff.done``     {handgriff, result?}: ausgeführt – eindeutig je Handgriff
 # ``handgriff.dropped``  {handgriff, by}: weggelegt (oder durch einen neuen ersetzt)
 #
@@ -511,37 +511,6 @@ def target_of(path: str, body: Any, home: int) -> int:
     return _path_target(path) or _body_target(body) or home
 
 
-def _seen(db: Session, object_id: int) -> int:
-    return int(db.execute(text("SELECT coalesce(max(id), 0) FROM log WHERE object_id = :o"),
-                          {"o": object_id}).scalar() or 0)
-
-
-#: Geändert heisst: eine Zeile des Datensatzes wurde geändert oder gelöscht – was neu an ihm
-#: entsteht (eine Nachricht der Person, ein Dokument), ändert nicht, was vorbereitet wurde.
-_CHANGED = text("""
-SELECT table_name, event, changes FROM log
- WHERE object_id = :o AND id > :seen AND action IN ('update', 'delete')
- ORDER BY id LIMIT 20""")
-
-
-def changed_since(db: Session, h: Handgriff) -> list[str]:
-    """►►► **Regel 3: inzwischen geändert?** – nur, wenn die Handlung **an** einem Datensatz
-    handelt (seine Nummer steht im Pfad): was sich dort seit der Vorbereitung geändert hat, in
-    Worten. Leer = nichts. ◄◄◄"""
-    oid = _path_target(fill_or_raw(h.payload.get("path") or ""))
-    if oid is None:
-        return []
-    from ..domain.log import TABLE_WORDS
-    out: list[str] = []
-    for r in db.execute(_CHANGED, {"o": oid, "seen": int(h.payload.get("seen") or 0)}):
-        word = TABLE_WORDS.get(r.table_name or "", r.table_name or "")
-        fields = ", ".join(sorted((r.changes or {}).keys())[:4])
-        line = f"{word}: {fields}" if fields else str(word)
-        if line not in out:
-            out.append(line)
-    return out
-
-
 def fill_or_raw(path: str) -> str:
     return re.sub(r"\{\$handgriff:\d+\}", "", path)
 
@@ -549,10 +518,10 @@ def fill_or_raw(path: str) -> str:
 def prepare(db: Session, person: UserProfile, *, method: str, path: str, body: Any, line: str,
             home: int, talk: Optional[int] = None, mail: Optional[int] = None,
             mcp: Optional[int] = None, depends: Optional[list[int]] = None) -> tuple[Optional[int], Outcome]:
-    """►►► **Einen Handgriff vorbereiten** – erst der Probelauf (als ``person``; offene
-    Handgriffe, auf die er wartet, laufen davor mit), dann das Ereignis ``handgriff``. Geht er
-    nicht, entsteht nichts, und das ``Outcome`` sagt warum (die KI korrigiert). Was nur von Hand
-    geht, wird trotzdem ein Handgriff – «Öffnen». ◄◄◄"""
+    """►►► **Einen Vorschlag vorbereiten** – erst der Probelauf (als ``person``; offene
+    Vorschläge, auf die er wartet, laufen davor mit), dann das Ereignis ``handgriff``. Geht er
+    nicht, entsteht nichts, und das ``Outcome`` sagt warum (die KI korrigiert). Fehlen nur Werte,
+    wird er trotzdem einer: die Person ergänzt sie dort, wo sie ihn öffnet. ◄◄◄"""
     op = operation_for(method, re.sub(r"\{\$handgriff:\d+\}", "100000001", path))
     if op is None:
         return None, Outcome(400, detail=f"«{method} {path}» ist keine Handlung des ERP.")
@@ -565,15 +534,14 @@ def prepare(db: Session, person: UserProfile, *, method: str, path: str, body: A
              for d in before] + [Step(method, path, body)]
     out = Outcome(200) if op.hand else call(person.id, steps, probe=True, results=known)
     # Ging der Probelauf nach aussen (KI, Zahlung), ist er bis dorthin gelungen – der echte Lauf
-    # darf es; nur eine Datei braucht die Hand. Fehlen nur Werte (400, 422), wird er trotzdem eine
-    # Karte – die Person ergänzt sie («Entwurf öffnen», «Ändern»); was sie nicht darf, nie.
+    # darf es; eine Datei lässt sich nicht probieren (sie kommt mit dem Entwurf). Fehlen nur Werte
+    # (400, 422), wird er trotzdem ein Vorschlag – die Person ergänzt sie; was sie nicht darf, nie.
     if not out.ok and not out.hand and not op.hand and not incomplete(out):
         return None, out
     target = target_of(path, body, home)
     payload: dict[str, Any] = {
         "method": method, "path": path, "body": body, "line": " ".join(line.split())[:300],
-        "depends": deps, "seen": _seen(db, target), "hand": "Datei" if op.hand else "",
-        "missing": out.detail if incomplete(out) else ""}
+        "depends": deps}
     if talk is not None:
         payload["talk"] = talk
     if mail is not None:
@@ -601,44 +569,26 @@ def _results(db: Session, deps: list[int]) -> tuple[dict[int, int], list[int]]:
     return known, waiting
 
 
-def run(db: Session, viewer: UserProfile, hid: int, body: Any = None) -> tuple[Handgriff, Outcome]:
-    """►►► **Ausführen – genau einmal, ganz oder gar nicht.** ◄◄◄ Als ``viewer`` (seine Rechte),
-    durch die echte Route. Abgewiesen wird, was nicht offen ist, worauf er noch wartet, was nur
-    von Hand geht, und – ohne geänderte Werte – was sich seit der Vorbereitung geändert hat
-    (Regel 3). ``body`` = die Werte, wie die Person sie geändert hat."""
+def run(db: Session, viewer: UserProfile, hid: int) -> tuple[Handgriff, Outcome]:
+    """►►► **Übernehmen – am Datensatz, genau einmal, ganz oder gar nicht.** ◄◄◄ Die Person hat den
+    Vorschlag dort geöffnet, wo er wirkt, und sieht, was er ändert (``changes``: alt → neu, wie es
+    jetzt ist). Als ``viewer`` (seine Rechte), durch die echte Route. Abgewiesen wird, was nicht
+    offen ist und worauf er noch wartet; was die Route abweist, sagt ihr Satz."""
     h = assert_may(db, hid, viewer)
     if not h.is_open:
-        raise Conflict(f"Handgriff «{hid}» ist schon "
-                                        f"{'ausgeführt' if h.done else 'weggelegt'}.")
-    if h.payload.get("hand") and body is None:
-        raise Conflict(f"Das geht nur von Hand ({h.payload['hand']}).")
-    if h.payload.get("missing") and body is None:
-        raise Conflict(f"Unvollständig – {h.payload['missing']}")
+        raise Conflict(f"Vorschlag «{hid}» ist schon "
+                       f"{'übernommen' if h.done else 'weggelegt'}.")
     known, waiting = _results(db, h.depends)
     if waiting:
-        raise Conflict(f"Wartet auf Handgriff {', '.join(map(str, waiting))}.")
-    if body is None:
-        changed = changed_since(db, h)
-        if changed:
-            raise Conflict("Seit der Vorbereitung geändert: "
-                                            + " · ".join(changed) + ".")
+        raise Conflict(f"Wartet auf Vorschlag {', '.join(map(str, waiting))}.")
 
     def done(s: Session, data: Any) -> None:
         log.event(s, "handgriff.done", h.object_id, {"handgriff": h.id, "result": result_of(data)})
-    step = Step(h.payload["method"], h.payload["path"], h.payload.get("body") if body is None else body)
+    step = Step(h.payload["method"], h.payload["path"], h.payload.get("body"))
     release(db)
     out = call(viewer.id, [step], probe=False, results=known, done=done, once=h.id)
     db.expire_all()
     return get(db, hid), out
-
-
-def probe(db: Session, viewer: UserProfile, hid: int, body: Any) -> Outcome:
-    """Eine geänderte Fassung prüfen («Ändern») – derselbe Probelauf, dieselbe Meldung der Route."""
-    h = assert_may(db, hid, viewer)
-    known, _waiting = _results(db, h.depends)
-    release(db)
-    return call(viewer.id, [Step(h.payload["method"], h.payload["path"], body)], probe=True,
-                results=known)
 
 
 def drop(db: Session, viewer: UserProfile, hid: int, by: str = "person") -> Handgriff:
@@ -654,13 +604,13 @@ def drop(db: Session, viewer: UserProfile, hid: int, by: str = "person") -> Hand
 
 
 def settle(db: Session, viewer: UserProfile, hid: int, result: Optional[int]) -> Handgriff:
-    """**Von Hand erledigt** – ein Handgriff, der nur von Hand ging (Datei, Entwurf), ist getan:
-    die Person hat es eben selbst gemacht. ``result`` = was dabei entstand."""
+    """**Im Entwurf erledigt** – die Person hat den Vorschlag in seinem Entwurf geöffnet und dort
+    freigegeben (Person, Firma, Artikel, Auftrag, Dokument). ``result`` = was dabei entstand."""
     h = assert_may(db, hid, viewer)
     if not h.is_open:
         raise Conflict(f"Handgriff «{hid}» ist nicht mehr offen.")
     log.event(db, "handgriff.done", h.object_id, {"handgriff": h.id, "result": result,
-                                                 "hand": True})
+                                                 "draft": True})
     db.flush()
     return get(db, hid)
 
@@ -692,10 +642,37 @@ def view(db: Session, found: list[Handgriff]) -> list[Any]:
             state=state_of(h, bool(waits)), result=(h.done or {}).get("result"),
             source=mails.get(int(h.payload.get("mail") or 0),
                                 "Claude" if h.payload.get("mcp") is not None else "Gespräch"), talk=h.talk,
-            hand=str(h.payload.get("hand") or ""), missing=str(h.payload.get("missing") or ""),
-            waits_for=waits,
-            summary=op.summary if op else ""))
+            waits_for=waits, summary=op.summary if op else "",
+            changes=changes_of(h) if h.is_open else []))
     return out
+
+
+#: So lang wird ein Wert in «alt → neu» gezeigt.
+_SHOWN = 200
+
+
+def _shown(value: Any) -> str:
+    if value is None or value == "":
+        return ""
+    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
+    return text[:_SHOWN]
+
+
+def changes_of(h: Handgriff) -> list[Any]:
+    """►►► **Was ein Vorschlag an einem Datensatz ändert – alt → neu, wie es jetzt ist.** ◄◄◄
+    Ohne Liste: wer ändert (``PATCH`` · ``PUT``), ändert, was dieselbe Adresse beim Lesen zeigt;
+    der Wert «alt» kommt aus genau dieser Route (``look``). Gibt es sie nicht, steht nur «neu».
+    So sieht die Person am Datensatz, was «Übernehmen» tut – auch wenn sich inzwischen etwas
+    geändert hat."""
+    from ..schemas.assistant import Change
+    body = h.payload.get("body")
+    if h.payload.get("method") not in ("PATCH", "PUT") or not isinstance(body, dict):
+        return []
+    path = fill_or_raw(h.payload.get("path") or "")
+    now = look(path) if operation_for("GET", path, reads()) else Outcome(404)
+    before = now.data if now.ok and isinstance(now.data, dict) else {}
+    return [Change(field=k, before=_shown(before.get(k)), after=_shown(v))
+            for k, v in body.items() if _shown(before.get(k)) != _shown(v)]
 
 
 def _mail_sources(db: Session, ids: list[int]) -> dict[int, str]:

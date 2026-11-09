@@ -1,4 +1,4 @@
-"""Der Assistent (Phase 5): Gespräch und Handgriff – Anfrage und Antwort."""
+"""Der Assistent: Gespräch und Vorschlag (im Code: Handgriff) – Anfrage und Antwort."""
 
 from datetime import datetime
 from typing import Any, Literal, Optional
@@ -16,10 +16,14 @@ class FileRef(BaseModel):
 class TalkIn(BaseModel):
     """**Eine Nachricht an den Assistenten.** Ohne ``talk`` beginnt ein neues Gespräch – am
     offenen Datensatz (``hint_object_id``), sonst an der Person."""
-    text: str = Field("", max_length=20000)
+    #: Getippt höchstens 20'000 Zeichen; mit einer Aufnahme mehr (``talk.MAX_SPOKEN``).
+    text: str = Field("", max_length=200_000)
     talk: Optional[int] = None
     hint_object_id: Optional[int] = None
     files: list[FileRef] = Field(default_factory=list, max_length=10)
+    #: Die Aufnahme, deren abgeschriebener Text in dieser Nachricht steht (die Person hat ihn in
+    #: der Eingabe ergänzt und selbst geschickt).
+    recording: Optional[int] = None
 
 
 class DoorOut(BaseModel):
@@ -27,8 +31,16 @@ class DoorOut(BaseModel):
     url: str = ""
 
 
+class Change(BaseModel):
+    """Was ein Vorschlag an einem Feld ändert – wie es jetzt ist und wie es würde."""
+    field: str
+    before: str = ""
+    after: str = ""
+
+
 class HandgriffOut(BaseModel):
-    """**Ein Handgriff, wie die Karte ihn zeigt.**"""
+    """**Ein Vorschlag, wie die Oberfläche ihn zeigt** – im Gespräch mit «Öffnen», am Datensatz
+    mit «Übernehmen» (oder im Entwurf)."""
     id: int
     at: datetime
     object_id: int
@@ -46,15 +58,12 @@ class HandgriffOut(BaseModel):
     #: Woher: «Gespräch» oder «Mail von …: Betreff».
     source: str
     talk: Optional[int] = None
-    #: Geht nur von Hand (Datei, Kamera, Zahlung …) – dann «Öffnen» statt «Ausführen».
-    hand: str = ""
-    #: Es fehlen Werte, die die Person ergänzt – der Satz der Route; «Ausführen» erst danach
-    #: (über «Entwurf öffnen» oder «Ändern»).
-    missing: str = ""
-    #: Worauf er wartet (Nummern anderer Handgriffe).
+    #: Worauf er wartet (Nummern anderer Vorschläge).
     waits_for: list[int] = Field(default_factory=list)
     #: Was die Handlung tut – ihr Satz aus dem ERP.
     summary: str = ""
+    #: Ändert er einen Datensatz: je Feld alt → neu, wie es jetzt ist (``handgriff.changes_of``).
+    changes: list[Change] = Field(default_factory=list)
 
 
 class TalkMessage(BaseModel):
@@ -79,18 +88,6 @@ class TalkOut(BaseModel):
     problem: Optional[str] = None
 
 
-class RunIn(BaseModel):
-    """Ausführen – ``body`` nur, wenn die Person die Werte geändert hat («Ändern», Entwurf)."""
-    body: Optional[Any] = None
-
-
-class ProbeOut(BaseModel):
-    """Der Probelauf einer geänderten Fassung: geht es – sonst der Satz der Route."""
-    ok: bool
-    detail: str = ""
-    hand: str = ""
-
-
 class RunOut(BaseModel):
     handgriff: HandgriffOut
     #: Die Antwort der Handlung (was sie angelegt oder geändert hat).
@@ -98,19 +95,8 @@ class RunOut(BaseModel):
 
 
 class DoneIn(BaseModel):
-    """Von Hand erledigt (Entwurf freigegeben, Datei abgelegt) – was dabei entstand."""
+    """Im Entwurf erledigt (freigegeben) – was dabei entstand."""
     result: Optional[int] = None
-
-
-class OperationOut(BaseModel):
-    """Eine Handlung des ERP – für «Ändern»: ihre Felder (JSON-Schema der Route)."""
-    key: str
-    summary: str
-    admin: bool
-    hand: bool
-    schema_: dict[str, Any] = Field(default_factory=dict, alias="schema")
-
-    model_config = {"populate_by_name": True}
 
 
 class KnowledgeOut(BaseModel):
@@ -123,7 +109,8 @@ class KnowledgeOut(BaseModel):
 
 
 class PinnedOut(BaseModel):
-    """**Das Angeheftete** – offene Handgriffe (zuerst), dann das Wissen, das jetzt zählt."""
+    """**Auf einen Blick** – offene Vorschläge am Datensatz (zuerst), dann das Wissen, das jetzt
+    zählt."""
     handgriffe: list[HandgriffOut]
     knowledge: list[KnowledgeOut]
     #: Wann das Wissen gewählt wurde; ``stale`` = im Umfeld hat sich seither etwas geändert –

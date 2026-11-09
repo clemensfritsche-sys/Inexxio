@@ -117,8 +117,8 @@ class Task:
     effort: Optional[str] = None
 
 
-#: ►►► **Die Aufgaben – und welches Modell sie macht.** ◄◄◄ Lesen ist Masse: das schnelle,
-#: günstige Modell. Verfassen, Ablegen, Folgen und Hinweise: das mittlere Modell. Was im Weg
+#: ►►► **Die Aufgaben – und welches Modell sie macht.** ◄◄◄ Lesen und «Auf einen Blick» sind
+#: Masse: das schnelle, günstige Modell. Verfassen, Gespräch und Folgen: das mittlere Modell. Was im Weg
 #: einer Anfrage oder des Takts läuft, bleibt unter 60 s und versucht es nicht zweimal.
 TASKS: dict[str, Task] = {
     # Unter der Grenze des Hostings: 50 s, kein zweiter Versuch, eine kurze Antwort.
@@ -133,9 +133,9 @@ TASKS: dict[str, Task] = {
     # (``follow.TRIES``).
     "follow": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=45.0, retries=0,
                    rounds=5, effort="low"),
-    # Was an einem Datensatz jetzt wichtig ist (das Wissen im Angehefteten).
-    "pin": Task(model="claude-sonnet-5-5", max_tokens=3000, timeout=45.0, retries=0,
-                rounds=3, effort="low"),
+    # «Auf einen Blick»: was an einem Datensatz jetzt zählt – das schnelle Modell, meist schon
+    # vorab im Takt gerechnet (``pins.ahead``), damit es beim Öffnen sofort dasteht.
+    "pin": Task(model="claude-haiku-5-5", max_tokens=3000, timeout=45.0, retries=0, rounds=3),
 }
 
 #: ►►► **Was ein Aufruf kostet** – USD je Million Tokens (Eingabe, Ausgabe). Haiku über
@@ -329,15 +329,32 @@ def _replay(content: list[Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _turn(client: Any, on_text: Optional[Callable[[str], None]], **args: Any) -> Any:
+    """Ein Zug beim Anbieter. Mit geprüfter Form (``output_format``) am Stück; Text kommt
+    gestreamt, damit ihn die Person schon liest, während die KI schreibt."""
+    if "output_format" in args:
+        return client.messages.parse(**args)
+    with client.messages.stream(**args) as live:
+        for piece in live.text_stream:
+            if on_text is not None and piece:
+                on_text(piece)
+        return live.get_final_message()
+
+
 def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
-             content: list[dict], schema: type[T], tools: Optional[list[Tool]] = None,
+             content: list[dict], schema: Optional[type[T]], tools: Optional[list[Tool]] = None,
              on_step: Optional[Callable[[str], None]] = None,
-             stopped: Optional[Callable[[], bool]] = None) -> Optional[T]:
+             on_text: Optional[Callable[[str], None]] = None,
+             stopped: Optional[Callable[[], bool]] = None) -> Any:
     """►►► **Ein Gespräch mit Werkzeugen** – die KI darf nachschlagen (höchstens
     ``Task.rounds`` Züge, alle zusammen in ``Task.timeout``), dann kommt die Antwort in fester
     Form. Jeder Zug ist ein ``ai.call`` (mit Dauer ``ms``); vor jedem Zug gilt der Deckel. Nie
     eine Ausnahme – ``problem()`` sagt, warum nichts kam. ``on_step`` hört jeden Schritt (live
     im «+»), ``stopped`` hält vor dem nächsten Zug an (die Person drückte «Stopp»).
+
+    **Zwei Formen der Antwort**: mit ``schema`` eine geprüfte Form (das Ergebnis ist das Modell);
+    ohne ``schema`` Text für einen Menschen – er kommt **gestreamt** (``on_text`` hört jedes
+    Stück, auch was die KI zwischen zwei Werkzeugen sagt), das Ergebnis ist der ganze Text.
 
     **Zwischenspeicher**: Anleitung und Werkzeuge sind in jedem Zug gleich – der Anbieter merkt
     sie sich (``cache_control``), jeder weitere Zug liest sie schneller und für einen Zehntel. ◄◄◄"""
@@ -354,8 +371,11 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
         extra["tools"] = [t.spec() for t in by_name.values()]
     if spec.effort:
         extra["output_config"] = {"effort": spec.effort}
+    if schema is not None:
+        extra["output_format"] = schema
     deadline = _time.monotonic() + _left(spec.timeout)
     cached = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    said: list[str] = []
     for turn in range(1, max(1, spec.rounds) + 1):
         if stopped is not None and stopped():
             _PROBLEM.set(STOPPED)
@@ -370,9 +390,9 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
         usage: dict[str, Any] = {"turn": turn}
         began = _time.monotonic()
         try:
-            response = _client(left, _retries(spec.retries)).messages.parse(
-                model=spec.model, max_tokens=spec.max_tokens, system=cached,
-                messages=messages, output_format=schema, **extra)
+            response = _turn(_client(left, _retries(spec.retries)), on_text if schema is None else None,
+                             model=spec.model, max_tokens=spec.max_tokens, system=cached,
+                             messages=messages, **extra)
             usage.update({**_tokens(response.usage), "stop": response.stop_reason, "ms": _ms(began)})
         except Exception as exc:                               # noqa: BLE001
             usage.update({"error": type(exc).__name__, "status": getattr(exc, "status_code", None),
@@ -384,6 +404,8 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
         calls = [b for b in getattr(response, "content", None) or [] if getattr(b, "type", "") == "tool_use"]
         usage["tools"] = [b.name for b in calls] or None
         _record(db, task, spec.model, actor, usage)
+        said += [b.text for b in getattr(response, "content", None) or []
+                 if getattr(b, "type", "") == "text" and (getattr(b, "text", "") or "").strip()]
         if response.stop_reason == "tool_use" and calls:
             messages.append({"role": "assistant", "content": _replay(response.content)})
             results: list[dict[str, Any]] = []
@@ -395,6 +417,11 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
                 results.append({"type": "text", "text": "Antworte jetzt – ohne weiteres Nachschlagen."})
             messages.append({"role": "user", "content": results})
             continue
+        if schema is None:
+            text = "\n\n".join(t.strip() for t in said)
+            if not text and response.stop_reason == "refusal":
+                _PROBLEM.set("Die KI hat abgelehnt.")
+            return text or None
         result = response.parsed_output if response.stop_reason not in ("refusal", "max_tokens") else None
         if result is None:
             _PROBLEM.set("Die KI hat abgelehnt." if response.stop_reason == "refusal"

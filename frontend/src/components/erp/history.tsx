@@ -16,7 +16,7 @@
  * Eingabe gibt es nur an Person (und dort die Kommunikation, `communication.tsx`); andere
  * Datensätze haben keine – Wissen kommt über «Erfassen» («+» im Feed).
  *
- * **Unten beim Neuesten steht das Angeheftete** (`pinned.tsx`): offene Vorschläge, dann die
+ * **Unten beim Neuesten steht «Auf einen Blick»** (`pinned.tsx`): offene Vorschläge, dann die
  * Hinweise der KI – an jedem Datensatz, der einen Verlauf hat, auch wenn er noch leer ist.
  */
 
@@ -179,7 +179,7 @@ export function History({ objectId, mirror = true, personId, meId, onReply, onDo
     const named = !!m && (mirror || (m.ours ? m.sender.object_id !== meId : m.sender.object_id !== personId));
     const row = m ? <Bubble m={m} mirror={mirror} named={named} onReply={onReply} onDone={onDone} />
       : e.document ? <DocumentRow e={e} /> : e.change ? <ChangeRow c={e.change} at={e.at} /> : null;
-    // Die Adresse des Eintrags für einen Hinweis im Angehefteten – ohne eigene Box.
+    // Die Adresse des Eintrags für einen Hinweis «Auf einen Blick» – ohne eigene Box.
     if (row) rows.push(<div key={e.key} data-entry={e.key} style={{ display: 'contents' }}>{row}</div>);
   }
   // ►►► Der Verlauf steht beim NEUESTEN. ◄◄◄ `column-reverse` verankert das Rollen am unteren
