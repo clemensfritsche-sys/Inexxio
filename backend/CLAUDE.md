@@ -116,6 +116,7 @@ app/
 scripts/
 ├── dump_openapi.py   ← OpenAPI → backend/openapi.json (Quelle der Frontend-Typen)
 ├── dump_statuses.py  ← domain/statuses.py → frontend/src/lib/status-catalog.ts
+├── dump_vocab.py     ← Schlüssel und Wörter aus domain/… → frontend/src/lib/vocab.ts
 ├── deadcode.py       ← «was liest eigentlich niemand mehr?» (beide Seiten)
 ├── measure_verlauf.py← Messung: Verlauf und «zu tun» bei 50'000 Nachrichten (rollt zurück)
 ├── build_geoip.py    ← DB-IP Lite → IP→Land (im Docker-Build)
@@ -141,13 +142,18 @@ scripts/
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
-Nach jeder Änderung an einem Request/Response-Schema oder am Statuskatalog:
+Nach jeder Änderung an einem Request/Response-Schema, am Statuskatalog oder an einem
+Vokabular, das die Oberfläche kennt (Modulschlüssel, Farbfamilie, Erfassungstyp, Richtung,
+Stufe, Vorgabe, Incoterm, Versandart, Kanal-Art, Symbol der Zeiterfassung, Takt …):
 ```bash
 cd backend && python -m scripts.dump_openapi     # → backend/openapi.json
 cd backend && python -m scripts.dump_statuses    # → frontend/src/lib/status-catalog.ts
+cd backend && python -m scripts.dump_vocab       # → frontend/src/lib/vocab.ts
 cd ../frontend && npm run generate:types          # → src/types/api.ts
 ```
-Die CI generiert alle drei neu und bricht bei jedem Unterschied ab. Das Ergebnis hängt an
+Die CI generiert alle vier neu und bricht bei jedem Unterschied ab. Ein neuer Schlüssel in
+`vocab.ts` macht das Frontend rot, bis seine Tabellen (Symbol, Farbe, Hover) ihn kennen – das
+ist gewollt (`Record<ModuleKey, …>`). Das Ergebnis hängt an
 der FastAPI-/Pydantic-Version – vorher prüfen:
 ```bash
 python -c "import fastapi,pydantic;print(fastapi.__version__, pydantic.VERSION)"

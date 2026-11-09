@@ -74,7 +74,7 @@ src/components/
 │                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)
 ├── form/      ← field + use-field (**der Feld-Baustein**, siehe unten), save-status, kt-section (Konto: Abschnitt, Feld, Datum «TT.MM.JJJJ»; Stile `.kt-*` – Adressbuch und Firmenfeld tragen sie über `cards`/`look`)
 └── layout/    ← site-shell, account-sync
-src/lib/       ← api.ts · modules.ts · scan.ts · when.ts (auch `NOTHING`) · status-catalog.ts (generiert) ·
+src/lib/       ← api.ts · modules.ts · scan.ts · when.ts (auch `NOTHING`) · status-catalog.ts · vocab.ts (beide generiert) ·
                  process-status.ts · status-tone.ts · record-status.ts (isStaff) · account-cache.ts ·
                  login-target.ts · legal-forms.ts · feed.ts (was ein Pfad ändert, `TOUCHES`) ·
                  queries.ts (Schlüssel der Detailansichten, `useDebouncedQuery`) ·
@@ -107,7 +107,7 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `address-field.tsx`, `address-book.tsx` | Jede Adress-Eingabe (Google Places) · das Adressbuch einer Person (zwei Konten) |
 | `company-field.tsx` | Firmenzuordnung einer Person (Konto und ERP) |
 | `history.tsx` | **Der Verlauf** – EINE Komponente an jeder Detailansicht (Person, Firma, Auftrag, Artikel, Instanz, Dokument): `useHistory` (`useInfiniteQuery`, Seiten vom Server, «ältere laden» beim Rollen), Nachrichten als Blasen, Dokumente als Zeile, Änderungen je Handlung technisch (`feld: alt → neu`, Festbreite) |
-| `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter «Verlauf»): die Ansicht (`communication.tsx`: Postfach, `History`, Eingabe) · `timeline` (die Blase einer Nachricht, Tagestrenner, die wartende Mail) · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – Spiegel `DELIVERIES`) |
+| `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter «Verlauf»): die Ansicht (`communication.tsx`: Postfach, `History`, Eingabe) · `timeline` (die Blase einer Nachricht, Tagestrenner, die wartende Mail) · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – `DELIVERIES` aus `lib/vocab`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |
 | `new-record.tsx` | Person und Firma anlegen (Entwurf; `initial` = vorausgefüllt aus einem Handgriff) |
 | `capture/` | **«+» = der Assistent – EIN Gespräch wie bei Claude** (Phase 5): `capture-sheet` (die Eingabe: Text, Enter = senden; 📷/📄 hängen die Datei an die Nachricht (Korb), 📌 Stecknadel (`lib/pin-point`), 🎤 Aufnahme im Feld; darüber das Gespräch – Blasen und Handgriff-Karten; während die KI antwortet, live jeder ihrer Schritte und «Stopp» (`api.say` liest den NDJSON-Stream direkt am Dienst, `api.stopTalk`), «Neues Gespräch»; darunter «Offene Gespräche» und «Neu anlegen»; während einer Aufnahme nicht schliessbar; `host` = wo die Stecknadel zeigt) · `handgriff-card` (**ein Handgriff** – Zeile, Datensatz, Quelle, Werte, «Fehlt noch: …»; Ausführen/Ablegen (gesperrt, solange Werte fehlen) · Entwurf öffnen (überall, wo es «Neu anlegen» gibt: `DRAFTS`) · Ändern (Felder aus dem Schema der Route, Probelauf) · Weg · Öffnen; dieselbe Karte im Angehefteten) · `recorder` (`RecordingStrip` – im offenen Gespräch geht der Text dorthin; `recordingWord`) · `capture-context` (`openDraft` – «Entwurf öffnen», gehalten von der Feed-Seite bzw. `/erp/erfassen`) |
@@ -122,7 +122,7 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `step-record.tsx` | Modul-Protokoll (eine Komponente für alle Modultypen) |
 | `stock-view.tsx`, `stock-bar.tsx`, `unit-number(s).tsx` | Bestand (Artikel- und Instanz-Umfang) · Leiste · Stücknummern |
 | `place-trail.tsx`, `obj-id.tsx` | Ortskette eines Stücks · Objektnummer als Kennung (`.erp-objid`) |
-| `time/` | **Zeiterfassung**: `time-card` (die Karte im Personendatensatz), `time-swipe` (Kommen ↔ Gehen), `time-calendar` (Monat, abgeschlossene Tage blass), `time-day` (Tag + «Erfassen», Vorschau vom Server), `time-contracts` (Verträge, Buchungen), `company-time` (Feiertage, Absenzarten, Regeln an der Gesellschaft), `time-ui` (Formate in Minuten, Symbole – Spiegel getestet) |
+| `time/` | **Zeiterfassung**: `time-card` (die Karte im Personendatensatz), `time-swipe` (Kommen ↔ Gehen), `time-calendar` (Monat, abgeschlossene Tage blass), `time-day` (Tag + «Erfassen», Vorschau vom Server), `time-contracts` (Verträge, Buchungen), `company-time` (Feiertage, Absenzarten, Regeln an der Gesellschaft), `time-ui` (Formate in Minuten, Symbole – getippt gegen `TimeIconName`) |
 | `territory-map.tsx`, `world-map.tsx` | Gebietskarte |
 | `detail-tabs.tsx`, `error-boundary.tsx` | Hilfen |
 
@@ -158,10 +158,20 @@ Skill `inexxio-design-system`.
   (`python -m scripts.dump_statuses`). Eine **Quelle, kein Spiegel**: Beschriftung,
   Ampelton, Achsen, Bestand/Historie, Endgültigkeit kommen von dort. `lib/process-status.ts`
   trägt nur das **Symbol** und `isPickable`.
-- Handgepflegte Spiegel über die API-Grenze sind getestet
-  (`backend/tests/test_frontend_mirrors.py`): Instanz-Arten (`lib/record-status`),
-  Modul-/Erfassungssymbole und `MODULE_FORM`-Schlüssel (`lib/modules.ts`), `CapturePoint`,
-  Aussondern-Modi, Geld-Richtungen. Quelltext-Wächter liegen nach Bereich in
+- `src/lib/vocab.ts` – Schlüssel und Wörter aus `backend/app/domain/…`
+  (`python -m scripts.dump_vocab`): Instanz-Arten, Modulschlüssel und Farbfamilien,
+  Erfassungstypen, `CapturePoint`, Aussondern-Modi, Geld-Richtungen/-Stufen/-Vorgaben,
+  Eigentum, Incoterms, Angebotszustände, Versandarten, Kanal-Arten, Symbole der Zeiterfassung,
+  Takte der Wiederholung, `DRAFT_OBJECT_ID`. **Keine Spiegel von Hand**: was die Oberfläche
+  selbst hält (Symbol, Farbwert, Hover-Satz), ist gegen die Schlüssel getippt
+  (`MODULE_ICON: Record<ModuleKey, LucideIcon>`, `MODULE_FORM`, `MODULE_FIELDS`,
+  `MODULE_TONE`, `CAPTURE_ICON`, `KIND_LABEL`, `TIME_ICONS`, …) – ein neuer oder entfernter
+  Schlüssel ist ein Typfehler. Gelesen wird mit einem Schlüssel von aussen über
+  `vocab.lookup(table, key)` (unbekannt → `undefined`, nie ein Prototyp-Eintrag).
+- **Quelltext-Wächter** in Node lesen den Syntaxbaum über `scripts/lib/source.mjs` (`files`,
+  `parse`, `walk`/`find`, `calls`, `jsx`, `imports`, `exports`, `strings`, `stripComments`);
+  was kein Typ prüfen kann, steht so (`scripts/vocab-use.test.mjs`: Modulfarben nur in
+  `lib/modules`, Beleg-Stufen nur über `VOUCHER_STAGE`). Ältere liegen noch nach Bereich in
   `backend/tests/test_source_*.py`; jeder Aufruf in `lib/api.ts` muss eine Backend-Route
   treffen (Compiler über `paths`, dazu `test_api_routes.py`).
 
@@ -367,7 +377,7 @@ Versand/Lieferung) → **Positionen** mit Summe → **Konditionen** (+ «Es gelt
 - `/agb` zeigt das A4-Dokument vom Server (`api.publicLegal('agb')`; ebenso `/datenschutz`, `/impressum`).
 - API: `updateVoucher` · `previewVoucher` · `prepareVoucherPayment` · `voucherTransfer` ·
   `refundVoucherPayment` · `paymentsOf`. Vorgaben des Moduls im Editor:
-  `MONEY_FORM` in `lib/modules.ts` (Spiegel getestet).
+  `MONEY_FORM` in `lib/modules.ts` (Schlüssel und Wörter aus `lib/vocab`).
 - **Die eine Seite nach aussen** (`app/(public)/dokument`, `components/beleg/document-page.tsx`):
   jedes Dokument über seinen Link – das Papier (A4-HTML in einem `iframe srcdoc`, PDF, Bild),
   Unterschreiben (dieselbe Fläche wie `signature-pad.tsx`, `onSigned`) oder Ablehnen; ist es ein

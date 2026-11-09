@@ -3,8 +3,8 @@
  *
  * Die Listen stehen im Backend (`domain/modules.py`, `domain/capture_types/`, über
  * `GET /erp/orders/module-catalog`); welche Farbfamilie ein Typ trägt, sagt `tone`. Hier liegt
- * nur, was eine Antwort nicht transportieren kann. `backend/tests/test_frontend_mirrors.py`
- * prüft, dass die Schlüssel genau die des Backends sind.
+ * nur, was eine Antwort nicht transportieren kann – getippt gegen die generierten Schlüssel
+ * (`lib/vocab.ts`): ein Schlüssel ohne Eintrag hier baut nicht.
  */
 
 import {
@@ -14,9 +14,14 @@ import {
 } from 'lucide-react';
 
 import { emptyLine, type DefinitionLine } from '@/components/erp/definition-lines';
+import {
+  DISPOSAL_ACTIONS, VOUCHER_DIRECTIONS, VOUCHER_PRESET_LABELS, lookup,
+  type CaptureKey, type DisposalMode, type ModuleKey, type ModuleTone, type VoucherDirectionKey,
+  type VoucherPresetKey,
+} from '@/lib/vocab';
 
 /** Erfassungspunkt-Typen (`domain/capture_types/`). */
-export const CAPTURE_ICON: Record<string, LucideIcon> = {
+export const CAPTURE_ICON: Record<CaptureKey, LucideIcon> = {
   text: Type,
   bool: ThumbsUp,
   photo: Camera,
@@ -25,7 +30,7 @@ export const CAPTURE_ICON: Record<string, LucideIcon> = {
 };
 
 /** Prozessschrittmodule (`domain/modules.py`). */
-export const MODULE_ICON: Record<string, LucideIcon> = {
+const MODULE_ICON: Record<ModuleKey, LucideIcon> = {
   datenerfassung: ClipboardCheck,
   aussondern: PackageX,
   verbrauch: Blocks,
@@ -37,41 +42,20 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
 
 /**
  * **Die beiden Richtungen eines Geldvorgangs — Symbol und Satz.** Alles Übrige reist mit dem
- * Vorgang (`VoucherEmbed`). Spiegel von `backend/app/domain/voucher.py` (`test_frontend_mirrors`).
- * Keine zwei Farben: Farbe ist im ERP für die Ampel reserviert. «Einnahme» ↔ «Ausgabe», weil
- * das Modul auch Miete, Lohn und Gebühr kann.
+ * Vorgang (`VoucherEmbed`). Wort, Satz, `partyRef` und `weQuote` kommen aus `lib/vocab`
+ * (`domain/voucher.DIRECTIONS`); hier steht nur das Symbol. Keine zwei Farben: Farbe ist im ERP
+ * für die Ampel reserviert. «Einnahme» ↔ «Ausgabe», weil das Modul auch Miete, Lohn und Gebühr kann.
  */
-export const VOUCHER_DIRECTION: Record<string, {
-  icon: LucideIcon; label: string; hint: string;
-  /**
-   * Gibt es die Frage «wie bestelle ich bei ihm?» Nur, wo wir bestellen. Spiegel von
-   * `Direction.party_ref` – die freundliche Hälfte derselben Regel.
-   */
-  partyRef: boolean;
-  /**
-   * **Nennen WIR den Preis?** Nur dann lässt er sich im Modul vorgeben (`Beleg.PRICES`).
-   * Gespiegelt von `Direction.quoted_by` (getestet).
-   */
-  weQuote: boolean;
-}> = {
-  in: {
-    // Der Handschlag – Geld kommt herein, weil eine Zusage nach aussen erfüllt wird.
-    icon: Handshake, label: 'Einnahme',
-    hint: 'Einnahme – wir stellen Rechnung, Geld kommt herein.',
-    partyRef: false,
-    weQuote: true,
-  },
-  out: {
-    // Der Einkaufswagen – Geld geht hinaus, weil wir etwas beziehen.
-    icon: ShoppingCart, label: 'Ausgabe',
-    hint: 'Ausgabe – wir bekommen Rechnung, Geld geht hinaus.',
-    partyRef: true,
-    weQuote: false,
-  },
+const DIRECTION_ICON: Record<VoucherDirectionKey, LucideIcon> = {
+  // Der Handschlag – Geld kommt herein, weil eine Zusage nach aussen erfüllt wird.
+  in: Handshake,
+  // Der Einkaufswagen – Geld geht hinaus, weil wir etwas beziehen.
+  out: ShoppingCart,
 };
-
-/** Die Gegenpartei heisst in beiden Richtungen gleich; Singular = Plural. Spiegel von `domain/voucher`. */
-export const VOUCHER_PARTY = 'Partner';
+export const VOUCHER_DIRECTION = {
+  in: { ...VOUCHER_DIRECTIONS.in, icon: DIRECTION_ICON.in },
+  out: { ...VOUCHER_DIRECTIONS.out, icon: DIRECTION_ICON.out },
+} satisfies Record<VoucherDirectionKey, unknown>;
 
 /**
  * **Was ist zu tun? — EIN Satz am Modul, freiwillig** («Härten auf 58 HRC»), für jeden Partner
@@ -90,88 +74,37 @@ export const VOUCHER_ORDER_REF = 'Wie bestellen?';
 export const VOUCHER_ORDER_REF_HINT = 'Seine Artikelnummer oder der Link zu seinem Shop';
 
 /**
- * ►►► **Was das Modul dem Beleg vorgeben DARF** (`Beleg.PRESETS` / `PRESET_LABELS`). ◄◄◄
+ * ►►► **Was das Modul dem Beleg vorgeben DARF** (`Beleg.PRESETS` / `PRESET_LABELS`, generiert). ◄◄◄
  * Was hier steht, gilt für jeden Auftrag aus diesem Prozess; leer heisst «wählt der Mensch am
- * Beleg». Spiegel von `domain/modules.Beleg` (`test_frontend_mirrors`).
+ * Beleg». Schlüssel, Reihenfolge und Wort kommen aus `lib/vocab`; hier stehen Hover und Tage.
  */
-export type VoucherPresetKey = 'payment_days' | 'lead_days' | 'valid_days' | 'incoterm' | 'ownership';
-export const VOUCHER_PRESETS: { key: VoucherPresetKey; label: string; days?: true; hint: string }[] = [
-  { key: 'payment_days', label: 'Zahlungsfrist', days: true,
-    hint: 'Tage bis zur Fälligkeit der Rechnung – 0 heisst Vorauszahlung' },
-  { key: 'lead_days', label: 'Lieferfrist', days: true,
-    hint: 'Tage ab der Zusage bis zur Lieferung' },
-  { key: 'valid_days', label: 'Gültig', days: true,
-    hint: 'Wie viele Tage die Offerte gilt (1 bis 365)' },
-  { key: 'incoterm', label: 'Lieferbedingung',
-    hint: 'Incoterms 2020 – wer Kosten und Risiko trägt; den Ort nennt der Beleg' },
-  { key: 'ownership', label: 'Eigentum',
-    hint: 'Wem die Stücke gehören, wenn sie das Modul passieren' },
-];
+const PRESET_UI: Record<VoucherPresetKey, { days?: true; hint: string }> = {
+  payment_days: { days: true, hint: 'Tage bis zur Fälligkeit der Rechnung – 0 heisst Vorauszahlung' },
+  lead_days: { days: true, hint: 'Tage ab der Zusage bis zur Lieferung' },
+  valid_days: { days: true, hint: 'Wie viele Tage die Offerte gilt (1 bis 365)' },
+  incoterm: { hint: 'Incoterms 2020 – wer Kosten und Risiko trägt; den Ort nennt der Beleg' },
+  ownership: { hint: 'Wem die Stücke gehören, wenn sie das Modul passieren' },
+};
+export const VOUCHER_PRESETS: { key: VoucherPresetKey; label: string; days?: true; hint: string }[] =
+  (Object.keys(VOUCHER_PRESET_LABELS) as VoucherPresetKey[]).map((key) => ({
+    key, label: VOUCHER_PRESET_LABELS[key], ...PRESET_UI[key],
+  }));
 
 /** **Leer heisst «wählt der Mensch am Beleg»** – kurz im leeren Feld, ausgeschrieben im Hover. */
 export const VOUCHER_PRESET_OPEN = 'am Beleg';
 export const VOUCHER_PRESETS_HINT = 'Was hier steht, gilt für jeden Auftrag aus diesem Prozess '
   + 'und steht im Beleg fest. Leer heisst: wählt der Mensch am Beleg.';
 
-/** **Wem die Stücke danach gehören** – Spiegel von `domain/voucher.OWNERSHIP`. */
-export const VOUCHER_OWNERSHIP: { value: string; label: string }[] = [
-  { value: 'party', label: 'geht an die Partei' },
-  { value: 'us', label: 'geht an uns' },
-];
-
-/**
- * **Die elf Klauseln der Incoterms 2020** – Kürzel und Name, Spiegel von
- * `domain/incoterms.INCOTERMS` (die Erklärung je Klausel reist mit dem Beleg).
- */
-export const INCOTERMS: { key: string; label: string }[] = [
-  { key: 'EXW', label: 'Ab Werk' },
-  { key: 'FCA', label: 'Frei Frachtführer' },
-  { key: 'CPT', label: 'Frachtfrei' },
-  { key: 'CIP', label: 'Frachtfrei versichert' },
-  { key: 'DAP', label: 'Geliefert benannter Ort' },
-  { key: 'DPU', label: 'Geliefert entladen' },
-  { key: 'DDP', label: 'Geliefert verzollt' },
-  { key: 'FAS', label: 'Frei Längsseite Schiff' },
-  { key: 'FOB', label: 'Frei an Bord' },
-  { key: 'CFR', label: 'Kosten und Fracht' },
-  { key: 'CIF', label: 'Kosten, Versicherung, Fracht' },
-];
-
 /** Die Richtung zu einem Schlüssel. Unbekannt → Ausgabe, wie im Backend (`voucher.of`). */
 export function voucherDirection(direction: string | undefined | null) {
-  return VOUCHER_DIRECTION[direction ?? ''] ?? VOUCHER_DIRECTION.out;
+  return lookup(VOUCHER_DIRECTION, direction) ?? VOUCHER_DIRECTION.out;
 }
-
-/**
- * **Die Stufen eines Geldvorgangs — als Schlüssel, nicht als Wort** (die Wörter sagt der Server,
- * sie hängen an der Richtung). Spiegel von `domain/voucher.STAGES` (`test_frontend_mirrors`).
- */
-export const VOUCHER_STAGE = {
-  offer: 'offer',
-  agreed: 'agreed',
-  /** **Die Rechnung steht** – Nummer, Betrag, Steuer und Fälligkeit sind eingefroren. */
-  billed: 'billed',
-  /** **Ausgänge, keine Stufen** – man kommt dort an, statt hindurchzugehen. */
-  done: 'done',
-  cancelled: 'cancelled',
-} as const;
-
-/**
- * **Die Zustände einer Angebotszeile.** `gewaehlt` entsteht dadurch, dass bei dieser Zeile
- * zugesagt wurde. Gespiegelt von `domain/voucher.QUOTE_STATES`.
- */
-export const QUOTE_STATE = {
-  asked: 'angefragt',
-  quoted: 'offeriert',
-  declined: 'abgelehnt',
-  chosen: 'gewaehlt',
-} as const;
 
 /**
  * **Die Farbfamilien der Module — die eine Stelle.** Getrennt von der Ampel: ein Modul ist
  * kein Zustand (PROCESS_CORE.md §5.3), darum Neutraltöne statt Signalfarben.
  */
-export const MODULE_TONE: Record<string, { bg: string; fg: string; border: string }> = {
+export const MODULE_TONE: Record<ModuleTone | 'teal', { bg: string; fg: string; border: string }> = {
   slate: { bg: 'var(--accent-soft)', fg: 'var(--accent-ink)', border: '#BFD6E2' },
   sand: { bg: '#F4EBDD', fg: '#9A7238', border: '#E4D2B8' },
   moss: { bg: '#E9EFE6', fg: '#5A7048', border: '#CBD9C2' },
@@ -187,7 +120,7 @@ export const MODULE_TONE: Record<string, { bg: string; fg: string; border: strin
  * anderes Modul.
  */
 export function moduleIcon(type: string | undefined | null): LucideIcon {
-  return MODULE_ICON[type ?? ''] ?? CircleHelp;
+  return lookup(MODULE_ICON, type) ?? CircleHelp;
 }
 
 /**
@@ -195,7 +128,7 @@ export function moduleIcon(type: string | undefined | null): LucideIcon {
  * sieht auch so aus.
  */
 export function moduleTone(tone: string | undefined | null): { bg: string; fg: string; border: string } {
-  return MODULE_TONE[tone ?? ''] ?? UNKNOWN_TONE;
+  return lookup(MODULE_TONE, tone) ?? UNKNOWN_TONE;
 }
 
 /** Sichtbar kaputt: keine Modulfarbe, sondern die Warnfarbe des Hauses. */
@@ -313,13 +246,16 @@ export interface ModuleDraft {
 /** Ein vorgegebener Preis im Editor: Artikel (Nummer, Name zur Anzeige) und Einzelpreis. */
 export interface PricePreset { article: number | null; name: string; price: string }
 
-/** **Die Ausprägungen des Aussonderns** – den Zielzustand sagt das Backend (`Aussondern.MODES`). */
-export type DisposalMode = 'scrap' | 'block';
-
-export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string }[] = [
-  { value: 'scrap', label: 'Verschrotten', hint: 'Physisch entsorgt – endgültig, kein Weg zurück' },
-  { value: 'block', label: 'Sperren', hint: 'Bleibt vorhanden, ist aber nicht mehr einplanbar' },
-];
+/** **Die Ausprägungen des Aussonderns** – Schlüssel und Verb aus dem Backend (`Aussondern.ACTIONS`,
+ *  generiert), den Zielzustand sagt der Server; hier steht nur der Hover. */
+const DISPOSAL_HINT: Record<DisposalMode, string> = {
+  scrap: 'Physisch entsorgt – endgültig, kein Weg zurück',
+  block: 'Bleibt vorhanden, ist aber nicht mehr einplanbar',
+};
+export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string }[] =
+  (Object.keys(DISPOSAL_ACTIONS) as DisposalMode[]).map((value) => ({
+    value, label: DISPOSAL_ACTIONS[value], hint: DISPOSAL_HINT[value],
+  }));
 
 /**
  * **Die Definition eines Geld-Moduls — Richtung, zugelassene Partner, Auftrag.** Kein Steuersatz,
@@ -372,9 +308,9 @@ function blankPresets(): Record<VoucherPresetKey, string> {
 /**
  * **Was ein Modultyp im Entwurf ausmacht — je Typ ein Eintrag, nicht je Stelle ein `if`.**
  * Ob ein Entwurf vollständig ist, sagt der Server (`POST …/validate`, `Module.clean_config`);
- * hier steht nur die Form der Eingabe. `test_frontend_mirrors` hält die Schlüssel deckungsgleich.
+ * hier steht nur die Form der Eingabe. Getippt gegen `ModuleKey`: ein Modultyp ohne Eintrag baut nicht.
  */
-export const MODULE_FORM: Record<string, {
+const MODULE_FORM: Record<ModuleKey, {
   config: (m: ModuleDraft) => Record<string, unknown>;
   /** Die Umkehrform – gespeicherte Konfiguration → Entwurf (eingefroren: dieselben Felder, gesperrt). */
   draft: (config: Record<string, unknown>) => Partial<ModuleDraft>;
@@ -451,7 +387,7 @@ function sampleDraft(value: unknown): SampleDraft {
 export function moduleFromConfig(id: number, moduleType: string,
                                  config: Record<string, unknown> | null | undefined): ModuleDraft {
   return { ...blankModule(id, moduleType),
-           ...(MODULE_FORM[moduleType]?.draft(config ?? {}) ?? {}) };
+           ...(lookup(MODULE_FORM, moduleType)?.draft(config ?? {}) ?? {}) };
 }
 
 /** Ein frischer Entwurf dieses Modultyps – mit den Vorgaben, die das Backend kennt. */
@@ -466,5 +402,5 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
 
 /** Entwurfsform → API-Form (`schemas/process.ModuleInput`). */
 export function toModulePayload(m: ModuleDraft) {
-  return { module_type: m.moduleType, config: MODULE_FORM[m.moduleType]?.config(m) ?? {} };
+  return { module_type: m.moduleType, config: lookup(MODULE_FORM, m.moduleType)?.config(m) ?? {} };
 }

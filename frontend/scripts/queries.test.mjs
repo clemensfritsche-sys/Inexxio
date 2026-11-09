@@ -10,15 +10,9 @@
  *     node --test scripts/queries.test.mjs
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import ts from 'typescript';
-
-const here = dirname(fileURLToPath(import.meta.url));
-const src = resolve(here, '../src');
+import { calls, files, parse, ts, walk } from './lib/source.mjs';
 
 /** Datei · Methode → warum es hier ein Effekt sein darf. */
 const ALLOWED = new Map([
@@ -42,43 +36,24 @@ const ALLOWED = new Map([
   ['lib/use-url-params.ts · resolveObject', 'einmal je Seitenaufruf: eine Nummer aus der Adresse öffnen'],
 ]);
 
-function files(dir) {
-  return readdirSync(dir).flatMap((n) => {
-    const p = join(dir, n);
-    if (statSync(p).isDirectory()) return files(p);
-    return /\.tsx?$/.test(n) && !p.endsWith('types/api.ts') ? [p] : [];
-  });
-}
-
 /** Jeder `api.<methode>(…)`-Aufruf im Körper eines `useEffect`. */
-function effectCalls(path) {
-  const text = readFileSync(path, 'utf8');
-  const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+function effectCalls(sf) {
   const found = [];
-  const inside = (node) => {
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
-        && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === 'api') {
-      found.push(node.expression.name.text);
+  walk(sf, (n) => {
+    if (ts.isCallExpression(n) && n.expression.getText() === 'useEffect' && n.arguments[0]) {
+      for (const c of calls(n.arguments[0], (name) => name.startsWith('api.'))) {
+        found.push(c.expression.name.text);
+      }
     }
-    ts.forEachChild(node, inside);
-  };
-  const visit = (node) => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'useEffect'
-        && node.arguments[0]) {
-      inside(node.arguments[0]);
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sf);
+  });
   return found;
 }
 
 test('kein Lesen vom Server in einem useEffect – ausser mit Grund', () => {
   const seen = new Set();
   const bad = [];
-  for (const path of files(src)) {
-    const rel = relative(src, path);
-    for (const method of effectCalls(path)) {
+  for (const rel of files()) {
+    for (const method of effectCalls(parse(rel))) {
       const key = `${rel} · ${method}`;
       seen.add(key);
       if (!ALLOWED.has(key)) bad.push(key);
@@ -90,17 +65,7 @@ test('kein Lesen vom Server in einem useEffect – ausser mit Grund', () => {
 });
 
 test('der Wächter erkennt die Bug-Form', () => {
-  const sample = join(here, 'queries.sample.tmp.tsx');
-  const text = "useEffect(() => { api.timeView(1).then(setView); }, []);";
-  const sf = ts.createSourceFile(sample, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const calls = [];
-  const inside = (n) => {
-    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) calls.push(n.expression.name.text);
-    ts.forEachChild(n, inside);
-  };
-  ts.forEachChild(sf, function walk(n) {
-    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'useEffect') inside(n.arguments[0]);
-    ts.forEachChild(n, walk);
-  });
-  assert.ok(calls.includes('timeView'));
+  const sf = parse('useEffect(() => { api.timeView(1).then(setView); }, []);', { text: true });
+  assert.deepEqual(effectCalls(sf), ['timeView']);
+  assert.deepEqual(effectCalls(parse('const run = () => api.timeView(1);', { text: true })), []);
 });

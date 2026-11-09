@@ -54,7 +54,7 @@ MSG: dict[str, str] = VOCAB["messages"]
 LIMITS: dict[str, int] = VOCAB["limits"]
 PHOTOS: dict = VOCAB["photos"]
 #: Derselbe Ausdruck wie im Browser (``website/src/config/inquiry.mjs`` → ``patterns``); die
-#: E-Mail-Regel ist ``people.is_email`` (derselbe Ausdruck, ``tests/test_frontend_mirrors``).
+#: E-Mail-Regel ist ``people.is_email``.
 PHONE_RE = re.compile(VOCAB["patterns"]["phone"])
 SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")

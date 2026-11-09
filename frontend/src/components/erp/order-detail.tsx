@@ -14,7 +14,8 @@ import { DetailBody, DetailHeader, HeaderAction, SectionSep } from '@/components
 import { History } from '@/components/erp/history';
 import { DocumentTiles } from '@/components/erp/documents';
 import { LabelButton } from '@/components/scan/object-label';
-import { DRAFT_OBJECT_ID, EMPTY_GRAPH, definitionGraph, type DiagramStep, type JourneyOrigin } from '@/lib/process-graph';
+import { EMPTY_GRAPH, definitionGraph, type DiagramStep, type JourneyOrigin } from '@/lib/process-graph';
+import { DRAFT_OBJECT_ID, lookup } from '@/lib/vocab';
 import { PROCESS_MAXW } from '@/components/erp/flow-column';
 import { StepCard } from '@/components/erp/module-card';
 import { ProcessColumns, toDiagramSteps } from '@/components/erp/process-columns';
@@ -562,7 +563,7 @@ function PointList({ points, sample, action, reason, moduleType, target }: {
         </div>
       )}
       {points.map((p) => {
-        const Icon = CAPTURE_ICON[p.type] ?? CAPTURE_ICON.text;
+        const Icon = lookup(CAPTURE_ICON, p.type) ?? CAPTURE_ICON.text;
         return (
           <div key={p.key} className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
             <Icon size={13} style={{ color: 'var(--fg-4)' }} />

@@ -104,19 +104,11 @@ export type Genealogy = components['schemas']['Genealogy'];
 export type GenealogyPart = components['schemas']['GenealogyPart'];
 
 /**
- * Ein Erfassungspunkt aus der Definition eines Moduls (`process_steps.config`). Von Hand
- * gespiegelt, weil `config` frei ist (der Modultyp entscheidet, `Module.clean_config`); der
- * Abgleich mit `schemas/process.CapturePoint` ist getestet (`tests/test_frontend_mirrors.py`).
+ * Ein Erfassungspunkt aus der Definition eines Moduls (`process_steps.config`). `config` ist frei
+ * (der Modultyp entscheidet, `Module.clean_config`), darum steht er nicht in der API – die Form
+ * wird aus `schemas/process.CapturePoint` generiert (`scripts/dump_vocab`).
  */
-export interface CapturePoint {
-  key: string;
-  label: string;
-  type: string;
-  target?: number | null;
-  tolerance?: number | null;
-  /** Worin wird gemessen? (mm · kg · °C …) Ein freies Wort – das System zeigt es nur an. */
-  unit?: string | null;
-}
+export type { CapturePoint } from '@/lib/vocab';
 /** Was an einem Modul für **eine Instanz** ansteht (`process.step_work`). */
 export type StepWork = components['schemas']['StepWork'];
 /** Eine Zeile der Stückliste, gegen den Bestand gehalten (`services/consumption`). */

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Check, ThumbsDown, ThumbsUp } from 'lucide-react';
 import type { CapturePoint } from '@/types';
 import { CAPTURE_ICON, NEEDS_TARGET } from '@/lib/modules';
+import { lookup } from '@/lib/vocab';
 import { PhotoShot } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { inputCls, numericInputProps, numericOnly } from '@/components/erp/controls';
@@ -108,7 +109,7 @@ function PointInput({ point, unit, value, disabled, onChange }: {
   disabled?: boolean;
   onChange: (v: unknown) => void;
 }) {
-  const Icon = CAPTURE_ICON[point.type];
+  const Icon = lookup(CAPTURE_ICON, point.type);
   // Die Einheit steht am **Sollwert**, nicht als eigene Zeile: sie gehört zur Zahl.
   const soll = point.type === NEEDS_TARGET && point.target != null
     ? `Soll ${point.target}${point.tolerance ? ` ± ${point.tolerance}` : ''}`

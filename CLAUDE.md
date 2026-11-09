@@ -531,11 +531,13 @@ Oberfläche und Dienst garantiert dasselbe.
   info · warn · error; ERROR geht per Mail, `infra/setup-meldungen.sh`), ein gescheiterter Abruf meldet sich (`lib/notice`), eine
   gescheiterte Migration macht den Deploy rot (`/health` → `scripts/check-schema.sh`), ein
   Ausfall der KI nennt seinen Grund (`ai.problem`).
-- **Spiegel über die API-Grenze sind getestet** (`backend/tests/test_frontend_mirrors.py`):
-  Instanz-Arten (`models/instance.KINDS`), Modul-/Erfassungssymbole, Modulschlüssel,
-  `CapturePoint`, Aussondern-Modi, Geld-Richtungen und -Stufen, Symbole der Zeiterfassung;
-  der Status-Katalog ist
-  generiert statt gespiegelt. Jeder Aufruf in `lib/api.ts` trifft eine Backend-Route
+- **Über die API-Grenze wird generiert, nicht gespiegelt**: Status-Katalog
+  (`scripts/dump_statuses` → `lib/status-catalog.ts`) und Vokabular (`scripts/dump_vocab` →
+  `lib/vocab.ts`: Instanz-Arten, Modulschlüssel und -farben, Erfassungstypen, `CapturePoint`,
+  Aussondern-Modi, Geld-Richtungen, -Stufen und -Vorgaben, Incoterms, Versandarten, Kanal-Arten,
+  Symbole der Zeiterfassung, Takte der Wiederholung); was die Oberfläche selbst hält (Symbol,
+  Farbwert, Hover), ist gegen die generierten Schlüssel getippt (`Record<ModuleKey, …>`) – ein
+  neuer Schlüssel ist ein Typfehler. Die CI prüft, dass alles Generierte aktuell ist. Jeder Aufruf in `lib/api.ts` trifft eine Backend-Route
   (`tests/test_api_routes.py`).
 
 ## Konventionen

@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Check, Clock, ExternalLink, Loader2, Mail, Megaphone, MoreHorizontal, Newspaper, Paperclip, Phone, Reply } from 'lucide-react';
+import { Check, Clock, ExternalLink, Loader2, Megaphone, MoreHorizontal, Newspaper, Paperclip, Phone, Reply } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatWhen, whenTitle } from '@/lib/when';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { DraftSheet } from '@/components/erp/document-draft';
 import type { Message } from '@/types';
-import { DELIVERIES, ICON_BTN, KIND_ICON, Person, topicColor } from '@/components/erp/communication/shared';
+import { DELIVERIES, ICON_BTN, Person, kindIcon, topicColor } from '@/components/erp/communication/shared';
 
 // ─── Die Blase einer Nachricht ──────────────────────────────────────────────
 // Der Verlauf selbst – in Seiten, mit Dokumenten und Änderungen – ist `components/erp/history.tsx`.
@@ -168,7 +168,7 @@ export function Bubble({ m, mirror, named, onReply, onDone }: {
   onReply?: (m: Message) => void; onDone?: (m: Message) => void;
 }) {
   const call = m.channel.kind === 'phone';
-  const Icon = m.bcc.length > 2 ? Megaphone : KIND_ICON[m.channel.kind as keyof typeof KIND_ICON] ?? Mail;
+  const Icon = m.bcc.length > 2 ? Megaphone : kindIcon(m.channel.kind);
   const showState = !mirror && m.open;
   const bg = !m.channel.outside ? 'var(--bg-3)' : m.ours ? 'var(--accent-soft)' : 'var(--bg-1)';
   // Wer ausser dem einen Empfänger dabei war – das «Cc», kurz; alles Genaue im Hover.

@@ -891,24 +891,6 @@ def test_the_line_says_the_past_and_the_pill_says_the_present():
         db.close()
 
 
-def test_the_draft_is_named_the_same_on_both_sides():
-    """Der Entwurf hat keine Objektnummer – aber **eine Adresse**, und die ist geteilt.
-
-    Die Vorschau nennt ihn als Ziel ihrer Abzweigung (``order:<n>``); im Browser muss
-    dieselbe Zahl die Mitte bezeichnen, sonst findet die Linie ihr Ende nicht und
-    verschwindet **still**.
-    """
-    schema = _read(BACKEND / "app" / "schemas" / "order.py")
-    diagram = _diagram()
-    server = re.search(r"DRAFT_OBJECT_ID\s*=\s*(-?\d+)", schema)
-    client = re.search(r"DRAFT_OBJECT_ID\s*=\s*(-?\d+)", diagram)
-    assert server and client, "Eine der beiden Seiten kennt die Entwurfs-Adresse nicht."
-    assert server.group(1) == client.group(1), (
-        f"Server sagt {server.group(1)}, Browser sagt {client.group(1)} – die Linie zum "
-        f"Entwurf endet damit im Nichts."
-    )
-
-
 def test_the_journey_is_a_tree_on_the_same_line():
     """**Herkunft und Verbleib hängen am Strang, nicht daneben** (Auftrag §6).
 

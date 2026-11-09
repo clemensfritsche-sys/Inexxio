@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { day } from '@/lib/when';
-import { VOUCHER_STAGE } from '@/lib/modules';
+import { VOUCHER_STAGE } from '@/lib/vocab';
 import { inputCls, Label, Segmented } from '@/components/erp/controls';
 import { Input } from '@/components/form/field';
 import { StatusDot } from '@/components/erp/fields';

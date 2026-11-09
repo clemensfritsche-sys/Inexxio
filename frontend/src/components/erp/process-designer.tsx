@@ -8,20 +8,24 @@ import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleOption, ModuleCatalog, VoucherParty } from '@/types';
 import {
-  CAPTURE_ICON, VOUCHER_DIRECTION, VOUCHER_ORDER_REF, VOUCHER_ORDER_REF_HINT, VOUCHER_PARTY,
+  CAPTURE_ICON, VOUCHER_DIRECTION, VOUCHER_ORDER_REF, VOUCHER_ORDER_REF_HINT,
   VOUCHER_TASK, VOUCHER_TASK_HINT, voucherDirection,
-  VOUCHER_PRESETS, VOUCHER_PRESET_OPEN, VOUCHER_PRESETS_HINT, VOUCHER_OWNERSHIP, INCOTERMS, type VoucherPresetKey,
+  VOUCHER_PRESETS, VOUCHER_PRESET_OPEN, VOUCHER_PRESETS_HINT,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
   SAMPLE_PRESETS, blankModule, moduleTone,
-  type DisposalMode, type ModuleDraft, type PointDraft, type PricePreset, type SampleDraft,
+  type ModuleDraft, type PointDraft, type PricePreset, type SampleDraft,
   type SampleMode,
 } from '@/lib/modules';
+import {
+  DRAFT_OBJECT_ID, INCOTERMS, VOUCHER_OWNERSHIP, VOUCHER_PARTY, lookup,
+  type DisposalMode, type ModuleKey, type VoucherPresetKey,
+} from '@/lib/vocab';
 
 /** Symbol je Kurzweg. Die Wörter stehen daneben – ein Anteil hat kein Bild. */
 const SAMPLE_ICON: Record<SampleMode, LucideIcon> = {
   all: Layers, half: Columns2, quarter: Grid2x2, free: Percent,
 };
-import { DRAFT_OBJECT_ID, definitionGraph, type DiagramStep } from '@/lib/process-graph';
+import { definitionGraph, type DiagramStep } from '@/lib/process-graph';
 import { ProcessColumns } from '@/components/erp/process-columns';
 import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
@@ -129,9 +133,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
           const m = modules.find((x) => x.id === step.id);
           if (!m) return null;
           // Welche Felder ein Modul hat, sagt sein Typ – eine Zuordnung, keine Bedingung.
-          const known = m.moduleType in MODULE_FIELDS;
-          const Fields = MODULE_FIELDS[m.moduleType];
-          if (!known) {
+          const Fields = lookup(MODULE_FIELDS, m.moduleType);
+          if (Fields === undefined) {
             return (
               <p className="text-xs" style={{ color: 'var(--danger)' }}>
                 Modultyp «{m.moduleType}» ist dieser Oberfläche unbekannt.
@@ -265,10 +268,10 @@ function MoveFields({ module: m, onChange }: {
 
 /**
  * **Was ein Modultyp ZUSÄTZLICH hat** – eine Zuordnung, keine Bedingung. `null` heisst «kennt
- * ihn, hat nichts zu fragen»; ein fehlender Schlüssel heisst «unbekannt». Ein Wächter hält die
- * Schlüssel mit dem Backend deckungsgleich.
+ * ihn, hat nichts zu fragen»; ein fehlender Schlüssel heisst «unbekannt». Getippt gegen
+ * `ModuleKey` (generiert): ein Modultyp ohne Eintrag baut nicht.
  */
-const MODULE_FIELDS: Record<string, React.ComponentType<{
+const MODULE_FIELDS: Record<ModuleKey, React.ComponentType<{
   module: ModuleDraft;
   types: { key: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
@@ -560,7 +563,7 @@ function SampleRow({ value, onChange }: {
 
 /** Die Art eines Erfassungspunktes – Symbol mit dem Namen im Hover. */
 function PointIcon({ type, types }: { type: string; types: { key: string; label: string }[] }) {
-  const Icon = CAPTURE_ICON[type] ?? CAPTURE_ICON.text;
+  const Icon = lookup(CAPTURE_ICON, type) ?? CAPTURE_ICON.text;
   return (
     <span className="flex items-center justify-center flex-none rounded"
       style={{ width: 26, height: 26, color: 'var(--fg-3)' }}
@@ -616,7 +619,7 @@ function ModuleFields({ module: m, types, onChange }: {
       {/* Ein Symbol je Erfassungstyp; Klick legt den Punkt an. */}
       <div className="flex flex-wrap gap-1.5">
         {types.map((t) => {
-          const Icon = CAPTURE_ICON[t.key] ?? CAPTURE_ICON.text;
+          const Icon = lookup(CAPTURE_ICON, t.key) ?? CAPTURE_ICON.text;
           return (
             <button key={t.key} type="button" className="ix-palette ix-palette-sm ix-tuck"
               aria-label={`${t.label} hinzufügen`}

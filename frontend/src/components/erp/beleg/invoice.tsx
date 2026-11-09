@@ -5,7 +5,7 @@ import { AlertTriangle, RotateCcw, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { TONE } from '@/lib/status-tone';
 import { NOTHING, day, when } from '@/lib/when';
-import { VOUCHER_STAGE } from '@/lib/modules';
+import { VOUCHER_STAGE } from '@/lib/vocab';
 import { PayOnline } from '@/components/erp/pay-online';
 import { DocLink, DocumentField, readValue } from '@/components/erp/document-field';
 import { Segmented, inputCls, Label, numericInputProps, numericOnly } from '@/components/erp/controls';

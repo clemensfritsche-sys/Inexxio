@@ -2,6 +2,7 @@ import { Briefcase, Shield, UserCircle } from 'lucide-react';
 import type { Article, CompanySettings, UserProfile } from '@/types';
 import { TONE, type StatusCfg } from '@/lib/status-tone';
 import { FREIGEGEBEN, INAKTIV, statusCfg } from '@/lib/process-status';
+import { lookup, type InstanceKind } from '@/lib/vocab';
 
 /**
  * **Der Zustand eines ERP-Datensatzes – EINE Regel für alle Typen**; Feed und Detail lesen
@@ -59,13 +60,12 @@ export function organizationStatus(c: Pick<CompanySettings, 'is_active'>): Statu
   return c.is_active === false ? INACTIVE : statusCfg(FREIGEGEBEN);
 }
 
-/** Instanz-Typ → Beschriftung; Spiegel von `models/instance.KINDS` (getestet,
- *  `tests/test_frontend_mirrors.py`). */
-export const KIND_LABEL: Record<string, string> = {
-  'einzeln': 'Einzeln',
-  'batch': 'Charge',
+/** Instanz-Typ → Beschriftung; getippt gegen `InstanceKind` (generiert aus `models/instance.KINDS`). */
+const KIND_LABEL: Record<InstanceKind, string> = {
+  einzeln: 'Einzeln',
+  batch: 'Charge',
 };
 
 export function kindLabel(kind: string): string {
-  return KIND_LABEL[kind] ?? kind;
+  return lookup(KIND_LABEL, kind) ?? kind;
 }

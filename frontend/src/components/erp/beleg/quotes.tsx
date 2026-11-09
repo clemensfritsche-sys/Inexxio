@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, CircleSlash, ClipboardList, ExternalLink, Send as SendIcon, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { NOTHING, happened } from '@/lib/when';
-import { QUOTE_STATE, VOUCHER_STAGE } from '@/lib/modules';
+import { QUOTE_STATE, VOUCHER_STAGE } from '@/lib/vocab';
 import { ObjId } from '@/components/erp/obj-id';
 import { numericInputProps, numericOnly } from '@/components/erp/controls';
 import { Input } from '@/components/form/field';

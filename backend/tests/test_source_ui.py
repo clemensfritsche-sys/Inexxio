@@ -332,9 +332,9 @@ def test_the_money_module_mirror_is_named_after_its_source():
     hits = [rel for rel, src in _frontend_sources(".ts", ".tsx")
             if re.search(r"\bDEAL_[A-Z]|\bdealDirection\b", _code(src))]
     assert not hits, f"Der Geldvorgang heisst wieder «deal»: {hits}"
-    modules = _code(_read(FRONTEND / "lib" / "modules.ts"))
+    modules = _code(_read(FRONTEND / "lib" / "modules.ts") + _read(FRONTEND / "lib" / "vocab.ts"))
     for name in ("VOUCHER_DIRECTION", "VOUCHER_STAGE", "VOUCHER_PARTY", "voucherDirection"):
-        assert name in modules, f"«{name}» fehlt in `lib/modules.ts`."
+        assert name in modules, f"«{name}» fehlt in `lib/modules.ts` / `lib/vocab.ts`."
 
 
 

@@ -4,8 +4,8 @@
  * Zeiterfassung – kleine Bausteine und Formate. Jede Zahl kommt in **Minuten** vom Server
  * (`services/timekeeping`); hier wird sie nur gezeigt.
  *
- * Die **Symbole** der Absenzarten und Hinweise sind ein Spiegel von `domain/timekeeping`
- * (`Art.icon`, `HINTS`) – geprüft in `backend/tests/test_frontend_mirrors.py`. Ein
+ * Die **Symbole** der Absenzarten und Hinweise sind getippt gegen `TimeIconName` (generiert aus
+ * `domain/timekeeping`, `Art.icon` und `HINTS`): ein Name ohne Symbol baut nicht. Ein
  * unbekannter Schlüssel sieht unbekannt aus (`HelpCircle`), nie wie eine andere Art.
  */
 import type { CSSProperties, ElementType, ReactNode } from 'react';
@@ -19,9 +19,10 @@ import { inputClass } from '@/components/erp/controls';
 import { Input } from '@/components/form/field';
 import { TONE } from '@/lib/status-tone';
 import { NOTHING } from '@/lib/when';
+import { lookup, type TimeIconName } from '@/lib/vocab';
 
 /** Lucide-Name (Backend) → Symbol. */
-export const TIME_ICONS: Record<string, ElementType> = {
+const TIME_ICONS: Record<TimeIconName, ElementType> = {
   sun: Sun,
   thermometer: Thermometer,
   activity: Activity,
@@ -34,7 +35,7 @@ export const TIME_ICONS: Record<string, ElementType> = {
   'file-warning': FileWarning,
 };
 
-export const timeIcon = (name: string): ElementType => TIME_ICONS[name] ?? HelpCircle;
+export const timeIcon = (name: string): ElementType => lookup(TIME_ICONS, name) ?? HelpCircle;
 
 // ─── Formate ────────────────────────────────────────────────────────────────────────
 

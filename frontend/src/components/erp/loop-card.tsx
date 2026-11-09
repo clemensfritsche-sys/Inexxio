@@ -10,6 +10,7 @@ import { ActionButton } from '@/components/erp/module-ui';
 import { ObjId } from '@/components/erp/obj-id';
 import { TONE } from '@/lib/status-tone';
 import { day } from '@/lib/when';
+import { LOOP_EVERY, LOOP_TAKES, type LoopEvery } from '@/lib/vocab';
 import { LAGER, type DefinitionLine } from '@/components/erp/definition-lines';
 
 /**
@@ -22,18 +23,10 @@ import { LAGER, type DefinitionLine } from '@/components/erp/definition-lines';
  * Ihre Linie (links zurück zum Start) zeichnet `process-columns.LoopLine`.
  */
 
-/** Die Takte – Schlüssel wie `domain/loop.EVERY`; der Server weist Unbekanntes ab. */
-const EVERY = [
-  { value: 'week', label: 'wöchentlich' },
-  { value: 'month', label: 'monatlich' },
-  { value: 'quarter', label: 'vierteljährlich' },
-  { value: 'half', label: 'halbjährlich' },
-  { value: 'year', label: 'jährlich' },
-];
-const TAKES = [
-  { value: 'same', label: 'gleiche Einzelinstanzen' },
-  { value: 'fifo', label: 'FIFO' },
-];
+/** Die Takte – Schlüssel und Wort generiert aus `domain/loop.EVERY`. */
+const EVERY = (Object.keys(LOOP_EVERY) as LoopEvery[]).map((value) => ({ value, label: LOOP_EVERY[value] }));
+/** Die Wahl je Lager-Zeile (`domain/loop.TAKES`) – `new` wählt niemand, es folgt aus einer Zeile «Neu». */
+const TAKES = (['same', 'fifo'] as const).map((value) => ({ value, label: LOOP_TAKES[value] }));
 const ENDS = [
   { value: 'never', label: 'unbefristet' },
   { value: 'until', label: 'bis Datum' },

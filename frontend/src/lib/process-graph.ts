@@ -56,13 +56,6 @@ export type DiagramMode = 'definition' | 'ausfuehrung';
  * **Der Graph eines Entwurfs.** Ein Entwurf lebt im Browser (§6.1); sein Graph ist keine
  * zweite Ableitung, sondern die Definition selbst: Start → Module → Ende.
  */
-/**
- * **Wie ein Entwurf im Bild heisst** – die Adresse, die die Vorschau des Quell-Auftrags als Ziel
- * nennt. Spiegel von `backend/app/schemas/order.DRAFT_OBJECT_ID` (`tests/test_frontend_mirrors.py`);
- * Null kollidiert mit keiner echten Objektnummer.
- */
-export const DRAFT_OBJECT_ID = 0;
-
 /** Ein Bild, das der Server (noch) nicht geliefert hat. Leer, nicht erfunden. */
 export const EMPTY_GRAPH: ProcessGraph = { nodes: [], edges: [], problems: [] };
 

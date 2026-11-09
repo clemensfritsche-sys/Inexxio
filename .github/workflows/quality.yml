@@ -116,12 +116,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Generierte Dateien aktuell (openapi.json, api.ts, status-catalog.ts)
+      - name: Generierte Dateien aktuell (openapi.json, api.ts, status-catalog.ts, vocab.ts)
         run: |
-          (cd backend && python -m scripts.dump_openapi && python -m scripts.dump_statuses)
+          (cd backend && python -m scripts.dump_openapi && python -m scripts.dump_statuses && python -m scripts.dump_vocab)
           (cd frontend && npm ci && npm run generate:types)
-          git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts || \
-            (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses' und 'npm run generate:types' ausführen und committen" && exit 1)
+          git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts frontend/src/lib/vocab.ts || \
+            (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses', 'python -m scripts.dump_vocab' und 'npm run generate:types' ausführen und committen" && exit 1)
 
   # Die öffentliche Website (website/, Astro 7, Node ≥ 22.12). Der Build prüft: offene
   # Punkte (check-content), Links, JSON-LD, Sitemap, robots.txt, llms.txt, Weiterleitungen

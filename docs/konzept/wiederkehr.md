@@ -520,8 +520,8 @@ Abhängigkeiten.
   Satz. Beenden fragt einmal nach.
 - Die Linie **links**, aus `polyPath`, Haarlinie bis zur ersten Wiederholung (prozessbild §8.1a);
   jede Wiederholung zeigt ihre eigene Schlaufe.
-- `prozessbild.md` nachgezogen; Spiegel der Takte im Frontend getestet
-  (`test_frontend_mirrors.py`).
+- `prozessbild.md` nachgezogen; Takte und Wahl je Zeile im Frontend generiert
+  (`backend/scripts/dump_vocab.py` → `frontend/src/lib/vocab.ts`).
 
 #### 7 · Abschluss
 - CLAUDE.md (Ist-Stand), Kopfstatus dieser Akte «gebaut», Rundenbericht in `docs/history/`.

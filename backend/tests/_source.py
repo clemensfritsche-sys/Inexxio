@@ -1,6 +1,5 @@
-"""Gemeinsame Hilfen der Quelltext-Wächter (``test_frontend_mirrors.py`` und
-``test_source_*.py``): Pfade, Datei lesen, Code ohne Kommentare, Rumpf eines
-Bauteils."""
+"""Gemeinsame Hilfen der Quelltext-Wächter (``test_source_*.py``): Pfade, Datei lesen,
+Code ohne Kommentare, Rumpf eines Bauteils."""
 
 import pathlib
 import re

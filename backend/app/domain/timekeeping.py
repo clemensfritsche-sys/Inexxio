@@ -39,7 +39,8 @@ EFFECTS: dict[str, tuple[str, str]] = {
 class Art:
     key: str
     label: str
-    #: Symbol (Lucide), Spiegel in ``frontend/src/components/erp/time/vocab.ts`` – getestet.
+    #: Symbol (Lucide) – generiert nach ``frontend/src/lib/vocab.ts`` (``scripts/dump_vocab``);
+    #: ``time-ui.TIME_ICONS`` ist dagegen getippt.
     icon: str
     effect: str
     #: Welcher Nachweis – ``None`` = keiner.

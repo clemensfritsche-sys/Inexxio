@@ -942,31 +942,11 @@ def test_a_module_type_brings_its_own_fields_from_one_registry():
 
     Verteilt über `toModulePayload`, `moduleIncomplete` und den Editor wären es drei
     Ketten, die beim dritten Modultyp auseinanderlaufen. Sie stehen darum an je einer
-    Stelle, und die Schlüssel decken die Backend-Registry genau ab.
+    Stelle. Dass die Schlüssel die Backend-Registry genau abdecken, erzwingt der Compiler
+    (`MODULE_FORM`, `MODULE_FIELDS`: `Record<ModuleKey, …>`, `lib/vocab.ts` generiert).
     """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from app.domain import modules
-
-    ts = _read(FRONTEND / "lib" / "modules.ts")
-    # Ab dem Zuweisungs-`{`, sonst fängt die **Typ-Signatur** mit (dort stehen `config`
-    # und `draft` auf derselben Einrückung) – dieselbe Vorsichtsmassnahme wie bei
-    # `MODULE_FIELDS` ein paar Zeilen tiefer.
-    form = ts.split("export const MODULE_FORM")[1].split("}> = {", 1)[1].split("\n};")[0]
-    # **Ein Eintrag je Typ – gleich, ob er ein Literal ist oder auf einen geteilten
-    # zeigt.** Die Regel ist «jeder Modultyp hat genau einen»; wie er geschrieben ist,
-    # gehört nicht dazu. Vorher stand hier ``(\w+): \{`` und verlangte damit ein
-    # Inline-Objekt – zwei Module, die sich denselben Eintrag teilen (Ein- und Verkauf
-    # tragen denselben Beleg), fielen als «fehlend» heraus, und die naheliegende
-    # Reparatur wäre gewesen, den Eintrag zu **kopieren**. Ein Wächter, der zur Doppelung
-    # drängt, prüft die falsche Sache.
-    assert set(re.findall(r"^  (\w+): ", form, re.M)) == set(modules.KEYS)
-
     designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
-    # Ab dem Zuweisungs-`{`, sonst fängt die Typ-Signatur der Props mit.
-    fields = designer.split("const MODULE_FIELDS")[1].split("= {", 1)[1].split("\n};")[0]
-    assert set(re.findall(r"^  (\w+):", fields, re.M)) == set(modules.KEYS)
-    assert "MODULE_FIELDS[m.moduleType]" in designer, (
+    assert "lookup(MODULE_FIELDS, m.moduleType)" in designer, (
         "Der Editor wählt den Feldsatz nicht mehr über die Zuordnung."
     )
 
