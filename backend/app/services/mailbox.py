@@ -823,7 +823,7 @@ def signer_of(sender: Optional[UserProfile], msg: Message):
     from . import mail_layout as layout
     if msg.created_by is None or not policy.is_staff(sender):
         return None
-    return layout.Signer(name=sender.display_name, photo=sender.photo_url or "")
+    return layout.as_signer(sender)
 
 
 def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> EmailMessage:

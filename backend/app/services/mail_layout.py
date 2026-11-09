@@ -15,10 +15,14 @@ da, lässt sie nur ihren eigenen weg.
 Die übrigen Regeln:
 
 * **Die Überschrift ist der Betreff** – ohne «Re:» (``dc.title``).
-* **Unterschrieben wird mit dem Menschen, im Namen des Unternehmens** – mit Bild daneben
-  (sein Profilbild, sonst seine Initialen); eine automatische Mail unterschreibt das
-  Unternehmen, mit dem Bild seines Postfachs. Telefon und E-Mail sind die der
-  Gesellschaft – keine Funktion, keine Direktnummer, nie «Ihr Team».
+* **Unterschrieben wird mit dem Menschen, im Namen des Unternehmens** – EIN Unterzeichner
+  (``as_signer``) für jede Mail, mit Bild daneben (sein Profilbild, sonst seine
+  Initialen); eine automatische Mail unterschreibt das Unternehmen, mit dem Bild seines
+  Postfachs. Telefon
+  und E-Mail sind die der Gesellschaft – keine Funktion, keine Direktnummer, nie «Ihr Team».
+* **Das Bild** ist das des Hauses (``services/portrait``): schräge Streifen, die sich einmal
+  öffnen, links eine rote Kante. Daneben eine Haarlinie, dann Name, Gesellschaft und –
+  abgesetzt – Telefon und E-Mail.
 * **Der Absendername folgt daraus**: «Clemens Fritsche · INEXXIO» bzw. «INEXXIO».
 * **Eine Spalte, mittig, umrandet von einer Haarlinie** – weiss, keine Fläche dahinter
   und keine darin: gruppiert wird mit einer Linie. Eine getönte Bühne passt in kein
@@ -38,6 +42,7 @@ from urllib.parse import urlparse
 
 from ..core.config import get_settings
 from ..domain import communication as dc
+from . import portrait
 
 BRAND = "INEXXIO"
 LOGO, LOGO_DARK = "/mail/logo.png", "/mail/logo-dark.png"
@@ -69,6 +74,14 @@ class Signer:
     """Der Mensch, der geschrieben hat."""
     name: str
     photo: str = ""
+
+
+def as_signer(person: Any) -> Signer:
+    """►►► **Der Unterzeichner – EINE Stelle** für jede Mail (Postfach, Beleg, Dokument):
+    Name und Profilbild der Person. Wer überhaupt unterschreibt (Mensch oder Unternehmen),
+    entscheidet der Absender; wie er unterschreibt, steht nur hier."""
+    return Signer(name=getattr(person, "display_name", None) or "",
+                  photo=getattr(person, "photo_url", None) or "")
 
 
 @dataclass
@@ -372,42 +385,41 @@ def _paper(pp: Paper) -> str:
     return out
 
 
-def _initials(name: str) -> str:
-    return "".join(w[0] for w in name.split()[:2]).upper()
-
-
 def _avatar(firm: Firm, signer: Optional[Signer]) -> str:
-    """Das Bild neben der Unterschrift – Profilbild, Postfach-Bild oder Initialen."""
+    """Das Bild neben der Unterschrift (``portrait``) – vom Profilbild, Postfach-Bild oder
+    den Initialen; ohne Mensch und ohne Postfach-Bild keines."""
     pic = (signer.photo if signer else firm.picture) or ""
-    if pic:
-        return (f'<img src="{escape(pic)}" width="48" height="48" alt="" style="display:block;'
-                f'width:48px;height:48px;border-radius:24px;border:0">')
-    if signer is None:
+    if not (pic or signer):
         return ""
-    return (f'<table role="presentation" cellpadding="0" cellspacing="0"><tr><td class="ix-btn" '
-            f'width="48" height="48" align="center" valign="middle" style="width:48px;height:48px;'
-            f'border-radius:24px;background:{INK};color:#FFFFFF;font-family:{FONT};'
-            f'font-size:16px;font-weight:600">{escape(_initials(signer.name))}</td></tr></table>')
+    src = escape(portrait.url(pic, signer.name if signer else firm.name))
+    w, h = portrait.WIDTH, portrait.HEIGHT
+    return (f'<img src="{src}" width="{w}" height="{h}" alt="" style="display:block;'
+            f'width:{w}px;height:{h}px;border:0">')
 
 
 def _signature(firm: Firm, signer: Optional[Signer], body: str) -> str:
+    """Bild · Haarlinie · Name, Gesellschaft und – abgesetzt – Telefon und E-Mail."""
     link = f'class="ix-t2" style="color:{TEXT_2};text-decoration:none"'
-    reach = " · ".join(x for x in (
+    reach = [x for x in (
         f'<a {link} href="tel:{escape(firm.tel or firm.phone)}">{escape(firm.phone)}</a>'
         if firm.phone else "",
         f'<a {link} href="mailto:{escape(firm.email)}">{escape(firm.email)}</a>'
-        if firm.email else "") if x)
+        if firm.email else "") if x]
     head = escape(signer.name) if signer else escape(firm.name)
-    lines = [f'<span class="ix-ink" style="font-size:15px;line-height:20px;font-weight:600;'
-             f'color:{INK}">{head}</span>', *([escape(firm.name)] if signer else []),
-             *([f'<span style="white-space:nowrap">{reach}</span>'] if reach else [])]
+    who = [f'<span class="ix-ink" style="font-size:16px;line-height:22px;font-weight:600;'
+           f'letter-spacing:-0.01em;color:{INK}">{head}</span>',
+           *([escape(firm.name)] if signer else [])]
+    gap = ('<div style="height:8px;line-height:8px;font-size:0">&nbsp;</div>'
+           if reach else "")
     avatar = _avatar(firm, signer)
-    pic = (f'<td width="48" valign="middle" style="width:48px;padding:0 16px 0 0">{avatar}</td>'
-           if avatar else "")
-    greeting = "" if greeted(body) else _p(GREETING, extra="margin:0 0 16px")
+    pic = (f'<td width="{portrait.WIDTH}" valign="middle" style="width:{portrait.WIDTH}px;'
+           f'padding:0 14px 0 0">{avatar}</td>' if avatar else "")
+    rule = (f'border-left:1px solid {LINE};padding:2px 0 2px 18px;' if avatar else "")
+    greeting = "" if greeted(body) else _p(GREETING, extra="margin:0 0 20px")
     return (greeting + f'<table role="presentation" cellpadding="0" cellspacing="0"><tr>{pic}'
-            f'<td class="ix-t2" valign="middle" style="font-family:{FONT};font-size:13px;'
-            f'line-height:18px;color:{TEXT_2}">{"<br>".join(lines)}</td></tr></table>')
+            f'<td class="ix-t2{" ix-line" if avatar else ""}" valign="middle" style="{rule}'
+            f'font-family:{FONT};font-size:13px;line-height:19px;color:{TEXT_2}">'
+            f'{"<br>".join(who)}{gap}{"<br>".join(reach)}</td></tr></table>')
 
 
 def _footer(firm: Firm, unsubscribe: Optional[Unsubscribe] = None) -> str:

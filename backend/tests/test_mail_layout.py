@@ -19,6 +19,7 @@ from app.schemas.communication import MessageIn
 from app.services import communication as comm
 from app.services import mail_layout as layout
 from app.services import mailbox as mb
+from app.services import portrait
 from tests.runner import session
 from tests.test_mailbox import CH, COMPANY, _gmail, _person
 
@@ -34,6 +35,11 @@ def words(text: str) -> list[str]:
 
 def inner(html: str) -> str:
     return html.split("<!--inhalt-->")[1].split("<!--/inhalt-->")[0]
+
+
+def pictures(html: str) -> list[tuple[str, str]]:
+    """Was die Bilder der Unterschrift zeigen: (Foto, Initialen) – aus ihrer Adresse."""
+    return [portrait.read(t) for t in re.findall(re.escape(portrait.PATH) + r'([^"/]+)\.gif', html)]
 
 
 def test_the_headline_is_the_subject_without_re():
@@ -91,9 +97,36 @@ def test_a_person_signs_in_the_name_of_the_company_with_a_picture():
     assert sign == ["Clemens Fritsche", "INEXXIO AG", "+41 52 378 22 47 · info@inexxio.com"]
     assert layout.sender_name(layout.Signer("Clemens Fritsche")) == "Clemens Fritsche · INEXXIO"
     assert layout.sender_name(None) == "INEXXIO"
-    assert ">CF</td>" in layout.compose("x", "y", FIRM, layout.Signer("Clemens Fritsche")).html
+    plain = layout.compose("x", "y", FIRM, layout.Signer("Clemens Fritsche")).html
+    assert pictures(plain) == [("", "CF")]
     photo = layout.compose("x", "y", FIRM, layout.Signer("C F", photo="https://p/x.jpg")).html
-    assert 'src="https://p/x.jpg"' in photo
+    assert pictures(photo) == [("https://p/x.jpg", "CF")] and "https://p/x.jpg" not in photo
+
+
+def test_every_mail_signs_through_one_signer():
+    """►►► EIN Unterzeichner für jede Mail (``as_signer``): Name UND Profilbild – auch in
+    Beleg- und Dokument-Mails. Bug-Form: dort fehlte das Bild, nur das Postfach hatte es."""
+    clemens = SimpleNamespace(display_name="Clemens Fritsche", photo_url="https://p/c.jpg")
+    assert layout.as_signer(clemens) == layout.Signer("Clemens Fritsche", "https://p/c.jpg")
+    assert layout.as_signer(SimpleNamespace(display_name=None, photo_url=None)) == layout.Signer("")
+    app = Path(__file__).resolve().parents[1] / "app"
+    built = [f.relative_to(app).as_posix() for f in app.rglob("*.py")
+             if f.name != "mail_layout.py" and re.search(r"\bSigner\(", f.read_text())]
+    assert built == [], f"Unterzeichner an zweiter Stelle gebaut: {built}"
+
+
+def test_the_picture_opens_once_and_stands():
+    """Das Bild des Hauses (``portrait``): ein GIF, zuerst das fertige Bild (Outlook zeigt nur
+    dieses), dann einmal die Bewegung, dann Ruhe – keine Schleife, durchsichtig daneben."""
+    import io
+    from PIL import Image
+    gif = Image.open(io.BytesIO(portrait.render(None, "CF")))
+    assert gif.n_frames > 10 and "loop" not in gif.info
+    first = gif.convert("RGBA")
+    gif.seek(gif.n_frames - 1)
+    assert first.tobytes() == gif.convert("RGBA").tobytes()
+    assert first.getpixel((0, 0))[3] == 0                 # durchsichtig, wo kein Streifen ist
+    assert (portrait.WIDTH * 2, portrait.HEIGHT * 2) == first.size
 
 
 def test_an_automatic_mail_is_signed_by_the_company_with_its_mailbox_picture():
@@ -105,7 +138,9 @@ def test_an_automatic_mail_is_signed_by_the_company_with_its_mailbox_picture():
     assert mb.signer_of(SimpleNamespace(role="user", display_name="Kunde"),
                         SimpleNamespace(created_by=7)) is None
     html = layout.compose("x", "y", FIRM, None).html
-    assert f'src="{FIRM.picture}"' in html and "Monika" not in html
+    assert pictures(html) == [(FIRM.picture, "IA")] and "Monika" not in html
+    bare = layout.Firm(name="INEXXIO AG")
+    assert pictures(layout.compose("x", "y", bare, None).html) == []
 
 
 def test_a_typed_closing_is_not_doubled_and_nothing_is_cut():

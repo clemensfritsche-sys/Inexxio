@@ -420,7 +420,7 @@ def _mail(db: Session, *, row: Voucher, token: str, doc: a4.Doc, kind: str,
         label=label, url=vs.public_link(token),
         tax=(doc.sums[1] if len(doc.sums) == 2 and kind != vo.REMINDER_DOC else None))
     staff = policy.is_staff(actor) and actor.object_id
-    signer = mail_layout.Signer(name=actor.display_name) if staff else None
+    signer = mail_layout.as_signer(actor) if staff else None
     mail = mail_layout.compose(title, body, firm, signer,
                                extra=mail_layout.Extra(paper=paper))
     sender = (actor.object_id if staff else

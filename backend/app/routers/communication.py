@@ -15,7 +15,8 @@ from ..models import UserProfile
 from ..schemas.communication import (ChannelOut, MailboxOut, MessageIn, MessageOut,
                                      SyncOut)
 from ..services import communication as svc
-from ..services import mailbox
+from ..services import mailbox, portrait
+from ..core import signed
 from ..domain.errors import NotFound
 
 router = APIRouter(prefix="/api/v1/erp/messages", tags=["communication"])
@@ -72,6 +73,18 @@ def callback(code: str = "", state: str = "", error: str = "",
     query = urlencode({"mail": problem or "ok"})
     return RedirectResponse(f"{get_settings().frontend_base_url.rstrip('/')}/erp?{query}",
                             status_code=303)
+
+
+@callback_router.get("/portrait/{token}.gif", include_in_schema=False)
+def portrait_gif(token: str) -> Response:
+    """Das Bild in der Unterschrift einer Mail – einmal gerechnet, dann vom CDN gehalten."""
+    try:
+        data, final = portrait.gif(token)
+    except signed.BadLink:
+        raise NotFound("Dieses Bild gibt es nicht.")
+    age = 31_536_000 if final else 300
+    return Response(data, media_type="image/gif",
+                    headers={"Cache-Control": f"public, max-age={age}, s-maxage={age}"})
 
 
 # Die offenen Nachrichten je Person zählt ``GET /erp/todo`` mit (``services/todo``) – EINE

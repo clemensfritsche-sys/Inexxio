@@ -66,7 +66,7 @@ die Website dem Besucher zeigt (sonst des Betreibers); die Bestätigung an den K
   sie als «wartet auf Versand» da und wird beim nächsten Abgleich erneut versucht.
 * Jede Mail trägt die **eine Vorlage** des Hauses (`services/mail_layout.py`): Kopf mit
   Logo, der Betreff als Überschrift, Unterschrift mit dem Menschen im Namen der
-  Gesellschaft, Fuss mit Anschrift.
+  Gesellschaft (sein Profilbild in Streifen, `services/portrait.py`), Fuss mit Anschrift.
 * Anhänge bleiben in Gmail; im ERP stehen ihre Namen und der Link «In Gmail öffnen».
 
 ## Grenzen im Testmodus

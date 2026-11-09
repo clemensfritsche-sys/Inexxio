@@ -31,6 +31,7 @@ from app.services import communication as comm
 from app.services import inquiry as svc
 from app.services import mailbox as mb
 from app.services import people, visitor
+from tests.test_mail_layout import pictures
 
 JSON = {"Accept": "application/json"}
 MSG = contact.MSG
@@ -133,7 +134,7 @@ def test_the_confirmation_is_in_the_history_but_answers_nothing(world):
     assert world.staff.display_name not in conf.html
     assert contact.VOCAB["mail"]["urgent"] in conf.html and "+41 52 378 22 47" in conf.html
     # Die Unterschrift trägt das Bild des Postfachs.
-    assert world.box.picture in conf.html
+    assert [photo for photo, _ in pictures(conf.html)] == [world.box.picture]
     # ►►► Der Verlauf IST der Inhalt der Mail – Wort für Wort (die Anfrage-Bug-Form strich
     # «Danke für Ihre Nachricht» in der Mail und zeigte ihn im Verlauf).
     inner = conf.html.split("<!--inhalt-->")[1].split("<!--/inhalt-->")[0]

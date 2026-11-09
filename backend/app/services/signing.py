@@ -101,7 +101,7 @@ def _mail(db: Session, doc: Document, person: UserProfile, link: DocumentLink, n
                else "Sie finden das Dokument online."))
     firm = mail_layout.firm_of(company, box.address if box else (company.email or ""),
                                (box.picture or "") if box else "")
-    mail = mail_layout.compose(title, lead, firm, mail_layout.Signer(name=actor.display_name or ""),
+    mail = mail_layout.compose(title, lead, firm, mail_layout.as_signer(actor),
                                extra=mail_layout.Extra(action=mail_layout.Action(
                                    title=title, text="", label="Unterschreiben" if asked else "Öffnen",
                                    url=link_url(link.token))))

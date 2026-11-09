@@ -312,7 +312,12 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Entwurf eines Dokuments (`mailbox.attachment`); ebenso die Fotos des Kontaktformulars.
 - **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Kopf · Betreff als
   Überschrift · Inhalt · Unterschrift mit dem Menschen im Namen der Gesellschaft · Fuss; was
-  im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`).
+  im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`). **Ein Unterzeichner**
+  für jede Mail (`mail_layout.as_signer`: Name + Profilbild). **Das Bild der Unterschrift**
+  (`services/portrait.py`): schräge Streifen, die sich einmal öffnen, links eine rote Kante –
+  ein GIF (das erste Bild ist das fertige, für Outlook), durchsichtig für hell und dunkel,
+  ausgeliefert über `GET /api/v1/mail/portrait/<signiert>.gif` (Foto oder Initialen),
+  gerechnet beim ersten Abruf, dann vom CDN gehalten.
 - **Drei Versandarten einer E-Mail** (`domain/communication.DELIVERIES`): **Mail** (An/Cc
   sehen einander, Bcc bleibt Bcc) · **Rundschreiben** (Information an mehrere: je Person
   eine eigene Nachricht mit Anrede, im «An» nur sie) · **Newsletter** (ebenso, aber nur an
