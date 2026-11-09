@@ -315,6 +315,8 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 - **Fehler**: `raise NotFound("…")`, `Invalid(…)`, `Conflict(…)` … aus `domain/errors` (eigener
   Code: `Conflict("…", code="pick_stale")`); EIN Übersetzer `main.rejected_handler` →
   `{detail, code, field?}`. Kein `HTTPException` ausserhalb von `main.py` (`tests/test_errors.py`).
+- **Betriebsmeldungen** nur über `core/report` (`info` · `warn` · `error`, eine JSON-Zeile mit Stufe; kein
+  `print` daneben, Wächter `tests/test_report.py`); ERROR per Mail: einmal `infra/setup-meldungen.sh`.
 - **Rechte**: `policy.require(actor, "time.contract")` (Tor) · `policy.may(…)` (Auskunft) –
   die Regeln in `domain/policy.RULES`; `policy.is_staff` · `is_admin` · `inside` (System oder
   Personal). Kein Rollenvergleich daneben (`tests/test_policy.py`).

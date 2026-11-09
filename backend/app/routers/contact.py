@@ -29,7 +29,6 @@ Nie ein stilles «Danke».
 """
 from __future__ import annotations
 
-import json
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -48,6 +47,7 @@ from ..core.actor import public
 from ..core.database import DB
 from ..services import inquiry as svc, people, visitor
 from ..domain.errors import Rejected
+from ..core import report
 
 router = APIRouter(prefix="/api/v1/contact", tags=["contact"])
 
@@ -266,17 +266,17 @@ async def submit_inquiry(request: Request, db: Session = DB) -> Response:
     try:
         form_data = await request.form(max_files=int(PHOTOS["max"]) + 5, max_fields=60)
     except Exception as exc:  # zu viele Teile, kaputtes multipart
-        print(f"WARNING: INQUIRY unreadable form: {type(exc).__name__}: {exc}", flush=True)
+        report.warn(f"INQUIRY unreadable form: {type(exc).__name__}: {exc}")
         return _failed(None, 400, "Die Anfrage konnte nicht gelesen werden.", wants_json)
 
     # Spam erzeugt nichts: alles hier steht VOR dem ersten Zugriff auf die Datenbank.
     ip = visitor.sender_key(request)
     if clean(form_data.get("hp")):  # Honigtopf: Menschen sehen das Feld nicht
-        print(f"INFO: INQUIRY spam (honeypot) ip={ip}", flush=True)
+        report.info(f"INQUIRY spam (honeypot) ip={ip}")
         return JSONResponse({"ok": True}) if wants_json else RedirectResponse(VOCAB["pages"]["thanks"], 303)
     elapsed = clean(form_data.get("t"))
     if elapsed.isdigit() and int(elapsed) < int(VOCAB["minSeconds"]) * 1000:
-        print(f"INFO: INQUIRY too fast ({elapsed} ms) ip={ip}", flush=True)
+        report.info(f"INQUIRY too fast ({elapsed} ms) ip={ip}")
         return _failed(None, 400, MSG["tooFast"], wants_json)
 
     errors: dict[str, str] = {}
@@ -284,7 +284,7 @@ async def submit_inquiry(request: Request, db: Session = DB) -> Response:
     if errors:
         return _invalid(errors, inq, wants_json)
     if not visitor.allow_send("contact", request, RATE_LIMIT):
-        print(f"INFO: INQUIRY rate limited ip={ip}", flush=True)
+        report.info(f"INQUIRY rate limited ip={ip}")
         msg = f"Zu viele Anfragen in kurzer Zeit. Bitte rufen Sie uns an: {VOCAB['phone']['display']}."
         return _failed(inq, 429, msg, wants_json)
     return await run_in_threadpool(_store, db, inq, visitor.country(request), wants_json)
@@ -309,8 +309,8 @@ def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> 
     except Exception as exc:
         return _unsent(db, inq, exc, wants_json)
     confirmed = _confirm(db, msg, data)
-    print(f"INFO: INQUIRY stored id={inq.id} message={msg.id} channel={msg.channel} "
-          f"photos={len(inq.photos)} confirmation={'ja' if confirmed else 'nein'}", flush=True)
+    report.info(f"INQUIRY stored id={inq.id} message={msg.id} channel={msg.channel} "
+          f"photos={len(inq.photos)} confirmation={'ja' if confirmed else 'nein'}")
     return _done(inq, wants_json)
 
 
@@ -322,12 +322,14 @@ def _confirm(db: Session, msg, inq: svc.Inquiry) -> bool:
         with db.begin_nested():     # scheitert sie, bleibt die Anfrage stehen
             return svc.confirm(db, msg, inq, m)
     except Exception as exc:
-        print(f"WARNING: INQUIRY confirmation not sent message={msg.id}: {type(exc).__name__}: {exc}", flush=True)
+        report.warn(f"INQUIRY confirmation not sent message={msg.id}: {type(exc).__name__}: {exc}")
         return False
 
 
 def _unsent(db: Session, inq: Inquiry, exc: Exception, wants_json: bool) -> Response:
     db.rollback()
-    print(f"ERROR: INQUIRY not stored id={inq.id}: {type(exc).__name__}: {exc}", flush=True)
-    print(f"INQUIRY_UNSENT {json.dumps(as_record(inq), ensure_ascii=False)}", flush=True)
+    report.error(f"INQUIRY not stored id={inq.id}: {type(exc).__name__}: {exc}")
+    # Die eine bewusste Ausnahme von «keine Personendaten in Meldungen»: die Anfrage steht sonst
+    # nirgends – so lässt sie sich aus dem Log nachtragen.
+    report.error("INQUIRY_UNSENT", inquiry=as_record(inq))
     return _failed(inq, 503, "Das Senden ist gerade nicht möglich.", wants_json)

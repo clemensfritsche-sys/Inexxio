@@ -237,7 +237,8 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   zurückgerollter Lauf); **AB und Quittung stehen an** (`voucher.papers_due`, «zu tun») und
   gehen mit «Prüfen und freigeben» (Verb `release`), nie von selbst (`AUTO_RELEASE` leer). Es geht
   mit Link `/dokument?t=…` per Mail hinaus – **dieselbe Seite wie jedes Dokument**; ist es ein
-  Papier eines Belegs, handelt die Partei dort mit denselben Verben. Steuer je Position (MWSTG Art. 26), gerundet je Satz auf der Summe; **eine Währung
+  Papier eines Belegs, handelt die Partei dort mit denselben Verben. **Unsere Rechnung trägt den Tag, an dem sie gestellt wird** (eine Lieferantenrechnung das
+  Datum auf ihrem Papier). Steuer je Position (MWSTG Art. 26), gerundet je Satz auf der Summe; **eine Währung
   je Vorgang**. Drei Wege zum Geld: bar · Überweisung (Swiss QR-Rechnung) · Karte (Stripe,
   gebucht nur vom Webhook; zurück auf die Karte nur, was geschuldet ist).
 - **Zahlungen-Liste** (`services/payment_list.py`, `GET /erp/payments`): eine Ableitung an
@@ -303,7 +304,10 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Absender wird Person (`people.ensure`), Massenpost nicht; eine eigene Adresse ist nie eine
   Person; eine Mail, die sich nicht verarbeiten lässt, wird übersprungen (Log). Senden: jede
   Mail genau einmal (einzeln gesperrt, sofort festgeschrieben), nur über ein verbundenes
-  Postfach; nach drei Abweisungen durch Gmail steht der Grund als interne Nachricht im Verlauf. Erledigt im ERP =
+  Postfach; **nie doppelt**: die Kennung einer Mail ist ihre Nummer im ERP (`Message-ID`), vor jedem
+  Senden fragt Gmail danach; nach drei Abweisungen durch Gmail steht der Grund als interne Nachricht im Verlauf.
+  **Nie verloren**: dasselbe Postfach neu verbunden macht weiter, wo es aufhörte; ist Gmails Stand zu
+  alt, kommen alle Mails seit dem letzten Abgleich (seitenweise). Erledigt im ERP =
   gelesen in Gmail. **Ein Anhang** bleibt in Gmail, bis ihn jemand öffnet – dann geht er in den
   Entwurf eines Dokuments (`mailbox.attachment`); ebenso die Fotos des Kontaktformulars.
 - **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Kopf · Betreff als
@@ -518,7 +522,8 @@ Oberfläche und Dienst garantiert dasselbe.
 - **`can` ist Auskunft UND Tor** – ein Knopf, der nie etwas tun kann, steht nicht da.
 - **Kein Löschen, Gegenbuchung** – Soft-Delete, Korrekturbelege, Log append-only.
 - **`busy` sperrt Handlungen, nie Geometrie** – ein Auto-Save verschiebt nichts.
-- **Nichts scheitert still** – ein gescheiterter Abruf meldet sich (`lib/notice`), eine
+- **Nichts scheitert still** – eine Betriebsmeldung geht durch EINE Stelle mit Stufe (`core/report`:
+  info · warn · error; ERROR geht per Mail, `infra/setup-meldungen.sh`), ein gescheiterter Abruf meldet sich (`lib/notice`), eine
   gescheiterte Migration macht den Deploy rot (`/health` → `scripts/check-schema.sh`), ein
   Ausfall der KI nennt seinen Grund (`ai.problem`).
 - **Spiegel über die API-Grenze sind getestet** (`backend/tests/test_frontend_mirrors.py`):

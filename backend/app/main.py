@@ -1,3 +1,4 @@
+import logging
 import re
 import traceback
 from contextlib import asynccontextmanager
@@ -25,8 +26,12 @@ from .routers import (
     instances, mcp, newsletter, orders, passkey, payments, payments_list, places,
     public_documents, recordings, timekeeping,
 )
+from .core import report
 
 settings = get_settings()
+
+# Auch was Bibliotheken über ``logging`` melden, geht durch die eine Meldestelle (``core/report``).
+logging.basicConfig(level=logging.INFO, handlers=[report.Handler()], force=True)
 
 
 #: Der Start läuft je Datenbank einmal zur Zeit – mehrere Worker und Instanzen warten
@@ -69,7 +74,7 @@ def _seed(name: str, fn) -> None:
         db.commit()
     except Exception as e:
         db.rollback()
-        print(f"WARNING: Start-Schritt «{name}» fehlgeschlagen: {e!r}", flush=True)
+        report.warn(f"Start-Schritt «{name}» fehlgeschlagen: {e!r}")
     finally:
         db.close()
 
@@ -79,7 +84,7 @@ def _adopt_documents(db) -> None:
     from .services import legal
     done = legal.adopt_templates(db)
     if done:
-        print(f"INFO: Rechtstexte als Dokumente übernommen: {done}", flush=True)
+        report.info(f"Rechtstexte als Dokumente übernommen: {done}")
 
 
 def _ensure_operator(db) -> None:
@@ -94,7 +99,7 @@ def _seal(db) -> None:
     from .services import log
     done = log.seal_due(db)
     if done:
-        print(f"INFO: Log versiegelt: {done} Tag(e)", flush=True)
+        report.info(f"Log versiegelt: {done} Tag(e)")
 
 
 def _startup() -> None:
@@ -166,7 +171,7 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
     """Ein verletzter DB-Constraint ist ein **Eingabe**-Fehler: 400 mit einem Satz, der die
     betroffene **Spalte** nennt – der Zeileninhalt gehört ins Log, nie in die Oberfläche."""
     tb = traceback.format_exc()
-    print(f"ERROR: IntegrityError on {request.method} {request.url.path}\n{tb}", flush=True)
+    report.error(f"IntegrityError on {request.method} {request.url.path}\n{tb}")
     raw = str(getattr(exc, "orig", exc))
     column = None
     match = re.search(r'column "([^"]+)"', raw)
@@ -259,7 +264,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
         if line not in seen:
             seen.append(line)
     shape = [(list(e.get("loc") or ()), e.get("type")) for e in exc.errors()]
-    print(f"WARNING: 422 on {request.method} {request.url.path} – {shape}", flush=True)
+    report.warn(f"422 on {request.method} {request.url.path} – {shape}")
     return JSONResponse(
         status_code=422,
         content={"detail": " · ".join(seen) or "Die Eingaben sind unvollständig.",
@@ -272,7 +277,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     """Letzte Auffanglinie: Traceback ins Log, eine **JSON-Antwort** an den Client
     (ausserhalb der Produktion mit der Ursache in ``detail``)."""
     tb = traceback.format_exc()
-    print(f"ERROR: Unhandled exception on {request.method} {request.url.path}\n{tb}", flush=True)
+    report.error(f"Unhandled exception on {request.method} {request.url.path}\n{tb}")
     expose = settings.debug or settings.app_env.lower() != "production"
     detail = f"{type(exc).__name__}: {exc}" if expose else "Interner Serverfehler"
     return JSONResponse(status_code=500, content={"detail": detail, "code": "failed"})

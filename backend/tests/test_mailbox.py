@@ -268,7 +268,8 @@ def test_a_sent_mail_stays_sent_when_the_follow_up_read_fails(world, monkeypatch
     monkeypatch.setattr(mb.httpx, "post", lambda *_a, **_k: Sent())
     monkeypatch.setattr(mb, "_get", down)
     assert mb.send(db, msg)
-    assert (msg.outgoing, msg.gmail_id, msg.rfc_id) == (False, "g-sent", None)
+    assert (msg.outgoing, msg.gmail_id) == (False, "g-sent")
+    assert msg.rfc_id == mb.own_message_id(msg, box), "Die eigene Kennung trägt den Faden weiter."
 
 
 def test_two_syncs_never_send_the_same_mail_twice(monkeypatch):
@@ -367,7 +368,7 @@ def test_a_broken_mail_does_not_hold_up_the_sync(world, monkeypatch):
     raws = [_gmail(f"k{i}@kunde.ch", to=COMPANY, subject=f"Frage {i}") for i in range(3)]
     by_id = {r["id"]: r for r in raws}
     monkeypatch.setattr(mb, "_token", lambda _mb, _t=None: "tok")
-    monkeypatch.setattr(mb, "_new_ids", lambda _t, _s: (list(by_id), "h-neu"))
+    monkeypatch.setattr(mb, "_new_ids", lambda _t, _s, *_r: (list(by_id), "h-neu"))
     monkeypatch.setattr(mb, "_get", lambda _t, path, **_k: _Resp(by_id[path.split("/")[1]]))
     real = mb.ingest
 
@@ -388,7 +389,7 @@ def test_a_failed_fetch_keeps_the_position(world, monkeypatch):
     db, _staff, box = world
     box.history_id = "h-alt"
     monkeypatch.setattr(mb, "_token", lambda _mb, _t=None: "tok")
-    monkeypatch.setattr(mb, "_new_ids", lambda _t, _s: (["g-x"], "h-neu"))
+    monkeypatch.setattr(mb, "_new_ids", lambda _t, _s, *_r: (["g-x"], "h-neu"))
     monkeypatch.setattr(mb, "_get", lambda *_a, **_k: _Resp({}, 503))
     assert mb._sync_one(db, box, {}) == 0 and box.history_id == "h-alt"
 
@@ -445,3 +446,57 @@ def test_a_subject_is_one_line(world):
     m = comm.create(db, MessageIn(channel="intern", to=[staff.object_id], about=[lea.object_id],
                                   subject="Frage\r\nBcc: x@y.ch", body="x"), staff)
     assert m.subject == "Frage Bcc: x@y.ch"
+
+
+def test_a_mail_that_already_went_out_is_never_sent_twice(world, monkeypatch):
+    """Änderungsakte V3 – Bug-Form: der Dienst starb nach dem Senden, vor dem Speichern; der
+    nächste Abgleich schickte dieselbe Mail ein zweites Mal. Jetzt findet Gmail sie unter ihrer
+    Kennung (ihrer Nummer im ERP), und sie wird nur noch vermerkt."""
+    db, staff, box = world
+    lea = _person(db)
+    msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Offerte 9",
+                                    body="Offerte"), staff)
+    msg.outgoing = True
+    asked: list[str] = []
+
+    def gmail(_t, path, **kw):
+        asked.append(kw.get("q", path))
+        return _Resp({"messages": [{"id": "g-1", "threadId": "t-1"}]} if path == "messages" else {})
+    monkeypatch.setattr(mb, "_token", lambda _mb, _t=None: "tok")
+    monkeypatch.setattr(mb, "_get", gmail)
+    monkeypatch.setattr(mb, "_post", lambda *_a: pytest.fail("ein zweites Mal gesendet"))
+    assert mb.send(db, msg)
+    assert (msg.outgoing, msg.gmail_id, msg.thread_id) == (False, "g-1", "t-1")
+    assert asked[0] == f"rfc822msgid:{mb.own_message_id(msg, box)}"
+
+
+def test_reconnecting_the_same_mailbox_goes_on_where_it_stopped(world):
+    """Änderungsakte V3 – Bug-Form: neu verbunden, begann der Abgleich «ab jetzt»; was dazwischen
+    kam, fehlte für immer."""
+    db, staff, box = world
+    box.address, box.history_id = "postfach@beispiel.ch", "4711"
+    box.is_active = False                       # getrennt
+    db.flush()
+    assert mb._store(db, CH, staff, box.address, "refresh", "9999") == ""
+    assert mb.active(db, CH).history_id == "4711"
+
+
+def test_a_stale_mailbox_catches_up_since_the_last_sync_page_by_page(monkeypatch):
+    """Ist Gmails Stand zu alt, kommen ALLE Mails seit dem letzten Abgleich – Seite für Seite."""
+    from datetime import datetime, timezone
+    pages = {None: {"messages": [{"id": "a"}, {"id": "b"}], "nextPageToken": "p2"},
+             "p2": {"messages": [{"id": "c"}]}}
+    seen = []
+
+    def gmail(_t, path, **kw):
+        if path == "history":
+            return _Resp({}, 404)
+        if path == "profile":
+            return _Resp({"historyId": "77"})
+        seen.append(kw["q"])
+        return _Resp(pages[kw.get("pageToken")])
+    monkeypatch.setattr(mb, "_get", gmail)
+    since = datetime(2026, 11, 1, tzinfo=timezone.utc)
+    ids, latest = mb._new_ids("tok", "1", since)
+    assert sorted(ids) == ["a", "b", "c"] and latest == "77"
+    assert seen[0] == f"after:{int(since.timestamp()) - 3600}"

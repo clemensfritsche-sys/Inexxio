@@ -120,7 +120,10 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         row.number = number
     elif not row.number:
         row.number = _our_number(db, row)
-    booked = _day(data.get("billed_on")) or clock.today()
+    # **Unsere Rechnung trägt den Tag, an dem sie gestellt wird** – nie ein anderes Datum (sonst
+    # fiele sie in eine schon abgerechnete MWST-Periode). Eine Lieferantenrechnung trägt das
+    # Datum auf ihrem Papier.
+    booked = clock.today() if flow.collects else (_day(data.get("billed_on")) or clock.today())
     row.billed_on = booked
     row.due_on = days_after(booked, due_days_of(db, row))
     row.amount = gross

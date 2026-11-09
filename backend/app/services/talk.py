@@ -35,6 +35,7 @@ from ..schemas.assistant import FileRef, TalkMessage, TalkOut
 from . import ai, handgriff, log, records
 from ..domain.errors import Forbidden, Invalid, NotFound, Rejected
 from ..domain import policy
+from ..core import report
 
 #: Der Auftrag an die KI – wörtlich, eine Datei.
 AUFTRAG = (Path(__file__).resolve().parents[1] / "assets" / "ai" / "auftrag.md").read_text("utf-8")
@@ -423,7 +424,7 @@ def _answer_in(db: Session, person_id: int, talk_id: int,
         put({"talk": view(db, talk_id, problem=trouble).model_dump(mode="json")})
     except Exception as exc:                                   # noqa: BLE001
         db.rollback()
-        print(f"WARNING: talk {talk_id} failed: {exc!r}", flush=True)
+        report.warn(f"talk {talk_id} failed: {exc!r}")
         put({"error": "Die KI ist gestolpert – deine Nachricht ist gespeichert, der Takt antwortet nach."})
 
 

@@ -31,6 +31,7 @@ from ..services import newsletter as svc, people, visitor
 from ..services.people import is_email, normalize_email
 from .contact import VOCAB, clean, page
 from ..domain.errors import Invalid, Rejected
+from ..core import report
 
 router = APIRouter(prefix=svc.API, tags=["newsletter"])
 me_router = APIRouter(prefix="/api/v1/auth/me/newsletter", tags=["newsletter"])
@@ -92,7 +93,7 @@ def subscribe(request: Request, email: str = Form(""), hp: str = Form(""),
             svc.invite_address(db, email, "website", channel)
     except Rejected as exc:
         db.rollback()
-        print(f"WARNING: NEWSLETTER invite failed: {exc.detail}", flush=True)
+        report.warn(f"NEWSLETTER invite failed: {exc.detail}")
         return _answer(wants_json, "Die Anmeldung ist gerade nicht möglich – bitte später "
                                    "noch einmal.", 503)
     return done

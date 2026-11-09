@@ -45,6 +45,7 @@ from ..core.auth import _init_firebase
 from ..core.config import get_settings
 from ..models import UserProfile, WebAuthnChallenge, WebAuthnCredential
 from ..domain.errors import Conflict, Failed, Forbidden, Invalid, NotFound, Unauthorized
+from ..core import report
 
 settings = get_settings()
 
@@ -163,7 +164,7 @@ def complete_registration(
             expected_origin=origin,
         )
     except Exception as e:
-        print(f"WARNING: passkey registration verify failed: {e}", flush=True)
+        report.warn(f"passkey registration verify failed: {e}")
         raise Invalid("Passkey konnte nicht verifiziert werden.")
 
     credential_id = bytes_to_base64url(verified.credential_id)
@@ -239,7 +240,7 @@ def complete_authentication(db: Session, request: Request, credential: dict) -> 
             credential_current_sign_count=row.sign_count,
         )
     except Exception as e:
-        print(f"WARNING: passkey authentication verify failed: {e}", flush=True)
+        report.warn(f"passkey authentication verify failed: {e}")
         raise Unauthorized("Passkey konnte nicht verifiziert werden.")
 
     user = (
@@ -266,7 +267,7 @@ def mint_firebase_token(user: UserProfile) -> str:
     try:
         token = firebase_auth.create_custom_token(user.firebase_uid)
     except Exception as e:
-        print(f"ERROR: Firebase custom token creation failed: {e}", flush=True)
+        report.error(f"Firebase custom token creation failed: {e}")
         raise Failed("Anmelde-Token konnte nicht ausgestellt werden. Dem Cloud-Run-Service-"
                 "Account fehlt vermutlich die Rolle 'Service Account Token Creator'.")
     return token.decode("utf-8") if isinstance(token, bytes) else token

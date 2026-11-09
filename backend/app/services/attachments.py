@@ -29,6 +29,7 @@ from ..core import outside
 from ..core.config import get_settings
 from ..models import Attachment
 from ..domain.errors import Invalid, NotFound, Rejected, TooLarge, Unavailable
+from ..core import report
 
 _MAX_EDGE = 1600          # längste Kante in px (für eine Foto-Doku reicht das dicke)
 _JPEG_QUALITY = 82
@@ -198,8 +199,7 @@ def keep(att: Attachment, raw: bytes) -> None:
             att.data = None
             return
         except Exception as exc:                                   # noqa: BLE001
-            print(f"WARNING: Cloud Storage nicht schreibbar ({exc!r}) – Datei bleibt in der DB.",
-                  flush=True)
+            report.warn(f"Cloud Storage nicht schreibbar ({exc!r}) – Datei bleibt in der DB.")
     att.data = raw
 
 
@@ -215,7 +215,7 @@ def bytes_of(att: Attachment) -> bytes:
     except Exception as exc:                                       # noqa: BLE001
         if type(exc).__name__ == "NotFound":
             raise NotFound("Diese Datei gibt es nicht mehr.")
-        print(f"WARNING: Cloud Storage nicht lesbar ({exc!r})", flush=True)
+        report.warn(f"Cloud Storage nicht lesbar ({exc!r})")
         raise Unavailable("Die Datei ist gerade nicht erreichbar – bitte gleich noch einmal.")
 
 
@@ -251,8 +251,7 @@ def put_object(name: str, raw: bytes, mime: str) -> bool:
         target.blob(name).upload_from_string(raw, content_type=mime)
         return True
     except Exception as exc:                                       # noqa: BLE001
-        print(f"WARNING: Cloud Storage nicht schreibbar ({exc!r}) – {name} bleibt in der DB.",
-              flush=True)
+        report.warn(f"Cloud Storage nicht schreibbar ({exc!r}) – {name} bleibt in der DB.")
         return False
 
 
@@ -267,7 +266,7 @@ def get_object(name: str) -> Optional[bytes]:
     except Exception as exc:                                       # noqa: BLE001
         if type(exc).__name__ == "NotFound":
             return None
-        print(f"WARNING: Cloud Storage nicht lesbar ({exc!r})", flush=True)
+        report.warn(f"Cloud Storage nicht lesbar ({exc!r})")
         raise Unavailable(f"«{name}» ist gerade nicht erreichbar – gleich noch einmal.")
 
 
@@ -288,7 +287,7 @@ def drop_objects(db: Session, prefix: str) -> None:
                     for name in names[i:i + DROP_BATCH]:
                         target.blob(name).delete()
         except Exception as exc:                                   # noqa: BLE001
-            print(f"WARNING: Objekte unter {prefix} nicht gelöscht ({exc!r})", flush=True)
+            report.warn(f"Objekte unter {prefix} nicht gelöscht ({exc!r})")
     outside.after(db, _drop)
 
 
@@ -302,6 +301,6 @@ def discard(db: Session, att: Attachment) -> None:
             try:
                 bucket().blob(name).delete()
             except Exception as exc:                               # noqa: BLE001
-                print(f"WARNING: Objekt {name} nicht gelöscht ({exc!r})", flush=True)
+                report.warn(f"Objekt {name} nicht gelöscht ({exc!r})")
         outside.after(db, _drop)
     db.delete(att)

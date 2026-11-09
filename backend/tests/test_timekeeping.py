@@ -343,6 +343,18 @@ def test_unpaid_leave_removes_soll_and_accrual(world):
     assert d.soll == 0 and d.accrual == 0 and d.saldo == 0
 
 
+def test_a_weekend_inside_unpaid_leave_builds_no_vacation(world):
+    """Änderungsakte V2 – Bug-Form: Samstag und Sonntag mitten im unbezahlten Urlaub bauten
+    weiter Ferien auf (nur Arbeitstage wurden gekürzt)."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    t.record(db, lena, lena, EntryIn(kind="absence", art="unbezahlt", day=date(2026, 10, 16),
+                                     until=date(2026, 10, 19)))
+    days = t.ledger(t.load(db, lena), TODAY, t.now_utc()).days
+    assert days[date(2026, 10, 17)].accrual == 0 and days[date(2026, 10, 18)].accrual == 0
+    assert days[date(2026, 10, 10)].accrual > 0                  # ein gewöhnliches Wochenende
+
+
 def test_hints_pause_rest_week_u18_sunday(world):
     db, co, admin, _ = world
     jonas = _person(db, co, born=date(2009, 3, 14))

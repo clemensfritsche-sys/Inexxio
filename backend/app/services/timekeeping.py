@@ -255,8 +255,11 @@ def absences(book: Book) -> list[TimeEntry]:
 def absence_on(book: Book, d: date) -> Optional[TimeEntry]:
     """Die Absenz, die am Tag gilt: an einem Arbeitstag die **jüngste**, die ihn deckt –
     eine neue Absenz ersetzt an ihren Tagen eine ältere."""
-    if not is_workday(book, d):
-        return None
+    return covering(book, d) if is_workday(book, d) else None
+
+
+def covering(book: Book, d: date) -> Optional[TimeEntry]:
+    """Die jüngste Absenz, deren Zeitraum den Tag deckt – auch an einem freien Tag."""
     best = None
     for a in absences(book):
         if a.day <= d <= (a.until or a.day) and (best is None or book.rank(a) > book.rank(best)):
@@ -356,12 +359,20 @@ def _day(book: Book, d: date, blocks: list[Block], now: datetime) -> Day:
         # 0 = gesetzlich; ohne Geburtsdatum das Minimum für Erwachsene.
         legal = tk.legal_weeks(_born(book), d) if _born(book) else 4
         weeks = max(float(c.vacation_weeks), legal)
-        share = 1.0
-        if a is not None and tk.ART_BY_KEY.get(a.art or "") and \
-                tk.ART_BY_KEY[a.art].effect == "unpaid" and base:
-            share = max(0.0, 1 - absence_minutes(book, a, d) / base)
-        day.accrual = weeks * c.weekly_minutes / 365 * share
+        day.accrual = weeks * c.weekly_minutes / 365 * _accrues(book, d, base)
     return day
+
+
+def _accrues(book: Book, d: date, base: float) -> float:
+    """►► **Welcher Anteil des Tages Ferien aufbaut** – 1, ausser unbezahlter Urlaub deckt ihn:
+    am Arbeitstag um seine Minuten gekürzt, an einem freien Tag mitten in einem ganztägigen
+    unbezahlten Urlaub gar nicht (sonst wüchsen Wochenenden weiter). ◄◄"""
+    a = covering(book, d)
+    if a is None or tk.ART_BY_KEY.get(a.art or "") is None or tk.ART_BY_KEY[a.art].effect != "unpaid":
+        return 1.0
+    if not base:
+        return 0.0 if a.minutes is None else 1.0
+    return max(0.0, 1 - absence_minutes(book, a, d) / base)
 
 
 def is_running(b: Block, now: datetime) -> bool:

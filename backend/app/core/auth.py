@@ -24,6 +24,7 @@ from ..services import people
 from ..domain import policy
 from ..domain.policy import STAFF_ROLES
 from ..domain.errors import Forbidden, Unauthorized
+from . import report
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
@@ -157,7 +158,7 @@ def get_current_user(
     try:
         decoded = _verify_firebase_token(credentials_.credentials)
     except Exception as e:
-        print(f"WARNING: token verification failed: {e}", flush=True)   # nie in die Antwort
+        report.warn(f"token verification failed: {e}")   # nie in die Antwort
         raise Unauthorized("Die Anmeldung ist abgelaufen oder ungültig – bitte neu anmelden.")
 
     uid = decoded["uid"]

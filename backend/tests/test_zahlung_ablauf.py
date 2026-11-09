@@ -1181,3 +1181,13 @@ def _plain_link(db, who) -> str:
                             mime="text/html", art="Brief", name="Hallo", source="file", refs=[],
                             actor=staff)
     return signing.send(db, doc, [who.object_id], "", staff)[0].token
+
+
+def test_our_invoice_is_dated_the_day_it_is_issued(db):
+    """Änderungsakte F9 – Bug-Form: ein mitgeschicktes Datum stellte unsere Rechnung in eine
+    vergangene (vielleicht schon abgerechnete) MWST-Periode."""
+    from app.core import clock
+    order, step, row, _who = _sold(db)
+    _do(db, order, step, "bill", billed_on="01.01.2020")
+    db.refresh(row)
+    assert row.billed_on == clock.today()

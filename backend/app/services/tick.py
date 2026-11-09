@@ -28,6 +28,7 @@ from typing import Any, Callable, Optional
 
 from ..core import locks
 from ..core.actor import system_session
+from ..core import report
 
 #: Danach beginnt der Takt nichts Neues mehr (Sekunden ab Beginn des Laufs).
 START_WITHIN = 20.0
@@ -138,7 +139,7 @@ def _loop(db, deadline: float) -> dict[str, int]:
         except Exception as exc:        # noqa: BLE001 – gemeldet, die nächste Kette läuft
             db.rollback()
             done["failed"] = done.get("failed", 0) + 1
-            print(f"ERROR: TICK loop {order.object_id}: {exc!r}", flush=True)
+            report.error(f"TICK loop {order.object_id}: {exc!r}")
     return done
 
 
@@ -193,8 +194,7 @@ def _one(task: Task, deadline: float) -> Outcome:
         return Outcome(task.name, "ok", done=done)
     except Exception as exc:        # noqa: BLE001 – gemeldet, die nächste Aufgabe läuft
         db.rollback()
-        print(f"ERROR: TICK {task.name} failed: {exc!r}\n{traceback.format_exc()}",
-              flush=True)
+        report.error(f"TICK {task.name} failed: {exc!r}\n{traceback.format_exc()}")
         return Outcome(task.name, "failed", f"{type(exc).__name__}: {exc}"[:300])
     finally:
         db.close()
@@ -214,6 +214,6 @@ def run(tasks: Optional[tuple[Task, ...]] = None,
         try:
             out.append(_one(task, deadline))
         except Exception as exc:    # noqa: BLE001 – auch die Sperre selbst kann scheitern
-            print(f"ERROR: TICK {task.name} not started: {exc!r}", flush=True)
+            report.error(f"TICK {task.name} not started: {exc!r}")
             out.append(Outcome(task.name, "failed", f"{type(exc).__name__}: {exc}"[:300]))
     return out

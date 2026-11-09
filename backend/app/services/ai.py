@@ -35,6 +35,7 @@ from ..core import clock, outside
 from ..core.config import get_settings
 from ..models import Log, UserProfile
 from . import log
+from ..core import report
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -378,7 +379,7 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
                           "ms": _ms(began)})
             _record(db, task, spec.model, actor, usage)
             _PROBLEM.set(problem_of(exc))
-            print(f"WARNING: ai.{task} failed: {exc!r}", flush=True)
+            report.warn(f"ai.{task} failed: {exc!r}")
             return None
         calls = [b for b in getattr(response, "content", None) or [] if getattr(b, "type", "") == "tool_use"]
         usage["tools"] = [b.name for b in calls] or None
@@ -533,7 +534,7 @@ def _vertex(db: Session, *, model: str, method: str, body: dict[str, Any], limit
         out.usage = {"error": name}
         out.timeout = "timeout" in name.lower() and "connect" not in name.lower()
         _PROBLEM.set(_vertex_problem(None, str(exc), what))
-        print(f"WARNING: ai.{method} ({model}) failed: {exc!r}", flush=True)
+        report.warn(f"ai.{method} ({model}) failed: {exc!r}")
     return out
 
 

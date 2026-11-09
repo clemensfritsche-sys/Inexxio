@@ -19,6 +19,10 @@ Stand: 09.11.2026
 | E6 | Verlauf einer Firma wandert mit der Person, wenn sie die Stelle wechselt | Bleibt so. |
 | E7 | Zwei-Faktor-Anmeldung für den Admin | **Bewusst nicht.** |
 | E8 | Ausführen über MCP | Kommt später (siehe `docs/konzept/mcp.md`). |
+| E9 | Ereignis-Verzeichnis für das Log | **Nicht gewünscht.** Im Log steht, was passiert ist – keine zusätzlichen Regeln. |
+| E10 | Belege ohne Ware (Leistungs-Artikel, V5) | **Nicht umsetzen.** |
+| E11 | Lohn-Export der Zeiterfassung | **Nicht gewünscht.** |
+| E12 | Mengen in m/kg/l als «Gebinde mit Menge» (V4) | **Nicht umsetzen** – die Logik Instanz · Charge · Einzelinstanz (Menge immer 1) bleibt. |
 
 ## 2. Freigegeben: wird umgesetzt
 
@@ -35,6 +39,10 @@ Stand: 09.11.2026
 | U9 | Grosse Dateien teilen | Ohne Verhaltensänderung: `voucher_actions.py` (1'339 Zeilen) nach Stufen; die Logik aus `routers/orders.py` (962) in einen Dienst; `mailbox.py` (938) in Abgleich und Senden. | erledigt (Beleg in `voucher_rules` · `voucher_input` · `voucher_offer` · `voucher_billing` · `voucher_actions`; Auftragsansicht in `services/order_view` (Router 962 → 581 Zeilen); `mail_parse` aus `mailbox`) |
 | U10 | Browser-Schutzregeln (CSP) | Was gefahrlos geht: kein `unsafe-eval`, keine Platzhalter-Domains (`*.a.run.app`, `*.googleapis.com`) – nur die genauen Adressen. | erledigt, soweit gefahrlos (genaue Google-Adressen, der eigene Dienst statt `*.a.run.app`); `unsafe-inline`/`unsafe-eval` bleiben – Next-Export, Google Maps und der Scanner brauchen sie, ohne Test im Browser nicht entfernbar |
 | U11 | Prod-Backup | Vor dem Go-live: Point-in-Time-Recovery auf Prod einschalten, eine Rückspiel-Probe; der Deploy prüft, dass es an ist. | offen – bei Go-live |
+| U12 | Ferien im unbezahlten Urlaub (V2) | Ein freier Tag mitten in einem ganztägigen unbezahlten Urlaub baut keine Ferien auf (`timekeeping._accrues`, `covering`). | erledigt |
+| U13 | Mails nie doppelt, nie verloren (V3) | Kennung = die eigene Nummer der Mail im ERP (`Message-ID`, `mailbox.own_message_id`); vor jedem Senden fragt Gmail danach (`rfc822msgid:`). Dasselbe Postfach neu verbunden macht weiter, wo es aufhörte; ist Gmails Stand zu alt, kommen alle Mails seit dem letzten Abgleich, seitenweise. | erledigt |
+| U14 | Rechnungsdatum (F9) | Unsere Rechnung trägt immer den Tag, an dem sie gestellt wird; nur eine Lieferantenrechnung trägt das Datum auf ihrem Papier. | erledigt |
+| U15 | Eine Meldestelle (V7) | `core/report.py`: `info` · `warn` · `error`, eine JSON-Zeile mit Stufe; auch `logging` geht dorthin. Mail bei ERROR: einmal `infra/setup-meldungen.sh PROJEKT EMAIL`. | erledigt (Mail-Alarm: Skript einmal ausführen) |
 
 ## 3. Vorschläge: Entscheid offen
 

@@ -19,6 +19,7 @@ from functools import lru_cache
 from typing import Any, Optional
 
 from .config import get_settings
+from . import report
 
 #: Reserviert im signierten Inhalt: der Zweck und der Ablauf.
 _PURPOSE, _EXPIRES = "u", "e"
@@ -34,8 +35,8 @@ def _legacy_key() -> bytes:
 
 @lru_cache(maxsize=1)
 def _warn_legacy() -> None:
-    print("WARNING: LINK_SECRET fehlt – signierte Links nutzen den Schlüssel aus der "
-          "Datenbankverbindung (bitte LINK_SECRET setzen).", flush=True)
+    report.warn("LINK_SECRET fehlt – signierte Links nutzen den Schlüssel aus der "
+          "Datenbankverbindung (bitte LINK_SECRET setzen).")
 
 
 def _keys() -> list[bytes]:

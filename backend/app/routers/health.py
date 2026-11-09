@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..core.config import get_settings
 from ..core.actor import public
 from ..core.database import DB
+from ..core import report
 
 router = APIRouter(tags=["health"])
 
@@ -50,5 +51,5 @@ def health_check(db: Session = DB):
     except Exception as e:
         # Der DB-Fehlertext kann Host/Port/User der DATABASE_URL enthalten – nur loggen,
         # nie unauthentifiziert in der Antwort zeigen.
-        print(f"WARNING: health check DB error: {e}", flush=True)
+        report.warn(f"health check DB error: {e}")
         return JSONResponse({"status": "unhealthy", "database": "disconnected"}, status_code=503)

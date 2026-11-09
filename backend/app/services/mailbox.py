@@ -45,6 +45,7 @@ from .people import ensure, normalize_email
 from ..domain.errors import Conflict, Forbidden, Invalid, NotFound, Unavailable
 from ..domain import policy
 from .mail_parse import MAX_BODY, NEVER, _attachments, _bulk, _parts, _strip_quote, _text
+from ..core import report
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -222,6 +223,12 @@ def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh:
     if old is not None:
         old.is_active = False
         db.flush()
+    # **Nichts geht verloren beim Neu-Verbinden**: dasselbe Postfach macht weiter, wo es
+    # aufhörte (Mails aus der Lücke kommen nach), ein anderes beginnt ab jetzt.
+    last = (db.query(Mailbox).filter(Mailbox.channel == channel, Mailbox.address == address)
+            .order_by(Mailbox.id.desc()).first())
+    if last is not None and last.history_id:
+        history = last.history_id
     db.add(Mailbox(channel=channel, address=address, owner_object_id=actor.object_id,
                    token=_seal(refresh), history_id=history or None,
                    picture=picture[:1000] or None))
@@ -335,7 +342,7 @@ def sync_all(db: Session, *, deadline: Optional[float] = None) -> tuple[int, int
                     if not _over(deadline):     # sonst holt es der nächste Lauf nach
                         _mark_read(db, mb, tokens)
             except Exception as exc:
-                print(f"WARNING: MAILBOX sync {mb.channel} failed: {exc!r}", flush=True)
+                report.warn(f"MAILBOX sync {mb.channel} failed: {exc!r}")
     sent = send_due(db, tokens, deadline)
     db.commit()
     return new, sent
@@ -351,7 +358,7 @@ def _sync_one(db: Session, mb: Mailbox, ours: dict[str, Optional[int]],
     token = _token(mb, tokens)
     if not token:
         return 0
-    ids, latest = _new_ids(token, mb.history_id)
+    ids, latest = _new_ids(token, mb.history_id, mb.synced_at)
     count = 0
     for gid in ids:
         if _over(deadline):
@@ -364,7 +371,7 @@ def _sync_one(db: Session, mb: Mailbox, ours: dict[str, Optional[int]],
         if r.status_code == 404:
             continue        # inzwischen gelöscht
         if r.status_code != 200:
-            print(f"WARNING: MAILBOX fetch {mb.channel}/{gid}: {r.status_code}", flush=True)
+            report.warn(f"MAILBOX fetch {mb.channel}/{gid}: {r.status_code}")
             latest = None
             break
         count += _ingest_one(db, mb, r.json(), ours)
@@ -381,7 +388,7 @@ def _ingest_one(db: Session, mb: Mailbox, raw: dict[str, Any],
         with db.begin_nested():
             return int(ingest(db, mb, raw, ours))
     except Exception as exc:        # eine kaputte Mail hält die übrigen nicht auf
-        print(f"WARNING: MAILBOX skipped {mb.channel}/{raw.get('id')}: {exc!r}", flush=True)
+        report.warn(f"MAILBOX skipped {mb.channel}/{raw.get('id')}: {exc!r}")
         return 0
 
 
@@ -417,10 +424,40 @@ def _mark_read(db: Session, mb: Mailbox,
             m.read_marked = True
         db.flush()
     else:
-        print(f"WARNING: MAILBOX mark-read {mb.channel} failed: {r.status_code}", flush=True)
+        report.warn(f"MAILBOX mark-read {mb.channel} failed: {r.status_code}")
 
 
-def _new_ids(token: str, start: Optional[str]) -> tuple[list[str], Optional[str]]:
+#: Wie viele Mails ein Nachholen höchstens bringt (Seiten zu 500) – was darüber liegt, holt
+#: der nächste Lauf nicht mehr nach; das steht im Log.
+CATCH_UP_MAX = 2000
+
+
+def _catch_up(token: str, since: Optional[datetime]) -> tuple[list[str], Optional[str]]:
+    """Gmail kennt den alten Stand nicht mehr: die Mails seit dem letzten Abgleich (ohne ihn: die
+    letzten zwei Tage), seitenweise. Schon Übernommenes erkennt der Abgleich selbst."""
+    query = f"after:{int(since.timestamp()) - 3600}" if since else "newer_than:2d"
+    ids: list[str] = []
+    page: Optional[str] = None
+    while len(ids) < CATCH_UP_MAX:
+        params: dict[str, Any] = {"q": query, "maxResults": 500}
+        if page:
+            params["pageToken"] = page
+        listed = _get(token, "messages", **params)
+        if listed.status_code != 200:
+            return [], None
+        data = listed.json()
+        ids += [m["id"] for m in data.get("messages", [])]
+        page = data.get("nextPageToken")
+        if not page:
+            break
+    if page:
+        report.warn(f"MAILBOX catch-up stopped at {len(ids)} mails")
+    prof = _get(token, "profile")
+    return list(reversed(ids)), (str(prof.json().get("historyId")) if prof.status_code == 200 else None)
+
+
+def _new_ids(token: str, start: Optional[str], since: Optional[datetime] = None
+             ) -> tuple[list[str], Optional[str]]:
     """Die neuen Mail-Ids seit ``start`` – beim ersten Mal keine (es zählt ab Verbinden)."""
     if not start:
         prof = _get(token, "profile")
@@ -433,10 +470,8 @@ def _new_ids(token: str, start: Optional[str]) -> tuple[list[str], Optional[str]
         if page:
             params["pageToken"] = page
         r = _get(token, "history", **params)
-        if r.status_code == 404:        # Stand zu alt: die letzten zwei Tage nachholen
-            listed = _get(token, "messages", q="newer_than:2d", maxResults=200).json()
-            prof = _get(token, "profile").json()
-            return [m["id"] for m in listed.get("messages", [])], str(prof.get("historyId"))
+        if r.status_code == 404:        # Stand zu alt: alles seit dem letzten Abgleich nachholen
+            return _catch_up(token, since)
         if r.status_code != 200:
             return [], None
         data = r.json()
@@ -590,7 +625,7 @@ def send_due(db: Session, tokens: Optional[dict[int, Optional[str]]] = None,
             db.commit()
         except Exception as exc:    # eine kaputte Mail hält die übrigen nicht auf
             db.rollback()
-            print(f"WARNING: MAILBOX send {mid} failed: {exc!r}", flush=True)
+            report.warn(f"MAILBOX send {mid} failed: {exc!r}")
             _failed_after_error(db, mid, exc)
     return sent
 
@@ -604,7 +639,7 @@ def _failed_after_error(db: Session, mid: int, exc: Exception) -> None:
         db.commit()
     except Exception as again:      # noqa: BLE001 – steht im Log, der Lauf geht weiter
         db.rollback()
-        print(f"WARNING: MAILBOX send {mid} not recorded: {again!r}", flush=True)
+        report.warn(f"MAILBOX send {mid} not recorded: {again!r}")
 
 
 def _failed(db: Session, msg: Message, reason: str) -> None:
@@ -637,7 +672,7 @@ def _give_up(db: Session, msg: Message, reason: str) -> None:
                    body=(f"Diese Mail ging nach {MAX_ATTEMPTS} Versuchen nicht hinaus: {reason} "
                          f"Bitte prüfen und neu senden."), at=_now(), created_by=None)
     write(db, note, {"to": [to], "cc": [], "bcc": [], "about": about})
-    print(f"WARNING: MAILBOX gave up on {msg.id}: {reason}", flush=True)
+    report.warn(f"MAILBOX gave up on {msg.id}: {reason}")
 
 
 def send(db: Session, msg: Message,
@@ -662,7 +697,11 @@ def send(db: Session, msg: Message,
     body: dict[str, Any] = {"raw": base64.urlsafe_b64encode(mime.as_bytes()).decode()}
     if parent is not None and parent.channel == msg.channel and parent.thread_id:
         body["threadId"] = parent.thread_id
-    sent, reason = _post(token, body, str(msg.id))
+    # **Nie doppelt**: ging die Mail schon hinaus (der Dienst starb nach dem Senden, vor dem
+    # Speichern), findet Gmail sie unter ihrer Kennung – dann wird sie nur vermerkt.
+    sent = _already_sent(token, mime["Message-ID"])
+    if sent is None:
+        sent, reason = _post(token, body, str(msg.id))
     if sent is None:
         _failed(db, msg, reason)
         return False
@@ -670,7 +709,7 @@ def send(db: Session, msg: Message,
     # stehen und der nächste Abgleich schickte sie ein zweites Mal.
     msg.outgoing = False
     msg.gmail_id, msg.thread_id = sent.get("id"), sent.get("threadId")
-    msg.rfc_id = _rfc_id(token, msg.gmail_id)
+    msg.rfc_id = _rfc_id(token, msg.gmail_id) or mime["Message-ID"]
     msg.subject = msg.subject or mime["Subject"] or None
     html_part = mime.get_body(("html",))
     msg.html = msg.html or (html_part.get_content() if html_part is not None else None)
@@ -686,11 +725,10 @@ def _post(token: str, body: dict[str, Any], what: str
         r = httpx.post(f"{API}/messages/send", json=body, timeout=30,
                        headers={"Authorization": f"Bearer {token}"})
     except httpx.HTTPError as exc:
-        print(f"WARNING: MAILBOX send {what} failed: {exc!r}", flush=True)
+        report.warn(f"MAILBOX send {what} failed: {exc!r}")
         return None, "Gmail war nicht erreichbar."
     if r.status_code != 200:
-        print(f"WARNING: MAILBOX send {what} failed: {r.status_code} {r.text[:200]}",
-              flush=True)
+        report.warn(f"MAILBOX send {what} failed: {r.status_code} {r.text[:200]}")
         return None, f"Gmail hat sie abgewiesen ({r.status_code})."
     try:
         return r.json(), ""
@@ -722,6 +760,25 @@ def _consents(db: Session, msg: Message) -> bool:
     to = [p.object_id for p in db.query(MessageParty).filter(
         MessageParty.message_id == msg.id, MessageParty.role == "to").all()]
     return bool(to) and subscribed(db, to) == set(to)
+
+
+def own_message_id(msg: Message, mb: Mailbox) -> str:
+    """►► **Die Kennung einer Mail, die wir senden** – ihre eigene Nummer im ERP, als
+    ``Message-ID`` (RFC 5322). Sie steht fest, BEVOR die Mail hinausgeht; Gmails eigene Nummern
+    gibt es erst danach. ◄◄"""
+    return f"<inexxio-{msg.id}@{mb.address.rsplit('@', 1)[-1]}>"
+
+
+def _already_sent(token: str, message_id: str) -> Optional[dict[str, Any]]:
+    """Die schon gesendete Mail mit dieser Kennung (``id``, ``threadId``) – oder ``None``. Ist
+    Gmail nicht erreichbar, gilt sie als nicht gesendet (der Versand meldet dann selbst)."""
+    try:
+        r = _get(token, "messages", q=f"rfc822msgid:{message_id}", includeSpamTrash="true",
+                 maxResults=1)
+        found = r.json().get("messages") if r.status_code == 200 else None
+    except (httpx.HTTPError, ValueError):
+        return None
+    return found[0] if found else None
 
 
 def _rfc_id(token: str, gmail_id: Optional[str]) -> Optional[str]:
@@ -791,6 +848,7 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
         if addrs:
             mime[header] = ", ".join(addrs)
     mime["Subject"] = msg.subject or ""
+    mime["Message-ID"] = own_message_id(msg, mb)
     unsubscribe = _unsubscribe(mime, parties) if msg.newsletter else None
     if parent is not None:
         mime["In-Reply-To"] = parent.rfc_id
