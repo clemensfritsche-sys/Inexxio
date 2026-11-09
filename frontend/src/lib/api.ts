@@ -492,9 +492,9 @@ class ApiClient {
   }
 
   /** **Wie man diese Rechnung überweist** – Bankverbindung, Referenz, QR-Rechnung als Bild. */
-  voucherTransfer(objectId: number, stepId: number): Promise<TransferInfo> {
+  voucherTransfer(objectId: number, stepId: number, req: Req = {}): Promise<TransferInfo> {
     return this.get(
-      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/transfer`);
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/transfer`, req);
   }
 
   /**
@@ -502,10 +502,10 @@ class ApiClient {
    * Server): eine Gutschrift gehört in den Auftrag, in dem die Ware zurückkommt.
    */
   voucherCorrectable(objectId: number, stepId: number,
-                     search = ''): Promise<VoucherCorrectable[]> {
+                     search = '', req: Req = {}): Promise<VoucherCorrectable[]> {
     const q = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
     return this.get(
-      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/correctable${q}`);
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/voucher/correctable${q}`, req);
   }
 
   /**
@@ -713,8 +713,8 @@ class ApiClient {
   // ─── Zeiterfassung ─────────────────────────────────────────────────────────
   // Jede Schreib-Route antwortet mit der neuen Ansicht des gezeigten Monats.
 
-  timeView(person: number, month?: string): Promise<TimeView> {
-    return this.get(`/api/v1/erp/time/${person}?${monthQuery(month)}`);
+  timeView(person: number, month?: string, req: Req = {}): Promise<TimeView> {
+    return this.get(`/api/v1/erp/time/${person}?${monthQuery(month)}`, req);
   }
 
   timeSwipe(person: number, direction: 'in' | 'out', key: string, month?: string): Promise<TimeView> {
@@ -734,8 +734,8 @@ class ApiClient {
     return this.post(`/api/v1/erp/time/${person}/contracts?${monthQuery(month)}`, data);
   }
 
-  companyTime(company: number, year?: number): Promise<CompanyTimeView> {
-    return this.get(`/api/v1/erp/time/companies/${company}?${year ? `year=${year}` : ''}`);
+  companyTime(company: number, year?: number, req: Req = {}): Promise<CompanyTimeView> {
+    return this.get(`/api/v1/erp/time/companies/${company}?${year ? `year=${year}` : ''}`, req);
   }
 
   holidayProposal(company: number, year: number): Promise<HolidayOut[]> {
@@ -994,14 +994,14 @@ class ApiClient {
 
   /** Welche Artikel kann eine Definitionszeile aufnehmen? **Gesucht, nicht geladen** –
    *  passend zur Eingabe oder genau der gewählte (`objectId`). */
-  getArticleOptions(opts: { search?: string; objectId?: number; limit?: number } = {}):
-    Promise<ArticleOption[]> {
+  getArticleOptions(opts: { search?: string; objectId?: number; limit?: number } = {},
+                    req: Req = {}): Promise<ArticleOption[]> {
     const p = new URLSearchParams();
     if (opts.objectId != null) p.set('object_id', String(opts.objectId));
     else if (opts.search?.trim()) p.set('search', opts.search.trim());
     if (opts.limit) p.set('limit', String(opts.limit));
     const q = p.toString();
-    return this.get(`/api/v1/erp/orders/article-options${q ? `?${q}` : ''}`);
+    return this.get(`/api/v1/erp/orders/article-options${q ? `?${q}` : ''}`, req);
   }
 
   /** Die Stücke **einer Kante** des Prozessbildes – erst beim Aufklappen. */
@@ -1019,8 +1019,8 @@ class ApiClient {
   }
 
   /** Was sich modellieren lässt – Modultypen und Erfassungspunkt-Typen, vom Backend. */
-  getModuleCatalog(): Promise<ModuleCatalog> {
-    return this.get('/api/v1/erp/orders/module-catalog');
+  getModuleCatalog(req: Req = {}): Promise<ModuleCatalog> {
+    return this.get('/api/v1/erp/orders/module-catalog', req);
   }
 
   /**
@@ -1054,10 +1054,10 @@ class ApiClient {
 
   /** **Was an diesem Modul passiert ist** – je Einzelinstanz, aus dem Log (`services/record`),
    *  erst auf Klick. */
-  stepRecord(objectId: number, stepId: number, limit = 200, offset = 0): Promise<StepRecord> {
+  stepRecord(objectId: number, stepId: number, limit = 200, offset = 0, req: Req = {}): Promise<StepRecord> {
     return this.get(
       `/api/v1/erp/orders/${objectId}/steps/${stepId}/record`
-      + `?limit=${limit}&offset=${offset}`);
+      + `?limit=${limit}&offset=${offset}`, req);
   }
 
   // Instanz-Feed: Zusammenfassungen, durchsucht und seitenweise auf dem Server.
@@ -1076,8 +1076,8 @@ class ApiClient {
   }
 
   /** **Kann diese Objektnummer etwas halten?** 404 ist die Antwort «kein Ort», kein Ausfall. */
-  getPlace(objectId: number): Promise<PlaceRef> {
-    return this.get(`/api/v1/erp/places/${objectId}`);
+  getPlace(objectId: number, req: Req = {}): Promise<PlaceRef> {
+    return this.get(`/api/v1/erp/places/${objectId}`, req);
   }
 
   /** **Halter suchen** – Nummer oder Name; die eine Quelle jeder Zielort-Eingabe, angeboten

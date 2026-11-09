@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Sparkles, Unlink } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { McpGrant } from '@/types';
 import { when } from '@/lib/when';
-import { tell } from '@/lib/notice';
 import { errorText } from '@/lib/use-action';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 /**
  * ►►► **Claude** – das ERP im eigenen Claude (Claude.ai, Desktop, Code), nur für Personal. ◄◄◄
@@ -14,15 +14,15 @@ import { errorText } from '@/lib/use-action';
  * (`services/mcp`: danach kommt dieser Client nicht mehr hinein).
  */
 export function ClaudeCard() {
-  const [grants, setGrants] = useState<McpGrant[] | null>(null);
+  const qc = useQueryClient();
+  const grants: McpGrant[] | null = useQuery({
+    queryKey: ['me', 'mcp'],
+    queryFn: () => api.myMcpGrants(),
+    meta: { what: 'Verbindungen mit Claude' },
+  }).data ?? null;
+  const setGrants = (rows: McpGrant[]) => qc.setQueryData(['me', 'mcp'], rows);
   const [error, setError] = useState('');
   const url = `${window.location.origin}/api/v1/mcp`;
-
-  useEffect(() => {
-    let cancelled = false;
-    api.myMcpGrants().then((rows) => { if (!cancelled) setGrants(rows); }).catch(tell('Claude'));
-    return () => { cancelled = true; };
-  }, []);
 
   const cut = async (id: number) => {
     setError('');

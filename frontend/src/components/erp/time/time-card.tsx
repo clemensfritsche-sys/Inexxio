@@ -10,12 +10,14 @@
  *
  * **Nur online**: ohne Netz wird nichts gespeichert, ein Satz sagt es.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Briefcase, ChevronDown, ChevronRight, Clock, Sun, Timer } from 'lucide-react';
 import { Card } from '@/components/erp/detail-frame';
 import { ErrorText, InfoHint } from '@/components/erp/hints';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { ApiError, api } from '@/lib/api';
+import { qk } from '@/lib/queries';
 import { parseDay } from '@/lib/when';
 import { todoChanged } from '@/lib/todo';
 import type { TimeAbsence, TimeContractIn, TimeEntryIn, TimeView } from '@/types';
@@ -58,7 +60,6 @@ function Figure({ icon: Icon, label, info, children, color }: {
 }
 
 export function TimeCard({ person }: { person: number }) {
-  const [view, setView] = useState<TimeView | null>(null);
   const [month, setMonth] = useState<string | undefined>(undefined);
   const [sel, setSel] = useState<string | null>(null);
   const [cap, setCap] = useState<Capture | null>(null);
@@ -67,26 +68,29 @@ export function TimeCard({ person }: { person: number }) {
   const [swipeErr, setSwipeErr] = useState<string | null>(null);
   /** Ein Satz ohne Fehler (zweiter Wisch, der nichts geschrieben hat). */
   const [notice, setNotice] = useState<string | null>(null);
-  /** Nur die jüngste Anfrage zählt – eine späte Antwort zeigt keinen alten Monat. */
-  const latest = useRef(0);
-  const [loadErr, setLoadErr] = useState<string | null>(null);
   const preview = usePreview(person, cap);
-
-  const show = useCallback((v: TimeView) => {
-    setView(v);
-    // Der gewählte Tag bleibt, solange er im gezeigten Monat liegt; sonst der Vorschlag des
-    // Servers (heute bzw. der jüngste offene Tag) oder der erste Tag des Monats.
-    setSel((s) => {
-      if (s && v.days.some((d) => d.day === s)) return s;
-      return v.days.some((d) => d.day === v.default_day) ? v.default_day : v.days[0]?.day ?? null;
-    });
-  }, []);
+  // ►►► **Gelesen wie alles im ERP: eine Query** (`qk.time`). ◄◄◄ Die Antwort einer Handlung
+  // ist die neue Ansicht und geht in den Cache; jede Änderung an der Zeiterfassung lädt nach
+  // (`feed.TOUCHES`). Der Monat ist Teil des Schlüssels – eine späte Antwort zeigt keinen alten.
+  const qc = useQueryClient();
+  const { data: view, error: loadError } = useQuery({
+    queryKey: qk.time(person, month),
+    queryFn: ({ signal }) => api.timeView(person, month, { signal }),
+    placeholderData: keepPreviousData,
+    meta: { what: 'Zeiterfassung' },
+  });
+  const loadErr = loadError ? message(loadError, OFFLINE) : null;
+  const show = useCallback((v: TimeView) => qc.setQueryData(qk.time(person, month), v),
+    [qc, person, month]);
+  // Der gewählte Tag bleibt, solange er im gezeigten Monat liegt; sonst der Vorschlag des
+  // Servers (heute bzw. der jüngste offene Tag) oder der erste Tag des Monats.
   useEffect(() => {
-    const ticket = ++latest.current;
-    api.timeView(person, month)
-      .then((v) => { if (ticket === latest.current) { setLoadErr(null); show(v); } })
-      .catch((e) => { if (ticket === latest.current) setLoadErr(message(e, OFFLINE)); });
-  }, [person, month, show]);
+    if (!view) return;
+    setSel((s) => {
+      if (s && view.days.some((d) => d.day === s)) return s;
+      return view.days.some((d) => d.day === view.default_day) ? view.default_day : view.days[0]?.day ?? null;
+    });
+  }, [view]);
 
   const swipe = async () => {
     if (!view || busy) return;

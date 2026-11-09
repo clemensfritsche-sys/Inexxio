@@ -14,7 +14,9 @@ import { Card, TodoChip } from '@/components/erp/detail-frame';
 import { ErrorText } from '@/components/erp/hints';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { StageAction } from '@/components/erp/module-ui';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '@/lib/api';
+import { qk } from '@/lib/queries';
 import { dayShort, parseDay } from '@/lib/when';
 import { todoChanged } from '@/lib/todo';
 import { useAutosaveValue } from '@/lib/use-autosave';
@@ -54,8 +56,9 @@ function CantonSelect({ v, company, onView }: {
   );
 }
 
-function Holidays({ v, company, onView, todo }: {
-  v: CompanyTimeView; company: number; onView: (v: CompanyTimeView) => void; todo: TodoItem[];
+function Holidays({ v, company, onView, onYear, todo }: {
+  v: CompanyTimeView; company: number; onView: (v: CompanyTimeView) => void;
+  onYear: (y: number) => void; todo: TodoItem[];
 }) {
   const [prop, setProp] = useState<(HolidayOut & { on: boolean })[] | null>(null);
   const [add, setAdd] = useState<{ d: string; n: string } | null>(null);
@@ -72,7 +75,7 @@ function Holidays({ v, company, onView, todo }: {
       .catch((e) => setMsg(err(e))).finally(() => setBusy(false));
   };
   const canton = v.cantons.find(([c]) => c === v.canton);
-  const year = (y: number) => api.companyTime(company, y).then(onView).catch((e) => setMsg(err(e)));
+  const year = onYear;
   const n = prop?.filter((h) => h.on && !h.taken).length ?? 0;
   const iso = add ? parseDay(add.d) : null;
   return (
@@ -194,14 +197,24 @@ function Arts({ v, company, onView }: { v: CompanyTimeView; company: number; onV
 }
 
 export function CompanyTime({ company, todo }: { company: number; todo: TodoItem[] }) {
-  const [v, setV] = useState<CompanyTimeView | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  useEffect(() => { api.companyTime(company).then(setV).catch((e) => setMsg(err(e))); }, [company]);
+  // Gelesen über eine Query (`qk.companyTime`, das Jahr ist Teil des Schlüssels); die Antwort
+  // einer Handlung ist die neue Ansicht und geht in den Cache.
+  const [year, setYear] = useState<number | null>(null);
+  const qc = useQueryClient();
+  const key = qk.companyTime(company, year ?? 0);
+  const { data: v, error } = useQuery({
+    queryKey: key,
+    queryFn: ({ signal }) => api.companyTime(company, year ?? undefined, { signal }),
+    placeholderData: keepPreviousData,
+    meta: { what: 'Feiertage' },
+  });
+  const msg = error ? err(error) : null;
+  const setV = (x: CompanyTimeView) => qc.setQueryData(key, x);
   return (
     <Card icon={Clock} title="Zeiterfassung" unclipped anchor="feiertage">
       {!v ? (msg ? <ErrorText msg={msg} /> : <Skeleton lines={4} label="Feiertage werden geladen" />) : (
         <>
-          <Holidays v={v} company={company} onView={setV} todo={todo} />
+          <Holidays v={v} company={company} onView={setV} onYear={setYear} todo={todo} />
           {HR}
           <Arts v={v} company={company} onView={setV} />
           {HR}

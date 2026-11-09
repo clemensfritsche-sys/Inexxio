@@ -6,28 +6,29 @@ import { api } from '@/lib/api';
 import { registerPasskey, passkeySupported, isPasskeyCancellation } from '@/lib/passkey';
 import type { Passkey } from '@/types';
 import { when } from '@/lib/when';
-import { tell } from '@/lib/notice';
 import { errorText } from '@/lib/use-action';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Datum und Uhrzeit stehen im Haus an EINER Stelle (`lib/when`, Testnotiz #992).
 const formatDate = (iso: string | null) => when(iso);
 
 export function PasskeysCard() {
-  const [passkeys, setPasskeys] = useState<Passkey[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['me', 'passkeys'],
+    queryFn: () => api.listPasskeys(),
+    meta: { what: 'Passkeys' },
+  });
+  const passkeys: Passkey[] = query.data ?? [];
+  const loading = query.isPending;
+  const setPasskeys = (next: Passkey[] | ((rows: Passkey[]) => Passkey[])) =>
+    qc.setQueryData<Passkey[]>(['me', 'passkeys'], (rows = []) =>
+      typeof next === 'function' ? next(rows) : next);
   const [supported, setSupported] = useState(true);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    setSupported(passkeySupported());
-    let cancelled = false;
-    api.listPasskeys()
-      .then((rows) => { if (!cancelled) setPasskeys(rows); })
-      .catch(tell('Passkeys'))
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
+  useEffect(() => { setSupported(passkeySupported()); }, []);
 
   async function handleAdd() {
     if (adding) return;

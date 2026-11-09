@@ -515,9 +515,13 @@ def test_dialogs_tabs_and_chips_say_what_they_are():
     fields = _kit()
     start = fields.index("export function Dialog(")
     dialog = fields[start: fields.index("\n}\n", start)]
-    for need in ('role="dialog"', 'aria-modal="true"', "aria-labelledby={titleId}", "'Escape'",
-                 ".focus()", "before?.focus"):
+    for need in ('role="dialog"', 'aria-modal="true"', "aria-labelledby={titleId}", "useDialog(",
+                 "onKeyDown={onKeyDown}"):
         assert need in dialog, f"Der Dialog: «{need}» fehlt."
+    # Das Verhalten steht EINMAL (`lib/use-dialog`): Fokus hinein und zurück, Escape, Tab im Kreis.
+    behaviour = _read(FRONTEND / "lib" / "use-dialog.ts")
+    for need in ("'Escape'", ".focus()", "before.focus", "'Tab'"):
+        assert need in behaviour, f"Das Verhalten der Dialoge: «{need}» fehlt."
     tabs = _read(FRONTEND / "components" / "erp" / "detail-tabs.tsx")
     for need in ('role="tablist"', 'role="tab"', "aria-selected="):
         assert need in tabs, f"Die Reiter: «{need}» fehlt."

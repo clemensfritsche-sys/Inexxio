@@ -32,6 +32,7 @@ import { api } from '@/lib/api';
 import { goTo, loginTarget, rememberFrom } from '@/lib/login-target';
 import { cachedRole, rememberName, rememberRole } from '@/lib/account-cache';
 import { errorText } from '@/lib/use-action';
+import { useDialog } from '@/lib/use-dialog';
 
 type Step = 'input' | 'loading' | 'sent';
 
@@ -80,12 +81,9 @@ export function LoginDialog({ onClose }: {
     rememberFrom();
   }, []);
 
-  // **Esc schliesst** – dieselbe Aussage wie der Klick daneben, nur mit der Tastatur.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // **Esc schliesst**, Fokus zurück, Tab im Kreis – das eine Verhalten (`lib/use-dialog`); den
+  // Fokus setzt das E-Mail-Feld selbst (Passkey-Autofill).
+  const dialog = useDialog(onClose, { focus: 'none' });
 
   // Passkey-Autofill (Conditional UI): still im Hintergrund starten, sobald der Browser es
   // unterstützt. Der Passkey erscheint dann direkt im Autofill-Dropdown des E-Mail-Feldes –
@@ -190,6 +188,8 @@ export function LoginDialog({ onClose }: {
 
   return (
     <div
+      ref={dialog.ref}
+      onKeyDown={dialog.onKeyDown}
       className="ix-login-scrim"
       role="dialog"
       aria-modal="true"

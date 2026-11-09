@@ -11,6 +11,7 @@ import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
 import { OptionRow } from '@/components/erp/search-select';
 import { formatObjectId } from '@/lib/utils';
 import { useSearch } from '@/lib/use-search';
+import { useDialog } from '@/lib/use-dialog';
 
 export type { ScanRequest };
 
@@ -46,7 +47,10 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   // Lebt der Dialog noch? Und läuft ein Quittierungs-Timer?  → §2.1
   const alive = useRef(true);
   const ackTimer = useRef<number | null>(null);
-  const sheetRef = useRef<HTMLDivElement | null>(null);
+  // Escape, Fokus zurück, Tab im Kreis – das eine Verhalten (`lib/use-dialog`); WOHIN der
+  // Fokus geht, entscheidet die Kamera (unten).
+  const dialog = useDialog(onClose, { focus: 'none' });
+  const sheetRef = dialog.ref;
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const step: ScanStep | undefined = steps[stepIndex];
@@ -116,14 +120,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   useEffect(() => {
     if (cameraLive) sheetRef.current?.focus();
     else inputRef.current?.focus();
-  }, [cameraLive, stepIndex]);
-
-  // Esc schliesst – am Fenster, damit es unabhängig davon gilt, wo der Fokus gerade steht.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [cameraLive, stepIndex, sheetRef]);
 
   function onKeyDown(e: React.KeyboardEvent) {
     // Hardware-Scanner bleiben bedienbar: die erste Ziffer holt den Fokus und wird mitgenommen.
@@ -134,14 +131,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
       return;
     }
 
-    // Fokusfalle: die bedienbaren Dinge im Dialog im Kreis führen.
-    if (e.key !== 'Tab') return;
-    const items = sheetRef.current?.querySelectorAll<HTMLElement>('button, input');
-    if (!items?.length) return;
-    const first = items[0];
-    const last = items[items.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    dialog.onKeyDown(e);
   }
 
   // Vorschläge, Teil 1: was dieser Schritt annimmt (`offersFor`) – bei einer Verifikation die

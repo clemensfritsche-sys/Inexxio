@@ -35,6 +35,8 @@ import { ObjectSelect } from '@/components/erp/object-select';
 import type { PlaceRef } from '@/types';
 import { RUNTIME_CHOICE } from '@/lib/scan';
 import { tell } from '@/lib/notice';
+import { useQuery } from '@tanstack/react-query';
+import { qk } from '@/lib/queries';
 
 /**
  * **Den Prozess definieren — dieselbe Komponente am Artikel wie im Auftrag** (PROCESS_CORE.md §8).
@@ -60,19 +62,18 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   /** Ein Klick auf den Quell-Auftrag schaltet seine Rückführung an und aus (§5). */
   onToggleReturn?: (parentObjectId: number) => void;
 }) {
-  const [catalog, setCatalog] = useState<ModuleCatalog | null>(null);
   const [drag, setDrag] = useState<number | null>(null);
   // Das zuletzt angelegte Modul startet aufgeklappt – woran gerade gearbeitet wird.
   const [justAdded, setJustAdded] = useState<number | null>(null);
 
-  // Auch der eingefrorene Stand braucht den Katalog (Namen der Erfassungspunkte).
-  useEffect(() => {
-    let dead = false;
-    api.getModuleCatalog()
-      .then((c) => { if (!dead) setCatalog(c); })
-      .catch(tell('Modul-Katalog'));
-    return () => { dead = true; };
-  }, []);
+  // Auch der eingefrorene Stand braucht den Katalog (Namen der Erfassungspunkte) – geladen
+  // einmal je Sitzung (er ändert sich nur mit einem Deploy).
+  const catalog: ModuleCatalog | null = useQuery({
+    queryKey: qk.catalog('modules'),
+    queryFn: ({ signal }) => api.getModuleCatalog({ signal }),
+    staleTime: Infinity,
+    meta: { what: 'Modul-Katalog' },
+  }).data ?? null;
 
   // Was ein Modul ist, sagt sein Typ – im Entwurf über den Katalog, gespeichert über die
   // Antwort des Servers; beide bringen Beschriftung, Farbfamilie und «Ausgang?» mit.
@@ -232,18 +233,14 @@ function MoveFields({ module: m, onChange }: {
   types: { key: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
-  const [place, setPlace] = useState<PlaceRef | null>(null);
   const target = m.target.trim();
-
   // Den gewählten Halter benennen; die Vorschläge holt die Suche.
-  useEffect(() => {
-    if (target === '') { setPlace(null); return; }
-    let stale = false;
-    api.getPlace(Number(target))
-      .then((p) => { if (!stale) setPlace(p); })
-      .catch((e: unknown) => { if (!stale) { setPlace(null); tell('Zielort')(e); } });
-    return () => { stale = true; };
-  }, [target]);
+  const place: PlaceRef | null = useQuery({
+    queryKey: qk.catalog('place', target),
+    queryFn: ({ signal }) => api.getPlace(Number(target), { signal }),
+    enabled: target !== '',
+    meta: { what: 'Zielort' },
+  }).data ?? null;
 
   // `PlaceRef` nennt sein Namensfeld `label`; hier wird es zu `name`.
   const findPlaces = useCallback(

@@ -22,6 +22,7 @@ import { RecordingStrip, recordingWord } from '@/components/erp/capture/recorder
 import type { Creatable } from '@/components/erp/feed-panel';
 import type { ErpRecordType, Recording, Talk, TalkFile } from '@/types';
 import { errorText } from '@/lib/use-action';
+import { useDialog } from '@/lib/use-dialog';
 
 /** Der Datensatz, der beim Sagen offen ist – der erste Hinweis für die KI (nur seine Nummer). */
 export interface CaptureHint { objectId: number; label: string }
@@ -85,12 +86,9 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
   const locked = phase.k === 'recording';
   const dismiss = locked ? undefined : onClose;
 
-  useEffect(() => {
-    if (!dismiss || picking) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') dismiss(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [dismiss, picking]);
+  // Escape schliesst (nicht während einer Aufnahme und nicht beim Zeigen der Stecknadel), Fokus
+  // zurück, Tab im Kreis – das eine Verhalten (`lib/use-dialog`).
+  const dialog = useDialog(picking ? null : dismiss, { focus: 'none' });
 
   const { pin, forget } = usePin({ host, hint, setPicking, setPlace, setAbout, setHomeless });
   const keep = (t: Talk) => { client.setQueryData(qk.talk(t.id), t); setTalkId(t.id); };
@@ -142,7 +140,8 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
   return createPortal(
     <div className="erp-capture-scrim" onClick={dismiss}
       style={picking ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}>
-      <div role="dialog" aria-modal="true" aria-label="Assistent" className="erp-capture-sheet"
+      <div ref={dialog.ref} onKeyDown={dialog.onKeyDown}
+        role="dialog" aria-modal="true" aria-label="Assistent" className="erp-capture-sheet"
         {...{ [PIN_UI]: 'true' }} onClick={(e) => e.stopPropagation()}>
         <div className="erp-capture-body">
           {talk && <TalkView talk={talk} working={phase.k === 'working'} steps={phase.k === 'working' ? phase.steps : undefined}

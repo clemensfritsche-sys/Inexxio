@@ -1,10 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
-import { tell } from '@/lib/notice';
 import { day } from '@/lib/when';
 import { ObjId } from '@/components/erp/obj-id';
 import type { VoucherCorrectable, VoucherSide } from '@/types';
@@ -12,6 +11,8 @@ import {
   DocFind, DocPick, DocRef, LABEL, Missing, Section, may,
 } from './shared';
 import type { Filled, Send } from './shared';
+import { useQuery } from '@tanstack/react-query';
+import { qk } from '@/lib/queries';
 
 /**
  * ►►► **Wer im Kopf steht – EINE Gegenpartei** (entschieden am 24.10.2026). ◄◄◄
@@ -233,7 +234,6 @@ const NO_CORRECTION = '';
 function Correction({ d, orderObjectId, stepId, onAction }: {
   d: Filled; orderObjectId: number; stepId: number; onAction: Send;
 }) {
-  const [found, setFound] = useState<boolean | null>(null);
   const on = may(d, 'correct');
   const suggested = d.corrects_suggested ?? [];
   const label = useCallback((r: VoucherCorrectable) => [
@@ -244,14 +244,14 @@ function Correction({ d, orderObjectId, stepId, onAction }: {
   const search = useCallback((query: string) => api.voucherCorrectable(orderObjectId, stepId, query)
     .then((rows) => rows.map((r) => ({ value: String(r.id), label: label(r) }))),
   [orderObjectId, stepId, label]);
-  useEffect(() => {
-    if (!on || suggested.length) return;
-    let stale = false;
-    void api.voucherCorrectable(orderObjectId, stepId)
-      .then((r) => { if (!stale) setFound(r.length > 0); })
-      .catch((e: unknown) => { if (!stale) { setFound(false); tell('Korrigierbare Rechnungen')(e); } });
-    return () => { stale = true; };
-  }, [on, suggested.length, orderObjectId, stepId]);
+  // Gibt es überhaupt eine Rechnung zum Korrigieren? – unter dem Auftrag gelesen.
+  const found: boolean | null = useQuery({
+    queryKey: qk.correctable(orderObjectId, stepId),
+    queryFn: ({ signal }) => api.voucherCorrectable(orderObjectId, stepId, undefined, { signal }),
+    enabled: on && !suggested.length,
+    select: (rows) => rows.length > 0,
+    meta: { what: 'Korrigierbare Rechnungen' },
+  }).data ?? null;
 
   if (!d.corrects && (!on || (!suggested.length && found !== true))) return null;
   const text = d.corrects

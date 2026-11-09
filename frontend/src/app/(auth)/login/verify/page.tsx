@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { goTo, loginTarget } from '@/lib/login-target';
 import { cachedRole, rememberRole } from '@/lib/account-cache';
 import { errorText } from '@/lib/use-action';
+import { useDialog } from '@/lib/use-dialog';
 
 /** Rolle holen und das Ziel bestimmen – dieselbe Antwort wie Dialog und Route. */
 async function finish(): Promise<string> {
@@ -24,6 +25,8 @@ export default function VerifyPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'needs-email'>('loading');
   const [error, setError] = useState('');
   const [email, setEmail] = useState('');
+  // Fokus hinein, Tab im Kreis – das eine Verhalten (`lib/use-dialog`); schliessen gibt es hier nicht.
+  const dialog = useDialog(null);
 
   useEffect(() => {
     async function verify() {
@@ -68,7 +71,8 @@ export default function VerifyPage() {
   // ►►► **Dieselbe Lightbox wie der Anmeldedialog** (`.ix-login-scrim` + `.ix-login-card`,
   // `components/auth/login-dialog.tsx`) – die Rückkehr vom Link ist derselbe Vorgang. ◄◄◄
   return (
-    <div className="ix-login-scrim" role="dialog" aria-modal="true" aria-labelledby="ix-verify-title">
+    <div ref={dialog.ref} onKeyDown={dialog.onKeyDown}
+      className="ix-login-scrim" role="dialog" aria-modal="true" aria-labelledby="ix-verify-title">
       <div className="ix-login-card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/inexxio-ehemals-hs-steiner.svg" alt="INEXXIO (ehemals HS Steiner)" className="ix-verify-logo" />

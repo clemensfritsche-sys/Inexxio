@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
 import { type LucideIcon } from 'lucide-react';
+import { useDialog } from '@/lib/use-dialog';
 
 // ►►► **Die Bedienelemente** – die eine Feldform (`inputClass`), Beschriftung (`Label`),
 // Schieber (`IconSwitch`), Umschalter (`Segmented`), Dialog, Palette, Zahlenfelder und der
@@ -107,29 +108,13 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
   onClose: () => void; children: ReactNode;
 }) {
   const titleId = useId();
-  const panel = useRef<HTMLDivElement>(null);
-  const close = useRef(onClose);
-  close.current = onClose;
-  // **Fokus hinein und zurück**: beim Öffnen auf das erste Bedienelement (sonst den Dialog
-  // selbst), beim Schliessen dorthin, wo er vorher war. Escape schliesst.
-  useEffect(() => {
-    const before = document.activeElement as HTMLElement | null;
-    const node = panel.current;
-    if (node && !node.contains(document.activeElement)) {
-      (node.querySelector<HTMLElement>(FOCUSABLE) ?? node).focus();
-    }
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') close.current(); }
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      before?.focus?.();
-    };
-  }, []);
+  // Fokus hinein und zurück, Escape, Tab im Kreis – das eine Verhalten (`lib/use-dialog`).
+  const { ref: panel, onKeyDown } = useDialog(onClose);
   return (
     <div onClick={onClose}
       style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, var(--bg-dark) 45%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()} onKeyDown={onKeyDown}
         style={{ background: 'var(--bg-1)', borderRadius: 'var(--r-lg)', width: `min(${width}px, 100%)`, maxHeight: '86vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)', outline: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-1)' }}>
           {Icon && <Icon size={18} aria-hidden style={{ color: tone }} />}
@@ -140,9 +125,6 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
     </div>
   );
 }
-
-/** Was im Dialog den Fokus nehmen kann – das erste davon bekommt ihn beim Öffnen. */
-const FOCUSABLE = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
 /** **Eine Palette: Symbole in einer Reihe**, der Name im Hover. */
 export function Palette({ children }: { children: React.ReactNode }) {

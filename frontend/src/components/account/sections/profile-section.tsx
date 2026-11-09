@@ -18,10 +18,9 @@ import { useAutosaveValue } from '@/lib/use-autosave';
 import { SaveStatusIndicator } from '@/components/form/save-status';
 import { AddressBook } from '@/components/erp/address-book';
 import { CompanyField } from '@/components/erp/company-field';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMapsApiKey } from '@/lib/use-maps-key';
 import { KtDate, KtField, KtSection } from '@/components/form/kt-section';
-import { tell } from '@/lib/notice';
 import { errorText } from '@/lib/use-action';
 
 interface Form {
@@ -142,9 +141,14 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
  *  bestätigt, darum ohne zweiten Klick. Neben dem Schalter steht der Satz, dem man
  *  zustimmt – derselbe, der als Nachweis gespeichert wird (vom Server). */
 function Newsletter() {
-  const [state, setState] = useState<NewsletterState | null>(null);
+  const qc = useQueryClient();
+  const state: NewsletterState | null = useQuery({
+    queryKey: ['me', 'newsletter'],
+    queryFn: () => api.myNewsletter(),
+    meta: { what: 'Newsletter-Stand' },
+  }).data ?? null;
+  const setState = (s: NewsletterState) => qc.setQueryData(['me', 'newsletter'], s);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.myNewsletter().then(setState).catch(tell('Newsletter-Stand')); }, []);
   const flip = (on: boolean) => {
     setError(null);
     api.setMyNewsletter(on).then(setState)

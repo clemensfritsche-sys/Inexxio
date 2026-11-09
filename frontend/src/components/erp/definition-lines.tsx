@@ -15,7 +15,6 @@ import { UnitNumber } from '@/components/erp/unit-number';
 import { useScan } from '@/components/scan/scan-provider';
 import { statusCfg, statusLabel } from '@/lib/process-status';
 import { VERBAUT, VERKAUFT } from '@/lib/status-catalog';
-import { tell } from '@/lib/notice';
 import { Skeleton } from './skeleton';
 
 /**
@@ -180,16 +179,18 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
   onChange: (next: Partial<DefinitionLine>) => void;
   onRemove: () => void;
 }) {
-  // Eine vorbelegte Nummer (Shortcut am Artikel) wird einmal aufgelöst.
+  // Eine vorbelegte Nummer (Shortcut am Artikel) wird einmal aufgelöst – als Query; die
+  // Antwort geht einmal in den Entwurf (Query-Daten treiben nie ein Formular).
+  const nr = line.articleObjectId;
+  const preset = useQuery({
+    queryKey: qk.catalog('article', nr),
+    queryFn: ({ signal }) => api.getArticleOptions({ objectId: nr! }, { signal }),
+    enabled: nr != null && !article,
+    meta: { what: 'Artikel' },
+  }).data?.[0];
   useEffect(() => {
-    const nr = line.articleObjectId;
-    if (nr == null || article) return;
-    let dead = false;
-    api.getArticleOptions({ objectId: nr })
-      .then((rows) => { if (!dead && rows[0]) onArticle(rows[0]); })
-      .catch(tell('Artikel'));
-    return () => { dead = true; };
-  }, [line.articleObjectId, article, onArticle]);
+    if (preset && !article) onArticle(preset);
+  }, [preset, article, onArticle]);
 
   const findArticles = useCallback(
     (q: string) => api.getArticleOptions({ search: q, limit: 20 }),

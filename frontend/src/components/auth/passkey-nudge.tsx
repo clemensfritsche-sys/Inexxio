@@ -21,6 +21,7 @@ import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { platformPasskeyAvailable, registerPasskey, isPasskeyCancellation } from '@/lib/passkey';
 import { errorText } from '@/lib/use-action';
+import { useDialog } from '@/lib/use-dialog';
 
 const KEY = 'inexxio_passkey_nudge';
 const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;   // 30 Tage Ruhe nach «Später»
@@ -70,6 +71,9 @@ export function PasskeyNudge() {
     return () => { cancelled = true; unsub(); };
   }, []);
 
+  // Kein Modal (die Seite bleibt bedienbar): nur Escape schliesst – das eine Verhalten
+  // (`lib/use-dialog`).
+  const dialog = useDialog(show && !done ? later : null, { focus: 'none', modal: false });
   if (!show) return null;
 
   function later() {
@@ -96,7 +100,7 @@ export function PasskeyNudge() {
   }
 
   return (
-    <div className="ix-passkey-nudge" role="dialog" aria-label="Passkey einrichten">
+    <div ref={dialog.ref} className="ix-passkey-nudge" role="dialog" aria-label="Passkey einrichten">
       {!done && (
         <button type="button" className="ix-nudge-close" onClick={later} aria-label="Schliessen">
           <X size={16} />

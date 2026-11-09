@@ -1,21 +1,22 @@
 'use client';
 
 import { useEffect } from 'react';
-import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
+import { newQueryClient } from '@/lib/use-feed';
 import { api } from '@/lib/api';
 import { refreshAfterEmailChange } from '@/lib/firebase';
 import { AccountShell } from '@/components/account/account-shell';
 import type { UserProfileUpdate } from '@/types';
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 60_000 } },
-});
+// Dieselbe Bauart wie im ERP: jeder Fehler meldet sich (`tell`), kein zweiter Wiederholungsweg.
+const queryClient = newQueryClient();
 
 function KontoInner() {
   const qc = useQueryClient();
   const { data: profile, isLoading } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.getMe(),
+    meta: { what: 'Profil' },
   });
 
   // ►►► **Zurück vom Bestätigungslink der neuen Anmelde-E-Mail** (`?email=neu`): frischer

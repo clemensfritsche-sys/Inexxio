@@ -17,14 +17,15 @@ declare module '@tanstack/react-query' {
 }
 
 /**
- * **Der Query-Client des ERP** – einer je Seitenaufruf (`app/(erp)/layout.tsx`).
+ * **Der Query-Client** – EINE Bauart für ERP (`app/(erp)/layout.tsx`) und Konto, einer je
+ * Seitenaufruf.
  *
  * - **Nichts scheitert still**: jeder Fehler einer Query geht über `lib/notice` (`tell`),
  *   genannt mit `meta.what`.
  * - Kein zweiter Wiederholungs-Weg: `lib/api.ts` wiederholt Transportfehler selbst.
  * - Gleichzeitige Abrufe derselben Liste sind EINER (React Query entdoppelt je Schlüssel).
  */
-function feedClient(): QueryClient {
+export function newQueryClient(): QueryClient {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (e, query) => tell(query.meta?.what ?? 'Daten')(e),
@@ -43,7 +44,7 @@ function feedClient(): QueryClient {
  * Personen (ein unbekannter Absender ist jetzt eine Person), eine erledigte Aufgabe «zu tun».
  */
 export function useFeedClient(): QueryClient {
-  const [client] = useState(feedClient);
+  const [client] = useState(newQueryClient);
   useEffect(() => {
     const invalidate = (key: readonly string[]) => { void client.invalidateQueries({ queryKey: key }); };
     const onChanged = (e: Event) => {

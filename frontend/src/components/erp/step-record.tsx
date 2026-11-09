@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { AlertTriangle, Check, Keyboard, Minus, ScanLine } from 'lucide-react';
 import { api, attachmentUrl } from '@/lib/api';
 import type { RecordEntry, RecordValue } from '@/types';
@@ -10,6 +9,8 @@ import { when, whenTitle } from '@/lib/when';
 import { MICRO_LABEL, StatusDot } from '@/components/erp/fields';
 import { Skeleton } from './skeleton';
 import { errorText } from '@/lib/use-action';
+import { useQuery } from '@tanstack/react-query';
+import { qk } from '@/lib/queries';
 
 /**
  * ►►► **Ein abgeschlossenes Modul zeigt lückenlos, was in ihm passiert ist** ◄◄◄ – für alle
@@ -20,17 +21,14 @@ export function StepRecord({ orderObjectId, stepId }: {
   orderObjectId: number;
   stepId: number;
 }) {
-  const [rows, setRows] = useState<RecordEntry[] | null>(null);
-  const [total, setTotal] = useState(0);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let dead = false;
-    api.stepRecord(orderObjectId, stepId)
-      .then((r) => { if (!dead) { setRows(r.entries ?? []); setTotal(r.total ?? 0); } })
-      .catch((e) => { if (!dead) setErr(errorText(e)); });
-    return () => { dead = true; };
-  }, [orderObjectId, stepId]);
+  const query = useQuery({
+    queryKey: qk.stepRecord(orderObjectId, stepId),
+    queryFn: ({ signal }) => api.stepRecord(orderObjectId, stepId, 200, 0, { signal }),
+    meta: { what: 'Protokoll' },
+  });
+  const rows: RecordEntry[] | null = query.data ? query.data.entries ?? [] : null;
+  const total = query.data?.total ?? 0;
+  const err = query.error ? errorText(query.error) : null;
 
   if (err) return <p className="text-xs" style={{ color: 'var(--danger)' }}>{err}</p>;
   if (rows === null) {

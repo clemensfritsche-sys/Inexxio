@@ -19,6 +19,10 @@ type Scope = { person: number } | { company: number };
 
 export const qk = {
   order: (id: number) => key('order', id),
+  /** Das Protokoll eines Moduls – unter seinem Auftrag (lädt mit ihm nach). */
+  stepRecord: (order: number, step: number) => key('order', order, 'record', step),
+  transfer: (order: number, step: number) => key('order', order, 'transfer', step),
+  correctable: (order: number, step: number) => key('order', order, 'correctable', step),
   instance: (id: number) => key('instance', id),
   article: (id: number) => key('article', id),
   articleProcess: (id: number) => key('articleProcess', id),
@@ -42,6 +46,11 @@ export const qk = {
   talk: (id: number) => key('talks', id),
   /** Meine Aufnahmen, die noch nicht fertig sind (Phase 4). */
   openRecordings: () => key('recordings', 'open'),
+  /** Die Zeiterfassung einer Person (ein Monat) und einer Gesellschaft (Feiertage, Regeln). */
+  time: (person: number, month?: string) => key('time', person, month ?? null),
+  companyTime: (company: number, year: number) => key('time', 'company', company, year),
+  /** Was sich selten ändert: der Modul-Katalog, die Auswahl für einen Entwurf. */
+  catalog: (what: string, ...rest: unknown[]) => key('catalog', what, ...rest),
 };
 
 /** Die Dokumente an einem Datensatz – Kacheln, Rechtstexte. */

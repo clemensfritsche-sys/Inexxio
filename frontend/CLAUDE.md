@@ -95,7 +95,7 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `skeleton.tsx` | **Laden = die graue Form dessen, was kommt**: `Skeleton` (`lines` · `rows` · `block`) und `DetailSkeleton` (ganzes Fenster) – an jeder Stelle, die auf den Server wartet; kein «Lädt …», kein Kreisel. Der Schimmer ist `.erp-skel` (still bei «weniger Bewegung») |
 | `fields.tsx` | Grundtöne: `MICRO_LABEL`, `StatusDot` (der eine Zustandspunkt, 6 px), `StatusBadge`, `Row` |
 | `detail-frame.tsx` | Anatomie eines Datensatz-Fensters: `DetailHeader`, `RecordIcon` (+ `IconMark`, Zahl «zu tun» aus `lib/todo`), `HeaderAction`, `DetailBody`/`DETAIL_MAXW`, `Card` (`info`, `extra`, `unclipped`, `anchor`), `SPEC`, `SpecHead`, `SpecSection`, `ReadField` (Link nur ins Web, `lib/web-link`), `SectionSep`, `TodoChip` |
-| `controls.tsx` | Bedienelemente: **die eine Feldform** `inputClass` (normal · warn · read) / `inputCls`, `Label`, `IconSwitch`, `Segmented`, `Dialog` (modal, Fokus hinein und zurück, Escape), `Palette`, `numericOnly`, `FieldAction` |
+| `controls.tsx` | Bedienelemente: **die eine Feldform** `inputClass` (normal · warn · read) / `inputCls`, `Label`, `IconSwitch`, `Segmented`, `Dialog` (modal; das Verhalten aus `lib/use-dialog`), `Palette`, `numericOnly`, `FieldAction` |
 | `search-select.tsx`, `hints.tsx` | `SearchSelect`/`OptionRow` (Liste per Portal am `body`) · `Tooltip`, `InfoHint`, `ErrorText` |
 | `feed-panel.tsx`, `detail-pane.tsx` | Die zwei Hälften der Feed-Seite: Liste (Suche, Typ-Filter, Zeilen, «+») · Detail (was angelegt wird oder ausgewählt ist, im `ErrorBoundary`) |
 | `module-ui.tsx` | Bauteile eines Prozessschrittmoduls (Tabelle unten) |
@@ -161,8 +161,11 @@ Skill `inexxio-design-system`.
   treffen (`test_api_routes.py`).
 
 ## Datenfluss (`lib/feed.ts`, `lib/use-feed.ts`, `lib/queries.ts`, `lib/use-feed-lists.ts`)
-- **Ein `QueryClient` im ERP-Layout** (`app/(erp)/layout.tsx` → `useFeedClient`). Was das
-  ERP vom Server liest, ist eine Query – **die einzige Datenquelle** (Wächter: kein
+- **Ein `QueryClient` im ERP-Layout** (`app/(erp)/layout.tsx` → `useFeedClient`), dieselbe Bauart
+  im Konto (`lib/use-feed.newQueryClient`: Fehler über `tell`, kein zweiter Wiederholungsweg). Was
+  das ERP vom Server liest, ist eine Query – **die einzige Datenquelle**; ein `api.…` in einem
+  `useEffect` gibt es nur für Handlungen, öffentliche Seiten und die Anmeldung, je mit Grund
+  (Wächter `scripts/queries.test.mjs`) (Wächter: kein
   `useState<…[]>` je Liste neben dem Feed, keine Antwort einer lesenden Anfrage in einem
   eigenen Zustand einer `*-detail.tsx`, `test_source_process`).
 - **Feed** (`app/(erp)/erp/page.tsx` → `lib/use-feed-lists.ts`): `['feed', 'people' |
@@ -173,7 +176,9 @@ Skill `inexxio-design-system`.
 - **Detailansichten**: Schlüssel aus `lib/queries.qk` (`[<Bereich>, …]`, Bereiche in
   `feed.DETAILS`): Auftrag, Instanz, Dokument, Artikel (Umfeld), Erzeugungsprozess, Bestand
   und Nummern (`useInfiniteQuery`), Dokumente an einem Datensatz (`useDocumentsOf`),
-  Zahlungen, Verlauf (`qk.history`, `useInfiniteQuery` – jeder Schreibvorgang lädt ihn nach), Absender, Postfach, Newsletter, Gesellschaft;
+  Zahlungen, Verlauf (`qk.history`, `useInfiniteQuery` – jeder Schreibvorgang lädt ihn nach), Absender, Postfach, Newsletter, Gesellschaft,
+  Zeiterfassung (`qk.time` · `qk.companyTime`), Protokoll · Überweisung · korrigierbare Rechnungen
+  (unter dem Auftrag: `qk.stepRecord` · `transfer` · `correctable`), Seltenes (`qk.catalog`: Modul-Katalog, Ort, Artikel);
   **Phase 4/5** `qk.openRecordings` · `qk.openTalks` · `qk.talk` · `qk.pins` (`lib/assistant.ts`; `feed.LOGGED` =
   Verlauf + Angeheftetes lädt jede Änderung am Datensatz nach – offen ist abgeleitet; ein
   ausgeführter Handgriff lädt **alles** nach, er kann alles, was das ERP kann). Die Antwort einer Handlung
@@ -214,6 +219,9 @@ ob man etwas **darf**, sagt der Server (`can`, `may_edit`). Ein Fehler ist ein `
 (`message` = Satz des Servers, `code` = Art oder eigener Code wie `pick_stale`, `field`).
 
 ## Regeln, die jede Oberfläche erbt
+- **Ein Dialog verhält sich überall gleich** (`lib/use-dialog.ts`, `useDialog(onClose, {focus})`):
+  Fokus hinein und zurück, Escape schliesst, Tab bleibt im Dialog; das Aussehen bleibt beim Dialog
+  (Anmelden, Scannen, «+», Passkey-Hinweis, `controls.Dialog`). Wächter `scripts/dialog.test.mjs`.
 - **Im ERP wird gespeichert, nicht abgeschickt**: `lib/use-autosave.ts`
   (`useAutosaveValue` für einen Wert, `useAutosaveSignature` für einen Satz Werte; debounced
   `AUTOSAVE_DELAY` = 3 s, Enter sofort, Rückmeldung im Karten-Kopf). Kein Speichern-Knopf.

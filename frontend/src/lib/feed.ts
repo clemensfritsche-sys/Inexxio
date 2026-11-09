@@ -25,7 +25,7 @@ type FeedList = (typeof FEED_LISTS)[number];
 /** Die Bereiche der Detailansichten – je einer ist das erste Glied ihrer Schlüssel. */
 export const DETAILS = ['order', 'instance', 'article', 'articleProcess', 'stock', 'units',
   'unitOptions', 'document', 'documentsOf', 'payments', 'history', 'senders', 'mailboxes',
-  'newsletter', 'company', 'pins', 'talks', 'recordings'] as const;
+  'newsletter', 'company', 'pins', 'talks', 'recordings', 'time', 'catalog'] as const;
 export type Detail = (typeof DETAILS)[number];
 type Area = FeedList | Detail;
 const AREAS: readonly Area[] = [...FEED_LISTS, ...DETAILS];
@@ -72,7 +72,7 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
     'article', 'stock', 'units', 'unitOptions', 'document', 'documentsOf', 'payments', ...LOGGED]],
   ['erp/instances', ['instances', 'orders', 'instance', 'units', 'stock', 'unitOptions', ...LOGGED]],
   ['erp/places', ['instances', 'instance', 'units', ...LOGGED]],
-  ['erp/articles', ['articles', 'article', 'stock', ...LOGGED]],
+  ['erp/articles', ['articles', 'article', 'stock', 'catalog', ...LOGGED]],
   ['erp/documents', ['documents', 'todo', 'document', 'documentsOf', ...LOGGED]],
   ['erp/attachments', ['documents', 'todo', 'document', 'documentsOf', ...LOGGED]],
   // Eine Person kann dabei eine Firma anlegen (`sites.resolve`); fehlende Angaben zählen.
@@ -83,7 +83,7 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   ['erp/messages/mailboxes', ['companies', 'company', 'mailboxes', 'senders', ...LOGGED]],
   // Ein unbekannter Absender wird Person; eine Nachricht von uns schliesst Offenes.
   ['erp/messages', ['people', 'todo', ...LOGGED]],
-  ['erp/time', ['todo', ...LOGGED]],
+  ['erp/time', ['todo', 'time', ...LOGGED]],
   ['admin', ['companies', 'todo', 'company', 'documentsOf', ...LOGGED]],
   // Phase 5 · Der Assistent: ein Handgriff kann ALLES ändern, was das ERP kann – er lädt
   // alles nach (wie ein unbekannter Pfad). Sagen, Weglegen, eine Datei ändern nur Gespräche,

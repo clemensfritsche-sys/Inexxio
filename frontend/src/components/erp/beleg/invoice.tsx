@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { AlertTriangle, Loader2, RotateCcw, X } from 'lucide-react';
+import { AlertTriangle, RotateCcw, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { TONE } from '@/lib/status-tone';
 import { day, when } from '@/lib/when';
@@ -17,6 +16,9 @@ import { CASH, TRANSFER, needsIban, startForm, taxed } from './forms';
 import type { Form } from './forms';
 import { FieldBox, LABEL, Section, Stacked, may, unsigned } from './shared';
 import type { Filled, Send } from './shared';
+import { useQuery } from '@tanstack/react-query';
+import { qk } from '@/lib/queries';
+import { Skeleton } from '../skeleton';
 
 type Entry = Filled['entries'][number];
 type Way = NonNullable<Filled['ways']>[number];
@@ -501,15 +503,14 @@ function Fixed({ label, value, hint }: { label: string; value: string; hint?: st
  * Swiss QR-Rechnung. Eine Auskunft, keine Buchung.
  */
 function Transfer({ orderObjectId, stepId }: { orderObjectId: number; stepId: number }) {
-  const [info, setInfo] = useState<TransferInfo | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let stale = false;
-    void api.voucherTransfer(orderObjectId, stepId)
-      .then((r) => { if (!stale) setInfo(r); })
-      .catch(() => { if (!stale) setFailed(true); });
-    return () => { stale = true; };
-  }, [orderObjectId, stepId]);
+  // Unter dem Auftrag gelesen (`qk.transfer`) – jede Handlung am Beleg lädt sie nach.
+  const query = useQuery({
+    queryKey: qk.transfer(orderObjectId, stepId),
+    queryFn: ({ signal }) => api.voucherTransfer(orderObjectId, stepId, { signal }),
+    meta: { what: 'Angaben zur Überweisung' },
+  });
+  const info: TransferInfo | null = query.data ?? null;
+  const failed = query.isError;
 
   if (failed) {
     return (
@@ -520,9 +521,7 @@ function Transfer({ orderObjectId, stepId }: { orderObjectId: number; stepId: nu
   }
   if (!info) {
     return (
-      <span className="flex items-center" style={{ gap: 6, fontSize: 12, color: 'var(--fg-3)' }}>
-        <Loader2 size={12} className="animate-spin" /> Einen Moment …
-      </span>
+      <Skeleton lines={2} label="Angaben zur Überweisung werden geladen" />
     );
   }
   return (
