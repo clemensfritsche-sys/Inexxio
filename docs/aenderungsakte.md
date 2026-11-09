@@ -223,3 +223,59 @@ verbaut, ändern sich für **jede einzelne**: ihre Zugehörigkeit zum Auftrag (n
 ### Was es nicht löst (bewusst)
 Kein Umrechnen zwischen Einheiten (kg ↔ m) – ein Artikel hat genau eine Einheit. Keine
 Reservierung (Material wird erst beim Erreichen des Moduls genommen, wie heute).
+
+## 6. Aufräumen – Gesamtdurchsicht 09.11.2026 (Entscheid offen)
+
+Gemessen mit `backend/scripts/deadcode.py` und drei unabhängigen Durchsichten (Schema, Backend,
+Frontend); die wichtigsten Funde von Hand nachgeprüft. Entscheide E1–E14 nicht neu aufgerollt.
+
+### A – Datenbank (klein, sicher)
+- **A1 Tote Spalten**: `captures.note` (nie gelesen, nie geschrieben) ·
+  `process_steps.source_article_id` (nur geschrieben) · `webauthn_credentials.transports`,
+  `device_type` · `attachments.width`, `height` (niemand liest sie) · `log_seal.sealed_at` (prüfen).
+  Zwei-Deploy-Regel.
+- **A2 Doppelte Indizes**: `ix_vouchers_step_id` (neben `uq_vouchers_step`) ·
+  `ix_time_contracts_person_object_id` · `ix_instance_units_instance_id` (je Anfang eines anderen) ·
+  `ix_log_actor_at` (jede Abfrage filtert auch `event`). Weniger Schreibarbeit am Log.
+- **A3 Kopie statt Ableitung**: `mailboxes.address` (die Adresse IST die Kontakt-E-Mail der
+  Gesellschaft; Rest der persönlichen Postfächer in `mailbox.address_of`).
+- **A4 (gross, nur prüfen)**: `article_process_steps` und `process_steps` haben dieselbe Form;
+  `webauthn_challenges` könnte signiert werden wie MCP (ohne Tabelle). Nutzen klein → **nicht empfohlen**.
+
+### B – Backend
+- **B1 Eine Typ-Tabelle** «Typ → Tabelle, Wort» (heute an drei Stellen: `objects`, `ai_tools`,
+  `records`); Namen auflösen über die Nummern-Registry statt sechs Abfragen.
+- **B2 Die KI liest nur über die echten Routen** (`ai_tools.record` gibt heute rohe Spalten mit
+  einer Ausschlussliste aus – eine neue Spalte ginge ungefragt an die KI). Datenschutz.
+- **B3 Ein Zahlen-Leser**: `capture_types/measure._number` eigener Leser (`1'250` scheitert) →
+  `domain/number`.
+- **B4 Rechte ganz in `policy`**: `core/auth.require_role` prüft daneben; Literal `"admin"` an 3 Stellen.
+- **B5 Sperren an einer Stelle** (`core/locks`: Verzeichnis der Schlüssel, eine API; heute 6
+  magische Zahlen in 5 Dateien, 2 Arten).
+- **B6 Zeit an einer Stelle**: `core/clock.utcnow()` (heute 4× `_now`, 22× `datetime.now`),
+  ein `dd.mm.yyyy` statt 9× `strftime`.
+- **B7 Reste**: unbenutzter Parameter `timekeeping.locked(actor)` · Altschlüssel in
+  `core/signed` (Frist, dann `LINK_SECRET` Pflicht) · falsche Docstrings (`sites.operator`,
+  `articles`) · `contact.py`: Prüfung und Telefon-Regel in den Dienst · Dateinamen
+  `document.py`→`paper.py`, `records.py`→`record_labels.py` · KI-Kosten als `Decimal`.
+- **B8 Imports oben, Schichten-Wächter** (domain → nichts, models → domain, services → models);
+  ~160 Imports in Funktionen, echte Zyklen nur zwei.
+- **B9 (gross)**: Beleg je Anfrage einmal laden, dann rein rechnen – der Lese-Cache mit globalen
+  Listenern fällt weg.
+
+### C – Frontend
+- **C1 Tot**: `module-ui.Actions`, CSS `.btn-primary`, `.erp-partyrow`.
+- **C2 Eine Handlung = `useAction`** überall (heute ~20× eigenes `busy` + `.catch`); Netzfehler als
+  eigene Art statt Textvergleich.
+- **C3 Ein Baustein je Muster**: Popover (5× von Hand), Pflicht-Label (3 Fassungen, 3 Farben),
+  Vollbild-Blätter ohne `useDialog` (Entwurf, Scanner: kein Escape), Zeilen, `'—'` 25× als Text.
+- **C4 `lib/api.ts` aus den Typen** (`openapi-fetch`): ~70 % der 1117 Zeilen fallen weg, Body und
+  Antwort werden geprüft.
+- **C5 Quelltext-Tests** (4'822 Zeilen Python lesen TSX per Text) → Spiegel generieren wie den
+  Status-Katalog, Formregeln in ESLint.
+- **C6 (gross, schrittweise)**: Stile – 1'037 Inline-Stile neben Klassen; grosse Bauteile
+  (Composer, «+», Artikel) in Hook + Ansicht teilen.
+
+### Empfehlung
+Runde 1 (klein, sicher): A1, A2, A3, B3, B4, B6, B7, C1, C2, C3. Runde 2: B1, B2, B5, B8, C4, C5.
+Später/nur bei Bedarf: B9, C6. Nicht: A4.
