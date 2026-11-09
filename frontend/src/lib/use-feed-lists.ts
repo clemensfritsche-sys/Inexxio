@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { feedKey } from '@/lib/feed';
 import { TYPE_META } from '@/lib/erp-record';
 import { articleName, orderName, organizationName, userName } from '@/lib/record-name';
-import { articleStatus, isStaff, orderStatus, organizationStatus, userStatus } from '@/lib/record-status';
+import { articleStatus, isAdmin, isStaff, orderStatus, organizationStatus, userStatus } from '@/lib/record-status';
 import { statusCfg } from '@/lib/process-status';
 import { userDisplayName } from '@/lib/utils';
 import type { ScanCandidate } from '@/lib/scan';
@@ -150,7 +150,7 @@ export function useFeedLists(query: string) {
     qc.setQueryData<T[]>(feedKey(list), (rows) => fn(rows ?? []));
 
   return {
-    profile, staff, isAdmin: profile?.role === 'admin',
+    profile, staff, isAdmin: isAdmin(profile?.role),
     // **Kommunikation**: wer gerade arbeitet.
     me: profile?.object_id ? { object_id: profile.object_id, name: userDisplayName(profile) } : null,
     rows: toRows({

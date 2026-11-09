@@ -19,6 +19,7 @@ from ..schemas.timekeeping import (
     TimeVocab, TimeView,
 )
 from . import timekeeping as t
+from ..domain import policy
 
 
 def vocab(proof: Optional[dict] = None) -> TimeVocab:
@@ -162,7 +163,7 @@ def view(db: Session, actor: UserProfile, person: UserProfile, month: Optional[s
         # das «Gehen» einer laufenden Schicht.
         can_stamp=t.may_see(actor, person) and (run is not None or (
             t.contract_on(book, today) is not None and not full_today)),
-        is_admin=actor.role == "admin",
+        is_admin=policy.is_admin(actor),
         contracts=_contracts(db, book, led, today),
         bookings=[BookingOut(id=r.id, day=r.day, note=r.note or "", minutes=r.minutes or 0,
                              vacation_minutes=r.vacation_minutes or 0,

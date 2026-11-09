@@ -249,9 +249,11 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 
 ## CRM
 
-- **Die Rolle ist der Zugang**: `admin` · `employee` · `user` (`people.ROLES`). Ins ERP darf
-  genau `people.STAFF_ROLES` (admin, employee), im Frontend **nur** über `isStaff()`
-  (`lib/record-status.ts`). **Lieferant ↔ Kunde ist eine Eigenschaft des Vorgangs**, nicht
+- **Die Rolle ist der Zugang**: `admin` · `employee` · `user` (`policy.ROLES`). Ins ERP darf
+  genau `policy.STAFF_ROLES` (admin, employee), im Frontend **nur** über `isStaff()` · `isAdmin()`
+  (`lib/record-status.ts`). **Wer was darf, steht in `domain/policy.RULES`** (Wächter
+  `test_policy`: kein Rollenvergleich daneben). **Kundendaten ändert jedes Personal**, Rollen und
+  Mitarbeitende nur der Admin (`person.edit` · `person.staff`; die Oberfläche fragt `may_edit`). **Lieferant ↔ Kunde ist eine Eigenschaft des Vorgangs**, nicht
   der Person. **Admin wird nur `initial_admin_email`** (beim Login), nie «wer zuerst
   kommt». Personen werden nicht deaktiviert; Personal kann eine Person anlegen
   (`POST /erp/records`, das Anmeldekonto entsteht bei der ersten Anmeldung).
@@ -490,7 +492,10 @@ Gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine** Implementierung
 `services/address.py` (Adressen) · `services/people.py` (Personennamen, Personensuche
 `people.search` hinter `GET /erp/people`) · `services/address_book.py` · `services/places.py`
 (Orte, Halter) · `services/lookup.py` («welchen Datensatz meinst du», Nummer ODER Name) ·
-`services/sites.py` (Gesellschaften) · `objects.obj_nr` (Objektnummer) ·
+`services/sites.py` (Gesellschaften) · `objects.obj_nr` (Objektnummer) · `domain/policy.py` (**wer
+darf was** – eine Regeltabelle `RULES`, `may` ↔ `require`; Rollen nur dort) · `domain/errors.py`
+(**jede Abweisung**: `Invalid` · `Forbidden` · `NotFound` · `Conflict` …, EINE Antwortform
+`{detail, code, field?}`) · `domain/number.py` (jede Zahl aus einer Eingabe) ·
 `services/documents.py` (jede Datei, `file` ist die einzige Anlage) · `services/handgriff.py` (jede
 Handlung der KI – die echte Route) · `core/outside.py` (alles nach aussen) · `services/ai.py` (jeder
 KI-Aufruf) · `components/erp/document-draft.tsx` (jeder Entwurf) ·
@@ -533,7 +538,9 @@ Oberfläche und Dienst garantiert dasselbe.
   Postfächer, Nachrichten, Belegzeilen und -angebote, Passkeys, Firmen). Append-only-Tabellen,
   Ableitungen und Belege tragen die Spalte nicht. `is_active` (Soft-Delete) und `status`
   (fachlich) sind zwei Achsen – nicht verwechseln.
-- **Fehler** strukturiert, mit einem Satz, der die Sache **nennt** (Nummer oder Name in «»).
+- **Fehler**: eine Art aus `domain/errors` mit einem Satz, der die Sache **nennt** (Nummer oder
+  Name in «»); Dienste und Fachschicht kennen kein HTTP (Wächter `test_errors`). Die Antwort ist
+  überall `{detail, code, field?}`; die Oberfläche liest sie als `ApiError` (`message`, `code`).
 - Max. Funktionslänge 80 Zeilen · TypeScript strict, kein `any` · ESLint `no-unused-vars`.
 - **Autosave** überall (`lib/use-autosave.ts`, debounced 3 s, Enter sofort, Rückmeldung im
   Karten-Kopf). Kein Speichern-Knopf – Ausnahme: das Anlegen eines Prozessschritts.

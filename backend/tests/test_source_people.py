@@ -217,7 +217,7 @@ def test_the_role_is_the_access_in_every_surface():
     ab; (c) eine Stelle fragt die Rolle selbst, statt ``isStaff`` zu rufen; (d) das
     Rollen-Dropdown bietet einen Wert an, den die Tür abweist.
     """
-    from app.services import people as pp
+    from app.domain import policy as pp
 
     union = re.search(r"export type UserRole = ([^;]+);", _read(FRONTEND / "types" / "index.ts"))
     assert union and sorted(re.findall(r"'(\w+)'", union.group(1))) == sorted(pp.ROLES), (

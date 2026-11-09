@@ -7,7 +7,7 @@ Tür). Ist es gelöscht: 410 mit einem Satz."""
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
 from ..core.actor import public
@@ -16,6 +16,7 @@ from ..models import Order
 from ..schemas.documents import DeclineIn, PublicDocument, SignIn
 from ..schemas.process import PaymentSetup
 from ..services import log, signing, stripe_pay, voucher_docs
+from ..domain.errors import Conflict
 
 router = APIRouter(prefix="/api/v1/public/document", tags=["public"])
 
@@ -64,7 +65,7 @@ def decline(token: str, data: DeclineIn, db: Session = DB):
 def _deal(db: Session, token: str):
     found = voucher_docs.deal_of(db, signing.by_token(db, token))
     if found is None:
-        raise HTTPException(status_code=409, detail="Dieses Dokument ist kein Angebot und keine Rechnung.")
+        raise Conflict("Dieses Dokument ist kein Angebot und keine Rechnung.")
     return found
 
 
@@ -90,7 +91,7 @@ def payment(token: str, db: Session = DB):
     erst, wenn der Zahlungsdienst es meldet."""
     row, rec = _deal(db, token)
     if "pay_online" not in voucher_docs.public_view(db, row, rec)["actions"]:
-        raise HTTPException(status_code=409, detail="Hier ist nichts mit Karte zu bezahlen.")
+        raise Conflict("Hier ist nichts mit Karte zu bezahlen.")
     order = db.query(Order).filter(Order.id == row.order_id).first()
     return PaymentSetup(**stripe_pay.prepare(db, row=row, order=order,
                                              viewer=voucher_docs.party_user(db, rec)))

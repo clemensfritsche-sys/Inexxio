@@ -38,7 +38,7 @@ from html import escape
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -47,6 +47,7 @@ from starlette.datastructures import UploadFile
 from ..core.actor import public
 from ..core.database import DB
 from ..services import inquiry as svc, people, visitor
+from ..domain.errors import Rejected
 
 router = APIRouter(prefix="/api/v1/contact", tags=["contact"])
 
@@ -300,11 +301,11 @@ def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> 
     try:
         msg = svc.record(db, data, country)
         db.flush()      # was beim Speichern scheitern kann, scheitert hier – vor dem «Danke»
-    except HTTPException as exc:  # ein Bild, das sich nicht lesen lässt
+    except Rejected as exc:  # ein Bild, das sich nicht lesen lässt
         db.rollback()
         name = inq.photos[0].filename if len(inq.photos) == 1 else "Eine der Dateien"
         return _invalid({"photos": MSG["photosType"].replace("{name}", name)}, inq, wants_json) \
-            if exc.status_code in (400, 413) else _unsent(db, inq, exc, wants_json)
+            if exc.status in (400, 413) else _unsent(db, inq, exc, wants_json)
     except Exception as exc:
         return _unsent(db, inq, exc, wants_json)
     confirmed = _confirm(db, msg, data)

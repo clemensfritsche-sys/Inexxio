@@ -11,7 +11,6 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 import httpx
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..domain import timekeeping as tk
@@ -20,6 +19,8 @@ from ..schemas.timekeeping import CompanyTimeView, HolidayOut, TaskOut
 from . import sites
 from .time_view import vocab
 from .timekeeping import local, now_utc
+from ..domain.errors import Invalid, NotFound, Upstream
+from ..domain import policy
 
 PROPOSAL_URL = "https://openholidaysapi.org/PublicHolidays"
 
@@ -27,13 +28,12 @@ PROPOSAL_URL = "https://openholidaysapi.org/PublicHolidays"
 def company(db: Session, object_id: int) -> CompanySettings:
     c = sites.by_object_id(db, object_id)
     if c is None or not c.is_own:
-        raise HTTPException(404, detail=f"«{object_id}» ist keine unserer Gesellschaften.")
+        raise NotFound(f"«{object_id}» ist keine unserer Gesellschaften.")
     return c
 
 
 def _admin(actor: UserProfile) -> None:
-    if actor.role != "admin":
-        raise HTTPException(403, detail="Feiertage und Regeln pflegt die Administration.")
+    policy.require(actor, "time.company")
 
 
 def holiday_tasks(db: Session, c: CompanySettings, today: date) -> list[TaskOut]:
@@ -73,7 +73,7 @@ def view(db: Session, actor: UserProfile, object_id: int, year: Optional[int]) -
         year=year, holidays=[HolidayOut(id=h.id, day=h.day, name=h.name) for h in rows],
         proof={a.key: tk.proof_from(a, rules.get("proof", {})) for a in tk.ARTS if a.proof},
         rules=list(tk.RULE_FACTS), tasks=holiday_tasks(db, c, today),
-        can_edit=actor.role == "admin", vocab=vocab(rules.get("proof", {})))
+        can_edit=policy.may(actor, "time.company"), vocab=vocab(rules.get("proof", {})))
 
 
 def add(db: Session, actor: UserProfile, object_id: int, items) -> None:
@@ -98,7 +98,7 @@ def remove(db: Session, actor: UserProfile, object_id: int, holiday_id: int) -> 
                                  Holiday.company_object_id == c.object_id,
                                  Holiday.is_active.is_(True)).first()
     if h is None:
-        raise HTTPException(404, detail=f"Den Feiertag «{holiday_id}» gibt es nicht (mehr).")
+        raise NotFound(f"Den Feiertag «{holiday_id}» gibt es nicht (mehr).")
     h.is_active = False
 
 
@@ -109,16 +109,16 @@ def set_rules(db: Session, actor: UserProfile, object_id: int, data) -> None:
     fields = data.model_dump(exclude_unset=True)
     if "canton" in fields:
         if fields["canton"] not in (None, *tk.CANTON_CODES):
-            raise HTTPException(400, detail=f"«{fields['canton']}» ist kein Kanton.")
+            raise Invalid(f"«{fields['canton']}» ist kein Kanton.")
         rules["canton"] = fields["canton"]
     if fields.get("proof") is not None:
         proof = dict(rules.get("proof", {}))
         for key, n in fields["proof"].items():
             art = tk.ART_BY_KEY.get(key)
             if art is None or art.proof is None:
-                raise HTTPException(400, detail=f"«{key}» braucht keinen Nachweis.")
+                raise Invalid(f"«{key}» braucht keinen Nachweis.")
             if n is not None and not 0 <= n <= 30:
-                raise HTTPException(400, detail="Nachweis ab Tag 1 bis 30 (leer = nie).")
+                raise Invalid("Nachweis ab Tag 1 bis 30 (leer = nie).")
             proof[key] = n or 0
         rules["proof"] = proof
     c.time_rules = rules
@@ -137,7 +137,7 @@ def proposal(db: Session, actor: UserProfile, object_id: int, year: int) -> list
     c = company(db, object_id)
     canton = (c.time_rules or {}).get("canton")
     if not canton:
-        raise HTTPException(400, detail="Zuerst den Kanton der Gesellschaft wählen.")
+        raise Invalid("Zuerst den Kanton der Gesellschaft wählen.")
     params = {"countryIsoCode": "CH", "languageIsoCode": "DE", "subdivisionCode": f"CH-{canton}",
               "validFrom": f"{year}-01-01", "validTo": f"{year}-12-31"}
     try:
@@ -146,8 +146,8 @@ def proposal(db: Session, actor: UserProfile, object_id: int, year: int) -> list
         r.raise_for_status()
         items = r.json()
     except (httpx.HTTPError, ValueError):
-        raise HTTPException(502, detail=("Der Vorschlag ist gerade nicht erreichbar – "
-                                         "Feiertage lassen sich von Hand eintragen."))
+        raise Upstream("Der Vorschlag ist gerade nicht erreichbar – "
+                                         "Feiertage lassen sich von Hand eintragen.")
     taken = {h.day for h in db.query(Holiday).filter(
         Holiday.company_object_id == c.object_id, Holiday.is_active.is_(True)).all()}
     out: dict[date, HolidayOut] = {}

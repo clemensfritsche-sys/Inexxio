@@ -28,7 +28,6 @@ from functools import lru_cache
 from typing import Any, Callable, Optional
 
 import httpx
-from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -38,6 +37,8 @@ from ..core.actor import act
 from ..core.database import AMBIENT, SessionLocal
 from ..models import UserProfile
 from . import log
+from ..domain.errors import Conflict, NotFound
+from ..domain import policy
 
 #: Was eine Handlung höchstens an Beschreibung mitbringt (Tokens sind Geld).
 _SUMMARY = 300
@@ -461,7 +462,7 @@ def load(db: Session, ids: list[int]) -> list[Handgriff]:
 def get(db: Session, hid: int) -> Handgriff:
     found = load(db, [hid])
     if not found:
-        raise HTTPException(404, detail=f"Handgriff «{hid}» gibt es nicht.")
+        raise NotFound(f"Handgriff «{hid}» gibt es nicht.")
     return found[0]
 
 
@@ -471,13 +472,13 @@ def may(h: Handgriff, viewer: UserProfile) -> bool:
     Mail jedes Personal. ◄◄◄"""
     if not h.private:
         return True
-    return viewer.role == "admin" or h.actor_id == viewer.object_id
+    return policy.may(viewer, "private", h.actor_id)
 
 
 def assert_may(db: Session, hid: int, viewer: UserProfile) -> Handgriff:
     h = get(db, hid)
     if not may(h, viewer):
-        raise HTTPException(404, detail=f"Handgriff «{hid}» gibt es nicht.")
+        raise NotFound(f"Handgriff «{hid}» gibt es nicht.")
     return h
 
 
@@ -603,19 +604,19 @@ def run(db: Session, viewer: UserProfile, hid: int, body: Any = None) -> tuple[H
     (Regel 3). ``body`` = die Werte, wie die Person sie geändert hat."""
     h = assert_may(db, hid, viewer)
     if not h.is_open:
-        raise HTTPException(409, detail=f"Handgriff «{hid}» ist schon "
+        raise Conflict(f"Handgriff «{hid}» ist schon "
                                         f"{'ausgeführt' if h.done else 'weggelegt'}.")
     if h.payload.get("hand") and body is None:
-        raise HTTPException(409, detail=f"Das geht nur von Hand ({h.payload['hand']}).")
+        raise Conflict(f"Das geht nur von Hand ({h.payload['hand']}).")
     if h.payload.get("missing") and body is None:
-        raise HTTPException(409, detail=f"Unvollständig – {h.payload['missing']}")
+        raise Conflict(f"Unvollständig – {h.payload['missing']}")
     known, waiting = _results(db, h.depends)
     if waiting:
-        raise HTTPException(409, detail=f"Wartet auf Handgriff {', '.join(map(str, waiting))}.")
+        raise Conflict(f"Wartet auf Handgriff {', '.join(map(str, waiting))}.")
     if body is None:
         changed = changed_since(db, h)
         if changed:
-            raise HTTPException(409, detail="Seit der Vorbereitung geändert: "
+            raise Conflict("Seit der Vorbereitung geändert: "
                                             + " · ".join(changed) + ".")
 
     def done(s: Session, data: Any) -> None:
@@ -640,7 +641,7 @@ def drop(db: Session, viewer: UserProfile, hid: int, by: str = "person") -> Hand
     """**Weg** – der Handgriff geschieht nicht. Zweimal ist einmal; ausgeführt ist ausgeführt."""
     h = assert_may(db, hid, viewer)
     if h.done is not None:
-        raise HTTPException(409, detail=f"Handgriff «{hid}» ist schon ausgeführt.")
+        raise Conflict(f"Handgriff «{hid}» ist schon ausgeführt.")
     if not h.dropped:
         log.event(db, "handgriff.dropped", h.object_id, {"handgriff": h.id, "by": by},
                   kind="ai" if by == "ai" else None, actor=viewer.object_id if by == "ai" else None)
@@ -653,7 +654,7 @@ def settle(db: Session, viewer: UserProfile, hid: int, result: Optional[int]) ->
     die Person hat es eben selbst gemacht. ``result`` = was dabei entstand."""
     h = assert_may(db, hid, viewer)
     if not h.is_open:
-        raise HTTPException(409, detail=f"Handgriff «{hid}» ist nicht mehr offen.")
+        raise Conflict(f"Handgriff «{hid}» ist nicht mehr offen.")
     log.event(db, "handgriff.done", h.object_id, {"handgriff": h.id, "result": result,
                                                  "hand": True})
     db.flush()

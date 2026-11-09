@@ -21,14 +21,15 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Callable, Iterable, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..domain import communication as dc
 from ..models import Message, MessageParty, UserProfile
 from ..schemas.communication import ChannelOut, MessageIn, MessageOut, OpenCount, PersonRef
-from .people import STAFF_ROLES
+from ..domain.policy import STAFF_ROLES
+from ..domain.errors import Invalid, NotFound
+from ..domain import policy
 
 
 def _now() -> datetime:
@@ -104,7 +105,7 @@ def _firms(db: Session, people: dict[int, UserProfile]) -> dict[int, str]:
 
 def _is_staff(people: dict[int, UserProfile], oid: int) -> bool:
     u = people.get(oid)
-    return bool(u and u.role in STAFF_ROLES)
+    return policy.is_staff(u)
 
 
 def _ref(people: dict[int, UserProfile], oid: int,
@@ -132,7 +133,7 @@ def _assert_people(db: Session, ids: set[int]) -> None:
     found = set(_people(db, ids))
     missing = sorted(ids - found)
     if missing:
-        raise HTTPException(400, detail=f"Person «{missing[0]}» gibt es nicht.")
+        raise Invalid(f"Person «{missing[0]}» gibt es nicht.")
 
 
 def _assert_records(db: Session, ids: set[int]) -> None:
@@ -141,7 +142,7 @@ def _assert_records(db: Session, ids: set[int]) -> None:
     from .records import labels
     missing = sorted(ids - set(_people(db, ids)) - set(labels(db, ids)))
     if missing:
-        raise HTTPException(400, detail=f"Datensatz «{missing[0]}» gibt es nicht.")
+        raise Invalid(f"Datensatz «{missing[0]}» gibt es nicht.")
 
 
 # ---------------------------------------------------------------------------
@@ -167,16 +168,16 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     try:
         dc.channel(data.channel)
     except ValueError as exc:
-        raise HTTPException(400, detail=str(exc)) from exc
+        raise Invalid(str(exc)) from exc
     if not actor.object_id:
-        raise HTTPException(400, detail="Ohne Objektnummer lässt sich nichts schreiben.")
+        raise Invalid("Ohne Objektnummer lässt sich nichts schreiben.")
     roles = {"to": data.to, "cc": data.cc, "bcc": data.bcc, "about": data.about}
     _assert_people(db, {i for r in ("to", "cc", "bcc") for i in roles[r]})
     _assert_records(db, set(data.about))
     body = (data.body or "").strip()
     subject = dc.subject_line(data.subject)
     if not subject and (body or not data.about):
-        raise HTTPException(400, detail="Eine Nachricht braucht einen Betreff – er ist das "
+        raise Invalid("Eine Nachricht braucht einen Betreff – er ist das "
                                         "Anliegen, zu dem sie gehört.")
     if not dc.channel(data.channel).outside:
         _assert_internal(db, roles)
@@ -185,7 +186,7 @@ def create(db: Session, data: MessageIn, actor: UserProfile) -> Message:
     sender = actor.object_id
     if data.incoming:
         sender, roles = _incoming_call(data, roles, actor)
-    elif body and dc.is_mail(data.channel) and actor.role in STAFF_ROLES:
+    elif body and dc.is_mail(data.channel) and policy.is_staff(actor):
         _assert_mail(data, roles)
     msg = Message(sender_object_id=sender, channel=data.channel, subject=subject, body=body,
                   at=_aware(data.at) if data.at else _now(), created_by=actor.id)
@@ -198,21 +199,21 @@ def _assert_group(db: Session, data: MessageIn, actor: UserProfile, body: str) -
     """**Rundschreiben und Newsletter** – die Regeln, und für den Newsletter das Tor: er
     geht nur an Angemeldete. Gibt die Empfänger zurück (ohne Dubletten)."""
     what = dc.DELIVERIES[data.delivery]
-    if not dc.is_mail(data.channel) or data.incoming or actor.role not in STAFF_ROLES:
-        raise HTTPException(400, detail=f"Ein {what} ist eine E-Mail von uns.")
+    if not dc.is_mail(data.channel) or data.incoming or not policy.is_staff(actor):
+        raise Invalid(f"Ein {what} ist eine E-Mail von uns.")
     if data.cc or data.bcc:
-        raise HTTPException(400, detail=f"Ein {what} geht an jede Person einzeln – "
+        raise Invalid(f"Ein {what} geht an jede Person einzeln – "
                                         f"ohne Cc und Bcc.")
     ids = list(dict.fromkeys(data.to))
     if not ids or not body:
-        raise HTTPException(400, detail=f"Ein {what} braucht Empfänger und Text.")
+        raise Invalid(f"Ein {what} braucht Empfänger und Text.")
     if data.delivery == "newsletter":
         from .newsletter import subscribed
         ok = subscribed(db, ids)
         missing = [i for i in ids if i not in ok]
         if missing:
             who = _people(db, missing[:1])[missing[0]].display_name
-            raise HTTPException(400, detail=f"«{who}» ist nicht für den Newsletter angemeldet "
+            raise Invalid(f"«{who}» ist nicht für den Newsletter angemeldet "
                                             f"– er geht nur an Angemeldete.")
     return ids
 
@@ -245,7 +246,7 @@ def _assert_mail(data: MessageIn, roles: dict[str, list[int]]) -> None:
     """**Eine E-Mail braucht einen Empfänger** – eine ohne «An» hätte keinen Adressaten
     (den Betreff verlangt ``create`` für jede Nachricht)."""
     if not roles["to"]:
-        raise HTTPException(400, detail="Eine E-Mail braucht mindestens einen Empfänger im «An».")
+        raise Invalid("Eine E-Mail braucht mindestens einen Empfänger im «An».")
 
 
 def _assert_internal(db: Session, roles: dict[str, list[int]]) -> None:
@@ -253,9 +254,9 @@ def _assert_internal(db: Session, roles: dict[str, list[int]]) -> None:
     Kunde im «An» bekäme sie nicht, und sie wartete für immer auf ihn. Wen sie betrifft,
     steht im «Betrifft»."""
     people = _people(db, [i for r in ("to", "cc", "bcc") for i in roles[r]])
-    outside = [u for u in people.values() if u.role not in STAFF_ROLES]
+    outside = [u for u in people.values() if not policy.is_staff(u)]
     if outside:
-        raise HTTPException(400, detail=f"Eine interne Nachricht geht nur an Mitarbeiter – "
+        raise Invalid(f"Eine interne Nachricht geht nur an Mitarbeiter – "
                                         f"«{outside[0].display_name}» gehört ins «Betrifft».")
 
 
@@ -263,9 +264,9 @@ def _incoming_call(data: MessageIn, roles: dict[str, list[int]], actor: UserProf
                    ) -> tuple[int, dict[str, list[int]]]:
     """«Wurde angerufen»: der eine Kontakt im «An» ist der Anrufer, ich der Angerufene."""
     if not dc.channel(data.channel).live:
-        raise HTTPException(400, detail="«Wurde angerufen» gibt es nur bei einem Anruf.")
+        raise Invalid("«Wurde angerufen» gibt es nur bei einem Anruf.")
     if len(roles["to"]) != 1:
-        raise HTTPException(400, detail="Ein eingehender Anruf hat genau einen Anrufer.")
+        raise Invalid("Ein eingehender Anruf hat genau einen Anrufer.")
     return roles["to"][0], {**roles, "to": [actor.object_id]}
 
 
@@ -297,7 +298,7 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
     if not (dc.is_mail(msg.channel) and outward and mailbox.ready()):
         return
     sender = _people(db, [msg.sender_object_id]).get(msg.sender_object_id)
-    if not (sender and sender.role in STAFF_ROLES):
+    if not policy.is_staff(sender):
         return          # eine eingegangene Mail, von Hand erfasst – sie ging nie hinaus
     mailbox.assert_may_send(db, msg.channel, sender)
     msg.outgoing = True
@@ -592,11 +593,11 @@ def move_note(db: Session, message_id: int, to_object_id: int, actor: UserProfil
     from .objects import obj_nr
     note = db.query(Message).filter(Message.id == message_id, Message.is_active.is_(True)).first()
     if note is None or note.channel != dc.NOTE:
-        raise HTTPException(404, detail="Diese Notiz gibt es nicht.")
+        raise NotFound("Diese Notiz gibt es nicht.")
     home = [oid for (oid,) in db.query(MessageParty.object_id).filter(
         MessageParty.message_id == note.id, MessageParty.role == "about").all()]
     if to_object_id in home:
-        raise HTTPException(400, detail=f"Die Notiz gehört schon zu «{obj_nr(to_object_id)}».")
+        raise Invalid(f"Die Notiz gehört schon zu «{obj_nr(to_object_id)}».")
     _assert_records(db, {to_object_id})
     names = {**_names(db, [to_object_id, *home]),
              **{k: u.display_name for k, u in _people(db, [to_object_id, *home]).items()}}

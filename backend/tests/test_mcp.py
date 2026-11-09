@@ -30,7 +30,7 @@ def _code(person, client_id: str, challenge: str) -> str:
     page = mcp.ask({"client_id": client_id, "redirect_uri": REDIRECT, "response_type": "code",
                     "code_challenge": challenge, "code_challenge_method": "S256", "state": "xyz"})
     r = parse_qs(urlsplit(page).query)["r"][0]
-    assert mcp.describe(r) == {"client": "Claude", "host": "claude.ai"}
+    assert mcp.describe(r) == {"client": "Claude", "host": "claude.ai", "redirect": REDIRECT}
     back = parse_qs(urlsplit(mcp.approve(person, r, True)).query)
     assert back["state"] == ["xyz"]
     return back["code"][0]
@@ -48,7 +48,7 @@ def _connect(db, person) -> tuple[str, dict]:
 
 def test_a_claude_client_connects_asks_refreshes_and_is_cut_off(db, make_person):
     person = make_person("employee")
-    _, tokens = _connect(db, person)
+    client_id, tokens = _connect(db, person)
     who, grant = mcp.bearer(db, f"Bearer {tokens['access_token']}")
     assert who.object_id == person.object_id
 
@@ -65,7 +65,8 @@ def test_a_claude_client_connects_asks_refreshes_and_is_cut_off(db, make_person)
     assert str(person.object_id) in found["result"]["content"][0]["text"]
     assert mcp.handle(db, who, grant, {"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
 
-    again = mcp.token(db, {"grant_type": "refresh_token", "refresh_token": tokens["refresh_token"]})
+    again = mcp.token(db, {"grant_type": "refresh_token", "refresh_token": tokens["refresh_token"],
+                           "client_id": client_id})
     assert mcp.bearer(db, f"Bearer {again['access_token']}")[1] == grant
 
     assert [g["id"] for g in mcp.grants(db, person)] == [grant]
@@ -75,7 +76,31 @@ def test_a_claude_client_connects_asks_refreshes_and_is_cut_off(db, make_person)
         mcp.bearer(db, f"Bearer {again['access_token']}")
     assert cut.value.status == 401
     with pytest.raises(mcp.Problem):
-        mcp.token(db, {"grant_type": "refresh_token", "refresh_token": again["refresh_token"]})
+        mcp.token(db, {"grant_type": "refresh_token", "refresh_token": again["refresh_token"],
+                       "client_id": client_id})
+
+
+def test_a_refresh_works_once_and_a_reused_one_cuts_the_connection(db, make_person):
+    """Bug-Form: ohne ``ix_log_mcp_refresh`` liesse sich eine abgefangene Erneuerung 30 Tage lang
+    immer wieder brauchen."""
+    person = make_person("employee")
+    client_id, tokens = _connect(db, person)
+    form = {"grant_type": "refresh_token", "refresh_token": tokens["refresh_token"], "client_id": client_id}
+    with pytest.raises(mcp.Problem, match="anderen Client"):
+        mcp.token(db, {**form, "client_id": "fremd"})
+    fresh = mcp.token(db, form)
+    with pytest.raises(mcp.Problem, match="schon gebraucht"):
+        mcp.token(db, form)
+    with pytest.raises(mcp.Problem):                       # getrennt – auch der frische Zugang
+        mcp.bearer(db, f"Bearer {fresh['access_token']}")
+
+
+def test_a_token_only_works_for_the_erp_it_was_made_for(db, make_person, monkeypatch):
+    person = make_person("employee")
+    _, tokens = _connect(db, person)
+    monkeypatch.setattr(mcp, "resource", lambda: "https://anderes-erp.example/api/v1/mcp")
+    with pytest.raises(mcp.Problem):
+        mcp.bearer(db, f"Bearer {tokens['access_token']}")
 
 
 def test_a_code_works_exactly_once_and_only_with_its_verifier(db, make_person):
@@ -102,8 +127,9 @@ def test_only_staff_and_only_registered_return_addresses(db, make_person):
     with pytest.raises(mcp.Problem):
         mcp.ask({"client_id": client_id, "redirect_uri": "https://boese.example/cb",
                  "response_type": "code", "code_challenge": challenge, "code_challenge_method": "S256"})
-    with pytest.raises(mcp.Problem):
-        mcp.register({"redirect_uris": ["http://boese.example/cb"]})
+    for bad in ("http://boese.example/cb", "https://boese.example/cb", "https://claude.ai.boese.example/cb"):
+        with pytest.raises(mcp.Problem):
+            mcp.register({"redirect_uris": [bad]})
     assert mcp.register({"redirect_uris": ["http://localhost:33418/callback"]})["client_id"]
     with pytest.raises(mcp.Problem):
         _code(make_person("user"), client_id, challenge)

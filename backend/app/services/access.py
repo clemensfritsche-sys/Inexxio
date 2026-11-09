@@ -22,11 +22,11 @@ from sqlalchemy.orm import Query, aliased
 
 from ..domain import documents as dd
 from ..models import Document, DocumentRef, UserProfile
-from .people import STAFF_ROLES
+from ..domain import policy
 
 
 def _own_or_admin(viewer: UserProfile, ref: DocumentRef) -> bool:
-    return viewer.role == "admin" or viewer.object_id == ref.object_id
+    return policy.may(viewer, "private", ref.object_id)
 
 
 #: ►►► **Die Regeltabelle.** Art des Teils → wer die Referenz sehen darf. Ein Teil, der hier
@@ -36,13 +36,9 @@ RULES: dict[str, Callable[[UserProfile, DocumentRef], bool]] = {
 }
 
 
-def is_staff(viewer: UserProfile | None) -> bool:
-    return viewer is not None and viewer.role in STAFF_ROLES
-
-
 def may(viewer: UserProfile | None, refs: list[DocumentRef]) -> bool:
     """Darf ``viewer`` ein Dokument mit diesen (aktiven) Referenzen sehen?"""
-    if not is_staff(viewer):
+    if not policy.is_staff(viewer):
         return False
     for ref in refs:
         rule = RULES.get(dd.part_kind(ref.part) or "")
@@ -54,9 +50,9 @@ def may(viewer: UserProfile | None, refs: list[DocumentRef]) -> bool:
 def visible(query: Query, viewer: UserProfile | None) -> Query:
     """Dieselbe Regel als Filter einer Abfrage auf ``Document`` – in der Datenbank, nicht
     nachträglich: eine Liste zeigt nie, was ``may`` verbieten würde."""
-    if not is_staff(viewer):
+    if not policy.is_staff(viewer):
         return query.filter(False)
-    if viewer.role == "admin":
+    if policy.is_admin(viewer):
         return query
     ref = aliased(DocumentRef)
     forbidden = exists().where(and_(

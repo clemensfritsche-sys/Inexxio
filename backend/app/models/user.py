@@ -33,7 +33,7 @@ class UserProfile(Base, TimestampMixin):
     #: damit in der Hälfte der Fälle falsch. Dieselbe Bauart wie
     #: ``order_units.return_to_order_id``: die **Verbindung** trägt es, nicht der Datensatz.
     #:
-    #: Gelesen wird sie ausschliesslich als Zugang (``people.STAFF_ROLES``).
+    #: Gelesen wird sie ausschliesslich als Zugang (``policy.STAFF_ROLES``).
     role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
 
     # Personal identity

@@ -16,9 +16,12 @@ die Person meldet sich im ERP an (Firebase: Magic Link, Google, Passkey) und erl
 * Der **Code** ist signiert, gilt zwei Minuten, verlangt PKCE (S256) und lässt sich genau einmal
   einlösen: das Einlösen schreibt das Ereignis ``mcp.grant`` – ein eindeutiger Index auf seiner
   Einmal-Nummer weist ein zweites ab.
-* **Zugang** (eine Stunde) und **Erneuerung** (90 Tage, bei jedem Gebrauch neu) sind signiert und
-  nennen ihre Verbindung (``mcp.grant``); getrennt ist sie mit ``mcp.revoked`` – das prüft jede
-  Anfrage. Wer kein Personal mehr ist, kommt nicht mehr hinein.
+* **Zurück** geht es nur zu Claude (``CLAUDE_HOSTS``) oder auf den eigenen Rechner.
+* **Zugang** (eine Stunde) und **Erneuerung** (30 Tage) sind signiert, nennen ihre Verbindung
+  (``mcp.grant``) und ihren Empfänger (dieses ERP – ein Zugang aus dev gilt nicht in prod). Eine
+  Erneuerung gilt **genau einmal** und nur für ihren Client (``mcp.refresh``, eindeutiger Index);
+  kommt sie ein zweites Mal, wird die Verbindung getrennt. Getrennt ist sie mit ``mcp.revoked`` –
+  das prüft jede Anfrage. Wer kein Personal mehr ist, kommt nicht mehr hinein.
 
 Das Protokoll ist JSON-RPC über einen einzigen ``POST`` (Streamable HTTP, Antwort als JSON, ohne
 Sitzung): ``initialize``, ``ping``, ``tools/list``, ``tools/call``.
@@ -39,14 +42,20 @@ from sqlalchemy.orm import Session
 from ..core import signed
 from ..core.config import get_settings
 from ..models import UserProfile
-from . import access, ai, ai_tools, handgriff, log
+from . import ai, ai_tools, handgriff, log
+from ..domain import policy
 
 PROTOCOLS = ("2025-11-25", "2025-06-18", "2025-03-26")
 SCOPE = "erp"
 CODE_TTL = 120
 ASK_TTL = 600
 ACCESS_TTL = 3600
-REFRESH_TTL = 90 * 86400
+REFRESH_TTL = 30 * 86400
+
+#: Wohin ein Client zurückkehren darf: zu Claude (Web, Desktop, Mobile) – oder auf den eigenen
+#: Rechner (Claude Code). Eine fremde Adresse wäre der Weg für Zustimmungs-Phishing.
+CLAUDE_HOSTS = ("claude.ai", "claude.com")
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 INSTRUCTIONS = (
     "Das ERP von INEXXIO. Du arbeitest als die angemeldete Person, mit ihren Rechten. Suche "
@@ -106,13 +115,16 @@ def authorization_server() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def _redirect_ok(uri: Any) -> bool:
-    """Eine Rückkehr-Adresse: https, oder http nur auf diesem Rechner (Claude Code)."""
+    """Eine Rückkehr-Adresse: https zu Claude, oder http nur auf diesem Rechner (Claude Code)."""
     if not isinstance(uri, str) or len(uri) > 500:
         return False
     u = urlsplit(uri)
-    if u.fragment or not u.hostname:
+    host = (u.hostname or "").lower()
+    if u.fragment or not host:
         return False
-    return u.scheme == "https" or (u.scheme == "http" and u.hostname in ("localhost", "127.0.0.1", "::1"))
+    if u.scheme == "http":
+        return host in LOCAL_HOSTS
+    return u.scheme == "https" and any(host == h or host.endswith("." + h) for h in CLAUDE_HOSTS)
 
 
 def register(data: dict[str, Any]) -> dict[str, Any]:
@@ -120,7 +132,8 @@ def register(data: dict[str, Any]) -> dict[str, Any]:
     Beschreibung; gespeichert wird nichts. ◄◄"""
     uris = data.get("redirect_uris")
     if not isinstance(uris, list) or not 0 < len(uris) <= 5 or not all(_redirect_ok(u) for u in uris):
-        raise Problem("invalid_redirect_uri", "Rückkehr-Adressen: https, oder http auf localhost.")
+        raise Problem("invalid_redirect_uri", "Zurück geht es nur zu Claude (claude.ai, claude.com) "
+                      "oder auf den eigenen Rechner (localhost).")
     name = " ".join(str(data.get("client_name") or "Claude").split())[:80] or "Claude"
     client_id = signed.sign({"r": uris, "n": name}, "mcp.client")
     return {"client_id": client_id, "client_name": name, "redirect_uris": uris,
@@ -166,7 +179,7 @@ def _ask(r: str) -> dict[str, Any]:
 def describe(r: str) -> dict[str, str]:
     """Was die Person erlaubt: welcher Client, zurück wohin."""
     a = _ask(r)
-    return {"client": a["n"], "host": urlsplit(a["ru"]).hostname or ""}
+    return {"client": a["n"], "host": urlsplit(a["ru"]).hostname or "", "redirect": a["ru"]}
 
 
 def _back(a: dict[str, Any], **params: str) -> str:
@@ -179,7 +192,7 @@ def approve(person: UserProfile, r: str, allow: bool) -> str:
     a = _ask(r)
     if not allow:
         return _back(a, error="access_denied")
-    if not access.is_staff(person):
+    if not policy.is_staff(person):
         raise Problem("access_denied", "Das ERP ist nur für Mitarbeitende.", 403)
     code = signed.sign({"p": person.object_id, "c": _fingerprint(a["c"]), "ru": a["ru"],
                         "ch": a["ch"], "k": secrets.token_urlsafe(12), "n": a["n"]},
@@ -191,10 +204,22 @@ def approve(person: UserProfile, r: str, allow: bool) -> str:
 # Zugang
 # ---------------------------------------------------------------------------
 
-def _tokens(person_id: int, grant: int) -> dict[str, Any]:
-    return {"access_token": signed.sign({"p": person_id, "g": grant}, "mcp.access", ACCESS_TTL),
+def _tokens(person_id: int, grant: int, client: str) -> dict[str, Any]:
+    """Zugang und Erneuerung – beide nennen ihren Empfänger (``a``: dieses ERP, also auch die
+    Umgebung); die Erneuerung dazu ihren Client und eine Einmal-Nummer."""
+    who = {"p": person_id, "g": grant, "a": resource()}
+    return {"access_token": signed.sign(who, "mcp.access", ACCESS_TTL),
             "token_type": "Bearer", "expires_in": ACCESS_TTL, "scope": SCOPE,
-            "refresh_token": signed.sign({"p": person_id, "g": grant}, "mcp.refresh", REFRESH_TTL)}
+            "refresh_token": signed.sign({**who, "c": client, "k": secrets.token_urlsafe(12)},
+                                         "mcp.refresh", REFRESH_TTL)}
+
+
+def _read(raw: str, purpose: str) -> dict[str, Any]:
+    """Ein Zugang oder eine Erneuerung – nur, wenn sie für DIESES ERP ausgestellt wurde."""
+    t = signed.read(raw, purpose)
+    if t.get("a") != resource():
+        raise signed.Invalid("Dieser Zugang gilt für ein anderes ERP.")
+    return t
 
 
 def _verifier_ok(verifier: str, challenge: str) -> bool:
@@ -220,30 +245,53 @@ def token(db: Session, form: dict[str, str]) -> dict[str, Any]:
                                   kind="person", actor=person.object_id)
         except IntegrityError:
             raise Problem("invalid_grant", "Dieser Code ist schon eingelöst.")
-        return _tokens(person.object_id, grant)
+        return _tokens(person.object_id, grant, c["c"])
     if kind == "refresh_token":
-        try:
-            t = signed.read(form.get("refresh_token", ""), "mcp.refresh")
-        except signed.Invalid:
-            raise Problem("invalid_grant", "Die Erneuerung ist ungültig oder abgelaufen.")
-        _assert_open(db, t["g"])
-        return _tokens(_person(db, t["p"]).object_id, t["g"])
+        return _refresh(db, form)
     raise Problem("unsupported_grant_type", "Nur «authorization_code» und «refresh_token».")
+
+
+def _refresh(db: Session, form: dict[str, str]) -> dict[str, Any]:
+    """►► **Erneuern – jede Erneuerung genau einmal, nur durch ihren Client.** ◄◄ Kommt eine schon
+    gebrauchte wieder, hat sie jemand abgefangen: die Verbindung wird getrennt (RFC 9700 §4.14)."""
+    try:
+        t = _read(form.get("refresh_token", ""), "mcp.refresh")
+    except signed.Invalid:
+        raise Problem("invalid_grant", "Die Erneuerung ist ungültig oder abgelaufen.")
+    if t["c"] != _fingerprint(form.get("client_id", "")):
+        raise Problem("invalid_grant", "Diese Erneuerung gehört einem anderen Client.")
+    person = _grant_holder(db, t["g"], t["p"])
+    try:
+        with db.begin_nested():
+            log.event(db, "mcp.refresh", person.object_id, {"grant": t["g"], "nonce": t["k"]},
+                      kind="person", actor=person.object_id)
+    except IntegrityError:
+        log.event(db, "mcp.revoked", person.object_id, {"grant": t["g"], "why": "reused"})
+        raise Problem("invalid_grant", "Diese Erneuerung wurde schon gebraucht – die Verbindung "
+                                       "ist zur Sicherheit getrennt.")
+    return _tokens(person.object_id, t["g"], t["c"])
 
 
 def _person(db: Session, object_id: int) -> UserProfile:
     person = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
-    if person is None or not access.is_staff(person):
+    if person is None or not policy.is_staff(person):
         raise Problem("invalid_grant", "Das ERP ist nur für Mitarbeitende.")
     return person
 
 
-_REVOKED = text("SELECT 1 FROM log WHERE event = 'mcp.revoked' AND (payload ->> 'grant')::bigint = :g")
+_OPEN_GRANT = text("""
+SELECT 1 FROM log g
+ WHERE g.id = :g AND g.event = 'mcp.grant' AND g.object_id = :p
+   AND NOT EXISTS (SELECT 1 FROM log x WHERE x.event = 'mcp.revoked'
+                     AND (x.payload ->> 'grant')::bigint = g.id)""")
 
 
-def _assert_open(db: Session, grant: int) -> None:
-    if db.execute(_REVOKED, {"g": grant}).first() is not None:
+def _grant_holder(db: Session, grant: int, person_id: int) -> UserProfile:
+    """Die Person einer Verbindung – nur, wenn es die Verbindung gibt, sie IHR gehört, nicht
+    getrennt ist und die Person noch Personal ist."""
+    if db.execute(_OPEN_GRANT, {"g": grant, "p": person_id}).first() is None:
         raise Problem("invalid_grant", "Diese Verbindung ist getrennt.")
+    return _person(db, person_id)
 
 
 def bearer(db: Session, header: Optional[str]) -> tuple[UserProfile, int]:
@@ -253,9 +301,8 @@ def bearer(db: Session, header: Optional[str]) -> tuple[UserProfile, int]:
     if scheme.lower() != "bearer" or not raw:
         raise Problem("invalid_token", "Anmeldung fehlt.", 401)
     try:
-        t = signed.read(raw.strip(), "mcp.access")
-        _assert_open(db, t["g"])
-        return _person(db, t["p"]), t["g"]
+        t = _read(raw.strip(), "mcp.access")
+        return _grant_holder(db, t["g"], t["p"]), t["g"]
     except (signed.Invalid, Problem) as e:
         raise Problem("invalid_token", str(e), 401)
 

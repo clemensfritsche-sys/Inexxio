@@ -7,7 +7,7 @@ Referenzen. Davor gibt es nichts: der Entwurf lebt im Browser.
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -23,6 +23,8 @@ from ..services import log
 from ..services import (access, ai, composing, document, documents as docs, fields, legal,
                         people, reading, records, signing, sites)
 from ..services import requirements as reqs
+from ..domain.errors import Conflict, Invalid
+from ..domain import policy
 
 router = APIRouter(prefix="/api/v1/erp/documents", tags=["documents"])
 
@@ -125,7 +127,7 @@ def _json(raw: str, what: str):
     try:
         return json.loads(raw) if raw else None
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"{what} sind unlesbar.")
+        raise Invalid(f"{what} sind unlesbar.")
 
 
 def _upload(files: list[UploadFile]) -> tuple[bytes, str, Optional[str]]:
@@ -153,14 +155,13 @@ def file_document(
         aim = TargetIn(**_json(target, "Das Feld")) if target else None
         signing_ids = [int(x) for x in (_json(signers, "Die Unterzeichner") or [])]
     except (KeyError, TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="Die Referenzen sind unlesbar.")
+        raise Invalid("Die Referenzen sind unlesbar.")
     raw, mime, filename = _upload(files)
     doc, existed = docs.file(db, raw=raw, filename=filename, mime=mime, art=art, name=name,
                              source=source, refs=wanted, actor=user, text=text or None,
                              keywords=keywords or None, facts=_json(facts, "Die Angaben"))
     if existed and not access.may(user, docs.refs_of(db, [doc.id])[doc.id]):
-        raise HTTPException(status_code=409, detail=(
-            "Diese Datei gibt es schon als Dokument – du darfst es nicht sehen."))
+        raise Conflict("Diese Datei gibt es schon als Dokument – du darfst es nicht sehen.")
     if existed and wanted:
         docs.add_refs(db, doc, wanted, user)
     if signing_ids:
@@ -239,8 +240,7 @@ def from_template(data: TemplateIn, db: Session = DB,
                   user: UserProfile = Depends(require_employee)):
     """**«Aus Vorlage»** – AGB oder Datenschutz einer eigenen Gesellschaft aus der Vorlage
     (``legal.from_template``); nur der Admin. Ein Mensch entscheidet, nie der Start."""
-    if user.role != "admin":
-        raise HTTPException(status_code=403, detail="Rechtstexte setzt nur der Admin.")
+    policy.require(user, "company.legal")
     company = sites.require_own(db, data.company)
     doc = legal.from_template(db, company, data.kind, user)
     db.flush()

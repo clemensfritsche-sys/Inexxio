@@ -5,13 +5,14 @@ Dokuments (``routers/public_documents``).
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..core.actor import public
 from ..core.database import DB
 from ..services import document, geoip, legal
+from ..domain.errors import NotFound
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
@@ -34,7 +35,7 @@ def legal_text(kind: str, request: Request, country: Optional[str] = None,
     Vorlage aller Dokumente. Die AGB sind die der Gesellschaft zum Land des Besuchers
     (``?country=XX`` übersteuert), Datenschutz und Impressum die des Betreibers."""
     if kind not in legal.KINDS:
-        raise HTTPException(status_code=404, detail=f"Einen Rechtstext «{kind}» gibt es nicht.")
+        raise NotFound(f"Einen Rechtstext «{kind}» gibt es nicht.")
     if country is None:
         ip = geoip.client_ip(request.headers, request.client.host if request.client else None)
         country = geoip.country_of(ip)
@@ -43,6 +44,6 @@ def legal_text(kind: str, request: Request, country: Optional[str] = None,
     if url:
         return LegalOut(kind=kind, word=word, title=title, url=url)
     if text is None:
-        raise HTTPException(status_code=404, detail=f"Der Rechtstext «{kind}» ist nicht hinterlegt.")
+        raise NotFound(f"Der Rechtstext «{kind}» ist nicht hinterlegt.")
     return LegalOut(kind=kind, word=text.word, title=text.title, valid_from=text.key,
                     html=document.standalone(text, sender=legal.sender_line(values)))

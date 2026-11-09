@@ -14,20 +14,19 @@ den Schlüssel **im Namen**.
 import re
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import CompanySettings, UserProfile
 from . import lookup, sites
+from ..domain.errors import Conflict, Forbidden, Invalid
+from ..domain import policy
 
 #: Wer im Haus arbeitet – und damit für **eine** unserer Gesellschaften.
 #:
 #: ►►► **Das ist die EINE Frage, die die Rolle beantwortet.** ◄◄◄
 #: ``admin`` · ``employee`` · ``user``: *darf ins ERP* ↔ *darf es nicht*. Lieferant ↔
 #: Kunde ist eine Aussage über **Vorgänge**, nicht über die Person.
-ROLES = ("admin", "employee", "user")
-STAFF_ROLES = ("admin", "employee")
 
 #: ►►► **Pflicht ist, was das Haus wirklich braucht** – EINE Liste für Konto und ERP. ◄◄◄
 #: Das Konto zeigt daraus den Fortschritt, das ERP die Zahl «zu tun» am Symbol; beide
@@ -46,7 +45,7 @@ _REQUIRED: tuple[tuple[str, str, str, bool], ...] = (
 
 def required_fields(u: UserProfile) -> list[tuple[str, str, str]]:
     """Die Pflichtangaben dieser Person (Feld, Wort, Abschnitt)."""
-    staff = u.role in STAFF_ROLES
+    staff = policy.is_staff(u)
     return [(k, label, sec) for k, label, sec, only_staff in _REQUIRED if staff or not only_staff]
 
 
@@ -118,7 +117,7 @@ def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) ->
     Personal die Firma *wechselt*. Eine bestehende Zeile ohne Gesellschaft bleibt
     bearbeitbar – ihre Lücke meldet der Beleg."""
     role = fields.get("role", user.role)
-    if role not in STAFF_ROLES:
+    if role not in policy.STAFF_ROLES:
         return
     company = fields["company_object_id"] if "company_object_id" in fields \
         else user.company_object_id
@@ -126,9 +125,8 @@ def assert_employment(db: Session, user: UserProfile, fields: dict[str, Any]) ->
         return
     who = "Administrator" if role == "admin" else "Mitarbeiter"
     if company is None:
-        raise HTTPException(
-            400, detail=(f"«{user.display_name}» braucht eine unserer Gesellschaften, um als "
-                         f"{who} zu arbeiten – auf einem Beleg steht, wer ihn stellt."))
+        raise Invalid(f"«{user.display_name}» braucht eine unserer Gesellschaften, um als "
+                         f"{who} zu arbeiten – auf einem Beleg steht, wer ihn stellt.")
     sites.require_own(db, company, what=f" – «{user.display_name}» arbeitet als {who}")
 
 
@@ -144,8 +142,7 @@ def _company_fields(db: Session, fields: dict[str, Any], actor_id: Optional[int]
     Schreibt in ``fields``."""
     new = fields.pop("new_company", None)
     if not staff and fields.get("company_object_id") is not None:
-        raise HTTPException(403, detail=(
-            "Die eigene Firma nennt man über ihre UID – bzw. Firmenname und Rechtsform."))
+        raise Forbidden("Die eigene Firma nennt man über ihre UID – bzw. Firmenname und Rechtsform.")
     if new:
         fields["company_object_id"] = sites.resolve(
             db, new, actor_id, allow_own=staff).object_id
@@ -153,7 +150,7 @@ def _company_fields(db: Session, fields: dict[str, Any], actor_id: Optional[int]
     if oid is not None:
         company = sites.by_object_id(db, oid)
         if company is None or not company.is_active:
-            raise HTTPException(400, detail=f"«{oid}» ist keine Firma.")
+            raise Invalid(f"«{oid}» ist keine Firma.")
 
 
 def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int, *,
@@ -253,7 +250,7 @@ def search(db: Session, q: str = "", *, staff: bool = False,
             .scalar_subquery())
     query = db.query(UserProfile)
     if staff:
-        query = query.filter(UserProfile.role.in_(STAFF_ROLES))
+        query = query.filter(UserProfile.role.in_(policy.STAFF_ROLES))
     return (
         query
         .filter(UserProfile.object_id.isnot(None),
@@ -281,14 +278,14 @@ def create_person(db: Session, data, actor: UserProfile) -> UserProfile:
     missing = [label for label, v in (("Vorname", first), ("Nachname", last),
                                       ("E-Mail", email)) if not v]
     if missing:
-        raise HTTPException(400, detail=f"Für eine neue Person fehlt: {', '.join(missing)}.")
+        raise Invalid(f"Für eine neue Person fehlt: {', '.join(missing)}.")
     if not is_email(email):
-        raise HTTPException(400, detail=f"«{email}» ist keine E-Mail-Adresse.")
-    if role in STAFF_ROLES and actor.role != "admin":
-        raise HTTPException(403, detail="Personal-Rollen vergibt nur ein Admin.")
+        raise Invalid(f"«{email}» ist keine E-Mail-Adresse.")
+    if role in policy.STAFF_ROLES:
+        policy.require(actor, "person.staff")
     taken = by_email(db, email)
     if taken is not None:
-        raise HTTPException(409, detail=f"«{email}» gehört bereits {taken.object_id} "
+        raise Conflict(f"«{email}» gehört bereits {taken.object_id} "
                                         f"{taken.display_name}.")
     probe = UserProfile(first_name=first, last_name=last, email=email, role="user")
     _company_fields(db, fields, actor.id, staff=True)

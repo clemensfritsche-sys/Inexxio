@@ -16,13 +16,14 @@ Danach handelt **das System** (``act(db, "system", None, "job")``).
 
 from typing import Any, Mapping, Optional
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from .actor import act
 from .config import get_settings
 from .database import DB
+from ..domain.errors import rejected
 
 _bearer = HTTPBearer(auto_error=False)
 _request: Any = None
@@ -70,7 +71,7 @@ def require_tick(cred: Optional[HTTPAuthorizationCredentials] = Depends(_bearer)
     """Abhängigkeit des Takts: Token prüfen, dann handelt das System (``job``)."""
     problem = caller_problem(cred.credentials if cred else None)
     if problem:
-        raise HTTPException(problem[0], detail=problem[1])
+        raise rejected(problem[0], problem[1])
     act(db, "system", None, "job")
 
 

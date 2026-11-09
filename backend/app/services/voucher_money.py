@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -27,6 +26,7 @@ from .voucher import (
 from .voucher_head import (
     billing_of, creditor_of, is_done, issuer_company,
 )
+from ..domain.errors import Conflict, NotFound
 
 
 # ---------------------------------------------------------------------------
@@ -82,14 +82,13 @@ def book(db: Session, row: Voucher, entry: VoucherEntry) -> None:
     Unique-Index, kommt derselbe Satz als 409 statt eines Absturzes."""
     problem = reference_problem(db, row, entry.reference)
     if problem:
-        raise HTTPException(status_code=409, detail=problem)
+        raise Conflict(problem)
     try:
         with db.begin_nested():
             db.add(entry)
     except IntegrityError:
-        raise HTTPException(status_code=409, detail=(
-            reference_problem(db, row, entry.reference)
-            or f"Die Referenz «{entry.reference}» ist schon gebucht."))
+        raise Conflict(reference_problem(db, row, entry.reference)
+            or f"Die Referenz «{entry.reference}» ist schon gebucht.")
 
 
 # ---------------------------------------------------------------------------
@@ -207,20 +206,16 @@ def card_payment(db: Session, row: Voucher,
     """
     rows = refundable(db, row)
     if not rows:
-        raise HTTPException(
-            status_code=409,
-            detail=("Hier ist keine Karten-Zahlung offen, die sich erstatten liesse – es "
+        raise Conflict("Hier ist keine Karten-Zahlung offen, die sich erstatten liesse – es "
                     "gibt keine Karte, auf die es zurückgehen kann. Bar oder per "
-                    "Überweisung erstattet man mit «Erstatten»."))
+                    "Überweisung erstattet man mit «Erstatten».")
     if entry_id in (None, ""):
         return rows[0]
     found = next((e for e in rows if e.id == entry_id), None)
     if found is None:
-        raise HTTPException(
-            status_code=409,
-            detail=("Diese Zahlung lässt sich nicht (mehr) über den Zahlungsdienst "
+        raise Conflict("Diese Zahlung lässt sich nicht (mehr) über den Zahlungsdienst "
                     "erstatten – sie ist bereits zurückgegeben, gehört zu einem anderen "
-                    "Beleg oder kam nicht per Karte."))
+                    "Beleg oder kam nicht per Karte.")
     return found
 
 
@@ -320,9 +315,8 @@ def transfer_info(db: Session, row: Voucher) -> dict[str, Any]:
     Lieferantenrechnung stünde sonst unsere eigene Bankverbindung.
     """
     if not (is_billed(row) and inbound(row)):
-        raise HTTPException(status_code=404, detail=(
-            "Zu diesem Beleg gibt es nichts zu überweisen – es steht keine Rechnung, deren "
-            "Geld zu uns kommt."))
+        raise NotFound("Zu diesem Beleg gibt es nichts zu überweisen – es steht keine Rechnung, deren "
+            "Geld zu uns kommt.")
     t = transfer_of(db, row)
     return {
         "iban": t.iban, "creditor": t.creditor["name"], "reference": t.reference,

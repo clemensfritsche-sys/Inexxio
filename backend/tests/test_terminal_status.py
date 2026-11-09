@@ -123,7 +123,7 @@ def test_the_one_write_path_refuses_to_leave_a_terminal_state():
     Die Prüfung sitzt hier, weil hier jeder Statuswechsel der Prozesslogik durchläuft
     (§4.1): Start, Modul, Ende. Ein neues Modul erbt sie, ohne von ihr zu wissen.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     db = session()
     unit = _scrapped_unit(db)
@@ -134,11 +134,11 @@ def test_the_one_write_path_refuses_to_leave_a_terminal_state():
 
         w = World(db)
         order = w.produce(w.article(), 1)
-        with pytest.raises(HTTPException) as err:
+        with pytest.raises(Rejected) as err:
             proc._pass(db, order=order, units=[unit],
                        membership_ids=[], kind="end", step=None,
                        status_after=st.FREIGEGEBEN, next_step_id=None, actor_id=None)
-        assert err.value.status_code == 409
+        assert err.value.status == 409
         detail = err.value.detail
         assert "Endzustand" in detail and "Verschrottet" in detail, detail
         assert "-1" in detail, (
@@ -294,7 +294,7 @@ def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
     Genau diese Gegenprobe steht hier, sonst wäre der Wächter mit einem pauschalen
     «nichts Gelbes» zufrieden.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     db = session()
     unit = _scrapped_unit(db)
@@ -334,10 +334,10 @@ def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
         )
 
         # 3) Und die Freigabe lehnt ab – derselbe Satz, dieselbe Quelle.
-        with pytest.raises(HTTPException) as err:
+        with pytest.raises(Rejected) as err:
             release_svc.release(db, lines=draft(tot)["lines"], steps=draft(tot)["steps"],
                          actor_id=None)
-        assert err.value.status_code == 409
+        assert err.value.status == 409
         assert "Endzustand" in str(err.value.detail)
     finally:
         db.rollback()

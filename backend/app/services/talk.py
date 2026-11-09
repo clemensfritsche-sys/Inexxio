@@ -25,7 +25,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, ContextManager, Iterator, Optional
 
-from fastapi import HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -34,6 +33,8 @@ from ..core import clock
 from ..models import UserProfile
 from ..schemas.assistant import FileRef, TalkMessage, TalkOut
 from . import ai, handgriff, log, records
+from ..domain.errors import Forbidden, Invalid, NotFound, Rejected
+from ..domain import policy
 
 #: Der Auftrag an die KI – wörtlich, eine Datei.
 AUFTRAG = (Path(__file__).resolve().parents[1] / "assets" / "ai" / "auftrag.md").read_text("utf-8")
@@ -92,15 +93,15 @@ def _first(db: Session, talk_id: int) -> Any:
                         "WHERE id = :t AND event = 'talk' AND payload ->> 'talk' IS NULL"),
                    {"t": talk_id}).first()
     if r is None:
-        raise HTTPException(404, detail=f"Gespräch «{talk_id}» gibt es nicht.")
+        raise NotFound(f"Gespräch «{talk_id}» gibt es nicht.")
     return r
 
 
 def assert_may(db: Session, talk_id: int, viewer: UserProfile) -> Any:
     """Ein Gespräch ist privat: wer es führt, und der Admin."""
     r = _first(db, talk_id)
-    if viewer.role != "admin" and r.actor_id != viewer.object_id:
-        raise HTTPException(404, detail=f"Gespräch «{talk_id}» gibt es nicht.")
+    if not policy.may(viewer, "private", r.actor_id):
+        raise NotFound(f"Gespräch «{talk_id}» gibt es nicht.")
     return r
 
 
@@ -166,13 +167,13 @@ def say(db: Session, person: UserProfile, body: str, *, talk: Optional[int] = No
     Gespräch (am offenen Datensatz ``hint``, sonst an der Person). Gibt das Gespräch zurück. ◄◄◄"""
     body = clean(body).strip()
     if not body and not files:
-        raise HTTPException(400, detail="Eine Nachricht braucht Text oder eine Datei.")
+        raise Invalid("Eine Nachricht braucht Text oder eine Datei.")
     if talk is not None:
         first = assert_may(db, talk, person)
         home = first.object_id
     else:
         if hint is not None and records.labels(db, [hint]).get(hint) is None:
-            raise HTTPException(400, detail=f"Datensatz «{hint}» gibt es nicht.")
+            raise Invalid(f"Datensatz «{hint}» gibt es nicht.")
         home = hint or person.object_id
     payload: dict[str, Any] = {"by": "person", "text": body[:MAX_SPOKEN if recording else MAX_TEXT]}
     if talk is not None:
@@ -219,7 +220,7 @@ def _transcript(db: Session, talk_id: int, person: UserProfile) -> list[dict[str
         for f in m.files:
             try:
                 raw = attachments.bytes_of(attachments.get_by_token(db, f.token))
-            except HTTPException:
+            except Rejected:
                 raw = b""
             if not raw or len(raw) > READ_LIMIT:
                 blocks.append({"type": "text", "text": f"[Datei {f.name}: nicht lesbar]"})
@@ -243,7 +244,7 @@ def _mine(db: Session, talk_id: int, hid: int) -> handgriff.Handgriff:
     einem fremden Gespräch)."""
     h = handgriff.get(db, hid)
     if h.talk != talk_id:
-        raise HTTPException(403, detail=f"Handgriff «{hid}» gehört nicht zu diesem Gespräch.")
+        raise Forbidden(f"Handgriff «{hid}» gehört nicht zu diesem Gespräch.")
     return h
 
 

@@ -18,7 +18,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -26,6 +25,7 @@ from sqlalchemy.orm import Session
 from ..models import UserProfile
 from ..schemas.assistant import KnowledgeOut, PinnedOut
 from . import ai, handgriff, history, log, surroundings
+from ..domain.errors import Rejected
 
 #: So viele Aussagen höchstens – «so wenig wie möglich, auch nichts».
 MAX = 3
@@ -107,7 +107,7 @@ def refresh(db: Session, object_id: int, viewer: UserProfile) -> PinnedOut:
     reader = ai_tools.reader()
     try:
         entries = history.page(db, object_id, reader, limit=ENTRIES).entries
-    except HTTPException:
+    except Rejected:
         return pinned(db, object_id, viewer, problem=PRIVATE)
     near = surroundings.of(db, object_id)
     content = _content(db, object_id, reader, entries, near) if ai.available(db) else []

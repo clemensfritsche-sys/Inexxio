@@ -9,7 +9,9 @@ import time
 from types import SimpleNamespace
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
+
+from app.domain.errors import Rejected
 from fastapi.testclient import TestClient
 
 from tests.support import after_save
@@ -108,9 +110,9 @@ def test_the_erp_cannot_subscribe_anyone_it_can_only_ask(world, monkeypatch):
     assert res.status_code == 303 and res.headers["location"] == "/newsletter/bestaetigt"
     (row,) = nl.history(db, p.object_id)
     assert row.subscribed and row.source == "invitation" and row.wording == nl.WORDING
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         nl.invite(db, p.object_id, "invitation")
-    assert exc.value.status_code == 409
+    assert exc.value.status == 409
 
 
 def test_the_unsubscribe_link_shows_a_button_and_one_click_works_directly(world):
@@ -152,7 +154,7 @@ def test_a_circular_is_one_mail_per_person_with_her_own_greeting(world):
         assert m.body.startswith(f"Guten Tag {p.display_name}\n\n")
         assert [x.object_id for x in db.query(MessageParty).filter(
             MessageParty.message_id == m.id)] == [p.object_id]
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _send(world, "circular", [a.object_id], cc=[b.object_id])
 
 
@@ -175,7 +177,7 @@ def test_a_newsletter_goes_only_to_subscribers_and_checks_again_when_sending(wor
     db = world.db
     a, b = _person(db), _person(db)
     nl.set_state(db, a.object_id, True, "account")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         _send(world, "newsletter", [a.object_id, b.object_id])
     assert b.display_name in exc.value.detail
     nl.set_state(db, b.object_id, True, "account")

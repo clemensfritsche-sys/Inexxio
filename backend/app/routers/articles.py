@@ -14,7 +14,7 @@ die Projektion davon (``Article.status``). Was das anrichtet, steht als **Auskun
 Datensatz** (``bom``) und ist damit immer sichtbar, nicht nur dem, der klickt.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -33,6 +33,7 @@ from ..services import articles as articles_svc
 from ..services import bom as bom_svc
 from ..services import instances as inst_svc
 from ..services import lookup
+from ..domain.errors import NotFound
 
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["articles"])
 
@@ -89,7 +90,7 @@ def _detail(db: Session, article: Article) -> ArticleResponse:
 def _get(db: Session, object_id: int) -> Article:
     article = db.query(Article).filter(Article.object_id == object_id).first()
     if article is None:
-        raise HTTPException(status_code=404, detail=f"Artikel {object_id} nicht gefunden.")
+        raise NotFound(f"Artikel {object_id} nicht gefunden.")
     return article
 
 

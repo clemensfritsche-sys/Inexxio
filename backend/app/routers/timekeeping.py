@@ -3,7 +3,7 @@ Gesellschaft; «zu tun» für den Feed. Jede Schreib-Route antwortet mit der neu
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -14,6 +14,7 @@ from ..schemas.timekeeping import (
     TimeView, TodoOut,
 )
 from ..services import holidays, time_view, timekeeping, todo
+from ..domain.errors import Forbidden, Invalid, NotFound
 
 router = APIRouter(prefix="/api/v1/erp", tags=["timekeeping"])
 
@@ -23,9 +24,9 @@ MONTH = Query(None, pattern=r"^\d{4}-\d{2}$")
 def _person(db: Session, actor: UserProfile, object_id: int) -> UserProfile:
     person = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if person is None:
-        raise HTTPException(404, detail=f"«{object_id}» ist keine Person.")
+        raise NotFound(f"«{object_id}» ist keine Person.")
     if not timekeeping.may_see(actor, person):
-        raise HTTPException(403, detail=f"Die Zeiterfassung von «{person.display_name}» sieht "
+        raise Forbidden(f"Die Zeiterfassung von «{person.display_name}» sieht "
                                         f"nur sie selbst und die Administration.")
     return person
 
@@ -58,7 +59,7 @@ def _no_proof_here(data: EntryIn) -> None:
     (``fields._proof``, «Nachreichen»). Über diese Tür kommt er nicht – weder als Art noch
     als Link an einer Absenz."""
     if data.kind == "proof" or data.proof_url:
-        raise HTTPException(400, detail="Ein Nachweis ist ein Dokument – bitte an der Absenz "
+        raise Invalid("Ein Nachweis ist ein Dokument – bitte an der Absenz "
                                         "«Nachreichen» wählen.")
 
 

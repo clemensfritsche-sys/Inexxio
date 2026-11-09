@@ -24,12 +24,12 @@ Stand: 09.11.2026
 
 | Nr. | Thema | Was genau | Stand |
 |---|---|---|---|
-| U1 | MCP härten (F7) | Rückkehr-Adressen nur Claude (claude.ai, claude.com) und der eigene Rechner (Claude Code); Erneuerung genau einmal und an den Client gebunden, 30 Tage; jeder Zugang nennt Umgebung und Empfänger; die volle Rückkehr-Adresse steht auf «Claude verbinden». | offen |
-| U2 | KI-Kosten zählen immer (F8, Teil) | Jeder KI-Aufruf wird sofort für sich gespeichert – der Deckel sieht ihn auch, wenn das Gespräch danach abbricht; kein zweites Bezahlen ohne Zählen. | offen |
-| U3 | Beträge (F10) | EIN Betrags-Leser für alles; nimmt «1'234.50», «1’234.50», «1 234,50». | offen |
-| U4 | Kundendaten | Jede Person mit ERP-Zugang (Mitarbeitende, Admin) darf Kundendaten ändern. Rollen und die Daten von Mitarbeitenden bleiben beim Admin. | offen |
-| U5 | Rechte an EINER Stelle | `core/policy.py`: «darf diese Person das – und wenn nicht, warum?» Alle verstreuten Rollenprüfungen (≈60 in 20 Dateien) dorthin; ein Wächter verbietet neue daneben. Im Frontend kommt «darf» vom Server statt aus der Rolle. | offen |
-| U6 | Fehler: EIN Modell, überall gleich | Eine Fehlerart in der Fachschicht (`Rejected`: nicht gefunden · nicht erlaubt · passt nicht · Konflikt), EIN Übersetzer in die Antwort, überall dieselbe Form `{code, message, field?}`; im Frontend EINE Anzeige. Keine Web-Ausnahmen mehr in `domain/`. | offen |
+| U1 | MCP härten (F7) | Rückkehr-Adressen nur Claude (claude.ai, claude.com) und der eigene Rechner (Claude Code); Erneuerung genau einmal und an den Client gebunden, 30 Tage; jeder Zugang nennt Umgebung und Empfänger; die volle Rückkehr-Adresse steht auf «Claude verbinden». | erledigt (Migration 180) |
+| U2 | KI-Kosten zählen immer (F8, Teil) | Jeder KI-Aufruf wird sofort für sich gespeichert – der Deckel sieht ihn auch, wenn das Gespräch danach abbricht; kein zweites Bezahlen ohne Zählen. | **zurückgestellt** – geht nur, wenn das unveränderliche Log ausserhalb der Antwort geschrieben wird; das ist nicht einfach und elegant (Bedingung des Inhabers). Das Risiko ist klein (nur wenn der Dienst mitten in einer Antwort stirbt). |
+| U3 | Beträge (F10) | EIN Betrags-Leser für alles; nimmt «1'234.50», «1’234.50», «1 234,50». | erledigt (`domain/number`) |
+| U4 | Kundendaten | Jede Person mit ERP-Zugang (Mitarbeitende, Admin) darf Kundendaten ändern. Rollen und die Daten von Mitarbeitenden bleiben beim Admin. | erledigt (`policy` `person.edit` · `person.staff`, `may_edit`) |
+| U5 | Rechte an EINER Stelle | `domain/policy.py`: «darf diese Person das – und wenn nicht, warum?» Alle verstreuten Rollenprüfungen (≈60 in 20 Dateien) dorthin; ein Wächter verbietet neue daneben. Im Frontend kommt «darf» vom Server statt aus der Rolle. | erledigt (`domain/policy`, Wächter `test_policy`) |
+| U6 | Fehler: EIN Modell, überall gleich | Eine Fehlerart in der Fachschicht (`Rejected`: nicht gefunden · nicht erlaubt · passt nicht · Konflikt), EIN Übersetzer in die Antwort, überall dieselbe Form `{code, message, field?}`; im Frontend EINE Anzeige. Keine Web-Ausnahmen mehr in `domain/`. | erledigt (`domain/errors`, Wächter `test_errors`) |
 | U7 | Frontend lädt überall gleich | Die ~26 Stellen, die noch von Hand laden, gehen über React Query (Cache, Neu-Laden nach jeder Änderung, Fehlermeldung); ein Wächter verbietet das Laden von Hand. | offen |
 | U8 | Ein Dialog-Baustein | Die sechs eigenen Dialoge (Anmelden, Scannen, «+», Passkey-Hinweis, Rückkehr vom Link, `controls.Dialog`) auf EINEN Baustein (Fokus, Escape, Hintergrund). | offen |
 | U9 | Grosse Dateien teilen | Ohne Verhaltensänderung: `voucher_actions.py` (1'339 Zeilen) nach Stufen; die Logik aus `routers/orders.py` (962) in einen Dienst; `mailbox.py` (938) in Abgleich und Senden. | offen |

@@ -16,7 +16,7 @@ Mailprogramme rufen Links auf, ohne dass jemand klickt. Die Abmeldung mit einem 
 Mailprogramm selbst (``List-Unsubscribe-Post``, RFC 8058) geht direkt.
 """
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from html import escape
 from sqlalchemy.orm import Session
@@ -30,6 +30,7 @@ from ..schemas.newsletter import ConsentRow, NewsletterIn, NewsletterState
 from ..services import newsletter as svc, people, visitor
 from ..services.people import is_email, normalize_email
 from .contact import VOCAB, clean, page
+from ..domain.errors import Invalid, Rejected
 
 router = APIRouter(prefix=svc.API, tags=["newsletter"])
 me_router = APIRouter(prefix="/api/v1/auth/me/newsletter", tags=["newsletter"])
@@ -89,7 +90,7 @@ def subscribe(request: Request, email: str = Form(""), hp: str = Form(""),
                 svc.invite(db, known.object_id, "website", channel, by_name=False)
         else:
             svc.invite_address(db, email, "website", channel)
-    except HTTPException as exc:
+    except Rejected as exc:
         db.rollback()
         print(f"WARNING: NEWSLETTER invite failed: {exc.detail}", flush=True)
         return _answer(wants_json, "Die Anmeldung ist gerade nicht möglich – bitte später "
@@ -167,7 +168,7 @@ def set_mine(data: NewsletterIn, db: Session = DB,
              user: UserProfile = Depends(get_current_user)):
     """Mich für den Newsletter an- oder abmelden (meine Adresse ist bestätigt)."""
     if not user.object_id:
-        raise HTTPException(400, detail="Ohne Objektnummer gibt es keinen Newsletter.")
+        raise Invalid("Ohne Objektnummer gibt es keinen Newsletter.")
     svc.set_state(db, user.object_id, data.subscribed, "account", user.id)
     db.flush()
     return _state(db, user.object_id)

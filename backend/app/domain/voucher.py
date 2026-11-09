@@ -16,6 +16,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from . import currency as cur
+from . import number
 
 # ---------------------------------------------------------------------------
 # ►►► DIE RICHTUNG — das eine Feld, aus dem alles Übrige folgt ◄◄◄
@@ -538,15 +539,15 @@ MAX_AMOUNT = Decimal("99999999.99")
 def amount(value: Any, code: str, *, allow_negative: bool = False) -> Optional[Decimal]:
     """Aus einer Eingabe ein Betrag – oder ``None``, wenn nichts dasteht.
 
-    Über ``Decimal``, nie ``float``; ein Komma ist Dezimaltrennzeichen. ``allow_negative``
+    Gelesen über ``domain/number`` (Apostroph, Leerzeichen, Komma oder Punkt). ``allow_negative``
     nur an Geld-Zeilen – eine negative Zusage gibt es nicht.
     """
-    if value in (None, ""):
-        return None
     try:
-        found = Decimal(str(value).strip().replace("'", "").replace(",", "."))
-    except (InvalidOperation, ValueError):
+        found = number.decimal(value)
+    except ValueError:
         raise ValueError(f"«{value}» ist kein Betrag.")
+    if found is None:
+        return None
     # Gerundet auf die kleinste Einheit DIESER Währung (KWD hat drei Stellen).
     found = cur.round_to(found, code)
     if not allow_negative and found < 0:

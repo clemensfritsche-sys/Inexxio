@@ -23,7 +23,6 @@ from ..models import (
 from ..models.process_event import KIND_STEP
 from . import sites
 # Wer ohnehin alles sieht – Personal hat keine verengte Sicht (die eine Stelle).
-from .people import STAFF_ROLES
 from .voucher import (
     all_declined, amount_text, balance_of, changed_since_offer, chosen_quote, corrects,
     credited, delivery_date, deviation, documents_of, due_days_of, entries_of, expired,
@@ -41,6 +40,7 @@ from .voucher_money import (
 from .voucher_actions import (
     ask_problem, can, correction_problem, gaps, next_action, reversible,
 )
+from ..domain import policy
 
 
 # ---------------------------------------------------------------------------
@@ -307,7 +307,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         return None
     sync_lines(db, row, order, step)
     with reading(db):
-        internal = viewer is None or viewer.role in STAFF_ROLES
+        internal = policy.inside(viewer)
         chosen = chosen_quote(db, row)
         won = internal or (chosen is not None and viewer is not None
                            and chosen.party_id == viewer.object_id)

@@ -11,7 +11,7 @@
 """
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 from sqlalchemy import text
 
 from tests.scenarios import World, free_stock
@@ -62,7 +62,7 @@ def test_a_refused_release_draws_no_number_and_creates_nothing(db):
 
     def refused():
         attempt = db.begin_nested()
-        with pytest.raises(HTTPException):
+        with pytest.raises(Rejected):
             w.take(article, numbers,
                    steps=[World.dispose("scrap", "Ausschuss"), World.capture()])
         attempt.rollback()

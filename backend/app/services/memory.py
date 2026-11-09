@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from ..models import AiMemory, UserProfile
 from . import ai
+from ..domain.errors import Rejected
 
 #: Die Arten im Gedächtnis.
 KINDS = ("handgriff", "note", "document")
@@ -165,7 +166,6 @@ def _where(db: Session, rows: list[Any]) -> dict[tuple[str, int], int]:
 
 def _visible(db: Session, object_ids: Iterable[int]) -> set[int]:
     """Was jedes Personal sehen darf – gelesen als gemeinsamer Betrachter."""
-    from fastapi import HTTPException
 
     from . import ai_tools, history
     reader = ai_tools.reader()
@@ -174,7 +174,7 @@ def _visible(db: Session, object_ids: Iterable[int]) -> set[int]:
         try:
             history.assert_visible(db, oid, reader)
             ok.add(oid)
-        except HTTPException:
+        except Rejected:
             pass
     return ok
 

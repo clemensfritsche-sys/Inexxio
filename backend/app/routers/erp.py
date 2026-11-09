@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from pydantic import BaseModel
 
-from ..core.auth import require_admin, require_employee
+from ..core.auth import require_employee
 from ..core.database import DB
 from ..models import UserProfile, WebAuthnCredential
 from ..schemas.admin import (
@@ -14,6 +14,8 @@ from ..schemas.voucher import VoucherParty
 from ..services import address_book, people
 from ..services import sites
 from ..services.objects import resolve_object_type
+from ..domain import policy
+from ..domain.errors import NotFound
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
 
@@ -34,9 +36,12 @@ def _passkey_counts(db: Session, user_ids: list[int]) -> dict[int, int]:
     return dict(rows)
 
 
-def _record(user: UserProfile, passkeys: int = 0) -> UserProfileResponse:
+def _record(user: UserProfile, passkeys: int = 0,
+            viewer: UserProfile | None = None) -> UserProfileResponse:
     resp = UserProfileResponse.model_validate(user)
     resp.passkey_count = passkeys
+    resp.may_edit = viewer is not None and policy.may(
+        viewer, "person.staff" if policy.is_staff(user) else "person.edit")
     return resp
 
 
@@ -56,14 +61,14 @@ def resolve_object(
     """Typ einer Objektnummer in O(1) auflösen (zentrale Registry, Fallback Scan)."""
     otype = resolve_object_type(db, object_id)
     if not otype:
-        raise HTTPException(404, detail="Objekt nicht gefunden")
+        raise NotFound("Objekt nicht gefunden")
     return ObjectResolution(object_id=object_id, object_type=otype)
 
 
 @router.get("/records", response_model=list[UserProfileResponse])
 def list_erp_records(
     db: Session = DB,
-    _: UserProfile = Depends(require_employee),
+    viewer: UserProfile = Depends(require_employee),
 ):
     """Alle Personen für den Feed."""
     # **Alle Personen**, auch eine alte deaktivierte Zeile: «inaktiv» ist ein Zustand,
@@ -72,7 +77,7 @@ def list_erp_records(
              .options(selectinload(UserProfile.addresses), selectinload(UserProfile.company))
              .order_by(UserProfile.object_id).all())
     counts = _passkey_counts(db, [u.id for u in users])
-    return [_record(u, counts.get(u.id, 0)) for u in users]
+    return [_record(u, counts.get(u.id, 0), viewer) for u in users]
 
 
 @router.post("/records", response_model=UserProfileResponse, status_code=201)
@@ -84,7 +89,7 @@ def create_erp_record(
     """►►► **Eine Person anlegen** – ohne dass sie sich je angemeldet hat. ◄◄◄
     Vorname, Nachname, E-Mail, Rolle; Objektnummer und Anmeldekonto entstehen sofort
     (``people.create_person``). Personal-Rollen vergibt nur ein Admin."""
-    return _record(people.create_person(db, data, current_user))
+    return _record(people.create_person(db, data, current_user), viewer=current_user)
 
 
 @router.get("/people", response_model=list[VoucherParty])
@@ -123,13 +128,13 @@ def search_companies(
 def get_erp_record(
     object_id: int,
     db: Session = DB,
-    _: UserProfile = Depends(require_employee),
+    viewer: UserProfile = Depends(require_employee),
 ):
     """Eine Person mit ihren Angaben."""
     user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if not user:
-        raise HTTPException(404, detail="Record not found")
-    return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
+        raise NotFound(f"Person «{object_id}» gibt es nicht.")
+    return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0), viewer)
 
 
 @router.patch("/records/{object_id}", response_model=UserProfileResponse)
@@ -137,16 +142,16 @@ def update_erp_record(
     object_id: int,
     data: ErpAdminUpdate,
     db: Session = DB,
-    current_user: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_employee),
 ):
-    """Angaben einer Person ändern (Name, Kontakt, Firma, Rolle, Anstellung) – nur ein Admin."""
-    user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
-    if not user:
-        raise HTTPException(404, detail="Record not found")
+    """Angaben einer Person ändern (Name, Kontakt, Firma, Rolle, Anstellung) – jede Person mit
+    ERP-Zugang; Rollen und Mitarbeitende nur der Admin (``domain/policy``)."""
+    user = _person(db, object_id)
+    _may_edit(current_user, user, "role" in data.model_fields_set)
     people.apply_profile_update(db, user, data, current_user.id, staff=True)
     db.flush()
     db.refresh(user)
-    return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
+    return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0), current_user)
 
 
 # ─── Das Adressbuch am Datensatz – dieselben Funktionen wie im Konto ─────────────────
@@ -154,14 +159,20 @@ def update_erp_record(
 def _person(db: Session, object_id: int) -> UserProfile:
     user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if not user:
-        raise HTTPException(404, detail="Record not found")
+        raise NotFound(f"Person «{object_id}» gibt es nicht.")
     return user
 
 
-def _done(db: Session, user: UserProfile) -> UserProfileResponse:
+def _may_edit(actor: UserProfile, person: UserProfile, role: bool = False) -> None:
+    """Kundendaten ändert jedes Personal; eine Rolle oder die Angaben von Mitarbeitenden nur der
+    Admin."""
+    policy.require(actor, "person.staff" if role or policy.is_staff(person) else "person.edit")
+
+
+def _done(db: Session, user: UserProfile, viewer: UserProfile) -> UserProfileResponse:
     db.flush()
     db.refresh(user)
-    return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
+    return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0), viewer)
 
 
 @router.post("/records/{object_id}/addresses", response_model=UserProfileResponse)
@@ -169,12 +180,13 @@ def add_record_address(
     object_id: int,
     data: AddressIn,
     db: Session = DB,
-    current_user: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_employee),
 ):
-    """Eine Anschrift ins Adressbuch einer Person aufnehmen – nur ein Admin."""
+    """Eine Anschrift ins Adressbuch einer Person aufnehmen."""
     user = _person(db, object_id)
+    _may_edit(current_user, user)
     address_book.add(db, user, data.model_dump(exclude_unset=True), current_user.id)
-    return _done(db, user)
+    return _done(db, user, current_user)
 
 
 @router.patch("/records/{object_id}/addresses/{address_id}",
@@ -184,13 +196,14 @@ def change_record_address(
     address_id: int,
     data: AddressIn,
     db: Session = DB,
-    current_user: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_employee),
 ):
-    """Eine Anschrift im Adressbuch einer Person ändern – nur ein Admin."""
+    """Eine Anschrift im Adressbuch einer Person ändern."""
     user = _person(db, object_id)
+    _may_edit(current_user, user)
     address_book.change(db, user, address_id, data.model_dump(exclude_unset=True),
                         current_user.id)
-    return _done(db, user)
+    return _done(db, user, current_user)
 
 
 @router.delete("/records/{object_id}/addresses/{address_id}",
@@ -199,9 +212,10 @@ def remove_record_address(
     object_id: int,
     address_id: int,
     db: Session = DB,
-    current_user: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_employee),
 ):
-    """Eine Anschrift aus dem Adressbuch einer Person entfernen – nur ein Admin."""
+    """Eine Anschrift aus dem Adressbuch einer Person entfernen."""
     user = _person(db, object_id)
+    _may_edit(current_user, user)
     address_book.remove(db, user, address_id, current_user.id)
-    return _done(db, user)
+    return _done(db, user, current_user)

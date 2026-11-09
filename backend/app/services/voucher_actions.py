@@ -11,7 +11,6 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Callable, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -19,6 +18,7 @@ from ..core import clock
 from ..core.config import payment_service_ready
 from ..domain import currency as cur
 from ..domain import incoterms as inc
+from ..domain import number
 from ..domain import modules
 from ..domain import voucher as vo
 from ..models import (
@@ -27,7 +27,6 @@ from ..models import (
 )
 from . import address_book, sites
 # Wer ohnehin alles sieht – Personal hat keine verengte Sicht (die eine Stelle).
-from .people import STAFF_ROLES
 from .voucher import (
     addressee_of, agreed_amount, balance_of, changed_since_offer, days_after, deviation,
     documents_of, due_days_of, entries_of, expired, fingerprint, hold, inbound,
@@ -42,6 +41,8 @@ from .voucher_head import (
 from .voucher_money import (
     AUTO_RELEASE, book, follow_up, papers_due, refundable,
 )
+from ..domain.errors import Conflict, Invalid, NotFound
+from ..domain import policy
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +141,7 @@ def ownership_problem(row: Voucher) -> Optional[str]:
 def _assert_ownership_chosen(row: Voucher) -> None:
     problem = ownership_problem(row)
     if problem:
-        raise HTTPException(status_code=400, detail=problem)
+        raise Invalid(problem)
 
 
 def _has(side: dict[str, Any], field: str) -> bool:
@@ -283,7 +284,7 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
     # Lücken speisen ``can``; die Vollständigkeit ist damit keine zweite Regel.
     out = [a for a in out if a not in drop
            and not (VERBS[a].needs and gaps(db, row, action=a))]
-    if viewer is not None and viewer.role not in STAFF_ROLES:
+    if not policy.inside(viewer):
         # Die Gegenpartei darf nur, was ihre Rolle im Beleg hergibt – und nur, solange sie
         # tatsächlich angefragt ist.
         if not any(q.party_id == viewer.object_id for q in quotes):
@@ -322,28 +323,19 @@ def assert_allowed(db: Session, row: Voucher, action: str,
         return
     if missing:
         first = missing[0]
-        raise HTTPException(
-            status_code=400,
-            detail=(f"Dafür fehlt {first['field_label']} bei «{first['record_label']}». "
+        raise Invalid(f"Dafür fehlt {first['field_label']} bei «{first['record_label']}». "
                     f"{first['why']}"
                     + (f" (und {len(missing) - 1} weitere Angabe"
-                       f"{'n' if len(missing) > 2 else ''})" if len(missing) > 1 else "")),
-        )
+                       f"{'n' if len(missing) > 2 else ''})" if len(missing) > 1 else ""))
     flow = vo.of(row.direction)
     # **Der Satz nennt den richtigen Grund**: fehlt allein der Zugang (die Stufe stimmt),
     # sagt er das, nicht die Stufe.
     if (action in VERBS and not VERBS[action].allows(flow)
-            and viewer is not None and viewer.role not in STAFF_ROLES):
-        raise HTTPException(
-            status_code=409,
-            detail=(f"«{action}» ist an diesem Beleg nicht Ihre Handlung – darüber "
-                    f"entscheidet die andere Seite."),
-        )
-    raise HTTPException(
-        status_code=409,
-        detail=(f"«{action}» geht hier nicht: der Beleg steht auf "
-                f"«{flow.label_of(row.stage)}»."),
-    )
+            and not policy.inside(viewer)):
+        raise Conflict(f"«{action}» ist an diesem Beleg nicht Ihre Handlung – darüber "
+                    f"entscheidet die andere Seite.")
+    raise Conflict(f"«{action}» geht hier nicht: der Beleg steht auf "
+                f"«{flow.label_of(row.stage)}».")
 
 
 # ---------------------------------------------------------------------------
@@ -358,20 +350,16 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
     """
     row = of_step(db, step.id)
     if row is None:
-        raise HTTPException(status_code=404,
-                            detail="Zu diesem Modul gibt es keinen Beleg.")
+        raise NotFound("Zu diesem Modul gibt es keinen Beleg.")
     if action not in VERBS:
-        raise HTTPException(status_code=400,
-                            detail=f"«{action}» ist keine Handlung an einem Beleg.")
+        raise Invalid(f"«{action}» ist keine Handlung an einem Beleg.")
     # **Die Nutzlast weiss, um wen es geht** – beim Zuschlag steht die Gegenpartei dort,
     # und die Vollständigkeitsprüfung muss sie kennen, bevor ``_agree`` sie setzt.
     assert_allowed(db, row, action, actor, _int(payload.get("party")))
     run = VERBS[action].run
     if run is None:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"«{action}» ändert den Beleg nicht – diese Handlung hat ihren "
-                    f"eigenen Weg."))
+        raise Conflict(f"«{action}» ändert den Beleg nicht – diese Handlung hat ihren "
+                    f"eigenen Weg.")
     run(db, order=order, step=step, row=row, data=payload, actor=actor)
     db.flush()
     follow_up(db, order=order, step=step, row=row, actor=actor)
@@ -383,10 +371,8 @@ def _reject_fixed(step: ProcessStep, data: dict[str, Any]) -> None:
     fixed = modules.Beleg.presets_of(step.config)
     for key in data:
         if key in fixed and data[key] != fixed[key]:
-            raise HTTPException(
-                status_code=409,
-                detail=(f"«{modules.Beleg.PRESET_LABELS.get(key, key)}» gibt das Modul vor – "
-                        f"geändert wird es dort, für jeden künftigen Auftrag."))
+            raise Conflict(f"«{modules.Beleg.PRESET_LABELS.get(key, key)}» gibt das Modul vor – "
+                        f"geändert wird es dort, für jeden künftigen Auftrag.")
 
 
 def _currency(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -399,11 +385,10 @@ def _currency(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     try:
         code = cur.assert_code(data.get("currency"))
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise Invalid(str(e))
     # **Ein vorgegebener Preis steht in der Hauswährung** – umgerechnet wird nichts.
     if code != row.currency and preset_prices(db, row, step):
-        raise HTTPException(status_code=400, detail=(
-            f"Die Preise sind im Modul in {row.currency} vorgegeben – die Währung bleibt."))
+        raise Invalid(f"Die Preise sind im Modul in {row.currency} vorgegeben – die Währung bleibt.")
     row.currency = code
 
 
@@ -424,7 +409,7 @@ def _incoterm(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     try:
         row.incoterm = inc.assert_incoterm(data.get("incoterm"))
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise Invalid(str(e))
     row.incoterm_place = None
 
 
@@ -446,9 +431,7 @@ def _add_party(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     flow = vo.of(row.direction)
     number = _party(db, step=step, value=data.get("party"), flow=flow)
     if number is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Ohne Objektnummer gibt es keinen {vo.PARTY}, den man wählen könnte.")
+        raise Invalid(f"Ohne Objektnummer gibt es keinen {vo.PARTY}, den man wählen könnte.")
     if number not in parties_on(row):
         row.parties = [*parties_on(row), number]
     db.flush()
@@ -465,15 +448,13 @@ def _address(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     u = (db.query(UserProfile).filter(UserProfile.object_id == number).first()
          if number is not None else None)
     if u is None:
-        raise HTTPException(status_code=400, detail=(
-            f"An wen der Beleg geht, steht noch nicht fest – gewählt wird, sobald genau "
-            f"ein {vo.PARTY} dasteht."))
+        raise Invalid(f"An wen der Beleg geht, steht noch nicht fest – gewählt wird, sobald genau "
+            f"ein {vo.PARTY} dasteht.")
     if "bill_to_company" in data:
         wanted = data.get("bill_to_company")
         if wanted and not business_possible(u):
-            raise HTTPException(status_code=400, detail=(
-                f"«{u.display_name}» handelt hier privat – eine eigene Gesellschaft ist nie "
-                f"Gegenpartei, und ohne Firma gibt es kein Geschäftskonto."))
+            raise Invalid(f"«{u.display_name}» handelt hier privat – eine eigene Gesellschaft ist nie "
+                f"Gegenpartei, und ohne Firma gibt es kein Geschäftskonto.")
         if wanted != row.bill_to_company:
             # **Ein anderes Konto, andere Anschriften** – es gelten die Standards des neuen.
             row.billing_address_id = None
@@ -487,10 +468,9 @@ def _address(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         aid = _int(data.get(key))
         hit = address_book.pick(db, u.id, aid, kind, account) if aid is not None else None
         if aid is not None and (hit is None or hit.id != aid):
-            raise HTTPException(status_code=400, detail=(
-                f"Anschrift {aid} steht nicht im "
+            raise Invalid(f"Anschrift {aid} steht nicht im "
                 f"{'Geschäftskonto' if account == address_book.BUSINESS else 'Privatkonto'} "
-                f"von «{u.display_name}»."))
+                f"von «{u.display_name}».")
         setattr(row, col, aid)
     fit_to_address(db, row, lines_of(db, row))
 
@@ -503,7 +483,7 @@ def _ownership(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     try:
         row.ownership = vo.assert_ownership(data.get("ownership"))
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise Invalid(str(e))
 
 
 def _price(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -529,9 +509,8 @@ def _price(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
                 price = amount_of(raw.get("price"), row.currency, allow_negative=True)
                 # **Was das Modul vorgibt, ändert man am Modul** (wie ``_reject_fixed``).
                 if found.article_id in fixed and price != fixed[found.article_id]:
-                    raise HTTPException(status_code=400, detail=(
-                        "Dieser Preis ist im Modul vorgegeben – ändern lässt er sich dort, "
-                        "nicht am Beleg."))
+                    raise Invalid("Dieser Preis ist im Modul vorgegeben – ändern lässt er sich dort, "
+                        "nicht am Beleg.")
                 found.price = price
             if "part" in raw:
                 found.part = amount_of(raw.get("part"), row.currency)
@@ -539,13 +518,12 @@ def _price(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
                 try:
                     key = vo.assert_vat(raw.get("vat") or vo.DEFAULT_VAT)
                 except ValueError as e:
-                    raise HTTPException(status_code=400, detail=str(e))
+                    raise Invalid(str(e))
                 allowed = vo.vat_choices(service=kinds.get(found.article_id or 0, False),
                                          delivery_country=delivery, seat_country=seat)
                 if key not in allowed:
-                    raise HTTPException(status_code=400, detail=(
-                        f"«{vo.vat_label(key)}» gilt hier nicht – die Anschrift lässt "
-                        + ", ".join(vo.vat_label(k) for k in allowed) + " zu."))
+                    raise Invalid(f"«{vo.vat_label(key)}» gilt hier nicht – die Anschrift lässt "
+                        + ", ".join(vo.vat_label(k) for k in allowed) + " zu.")
                 found.vat = key
         if "text" in raw:
             found.text = _text(raw.get("text"), 300)
@@ -636,8 +614,7 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     if "link" in data:
         line.link = _text(data.get("link"), 500)
     if line.amount is None:
-        raise HTTPException(status_code=400,
-                            detail="Ohne Betrag ist es keine Offerte.")
+        raise Invalid("Ohne Betrag ist es keine Offerte.")
     _assert_terms(line.lead_days, line.payment_days)
     line.state = vo.QUOTED
     line.sent_on = line.sent_on or clock.today()
@@ -670,19 +647,14 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     flow = vo.of(row.direction)
     number = _party(db, step=step, value=data.get("party"), flow=flow)
     if number is None:
-        raise HTTPException(status_code=400,
-                            detail=f"Ohne {vo.PARTY} gibt es keine Zusage.")
+        raise Invalid(f"Ohne {vo.PARTY} gibt es keine Zusage.")
     line = next((q for q in quotes_of(db, row) if q.party_id == number), None)
     if line is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"{vo.PARTY} {number} ist hier nicht angefragt – zugesagt wird an "
-                    f"einer Zeile des Angebotsspiegels."))
+        raise Invalid(f"{vo.PARTY} {number} ist hier nicht angefragt – zugesagt wird an "
+                    f"einer Zeile des Angebotsspiegels.")
     if line.state == vo.DECLINED:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"{vo.PARTY} {number} hat abgesagt. Wer doch will, bekommt zuerst "
-                    f"wieder ein Angebot."))
+        raise Conflict(f"{vo.PARTY} {number} hat abgesagt. Wer doch will, bekommt zuerst "
+                    f"wieder ein Angebot.")
     if flow.quoted_by != vo.BY_US:
         if "amount" in data:
             line.amount = amount_of(data.get("amount"), row.currency)
@@ -691,8 +663,7 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         if "payment_days" in data:
             line.payment_days = _days("payment_days", data.get("payment_days"))
     if line.amount is None:
-        raise HTTPException(status_code=400,
-                            detail="Ohne Betrag gibt es keine Zusage.")
+        raise Invalid("Ohne Betrag gibt es keine Zusage.")
     _assert_terms(line.lead_days, line.payment_days)
     _assert_ownership_chosen(row)
     _freeze_units(db, row, order)
@@ -787,32 +758,27 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         priced = [ln for ln in priced_dicts(db, row)
                   if vo.line_net(ln, row.currency) != 0]
         if not priced:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"Ohne Preis gibt es nichts zu berechnen – bei einer "
-                        f"{flow.label} nennen wir ihn."))
+            raise Invalid(f"Ohne Preis gibt es nichts zu berechnen – bei einer "
+                        f"{flow.label} nennen wir ihn.")
         gross = vo.gross_of(priced, row.currency)
         split = vo.vat_split(priced, row.currency)
     else:
         given = amount_of(data.get("amount"), row.currency)
         gross = given if given is not None else agreed_amount(db, row)
         if gross is None:
-            raise HTTPException(status_code=400, detail="Ohne Betrag ist es keine Rechnung.")
+            raise Invalid("Ohne Betrag ist es keine Rechnung.")
         try:
             split = vo.split_at(gross, data.get("vat") or vo.DEFAULT_VAT, row.currency)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise Invalid(str(e))
         _record_original(db, row, data, split)
     if gross == 0:
-        raise HTTPException(status_code=400,
-                            detail="Eine Rechnung über null ist keine.")
+        raise Invalid("Eine Rechnung über null ist keine.")
     if flow.reference is not None and not row.number:
         number = _text(data.get("reference"), 120)
         if not number:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"Ohne {flow.reference} lässt sich diese Rechnung nicht "
-                        f"zuordnen – sie steht auf seinem Papier."))
+            raise Invalid(f"Ohne {flow.reference} lässt sich diese Rechnung nicht "
+                        f"zuordnen – sie steht auf seinem Papier.")
         row.number = number
     elif not row.number:
         row.number = _our_number(db, row)
@@ -842,9 +808,8 @@ def _record_original(db: Session, row: Voucher, data: dict[str, Any],
     taxed = any(Decimal(r.get("tax") or "0") != 0 for r in split)
     uid = _text(data.get("party_uid"), 40)
     if taxed and not uid:
-        raise HTTPException(status_code=400, detail=(
-            "Ohne MWST-Nummer des Lieferanten gibt es keinen Vorsteuerabzug "
-            "(MWSTG Art. 28) – sie steht auf seiner Rechnung."))
+        raise Invalid("Ohne MWST-Nummer des Lieferanten gibt es keinen Vorsteuerabzug "
+            "(MWSTG Art. 28) – sie steht auf seiner Rechnung.")
     row.party_uid = uid
 
 
@@ -854,8 +819,7 @@ def _accept(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     bleibt als Zeile stehen; jetzt wird bezahlt."""
     note = _text(data.get("note"), 200)
     if not note:
-        raise HTTPException(status_code=400, detail=(
-            "Eine Abweichung nimmt man mit Grund an – er bleibt als Nachweis stehen."))
+        raise Invalid("Eine Abweichung nimmt man mit Grund an – er bleibt als Nachweis stehen.")
     row.deviation_note = note
 
 
@@ -886,7 +850,7 @@ def _assert_correction(db: Session, row: Voucher, target: Optional[Voucher]) -> 
     """Das Tor zu ``correction_problem`` – derselbe Satz, nur geworfen."""
     problem = correction_problem(db, row, target)
     if problem:
-        raise HTTPException(status_code=400, detail=problem)
+        raise Invalid(problem)
 
 
 def _correct(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -931,7 +895,7 @@ def _method(row: Voucher, value: Any) -> Optional[str]:
     try:
         return vo.assert_method(value, card=not inbound(row))
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise Invalid(str(e))
 
 
 def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
@@ -941,13 +905,12 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     given = amount_of(data.get("amount"), row.currency)
     value = given if given is not None else balance_of(db, row).next_payment
     if value is None or value <= 0:
-        raise HTTPException(status_code=400, detail="Ohne Betrag keine Zahlung.")
+        raise Invalid("Ohne Betrag keine Zahlung.")
     method = _method(row, data.get("method"))
     # **Eine Erstattung per Überweisung braucht das Konto, wohin** – es kommt über den
     # gewöhnlichen Verlauf und wird hier eingetragen (keine Anfrage, kein Formular).
     if minus(row) and method == vo.TRANSFER and not _iban(data.get("iban")):
-        raise HTTPException(status_code=400, detail=(
-            "Zuerst die IBAN eintragen – wohin die Erstattung geht."))
+        raise Invalid("Zuerst die IBAN eintragen – wohin die Erstattung geht.")
     _entry(db, row, amount=value, data=data, method=method)
 
 
@@ -959,12 +922,11 @@ def _refund(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     given = amount_of(data.get("amount"), row.currency)
     value = given if given is not None else owed
     if value is None or value <= 0:
-        raise HTTPException(status_code=400, detail="Hier ist nichts zu erstatten.")
+        raise Invalid("Hier ist nichts zu erstatten.")
     method = _method(row, data.get("method"))
     if method == vo.TRANSFER and not _iban(data.get("iban")):
-        raise HTTPException(status_code=400, detail=(
-            "Eine Überweisung braucht die IBAN – sie kommt über den gewöhnlichen Verlauf "
-            "und wird hier eingetragen."))
+        raise Invalid("Eine Überweisung braucht die IBAN – sie kommt über den gewöhnlichen Verlauf "
+            "und wird hier eingetragen.")
     _entry(db, row, amount=-value, data=data, method=method)
 
 
@@ -975,7 +937,7 @@ def _writeoff(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     try:
         reason = vo.assert_reason(data.get("reason"))
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise Invalid(str(e))
     _entry(db, row, amount=balance_of(db, row).open, kind=vo.WRITEOFF, data=data,
            reason=reason)
 
@@ -994,9 +956,8 @@ def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     wanted = _int(data.get("entry"))
     found = next((e for e in reversible(db, row) if e.id == wanted), None)
     if found is None:
-        raise HTTPException(status_code=409, detail=(
-            "Diese Zeile lässt sich nicht gegenbuchen – sie ist schon gegengebucht, ist "
-            "selbst eine Gegenbuchung oder kam vom Zahlungsdienst."))
+        raise Conflict("Diese Zeile lässt sich nicht gegenbuchen – sie ist schon gegengebucht, ist "
+            "selbst eine Gegenbuchung oder kam vom Zahlungsdienst.")
     _entry(db, row, amount=-found.amount, kind=found.kind, method=found.method,
            reason=found.reason, reverses=found.id,
            data={"note": vo.REVERSE_WORD.rstrip("?")})
@@ -1009,7 +970,7 @@ def _remind(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     from . import voucher_docs
     step_no, _when = next_reminder(db, row) or (None, None)
     if step_no is None:
-        raise HTTPException(status_code=409, detail="Hier ist keine Mahnung fällig.")
+        raise Conflict("Hier ist keine Mahnung fällig.")
     voucher_docs.issue(db, row=row, kind=vo.REMINDER_DOC, actor=actor, level=step_no)
 
 
@@ -1022,7 +983,7 @@ def _export(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
                "Dokument dazu.")
     number = _text(data.get("reference"), 60)
     if not number:
-        raise HTTPException(status_code=400, detail=message)
+        raise Invalid(message)
     _module_document(db, row, data, "voucher.export", message)
     row.export_number = number
 
@@ -1033,8 +994,7 @@ def _release(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     from . import voucher_docs
     kind = _text(data.get("kind"), 16)
     if kind not in papers_due(db, row):
-        raise HTTPException(status_code=409, detail=(
-            f"«{vo.DOCUMENTS.get(kind or '', kind or '–')}» steht hier nicht an."))
+        raise Conflict(f"«{vo.DOCUMENTS.get(kind or '', kind or '–')}» steht hier nicht an.")
     voucher_docs.issue(db, row=row, kind=kind, actor=actor)
 
 
@@ -1055,7 +1015,7 @@ def _module_document(db: Session, row: Voucher, data: dict[str, Any], field: str
                                      Document.deleted_at.is_(None)).first()
            if chosen is not None else None)
     if doc is None:
-        raise HTTPException(status_code=400, detail=message)
+        raise Invalid(message)
     documents.set_field(db, document_object_id=doc.object_id, object_id=order.object_id,
                         part=part, field=field, actor=None)
     return doc.object_id
@@ -1063,14 +1023,14 @@ def _module_document(db: Session, row: Voucher, data: dict[str, Any], field: str
 
 def _weight(value: Any) -> Optional[Decimal]:
     """Ein Gewicht in kg – oder ``None``. Nie negativ."""
-    if value in (None, ""):
-        return None
     try:
-        found = Decimal(str(value).strip().replace("'", "").replace(",", "."))
-    except Exception:
-        raise HTTPException(status_code=400, detail=f"«{value}» ist kein Gewicht.")
+        found = number.decimal(value)
+    except ValueError:
+        raise Invalid(f"«{value}» ist kein Gewicht.")
+    if found is None:
+        return None
     if found < 0 or found > Decimal("999999"):
-        raise HTTPException(status_code=400, detail=f"«{value}» ist kein Gewicht.")
+        raise Invalid(f"«{value}» ist kein Gewicht.")
     return found.quantize(Decimal("0.001"))
 
 
@@ -1080,7 +1040,7 @@ def _iban(value: Any) -> Optional[str]:
     if not text:
         return None
     if not (15 <= len(text) <= 34 and text[:2].isalpha() and text[2:4].isdigit()):
-        raise HTTPException(status_code=400, detail=f"«{value}» ist keine IBAN.")
+        raise Invalid(f"«{value}» ist keine IBAN.")
     return text
 
 
@@ -1136,7 +1096,7 @@ def _target(db: Session, row: Voucher, data: dict[str, Any],
     Benutzer, nie aus der Nutzlast: sonst entschiede die Nutzlast, wessen Preis geändert
     wird. Personal nennt die Partei.
     """
-    internal = actor is None or actor.role in STAFF_ROLES
+    internal = policy.inside(actor)
     number = _int(data.get("party")) if internal else (
         actor.object_id if actor else None)
     rows = quotes_of(db, row)
@@ -1145,9 +1105,7 @@ def _target(db: Session, row: Voucher, data: dict[str, Any],
         return rows[0]
     found = next((q for q in rows if q.party_id == number), None)
     if found is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"{vo.PARTY} {number} ist an diesem Beleg nicht angefragt.")
+        raise NotFound(f"{vo.PARTY} {number} ist an diesem Beleg nicht angefragt.")
     return found
 
 
@@ -1165,23 +1123,18 @@ def _party(db: Session, *, step: ProcessStep, value: Any,
         return None
     number = _int(value)
     if number is None:
-        raise HTTPException(status_code=400,
-                            detail=f"«{value}» ist keine Objektnummer.")
+        raise Invalid(f"«{value}» ist keine Objektnummer.")
     allowed = modules.Beleg.parties_allowed(step.config)
     if allowed and number not in allowed:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"{vo.PARTY} {number} ist an diesem Modul nicht zugelassen. Erlaubt: "
-                    + ", ".join(str(n) for n in allowed) + "."))
+        raise Invalid(f"{vo.PARTY} {number} ist an diesem Modul nicht zugelassen. Erlaubt: "
+                    + ", ".join(str(n) for n in allowed) + ".")
     found = (
         db.query(UserProfile)
         .filter(UserProfile.object_id == number)
         .first()
     )
     if found is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"{number} ist kein Datensatz, mit dem man handeln kann.")
+        raise Invalid(f"{number} ist kein Datensatz, mit dem man handeln kann.")
     return number
 
 
@@ -1202,7 +1155,7 @@ def amount_of(value: Any, code: str, *, allow_negative: bool = False) -> Optiona
     try:
         return vo.amount(value, code, allow_negative=allow_negative)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise Invalid(str(e))
 
 
 def _days(key: str, value: Any) -> Optional[int]:
@@ -1210,7 +1163,7 @@ def _days(key: str, value: Any) -> Optional[int]:
     try:
         return vo.assert_days(key, value)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise Invalid(str(e))
 
 
 def ask_problem(db: Session, row: Voucher, step: ProcessStep,
@@ -1274,7 +1227,7 @@ def _assert_ask(db: Session, row: Voucher, step: ProcessStep,
     """Das Tor zu ``ask_problem`` – **derselbe Satz**, nur geworfen."""
     problem = ask_problem(db, row, step, parties=parties)
     if problem:
-        raise HTTPException(status_code=400, detail=problem)
+        raise Invalid(problem)
 
 
 def terms_problem(lead: Optional[int], days: Optional[int]) -> Optional[str]:
@@ -1298,7 +1251,7 @@ def _assert_terms(lead: Optional[int], days: Optional[int]) -> None:
     """Das Tor zu ``terms_problem`` – derselbe Satz, nur geworfen."""
     problem = terms_problem(lead, days)
     if problem:
-        raise HTTPException(status_code=400, detail=problem)
+        raise Invalid(problem)
 
 
 def _day(value: Any) -> Optional[date]:
@@ -1309,14 +1262,13 @@ def _day(value: Any) -> Optional[date]:
     try:
         return date.fromisoformat(str(value)[:10])
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"«{value}» ist kein Datum.")
+        raise Invalid(f"«{value}» ist kein Datum.")
 
 
 def _text(value: Any, limit: int) -> Optional[str]:
     found = str(value or "").strip()
     if len(found) > limit:
-        raise HTTPException(status_code=400,
-                            detail=f"Der Text ist zu lang (max. {limit} Zeichen).")
+        raise Invalid(f"Der Text ist zu lang (max. {limit} Zeichen).")
     return found or None
 
 

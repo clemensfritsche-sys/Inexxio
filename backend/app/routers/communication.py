@@ -3,7 +3,7 @@
 from typing import Optional
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from ..schemas.communication import (ChannelOut, MailboxOut, MessageIn, MessageO
                                      SyncOut)
 from ..services import communication as svc
 from ..services import mailbox
+from ..domain.errors import NotFound
 
 router = APIRouter(prefix="/api/v1/erp/messages", tags=["communication"])
 #: Die Rückkehr von Google – ohne Anmeldung (der Browser kommt von accounts.google.com);
@@ -86,7 +87,7 @@ def attachment(message_id: int, index: int, db: Session = DB,
     from ..models import Message
     msg = db.query(Message).filter(Message.id == message_id, Message.is_active.is_(True)).first()
     if msg is None:
-        raise HTTPException(404, detail="Diese Nachricht gibt es nicht.")
+        raise NotFound("Diese Nachricht gibt es nicht.")
     raw, mime, name = mailbox.attachment(db, msg, index)
     db.flush()
     return Response(content=raw, media_type=mime, headers={

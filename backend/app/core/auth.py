@@ -12,7 +12,7 @@ from typing import Optional
 
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -21,7 +21,9 @@ from .config import get_settings
 from .database import DB
 from ..models import UserProfile
 from ..services import people
-from ..services.people import STAFF_ROLES
+from ..domain import policy
+from ..domain.policy import STAFF_ROLES
+from ..domain.errors import Forbidden, Unauthorized
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
@@ -91,8 +93,7 @@ def _resolve_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfi
     user = db.query(UserProfile).filter(UserProfile.firebase_uid == uid).first()
     if user is None:
         if not email or not _verified(decoded):
-            raise HTTPException(status.HTTP_403_FORBIDDEN,
-                                detail=UNVERIFIED.format(email=email or "ohne Adresse"))
+            raise Forbidden(UNVERIFIED.format(email=email or "ohne Adresse"))
         user = people.by_email(db, email)
         if user is not None:
             user.firebase_uid = uid
@@ -112,7 +113,7 @@ def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict
     einer Änderung. Befördert und umgestellt wird nur mit bestätigter Adresse."""
     changed = False
     verified = _verified(decoded)
-    if user.role != "admin" and verified and _is_initial_admin(email):
+    if not policy.is_admin(user) and verified and _is_initial_admin(email):
         user.role = "admin"
         changed = True
     # Die Anmelde-E-Mail ändert das Konto über einen Bestätigungslink an die NEUE Adresse
@@ -152,12 +153,12 @@ def get_current_user(
         act(db, "person", acting.object_id, "handgriff")
         return acting
     if not credentials_:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise Unauthorized("Nicht angemeldet.")
     try:
         decoded = _verify_firebase_token(credentials_.credentials)
     except Exception as e:
         print(f"WARNING: token verification failed: {e}", flush=True)   # nie in die Antwort
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise Unauthorized("Die Anmeldung ist abgelaufen oder ungültig – bitte neu anmelden.")
 
     uid = decoded["uid"]
     email = decoded.get("email", "")
@@ -177,7 +178,7 @@ get_current_user.log_actor = True       # der Wächter: diese Abhängigkeit setz
 def require_role(*roles: str):
     def checker(user: UserProfile = Depends(get_current_user)) -> UserProfile:
         if user.role not in roles:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+            raise Forbidden("Dafür fehlt Ihnen die Berechtigung.")
         return user
     return checker
 

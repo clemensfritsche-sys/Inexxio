@@ -103,7 +103,10 @@ app/
 │   ├── newsletter.py ← Quellen der Einwilligung, Gültigkeit der Bestätigung
 │   ├── timekeeping.py← Zeiterfassung: Absenzarten (je EINE Wirkung), Regeln CH (ArG/OR),
 │   │                   Hinweise, Reglement-Texte (ⓘ), append-only-Trigger
-│   └── uid.py        ← UID-Normalform und Prüfziffer (eCH-0097)
+│   ├── uid.py        ← UID-Normalform und Prüfziffer (eCH-0097)
+│   ├── policy.py     ← wer darf was: `RULES` (staff · admin · self), `may` ↔ `require`, Rollen
+│   ├── errors.py     ← jede Abweisung: Invalid · Forbidden · NotFound · Conflict · Gone · …
+│   └── number.py     ← eine Zahl aus einer Eingabe (1'234.50 · 1’234,50 · 1 234.50)
 ├── models/           ← SQLAlchemy 2.1 (je Entität eine Datei; Import über models/__init__)
 ├── schemas/          ← Pydantic v2 Request/Response
 ├── routers/          ← dünn; je Ressource eine Datei
@@ -178,8 +181,8 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET · PUT | `/api/v1/admin/territories` · `/{area}` | admin | Gebietskarte lesen / ein Gebiet zuweisen |
 | GET | `/api/v1/erp/objects/{object_id}` | staff | Was ist diese Objektnummer? (QR-Scan) |
 | GET · POST | `/api/v1/erp/records` | staff | Benutzer-Feed / Person anlegen (Personal-Rollen nur Admin) |
-| GET · PATCH | `/api/v1/erp/records/{object_id}` | staff · admin | Benutzer lesen (staff) / ändern (admin) |
-| POST · PATCH · DELETE | `/api/v1/erp/records/{object_id}/addresses` · `/{address_id}` | admin | Adressbuch einer Person |
+| GET · PATCH | `/api/v1/erp/records/{object_id}` | staff | Person lesen / ändern – Kunden jedes Personal, Rollen und Mitarbeitende nur der Admin (`policy`, `may_edit`) |
+| POST · PATCH · DELETE | `/api/v1/erp/records/{object_id}/addresses` · `/{address_id}` | staff | Adressbuch einer Person (dieselbe Regel) |
 | GET | `/api/v1/erp/people` | staff | **Personensuche** (`people.search`: Nummer, Firma, Name, E-Mail; `staff=true` nur Personal) |
 | GET | `/api/v1/erp/companies` | staff | Firmen-Vorschläge (Nummer, Name, UID) |
 | GET · POST | `/api/v1/erp/articles` | staff | Artikel-Feed / anlegen = freigeben (`replaces_object_id` löst einen Vorgänger ab) |
@@ -309,7 +312,12 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
   (`hold` · `let_go`) – Takt und Aufnahmen.
 - UTC-Timestamps; Pydantic v2 (`model_validate`, `model_dump`,
   `ConfigDict(from_attributes=True)`); SQLAlchemy 2.1 (`Mapped[T]`, `mapped_column`).
-- Fehler: `HTTPException(status_code=…, detail="…")` mit einem Satz, der die Sache nennt.
+- **Fehler**: `raise NotFound("…")`, `Invalid(…)`, `Conflict(…)` … aus `domain/errors` (eigener
+  Code: `Conflict("…", code="pick_stale")`); EIN Übersetzer `main.rejected_handler` →
+  `{detail, code, field?}`. Kein `HTTPException` ausserhalb von `main.py` (`tests/test_errors.py`).
+- **Rechte**: `policy.require(actor, "time.contract")` (Tor) · `policy.may(…)` (Auskunft) –
+  die Regeln in `domain/policy.RULES`; `policy.is_staff` · `is_admin` · `inside` (System oder
+  Personal). Kein Rollenvergleich daneben (`tests/test_policy.py`).
 - **Gespeichert wird am Ende der Anfrage** (`core/database.get_db` über `DB` =
   `Depends(get_db, scope="function")`: ohne Fehler `commit`, sonst `rollback`, vor der Antwort).
   Kein Router und kein Dienst einer Anfrage ruft `commit` – `flush` genügt für eine Nummer;
@@ -327,7 +335,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 - **Pydantic verwirft unbekannte Felder still** – ein neues Feld gehört in Request-Schema
   **und** Dienst; ein Feld, das die Oberfläche nicht anbietet, verwirft der Dienst
   ausdrücklich.
-- Personal-Prüfung nur über `people.STAFF_ROLES` (auch in `require_employee`).
+- Personal-Prüfung nur über `domain/policy` (`STAFF_ROLES` auch in `require_employee`).
 
 ## Env-Variablen
 `/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,

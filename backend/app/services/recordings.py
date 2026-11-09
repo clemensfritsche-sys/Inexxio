@@ -33,7 +33,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import func, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -42,6 +41,8 @@ from ..core import locks
 from ..models import RecordingChunk, UserProfile
 from ..schemas.recordings import Recording
 from . import ai, attachments, log, records, talk
+from ..domain.errors import Conflict, Forbidden, Invalid, NotFound, Rejected, TooLarge
+from ..domain import policy
 
 #: Ein Stück ist höchstens so gross (30 s Opus mit 24 kbit/s sind ~90 KB).
 MAX_CHUNK = 4 * 1024 * 1024
@@ -140,7 +141,7 @@ def load(db: Session, rec_id: int) -> Rec:
     r = db.execute(text("SELECT id, at, object_id, actor_id, payload FROM log "
                         "WHERE id = :i AND event = 'recording.start'"), {"i": rec_id}).first()
     if r is None:
-        raise HTTPException(404, detail=f"Aufnahme «{rec_id}» gibt es nicht.")
+        raise NotFound(f"Aufnahme «{rec_id}» gibt es nicht.")
     p = r.payload or {}
     rec = Rec(id=r.id, at=r.at, object_id=r.object_id, actor_id=r.actor_id, hint=p.get("hint"),
               mime=str(p.get("mime") or ""), context=str(p.get("context") or ""),
@@ -167,14 +168,14 @@ def load(db: Session, rec_id: int) -> Rec:
 
 
 def _may(rec: Rec, viewer: UserProfile) -> bool:
-    return viewer.role == "admin" or (rec.actor_id is not None and rec.actor_id == viewer.object_id)
+    return policy.may(viewer, "private", rec.actor_id)
 
 
 def get(db: Session, rec_id: int, viewer: UserProfile) -> Rec:
     """Die Aufnahme, wenn ``viewer`` sie sehen darf – sonst gibt es sie für ihn nicht (404)."""
     rec = load(db, rec_id)
     if not _may(rec, viewer):
-        raise HTTPException(404, detail=f"Aufnahme «{rec_id}» gibt es nicht.")
+        raise NotFound(f"Aufnahme «{rec_id}» gibt es nicht.")
     return rec
 
 
@@ -182,7 +183,7 @@ def _own(db: Session, rec_id: int, actor: UserProfile) -> Rec:
     """Stücke und Stopp schickt nur, wer aufnimmt – auch ein Admin nicht für andere."""
     rec = get(db, rec_id, actor)
     if rec.actor_id != actor.object_id:
-        raise HTTPException(403, detail=f"Aufnahme «{rec_id}» nimmt jemand anderes auf.")
+        raise Forbidden(f"Aufnahme «{rec_id}» nimmt jemand anderes auf.")
     return rec
 
 
@@ -201,7 +202,7 @@ def view(db: Session, rec: Rec, viewer: UserProfile, *, problem: Optional[str] =
     if rec.end is not None:
         problem = rec.end[1].get("problem") or problem
         tid = rec.end[1].get("talk")
-        if tid and (viewer.role == "admin" or rec.actor_id == viewer.object_id):
+        if tid and _may(rec, viewer):
             found = talk.view(db, int(tid))
     return Recording(id=rec.id, at=rec.at, hint_object_id=rec.hint, mime=rec.mime, state=state,
                      segments=rec.segments, transcribed=len(rec.texts),
@@ -239,9 +240,9 @@ def start(db: Session, hint: Optional[int], mime: str, actor: UserProfile,
     das offene Gespräch, in das der Text geht (wie getippt). ◄◄"""
     mime = (mime or "").strip()
     if not mime.lower().startswith("audio/"):
-        raise HTTPException(400, detail=f"«{mime[:60]}» ist keine Tonaufnahme.")
+        raise Invalid(f"«{mime[:60]}» ist keine Tonaufnahme.")
     if hint is not None and records.labels(db, [hint]).get(hint) is None:
-        raise HTTPException(400, detail=f"Datensatz «{hint}» gibt es nicht.")
+        raise Invalid(f"Datensatz «{hint}» gibt es nicht.")
     payload: dict[str, Any] = {"hint": hint, "mime": mime}
     if in_talk is not None:
         talk.assert_may(db, in_talk, actor)
@@ -258,7 +259,7 @@ def dismiss(db: Session, rec_id: int, actor: UserProfile) -> Rec:
     eine Nachricht im Gespräch); zweimal ist einmal. ◄◄"""
     rec = get(db, rec_id, actor)
     if state_of(rec) != "failed":
-        raise HTTPException(409, detail=f"Aufnahme «{rec_id}» ist nicht gescheitert – verwerfen geht "
+        raise Conflict(f"Aufnahme «{rec_id}» ist nicht gescheitert – verwerfen geht "
                                         "nur dort.")
     gone = db.execute(text("SELECT 1 FROM log WHERE event = 'recording.dismissed' "
                            "AND (payload ->> 'recording')::bigint = :i"), {"i": rec_id}).first()
@@ -270,7 +271,7 @@ def dismiss(db: Session, rec_id: int, actor: UserProfile) -> Rec:
 def _open_for_more(rec: Rec) -> None:
     if rec.end is not None:
         word = "fertig" if rec.end[0] == "recording.done" else "aufgegeben"
-        raise HTTPException(409, detail=f"Aufnahme «{rec.id}» ist schon {word}.")
+        raise Conflict(f"Aufnahme «{rec.id}» ist schon {word}.")
 
 
 def object_name(rec_id: int, segment: int, seq: int) -> str:
@@ -284,15 +285,15 @@ def add_chunk(db: Session, rec_id: int, segment: int, seq: int, raw: bytes,
     rec = _own(db, rec_id, actor)
     _open_for_more(rec)
     if not raw:
-        raise HTTPException(400, detail=f"Stück {segment}-{seq} der Aufnahme «{rec_id}» ist leer.")
+        raise Invalid(f"Stück {segment}-{seq} der Aufnahme «{rec_id}» ist leer.")
     if len(raw) > MAX_CHUNK:
-        raise HTTPException(413, detail=f"Stück {segment}-{seq} der Aufnahme «{rec_id}» ist "
+        raise TooLarge(f"Stück {segment}-{seq} der Aufnahme «{rec_id}» ist "
                                         f"grösser als 4 MB.")
     if not (0 <= segment < MAX_SEGMENTS and 0 <= seq < MAX_SEQ):
-        raise HTTPException(400, detail=f"Stück {segment}-{seq} passt nicht in eine Aufnahme "
+        raise Invalid(f"Stück {segment}-{seq} passt nicht in eine Aufnahme "
                                         f"(höchstens {MAX_SEGMENTS} Abschnitte à {MAX_SEQ} Stücke).")
     if segment in rec.texts:
-        raise HTTPException(409, detail=f"Abschnitt {segment} der Aufnahme «{rec_id}» ist schon "
+        raise Conflict(f"Abschnitt {segment} der Aufnahme «{rec_id}» ist schon "
                                         f"abgeschrieben.")
     in_bucket = attachments.put_object(object_name(rec_id, segment, seq), raw, ai.audio_type(rec.mime))
     row = {"recording": rec_id, "segment": segment, "seq": seq, "byte_size": len(raw),
@@ -313,7 +314,7 @@ def stop(db: Session, rec_id: int, segments: int, actor: UserProfile) -> Rec:
     if rec.end is not None or rec.stop is not None:
         return rec
     if not 0 <= segments <= MAX_SEGMENTS:
-        raise HTTPException(400, detail=f"Aufnahme «{rec_id}» kann nicht {segments} Abschnitte haben.")
+        raise Invalid(f"Aufnahme «{rec_id}» kann nicht {segments} Abschnitte haben.")
     log.event(db, "recording.stop", rec.object_id, {"recording": rec_id, "segments": segments})
     return load(db, rec_id)
 
@@ -364,7 +365,7 @@ def _transcribe(db: Session, rec: Rec, segment: int, person: UserProfile) -> Opt
     except _Skip as skip:
         _segment(db, rec, segment, {"text": "", "skipped": str(skip)})
         return None
-    except HTTPException as exc:
+    except Rejected as exc:
         return str(exc.detail)
     spoken = ai.transcribe(db, raw, rec.mime, actor=person, seconds=rec.seconds_of(segment))
     if spoken is not None:

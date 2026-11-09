@@ -9,12 +9,12 @@ Freigeben eines Auftrags, und ausschliesslich für Definitionszeilen mit der Her
 (``services/release.release``).
 """
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Article, InstanceUnit
 from ..models.instance import KINDS
 from .instances import create_instances
+from ..domain.errors import Failed, Invalid, rejected
 
 #: Serialisierung des Artikels → wie die Menge auf Datensätze fällt.
 #:
@@ -42,19 +42,11 @@ def plan(serialization: str, quantity: int) -> tuple[int, int]:
     die Invariante, die ``assert_quantity`` gleich darauf prüft.
     """
     if serialization not in _KIND:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Unbekannte Serialisierung «{serialization}» – erlaubt sind "
+        raise Invalid(f"Unbekannte Serialisierung «{serialization}» – erlaubt sind "
                 f"{', '.join(_KIND)}. Ohne sie ist nicht entscheidbar, wie viele "
-                f"Instanzen entstehen."
-            ),
-        )
+                f"Instanzen entstehen.")
     if quantity < 1:
-        raise HTTPException(
-            status_code=400,
-            detail="Die Menge muss mindestens 1 sein – eine Zeile ohne Stück erzeugt nichts.",
-        )
+        raise Invalid("Die Menge muss mindestens 1 sein – eine Zeile ohne Stück erzeugt nichts.")
     if serialization == BATCH:
         return 1, quantity
     return quantity, 1
@@ -63,12 +55,10 @@ def plan(serialization: str, quantity: int) -> tuple[int, int]:
 def kind_for(serialization: str) -> str:
     """``Instance.kind`` zur Serialisierung des Artikels."""
     if serialization not in _KIND:
-        raise HTTPException(
-            status_code=400, detail=f"Unbekannte Serialisierung «{serialization}».",
-        )
+        raise Invalid(f"Unbekannte Serialisierung «{serialization}».")
     kind = _KIND[serialization]
     if kind not in KINDS:  # pragma: no cover – hält die beiden Vokabulare zusammen
-        raise HTTPException(status_code=500, detail=f"Instanz-Typ «{kind}» gibt es nicht.")
+        raise Failed(f"Instanz-Typ «{kind}» gibt es nicht.")
     return kind
 
 
@@ -118,10 +108,5 @@ def assert_quantity(counts: list[tuple[int, int, str]], *, code: int) -> None:
     """
     for want, got, label in counts:
         if want != got:
-            raise HTTPException(
-                status_code=code,
-                detail=(
-                    f"{label}: verlangt sind {want} Einzelinstanzen, es sind {got}. "
-                    f"Die Freigabe wird abgebrochen."
-                ),
-            )
+            raise rejected(code, f"{label}: verlangt sind {want} Einzelinstanzen, es sind {got}. "
+                    f"Die Freigabe wird abgebrochen.")

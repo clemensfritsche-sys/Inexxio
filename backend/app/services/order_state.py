@@ -9,7 +9,6 @@ und dem Ereignis-Log, nichts gespeichert. Geschrieben wird in ``services/process
 from datetime import datetime
 from typing import Any, Iterable, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -25,6 +24,7 @@ from . import (
     sampling,
 )
 from .instances import unit_numbers
+from ..domain.errors import Invalid, NotFound
 
 #: Wie viele Werte höchstens in eine ``IN``-Liste kommen.
 _CHUNK = 1000
@@ -209,9 +209,7 @@ def held_numbers(db: Session, order: Order, step: ProcessStep, *,
         db.query(Instance).filter(Instance.object_id == instance_object_id).first()
     )
     if instance is None:
-        raise HTTPException(
-            status_code=404, detail=f"Instanz {instance_object_id} gibt es nicht.",
-        )
+        raise NotFound(f"Instanz {instance_object_id} gibt es nicht.")
     waiting = _units_at(db, order, step.id, instance_id=instance.id)
     units = [u for _, u in waiting]
     if group == "failed":
@@ -222,10 +220,7 @@ def held_numbers(db: Session, order: Order, step: ProcessStep, *,
         drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
         chosen = [u for u in units if u.id in drawn]
     else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"«{group}» ist keine Gruppe – erlaubt: sample, failed.",
-        )
+        raise Invalid(f"«{group}» ist keine Gruppe – erlaubt: sample, failed.")
     numbers = unit_numbers(db, chosen)
     return [numbers[u.id] for u in chosen]
 

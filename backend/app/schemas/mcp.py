@@ -9,6 +9,8 @@ class AskOut(BaseModel):
     """Welcher Claude-Client verbunden werden will – und wohin er zurückkehrt."""
     client: str
     host: str
+    #: Die volle Adresse, an die der Code geht – die Person sieht, wohin sie ihn gibt.
+    redirect: str
 
 
 class ApproveIn(BaseModel):

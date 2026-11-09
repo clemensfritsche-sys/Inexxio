@@ -17,7 +17,7 @@ Stellen gemacht, von denen man die dritte vergisst.
 
 from typing import Any, Optional
 
-from fastapi import HTTPException
+from ..errors import Invalid
 
 
 class CaptureType:
@@ -58,7 +58,7 @@ class CaptureType:
         return None
 
 
-def bad(detail: str) -> HTTPException:
+def bad(detail: str) -> Invalid:
     """Ein Definitionsfehler. Immer mit Grund – ein Typ, der stumm scheitert, ist schlimmer
     als keiner."""
-    return HTTPException(status_code=400, detail=detail)
+    return Invalid(detail)

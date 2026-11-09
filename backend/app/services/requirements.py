@@ -20,7 +20,8 @@ from sqlalchemy.orm import Session
 
 from ..domain import voucher as vo
 from ..models import Order, UserProfile, Voucher
-from . import access, documents, people, records, timekeeping
+from . import documents, records, timekeeping
+from ..domain import policy
 
 
 @dataclass(frozen=True)
@@ -126,7 +127,7 @@ def of_vouchers(db: Session) -> list[Requirement]:
 def _proofs(db: Session, viewer: UserProfile) -> list[Requirement]:
     from ..domain import timekeeping as tk
     out: list[Requirement] = []
-    persons = db.query(UserProfile).filter(UserProfile.role.in_(people.STAFF_ROLES)).all()
+    persons = db.query(UserProfile).filter(UserProfile.role.in_(policy.STAFF_ROLES)).all()
     today = timekeeping.local(timekeeping.now_utc()).date()
     for person in persons:
         if not timekeeping.may_see(viewer, person):
@@ -150,6 +151,6 @@ def _proofs(db: Session, viewer: UserProfile) -> list[Requirement]:
 def open_for(db: Session, viewer: UserProfile) -> list[Requirement]:
     """►►► **Alle offenen Anforderungen, die ``viewer`` sehen darf.** ◄◄◄ Die Zeiterfassung
     nur der Person selbst und dem Admin – dieselbe Regel wie überall (``access``)."""
-    if not access.is_staff(viewer):
+    if not policy.is_staff(viewer):
         return []
     return of_vouchers(db) + _proofs(db, viewer)

@@ -129,7 +129,7 @@ def test_material_elsewhere_is_reported_and_refused():
     milderer Riegel wäre eine Zeile, die «0 hier» meldet, und ein Modul, das trotzdem
     verbaut.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.models import InstanceUnit
     from app.services import places
 
@@ -153,9 +153,9 @@ def test_material_elsewhere_is_reported_and_refused():
         )
 
         row = w.work(order, step)[0]
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(Rejected) as exc:
             w.confirm(order, step, instance=row["instance_object_id"])
-        assert exc.value.status_code == 409
+        assert exc.value.status == 409
         assert "Werkbank 5" in str(exc.value.detail), (
             "Der Grund gehört in die Meldung: «0 verfügbar» ist wahr und nutzlos, wenn "
             "zehn im Regal liegen und nur der Ort nicht stimmt."
@@ -382,7 +382,7 @@ def test_a_carrier_cycle_is_refused():
     dieselbe Objektnummer, und ein Vergleich über sie hielte ein Stück für sein eigenes
     Regal.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import instances as inst_svc, places
 
     w = _w()
@@ -391,9 +391,9 @@ def test_a_carrier_cycle_is_refused():
         a, b = (inst_svc.find_unit(w.db, n) for n in numbers)
         places.place_in(w.db, units=[a], carrier=b)
         w.db.flush()
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(Rejected) as exc:
             places.place_in(w.db, units=[b], carrier=a)
-        assert exc.value.status_code == 400
+        assert exc.value.status == 400
         assert "Kreis" in str(exc.value.detail)
     finally:
         w.db.rollback()

@@ -9,7 +9,6 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -32,6 +31,7 @@ from .order_state import (
     _chunks, _latest_captures, _order_number, _units_at, order_status, pending_returns,
     steps_of,
 )
+from ..domain.errors import Conflict, Failed, Invalid, NotFound
 
 #: Wie die Instanz vor der Eingabe verifiziert wurde – Scan oder Tastatur, beides ist eine
 #: Bestätigung und steht im Log.
@@ -54,16 +54,11 @@ def _assert_not_terminal(db: Session, units: list[InstanceUnit], status_after: s
     if not stuck:
         return
     first = stuck[0]
-    raise HTTPException(
-        status_code=409,
-        detail=(
-            f"Einzelinstanz {number_of(db, first)} ist «{st.label(first.status)}» – das ist "
+    raise Conflict(f"Einzelinstanz {number_of(db, first)} ist «{st.label(first.status)}» – das ist "
             f"ein Endzustand. Er wird nicht überschrieben"
             + (f" (versucht: «{st.label(status_after)}»)" if status_after else "")
             + (f"; betroffen sind {len(stuck)} Stücke" if len(stuck) > 1 else "")
-            + ". Was passiert ist, ist passiert."
-        ),
-    )
+            + ". Was passiert ist, ist passiert.")
 
 
 def _pass(
@@ -159,11 +154,8 @@ def _join(db: Session, rows: list[dict[str, Any]]) -> list[int]:
         found = re.search(r"\(instance_unit_id\)=\((\d+)\)", str(exc.orig))
         unit = db.get(InstanceUnit, int(found.group(1))) if found else None
         name = f"Einzelinstanz {number_of(db, unit)}" if unit else "Eine Einzelinstanz"
-        raise HTTPException(
-            status_code=409,
-            detail=(f"{name} läuft inzwischen in einem anderen Auftrag – die Auswahl ist "
-                    f"veraltet. Bitte prüfen und erneut freigeben."),
-        ) from None
+        raise Conflict(f"{name} läuft inzwischen in einem anderen Auftrag – die Auswahl ist "
+                    f"veraltet. Bitte prüfen und erneut freigeben.") from None
     return [int(i) for (i,) in db.query(OrderUnit.id).filter(
         OrderUnit.order_id == rows[0]["order_id"],
         OrderUnit.instance_unit_id.in_([r["instance_unit_id"] for r in rows]),
@@ -210,23 +202,15 @@ def _verified_instance(db: Session, *, order: Order, step: ProcessStep,
     if not module.requires_verification:
         return None
     if verification not in VERIFICATIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"«{modules.label(step.module_type)}» verlangt, dass die Instanz vor der "
+        raise Invalid(f"«{modules.label(step.module_type)}» verlangt, dass die Instanz vor der "
                 f"Eingabe bestätigt wird – gescannt oder von Hand eingegeben. Ohne diese "
-                f"Angabe steht nicht fest, an welchem Ding gearbeitet wurde."
-            ),
-        )
+                f"Angabe steht nicht fest, an welchem Ding gearbeitet wurde.")
     instance = (
         db.query(Instance).filter(Instance.object_id == instance_object_id).first()
         if instance_object_id else None
     )
     if instance is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Instanz {instance_object_id} gibt es nicht – es wurde nichts erfasst.",
-        )
+        raise NotFound(f"Instanz {instance_object_id} gibt es nicht – es wurde nichts erfasst.")
     return instance
 
 
@@ -238,7 +222,7 @@ def step_of(db: Session, order: Order, step_id: int) -> ProcessStep:
         .first()
     )
     if step is None:
-        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+        raise NotFound("Diesen Prozessschritt gibt es nicht.")
     return step
 
 
@@ -291,11 +275,8 @@ def _ready_at(db: Session, *, order: Order, step: ProcessStep, auto: bool,
     """**Darf hier jetzt bestätigt werden – und woran?** Die Stücke, die davorstehen."""
     current = order_status(db, order)
     if current != st.IM_PROZESS:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"Der Auftrag ist «{st.label(current)}» – "
-                    f"es gibt nichts mehr zu bestätigen."),
-        )
+        raise Conflict(f"Der Auftrag ist «{st.label(current)}» – "
+                    f"es gibt nichts mehr zu bestätigen.")
     # **Ein Zahlungsmodul bestätigt niemand von Hand** (``advance_payments`` ruft mit ``auto``).
     voucher_svc.assert_completable(db, step=step, auto=auto)
     instance = _verified_instance(
@@ -305,34 +286,21 @@ def _ready_at(db: Session, *, order: Order, step: ProcessStep, auto: bool,
     # ►► **Die Sperre der Rückführung — hier und nur hier.** ◄◄ Ein neuer Modultyp erbt sie.
     blocked = pending_returns(db, order).get(step.id)
     if blocked:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"«{modules.label(step.module_type)}» wartet auf die Rückführung aus "
+        raise Conflict(f"«{modules.label(step.module_type)}» wartet auf die Rückführung aus "
                 + ("Auftrag " if len(blocked) == 1 else "den Aufträgen ")
                 + ", ".join(str(n) for n in blocked)
                 + ". Solange dort etwas offen ist, gehört es zu dem, was hier bearbeitet "
-                  "wird – bestätigen hiesse ohne dieses Stück fortzufahren."
-            ),
-        )
+                  "wird – bestätigen hiesse ohne dieses Stück fortzufahren.")
     waiting = _units_at(db, order, step.id, instance_id=instance.id if instance else None)
     if not waiting:
         where = f" von Instanz {instance.object_id}" if instance else ""
-        raise HTTPException(
-            status_code=409,
-            detail=(f"Vor «{modules.label(step.module_type)}» steht keine Einzelinstanz"
-                    f"{where} – hier ist gerade nichts zu tun."),
-        )
+        raise Conflict(f"Vor «{modules.label(step.module_type)}» steht keine Einzelinstanz"
+                    f"{where} – hier ist gerade nichts zu tun.")
     for _, unit in waiting:
         if unit.status != step.status_before:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    f"Einzelinstanz {number_of(db, unit)} steht auf "
+            raise Conflict(f"Einzelinstanz {number_of(db, unit)} steht auf "
                     f"«{st.label(unit.status)}», «{modules.label(step.module_type)}» erwartet "
-                    f"«{st.label(step.status_before)}»."
-                ),
-            )
+                    f"«{st.label(step.status_before)}».")
     return waiting
 
 
@@ -601,14 +569,9 @@ def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, Insta
         home = homes.get((m.return_to_order_id, u.id))
         if home is None:
             # Die Verbindung zeigt ins Leere – das wird nicht still überspielt.
-            raise HTTPException(
-                status_code=500,
-                detail=(
-                    f"Einzelinstanz {number_of(db, u)} sollte in Auftrag "
+            raise Failed(f"Einzelinstanz {number_of(db, u)} sollte in Auftrag "
                     f"{_order_number(db, m.return_to_order_id)} zurückkehren, findet dort "
-                    f"aber keine offene Stelle – der Datenbestand ist kaputt."
-                ),
-            )
+                    f"aber keine offene Stelle – der Datenbestand ist kaputt.")
         reopen.append(home.id)
         events.append({
             "order_id": home.order_id,
@@ -648,31 +611,20 @@ def _captures_for(
     points = capture_svc.points_of(step)
     if not points:
         if values:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"«{modules.label(step.module_type)}» erfasst nichts – "
-                        f"hier ist kein Wert festzuhalten."),
-            )
+            raise Invalid(f"«{modules.label(step.module_type)}» erfasst nichts – "
+                        f"hier ist kein Wert festzuhalten.")
         return {}
 
     numbers = unit_numbers(db, drawn)
     by_number = {numbers[u.id]: u for u in drawn}
     unknown = sorted(set(values) - set(by_number))
     if unknown:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"Für {', '.join(unknown)} ist hier nichts zu erfassen – "
-                    f"diese Einzelinstanzen sind nicht gezogen."),
-        )
+        raise Invalid(f"Für {', '.join(unknown)} ist hier nichts zu erfassen – "
+                    f"diese Einzelinstanzen sind nicht gezogen.")
     fehlend = sorted(n for n in by_number if n not in values)
     if fehlend:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"{len(fehlend)} von {len(by_number)} Einzelinstanzen sind noch nicht "
+        raise Invalid(f"{len(fehlend)} von {len(by_number)} Einzelinstanzen sind noch nicht "
                 f"erfasst: {', '.join(fehlend[:5])}"
                 + (" …" if len(fehlend) > 5 else "")
-                + ". Erfasst wird je Stück, nicht je Scan."
-            ),
-        )
+                + ". Erfasst wird je Stück, nicht je Scan.")
     return {by_number[n].id: v for n, v in values.items()}

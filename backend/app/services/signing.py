@@ -22,7 +22,6 @@ from datetime import datetime, timezone
 from html import escape
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..core import clock
@@ -31,6 +30,7 @@ from ..domain import communication as dc
 from ..domain import documents as dd
 from ..models import Document, DocumentLink, DocumentSignature, Message, UserProfile
 from . import document, documents, mail_layout, sites
+from ..domain.errors import Conflict, Gone, Invalid, NotFound, TooLarge
 
 #: So gross darf ein Unterschriftszug sein (PNG).
 MAX_SIGNATURE_BYTES = 400 * 1024
@@ -52,7 +52,7 @@ def request(db: Session, doc: Document, person_ids: list[int], actor: UserProfil
             continue
         person = db.query(UserProfile).filter(UserProfile.object_id == oid).first()
         if person is None:
-            raise HTTPException(status_code=400, detail=f"Eine Person {oid} gibt es nicht.")
+            raise Invalid(f"Eine Person {oid} gibt es nicht.")
         db.add(DocumentSignature(document_id=doc.id, person_object_id=oid,
                                  name=person.display_name or person.email or str(oid)))
         documents.add_refs(db, doc, [documents.RefIn(object_id=oid)], actor)
@@ -63,15 +63,14 @@ def send(db: Session, doc: Document, person_ids: list[int], note: str,
          actor: UserProfile) -> list[DocumentLink]:
     """►►► **Senden** – je Empfänger ein Link und eine Mail. ◄◄◄"""
     if doc.deleted_at is not None:
-        raise HTTPException(status_code=409, detail="Ein gelöschtes Dokument geht nicht hinaus.")
+        raise Conflict("Ein gelöschtes Dokument geht nicht hinaus.")
     if not person_ids:
-        raise HTTPException(status_code=400, detail="An wen soll es gehen?")
+        raise Invalid("An wen soll es gehen?")
     out = []
     for oid in dict.fromkeys(person_ids):
         person = db.query(UserProfile).filter(UserProfile.object_id == oid).first()
         if person is None or not person.email:
-            raise HTTPException(status_code=400, detail=(
-                f"{person.display_name if person else oid} hat keine E-Mail – so geht es nicht hinaus."))
+            raise Invalid(f"{person.display_name if person else oid} hat keine E-Mail – so geht es nicht hinaus.")
         link = DocumentLink(token=secrets.token_urlsafe(24), document_id=doc.id,
                             person_object_id=oid)
         db.add(link)
@@ -124,7 +123,7 @@ def by_token(db: Session, token: str) -> DocumentLink:
     link = (db.query(DocumentLink).filter(DocumentLink.token == token)
             .first() if token and len(token) <= 64 else None)
     if link is None:
-        raise HTTPException(status_code=404, detail="Diesen Link gibt es nicht.")
+        raise NotFound("Diesen Link gibt es nicht.")
     return link
 
 
@@ -132,8 +131,7 @@ def doc_of(db: Session, link: DocumentLink) -> Document:
     """Das Dokument hinter dem Link – **gelöscht ist ein Hinweis (410), kein Fehler**."""
     doc = db.query(Document).filter(Document.id == link.document_id).first()
     if doc is None or doc.deleted_at is not None:
-        raise HTTPException(status_code=410, detail=(
-            "Dieses Dokument ist nicht mehr verfügbar. Bei Fragen antworten Sie bitte auf unsere Mail."))
+        raise Gone("Dieses Dokument ist nicht mehr verfügbar. Bei Fragen antworten Sie bitte auf unsere Mail.")
     return doc
 
 
@@ -173,7 +171,7 @@ def view(db: Session, link: DocumentLink) -> dict[str, Any]:
 def _mine(db: Session, link: DocumentLink) -> tuple[Document, DocumentSignature]:
     doc = doc_of(db, link)
     if "sign" not in view(db, link)["actions"]:
-        raise HTTPException(status_code=409, detail="Hier ist nichts mehr zu unterschreiben – laden Sie die Seite neu.")
+        raise Conflict("Hier ist nichts mehr zu unterschreiben – laden Sie die Seite neu.")
     sig = (db.query(DocumentSignature).filter(DocumentSignature.document_id == doc.id,
                                               DocumentSignature.person_object_id == link.person_object_id)
            .with_for_update().first())
@@ -193,7 +191,7 @@ def decline(db: Session, link: DocumentLink, reason: str) -> None:
     """**Ablehnen** – mit Grund; endgültig, für alle."""
     reason = dd.clean(reason, dd.REASON_MAX)
     if not reason:
-        raise HTTPException(status_code=400, detail="Bitte nennen Sie kurz den Grund.")
+        raise Invalid("Bitte nennen Sie kurz den Grund.")
     doc, sig = _mine(db, link)
     sig.declined_at, sig.reason = datetime.now(timezone.utc), reason
     db.flush()
@@ -203,14 +201,14 @@ def _png(data_url: str) -> bytes:
     """Ein Unterschriftszug aus der Zeichenfläche – nur ein echtes, kleines PNG."""
     head, _, data = (data_url or "").partition(",")
     if head != "data:image/png;base64" or not data:
-        raise HTTPException(status_code=400, detail="Die Unterschrift fehlt.")
+        raise Invalid("Die Unterschrift fehlt.")
     try:
         raw = base64.b64decode(data, validate=True)
         from PIL import Image
         Image.open(io.BytesIO(raw)).verify()
     except Exception:
-        raise HTTPException(status_code=400, detail="Die Unterschrift ist kein lesbares Bild.")
+        raise Invalid("Die Unterschrift ist kein lesbares Bild.")
     if len(raw) > MAX_SIGNATURE_BYTES:
-        raise HTTPException(status_code=413, detail="Die Unterschrift ist zu gross.")
+        raise TooLarge("Die Unterschrift ist zu gross.")
     return raw
 

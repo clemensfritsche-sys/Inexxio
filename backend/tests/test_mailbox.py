@@ -9,7 +9,7 @@ import base64
 import random
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 
 from tests.support import after_save
 from app.models import Mailbox, Message, UserProfile
@@ -151,10 +151,10 @@ def test_an_outward_mail_goes_out_through_its_mailbox(world, monkeypatch):
     assert sent == [m.id] and comm.load(db, [m.id])[0].pending
     box.is_active = False
     db.flush()
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         comm.create(db, MessageIn(channel=CH, sender=staff.object_id,
                                   to=[lea.object_id], subject="x", body="x"), staff)
-    with pytest.raises(HTTPException):          # ein persönliches nur mit seinem Besitzer
+    with pytest.raises(Rejected):          # ein persönliches nur mit seinem Besitzer
         comm.create(db, MessageIn(channel=f"u{lea.object_id}", sender=staff.object_id,
                                   to=[lea.object_id], subject="x", body="x"), staff)
 

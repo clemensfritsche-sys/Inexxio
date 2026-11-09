@@ -16,7 +16,6 @@ Nie ein blosses ``.first()`` – die Auflösung läuft nur hier:
 
 from typing import Any
 
-from fastapi import HTTPException
 from sqlalchemy import false, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -24,6 +23,7 @@ from sqlalchemy.orm import Session
 from ..models import CompanySettings, CompanyTerritory
 from . import geography
 from .objects import next_object_id
+from ..domain.errors import Conflict, Forbidden, Invalid, NotFound
 
 # Was JEDE Gesellschaft selbst trägt (eine juristische Einheit, auch EIN/Steuer/Bank der
 # US-Gesellschaft). Feldnamen = DB-Spalten. Nur, was ein Beleg, das Impressum oder eine
@@ -147,7 +147,7 @@ def require(db: Session, object_id: int) -> CompanySettings:
     """Wie ``by_object_id``, aber 404 statt ``None`` – für Schreibpfade."""
     company = by_object_id(db, object_id)
     if company is None:
-        raise HTTPException(404, detail="Unternehmen nicht gefunden")
+        raise NotFound("Unternehmen nicht gefunden")
     return company
 
 
@@ -158,8 +158,7 @@ def require_own(db: Session, object_id: int | None, *, what: str = "") -> Compan
     betreibt, ist eine **eigene, offene** Gesellschaft. Der Satz nennt die Nummer."""
     company = by_object_id(db, object_id)
     if company is None or not company.is_own or not company.is_active:
-        raise HTTPException(
-            400, detail=f"«{object_id}» ist keine unserer Gesellschaften{what}.")
+        raise Invalid(f"«{object_id}» ist keine unserer Gesellschaften{what}.")
     return company
 
 
@@ -189,8 +188,7 @@ def deactivate(db: Session, company: CompanySettings, actor_id: int | None) -> C
     Gebiete fallen zurück und kommen beim Wiederöffnen nicht von selbst. Committet."""
     from ..models import CompanyTerritory
     if company.is_operator:
-        raise HTTPException(
-            409, detail="Der Betreiber der Website kann nicht geschlossen werden – bitte zuerst "
+        raise Conflict("Der Betreiber der Website kann nicht geschlossen werden – bitte zuerst "
                         "eine andere Gesellschaft zum Betreiber machen.")
     others = (
         db.query(CompanySettings.id)
@@ -199,7 +197,7 @@ def deactivate(db: Session, company: CompanySettings, actor_id: int | None) -> C
         .count()
     )
     if others == 0 and company.is_own:
-        raise HTTPException(409, detail="Das letzte Unternehmen kann nicht geschlossen werden")
+        raise Conflict("Das letzte Unternehmen kann nicht geschlossen werden")
     db.query(CompanyTerritory).filter(CompanyTerritory.company_id == company.id).delete()
     company.is_active = False
     db.flush()
@@ -300,7 +298,7 @@ def set_territory(db: Session, area: str, company_object_id: int | None,
     Zeile entfernt; sonst upsert, genau eine Gesellschaft je Gebiet."""
     code = geography.normalize_area(area)
     if code is None:
-        raise HTTPException(400, detail="Unbekanntes Gebiet")
+        raise Invalid("Unbekanntes Gebiet")
     company = require_own(db, company_object_id) if company_object_id else None
     row = db.query(CompanyTerritory).filter(CompanyTerritory.region == code).first()
     if company is None or company.id == _default_owner_id(db, code):
@@ -421,17 +419,16 @@ def _assert_unique(db: Session, company: CompanySettings,
         else:
             other = None
     if other is not None:
-        raise HTTPException(409, detail=(
-            f"Diese Firma gibt es schon: {other.object_id} «{legal_name(other)}»"
+        raise Conflict(f"Diese Firma gibt es schon: {other.object_id} «{legal_name(other)}»"
             + (f" mit der UID {other.uid_number}." if uid_key else
-               " – gleicher Name und gleiche Rechtsform.")))
+               " – gleicher Name und gleiche Rechtsform."))
 
 
 def _assert_uid(raw: str | None) -> None:
     from ..domain import uid
     trouble = uid.problem(raw)
     if trouble:
-        raise HTTPException(400, detail=trouble)
+        raise Invalid(trouble)
 
 
 def search(db: Session, query: str, limit: int = 8) -> list[CompanySettings]:
@@ -457,10 +454,9 @@ def _new(db: Session, data: dict, actor_id: int | None, *, own: bool) -> Company
     name = (data.get("company_name") or "").strip()
     form = (data.get("legal_form") or "").strip()
     if not name:
-        raise HTTPException(400, detail="Name des Unternehmens fehlt")
+        raise Invalid("Name des Unternehmens fehlt")
     if not form:
-        raise HTTPException(
-            400, detail=f"«{name}» braucht eine Rechtsform – auf einem Beleg steht die "
+        raise Invalid(f"«{name}» braucht eine Rechtsform – auf einem Beleg steht die "
                         f"Rechtsperson, nicht ihr Name allein.")
     _assert_uid(data.get("uid_number"))
     if not own:
@@ -488,9 +484,8 @@ def _assert_external(data: dict) -> None:
     extra = [k for k, v in data.items()
              if k not in (*EXTERNAL_FIELDS, "is_own") and v not in (None, "")]
     if extra:
-        raise HTTPException(400, detail=(
-            "Eine fremde Firma trägt bei uns nur Name, Rechtsform und UID – Anschriften "
-            "gehören den Personen, die für sie bestellen."))
+        raise Invalid("Eine fremde Firma trägt bei uns nur Name, Rechtsform und UID – Anschriften "
+            "gehören den Personen, die für sie bestellen.")
 
 
 def create(db: Session, data: dict, actor_id: int | None, *,
@@ -524,14 +519,12 @@ def resolve(db: Session, data: dict, actor_id: int | None, *,
         found = _recognize(db, data.get("uid_number"), name, form, actor_id)
         if found is not None:
             if found.is_own and not allow_own:
-                raise HTTPException(400, detail=(
-                    f"«{legal_name(found)}» ist eine unserer Gesellschaften – die "
-                    f"Zuordnung dazu nimmt das Personal vor."))
+                raise Invalid(f"«{legal_name(found)}» ist eine unserer Gesellschaften – die "
+                    f"Zuordnung dazu nimmt das Personal vor.")
             return found
         if uid_key_of(data.get("uid_number")) and not (name and form):
-            raise HTTPException(400, detail=(
-                f"Die UID «{data.get('uid_number')}» kennen wir noch nicht – bitte "
-                f"Firmenname und Rechtsform dazu angeben."))
+            raise Invalid(f"Die UID «{data.get('uid_number')}» kennen wir noch nicht – bitte "
+                f"Firmenname und Rechtsform dazu angeben.")
         try:
             with db.begin_nested():
                 return _new(db, {"company_name": name, "legal_form": form,
@@ -540,7 +533,7 @@ def resolve(db: Session, data: dict, actor_id: int | None, *,
         except IntegrityError:
             if attempt == 2:
                 raise
-    raise HTTPException(409, detail="Die Firma liess sich nicht anlegen.")
+    raise Conflict("Die Firma liess sich nicht anlegen.")
 
 
 def _recognize(db: Session, raw_uid: str | None, name: str, form: str,
@@ -572,17 +565,17 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
     * Der Name ist Pflicht (das Halter-Label); die Schlüssel ziehen nach, eine Dublette
       wird mit Nummer genannt."""
     if (company.is_own or "is_own" in data) and not admin:
-        raise HTTPException(403, detail=f"«{legal_name(company)}» ist eine unserer "
+        raise Forbidden(f"«{legal_name(company)}» ist eine unserer "
                                         f"Gesellschaften – ändern darf sie nur ein Admin.")
     if "company_name" in data and not (data.get("company_name") or "").strip():
-        raise HTTPException(400, detail="Name des Unternehmens fehlt")
+        raise Invalid("Name des Unternehmens fehlt")
     if "legal_form" in data and not (data.get("legal_form") or "").strip():
-        raise HTTPException(400, detail=f"«{legal_name(company)}» braucht eine Rechtsform.")
+        raise Invalid(f"«{legal_name(company)}» braucht eine Rechtsform.")
     if "uid_number" in data:
         _assert_uid(data.get("uid_number"))
     own = bool(data.get("is_own", company.is_own))
     if not own and any(data.get(k) for k in OWN_FIELDS):
-        raise HTTPException(400, detail="Bankverbindung und Währung gibt es nur bei "
+        raise Invalid("Bankverbindung und Währung gibt es nur bei "
                                         "einer unserer Gesellschaften.")
     if not own:
         _assert_external(data)
@@ -601,16 +594,16 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
 def _assert_may_leave(db: Session, company: CompanySettings) -> None:
     """Eine Gesellschaft hört auf, unsere zu sein – nur, wenn nichts daran hängt."""
     from ..models import UserProfile
-    from .people import STAFF_ROLES
+    from ..domain.policy import STAFF_ROLES
     if is_operator(db, company):
-        raise HTTPException(409, detail=f"«{legal_name(company)}» betreibt die Website – "
+        raise Conflict(f"«{legal_name(company)}» betreibt die Website – "
                                         f"zuerst eine andere Gesellschaft zum Betreiber machen.")
     staff = (db.query(UserProfile)
              .filter(UserProfile.company_object_id == company.object_id,
                      UserProfile.role.in_(STAFF_ROLES))
              .count())
     if staff:
-        raise HTTPException(409, detail=f"Bei «{legal_name(company)}» arbeiten {staff} "
+        raise Conflict(f"Bei «{legal_name(company)}» arbeiten {staff} "
                                         f"Personen – sie brauchen zuerst eine andere "
                                         f"unserer Gesellschaften.")
     db.query(CompanyTerritory).filter(CompanyTerritory.company_id == company.id).delete()

@@ -39,11 +39,12 @@ const HOUSE_SYNTAX = [
     selector: "MemberExpression[object.name='Intl'][property.name='DateTimeFormat']",
     message: 'Ein Datum nur über lib/when.ts – die Wörter stehen dort, nicht im ICU.',
   },
-  // «Ist das Personal?» fragt EINE Funktion: isStaff (lib/record-status).
-  ...['left', 'right'].map((side) => ({
-    selector: `BinaryExpression[operator=/^[!=]==?$/][${side}.value='employee']`,
-    message: 'Die Rolle nur über isStaff() (lib/record-status) vergleichen.',
-  })),
+  // Die Rolle fragt EINE Stelle: isStaff · isAdmin (lib/record-status) – Spiegel von
+  // `domain/policy`. Ob man etwas darf, sagt der Server (`can`, `may_edit`).
+  ...['left', 'right'].flatMap((side) => ['employee', 'admin'].map((role) => ({
+    selector: `BinaryExpression[operator=/^[!=]==?$/][${side}.value='${role}']`,
+    message: 'Die Rolle nur über isStaff() / isAdmin() (lib/record-status) vergleichen.',
+  }))),
   // `busy` sperrt Handlungen, nie einen Wert: `disabled` nimmt dem Feld den Fokus, und ein
   // Auto-Save darf nichts verschieben.
   // Gilt auch für den Feld-Baustein (`Input` · `Select` · `TextArea` · `Field` · `SelectField`).

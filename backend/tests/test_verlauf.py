@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 from sqlalchemy import text
 
 from app.core.actor import act
@@ -195,7 +195,7 @@ def test_a_note_on_any_record_shows_in_its_history(world):
         assert [m.subject for m in found] == [f"Zu {t}"], t
         assert found[0].about[0].object_id == t and found[0].about[0].name != str(t)
         assert found[0].channel.kind == "note"
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _note(db, staff, [999_999_998])                    # gibt es nicht
 
 
@@ -253,11 +253,11 @@ def test_moving_a_note_writes_both_entries_and_deletes_nothing(world):
                 if e.kind == "message"]
     assert [m.id for m in at_right] == [moved.id]
     assert moved.body.startswith("Palette fehlt") and f"{wrong.object_id:09d}" in moved.body
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         comm.move_note(db, note.id, wrong.object_id, staff)      # gehört schon dorthin
     mail = comm.create(db, MessageIn(channel="intern", about=[wrong.object_id], subject="X",
                                      body="y"), staff)
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         comm.move_note(db, mail.id, right.object_id, staff)      # nur eine Notiz
 
 
@@ -266,7 +266,7 @@ def test_mail_goes_only_to_persons(world):
     Bug-Form: ein Auftrag im «An» bekäme eine Mail."""
     db, staff = world
     order = World(db).produce(World(db).article(), 1)
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         comm.create(db, MessageIn(channel="intern", to=[order.object_id], subject="x", body="y"),
                     staff)
 
@@ -352,12 +352,12 @@ def test_every_table_has_one_word():
 
 def test_unknown_records_and_bad_cursors_are_refused(world):
     db, staff = world
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         history.page(db, 999_999_997, staff)
-    assert e.value.status_code == 404
-    with pytest.raises(HTTPException) as e:
+    assert e.value.status == 404
+    with pytest.raises(Rejected) as e:
         history.page(db, staff.object_id, staff, before="gestern")
-    assert e.value.status_code == 400
+    assert e.value.status == 400
 
 
 def test_time_rows_follow_the_timekeeping_rule(world):

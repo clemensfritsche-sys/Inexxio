@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Layers, MessageSquareText } from 'lucide-react';
-import { api, type ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { qk, useDebouncedQuery } from '@/lib/queries';
 import type {
   CapturePoint, Order, OrderSummary, PlaceRef,
@@ -141,8 +141,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     const made = await run(() => api.createOrder(draft), (e) => {
       // Ein veralteter Pick ist eine neue Lage: der Server nennt sie mit einem Code, die
       // Auswahl wird nachgezogen.
-      const detail = (e as ApiError)?.detail as { code?: string } | undefined;
-      if (detail?.code === 'pick_stale') setRefreshKey((n) => n + 1);
+      if (e instanceof ApiError && e.code === 'pick_stale') setRefreshKey((n) => n + 1);
     });
     if (made) onSaved(made);
   }

@@ -56,11 +56,11 @@ def test_the_people_feed_and_todo_do_not_ask_per_person(db, monkeypatch):
     _firms(db, 3)
     db.expire_all()
     with _counted(db) as few:
-        erp.list_erp_records(db=db, _=None)
+        erp.list_erp_records(db=db, viewer=None)
     _firms(db, 8)
     db.expire_all()
     with _counted(db) as many:
-        erp.list_erp_records(db=db, _=None)
+        erp.list_erp_records(db=db, viewer=None)
     assert len(many) == len(few), (len(few), len(many))
     staff = db.query(UserProfile).filter(UserProfile.role == "admin").first() or UserProfile(
         role="employee", object_id=None)

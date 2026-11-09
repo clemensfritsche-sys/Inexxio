@@ -23,7 +23,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 from sqlalchemy.orm import Session
 from webauthn import (
     base64url_to_bytes,
@@ -44,6 +44,7 @@ from webauthn.helpers.structs import (
 from ..core.auth import _init_firebase
 from ..core.config import get_settings
 from ..models import UserProfile, WebAuthnChallenge, WebAuthnCredential
+from ..domain.errors import Conflict, Failed, Forbidden, Invalid, NotFound, Unauthorized
 
 settings = get_settings()
 
@@ -61,11 +62,11 @@ def _resolve_rp(request: Request) -> tuple[str, str]:
     """(rp_id, origin) aus dem Origin-Header ableiten und gegen die Allowlist prüfen."""
     origin = (request.headers.get("origin") or "").rstrip("/")
     if not origin or origin not in _allowed_origins():
-        raise HTTPException(400, detail="Diese Domain ist für Passkeys nicht freigegeben.")
+        raise Invalid("Diese Domain ist für Passkeys nicht freigegeben.")
     host = urlparse(origin).hostname or ""
     rp_id = settings.webauthn_rp_id or host
     if not rp_id:
-        raise HTTPException(400, detail="Passkey-Domain konnte nicht bestimmt werden.")
+        raise Invalid("Passkey-Domain konnte nicht bestimmt werden.")
     return rp_id, origin
 
 
@@ -92,7 +93,7 @@ def _consume_challenge(db: Session, credential: dict, purpose: str) -> bytes:
         client_data = json.loads(base64url_to_bytes(client_data_b64))
         challenge_b64 = client_data["challenge"]
     except (KeyError, TypeError, ValueError):
-        raise HTTPException(400, detail="Ungültige Passkey-Antwort.")
+        raise Invalid("Ungültige Passkey-Antwort.")
 
     row = (
         db.query(WebAuthnChallenge)
@@ -100,7 +101,7 @@ def _consume_challenge(db: Session, credential: dict, purpose: str) -> bytes:
         .first()
     )
     if not row:
-        raise HTTPException(400, detail="Passkey-Anfrage abgelaufen oder ungültig. Bitte erneut versuchen.")
+        raise Invalid("Passkey-Anfrage abgelaufen oder ungültig. Bitte erneut versuchen.")
     expires = row.expires_at
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
@@ -108,7 +109,7 @@ def _consume_challenge(db: Session, credential: dict, purpose: str) -> bytes:
     db.delete(row)
     db.flush()
     if expired:
-        raise HTTPException(400, detail="Passkey-Anfrage abgelaufen. Bitte erneut versuchen.")
+        raise Invalid("Passkey-Anfrage abgelaufen. Bitte erneut versuchen.")
     return base64url_to_bytes(challenge_b64)
 
 
@@ -163,13 +164,13 @@ def complete_registration(
         )
     except Exception as e:
         print(f"WARNING: passkey registration verify failed: {e}", flush=True)
-        raise HTTPException(400, detail="Passkey konnte nicht verifiziert werden.")
+        raise Invalid("Passkey konnte nicht verifiziert werden.")
 
     credential_id = bytes_to_base64url(verified.credential_id)
     if db.query(WebAuthnCredential).filter(
         WebAuthnCredential.credential_id == credential_id
     ).first():
-        raise HTTPException(409, detail="Dieser Passkey ist bereits registriert.")
+        raise Conflict("Dieser Passkey ist bereits registriert.")
 
     transports = (credential.get("response") or {}).get("transports")
     dev_type = verified.credential_device_type
@@ -218,14 +219,14 @@ def complete_authentication(db: Session, request: Request, credential: dict) -> 
 
     raw_id = credential.get("id") or credential.get("rawId")
     if not raw_id:
-        raise HTTPException(400, detail="Ungültige Passkey-Antwort.")
+        raise Invalid("Ungültige Passkey-Antwort.")
     row = (
         db.query(WebAuthnCredential)
         .filter(WebAuthnCredential.credential_id == raw_id, WebAuthnCredential.is_active == True)
         .first()
     )
     if not row:
-        raise HTTPException(404, detail="Passkey nicht bekannt. Bitte melden Sie sich anders an.")
+        raise NotFound("Passkey nicht bekannt. Bitte melden Sie sich anders an.")
 
     challenge = _consume_challenge(db, credential, "authenticate")
     try:
@@ -239,7 +240,7 @@ def complete_authentication(db: Session, request: Request, credential: dict) -> 
         )
     except Exception as e:
         print(f"WARNING: passkey authentication verify failed: {e}", flush=True)
-        raise HTTPException(401, detail="Passkey konnte nicht verifiziert werden.")
+        raise Unauthorized("Passkey konnte nicht verifiziert werden.")
 
     user = (
         db.query(UserProfile)
@@ -247,7 +248,7 @@ def complete_authentication(db: Session, request: Request, credential: dict) -> 
         .first()
     )
     if not user:
-        raise HTTPException(403, detail="Konto nicht aktiv.")
+        raise Forbidden("Konto nicht aktiv.")
 
     row.sign_count = verified.new_sign_count
     row.last_used_at = datetime.now(timezone.utc)
@@ -266,13 +267,8 @@ def mint_firebase_token(user: UserProfile) -> str:
         token = firebase_auth.create_custom_token(user.firebase_uid)
     except Exception as e:
         print(f"ERROR: Firebase custom token creation failed: {e}", flush=True)
-        raise HTTPException(
-            500,
-            detail=(
-                "Anmelde-Token konnte nicht ausgestellt werden. Dem Cloud-Run-Service-"
-                "Account fehlt vermutlich die Rolle 'Service Account Token Creator'."
-            ),
-        )
+        raise Failed("Anmelde-Token konnte nicht ausgestellt werden. Dem Cloud-Run-Service-"
+                "Account fehlt vermutlich die Rolle 'Service Account Token Creator'.")
     return token.decode("utf-8") if isinstance(token, bytes) else token
 
 
@@ -298,6 +294,6 @@ def delete_passkey(db: Session, user: UserProfile, passkey_id: int) -> None:
         .first()
     )
     if not row:
-        raise HTTPException(404, detail="Passkey nicht gefunden.")
+        raise NotFound("Passkey nicht gefunden.")
     row.is_active = False
     db.flush()

@@ -12,13 +12,13 @@ Die Nummer einer Einzelinstanz ist ``<Objektnummer der Instanz>-<suffix>``, nich
 
 from typing import Iterable, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import func, insert, tuple_
 from sqlalchemy.orm import Session
 
 from ..models import Article, Instance, InstanceUnit
 from ..models.instance import KINDS
 from .objects import next_object_ids, obj_nr
+from ..domain.errors import Failed, Invalid
 
 # Trennzeichen zwischen Instanz-Nummer und Suffix – eine Stelle für Erzeugen und Lesen
 # (``parse_unit_number``).
@@ -196,15 +196,9 @@ def create_instances(db: Session, *, article: Article, kind: str,
     Menge; die Objektnummern als Block aus der Sequence, Suffixe ab 1.
     """
     if kind not in KINDS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unbekannter Instanz-Typ «{kind}». Erlaubt: {', '.join(KINDS)}.",
-        )
+        raise Invalid(f"Unbekannter Instanz-Typ «{kind}». Erlaubt: {', '.join(KINDS)}.")
     if instance_count < 1 or units_each < 1:
-        raise HTTPException(
-            status_code=400,
-            detail="Eine Instanz braucht mindestens eine Einzelinstanz.",
-        )
+        raise Invalid("Eine Instanz braucht mindestens eine Einzelinstanz.")
 
     object_ids = next_object_ids(db, instance_count, "instance")
     db.execute(
@@ -221,10 +215,7 @@ def create_instances(db: Session, *, article: Article, kind: str,
         .all()
     )
     if len(created) != instance_count:
-        raise HTTPException(
-            status_code=500,
-            detail="Instanzen konnten nicht angelegt werden – die Freigabe wird abgebrochen.",
-        )
+        raise Failed("Instanzen konnten nicht angelegt werden – die Freigabe wird abgebrochen.")
     db.execute(
         insert(InstanceUnit),
         [

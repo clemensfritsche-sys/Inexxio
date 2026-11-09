@@ -12,6 +12,7 @@ from ..core.actor import public
 from ..core.database import DB
 from ..models import UserProfile
 from ..services import attachments as attachments_svc
+from ..domain.errors import NotFound
 
 router = APIRouter(tags=["attachments"])
 
@@ -56,8 +57,7 @@ def serve_preview(token: str, db: Session = DB):
     att = attachments_svc.get_by_token(db, token)
     png = docs.preview_png(attachments_svc.bytes_of(att), att.mime)
     if png is None:
-        from fastapi import HTTPException
-        raise HTTPException(404, detail="Kein Vorschaubild")
+        raise NotFound("Kein Vorschaubild")
     cache = (attachments_svc.PUBLIC_CACHE if docs.is_public_file(db, att.id)
              else attachments_svc.PRIVATE_CACHE)
     return Response(content=png, media_type="image/png",

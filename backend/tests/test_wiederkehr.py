@@ -7,7 +7,7 @@ was nie mehr geht, und dass nichts doppelt entsteht.
 from datetime import date, timedelta
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 
 from app.core import clock
 from app.domain import loop as dl
@@ -119,7 +119,7 @@ def test_a_loop_needs_a_regular_order(db):
     draft["lines"][0]["units"][0]["from_order"] = running.object_id
     found = orders.validate_draft(db, draft)
     assert any("regulären Auftrag" in m and "ist in Auftrag" in m for m in found)
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         orders.create_order(db, draft, actor_id=None)
 
 
@@ -197,7 +197,7 @@ def test_a_scrapped_unit_stops_the_loop_for_good_and_only_ending_helps(db):
     loop.end(db, first)
     assert loop.view(db, first)["state"] == loop.ENDED_STATE
     assert first not in loop.due(db)
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         loop.end(db, first)
 
 
@@ -207,7 +207,7 @@ def test_ending_happens_only_at_the_newest_order(db):
     first = _create(db, _draft(art, numbers))
     _run_capture(db, first)
     second = loop.create_next(db, first)
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         loop.end(db, first)
     loop.end(db, second)
     assert loop.view(db, second)["state"] == loop.ENDED_STATE

@@ -255,6 +255,9 @@ class UserProfileResponse(BaseModel):
 
     # Auth
     last_login_at: Optional[datetime]
+    #: Darf, wer fragt, diese Person ändern? (``domain/policy``: Kunden jedes Personal,
+    #: Mitarbeitende nur der Admin) – die Oberfläche fragt das, nicht die Rolle.
+    may_edit: bool = False
 
 
 class UserProfileUpdate(BaseModel):
@@ -280,7 +283,7 @@ class UserProfileUpdate(BaseModel):
 # Gültige Rollen – EINE Quelle (``PATCH /erp/records/{id}``, ``POST /erp/records``).
 #
 # ►►► **Die Rolle ist der ZUGANG, nichts weiter.** ◄◄◄ Lieferant ↔ Kunde ist eine Aussage
-# über Vorgänge. Jedes Tor fragt ``people.STAFF_ROLES``.
+# über Vorgänge. Jedes Tor fragt ``policy.STAFF_ROLES``.
 Role = Literal["admin", "employee", "user"]
 
 

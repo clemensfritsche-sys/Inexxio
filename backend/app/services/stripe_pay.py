@@ -62,7 +62,6 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any, Iterator, Optional
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..core import outside
@@ -72,6 +71,7 @@ from ..domain import voucher as dm
 from ..models import Order, UserProfile, Voucher
 from . import voucher as voucher_svc
 from . import voucher_actions, voucher_head, voucher_money
+from ..domain.errors import Conflict, Invalid, NotFound, Rejected
 
 #: **Der Faden zurück**: unter diesem Schlüssel steht der Beleg in den Metadaten der
 #: Zahlungsabsicht – darüber findet der Webhook ihn wieder, ohne ``stripe_*``-Spalte.
@@ -125,18 +125,18 @@ def _speaking(what: str) -> Iterator[None]:
 
     Sie steht um **jeden** Aufruf, der Geld bewegt (Vorbereiten, Erstatten): eine Stelle,
     die sie vergisst, ist genau die, an der wieder ein englischer Rohtext im Browser
-    steht. Eine ``HTTPException`` reist unangetastet weiter – sie ist bereits unser Satz.
+    steht. Eine Abweisung (``Rejected``) reist unangetastet weiter – sie ist bereits unser Satz.
     Im Probelauf geht nichts zum Dienst (``core/outside.now``).
     """
     outside.now(what)
     try:
         yield
-    except HTTPException:
+    except Rejected:
         raise
     except Exception as exc:  # noqa: BLE001 – die Tür gibt nichts Technisches weiter
         log.warning("Zahlungsdienst: %s fehlgeschlagen – %s: %s",
                     what, type(exc).__name__, exc)
-        raise HTTPException(status_code=409, detail=_message(exc))
+        raise Conflict(_message(exc))
 
 #: Was wir vom Zahlungsdienst hören wollen — und sonst nichts. Jede weitere Meldung wird
 #: **quittiert und ignoriert**: ein Ereignis, das niemand liest, ist kein Fehler, und ein
@@ -157,11 +157,8 @@ EVENTS = (PAID, REFUNDED, REFUND_UPDATED)
 def _api():
     """Das SDK mit gesetztem Schlüssel – oder ein klarer Fehler, kein Absturz."""
     if not payment_service_ready():
-        raise HTTPException(
-            status_code=404,
-            detail=("Es ist kein Zahlungsdienst eingerichtet "
-                    "(STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY fehlen)."),
-        )
+        raise NotFound("Es ist kein Zahlungsdienst eingerichtet "
+                    "(STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY fehlen).")
     import stripe
     stripe.api_key = get_settings().stripe_secret_key
     return stripe
@@ -206,11 +203,8 @@ def prepare(db: Session, *, row: Voucher, order: Order,
     voucher_actions.assert_allowed(db, row, "pay_online", viewer)
     owed = voucher_svc.balance_of(db, row).open
     if owed <= 0:
-        raise HTTPException(
-            status_code=409,
-            detail=("An diesem Beleg ist nichts offen – man kassiert nicht, was niemand "
-                    "gefordert hat."),
-        )
+        raise Conflict("An diesem Beleg ist nichts offen – man kassiert nicht, was niemand "
+                    "gefordert hat.")
     code = cur.assert_code(row.currency)
     number = row.number or str(row.id)
     with _speaking("Zahlung vorbereiten"):
@@ -282,16 +276,13 @@ def refund(db: Session, *, row: Voucher, entry_id: Optional[int],
     try:
         named = dm.amount(amount, code, allow_negative=True)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise Invalid(str(e))
     back = rest if named is None else named
     if not Decimal("0") < back <= rest:
-        raise HTTPException(
-            status_code=409,
-            detail=(f"Eine Erstattung liegt über null und höchstens bei dem, was von "
+        raise Conflict(f"Eine Erstattung liegt über null und höchstens bei dem, was von "
                     f"dieser Zahlung noch offen ist – {cur.money(rest, code)} {code}."
                     + (f" ({cur.money(done, code)} {code} sind bereits zurückgegangen.)"
-                       if done > 0 else "")),
-        )
+                       if done > 0 else ""))
     # **Die Referenz IST die Zahlungsabsicht** (``pi_…``); der Dienst findet über sie die
     # Belastung. **Wohin die Erstattung gebucht wird, sagt die Metadate** – an der
     # Gutschrift, aus der sie kommt, sonst an der Rechnung der Zahlung (``_note_refund``).
@@ -318,10 +309,7 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
     stripe = _api()
     secret = get_settings().stripe_webhook_secret
     if not secret:
-        raise HTTPException(
-            status_code=404,
-            detail="Es ist kein Webhook-Geheimnis hinterlegt (STRIPE_WEBHOOK_SECRET).",
-        )
+        raise NotFound("Es ist kein Webhook-Geheimnis hinterlegt (STRIPE_WEBHOOK_SECRET).")
     try:
         # **Ab hier reine Daten** (``to_dict``): ein ``StripeObject`` ist seit dem SDK 15
         # kein ``dict`` mehr – ``.get`` gäbe es nicht. Die Meldung ist eine Nachricht, kein
@@ -329,7 +317,7 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
         event = stripe.Webhook.construct_event(raw, signature or "", secret).to_dict()
     except Exception:
         # Bewusst ohne Details: was genau nicht stimmte, geht den Absender nichts an.
-        raise HTTPException(status_code=400, detail="Ungültige Signatur.")
+        raise Invalid("Ungültige Signatur.")
 
     kind = str(event.get("type") or "")
     if kind not in EVENTS:

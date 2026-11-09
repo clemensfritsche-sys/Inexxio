@@ -273,7 +273,7 @@ def test_a_shortage_is_not_a_state_it_is_an_unfinished_module():
     Ein Auftrag mit einem eigenen «wartet auf Material»-Wert hätte einen Zustand mehr,
     den jemand wieder verlassen müsste. Das Modul ist schlicht nicht fertig.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     from app.services import consumption
 
@@ -291,9 +291,9 @@ def test_a_shortage_is_not_a_state_it_is_an_unfinished_module():
         assert (need.required, need.available, need.missing) == (3, 1, 2)
 
         row = w.work(order, step)[0]
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(Rejected) as exc:
             w.confirm(order, step, instance=row["instance_object_id"])
-        assert exc.value.status_code == 409
+        assert exc.value.status == 409
         detail = str(exc.value.detail)
         assert str(screw.object_id) in detail and "3" in detail and "1" in detail, (
             "Die Meldung nennt nicht, was fehlt – dann sucht der Mensch."
@@ -318,7 +318,7 @@ def test_another_instance_can_be_chosen():
     Lagerist gescannt hat. Es ist bewusst **keine Mengenangabe** – wie viel gebraucht
     wird, sagt die Stückliste, und ein zweiter Weg dorthin wäre ein zweiter Massstab.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     w = _w()
     try:
@@ -354,10 +354,10 @@ def test_another_instance_can_be_chosen():
         ])
         step2 = w.steps(order2)[0]
         rows = w.work(order2, step2)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(Rejected) as exc:
             w.confirm(order2, step2, instance=rows[0]["instance_object_id"],
                       sources=[instance_nr])
-        assert exc.value.status_code == 409
+        assert exc.value.status == 409
         assert [w.unit_status(n) for n in first] == ["freigegeben"] * 4, (
             "Es ist auf eine andere Kiste ausgewichen – das ist nie die Aufgabe des Moduls."
         )
@@ -374,7 +374,7 @@ def test_only_free_pieces_are_taken():
     Verbrauch macht einen Auftrag **nie** stillschweigend zur Abweichung, und ein Stück,
     das gerade in einem anderen Auftrag läuft, kann nicht unter ihm weggezogen werden.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     w = _w()
     try:
@@ -391,9 +391,9 @@ def test_only_free_pieces_are_taken():
         ])
         step = w.steps(order)[0]
         row = w.work(order, step)[0]
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(Rejected) as exc:
             w.confirm(order, step, instance=row["instance_object_id"])
-        assert exc.value.status_code == 409
+        assert exc.value.status == 409
         assert w.unit_status(numbers[0]) == "im_prozess", (
             "Das laufende Stück wurde dem anderen Auftrag entzogen."
         )
@@ -604,7 +604,7 @@ def test_the_product_cannot_consume_itself():
     Zeilen – die eine Stelle, an der diese Körnung zu grob ist, wird darum abgewiesen
     statt stillschweigend falsch gerechnet.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     w = _w()
     try:
@@ -616,10 +616,10 @@ def test_the_product_cannot_consume_itself():
         w.db.query(ArticleProcessStep).filter_by(article_id=art.id).delete()
         tpl.create_steps(w.db, art, [w.consume((art.object_id, 1))])
         w.db.flush()
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(Rejected) as exc:
             w.release(lines=[{"article_object_id": art.object_id, "quantity": 1,
                               "origin": "neu", "units": []}])
-        assert exc.value.status_code == 400
+        assert exc.value.status == 400
         assert str(art.object_id) in str(exc.value.detail)
     finally:
         w.db.rollback()
@@ -628,20 +628,20 @@ def test_the_product_cannot_consume_itself():
 
 def test_a_consumption_module_needs_at_least_one_line():
     """Ohne Zeile gäbe es nichts zu verbauen – der Fehler kommt beim **Anlegen**."""
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     from app.domain import modules
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         modules.get("verbrauch").clean_config({"lines": []})
-    assert exc.value.status_code == 400
+    assert exc.value.status == 400
 
     # Und eine Zeile ohne Menge ist keine: «4× Schraube» ist die Aussage, «Schraube» nicht.
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         modules.get("verbrauch").clean_config({"lines": [{"article": 100000001}]})
     # Zweimal derselbe Artikel wäre eine Menge, die man addieren muss – und zwei Stellen,
     # an denen sie auseinanderlaufen kann.
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         modules.get("verbrauch").clean_config({"lines": [
             {"article": 100000001, "quantity": 1},
             {"article": 100000001, "quantity": 2},
@@ -656,7 +656,7 @@ def test_at_most_one_new_line_not_new_alone():
     Erzeugungsprozess) bleibt vollständig gewahrt: zwei Vorlagen sind weiterhin ein
     harter Fehler.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     w = _w()
     try:
@@ -671,14 +671,14 @@ def test_at_most_one_new_line_not_new_alone():
         ])
         # Zwei Neu-Zeilen: welche Vorlage gälte?
         a3 = w.article(serialization="unit")
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(Rejected) as exc:
             w.release(lines=[
                 {"article_object_id": a2.object_id, "quantity": 1, "origin": "neu",
                  "units": []},
                 {"article_object_id": a3.object_id, "quantity": 1, "origin": "neu",
                  "units": []},
             ])
-        assert exc.value.status_code == 400
+        assert exc.value.status == 400
     finally:
         w.db.rollback()
         w.db.close()

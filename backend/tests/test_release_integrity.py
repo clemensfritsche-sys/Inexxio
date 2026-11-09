@@ -37,7 +37,7 @@ def test_the_draft_reports_what_the_release_refuses():
     beim Klick.
     """
     import pytest
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import orders as orders_svc
 
     w = World(session())
@@ -45,7 +45,7 @@ def test_the_draft_reports_what_the_release_refuses():
         article, numbers = free_stock(w, quantity=1)
         draft = _draft(article, numbers, [World.dispose("scrap", "Ausschuss"), World.capture()])
         attempt = w.db.begin_nested()
-        with pytest.raises(HTTPException) as refused:
+        with pytest.raises(Rejected) as refused:
             release_svc.release(w.db, lines=draft["lines"], steps=draft["steps"], actor_id=None)
         attempt.rollback()
         assert orders_svc.validate_draft(w.db, draft) == [refused.value.detail], (
@@ -111,7 +111,7 @@ def test_two_releases_of_one_free_piece_one_wins_the_other_gets_a_sentence():
     Bug-Form (gegengeprüft): ohne Sperre lasen beide «frei», die zweite lief in den
     partiellen Unique-Index und bekam eine ``IntegrityError`` – ein 500 ohne Satz.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     setup, article, numbers = _committed_stock()
     draft = _draft(article, numbers, [World.capture()])
@@ -127,7 +127,7 @@ def test_two_releases_of_one_free_piece_one_wins_the_other_gets_a_sentence():
         thread.join(timeout=30)
         assert not thread.is_alive(), "Die zweite Freigabe hängt."
         err = out.get("error")
-        assert isinstance(err, HTTPException) and err.status_code == 409, (
+        assert isinstance(err, Rejected) and err.status == 409, (
             f"Die zweite Freigabe endet nicht mit einem 409: {out}")
         detail = err.detail if isinstance(err.detail, str) else err.detail["message"]
         assert numbers[0] in detail, f"Der Satz nennt das Stück nicht: {detail}"

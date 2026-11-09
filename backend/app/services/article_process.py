@@ -7,11 +7,11 @@ eigene Zeilen.
 
 from typing import Any
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..domain import chain, modules
 from ..models import Article, ArticleProcessStep
+from ..domain.errors import Invalid
 
 
 def steps_of(db: Session, article: Article) -> list[ArticleProcessStep]:
@@ -53,11 +53,8 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
     Modul nicht – den sagt sein Typ.
     """
     if not raw:
-        raise HTTPException(
-            status_code=400,
-            detail=("Ohne Prozessschrittmodul kann dieser Artikel nichts erzeugen. "
-                    "Mindestens eines ist Pflicht."),
-        )
+        raise Invalid("Ohne Prozessschrittmodul kann dieser Artikel nichts erzeugen. "
+                    "Mindestens eines ist Pflicht.")
     out: list[ArticleProcessStep] = []
     for position, data in enumerate(raw, start=1):
         module = modules.get(data.get("module_type"))

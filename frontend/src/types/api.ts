@@ -561,7 +561,8 @@ export interface paths {
         head?: never;
         /**
          * Update Erp Record
-         * @description Angaben einer Person ändern (Name, Kontakt, Firma, Rolle, Anstellung) – nur ein Admin.
+         * @description Angaben einer Person ändern (Name, Kontakt, Firma, Rolle, Anstellung) – jede Person mit
+         *     ERP-Zugang; Rollen und Mitarbeitende nur der Admin (``domain/policy``).
          */
         patch: operations["update_erp_record_api_v1_erp_records__object_id__patch"];
         trace?: never;
@@ -577,7 +578,7 @@ export interface paths {
         put?: never;
         /**
          * Add Record Address
-         * @description Eine Anschrift ins Adressbuch einer Person aufnehmen – nur ein Admin.
+         * @description Eine Anschrift ins Adressbuch einer Person aufnehmen.
          */
         post: operations["add_record_address_api_v1_erp_records__object_id__addresses_post"];
         delete?: never;
@@ -598,14 +599,14 @@ export interface paths {
         post?: never;
         /**
          * Remove Record Address
-         * @description Eine Anschrift aus dem Adressbuch einer Person entfernen – nur ein Admin.
+         * @description Eine Anschrift aus dem Adressbuch einer Person entfernen.
          */
         delete: operations["remove_record_address_api_v1_erp_records__object_id__addresses__address_id__delete"];
         options?: never;
         head?: never;
         /**
          * Change Record Address
-         * @description Eine Anschrift im Adressbuch einer Person ändern – nur ein Admin.
+         * @description Eine Anschrift im Adressbuch einer Person ändern.
          */
         patch: operations["change_record_address_api_v1_erp_records__object_id__addresses__address_id__patch"];
         trace?: never;
@@ -3363,6 +3364,8 @@ export interface components {
             client: string;
             /** Host */
             host: string;
+            /** Redirect */
+            redirect: string;
         };
         /** Attachment */
         Attachment: {
@@ -7027,6 +7030,11 @@ export interface components {
             notification_inapp: boolean;
             /** Last Login At */
             last_login_at: string | null;
+            /**
+             * May Edit
+             * @default false
+             */
+            may_edit: boolean;
         };
         /**
          * UserProfileUpdate

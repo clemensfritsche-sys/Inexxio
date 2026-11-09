@@ -8,10 +8,9 @@ hier nicht gibt, ist nicht anlegbar. **Der Übergang gehört zum Modul, nicht zu
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from fastapi import HTTPException
-
 from . import capture_types, sampling, statuses as st
 from . import voucher as vo
+from .errors import Invalid
 
 #: Der eine Ortsbedarf, den es heute gibt: **beim Produkt**. Eine geschlossene Liste wie
 #: ``Aussondern.MODES``.
@@ -154,27 +153,14 @@ class Aussondern(Module):
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
         mode = ((raw or {}).get("mode") or self.DEFAULT_MODE)
         if mode not in self.MODES:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"«{mode}» ist keine Aussonderungs-Art. Erlaubt: "
-                    + ", ".join(self.MODES) + "."
-                ),
-            )
+            raise Invalid(f"«{mode}» ist keine Aussonderungs-Art. Erlaubt: "
+                    + ", ".join(self.MODES) + ".")
         reason = str((raw or {}).get("reason") or "").strip()
         if not reason:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "«Aussondern» braucht einen Grund – ohne ihn steht später da, dass "
-                    "Stücke ausgesondert wurden, aber nicht warum."
-                ),
-            )
+            raise Invalid("«Aussondern» braucht einen Grund – ohne ihn steht später da, dass "
+                    "Stücke ausgesondert wurden, aber nicht warum.")
         if len(reason) > self.REASON_MAX:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Der Grund ist zu lang (max. {self.REASON_MAX} Zeichen).",
-            )
+            raise Invalid(f"Der Grund ist zu lang (max. {self.REASON_MAX} Zeichen).")
         # Keine Erfassungspunkte: der Scan ist die Bestätigung, der Grund steht in der
         # Definition.
         return {"mode": mode, "reason": reason, "points": [],
@@ -217,34 +203,21 @@ class Verbrauch(Module):
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
         found = (raw or {}).get(self.LINES) or []
         if not isinstance(found, (list, tuple)):
-            raise HTTPException(
-                status_code=400,
-                detail="«Verbrauch» erwartet eine Liste aus Artikel und Menge.",
-            )
+            raise Invalid("«Verbrauch» erwartet eine Liste aus Artikel und Menge.")
         lines: list[dict[str, int]] = []
         seen: set[int] = set()
         for row in found:
             article, quantity = self._one(row)
             if article in seen:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Artikel {article} steht zweimal in der Stückliste. Zwei Zeilen "
+                raise Invalid(f"Artikel {article} steht zweimal in der Stückliste. Zwei Zeilen "
                         f"für denselben Artikel sind eine Menge, die man addieren muss – "
-                        f"und zwei Stellen, an denen sie auseinanderlaufen kann."
-                    ),
-                )
+                        f"und zwei Stellen, an denen sie auseinanderlaufen kann.")
             seen.add(article)
             lines.append({"article": article, "quantity": quantity})
         if not lines:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "«Verbrauch» braucht mindestens eine Zeile – sonst gibt es nichts zu "
+            raise Invalid("«Verbrauch» braucht mindestens eine Zeile – sonst gibt es nichts zu "
                     "verbauen, und das Modul wäre ein Durchgang, der so aussieht wie "
-                    "eine Montage."
-                ),
-            )
+                    "eine Montage.")
         # Keine Erfassungspunkte, keine Stichprobe: was gebraucht wird, wird verbaut.
         return {self.LINES: lines, "points": [], "sample": dict(sampling.DEFAULT)}
 
@@ -252,35 +225,19 @@ class Verbrauch(Module):
     def _one(row: Any) -> tuple[int, int]:
         """Eine Zeile prüfen: **Artikel + Menge pro Stück**, beide Pflicht."""
         if not isinstance(row, dict):
-            raise HTTPException(
-                status_code=400,
-                detail=f"«{row}» ist keine Stücklisten-Zeile (Artikel und Menge).",
-            )
+            raise Invalid(f"«{row}» ist keine Stücklisten-Zeile (Artikel und Menge).")
         try:
             article = int(row.get("article"))
         except (TypeError, ValueError):
-            raise HTTPException(
-                status_code=400,
-                detail=f"«{row.get('article')}» ist keine Artikel-Objektnummer.",
-            )
+            raise Invalid(f"«{row.get('article')}» ist keine Artikel-Objektnummer.")
         try:
             quantity = int(row.get("quantity"))
         except (TypeError, ValueError):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Artikel {article}: die Menge fehlt. Sie gilt **pro Einzelinstanz** – "
-                    f"«4» heisst vier Stück je Produkt, nicht vier im ganzen Auftrag."
-                ),
-            )
+            raise Invalid(f"Artikel {article}: die Menge fehlt. Sie gilt **pro Einzelinstanz** – "
+                    f"«4» heisst vier Stück je Produkt, nicht vier im ganzen Auftrag.")
         if not 1 <= quantity <= Verbrauch.MAX_PER_UNIT:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Artikel {article}: die Menge muss zwischen 1 und "
-                    f"{Verbrauch.MAX_PER_UNIT} liegen."
-                ),
-            )
+            raise Invalid(f"Artikel {article}: die Menge muss zwischen 1 und "
+                    f"{Verbrauch.MAX_PER_UNIT} liegen.")
         return article, quantity
 
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
@@ -326,12 +283,9 @@ class Bewegen(Module):
         if value in (None, "", 0):
             return None
         if self._object_id(value) is None:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"«{value}» ist keine Objektnummer. Das Ziel von «Bewegen» ist "
+            raise Invalid(f"«{value}» ist keine Objektnummer. Das Ziel von «Bewegen» ist "
                         f"ein Regal, eine Person oder ein Unternehmen – oder es bleibt "
-                        f"leer und wird beim Ausführen gewählt."),
-            )
+                        f"leer und wird beim Ausführen gewählt.")
         return self._object_id(value)
 
     def movement_for(self, config: Optional[dict[str, Any]], *,
@@ -340,19 +294,13 @@ class Bewegen(Module):
         planned = (config or {}).get(self.TARGET)
         scanned = self._as_object_id(target)
         if planned and scanned and int(scanned) != int(planned):
-            raise HTTPException(
-                status_code=400,
-                detail=(f"Dieses Modul bringt die Stücke zu {planned}, gescannt wurde "
+            raise Invalid(f"Dieses Modul bringt die Stücke zu {planned}, gescannt wurde "
                         f"{scanned}. Wer woanders hinlegt, ändert den Ablauf – dafür gibt "
-                        f"es den Abweichungsauftrag, nicht den Scanner."),
-            )
+                        f"es den Abweichungsauftrag, nicht den Scanner.")
         goal = planned or scanned
         if not goal:
-            raise HTTPException(
-                status_code=400,
-                detail=("Dieses Modul hat kein festes Ziel – ohne gescannten Zielort "
-                        "steht nicht fest, wohin die Stücke gebracht wurden."),
-            )
+            raise Invalid("Dieses Modul hat kein festes Ziel – ohne gescannten Zielort "
+                        "steht nicht fest, wohin die Stücke gebracht wurden.")
         return int(goal)
 
 
@@ -447,33 +395,27 @@ class Beleg(Module):
         if value in (None, ""):
             return []
         if not isinstance(value, (list, tuple)):
-            raise HTTPException(status_code=400,
-                                detail="Vorgegebene Preise sind eine Liste je Artikel.")
+            raise Invalid("Vorgegebene Preise sind eine Liste je Artikel.")
         if value and flow.quoted_by != vo.BY_US:
-            raise HTTPException(status_code=400, detail=(
-                f"Bei einer «{flow.label}» nennt die Partei den Preis – vorgeben lässt er "
-                f"sich nur, wo wir ihn nennen."))
+            raise Invalid(f"Bei einer «{flow.label}» nennt die Partei den Preis – vorgeben lässt er "
+                f"sich nur, wo wir ihn nennen.")
         if len(value) > self.MAX_PRICES:
-            raise HTTPException(status_code=400, detail=(
-                f"Höchstens {self.MAX_PRICES} vorgegebene Preise je Modul."))
+            raise Invalid(f"Höchstens {self.MAX_PRICES} vorgegebene Preise je Modul.")
         rows: list[dict[str, Any]] = []
         seen: set[int] = set()
         for entry in value:
             raw = entry if isinstance(entry, dict) else {}
             number = self._object_id(raw.get("article"))
             if number is None:
-                raise HTTPException(status_code=400,
-                                    detail="Zu einem vorgegebenen Preis gehört ein Artikel.")
+                raise Invalid("Zu einem vorgegebenen Preis gehört ein Artikel.")
             if number in seen:
-                raise HTTPException(status_code=400, detail=(
-                    f"Artikel {number} hat schon einen vorgegebenen Preis."))
+                raise Invalid(f"Artikel {number} hat schon einen vorgegebenen Preis.")
             try:
                 price = vo.amount(raw.get("price"), cur.DEFAULT)
             except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+                raise Invalid(str(e))
             if price is None:
-                raise HTTPException(status_code=400,
-                                    detail=f"Zu Artikel {number} fehlt der Preis.")
+                raise Invalid(f"Zu Artikel {number} fehlt der Preis.")
             seen.add(number)
             rows.append({"article": number, "price": str(price)})
         return rows
@@ -492,7 +434,7 @@ class Beleg(Module):
             if data.get("ownership"):
                 out["ownership"] = vo.assert_ownership(data.get("ownership"))
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise Invalid(str(e))
         return out
 
     def direction_of(self, config: Optional[dict[str, Any]]) -> str:
@@ -505,7 +447,7 @@ class Beleg(Module):
         try:
             direction = vo.assert_direction(data.get(self.DIRECTION))
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise Invalid(str(e))
         flow = vo.of(direction)
         # Keine Erfassungspunkte, keine Stichprobe. Alles andere (Steuersatz, Sperre,
         # Betrag) wird verworfen – ein Feld, das die Oberfläche nicht anbietet, nimmt
@@ -524,10 +466,8 @@ class Beleg(Module):
         «gemäss Spezifikation»."""
         text = str(value or "").strip()
         if len(text) > vo.MAX_TASK:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"«{vo.TASK}» ist zu lang (max. {vo.MAX_TASK} Zeichen). Was mehr "
-                        f"braucht, gehört in die Spezifikation des Artikels."))
+            raise Invalid(f"«{vo.TASK}» ist zu lang (max. {vo.MAX_TASK} Zeichen). Was mehr "
+                        f"braucht, gehört in die Spezifikation des Artikels.")
         return text
 
     def _clean_parties(self, value: Any,
@@ -536,24 +476,17 @@ class Beleg(Module):
         if value in (None, ""):
             value = []
         if not isinstance(value, (list, tuple)):
-            raise HTTPException(
-                status_code=400,
-                detail=f"«{flow.label}» erwartet eine Liste zugelassener {vo.PARTY}.",
-            )
+            raise Invalid(f"«{flow.label}» erwartet eine Liste zugelassener {vo.PARTY}.")
         rows: list[dict[str, Any]] = []
         seen: set[int] = set()
         for entry in value:
             raw = entry.get(self.PARTY) if isinstance(entry, dict) else entry
             number = self._object_id(raw)
             if number is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"«{entry}» ist keine Objektnummer ({vo.PARTY}).")
+                raise Invalid(f"«{entry}» ist keine Objektnummer ({vo.PARTY}).")
             if number in seen:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"{vo.PARTY} {number} steht zweimal – zweimal derselbe ist "
-                            f"keine zweite Wahl."))
+                raise Invalid(f"{vo.PARTY} {number} steht zweimal – zweimal derselbe ist "
+                            f"keine zweite Wahl.")
             seen.add(number)
             # ►►► **Die Bestellangabe gibt es nur, wo WIR bestellen** (``party_ref``). ◄◄◄
             # Ein trotzdem gesendeter Wert wird verworfen.
@@ -563,21 +496,15 @@ class Beleg(Module):
             ref = str((entry.get(self.REF) if isinstance(entry, dict) else "")
                       or "").strip()
             if not ref:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"{vo.PARTY} {number}: «{vo.ORDER_REF}» fehlt – ohne die "
+                raise Invalid(f"{vo.PARTY} {number}: «{vo.ORDER_REF}» fehlt – ohne die "
                             f"Angabe weiss er nicht, was er liefern soll "
-                            f"({vo.ORDER_REF_HINT})."))
+                            f"({vo.ORDER_REF_HINT}).")
             if len(ref) > self.MAX_REF:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"{vo.PARTY} {number}: «{vo.ORDER_REF}» ist zu lang "
-                            f"(max. {self.MAX_REF} Zeichen)."))
+                raise Invalid(f"{vo.PARTY} {number}: «{vo.ORDER_REF}» ist zu lang "
+                            f"(max. {self.MAX_REF} Zeichen).")
             rows.append({self.PARTY: number, self.REF: ref})
         if len(rows) > self.MAX_PARTIES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Höchstens {self.MAX_PARTIES} {vo.PARTY} je Modul.")
+            raise Invalid(f"Höchstens {self.MAX_PARTIES} {vo.PARTY} je Modul.")
         return rows
 
     @classmethod
@@ -673,13 +600,8 @@ def get(module_type: Any) -> Module:
     """Modul zu einem Schlüssel. Unbekannt = harter Fehler, kein Rückfall."""
     found = MODULES.get(module_type)
     if found is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"«{module_type}» ist kein Prozessschrittmodul. Erlaubt: "
-                + ", ".join(f"{m.label} ({m.key})" for m in MODULES.values()) + "."
-            ),
-        )
+        raise Invalid(f"«{module_type}» ist kein Prozessschrittmodul. Erlaubt: "
+                + ", ".join(f"{m.label} ({m.key})" for m in MODULES.values()) + ".")
     return found
 
 

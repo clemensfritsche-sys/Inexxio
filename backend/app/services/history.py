@@ -28,7 +28,6 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import text, tuple_
 from sqlalchemy.orm import Session
 
@@ -37,6 +36,7 @@ from ..models import Document, DocumentRef, UserProfile
 from ..schemas.history import (ChangeBlock, DocumentEntry, FieldChange, HistoryEntry,
                                HistoryPage, LogRow)
 from . import access, communication, records
+from ..domain.errors import Invalid, NotFound
 
 #: ►►► **Was der Verlauf aus dem Log NICHT zeigt – die eine Ausnahmeliste.** ◄◄◄
 #: * ``messages``, ``message_parties`` – jede Nachricht steht schon als Nachricht da; ihre
@@ -87,7 +87,7 @@ def parse(cursor: Optional[str]) -> Optional[Key]:
         at, rank, ident = cursor.split("~")
         return datetime.fromisoformat(at), int(rank), int(ident)
     except ValueError as exc:
-        raise HTTPException(400, detail=f"Cursor «{cursor}» ist ungültig.") from exc
+        raise Invalid(f"Cursor «{cursor}» ist ungültig.") from exc
 
 
 def _bound(before: Optional[Key], kind: str) -> Optional[tuple[datetime, int]]:
@@ -239,13 +239,13 @@ def assert_visible(db: Session, oid: int, viewer: UserProfile) -> Optional[UserP
     Datensatz eine ist (ihre Zeiterfassung hat eine eigene Regel)."""
     found = records.labels(db, [oid]).get(oid)
     if found is None:
-        raise HTTPException(404, detail=f"Datensatz «{oid}» gibt es nicht.")
+        raise NotFound(f"Datensatz «{oid}» gibt es nicht.")
     if found.type == "document":
         doc = db.query(Document).filter(Document.object_id == oid).one()
         refs = db.query(DocumentRef).filter(DocumentRef.document_id == doc.id,
                                             DocumentRef.is_active.is_(True)).all()
         if not access.may(viewer, refs):
-            raise HTTPException(404, detail=f"Datensatz «{oid}» gibt es nicht.")
+            raise NotFound(f"Datensatz «{oid}» gibt es nicht.")
     if found.type == "user":
         return db.query(UserProfile).filter(UserProfile.object_id == oid).one()
     return None

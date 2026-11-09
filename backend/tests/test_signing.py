@@ -6,7 +6,7 @@ import random
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 
 from app.domain import statuses as st
 from app.models import DocumentLink, Message
@@ -88,9 +88,9 @@ def test_send_sign_and_the_signature_stands_on_the_paper(db):
     signing.sign(db, link, _png())
     view = signing.view(db, link)
     assert view["status"] == st.FREIGEGEBEN and "data:image/png;base64" in view["html"], "(b)"
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         signing.sign(db, link, _png())
-    assert e.value.status_code == 409, "(c)"
+    assert e.value.status == 409, "(c)"
     assert not hasattr(DocumentLink, "expires_at"), "(d) ein Link hat kein Ablaufdatum"
 
 
@@ -108,9 +108,9 @@ def test_declined_is_the_end_and_deleted_is_a_note(db):
         r.is_active = False
     db.flush()
     documents.delete(db, doc, "Entwurf verworfen", staff)
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         signing.view(db, la)
-    assert e.value.status_code == 410, "(b)"
+    assert e.value.status == 410, "(b)"
 
 
 def test_a_signature_must_be_a_real_png(db):
@@ -118,7 +118,7 @@ def test_a_signature_must_be_a_real_png(db):
     doc = _composed(db, staff, signer)
     (link,) = signing.send(db, doc, [signer.object_id], "", staff)
     for bad in ("", "data:image/png;base64,AAAA", "data:text/html;base64,PGI+"):
-        with pytest.raises(HTTPException):
+        with pytest.raises(Rejected):
             signing.sign(db, link, bad)
 
 

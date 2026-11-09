@@ -23,12 +23,12 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Optional
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..core import outside
 from ..core.config import get_settings
 from ..models import Attachment
+from ..domain.errors import Invalid, NotFound, Rejected, TooLarge, Unavailable
 
 _MAX_EDGE = 1600          # längste Kante in px (für eine Foto-Doku reicht das dicke)
 _JPEG_QUALITY = 82
@@ -58,25 +58,25 @@ def store_image(db: Session, raw: bytes, filename: str | None) -> Attachment:
     Bild nie einen 500/Worker-Crash auslöst, sondern sauber als 400 abgewiesen wird. Zusätzlich
     ein hartes Pixel-Limit gegen Decompression-Bombs (kleine Datei ⇒ Gigapixel-Fläche)."""
     if not raw:
-        raise HTTPException(400, detail="Leere Datei")
+        raise Invalid("Leere Datei")
     if len(raw) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(413, detail="Datei zu gross (max. 20 MB)")
+        raise TooLarge("Datei zu gross (max. 20 MB)")
     from PIL import Image, ImageOps
     try:
         img = Image.open(io.BytesIO(raw))
         w, h = img.size
         if w * h > _MAX_PIXELS:
-            raise HTTPException(413, detail="Bildauflösung zu hoch")
+            raise TooLarge("Bildauflösung zu hoch")
         img = ImageOps.exif_transpose(img)   # Handy-Fotos korrekt drehen
         img = _flatten_to_rgb(img)           # Transparenz auf WEISS (sonst schwarzer Balken)
         img.thumbnail((_MAX_EDGE, _MAX_EDGE))
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=_JPEG_QUALITY, optimize=True)
         data = buf.getvalue()
-    except HTTPException:
+    except Rejected:
         raise
     except Exception:
-        raise HTTPException(400, detail="Ungültiges oder nicht unterstütztes Bild")
+        raise Invalid("Ungültiges oder nicht unterstütztes Bild")
     att = Attachment(
         token=secrets.token_urlsafe(24),
         mime="image/jpeg",
@@ -100,9 +100,9 @@ def store_raw(db: Session, raw: bytes, filename: str | None, mime: str) -> Attac
     """**Eine Datei unverändert in den Korb** – für Dokumente (PDF, Bild, Tabelle, Video …).
     Ein Dokument ist das Original; verkleinert wird nichts."""
     if not raw:
-        raise HTTPException(400, detail="Leere Datei")
+        raise Invalid("Leere Datei")
     if len(raw) > MAX_FILE_BYTES:
-        raise HTTPException(413, detail="Datei zu gross (max. 25 MB)")
+        raise TooLarge("Datei zu gross (max. 25 MB)")
     att = Attachment(token=secrets.token_urlsafe(24), mime=(mime or "application/octet-stream")[:100],
                      filename=(filename or None), byte_size=len(raw))
     keep(att, raw)
@@ -115,7 +115,7 @@ def get_by_token(db: Session, token: str) -> Attachment:
     att = db.query(Attachment).filter(
         Attachment.token == token).first()
     if not att:
-        raise HTTPException(404, detail="Bild nicht gefunden")
+        raise NotFound("Bild nicht gefunden")
     return att
 
 
@@ -209,14 +209,14 @@ def bytes_of(att: Attachment) -> bytes:
         return bytes(att.data)
     target = bucket()
     if target is None:
-        raise HTTPException(503, detail="Die Datei liegt im Speicher, der hier nicht eingerichtet ist.")
+        raise Unavailable("Die Datei liegt im Speicher, der hier nicht eingerichtet ist.")
     try:
         return target.blob(att.token).download_as_bytes()
     except Exception as exc:                                       # noqa: BLE001
         if type(exc).__name__ == "NotFound":
-            raise HTTPException(404, detail="Diese Datei gibt es nicht mehr.")
+            raise NotFound("Diese Datei gibt es nicht mehr.")
         print(f"WARNING: Cloud Storage nicht lesbar ({exc!r})", flush=True)
-        raise HTTPException(503, detail="Die Datei ist gerade nicht erreichbar – bitte gleich noch einmal.")
+        raise Unavailable("Die Datei ist gerade nicht erreichbar – bitte gleich noch einmal.")
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +268,7 @@ def get_object(name: str) -> Optional[bytes]:
         if type(exc).__name__ == "NotFound":
             return None
         print(f"WARNING: Cloud Storage nicht lesbar ({exc!r})", flush=True)
-        raise HTTPException(503, detail=f"«{name}» ist gerade nicht erreichbar – gleich noch einmal.")
+        raise Unavailable(f"«{name}» ist gerade nicht erreichbar – gleich noch einmal.")
 
 
 def drop_objects(db: Session, prefix: str) -> None:

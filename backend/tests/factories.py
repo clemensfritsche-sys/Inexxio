@@ -12,7 +12,7 @@ from typing import Any, Optional
 def new_person(db, role: str = "user", *, company: Optional[int] = None,
                email: Optional[str] = None, uid: Optional[str] = None,
                first_name: str = "Lea", last_name: Optional[str] = None, **extra: Any):
-    """Eine Person mit Rolle (``people.ROLES``), optional einer Firma zugeordnet."""
+    """Eine Person mit Rolle (``policy.ROLES``), optional einer Firma zugeordnet."""
     from app.models import UserProfile
     from app.services.objects import next_object_id
 

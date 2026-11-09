@@ -10,7 +10,7 @@ Weg daneben wäre eine Tür, durch die Material ohne Auftrag, ohne Prozess und o
 Ereignis in die Welt käme.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -24,6 +24,7 @@ from ..schemas.instance import (
 from ..schemas.place import PlaceRef, UnitPlace
 from ..services import (genealogy, instances as inst_svc, lookup,
                         order_state, places as places_svc)
+from ..domain.errors import NotFound
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -75,7 +76,7 @@ def _detail(db: Session, instance: Instance) -> InstanceResponse:
 def _get(db: Session, object_id: int) -> Instance:
     instance = db.query(Instance).filter(Instance.object_id == object_id).first()
     if instance is None:
-        raise HTTPException(status_code=404, detail=f"Instanz {object_id} nicht gefunden.")
+        raise NotFound(f"Instanz {object_id} nicht gefunden.")
     return instance
 
 
@@ -183,10 +184,7 @@ def unit_genealogy(
         .first()
     )
     if unit is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Einzelinstanz {object_id}-{suffix} gibt es nicht.",
-        )
+        raise NotFound(f"Einzelinstanz {object_id}-{suffix} gibt es nicht.")
     return Genealogy(
         parts=[GenealogyPart(**p) for p in genealogy.parts_of(db, unit)],
         built_into=[

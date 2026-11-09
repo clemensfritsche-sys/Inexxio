@@ -9,7 +9,7 @@ import random
 from datetime import datetime, timezone
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 
 from app.core import auth
 from app.models import UserProfile
@@ -25,9 +25,9 @@ def _n() -> int:
 
 def test_an_unverified_address_creates_no_person(db):
     n = _n()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         auth._resolve_user(db, f"uid-{n}", f"neu{n}@x.ch", _token(f"uid-{n}", f"neu{n}@x.ch", False))
-    assert exc.value.status_code == 403 and "bestätigt" in exc.value.detail
+    assert exc.value.status == 403 and "bestätigt" in exc.value.detail
     assert db.query(UserProfile).filter(UserProfile.email == f"neu{n}@x.ch").count() == 0
     db.commit = db.flush
     u = auth._resolve_user(db, f"uid-{n}", f"neu{n}@x.ch", _token(f"uid-{n}", f"neu{n}@x.ch", True))
@@ -42,7 +42,7 @@ def test_an_unverified_address_takes_over_nobody(db):
                       object_id=n)
     db.add(lea)
     db.flush()
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         auth._resolve_user(db, f"fb-{n}", lea.email, _token(f"fb-{n}", lea.email, False))
     assert lea.firebase_uid == f"mail:lea{n}@x.ch"
     assert auth._resolve_user(db, f"fb-{n}", lea.email, _token(f"fb-{n}", lea.email, True)) is lea
@@ -98,6 +98,8 @@ def test_passkey_challenges_are_limited_like_every_public_door(db, monkeypatch):
     monkeypatch.setattr(passkey, "begin_authentication", lambda _db, _r: {"challenge": "x"})
     app = FastAPI()
     app.include_router(router.router)
+    from app.main import rejected_handler
+    app.add_exception_handler(Rejected, rejected_handler)
     app.dependency_overrides[get_db] = lambda: db
     client = TestClient(app)
     h = {"X-Forwarded-For": "203.0.113.9"}

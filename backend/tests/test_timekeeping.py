@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 from sqlalchemy import text
 
 from app.core.clock import ZONE
@@ -151,7 +151,7 @@ def test_exit_freezes_the_closing_balance(world):
     assert exit_.closing_day == date(2026, 10, 19)
     assert exit_.closing_account == -13 * 504         # 13 Arbeitstage ohne Stempel
     assert _days(v)[date(2026, 10, 21)].soll == 0
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _stamp(db, lena, lena, date(2026, 10, 21), "07:00")
     assert "kein Vertrag" in e.value.detail
 
@@ -169,7 +169,7 @@ def test_legal_minimum_applies_until_the_20th_birthday(world):
     """Mindestferien: bis zum 20. Geburtstag 5 Wochen – weniger weist der Vertrag ab."""
     db, co, admin, _ = world
     young = _person(db, co, born=date(2008, 3, 14))
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _contract(db, admin, young, date(2026, 10, 1), weeks=Decimal(4))
     assert "5 Wochen" in e.value.detail
     _contract(db, admin, young, date(2026, 10, 1))
@@ -233,14 +233,14 @@ def test_dst_change_counts_the_real_hours(world, clock):
 def test_sequence_future_and_full_day_absence_are_refused(world):
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 1))
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _stamp(db, lena, lena, date(2026, 10, 21), "17:00", "out")
     assert "fehlt «Kommen»" in e.value.detail
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _stamp(db, lena, lena, TODAY, "18:00")
     assert e.value.detail == "Liegt in der Zukunft – jetzt ist es 12:33."
     t.record(db, lena, lena, EntryIn(kind="absence", art="krank", day=date(2026, 10, 21)))
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _stamp(db, lena, lena, date(2026, 10, 21), "07:00")
     assert "ganzer Tag" in e.value.detail
 
@@ -262,9 +262,9 @@ def test_an_unchanged_edit_records_nothing_and_a_change_is_marked(world):
 def test_seven_day_rule_locks_the_employee_not_the_admin(world):
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 1))
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _day(db, lena, lena, date(2026, 10, 15), [("07:00", "16:00")])
-    assert e.value.status_code == 403 and "abgeschlossen" in e.value.detail
+    assert e.value.status == 403 and "abgeschlossen" in e.value.detail
     _day(db, admin, lena, date(2026, 10, 15), [("07:00", "16:00")])
     days = _days(_view(db, lena, lena))
     assert days[date(2026, 10, 15)].locked and not days[date(2026, 10, 16)].locked
@@ -277,9 +277,9 @@ def test_only_self_and_admin_see_the_time(world):
     other = _person(db, co)
     _contract(db, admin, lena, date(2026, 10, 1))
     assert not t.may_see(other, lena) and t.may_see(admin, lena) and t.may_see(lena, lena)
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _stamp(db, other, lena, date(2026, 10, 22), "07:00")
-    assert e.value.status_code == 403
+    assert e.value.status == 403
 
 
 # ─── Absenzen und Hinweise ──────────────────────────────────────────────────────────
@@ -307,7 +307,7 @@ def test_proof_task_appears_from_day_three_and_goes_with_the_upload(world):
     db.add(Attachment(token="tok-proof-1", mime="image/jpeg", data=b"x", byte_size=1))
     db.flush()
     a = next(r for r in b.live if r.kind == "absence")
-    with pytest.raises(HTTPException):     # eine lose Datei im Korb ist kein Nachweis
+    with pytest.raises(Rejected):     # eine lose Datei im Korb ist kein Nachweis
         t.record(db, lena, lena, EntryIn(kind="proof", replaces_id=a.id,
                                          proof_url="/api/v1/attachments/tok-proof-1"))
     _proof(db, lena, a.id)
@@ -318,16 +318,16 @@ def test_absence_rules(world):
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 1))
     _day(db, lena, lena, date(2026, 10, 20), [("07:00", "16:00")])
-    with pytest.raises(HTTPException) as e:          # Stempel am Tag → nur Stunden
+    with pytest.raises(Rejected) as e:          # Stempel am Tag → nur Stunden
         t.record(db, lena, lena, EntryIn(kind="absence", art="bezahlt", day=date(2026, 10, 20)))
     assert "«Stunden» wählen" in e.value.detail
     t.record(db, lena, lena, EntryIn(kind="absence", art="bezahlt", day=date(2026, 10, 20),
                                      minutes=90, note="Arzt"))
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         t.record(db, lena, lena, EntryIn(kind="absence", art="bezahlt", day=date(2026, 10, 21),
                                          minutes=600))
     assert "Mehr als ein ganzer Tag (8:24 h)" in e.value.detail
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         t.record(db, lena, lena, EntryIn(kind="absence", art="ferien", day=date(2026, 10, 24)))
     assert "kein Arbeitstag" in e.value.detail
     a = next(r for r in t.load(db, lena).live if r.kind == "absence")
@@ -359,7 +359,7 @@ def test_hints_pause_rest_week_u18_sunday(world):
 def test_bookings_move_account_and_vacation_and_are_admin_only(world):
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 23))
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         t.record(db, lena, lena, EntryIn(kind="booking", day=TODAY, minutes=600, note="x"))
     t.record(db, admin, lena, EntryIn(kind="booking", day=TODAY, minutes=240,
                                       vacation_minutes=1512, note="Übertrag bei Einführung"))
@@ -443,7 +443,7 @@ def test_editing_a_running_in_back_never_allows_a_second_in(world, clock):
     assert _view(db, lena, lena).present_since == "06:00"
     t.swipe(db, lena, lena, "in", "key-bug-0002")          # veralteter Knopf: schreibt nichts
     assert [r.kind for r in t.load(db, lena).live if r.kind in tk.STAMPS] == ["in"]
-    with pytest.raises(HTTPException) as e:                # auch nicht von Hand
+    with pytest.raises(Rejected) as e:                # auch nicht von Hand
         _stamp(db, lena, lena, date(2026, 10, 23), "21:00")
     assert "fehlt «Gehen»" in e.value.detail
     t.swipe(db, lena, lena, "out", "key-bug-0003")
@@ -461,7 +461,7 @@ def test_an_old_broken_day_does_not_block_new_stamps(world):
                          at=t.instant(date(2026, 10, 19), t._minute(hhmm)), source="manual"))
     db.flush()
     _day(db, lena, lena, date(2026, 10, 22), [("07:00", "16:00")])
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _stamp(db, lena, lena, date(2026, 10, 19), "23:00")
     assert "fehlt «Gehen»" in e.value.detail
     _stamp(db, lena, lena, date(2026, 10, 19), "12:00", "out")   # der Weg, ihn zu heilen
@@ -538,7 +538,7 @@ def test_a_stamp_does_not_change_its_day(world):
     _contract(db, admin, lena, date(2026, 10, 1))
     _day(db, lena, lena, date(2026, 10, 19), [("08:00", "12:00"), ("13:00", "17:00")])
     second = [r for r in t.load(db, lena).live if r.kind == "in"][1]
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         t.record(db, lena, lena, EntryIn(kind="in", replaces_id=second.id,
                                          day=date(2026, 10, 22), time="13:00"))
     assert "wechselt den Tag nicht" in e.value.detail
@@ -586,7 +586,7 @@ def test_the_repeated_hour_and_the_missing_hour(world, clock):
     _stamp(db, admin, lena, date(2026, 10, 25), "02:30", "out")
     d = t.ledger(t.load(db, lena), date(2026, 10, 31), t.now_utc()).days[date(2026, 10, 25)]
     assert d.ist == 45
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _stamp(db, admin, lena, date(2026, 3, 29), "02:30")
     assert "Zeitumstellung" in e.value.detail
 
@@ -602,7 +602,7 @@ def test_a_second_swipe_says_why_it_did_nothing(world, clock):
 def test_contracts_only_for_staff(world):
     db, co, admin, _ = world
     customer = _person(db, co, role="user")
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _contract(db, admin, customer, date(2026, 10, 1))
     assert "kein Personal" in e.value.detail
 
@@ -619,6 +619,8 @@ def test_a_proof_has_one_way_only(db):
     from app.routers import timekeeping as router
     app = FastAPI()
     app.include_router(router.router)
+    from app.main import rejected_handler
+    app.add_exception_handler(Rejected, rejected_handler)
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[require_employee] = lambda: SimpleNamespace(role="admin", id=1)
     client = TestClient(app)

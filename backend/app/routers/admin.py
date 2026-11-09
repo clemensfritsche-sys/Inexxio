@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_admin, require_employee
@@ -16,6 +16,7 @@ from ..schemas.admin import (
     TerritoryRegion,
 )
 from ..services import sites
+from ..domain import policy
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -114,8 +115,8 @@ def create_company(
     innerbetriebliche Bewegung klassifiziert (ADR 005)."""
     fields = data.model_dump(exclude_unset=True)
     own = bool(fields.pop("is_own", False))
-    if own and current_user.role != "admin":
-        raise HTTPException(403, detail="Eine eigene Gesellschaft legt nur ein Admin an.")
+    if own:
+        policy.require(current_user, "company.own")
     company = sites.create(db, fields, current_user.id, own=own)
     return _company_response(db, company)
 
@@ -131,7 +132,7 @@ def update_company(
     Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST (``sites.apply_update``)."""
     company = sites.require(db, object_id)
     sites.apply_update(db, company, data.model_dump(exclude_unset=True), current_user.id,
-                       admin=current_user.role == "admin")
+                       admin=policy.may(current_user, "company.own"))
     return _company_response(db, company)
 
 
@@ -159,8 +160,8 @@ def deactivate_company(
     """Ein Unternehmen **schliessen** (Soft-Delete, umkehrbar über ``…/reopen``). Der
     **Betreiber** und die **letzte** eigene Gesellschaft lassen sich nicht schliessen."""
     company = sites.require(db, object_id)
-    if company.is_own and current_user.role != "admin":
-        raise HTTPException(403, detail="Eine eigene Gesellschaft schliesst nur ein Admin.")
+    if company.is_own:
+        policy.require(current_user, "company.own")
     sites.deactivate(db, company, current_user.id)
     return _company_response(db, company)
 
@@ -174,8 +175,8 @@ def reopen_company(
     """Ein geschlossenes Unternehmen **wieder öffnen** – dieselbe Berechtigung wie das
     Schliessen."""
     company = sites.require(db, object_id)
-    if company.is_own and current_user.role != "admin":
-        raise HTTPException(403, detail="Eine eigene Gesellschaft öffnet nur ein Admin.")
+    if company.is_own:
+        policy.require(current_user, "company.own")
     sites.reopen(db, company, current_user.id)
     return _company_response(db, company)
 

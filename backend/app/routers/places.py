@@ -10,7 +10,7 @@ ist ein Regal, eine Person oder ein Unternehmen, das gerade etwas trägt. Wer su
 sucht im Feed – dort stehen sie alle.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -18,6 +18,7 @@ from ..core.database import DB
 from ..models import UserProfile
 from ..schemas.place import PlaceRef
 from ..services import places as places_svc
+from ..domain.errors import NotFound
 
 router = APIRouter(prefix="/api/v1/erp/places", tags=["places"])
 
@@ -58,9 +59,6 @@ def resolve_place(
     """
     station = places_svc.station_of(db, object_id)
     if station is None:
-        raise HTTPException(
-            status_code=404,
-            detail=(f"{object_id} ist kein Ort. Ein Ziel ist ein Regal oder ein anderer "
-                    f"Behälter (Instanz), eine Person oder ein Unternehmen."),
-        )
+        raise NotFound(f"{object_id} ist kein Ort. Ein Ziel ist ein Regal oder ein anderer "
+                    f"Behälter (Instanz), eine Person oder ein Unternehmen.")
     return PlaceRef(object_id=station.object_id, kind=station.kind, label=station.label)

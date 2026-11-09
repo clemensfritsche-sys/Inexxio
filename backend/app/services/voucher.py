@@ -18,7 +18,6 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Callable, Iterator, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import event, func
 from sqlalchemy.orm import Session
 
@@ -33,7 +32,8 @@ from ..models import (
 from ..models.process_event import KIND_START, KIND_STEP
 from . import sites
 # Wer ohnehin alles sieht – Personal hat keine verengte Sicht (die eine Stelle).
-from .people import STAFF_ROLES
+from ..domain.errors import Conflict
+from ..domain import policy
 
 
 # ---------------------------------------------------------------------------
@@ -649,7 +649,7 @@ def mine(db: Session, viewer: Optional[UserProfile]) -> Optional[list[Voucher]]:
     Beteiligt ist, wer **angefragt** wurde (Zeile im Angebotsspiegel). **Personal bekommt
     ``None``**; sonst zählt die Rolle nicht – jeder darf Gegenpartei sein.
     """
-    if viewer is None or viewer.role in STAFF_ROLES:
+    if policy.inside(viewer):
         return None
     if viewer.object_id is None:
         return []
@@ -714,7 +714,7 @@ def assert_completable(db: Session, *, step: ProcessStep, auto: bool = False) ->
         return
     why = pass_problem(db, step=step) if auto else PASSES_ITSELF
     if why:
-        raise HTTPException(status_code=409, detail=why)
+        raise Conflict(why)
 
 
 def service_day(db: Session, step: ProcessStep) -> Optional[date]:

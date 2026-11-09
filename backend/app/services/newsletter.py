@@ -23,7 +23,6 @@ from datetime import datetime, timezone
 from typing import Iterable, Optional
 from urllib.parse import quote
 
-from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -35,6 +34,7 @@ from ..models import Message, NewsletterConsent, UserProfile
 from . import mail_layout
 from .inquiry import VOCAB as _SITE
 from .people import is_email, normalize_email
+from ..domain.errors import Conflict, NotFound, Unavailable
 
 WORDS: dict[str, str] = _SITE["newsletter"]
 #: Der Satz, dem zugestimmt wird – gespeichert mit jeder Anmeldung.
@@ -188,7 +188,7 @@ def _box(db: Session, channel: Optional[str]):
     channel = channel or sending_channel(db)
     box = mailbox.active(db, channel) if channel else None
     if box is None or box.problem:
-        raise HTTPException(503, detail="Kein Postfach verbunden – die Bitte um Bestätigung "
+        raise Unavailable("Kein Postfach verbunden – die Bitte um Bestätigung "
                                         "kann nicht hinausgehen.")
     return channel, box
 
@@ -213,11 +213,11 @@ def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
     from . import mailbox
     from .communication import write
     if oid in subscribed(db, [oid]):
-        raise HTTPException(409, detail="Diese Person ist schon angemeldet.")
+        raise Conflict("Diese Person ist schon angemeldet.")
     channel, box = _box(db, channel)
     person = db.query(UserProfile).filter(UserProfile.object_id == oid).first()
     if person is None:
-        raise HTTPException(404, detail=f"Person «{oid}» gibt es nicht.")
+        raise NotFound(f"Person «{oid}» gibt es nicht.")
     mail = _request(db, channel, box, person.display_name if by_name else "",
                     confirm_url(source, person=oid))
     msg = Message(sender_object_id=box.owner_object_id, channel=channel,
@@ -237,4 +237,4 @@ def invite_address(db: Session, email: str, source: str, channel: Optional[str] 
     channel, box = _box(db, channel)
     mail = _request(db, channel, box, "", confirm_url(source, email=email))
     if not mailbox.send_direct(db, channel, email, WORDS["confirmSubject"], mail):
-        raise HTTPException(503, detail="Die Bitte um Bestätigung ging nicht hinaus.")
+        raise Unavailable("Die Bitte um Bestätigung ging nicht hinaus.")

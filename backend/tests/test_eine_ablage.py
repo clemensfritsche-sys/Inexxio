@@ -105,7 +105,7 @@ def test_a_form_photo_opens_as_the_file_it_was(db):
     """Ein Foto des Kontaktformulars öffnet sich im Entwurf als die Datei, die es war –
     derselbe Weg wie ein Anhang einer Mail. Bug-Form: der Index greift daneben."""
     import pytest
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.models import Message
     from app.services import attachments, mailbox
     att = attachments.store_raw(db, b"\xff\xd8\xff" + uuid.uuid4().bytes, "a.jpg", "image/jpeg")
@@ -115,7 +115,7 @@ def test_a_form_photo_opens_as_the_file_it_was(db):
     db.flush()
     raw, mime, name = mailbox.attachment(db, msg, 0)
     assert raw == bytes(att.data) and mime == "image/jpeg" and name == "a.jpg"
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         mailbox.attachment(db, msg, 1)
 
 

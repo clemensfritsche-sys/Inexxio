@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Message, UserProfile
 from . import ai, handgriff, log
+from ..domain import policy
 
 #: So viele Mails je Lauf des Takts.
 PER_RUN = 5
@@ -79,7 +80,7 @@ def due(db: Session, limit: int = PER_RUN) -> list[int]:
     if after is None:
         begin(db)
         return []
-    from .people import STAFF_ROLES
+    from ..domain.policy import STAFF_ROLES
     return [r.id for r in db.execute(_CANDIDATES, {"after": after, "n": limit,
                                                    "staff": list(STAFF_ROLES)})]
 
@@ -87,12 +88,11 @@ def due(db: Session, limit: int = PER_RUN) -> list[int]:
 def _reader(db: Session, msg: Message) -> Optional[UserProfile]:
     """In wessen Namen gelesen wird: wer das Postfach verbunden hat (Personal)."""
     from . import mailbox
-    from .people import STAFF_ROLES
     mb = mailbox.active(db, msg.channel)
     if mb is None:
         return None
     person = db.query(UserProfile).filter(UserProfile.object_id == mb.owner_object_id).first()
-    return person if person is not None and person.role in STAFF_ROLES else None
+    return person if policy.is_staff(person) else None
 
 
 def _content(db: Session, msg: Message, sender: UserProfile, reader: UserProfile

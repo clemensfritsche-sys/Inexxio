@@ -17,13 +17,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..models import Document, Order, UserProfile, Voucher, VoucherQuote
+from ..domain import number
 from . import ai, objects, records
 from .requirements import FIELD_KEYS, Requirement, open_for
 
@@ -96,14 +97,7 @@ def _prompt(reqs: list[Requirement], arts: list[str]) -> str:
 
 
 def _amount(text: str) -> Optional[Decimal]:
-    raw = re.sub(r"[^\d.,\-]", "", text or "").replace("’", "").replace("'", "")
-    if raw.count(",") and raw.count("."):
-        raw = raw.replace(",", "")
-    raw = raw.replace(",", ".")
-    try:
-        return Decimal(raw) if raw else None
-    except InvalidOperation:
-        return None
+    return number.lenient(text)
 
 
 def check(req: Requirement, values: dict) -> tuple[bool, str]:

@@ -34,7 +34,6 @@ from urllib.parse import urlencode
 
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -45,6 +44,8 @@ from ..core.config import get_settings
 from ..domain import communication as dc
 from ..models import Mailbox, Message, MessageParty, UserProfile
 from .people import ensure, normalize_email
+from ..domain.errors import Conflict, Forbidden, Invalid, NotFound, Unavailable
+from ..domain import policy
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -134,17 +135,17 @@ def _ours(db: Session) -> dict[str, Optional[int]]:
 
 def may_connect(actor: UserProfile, channel: str) -> bool:
     """Ein Postfach gibt es nur je eigener Gesellschaft – und verbinden darf es ein Admin."""
-    return dc.company_of(channel) is not None and actor.role == "admin"
+    return dc.company_of(channel) is not None and policy.may(actor, "mailbox.connect")
 
 
 def _assert_may(db: Session, actor: UserProfile, channel: str) -> None:
     if not dc.is_mail(channel):
-        raise HTTPException(400, detail=f"«{channel}» ist kein Postfach.")
+        raise Invalid(f"«{channel}» ist kein Postfach.")
     if dc.company_of(channel) is not None and company(db, channel) is None:
-        raise HTTPException(404, detail=f"«{dc.company_of(channel)}» ist keine eigene "
+        raise NotFound(f"«{dc.company_of(channel)}» ist keine eigene "
                                         f"Gesellschaft – nur sie hat ein Postfach.")
     if not may_connect(actor, channel):
-        raise HTTPException(403, detail="Das Postfach einer Gesellschaft verbindet ein Admin.")
+        raise Forbidden("Das Postfach einer Gesellschaft verbindet ein Admin.")
 
 
 def _redirect_uri() -> str:
@@ -153,7 +154,7 @@ def _redirect_uri() -> str:
 
 def connect_url(db: Session, channel: str, actor: UserProfile) -> str:
     if not ready():
-        raise HTTPException(404, detail="Es ist keine Postfach-Anbindung eingerichtet.")
+        raise NotFound("Es ist keine Postfach-Anbindung eingerichtet.")
     _assert_may(db, actor, channel)
     hint = company_address(db, channel)
     state = signed.sign({"c": channel, "a": actor.object_id}, STATE_PURPOSE, STATE_TTL)
@@ -586,7 +587,7 @@ def attachment(db: Session, msg: Message, index: int) -> tuple[bytes, str, str]:
     einer älteren Nachricht über den Namen. Er wird ein Dokument erst mit der Freigabe."""
     items = msg.attachments or []
     if not 0 <= index < len(items):
-        raise HTTPException(404, detail="Diesen Anhang gibt es nicht.")
+        raise NotFound("Diesen Anhang gibt es nicht.")
     item = items[index]
     name = str(item.get("name") or "Anhang")
     if item.get("url"):
@@ -597,20 +598,19 @@ def attachment(db: Session, msg: Message, index: int) -> tuple[bytes, str, str]:
     mb = active(db, msg.channel)
     token = _access(mb) if mb is not None and not mb.problem and msg.gmail_id else None
     if token is None:
-        raise HTTPException(409, detail=(
-            f"Der Anhang «{name}» liegt in Gmail – das Postfach ist gerade nicht verbunden."))
+        raise Conflict(f"Der Anhang «{name}» liegt in Gmail – das Postfach ist gerade nicht verbunden.")
     try:
         full = _get(token, f"messages/{msg.gmail_id}", format="full").json()
         part = next((p for p in _parts(full.get("payload") or {}) if p.get("filename") and (
             p.get("partId") == item.get("part") if item.get("part") else p.get("filename") == name)),
             None)
         if part is None:
-            raise HTTPException(404, detail=f"Den Anhang «{name}» gibt es in Gmail nicht mehr.")
+            raise NotFound(f"Den Anhang «{name}» gibt es in Gmail nicht mehr.")
         body = part.get("body") or {}
         data = body.get("data") or (_get(token, f"messages/{msg.gmail_id}/attachments/"
                                             f"{body.get('attachmentId')}").json().get("data") or "")
     except httpx.HTTPError:
-        raise HTTPException(503, detail=f"Gmail antwortet gerade nicht – «{name}» später öffnen.")
+        raise Unavailable(f"Gmail antwortet gerade nicht – «{name}» später öffnen.")
     raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
     return raw, str(part.get("mimeType") or item.get("mime") or "application/octet-stream"), name
 
@@ -623,7 +623,7 @@ def assert_may_send(db: Session, channel: str, sender: UserProfile) -> None:
     """Hinaus geht nur, was ein verbundenes Postfach hat."""
     mb = active(db, channel)
     if mb is None or mb.problem:
-        raise HTTPException(400, detail=f"Das Postfach «{address_of(db, channel)}» ist nicht "
+        raise Invalid(f"Das Postfach «{address_of(db, channel)}» ist nicht "
                                         f"verbunden – erst verbinden, dann senden.")
 
 
@@ -858,8 +858,7 @@ def signer_of(sender: Optional[UserProfile], msg: Message):
     sofort erkennbar als Mitarbeiter – mit seinem Profilbild. Eine automatische Mail
     unterschreibt das Unternehmen (``None``)."""
     from . import mail_layout as layout
-    from .people import STAFF_ROLES
-    if msg.created_by is None or sender is None or sender.role not in STAFF_ROLES:
+    if msg.created_by is None or not policy.is_staff(sender):
         return None
     return layout.Signer(name=sender.display_name, photo=sender.photo_url or "")
 

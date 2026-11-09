@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { api } from '@/lib/api';
+import type { McpAsk } from '@/types';
 import { errorText, useAction } from '@/lib/use-action';
 import { StageWord } from '@/components/beleg/paper';
 import css from '@/components/beleg/beleg.module.css';
@@ -16,7 +17,7 @@ import css from '@/components/beleg/beleg.module.css';
  */
 export default function ConnectClaude() {
   const [r, setR] = useState<string | null>(null);
-  const [ask, setAsk] = useState<{ client: string; host: string } | null>(null);
+  const [ask, setAsk] = useState<McpAsk | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const { run, busy, error } = useAction();
 
@@ -47,8 +48,8 @@ export default function ConnectClaude() {
             <p className={css.noteText}>
               Er liest, was Sie im ERP sehen, und bereitet Handgriffe vor. Ausführen tun Sie im ERP
               (Angeheftetes am Datensatz). Trennen können Sie jederzeit unter Konto · Sicherheit.
-              Zurück geht es an {ask.host}.
             </p>
+            <p className={css.noteText}>Zurück geht es an: <code style={{ wordBreak: 'break-all' }}>{ask.redirect}</code></p>
           </div>
         )}
         {ask && !failed && (

@@ -19,11 +19,12 @@ import re
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 from sqlalchemy import text
 
 from app.models import CompanySettings, UserProfile
 from app.schemas.admin import ErpAdminUpdate, UserProfileResponse, UserProfileUpdate
+from app.domain import policy
 from app.services import people, voucher
 from tests.runner import BACKEND, session
 from tests.factories import new_firm, new_person
@@ -56,11 +57,11 @@ def test_the_role_is_the_access_and_nothing_else():
     ``Literal`` laufen auseinander; (c) irgendeine Stelle im Dienst vergleicht noch mit
     «supplier»/«customer» als *Rolle*.
     """
-    assert people.ROLES == ("admin", "employee", "user")
-    assert set(people.STAFF_ROLES) < set(people.ROLES)
+    assert policy.ROLES == ("admin", "employee", "user")
+    assert set(policy.STAFF_ROLES) < set(policy.ROLES)
     door = re.search(r'Role = Literal\[([^\]]+)\]',
                      (BACKEND / "app" / "schemas" / "admin.py").read_text("utf-8"))
-    assert door and sorted(re.findall(r'"(\w+)"', door.group(1))) == sorted(people.ROLES), (
+    assert door and sorted(re.findall(r'"(\w+)"', door.group(1))) == sorted(policy.ROLES), (
         "Die Tür kennt andere Rollen als der Dienst (a/b)."
     )
     # (c) – als **Rolle** gibt es die beiden Wörter nicht mehr. ``voucher`` kennt sie als
@@ -160,13 +161,13 @@ def test_the_address_book_has_exactly_one_default_of_each_kind():
         db.refresh(home)
         db.refresh(extra)
         assert home.is_default_delivery and not extra.is_default_delivery, "(c)"
-        with pytest.raises(HTTPException):
+        with pytest.raises(Rejected):
             book.add(db, u, {"street1": "Weg 3", "zip": "", "city": "Bern"}, 1)  # (d)
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             book.change(db, other, home.id, {"city": "Basel"}, 1)
-        assert e.value.status_code == 404, "(e)"
+        assert e.value.status == 404, "(e)"
         assert book.pick(db, other.id, home.id, "billing", book.PRIVATE) is None, "(e)"
-        with pytest.raises(HTTPException):
+        with pytest.raises(Rejected):
             book.add(db, u, {"account": "business", "street1": "X", "zip": "1",
                              "city": "Y"}, 1)  # (h)
         u.company_object_id = _firm(db, "Acc").object_id
@@ -269,7 +270,7 @@ def test_a_named_company_is_found_before_it_is_created():
                     {"company_name": "Neu", "legal_form": "AG",
                      "uid_number": "CHE-123.456.789"},                               # (d)
                     {"uid_number": _uid()}):                                         # (e)
-            with pytest.raises(HTTPException):
+            with pytest.raises(Rejected):
                 people.apply_profile_update(db, a, UserProfileUpdate(new_company=bad), 1,
                                             staff=False)
     finally:
@@ -299,9 +300,9 @@ def test_a_firm_exists_once_even_without_the_service():
                 db.add(twin)
                 db.flush()
         other = sites.create(db, {"company_name": "Anders " + known, "legal_form": "AG"}, None)
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             sites.apply_update(db, other, {"uid_number": known}, None, admin=True)
-        assert e.value.status_code == 409 and str(first.object_id) in e.value.detail, "(b)"
+        assert e.value.status == 409 and str(first.object_id) in e.value.detail, "(b)"
         same_name = sites.create(db, {"company_name": "Einmal Zufall " + known,
                                       "legal_form": "AG"}, None)
         assert same_name.id != first.id, "(c) – mit UID ist es eine andere Rechtsperson."
@@ -336,15 +337,15 @@ def test_a_customer_names_its_firm_and_never_picks_or_edits_one():
         sites._rekey(own)
         db.flush()
         u = _user(db, uid="cn-1", email="cn1@x.ch")
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             people.apply_profile_update(db, u, UserProfileUpdate(
                 company_object_id=foreign.object_id), 1, staff=False)
-        assert e.value.status_code == 403, "(b)"
-        with pytest.raises(HTTPException) as e:
+        assert e.value.status == 403, "(b)"
+        with pytest.raises(Rejected) as e:
             people.apply_profile_update(db, u, UserProfileUpdate(new_company={
                 "uid_number": ours}), 1, staff=False)
         assert "unserer Gesellschaften" in e.value.detail, "(c)"
-        with pytest.raises(HTTPException):
+        with pytest.raises(Rejected):
             sites.apply_update(db, foreign, {"city": "Bern"}, None, admin=True)   # (d)
         people.apply_profile_update(db, u, UserProfileUpdate(company_object_id=None), 1,
                                     staff=False)
@@ -373,7 +374,7 @@ def test_staff_needs_one_of_our_companies():
     try:
         foreign, own = _firm(db, "Kunde"), _firm(db, "Wir", own=True)
         u = _user(db, uid="s-1", email="s1@x.ch", first_name="A", last_name="B")
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             people.apply_profile_update(
                 db, u, ErpAdminUpdate(role="employee", company_object_id=foreign.object_id),
                 actor_id=1, staff=True)
@@ -403,16 +404,16 @@ def test_a_person_is_created_without_ever_logging_in():
         assert u.email == "hans.muster@firma.ch", "(b)"
         # Kein Anmeldekonto im Voraus – es entsteht bei der ersten Anmeldung (e).
         assert u.firebase_uid == people.contact_uid("hans.muster@firma.ch"), "(e)"
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             people.create_person(db, PersonCreate(first_name="X", last_name="Y",
                                                   email="HANS.MUSTER@firma.ch"), admin)
-        assert e.value.status_code == 409 and str(u.object_id) in e.value.detail, "(c)"
-        with pytest.raises(HTTPException) as e:
+        assert e.value.status == 409 and str(u.object_id) in e.value.detail, "(c)"
+        with pytest.raises(Rejected) as e:
             people.create_person(db, PersonCreate(first_name="X", last_name="Y",
                                                   email="neu@firma.ch", role="employee"),
                                  SimpleNamespace(id=2, role="employee"))
-        assert e.value.status_code == 403, "(d)"
-        with pytest.raises(HTTPException):
+        assert e.value.status == 403, "(d)"
+        with pytest.raises(Rejected):
             people.create_person(db, PersonCreate(first_name="", last_name="Y",
                                                   email="leer@firma.ch"), admin)
     finally:
@@ -427,10 +428,10 @@ def test_a_foreign_company_never_acts_as_ours():
     db = session()
     try:
         foreign = _firm(db, "Kunde")
-        with pytest.raises(HTTPException):
+        with pytest.raises(Rejected):
             sites.require_own(db, foreign.object_id)
         assert foreign not in sites.selectable_companies(db)
-        with pytest.raises(HTTPException):
+        with pytest.raises(Rejected):
             sites.set_territory(db, "EUR", foreign.object_id, None)
     finally:
         db.rollback()
@@ -450,7 +451,7 @@ def test_a_person_carries_no_bank_details():
 # ---------------------------------------------------------------------------
 
 def test_the_staff_pair_has_exactly_one_home():
-    """►►► **«Wer ist Personal?» steht EINMAL** (B-40/B-45): ``people.STAFF_ROLES``. ◄◄◄
+    """►►► **«Wer ist Personal?» steht EINMAL** (B-40/B-45): ``policy.STAFF_ROLES``. ◄◄◄
 
     Das Paar stand fünfmal (drei Konstanten, ein Literal, ein ``require_role``). Fünf
     Antworten auf eine Frage laufen beim ersten neuen Rollenwert auseinander.
@@ -462,7 +463,7 @@ def test_the_staff_pair_has_exactly_one_home():
     for path in (BACKEND / "app").rglob("*.py"):
         rel = path.relative_to(BACKEND / "app").as_posix()
         src = path.read_text("utf-8")
-        if rel == "services/people.py":
+        if rel == "domain/policy.py":
             assert len(re.findall(r"^STAFF_ROLES\s*=", src, re.M)) == 1
             continue
         assert not re.search(r"^\s*STAFF_ROLES\b[^=\n]*=(?!=)", src, re.M), (

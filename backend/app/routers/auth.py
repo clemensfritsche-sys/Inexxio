@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user
@@ -6,6 +6,7 @@ from ..core.database import DB
 from ..models import UserProfile
 from ..schemas.admin import AddressIn, EmailCheck, UserProfileResponse, UserProfileUpdate
 from ..services import address_book, people
+from ..domain.errors import Conflict
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -41,7 +42,7 @@ def check_my_email(
     Bestätigungslink schickt (``people.email_problem``). 204 = ja, sonst 409 mit Grund."""
     problem = people.email_problem(db, current_user, data.email)
     if problem:
-        raise HTTPException(409, detail=problem)
+        raise Conflict(problem)
 
 
 # ─── Das Adressbuch – dieselben Funktionen wie am ERP-Datensatz ──────────────────

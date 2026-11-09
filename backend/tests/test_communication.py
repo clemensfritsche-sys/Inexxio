@@ -9,7 +9,7 @@ import random
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 
 from app.models import UserProfile
 from app.schemas.communication import MessageIn
@@ -104,7 +104,7 @@ def test_done_without_answer_is_a_silent_note_with_the_subject(world):
     db, actor, staff = world
     lea = _person(db)
     m = _send(db, actor, channel="c999999990", sender=lea, subject="Danke", body="Danke!")
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _send(db, actor, channel="intern", sender=staff, subject=None, body="")
     _send(db, actor, channel="intern", sender=staff, subject="Danke", about=[lea], body="")
     assert not _one(db, m.id).open
@@ -138,9 +138,9 @@ def test_the_feed_mark_counts_the_open_messages_of_the_history(world):
 
 def test_unknown_channel_and_person_are_refused(world):
     db, actor, staff = world
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _send(db, actor, channel="fax", sender=staff, body="x")
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _send(db, actor, channel="c999999990", to=[1], body="x")
 
 
@@ -172,9 +172,9 @@ def test_there_are_no_personal_mailboxes(world):
     assert not hasattr(dc, "personal") and not hasattr(dc, "owner_of")
     with pytest.raises(ValueError):
         dc.channel(f"u{sara}")
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _send(db, actor, channel=f"u{staff}", to=[lea], body="x")
-    assert e.value.status_code == 400
+    assert e.value.status == 400
     admin = db.query(UserProfile).filter(UserProfile.object_id == _person(db, "admin")).one()
     assert mailbox.may_connect(admin, "c100000001")
     assert not mailbox.may_connect(actor, "c100000001")
@@ -263,12 +263,12 @@ def test_every_message_has_a_subject(world):
     Eine E-Mail braucht dazu einen Empfänger im «An»."""
     db, actor, staff = world
     lea = _person(db)
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _send(db, actor, channel="c999999990", cc=[lea], body="x")
     assert "«An»" in e.value.detail
     for channel, kw in (("c999999990", {"to": [lea]}), ("phone", {"to": [lea]}),
                         ("intern", {"about": [lea]}), ("intern", {"to": [staff]})):
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             _send(db, actor, channel=channel, subject="  ", body="x", **kw)
         assert "Betreff" in e.value.detail, channel
     _send(db, actor, channel="intern", about=[lea], subject=None, body="")
@@ -284,7 +284,7 @@ def test_an_internal_message_goes_only_to_staff(world):
     db, actor, staff = world
     lea, sara = _person(db), _person(db, "employee")
     for role in ("to", "cc", "bcc"):
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             _send(db, actor, channel="intern", body="x", **{role: [lea]})
         assert str(lea) in e.value.detail and "Betrifft" in e.value.detail, role
     _send(db, actor, channel="intern", to=[sara], about=[lea], body="Lager?")
@@ -303,9 +303,9 @@ def test_an_incoming_call_has_the_caller_as_sender(world):
     out = _one(db, m.id)
     assert out.sender.object_id == lea and [p.object_id for p in out.to] == [staff]
     assert m.created_by == actor.id and not out.open
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _send(db, actor, channel="intern", to=[lea], body="x", incoming=True)
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _send(db, actor, channel="phone", to=[lea, staff], body="x", incoming=True)
     # Rufe ich sie zum selben Betreff zurück, ist ihre Mail erledigt.
     mail = _send(db, actor, channel="c999999990", sender=lea, body="Frage")

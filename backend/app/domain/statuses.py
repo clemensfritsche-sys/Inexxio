@@ -13,8 +13,7 @@ Es gibt genau einen Endzustand (§4.2).
 """
 
 from dataclasses import dataclass
-
-from fastapi import HTTPException
+from .errors import Invalid
 
 # ---------------------------------------------------------------------------
 # Die Werte — so wenige wie möglich, geteilt über drei Achsen
@@ -333,11 +332,6 @@ $guard$;
 def assert_known(status: str, *, field: str) -> str:
     """Wächter für jede Schreibstelle. Wirft, statt einen unbekannten Wert zu speichern."""
     if status not in STATUS_LABELS:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"«{status}» ist kein bekannter Status ({field}). "
-                f"Erlaubt: {', '.join(STATUS_LABELS.values())}."
-            ),
-        )
+        raise Invalid(f"«{status}» ist kein bekannter Status ({field}). "
+                f"Erlaubt: {', '.join(STATUS_LABELS.values())}.")
     return status

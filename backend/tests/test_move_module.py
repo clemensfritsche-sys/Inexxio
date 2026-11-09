@@ -182,7 +182,7 @@ def test_the_place_belongs_to_the_piece_not_to_the_instance():
 
 def test_a_holder_must_exist_and_be_something_that_can_hold():
     """**Ein Artikel ist kein Ort.** Halter sind Instanz, Benutzer, Unternehmen."""
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import places as places_svc
 
     db = session()
@@ -191,13 +191,13 @@ def test_a_holder_must_exist_and_be_something_that_can_hold():
         _a, order, _s = _make(db, quantity=1, steps=[_move_step()])
         units = _units(db, order)
 
-        with pytest.raises(HTTPException) as gone:
+        with pytest.raises(Rejected) as gone:
             places_svc.place(db, units=units, target=999_999_999)
-        assert gone.value.status_code == 404
+        assert gone.value.status == 404
 
-        with pytest.raises(HTTPException) as wrong:
+        with pytest.raises(Rejected) as wrong:
             places_svc.place(db, units=units, target=art.object_id)
-        assert wrong.value.status_code == 404, (
+        assert wrong.value.status == 404, (
             "Ein Artikel trägt eine Objektnummer, ist aber eine Gattung – kein Ort."
         )
     finally:
@@ -216,7 +216,7 @@ def test_a_place_never_runs_in_a_circle():
     das beim **Schreiben**; das Netz beim Lesen (``MAX_STATIONS``) steht daneben für
     alles, was diese Prüfung nie gesehen hat.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.models import Instance, InstanceUnit
     from app.services import places as places_svc
 
@@ -235,15 +235,15 @@ def test_a_place_never_runs_in_a_circle():
         db.flush()
 
         # Das Regal jetzt IN den Behälter zu legen wäre der Kreis.
-        with pytest.raises(HTTPException) as circle:
+        with pytest.raises(Rejected) as circle:
             places_svc.place(db, units=[shelf_unit], target=box.object_id)
-        assert circle.value.status_code == 400
+        assert circle.value.status == 400
         assert "Kreis" in circle.value.detail
 
         # Und in sich selbst geht ebenfalls nicht.
-        with pytest.raises(HTTPException) as itself:
+        with pytest.raises(Rejected) as itself:
             places_svc.place(db, units=[shelf_unit], target=shelf.object_id)
-        assert itself.value.status_code == 400
+        assert itself.value.status == 400
     finally:
         db.rollback()
         db.close()
@@ -339,7 +339,7 @@ def test_without_a_target_nothing_moves():
     einen abweichenden Scan ab. Beides serverseitig: eine Sperre, die nur im Dialog
     steht, ist eine Bitte.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     db = session()
     try:
@@ -347,15 +347,15 @@ def test_without_a_target_nothing_moves():
 
         # (a) offenes Ziel, nichts gescannt → 400, und nichts hat sich bewegt
         _art, order, steps = _make(db, quantity=1, steps=[_move_step()])
-        with pytest.raises(HTTPException) as blank:
+        with pytest.raises(Rejected) as blank:
             _confirm(db, order, steps[0])
-        assert blank.value.status_code == 400
+        assert blank.value.status == 400
 
         # (b) festes Ziel, etwas anderes gescannt → 400
         _a2, order2, steps2 = _make(db, quantity=1, steps=[_move_step(shelf.object_id)])
-        with pytest.raises(HTTPException) as wrong:
+        with pytest.raises(Rejected) as wrong:
             _confirm(db, order2, steps2[0], place=bench.object_id)
-        assert wrong.value.status_code == 400
+        assert wrong.value.status == 400
         assert str(shelf.object_id) in wrong.value.detail, (
             "Die Meldung muss sagen, wohin es eigentlich gehen sollte."
         )

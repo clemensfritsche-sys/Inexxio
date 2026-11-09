@@ -19,7 +19,6 @@ jetzt liegt* (PROCESS_CORE §9.6). **Keine Zyklen**: verhindert beim Schreiben
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..domain import modules
@@ -28,6 +27,7 @@ from ..models import (
 )
 from . import lookup, people, sites
 from .instances import number_of, unit_number
+from ..domain.errors import Invalid, NotFound
 
 #: Wie viele Stationen eine Kette höchstens hat – ein **Netz** gegen Zyklen, keine fachliche
 #: Aussage (echte Verschachtelung ist etwa vier tief).
@@ -328,28 +328,19 @@ def _assert_placeable(db: Session, *, units: list[InstanceUnit], target: Place,
     own: set[Place] = {(OBJECT, i.object_id) for i in _instances_of(db, units)}
     own |= {(UNIT, u.id) for u in units}
     if target in own:
-        raise HTTPException(
-            status_code=400,
-            detail=f"«{label}» kann nicht in sich selbst liegen.",
-        )
+        raise Invalid(f"«{label}» kann nicht in sich selbst liegen.")
     inside = {place for place, _ in _walk(db, [target]).get(target, [])}
     if own & inside:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"«{label}» liegt selbst in dem, was bewegt werden soll – "
-                    f"das ergäbe einen Ort, der im Kreis führt."),
-        )
+        raise Invalid(f"«{label}» liegt selbst in dem, was bewegt werden soll – "
+                    f"das ergäbe einen Ort, der im Kreis führt.")
 
 
 def assert_placeable(db: Session, *, units: list[InstanceUnit], target: int) -> Station:
     """Ein **gescanntes** Ziel prüfen: gibt es den Halter, und bildet er keinen Kreis?"""
     station = station_of(db, target)
     if station is None:
-        raise HTTPException(
-            status_code=404,
-            detail=(f"Die Objektnummer {target} gibt es nicht – ein Ziel muss ein Regal, "
-                    f"eine Person oder ein Unternehmen sein."),
-        )
+        raise NotFound(f"Die Objektnummer {target} gibt es nicht – ein Ziel muss ein Regal, "
+                    f"eine Person oder ein Unternehmen sein.")
     _assert_placeable(db, units=units, target=(OBJECT, int(target)), label=station.label)
     return station
 

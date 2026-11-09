@@ -449,7 +449,7 @@ def test_an_article_is_replaced_at_most_once():
     Bug-Form: zwei Nachfolger zulassen. Dann gibt es zwei «neueste Fassungen», und keine
     Auflösung kann sagen, welche gilt.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import articles as svc
 
     db = session()
@@ -460,13 +460,13 @@ def test_an_article_is_replaced_at_most_once():
         db.flush()
 
         third = _article(db, "Fassung 3")
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             svc.apply_replacement(db, predecessor=old, successor=third)
         assert str(new.object_id) in str(e.value.detail), (
             "Die Ablehnung nennt den bestehenden Nachfolger – sonst sucht ihn der Mensch."
         )
         # Und die Regel gibt es genau EINMAL: die Anlage stellt dieselbe Frage.
-        with pytest.raises(HTTPException):
+        with pytest.raises(Rejected):
             svc.create_article(
                 db, {"name": "Fassung 4", "unit": "Stk", "serialization": "unit",
                      "size": "10x20", "weight_kg": 1,
@@ -502,14 +502,14 @@ def test_the_replacement_chain_survives_a_cycle():
         )
         # …und der Kreis wird abgewiesen, wenn ihn jemand über den Dienstpfad zöge:
         # C ersetzt B, aber B führt über seine Kette schon zu C zurück.
-        from fastapi import HTTPException
+        from app.domain.errors import Rejected
         b.replaced_by_id = None
         c = _article(db, "Kette C")
         svc.apply_replacement(db, predecessor=b, successor=c)
         b.replaced_by_id = None          # B wieder frei – der Kreis läge allein in C→…→B
         c.replaced_by_id = b.object_id
         db.flush()
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             svc.assert_replaceable(db, b, c)
         assert "Kreis" in str(e.value.detail), (
             "Gefragt wird VORWÄRTS ab dem Nachfolger – die Kette des Vorgängers ist "
@@ -522,13 +522,13 @@ def test_the_replacement_chain_survives_a_cycle():
 
 def test_an_article_never_replaces_itself():
     """Eine Kette, die auf sich selbst zeigt, hat keinen neuesten Stand."""
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import articles as svc
 
     db = session()
     try:
         a = _article(db, "Ich selbst")
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             svc.assert_replaceable(db, a, a)
         assert "selbst" in str(e.value.detail)
     finally:

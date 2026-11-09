@@ -36,7 +36,8 @@ from . import voucher as vs
 from . import voucher_actions as va
 from . import voucher_head as vh
 from . import voucher_money as vm
-from .people import STAFF_ROLES
+from ..domain.errors import Conflict
+from ..domain import policy
 
 log = logging.getLogger(__name__)
 
@@ -174,7 +175,7 @@ def _facts(db: Session, row: Voucher, kind: str, party: int,
     if kind == vo.CREDIT_DOC and (target is not None or row.billed_on):
         ref = target if target is not None else row
         facts.append(("Zu Rechnung", f"{escape(ref.number or '')} vom {_day(ref.billed_on)}"))
-    who = actor.display_name if actor is not None and actor.role in STAFF_ROLES else None
+    who = actor.display_name if policy.is_staff(actor) else None
     if who:
         facts.append(("Ihr Kontakt", escape(who)))
     if theirs.get("uid"):
@@ -369,7 +370,7 @@ def _file(db: Session, *, row: Voucher, kind: str, level: Optional[int], doc: do
     paper, existed = documents.file(
         db, raw=document.render(doc).encode("utf-8"), filename=f"{word} {doc.number}.html",
         mime="text/html", art=word, name=name or word, source="voucher", refs=refs,
-        actor=actor if actor is not None and actor.role in STAFF_ROLES else None,
+        actor=actor if policy.is_staff(actor) else None,
         facts={"kind": kind, "number": doc.number, "level": level,
                "agb": doc.terms_of.key if doc.terms_of else None})
     if existed:
@@ -418,7 +419,7 @@ def _mail(db: Session, *, row: Voucher, token: str, doc: document.Doc, kind: str
         total_label=f"{doc.total_label} {doc.currency}", total=doc.total,
         label=label, url=vs.public_link(token),
         tax=(doc.sums[1] if len(doc.sums) == 2 and kind != vo.REMINDER_DOC else None))
-    staff = actor is not None and actor.role in STAFF_ROLES and actor.object_id
+    staff = policy.is_staff(actor) and actor.object_id
     signer = mail_layout.Signer(name=actor.display_name) if staff else None
     mail = mail_layout.compose(title, body, firm, signer,
                                extra=mail_layout.Extra(paper=paper))
@@ -588,12 +589,10 @@ def _stations(db: Session, row: Voucher, *, closed: bool = False) -> list[dict[s
 def public_act(db: Session, row: Voucher, rec: vs.Paper, action: str) -> None:
     """**Annehmen oder ablehnen – als die Partei**, über dieselbe Tür wie im ERP
     (``voucher_actions.apply``). Nur am aktuellen Papier; ``can`` entscheidet."""
-    from fastapi import HTTPException
     from ..models import ProcessStep
     view = public_view(db, row, rec)
     if action not in view["actions"] or action not in PUBLIC_VERBS or view["token"] != rec.token:
-        raise HTTPException(status_code=409, detail=(
-            "Das geht hier nicht mehr – laden Sie die Seite neu, sie zeigt den aktuellen Stand."))
+        raise Conflict("Das geht hier nicht mehr – laden Sie die Seite neu, sie zeigt den aktuellen Stand.")
     order = db.query(Order).filter(Order.id == row.order_id).first()
     step = db.query(ProcessStep).filter(ProcessStep.id == row.step_id).first()
     va.apply(db, order=order, step=step, action=PUBLIC_VERBS[action],

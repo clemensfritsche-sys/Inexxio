@@ -283,10 +283,10 @@ def test_overpaid_refund_or_tip(db):
 
 
 def test_the_same_reference_is_booked_only_once(db):
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     order, step, row, who = _billed(db)
     _do(db, order, step, "pay", amount="10.00", method="transfer", reference="RF18 0000")
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _do(db, order, step, "pay", amount="10.00", method="transfer", reference="RF18 0000")
 
 
@@ -389,12 +389,12 @@ def test_service_abroad_is_reverse_charge_without_incoterm(db):
 
 
 def test_our_own_company_is_never_the_counterparty(db):
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher_head
     worker = _person(db, own=True)
     order, step, row, who = _scene(db, first=True, party=worker)
     assert not voucher_head.business_possible(worker)
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _do(db, order, step, "address", bill_to_company=True)
 
 
@@ -403,7 +403,7 @@ def test_our_own_company_is_never_the_counterparty(db):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_supplier_invoice_needs_photo_and_a_decision_on_deviation(db):
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher as svc, voucher_actions, voucher_head
     order, step, row, who = _scene(db, direction="out", first=True)
     _do(db, order, step, "incoterm", incoterm="EXW")
@@ -411,7 +411,7 @@ def test_supplier_invoice_needs_photo_and_a_decision_on_deviation(db):
     _do(db, order, step, "quote", party=who.object_id, amount="427.00", lead_days=5,
         payment_days=30, reference="AMZ-1", link="https://example.test/o/1")
     _do(db, order, step, "agree", party=who.object_id)
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _do(db, order, step, "bill", amount="450.00", reference="R-77")
     _do(db, order, step, "bill", amount="450.00", reference="R-77", original=_file(db).object_id,
         party_uid="CHE-111.222.333 MWST", vat="normal")
@@ -501,21 +501,21 @@ def _run_capture(db, order):
 
 def test_ownership_must_be_chosen_and_has_two_options(db):
     """Ohne Wahl kein Anbieten und keine Zusage; «bleibt» gibt es nicht mehr."""
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.domain import voucher as vo
     from app.services import voucher_actions
     order, step, row, who = _scene(db, first=True, config={"ownership": None})
     _ready(db, order, step, row)
     assert "Eigentum" in (voucher_actions.ask_problem(db, row, step) or "")
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _do(db, order, step, "ask")
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _do(db, order, step, "ownership", ownership="keep")
     assert [k for k, _ in vo.OWNERSHIP] == [vo.TO_PARTY, vo.TO_US]
     _do(db, order, step, "ownership", ownership=vo.TO_PARTY)
     _do(db, order, step, "ask")
     _do(db, order, step, "agree", party=who.object_id)
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _do(db, order, step, "ownership", ownership=vo.TO_US)  # eingefroren mit der Zusage
 
 
@@ -618,10 +618,10 @@ def test_sold_units_are_never_offered_or_consumed(db):
 
 
 def test_module_presets_are_fixed(db):
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     order, step, row, who = _scene(db, first=True, config={"payment_days": 10})
     assert row.payment_days == 10
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _do(db, order, step, "terms", payment_days=30)
 
 
@@ -639,14 +639,14 @@ def test_module_price_is_fixed_on_the_voucher(db):
     """**Ein vorgegebener Preis steht im Beleg fest** – an der Zeile, in der Ansicht und gegen
     das Verb ``price``. Ohne Vorgabe bleibt alles wie heute."""
     from decimal import Decimal
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher_head
     order, step, row, who = _scene(db, first=True)
     _with_prices(db, step, order)
     lines = voucher_head.sync_lines(db, row, order, step)
     assert [ln.price for ln in lines] == [Decimal("890.00")]
     assert [x["fixed_price"] for x in voucher_head.embed_lines(db, row)] == [True]
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         _do(db, order, step, "price", lines=[{"id": lines[0].id, "price": "100.00"}])
     assert "im Modul vorgegeben" in exc.value.detail
     # Derselbe Preis (die Oberfläche schickt ihn mit, wenn sie den Satz ändert) ist kein Fehler.
@@ -664,7 +664,7 @@ def test_without_a_preset_the_price_is_typed(db):
 
 def test_price_presets_are_checked_strictly():
     """Nur bei einer Einnahme, je Artikel einmal, mit einem Preis; gespeichert normalisiert."""
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.domain import modules
     beleg = modules.get("beleg")
     ok = beleg.clean_config({"direction": "in",
@@ -679,15 +679,15 @@ def test_price_presets_are_checked_strictly():
                 {"direction": "in", "prices": [{"article": None, "price": "1"}]},
                 {"direction": "in", "prices": [{"article": 1, "price": "-5"}]},
                 {"direction": "in", "prices": "890"}):
-        with pytest.raises(HTTPException):
+        with pytest.raises(Rejected):
             beleg.clean_config(bad)
 
 
 def test_manual_confirm_of_a_payment_module_is_refused(db):
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import process as proc
     order, step, row, who = _scene(db, first=True)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         proc.confirm_step(db, order=order, step_id=step.id, values={}, actor_id=None)
     assert "von selbst" in exc.value.detail
 
@@ -917,7 +917,7 @@ def test_a_second_bill_waits_for_the_first_and_is_refused():
     Bug-Form: ohne Sperre prüfen beide denselben alten Stand – zwei Rechnungen."""
     import threading
     import time
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.core.database import SessionLocal
     from app.domain import voucher as vo
     from app.models import Order, ProcessStep, Voucher
@@ -941,8 +941,8 @@ def test_a_second_bill_waits_for_the_first_and_is_refused():
             bill(second)
             second.commit()
             seen.append("billed")
-        except HTTPException as exc:
-            seen.append(exc.status_code)
+        except Rejected as exc:
+            seen.append(exc.status)
             second.rollback()
         except Exception as exc:                      # noqa: BLE001 – genau das prüfen wir
             seen.append(f"{type(exc).__name__}: {exc}")
@@ -967,21 +967,21 @@ def test_a_racing_reference_is_a_sentence_not_a_crash(db, monkeypatch):
     """Trifft eine gleichzeitige Buchung den Unique-Index der Referenz, kommt ein 409 mit
     Satz – kein ``IntegrityError`` (an der Tür ein 500). Das Rennen wird nachgestellt,
     indem die Vorab-Prüfung nichts sieht."""
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher as svc, voucher_money
     order, step, row, who = _billed(db)
     _do(db, order, step, "pay", amount="100.00", method="transfer", reference="ZW-1")
     monkeypatch.setattr(voucher_money, "reference_problem", lambda *a, **k: None)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         _do(db, order, step, "pay", amount="100.00", method="transfer", reference="ZW-1")
-    assert exc.value.status_code == 409 and "ZW-1" in exc.value.detail
+    assert exc.value.status == 409 and "ZW-1" in exc.value.detail
     assert svc.balance_of(db, row).paid == Decimal("100.00"), "Die Sitzung bleibt brauchbar."
 
 
 def test_a_supplier_invoice_over_zero_is_refused(db):
     """«0» ist ein Betrag, kein leeres Feld: eine Lieferantenrechnung über null wird
     abgewiesen, statt still die Zusage zu verrechnen."""
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher as svc
     order, step, row, who = _scene(db, direction="out", first=True)
     _do(db, order, step, "incoterm", incoterm="EXW")
@@ -989,10 +989,10 @@ def test_a_supplier_invoice_over_zero_is_refused(db):
     _do(db, order, step, "quote", party=who.object_id, amount="427.00", lead_days=5,
         payment_days=30)
     _do(db, order, step, "agree", party=who.object_id)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         _do(db, order, step, "bill", amount="0", reference="R-0",
             original=_file(db).object_id, vat="normal")
-    assert exc.value.status_code == 400 and "null" in exc.value.detail
+    assert exc.value.status == 400 and "null" in exc.value.detail
     assert not svc.is_billed(row)
 
 
@@ -1014,7 +1014,7 @@ def test_a_storno_reaches_every_party_that_got_an_offer(db):
 def test_the_qr_bill_names_the_issuer_and_only_complete_addresses(db):
     """Der Zahlteil: der Zahlende nur mit Name, PLZ, Ort und Land; fehlt dem Aussteller
     die Anschrift, nennt der Satz ihn; eine Ausgabe hat keine Überweisung an uns."""
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import qrbill, voucher_money
     creditor = {"name": "Inexxio AG", "street": "Weg 1", "zip": "9430", "city": "St. M.",
                 "country": "CH"}
@@ -1034,15 +1034,15 @@ def test_the_qr_bill_names_the_issuer_and_only_complete_addresses(db):
     _do(db, order, step, "agree", party=who.object_id)
     _do(db, order, step, "bill", amount="50.00", reference="R-9",
         original=_file(db).object_id, party_uid="CHE-111.222.333 MWST", vat="normal")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         voucher_money.transfer_info(db, row)
-    assert exc.value.status_code == 404, "Eine Lieferantenrechnung zeigt unser Konto."
+    assert exc.value.status == 404, "Eine Lieferantenrechnung zeigt unser Konto."
 
 
 def test_the_party_cannot_accept_what_we_could_not_confirm(db):
     """Die Lücken gelten für jede Rolle: fehlt UNSERE UID, sieht die Partei auf ihrer Seite
     kein «Annehmen», und die Tür weist sie mit dem Feldnamen ab (400)."""
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.domain import voucher as vo
     from app.services import voucher_docs as docs, voucher as svc
     house = _house(db)
@@ -1053,9 +1053,9 @@ def test_the_party_cannot_accept_what_we_could_not_confirm(db):
     _do(db, order, step, "ask")
     offer = svc.documents_of(db, row, vo.OFFER_DOC)[-1]
     assert "agree" not in docs.public_view(db, row, offer)["actions"]
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(Rejected) as exc:
         _do(db, order, step, "agree", actor=docs.party_user(db, offer), party=who.object_id)
-    assert exc.value.status_code == 400 and "UID" in exc.value.detail
+    assert exc.value.status == 400 and "UID" in exc.value.detail
     assert row.stage == vo.OFFER
 
 

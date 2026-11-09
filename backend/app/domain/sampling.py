@@ -18,7 +18,7 @@ Daraus folgt zugleich, dass eine Stichprobe **nie leer** ist: aufgerundet wird, 
 import math
 from typing import Any
 
-from fastapi import HTTPException
+from .errors import Invalid
 
 #: Der volle Anteil – jedes wartende Stück wird erfasst. Die Vorgabe.
 FULL = 100
@@ -27,8 +27,8 @@ FULL = 100
 DEFAULT: dict[str, Any] = {"percent": FULL}
 
 
-def _bad(detail: str) -> HTTPException:
-    return HTTPException(status_code=400, detail=detail)
+def _bad(detail: str) -> Invalid:
+    return Invalid(detail)
 
 
 def clean(raw: Any) -> dict[str, Any]:

@@ -8,7 +8,7 @@ anzulegen und ohne eine Nummer zu ziehen.
 
 from typing import Optional, Sequence, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -53,6 +53,7 @@ from ..services import process as process_svc
 from ..services import stripe_pay
 from ..services import people
 from ..services.instances import find_units, unit_number, unit_number_matches, unit_numbers
+from ..domain.errors import NotFound
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
@@ -166,7 +167,7 @@ def _visible(db: Session, order: Order, viewer: UserProfile) -> Optional[set[int
         return None
     steps = {step_id for order_id, step_id in rows if order_id == order.id}
     if not steps:
-        raise HTTPException(status_code=404, detail=f"Auftrag {order.object_id} nicht gefunden.")
+        raise NotFound(f"Auftrag {order.object_id} nicht gefunden.")
     return steps
 
 
@@ -810,10 +811,10 @@ def _voucher_step(db: Session, order, step_id: int, user: UserProfile):
         .first()
     )
     if step is None or (mine is not None and step.id not in mine):
-        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+        raise NotFound("Diesen Prozessschritt gibt es nicht.")
     row = voucher_svc.of_step(db, step.id)
     if row is None:
-        raise HTTPException(status_code=404, detail="Dieses Modul hat keinen Beleg.")
+        raise NotFound("Dieses Modul hat keinen Beleg.")
     return step, row
 
 

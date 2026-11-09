@@ -8,12 +8,12 @@ Die Freigabebedingungen stehen **an dieser einen Stelle**; die Oberfläche fragt
 
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Article
 from . import article_process
 from .objects import next_object_id
+from ..domain.errors import Invalid, Rejected
 
 # **Angelegt heisst freigegeben** – abgeleitet: ein frischer Artikel hat keinen Nachfolger
 # (``Article.status``).
@@ -73,7 +73,7 @@ def validate_draft(draft: dict[str, Any]) -> list[str]:
         return missing
     try:
         _clean_steps(list(draft.get("steps") or []))
-    except HTTPException as e:
+    except Rejected as e:
         return [str(e.detail)]
     return []
 
@@ -101,10 +101,7 @@ def create_article(db: Session, draft: dict[str, Any], *, actor_id: int | None) 
 
     missing = missing_for_release({**draft, "steps": steps})
     if missing:
-        raise HTTPException(
-            status_code=400,
-            detail="Der Artikel ist noch nicht freigebbar – es fehlt: " + ", ".join(missing) + ".",
-        )
+        raise Invalid("Der Artikel ist noch nicht freigebbar – es fehlt: " + ", ".join(missing) + ".")
     _clean_steps(steps)
     predecessor = _predecessor_for(db, replaces)
 
@@ -125,13 +122,10 @@ def _predecessor_for(db: Session, object_id: Any) -> Optional[Article]:
         return None
     found = db.query(Article).filter(Article.object_id == int(object_id)).first()
     if found is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Artikel {object_id} gibt es nicht – er kann nicht ersetzt werden.",
-        )
+        raise Invalid(f"Artikel {object_id} gibt es nicht – er kann nicht ersetzt werden.")
     problem = replaceable_problem(found)
     if problem:
-        raise HTTPException(status_code=400, detail=problem)
+        raise Invalid(problem)
     return found
 
 
@@ -164,20 +158,14 @@ def assert_replaceable(db: Session, predecessor: Article, successor: Article) ->
     kommen **Selbstbezug** und **Kreis** über mehrere Stufen."""
     problem = replaceable_problem(predecessor)
     if problem:
-        raise HTTPException(status_code=400, detail=problem)
+        raise Invalid(problem)
     if predecessor.object_id == successor.object_id:
-        raise HTTPException(
-            status_code=400, detail="Ein Artikel kann sich nicht selbst ersetzen.")
+        raise Invalid("Ein Artikel kann sich nicht selbst ersetzen.")
     # Gefragt wird vorwärts ab dem Nachfolger: ein Kreis entsteht, wenn seine Kette beim
     # Vorgänger ankommt.
     if predecessor.object_id in {a.object_id for a in chain_of(db, successor)}:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Artikel {predecessor.object_id} steht bereits in der Ersetzungskette von "
-                f"{successor.object_id} – daraus entstünde ein Kreis."
-            ),
-        )
+        raise Invalid(f"Artikel {predecessor.object_id} steht bereits in der Ersetzungskette von "
+                f"{successor.object_id} – daraus entstünde ein Kreis.")
 
 
 def apply_replacement(db: Session, *, predecessor: Article, successor: Article) -> None:

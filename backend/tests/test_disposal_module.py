@@ -133,7 +133,7 @@ def test_a_blocked_piece_comes_back_through_an_ordinary_order():
     Start-Objekt setzt es auf «Im Prozess» wie jedes andere. Ein verschrottetes wird
     abgewiesen – es gibt das Ding nicht mehr.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.domain import statuses as st
 
     db = session()
@@ -166,9 +166,9 @@ def test_a_blocked_piece_comes_back_through_an_ordinary_order():
                 )
                 assert back is not None
             else:
-                with pytest.raises(HTTPException) as e:
+                with pytest.raises(Rejected) as e:
                     release_svc.release(db, **take)
-                assert e.value.status_code == 409
+                assert e.value.status == 409
                 assert "Verschrottet" in str(e.value.detail)
     finally:
         db.rollback()
@@ -186,14 +186,14 @@ def test_nothing_can_stand_behind_a_terminal_module():
     den Auftrag. Eine tote Definition durchzulassen wäre schlimmer als ein Fehler, denn
     sie sieht aus wie ein Prozess.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
 
     db = session()
     try:
         # Erlaubt: das Aussondern als letztes Modul – die Kette endet dort.
         _make(db, quantity=1, steps=[_capture_step(), _disposal_step("scrap")])
 
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             _article(db, steps=[_disposal_step("scrap"), _capture_step()])
         assert "kein Modul mehr stehen" in str(e.value.detail), e.value.detail
     finally:
@@ -375,16 +375,16 @@ def test_the_reason_is_given_when_modelling_not_at_the_line():
     niemand mehr kennt, ist ein Loch im Nachweis. Und weil der Grund in der Definition
     steht, erfasst das Modul zur Laufzeit **nichts** – auch beim Sperren nicht.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.domain import modules
     from app.models import Capture, ProcessStep
 
     db = session()
     try:
         for mode in ("scrap", "block"):
-            with pytest.raises(HTTPException) as e:
+            with pytest.raises(Rejected) as e:
                 modules.get("aussondern").clean_config({"mode": mode})
-            assert e.value.status_code == 400 and "Grund" in str(e.value.detail), (
+            assert e.value.status == 400 and "Grund" in str(e.value.detail), (
                 f"«{mode}» liess sich ohne Grund anlegen."
             )
             got = modules.get("aussondern").clean_config(
@@ -420,7 +420,7 @@ def test_the_scan_requirement_is_inherited_not_rebuilt():
     Das Aussondern hat nie etwas über Verifikation gesagt; es erbt sie von ``Module``.
     Genau das ist der Sinn: ein künftiges Modul bekommt sie ebenso geschenkt.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.domain import modules
     from app.services import process as proc
 
@@ -429,10 +429,10 @@ def test_the_scan_requirement_is_inherited_not_rebuilt():
         assert modules.get("aussondern").requires_verification is True
 
         _, order, rows = _make(db, quantity=1, steps=[_disposal_step("scrap")])
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(Rejected) as e:
             proc.confirm_step(db, order=order, step_id=rows[0].id, values={},
                               actor_id=None)
-        assert e.value.status_code == 400
+        assert e.value.status == 400
         assert "bestätigt" in str(e.value.detail)
     finally:
         db.rollback()

@@ -922,7 +922,7 @@ def test_a_pick_says_where_it_was_taken_from():
     assert "_assert_as_picked(db, ln, pairs, held)" in svc, (
         "Die Prüfung ist nicht verdrahtet – sie muss VOR dem Übernehmen laufen."
     )
-    assert '"code": "pick_stale"' in svc, (
+    assert 'code="pick_stale"' in svc, (
         "Der Konflikt hat keinen Code. Die Oberfläche müsste im Meldungstext nach Wörtern "
         "suchen, und eine Umformulierung würde ihn still verschlucken."
     )

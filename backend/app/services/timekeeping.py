@@ -19,13 +19,14 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..core.clock import ZONE
 from ..domain import timekeeping as tk
 from ..models import CompanySettings, Holiday, TimeContract, TimeEntry, UserProfile
-from . import people, sites
+from . import sites
+from ..domain.errors import Forbidden, Invalid, rejected
+from ..domain import policy
 
 
 def now_utc() -> datetime:
@@ -475,12 +476,12 @@ def tasks(book: Book, now: Optional[datetime] = None) -> list[tuple[str, date, s
 
 def may_see(actor: UserProfile, person: UserProfile) -> bool:
     """Jede Person sieht nur ihre eigene Zeiterfassung, der Admin alle."""
-    return actor.role == "admin" or (actor.id == person.id and actor.role in people.STAFF_ROLES)
+    return policy.may(actor, "time.see", person.object_id)
 
 
 def locked(actor: UserProfile, d: date, today: date) -> bool:
     """Abgeschlossen: älter als ``CORRECTION_DAYS`` – ändern kann ihn nur der Admin."""
-    return actor.role != "admin" and d < today - timedelta(days=tk.CORRECTION_DAYS)
+    return not policy.may(actor, "time.past") and d < today - timedelta(days=tk.CORRECTION_DAYS)
 
 
 # ─── Die eine Schreibstelle ─────────────────────────────────────────────────────────
@@ -636,8 +637,8 @@ def _other(book: Book, actor: UserProfile, data, now: datetime
             if seq:
                 return None, (400, seq)
         return TimeEntry(kind="void", day=old.day, replaces_id=old.id), None
-    if actor.role != "admin":
-        return None, (403, "Buchungen macht nur die Administration.")
+    if not policy.may(actor, "time.booking"):
+        return None, (403, policy.RULES["time.booking"].why)
     if data.day is None:
         return None, (400, "Für eine Buchung fehlt das Datum.")
     hours, vac = data.minutes or 0, data.vacation_minutes or 0
@@ -669,7 +670,7 @@ def entry_problem(book: Book, actor: UserProfile, data, now: datetime
 def assert_entry(book: Book, actor: UserProfile, data, now: datetime) -> Optional[TimeEntry]:
     entry, problem = entry_problem(book, actor, data, now)
     if problem is not None:
-        raise HTTPException(problem[0], detail=problem[1])
+        raise rejected(problem[0], problem[1])
     return entry
 
 
@@ -698,7 +699,7 @@ def _check_proof(db: Session, url: Optional[str]) -> None:
     found = (db.query(Document.id).join(Attachment, Attachment.id == Document.file_id)
              .filter(Attachment.token == token, Document.deleted_at.is_(None)).first())
     if found is None:
-        raise HTTPException(400, detail="Der Nachweis ist kein freigegebenes Dokument.")
+        raise Invalid("Der Nachweis ist kein freigegebenes Dokument.")
 
 
 def record(db: Session, actor: UserProfile, person: UserProfile, data) -> Optional[TimeEntry]:
@@ -761,7 +762,7 @@ def swipe(db: Session, actor: UserProfile, person: UserProfile, direction: str,
         return None
     book = load(db, person)
     if not may_see(actor, person):
-        raise HTTPException(403, detail=f"Die Zeiterfassung von «{person.display_name}» führt "
+        raise Forbidden(f"Die Zeiterfassung von «{person.display_name}» führt "
                                         f"nur sie selbst oder die Administration.")
     now = now_utc()
     run = running(book, now)
@@ -776,7 +777,7 @@ def swipe(db: Session, actor: UserProfile, person: UserProfile, direction: str,
         return "Eben gestempelt – ein zweiter Wisch innert einer Minute zählt nicht."
     problem = stamp_problem(book, actor, direction, now, now)
     if problem is not None:
-        raise HTTPException(problem[0], detail=problem[1])
+        raise rejected(problem[0], problem[1])
     _write(db, actor, person, TimeEntry(
         kind=direction, day=local(now).date(), at=now, source="swipe", idem_key=key))
     return None
@@ -786,9 +787,9 @@ def swipe(db: Session, actor: UserProfile, person: UserProfile, direction: str,
 
 def contract_problem(db: Session, actor: UserProfile, book: Book, data) -> Optional[Problem]:
     """Darf dieser Vertrag angelegt werden? (Zweite Form: ``add_contract`` weist ab.)"""
-    if actor.role != "admin":
-        return 403, "Verträge pflegt die Administration."
-    if book.person.role not in people.STAFF_ROLES:
+    if not policy.may(actor, "time.contract"):
+        return 403, policy.RULES["time.contract"].why
+    if not policy.is_staff(book.person):
         return 400, (f"«{book.person.display_name}» ist kein Personal – zuerst die Rolle "
                      f"Mitarbeiter geben.")
     born = book.person.date_of_birth
@@ -826,7 +827,7 @@ def add_contract(db: Session, actor: UserProfile, person: UserProfile, data) -> 
     book = load(db, person)
     problem = contract_problem(db, actor, book, data)
     if problem is not None:
-        raise HTTPException(problem[0], detail=problem[1])
+        raise rejected(problem[0], problem[1])
     if data.weekly_minutes == 0:
         prev = [c for c in book.contracts if c.valid_from < data.valid_from][-1]
         company, mask, weeks = prev.company_object_id, 0, 0

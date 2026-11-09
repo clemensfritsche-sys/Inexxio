@@ -20,13 +20,13 @@ ein verkauftes Stück kann versehentlich verbaut werden.
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from ..domain import modules, statuses as st
 from ..models import Article, Instance, InstanceUnit, OrderUnit, ProcessStep
 from . import places
+from ..domain.errors import Conflict, Invalid
 
 
 @dataclass
@@ -280,11 +280,8 @@ def plan(db: Session, *, step: ProcessStep, products: list[InstanceUnit],
     rows = modules.lines_of(step.config)
     if not rows:
         if sources:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"«{modules.label(step.module_type)}» verbaut nichts – "
-                        f"hier ist keine Komponente zu wählen."),
-            )
+            raise Invalid(f"«{modules.label(step.module_type)}» verbaut nichts – "
+                        f"hier ist keine Komponente zu wählen.")
         return {}
     if not products:
         return {}
@@ -310,17 +307,12 @@ def plan(db: Session, *, step: ProcessStep, products: list[InstanceUnit],
                 everywhere = everywhere.filter(Instance.object_id.in_(sources))
             elsewhere = everywhere.count() - len(free) if where else 0
             here = places.describe(db, where) if where else None
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    f"{name} ({row['article']}): gebraucht werden {need} Stück "
+            raise Conflict(f"{name} ({row['article']}): gebraucht werden {need} Stück "
                     f"({row['quantity']} je Einzelinstanz × {len(products)}), "
                     f"verfügbar sind {len(free)}"
                     + (f" bei «{here.label}»" if here else "")
                     + (f" – {elsewhere} liegen woanders." if elsewhere else
-                       (" – und zwar nur aus den gewählten Instanzen." if sources else "."))
-                ),
-            )
+                       (" – und zwar nur aus den gewählten Instanzen." if sources else ".")))
         # **Der Reihe nach, Produkt für Produkt.** Nicht rundum verteilt: ein Getriebe
         # bekommt seine vier Schrauben, dann das nächste. Das ist die Reihenfolge, in der
         # gearbeitet wird, und darum die, die im Nachweis stehen soll.

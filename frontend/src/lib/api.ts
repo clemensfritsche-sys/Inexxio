@@ -47,13 +47,19 @@ import type {
 import { DATA_CHANGED } from '@/lib/feed';
 
 /** Ein Fehler der API – mit **Status** und dem rohen `detail`; `message` ist der lesbare Text. */
+/** **Eine Abweisung des Servers** – überall dieselbe Form (`domain/errors`): der Satz
+ *  (`message`), die Art oder ein eigener Code (`code`: `invalid` · `forbidden` · `not_found` ·
+ *  `conflict` · … · `pick_stale`) und, wo es eines betrifft, das Feld. */
 export class ApiError extends Error {
   status: number;
-  detail?: unknown;
-  constructor(message: string, status: number) {
+  code: string;
+  field?: string;
+  constructor(message: string, status: number, code = '', field?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
+    this.field = field;
   }
 }
 
@@ -190,13 +196,13 @@ class ApiClient {
     throw lastError;
   }
 
-  /** Fehler mit **Struktur**: `message` lesbar, dazu das JSON-`detail` für Oberflächen, die
-   *  mit dem Fehler weiterarbeiten. */
+  /** Die Abweisung des Servers: `{detail, code, field?}` – sonst der HTTP-Status als Satz. */
   private async apiError(response: Response): Promise<ApiError> {
-    const body = (await response.clone().json().catch(() => null)) as { detail?: unknown } | null;
-    const err = new ApiError(await this.errorMessage(response), response.status) ;
-    err.detail = body?.detail;
-    return err;
+    const body = (await response.clone().json().catch(() => null)) as
+      { detail?: unknown; code?: unknown; field?: unknown } | null;
+    return new ApiError(await this.errorMessage(response), response.status,
+      typeof body?.code === 'string' ? body.code : '',
+      typeof body?.field === 'string' ? body.field : undefined);
   }
 
   private backoff(attempt: number): Promise<void> {
@@ -208,14 +214,7 @@ class ApiClient {
     const body = (await response.clone().json().catch(() => null)) as
       { detail?: unknown; error?: string } | null;
     const detail = body?.detail;
-    if (typeof detail === 'string') return detail;
-    // Strukturiertes Detail: die lesbare Meldung steckt unter `message`.
-    if (detail && typeof detail === 'object' && typeof (detail as { message?: unknown }).message === 'string') {
-      return (detail as { message: string }).message;
-    }
-    if (Array.isArray(detail)) {
-      return detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ');
-    }
+    if (typeof detail === 'string' && detail) return detail;
     if (body?.error) return body.error;
     return response.status >= 500
       ? `Server nicht erreichbar (HTTP ${response.status})`

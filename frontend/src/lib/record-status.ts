@@ -30,11 +30,16 @@ export function userStatus(u: Pick<UserProfile, 'role'>): StatusCfg {
 }
 
 /**
- * ►►► **Darf diese Person ins ERP?** ◄◄◄ Spiegel von `people.STAFF_ROLES` – erlaubend
+ * ►►► **Darf diese Person ins ERP?** ◄◄◄ Spiegel von `domain/policy.STAFF_ROLES` – erlaubend
  * gefragt, damit ein unbekannter Rollenwert nicht hereinkommt.
  */
 export function isStaff(role: string | null | undefined): boolean {
   return role === 'admin' || role === 'employee';
+}
+
+/** Ist das der Admin? – nur für Anzeigen; ob man etwas darf, sagt der Server. */
+export function isAdmin(role: string | null | undefined): boolean {
+  return role === 'admin';
 }
 
 /** «Ausser Betrieb» – dieselben zwei Wörter und derselbe Ton für Person und Gesellschaft. */

@@ -7,10 +7,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from .core.config import get_settings
+from .domain.errors import Rejected, rejected
 from .core import outside
 from .core.actor import system_session
 from .core.database import Base
@@ -133,12 +135,30 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(Rejected)
+async def rejected_handler(request: Request, exc: Rejected):
+    """►►► **Jede Abweisung, EINE Form** (``domain/errors``): ``{detail, code, field?}`` mit dem
+    Status ihrer Art. ◄◄◄"""
+    return JSONResponse(status_code=exc.status, content=exc.body())
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(request: Request, exc: StarletteHTTPException):
+    """Was der Rahmen selbst abweist (unbekannter Pfad, falsche Methode, fehlender Token) – in
+    derselben Form wie jede Abweisung."""
+    kind = rejected(exc.status_code, "")
+    detail = {404: "Diese Adresse gibt es nicht.", 405: "Diese Methode gibt es hier nicht.",
+              401: "Nicht angemeldet.", 403: "Nicht angemeldet."}.get(exc.status_code, str(exc.detail))
+    return JSONResponse(status_code=exc.status_code, headers=getattr(exc, "headers", None),
+                        content={"detail": detail, "code": kind.code})
+
+
 @app.exception_handler(outside.NeedsHand)
 async def needs_hand_handler(request: Request, exc: outside.NeedsHand):
     """Im Probelauf eines Handgriffs: diese Handlung geht nach aussen oder speichert
     zwischendurch – sie braucht die Person selbst (``core/outside``)."""
     return JSONResponse(status_code=409, content={
-        "detail": f"Das geht nur von Hand ({exc.what}).", "hand": exc.what})
+        "detail": f"Das geht nur von Hand ({exc.what}).", "code": "hand", "hand": exc.what})
 
 
 @app.exception_handler(IntegrityError)
@@ -160,7 +180,7 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
                   else "Dieser Wert ist bereits vergeben.")
     else:
         detail = "Die Angaben verletzen eine Datenbank-Regel und wurden nicht gespeichert."
-    return JSONResponse(status_code=400, content={"detail": detail, "code": "INTEGRITY_ERROR"})
+    return JSONResponse(status_code=400, content={"detail": detail, "code": "invalid"})
 
 
 #: Rohe Pydantic-Meldungen → Klartext. Was hier nicht steht, wird als Regel-Satz
@@ -243,7 +263,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     return JSONResponse(
         status_code=422,
         content={"detail": " · ".join(seen) or "Die Eingaben sind unvollständig.",
-                 "code": "VALIDATION_ERROR"},
+                 "code": "invalid"},
     )
 
 
@@ -255,7 +275,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     print(f"ERROR: Unhandled exception on {request.method} {request.url.path}\n{tb}", flush=True)
     expose = settings.debug or settings.app_env.lower() != "production"
     detail = f"{type(exc).__name__}: {exc}" if expose else "Interner Serverfehler"
-    return JSONResponse(status_code=500, content={"detail": detail, "code": "INTERNAL_ERROR"})
+    return JSONResponse(status_code=500, content={"detail": detail, "code": "failed"})
 
 app.include_router(health.router)
 app.include_router(auth.router)

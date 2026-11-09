@@ -17,11 +17,11 @@ zurück.
 
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Address, UserProfile
 from . import address as fmt
+from ..domain.errors import Invalid, NotFound
 
 #: Die beiden Konten einer Person.
 PRIVATE, BUSINESS = "private", "business"
@@ -36,7 +36,7 @@ def account_of(value: Optional[str]) -> str:
     """Das Konto aus einer Angabe – unbekannt ist ein Fehler, nicht «privat»."""
     acc = value or PRIVATE
     if acc not in ACCOUNTS:
-        raise HTTPException(400, detail=f"Ein Konto «{acc}» gibt es nicht.")
+        raise Invalid(f"Ein Konto «{acc}» gibt es nicht.")
     return acc
 
 
@@ -114,10 +114,9 @@ def _assert_complete(a: Address) -> None:
     missing = [name for name, v in (("Strasse", a.street1), ("PLZ", a.zip), ("Ort", a.city))
                if not (v or "").strip()]
     if missing:
-        raise HTTPException(400, detail=(
-            f"Eine Anschrift braucht Strasse, PLZ und Ort – es fehlt: {', '.join(missing)}."))
+        raise Invalid(f"Eine Anschrift braucht Strasse, PLZ und Ort – es fehlt: {', '.join(missing)}.")
     if a.email and ("@" not in a.email or "." not in a.email.split("@")[-1]):
-        raise HTTPException(400, detail=f"«{a.email}» ist keine E-Mail-Adresse.")
+        raise Invalid(f"«{a.email}» ist keine E-Mail-Adresse.")
 
 
 def _set_default(db: Session, a: Address, kind: str, actor_id: Optional[int],
@@ -146,8 +145,7 @@ def add(db: Session, owner: UserProfile, data: dict[str, Any],
     Privatkonto unter anderem Namen."""
     account = account_of(data.get("account"))
     if account == BUSINESS and owner.company is None:
-        raise HTTPException(400, detail=(
-            f"«{owner.display_name}» hat kein Geschäftskonto – zuerst die Firma angeben."))
+        raise Invalid(f"«{owner.display_name}» hat kein Geschäftskonto – zuerst die Firma angeben.")
     a = Address(owner_id=owner.id, account=account, **_clean(data, account))
     a.country = a.country or "CH"
     _assert_complete(a)
@@ -165,7 +163,7 @@ def _own(db: Session, owner: UserProfile, address_id: int) -> Address:
          .filter(Address.id == address_id, Address.owner_id == owner.id,
                  Address.is_active.is_(True)).first())
     if a is None:
-        raise HTTPException(404, detail=f"Anschrift {address_id} gibt es bei "
+        raise NotFound(f"Anschrift {address_id} gibt es bei "
                                         f"«{owner.display_name}» nicht.")
     return a
 

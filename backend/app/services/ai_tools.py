@@ -30,7 +30,6 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Callable, Optional
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..domain.log import SECRET_COLUMNS
@@ -38,6 +37,8 @@ from ..models import (Article, CompanySettings, Document, DocumentRef, Instance,
                       UserProfile)
 from . import access, records
 from .ai import Tool
+from ..domain.errors import Rejected
+from ..domain import policy
 
 #: Spalten, die keine Angabe für die KI sind: Schlüssel, Technik, Zeitstempel der Zeile.
 _SKIP = frozenset({"id", "firebase_uid", "photo_url", "created_at", "updated_at", "is_active",
@@ -112,7 +113,7 @@ def record(db: Session, viewer: UserProfile, object_id: Any) -> str:
     except (TypeError, ValueError):
         return _not_found(object_id)
     found = records.labels(db, [oid]).get(oid)
-    if found is None or not access.is_staff(viewer):
+    if found is None or not policy.is_staff(viewer):
         return _not_found(oid)
     if found.type == "document":
         return _document(db, viewer, oid)
@@ -162,7 +163,7 @@ def history(db: Session, viewer: UserProfile, object_id: Any) -> str:
     try:
         oid = int(object_id)
         page = hist.page(db, oid, viewer, limit=HISTORY_LIMIT)
-    except (TypeError, ValueError, HTTPException):
+    except (TypeError, ValueError, Rejected):
         return _not_found(object_id)
     if not page.entries:
         return "Noch nichts im Verlauf."
@@ -171,7 +172,7 @@ def history(db: Session, viewer: UserProfile, object_id: Any) -> str:
 
 def find(db: Session, viewer: UserProfile, q: Any) -> str:
     """Datensätze nach Nummer oder Name – wie jedes Referenzfeld."""
-    if not access.is_staff(viewer):
+    if not policy.is_staff(viewer):
         return "Nichts gefunden."
     found = records.search(db, str(q or ""))
     if not found:

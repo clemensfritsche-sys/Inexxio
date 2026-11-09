@@ -9,9 +9,8 @@ falsche Zeit: der Artikel entsteht mit seiner Freigabe und ist danach eingefrore
 
 from typing import Any
 
-from fastapi import HTTPException
-
 from . import modules, statuses as st
+from .errors import Invalid
 
 
 def assert_closes(steps: list[dict[str, Any]]) -> None:
@@ -35,33 +34,18 @@ def assert_closes(steps: list[dict[str, Any]]) -> None:
     for i, step in enumerate(steps, start=1):
         before = step["status_before"]
         if before != current:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Die Statuskette bricht bei Schritt {i} "
+            raise Invalid(f"Die Statuskette bricht bei Schritt {i} "
                     f"«{modules.label(step['module_type'])}»: davor "
                     f"steht «{st.label(current)}», das Modul erwartet "
-                    f"«{st.label(before)}»."
-                ),
-            )
+                    f"«{st.label(before)}».")
         if modules.get(step["module_type"]).terminal:
             if i < len(steps):
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Hinter «{modules.label(step['module_type'])}» kann kein Modul "
+                raise Invalid(f"Hinter «{modules.label(step['module_type'])}» kann kein Modul "
                         f"mehr stehen: was hier ankommt, verlässt den Auftrag – Schritt "
-                        f"{i + 1} bekäme nie eine Einzelinstanz."
-                    ),
-                )
+                        f"{i + 1} bekäme nie eine Einzelinstanz.")
             return
         current = step["status_after"]
     if current != st.END_BEFORE:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Die Statuskette bricht am Ende: der letzte Schritt endet auf "
+        raise Invalid(f"Die Statuskette bricht am Ende: der letzte Schritt endet auf "
                 f"«{st.label(current)}», das Ende-Objekt erwartet "
-                f"«{st.label(st.END_BEFORE)}»."
-            ),
-        )
+                f"«{st.label(st.END_BEFORE)}».")

@@ -208,8 +208,10 @@ Konstruktor über den Prototyp** – eine als Wert weitergereichte Methode
 (`GET /erp/people`), die Firmensuche `searchCompanies`. Auth-Schutz: `/erp` und `/konto`
 prüfen die Anmeldung in ihren Layouts über **ein** Bauteil, `components/auth/auth-gate.tsx`
 (Redirect auf `/login?from=…`; `staffOnly` am ERP schickt Nicht-Personal ins Konto), das
-Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)` (`lib/record-status.ts`, Spiegel von
-`people.STAFF_ROLES`) – erlaubend gefragt.
+Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)`, Admin nur `isAdmin(role)`
+(`lib/record-status.ts`, Spiegel von `domain/policy`; ESLint verbietet Rollenvergleiche daneben) –
+ob man etwas **darf**, sagt der Server (`can`, `may_edit`). Ein Fehler ist ein `ApiError`
+(`message` = Satz des Servers, `code` = Art oder eigener Code wie `pick_stale`, `field`).
 
 ## Regeln, die jede Oberfläche erbt
 - **Im ERP wird gespeichert, nicht abgeschickt**: `lib/use-autosave.ts`

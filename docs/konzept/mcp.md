@@ -31,9 +31,13 @@ das ERP wird damit ein «Connector».
    signierte Beschreibung (Name, Rückkehr-Adressen: https oder http auf localhost).
 3. Die Person landet auf `/erp/verbinden` – angemeldet wie immer (Magic Link, Google, Passkey),
    sieht den Client und erlaubt. Nur Personal.
-4. Der Code (2 Min., PKCE S256) wird gegen Zugang (1 h) und Erneuerung (90 Tage, rollend)
-   getauscht. Das Tauschen schreibt `mcp.grant` – ein eindeutiger Index (Migration 179) macht
-   «genau einmal».
+4. Der Code (2 Min., PKCE S256) wird gegen Zugang (1 h) und Erneuerung (30 Tage) getauscht.
+   Das Tauschen schreibt `mcp.grant` – ein eindeutiger Index (Migration 179) macht «genau
+   einmal». **Zurück** geht es nur zu Claude (claude.ai, claude.com) oder auf den eigenen Rechner
+   (Claude Code); die Seite zeigt die volle Adresse.
+4a. **Jede Erneuerung gilt genau einmal** und nur für ihren Client (`mcp.refresh`, Migration
+   180); kommt eine gebrauchte wieder, wird die Verbindung getrennt. Zugang und Erneuerung nennen
+   ihren Empfänger (dieses ERP) – ein Zugang aus dev gilt nicht in prod.
 5. Jede Anfrage prüft: Zugang echt, Person noch Personal, Verbindung nicht getrennt
    (`mcp.revoked`). Trennen: Konto · Sicherheit · Claude.
 

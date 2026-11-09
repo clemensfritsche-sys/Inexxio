@@ -19,13 +19,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import String, func, or_
 from sqlalchemy.orm import Session
 
 from ..domain import documents as dd
 from ..models import Attachment, Document, DocumentRef, DocumentSignature, UserProfile
 from . import access, attachments, objects, records
+from ..domain.errors import Conflict, Invalid, NotFound
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,7 @@ def status_of(doc: Document, sigs: list[DocumentSignature]) -> str:
 def by_object_id(db: Session, object_id: int) -> Document:
     doc = db.query(Document).filter(Document.object_id == object_id).first()
     if doc is None:
-        raise HTTPException(status_code=404, detail=f"Ein Dokument {objects.obj_nr(object_id)} "
+        raise NotFound(f"Ein Dokument {objects.obj_nr(object_id)} "
                                                     f"gibt es nicht.")
     return doc
 
@@ -83,7 +83,7 @@ def readable(db: Session, object_id: int, viewer: UserProfile) -> Document:
     auch nicht, dass es es gibt)."""
     doc = by_object_id(db, object_id)
     if not access.may(viewer, refs_of(db, [doc.id])[doc.id]):
-        raise HTTPException(status_code=404, detail=f"Ein Dokument {objects.obj_nr(object_id)} "
+        raise NotFound(f"Ein Dokument {objects.obj_nr(object_id)} "
                                                     f"gibt es nicht.")
     return doc
 
@@ -174,12 +174,11 @@ def _check_refs(db: Session, refs: list[RefIn]) -> list[RefIn]:
     out: list[RefIn] = []
     for r in refs:
         if r.part is not None and not dd.PART.match(r.part):
-            raise HTTPException(status_code=400, detail=f"«{r.part}» ist kein Teil eines Datensatzes.")
+            raise Invalid(f"«{r.part}» ist kein Teil eines Datensatzes.")
         if r.field is not None and r.field not in dd.FIELDS:
-            raise HTTPException(status_code=400, detail=f"Ein Pflichtfeld «{r.field}» gibt es nicht.")
+            raise Invalid(f"Ein Pflichtfeld «{r.field}» gibt es nicht.")
         if objects.resolve_object_type(db, r.object_id) is None:
-            raise HTTPException(status_code=400, detail=(
-                f"Einen Datensatz {objects.obj_nr(r.object_id)} gibt es nicht."))
+            raise Invalid(f"Einen Datensatz {objects.obj_nr(r.object_id)} gibt es nicht.")
         if r not in out:
             out.append(r)
     return out
@@ -200,9 +199,9 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
     die Übernahme beim Start)."""
     art, name = dd.clean(art, dd.ART_MAX), dd.clean(name, dd.NAME_MAX)
     if not art or not name:
-        raise HTTPException(status_code=400, detail="Ohne Art und Name lässt sich nichts freigeben.")
+        raise Invalid("Ohne Art und Name lässt sich nichts freigeben.")
     if source not in dd.SOURCES:
-        raise HTTPException(status_code=400, detail=f"Eine Quelle «{source}» gibt es nicht.")
+        raise Invalid(f"Eine Quelle «{source}» gibt es nicht.")
     digest = hashlib.sha256(raw or b"").hexdigest()
     same = (db.query(Document).filter(Document.sha256 == digest,
                                       Document.deleted_at.is_(None)).first())
@@ -257,7 +256,7 @@ def raw_of(db: Session, doc: Optional[Document]) -> Optional[bytes]:
 def attach(db: Session, doc: Document, object_id: int, actor: UserProfile) -> DocumentRef:
     """**Eine Referenz von Hand** – auf einen ganzen Datensatz. Teile setzt nur ein Feld."""
     if doc.deleted_at is not None:
-        raise HTTPException(status_code=409, detail="Ein gelöschtes Dokument hängt nirgends mehr an.")
+        raise Conflict("Ein gelöschtes Dokument hängt nirgends mehr an.")
     (ref_in,) = _check_refs(db, [RefIn(object_id=object_id)])
     found = (db.query(DocumentRef).filter(
         DocumentRef.document_id == doc.id, DocumentRef.object_id == object_id,
@@ -276,11 +275,10 @@ def detach(db: Session, doc: Document, ref_id: int, actor: UserProfile) -> None:
     ref = (db.query(DocumentRef).filter(DocumentRef.id == ref_id, DocumentRef.document_id == doc.id,
                                         DocumentRef.is_active.is_(True)).first())
     if ref is None:
-        raise HTTPException(status_code=404, detail="Diese Referenz gibt es nicht (mehr).")
+        raise NotFound("Diese Referenz gibt es nicht (mehr).")
     if ref.field:
-        raise HTTPException(status_code=409, detail=(
-            f"Das ist ein Pflichtfeld ({dd.FIELDS.get(ref.field, ref.field)}) – geändert wird es "
-            f"dort, nie leer."))
+        raise Conflict(f"Das ist ein Pflichtfeld ({dd.FIELDS.get(ref.field, ref.field)}) – geändert wird es "
+            f"dort, nie leer.")
     ref.is_active = False
     db.flush()
 
@@ -291,8 +289,7 @@ def set_field(db: Session, *, document_object_id: int, object_id: int, part: Opt
     dieses Dokument; ein vorheriges verliert die Referenz (und lässt sich dann löschen)."""
     doc = by_object_id(db, document_object_id)
     if doc.deleted_at is not None:
-        raise HTTPException(status_code=409, detail=(
-            f"Dokument {objects.obj_nr(doc.object_id)} ist gelöscht."))
+        raise Conflict(f"Dokument {objects.obj_nr(doc.object_id)} ist gelöscht.")
     _check_refs(db, [RefIn(object_id=object_id, part=part, field=field)])
     old = (db.query(DocumentRef).filter(
         DocumentRef.object_id == object_id, DocumentRef.field == field,
@@ -332,10 +329,10 @@ def delete(db: Session, doc: Document, reason: str, actor: UserProfile) -> None:
     wer, wann und Grund. Offene Links zeigen «nicht mehr verfügbar»."""
     problem = delete_problem(db, doc)
     if problem:
-        raise HTTPException(status_code=409, detail=problem)
+        raise Conflict(problem)
     reason = dd.clean(reason, dd.REASON_MAX)
     if not reason:
-        raise HTTPException(status_code=400, detail="Gelöscht wird mit Grund.")
+        raise Invalid("Gelöscht wird mit Grund.")
     att = db.query(Attachment).filter(Attachment.id == doc.file_id).first() if doc.file_id else None
     for s in db.query(DocumentSignature).filter(DocumentSignature.document_id == doc.id).all():
         s.image = None
@@ -394,9 +391,9 @@ def pages_to_pdf(pages: list[bytes]) -> bytes:
             img = ImageOps.exif_transpose(Image.open(io.BytesIO(raw)))
             imgs.append(img.convert("RGB"))
         except Exception:
-            raise HTTPException(status_code=400, detail="Eine Seite ist kein lesbares Bild.")
+            raise Invalid("Eine Seite ist kein lesbares Bild.")
     if not imgs:
-        raise HTTPException(status_code=400, detail="Keine Seite.")
+        raise Invalid("Keine Seite.")
     buf = io.BytesIO()
     imgs[0].save(buf, format="PDF", save_all=True, append_images=imgs[1:], resolution=150)
     return buf.getvalue()

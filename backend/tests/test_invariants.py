@@ -194,7 +194,7 @@ def test_a_record_goes_out_of_service_on_exactly_one_axis():
     )
     # Der verbliebene ``is_active``-Vergleich ist der **Soft-Delete** («gibt es nicht»),
     # nicht der fachliche Zustand – daran hängt die Meldung 404, nicht 400.
-    assert 'detail=f"Zeile {position}: Artikel {object_id} gibt es nicht.",' in body
+    assert 'NotFound(f"Zeile {position}: Artikel {object_id} gibt es nicht.")' in body
     # Und sie greift **nur** für «Neu»: Lager muss abwickelbar bleiben.
     assert "if origin == NEU:" in body and "may_create" in body.split("if origin == NEU:")[1][:200], (
         "``may_create`` greift nicht (mehr) ausschliesslich für die Herkunft «Neu» – "

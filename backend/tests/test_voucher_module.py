@@ -452,14 +452,14 @@ def test_can_is_the_gate_and_not_only_a_hint(db):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher_actions
     order, step, row, _who, _art = _scene(db)
     allowed = voucher_actions.can(db, row, None)
     assert "revoke" not in allowed, "Stornieren geht vor der Zusage (a)."
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         voucher_actions.assert_allowed(db, row, "revoke", None)
-    assert e.value.status_code == 409, "Die falsche Stufe ist ein 409 (c)."
+    assert e.value.status == 409, "Die falsche Stufe ist ein 409 (c)."
     assert str(e.value.detail).strip(), "Ablehnung ohne Grund (b)."
     assert "Offerte" in str(e.value.detail), (
         "Der Satz nennt die Stufe nicht – «geht nicht» ohne «woran es liegt» ist "
@@ -559,7 +559,7 @@ def test_a_module_carries_exactly_one_invoice(db):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher_actions
     order, step, row, _who, _art = _agreed(db)
     voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
@@ -569,9 +569,9 @@ def test_a_module_carries_exactly_one_invoice(db):
         "«Rechnung stellen» steht nach der Rechnung noch da – dann ist die Regel "
         "wieder eine Zählung statt der Struktur."
     )
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
-    assert e.value.status_code == 409, "Eine zweite Rechnung geht durch."
+    assert e.value.status == 409, "Eine zweite Rechnung geht durch."
 
 
 
@@ -645,7 +645,7 @@ def test_a_correction_carries_the_reference_to_what_it_corrects(db):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher_actions, voucher_view
     order, step, row, who, art = _agreed(db)
     voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
@@ -660,10 +660,10 @@ def test_a_correction_carries_the_reference_to_what_it_corrects(db):
         "Papier stehen."
     )
     assert seen["corrects"]["number"] == row.number
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         voucher_actions.apply(db, order=back_order, step=back_step, action="correct",
                   payload={"corrects": back.id})
-    assert e.value.status_code == 400, "Ein Beleg korrigiert sich selbst (c)."
+    assert e.value.status == 400, "Ein Beleg korrigiert sich selbst (c)."
     # (d) **Keine Kette** – gemindert wird eine Rechnung, nie eine Gutschrift; damit
     # kann kein Kreis entstehen. Die Gutschrift zu ``row`` ist gestellt und zeigt auf
     # ``row``; ein dritter Beleg, der SIE mindern will, wird abgewiesen.
@@ -671,10 +671,10 @@ def test_a_correction_carries_the_reference_to_what_it_corrects(db):
     voucher_actions.apply(db, order=credit_order, step=credit_step, action="bill", payload={})
     db.flush()
     third_order, third_step, third, _w2, _a2 = _scene(db, quantity=1, parties=[who[0]])
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         voucher_actions.apply(db, order=third_order, step=third_step, action="correct",
                   payload={"corrects": credit.id})
-    assert e.value.status_code == 400 and "Gutschrift" in str(e.value.detail), (
+    assert e.value.status == 400 and "Gutschrift" in str(e.value.detail), (
         "Eine Gutschrift lässt sich mindern (d) – dann gibt es Ketten und Kreise.")
     assert e.value.detail == voucher_actions.correction_problem(db, third, credit), (
         "Tor und Auskunft sagen Verschiedenes (d).")
@@ -929,7 +929,7 @@ def test_prepayment_is_the_payment_term_not_a_switch(db):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher as svc, voucher_actions
     order, step, row, who, _art = _scene(db, quantity=1)
     _price(db, order, step, row, price="10.00")
@@ -940,9 +940,9 @@ def test_prepayment_is_the_payment_term_not_a_switch(db):
     voucher_actions.apply(db, order=order, step=step, action="agree",
               payload={"party": who[0].object_id})
     db.flush()
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         svc.assert_completable(db, step=step, auto=True)
-    assert e.value.status_code == 409, "Die Vorauszahlung hält nicht an (a)."
+    assert e.value.status == 409, "Die Vorauszahlung hält nicht an (a)."
     assert not svc.passable(db, row), "Die Stücke dürfen trotz offener Vorauszahlung weiter."
     # (b) **Dieselbe Szene mit 30 Tagen läuft durch.**
     order2, step2, row2, who2, _a2 = _scene(db, quantity=1)
@@ -1146,7 +1146,7 @@ def test_a_module_says_why_it_cannot_be_finished_yet(db):
     Schritt an; (c) die beiden Formen sagen Verschiedenes.
     """
     import pytest as _pytest
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.routers import orders as router
     from app.services import voucher as svc
     _house(db)
@@ -1160,7 +1160,7 @@ def test_a_module_says_why_it_cannot_be_finished_yet(db):
     )
 
     # (c) **Dieselbe Regel, zwei Formen** – die Tür sagt wörtlich denselben Satz.
-    with _pytest.raises(HTTPException) as err:
+    with _pytest.raises(Rejected) as err:
         svc.assert_completable(db, step=step)
     assert err.value.detail == why, (
         f"Tür und Auskunft sagen Verschiedenes (c): «{err.value.detail}» ≠ «{why}»."
@@ -1196,7 +1196,7 @@ def test_an_ask_can_be_taken_back(db):
     steht schon da, bevor überhaupt etwas hinausgegangen ist.
     """
     import pytest as _pytest
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.models import VoucherQuote
     from app.services import voucher as svc, voucher_actions
     _house(db)
@@ -1250,10 +1250,10 @@ def test_an_ask_can_be_taken_back(db):
         "Nach dem Zuschlag lässt sich noch abwählen (c) – dann verschwindet der "
         "Nachweis, warum so entschieden wurde."
     )
-    with _pytest.raises(HTTPException) as err:
+    with _pytest.raises(Rejected) as err:
         voucher_actions.apply(db, order=order, step=step, action="unask",
                   payload={"party": two.object_id}, actor=staff)
-    assert err.value.status_code == 409, (
+    assert err.value.status == 409, (
         f"Die Tür lässt es trotzdem durch (c): «{err.value.detail}»."
     )
 
@@ -1463,7 +1463,7 @@ def test_an_incomplete_document_does_not_go_out(db):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher as svc, voucher_actions
 
     order, step, row, who, art = _scene(db)
@@ -1472,7 +1472,7 @@ def test_an_incomplete_document_does_not_go_out(db):
     # (c) Ohne Lieferbedingung – die Szene setzt sie, also wieder wegnehmen.
     row.incoterm, row.incoterm_place = None, None
     db.flush()
-    with pytest.raises(HTTPException) as no_clause:
+    with pytest.raises(Rejected) as no_clause:
         voucher_actions.apply(db, order=order, step=step, action="terms",
                   payload={"lead_days": 10, "payment_days": 30})
         voucher_actions.apply(db, order=order, step=step, action="ask",
@@ -1496,7 +1496,7 @@ def test_an_incomplete_document_does_not_go_out(db):
         keep = getattr(art, field)
         setattr(art, field, None)
         db.flush()
-        with pytest.raises(HTTPException) as gone:
+        with pytest.raises(Rejected) as gone:
             voucher_actions.apply(db, order=order, step=step, action="terms",
                       payload={"lead_days": 10, "payment_days": 30})
             voucher_actions.apply(db, order=order, step=step, action="ask",
@@ -2090,7 +2090,7 @@ def test_the_party_is_chosen_before_it_is_asked(db):
     import sys
     sys.path.insert(0, str(BACKEND))
     import pytest as _pytest
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher as svc, voucher_actions, voucher_view
     from app.models import Voucher
 
@@ -2149,11 +2149,11 @@ def test_the_party_is_chosen_before_it_is_asked(db):
 
     # (g) **Geprüft wird die Wahl selbst** – eine Auswahl, die der Dienst später
     #     abwiese, wäre keine.
-    with _pytest.raises(HTTPException) as bad:
+    with _pytest.raises(Rejected) as bad:
         voucher_actions.apply(db, order=order, step=step, action="party",
                   payload={"party": 999_999_999})
-    assert bad.value.status_code == 400, (
-        f"Irgendeine Nummer geht durch (g): {bad.value.status_code}."
+    assert bad.value.status == 400, (
+        f"Irgendeine Nummer geht durch (g): {bad.value.status}."
     )
 
 
@@ -2395,7 +2395,7 @@ def test_a_refund_never_goes_out_twice(db, monkeypatch):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import stripe_pay, voucher_money
     _order, _step, row, intent = _card_scene(db)
     entry = voucher_money.refundable(db, row)[0]
@@ -2425,9 +2425,9 @@ def test_a_refund_never_goes_out_twice(db, monkeypatch):
         "Sie steht weiter in der Liste (b) – dann bleibt der Knopf stehen."
     )
     # (c) **Und der Weg dorthin ist zu** – mit einem Satz, nicht mit einem Rohfehler.
-    with pytest.raises(HTTPException) as err:
+    with pytest.raises(Rejected) as err:
         stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
-    assert err.value.status_code == 409 and "erstatten" in err.value.detail, (
+    assert err.value.status == 409 and "erstatten" in err.value.detail, (
         f"Der zweite Aufruf geht hinaus oder sagt nichts (c): {err.value.detail}."
     )
 
@@ -2447,7 +2447,7 @@ def test_a_partial_refund_leaves_the_rest_and_only_the_rest(db, monkeypatch):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import stripe_pay, voucher_money
     _order, _step, row, intent = _card_scene(db)
     entry = voucher_money.refundable(db, row)[0]
@@ -2459,9 +2459,9 @@ def test_a_partial_refund_leaves_the_rest_and_only_the_rest(db, monkeypatch):
         f"Der Rest stimmt nicht (a): {voucher_money.refundable_amount(db, entry)}."
     )
     # (b) **Mehr als der Rest geht nicht** – und der Satz nennt beide Zahlen.
-    with pytest.raises(HTTPException) as err:
+    with pytest.raises(Rejected) as err:
         stripe_pay.refund(db, row=row, entry_id=entry.id, amount="80.00", viewer=None)
-    assert err.value.status_code == 409 and "70" in err.value.detail, (
+    assert err.value.status == 409 and "70" in err.value.detail, (
         f"Mehr als der Rest geht durch (b): {err.value.detail}."
     )
     # (c) **Die zweite Erstattung wird gebucht** – je Erstattung eine Referenz, nicht
@@ -2538,13 +2538,13 @@ def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(db, monkeyp
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import stripe_pay, voucher_money
     _order, _step, row, _intent = _card_scene(db)
     entry = voucher_money.refundable(db, row)[0]
     raw = "Charge ch_123 has already been refunded."
     _fake_stripe(monkeypatch, raises=_Refused("charge_already_refunded", raw))
-    with pytest.raises(HTTPException) as err:
+    with pytest.raises(Rejected) as err:
         stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
     # (a)
     assert raw not in err.value.detail and "refund" not in err.value.detail.lower(), (
@@ -2556,7 +2556,7 @@ def test_a_raw_error_of_the_payment_service_never_reaches_the_screen(db, monkeyp
     # (b) **Was wir nicht übersetzen können, bleibt allgemein** – eine geratene
     #     Ursache schickt jemanden in die falsche Richtung.
     _fake_stripe(monkeypatch, raises=_Refused("something_new", "Internal oops at 0x1"))
-    with pytest.raises(HTTPException) as err:
+    with pytest.raises(Rejected) as err:
         stripe_pay.refund(db, row=row, entry_id=entry.id, viewer=None)
     assert err.value.detail == stripe_pay.STRIPE_TROUBLE, (
         f"Ein unbekannter Fehler bringt Technisches durch (b): {err.value.detail}."
@@ -2588,7 +2588,7 @@ def test_the_webhook_reads_a_real_signed_event(db, monkeypatch):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.core.config import get_settings
     from app.services import stripe_pay
     secret = "whsec_test"
@@ -2611,9 +2611,9 @@ def test_the_webhook_reads_a_real_signed_event(db, monkeypatch):
     # (b)
     raw, _sig = _signed(secret, paid)
     _raw, forged = _signed("whsec_fremd", paid)
-    with pytest.raises(HTTPException) as err:
+    with pytest.raises(Rejected) as err:
         stripe_pay.handle_webhook(db, raw=raw, signature=forged)
-    assert err.value.status_code == 400
+    assert err.value.status == 400
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2691,7 +2691,7 @@ def test_the_reason_stands_at_the_button_not_after_the_click(db):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import voucher as svc, voucher_actions, voucher_view
     order, step, row, _who, art = _scene(db, quantity=2)
     staff = _party(db, "Personal", "admin")
@@ -2713,7 +2713,7 @@ def test_the_reason_stands_at_the_button_not_after_the_click(db):
     )
     # (b) **Derselbe Satz ist das Tor** – ein zweiter, milderer Massstab wäre ein
     #     Knopf, der bereitsteht und dann scheitert.
-    with pytest.raises(HTTPException) as err:
+    with pytest.raises(Rejected) as err:
         voucher_actions.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
     assert err.value.detail == problem, (
         f"Tür und Knopf sagen Verschiedenes (b): {err.value.detail!r} ≠ {problem!r}."
@@ -2880,7 +2880,7 @@ def test_the_document_chooses_firm_and_addresses_before_the_agreement(db):
     (e) die Gegenpartei sieht die Auswahl; (f) die gewählte Anschrift steht nicht drauf;
     (g) eine Anschrift aus dem anderen Konto lässt sich wählen.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import address_book, voucher_actions, voucher_view
     _house(db)
     who = _party(db, "Firma", "customer")
@@ -2898,7 +2898,7 @@ def test_the_document_chooses_firm_and_addresses_before_the_agreement(db):
     assert choice and choice["company"] == "Firma GmbH" and choice["bill_to_company"], "(a)"
     assert site.id not in {o["id"] for o in choice["options"]}, (
         "Das Geschäftskonto bietet eine private Anschrift an (g).")
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         voucher_actions.apply(db, order=order, step=step, action="address",
                   payload={"delivery_address": site.id})                       # (g)
     voucher_actions.apply(db, order=order, step=step, action="address",
@@ -2908,7 +2908,7 @@ def test_the_document_chooses_firm_and_addresses_before_the_agreement(db):
     assert "Firma" not in seen["customer"]["name"], "(b)"
     assert any("Baustelle 5" in x for x in seen["customer"]["shipping"]), "(f)"
     foreign = address_book.default(db, stranger.id, "billing", "business")
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         voucher_actions.apply(db, order=order, step=step, action="address",
                   payload={"billing_address": foreign.id})                     # (c)
     assert voucher_view.embed_data(db, order=order, step=step, viewer=who)["customer"].get(
@@ -2919,7 +2919,7 @@ def test_the_document_chooses_firm_and_addresses_before_the_agreement(db):
     voucher_actions.apply(db, order=order, step=step, action="agree",
               payload={"party": who.object_id})
     assert "address" not in voucher_actions.can(db, row, None), "(d)"
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         voucher_actions.apply(db, order=order, step=step, action="address",
                   payload={"bill_to_company": True})                            # (d)
     assert voucher_view.embed_data(db, order=order, step=step)["customer"]["choice"] is None

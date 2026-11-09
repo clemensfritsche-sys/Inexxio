@@ -5,7 +5,7 @@ eigentliche **Anmeldung** per Passkey ist naturgemäss unauthentifiziert (sie er
 ja die Anmeldung) und liefert einen Firebase Custom Token zurück.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user
@@ -19,6 +19,7 @@ from ..schemas.passkey import (
     PasskeyResponse,
 )
 from ..services import passkey, visitor
+from ..domain.errors import TooMany
 
 router = APIRouter(prefix="/api/v1/auth/passkeys", tags=["passkeys"])
 
@@ -79,7 +80,7 @@ def login_options(request: Request, db: Session = DB) -> dict:
     Challenge ist eine Zeile: begrenzt je Absender wie jede öffentliche Tür
     (``services/visitor``)."""
     if not visitor.allow_send("passkey", request, LOGIN_LIMIT):
-        raise HTTPException(429, detail="Zu viele Anmeldeversuche in kurzer Zeit – bitte "
+        raise TooMany("Zu viele Anmeldeversuche in kurzer Zeit – bitte "
                                         "später noch einmal.")
     return passkey.begin_authentication(db, request)
 

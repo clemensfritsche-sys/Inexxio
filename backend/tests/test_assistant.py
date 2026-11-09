@@ -17,7 +17,7 @@ import random
 from contextlib import nullcontext
 
 import pytest
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 from fastapi.testclient import TestClient
 
 from app.core.actor import act
@@ -290,9 +290,9 @@ def test_a_handgriff_needing_the_hand_is_opened_not_run(db, house):
     assert hid and out.ok
     (h,) = handgriff.view(db, handgriff.load(db, [hid]))
     assert h.hand
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         handgriff.run(db, boss, hid)
-    assert e.value.status_code == 409
+    assert e.value.status == 409
     assert handgriff.settle(db, boss, hid, None).done is not None
 
 

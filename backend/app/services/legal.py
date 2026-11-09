@@ -28,6 +28,7 @@ from typing import Any, Optional
 
 from ..core import clock
 from . import address, sites
+from ..domain.errors import Invalid, NotFound
 
 DIR = Path(__file__).resolve().parent.parent / "assets" / "legal"
 
@@ -219,13 +220,12 @@ def text_of(db, company: Any, kind: str = AGB) -> Optional[Text]:
 def from_template(db, company: Any, kind: str, actor: Any):
     """**«Aus Vorlage»** – ein Mensch übernimmt die Vorlage als Dokument seiner Gesellschaft
     (``company.agb`` · ``company.privacy``). Gilt ab heute."""
-    from fastapi import HTTPException
     from . import fields
     if kind not in FIELD_OF:
-        raise HTTPException(status_code=400, detail=f"Eine Vorlage «{kind}» gibt es nicht.")
+        raise Invalid(f"Eine Vorlage «{kind}» gibt es nicht.")
     found = template(kind)
     if found is None:
-        raise HTTPException(status_code=404, detail=f"Die Vorlage «{kind}» ist nicht hinterlegt.")
+        raise NotFound(f"Die Vorlage «{kind}» ist nicht hinterlegt.")
     doc = _file_template(db, company, kind, found, clock.today(), actor)
     return fields.apply(db, actor=actor, doc=doc, object_id=company.object_id, part=None,
                         field=FIELD_OF[kind])

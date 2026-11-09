@@ -24,7 +24,6 @@ from contextlib import contextmanager
 from datetime import date
 from typing import Any, Iterator, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -34,6 +33,7 @@ from ..domain import loop as dl
 from ..domain import statuses as st
 from ..models import Article, Log, Order, OrderLine, OrderUnit, ProcessStep, UserProfile
 from . import log as log_svc
+from ..domain.errors import Conflict, Invalid, Rejected
 
 SET = "loop.set"
 NEXT = "loop.next"
@@ -110,7 +110,7 @@ def freeze(db: Session, order: Order, draft: dict[str, Any],
     try:
         frozen = dl.clean(raw, list(draft.get("lines") or []), clock.today())
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise Invalid(str(e))
     frozen["by"] = actor.id if actor is not None else None
     frozen["by_object"] = actor.object_id if actor is not None else None
     log_svc.event(db, SET, order.object_id, frozen)
@@ -282,14 +282,12 @@ def end(db: Session, order: Order) -> None:
     """►► **Beenden** – am neuesten Auftrag der Kette, auch wenn er abgeschlossen ist. Der
     Auftrag ändert sich nicht; geschrieben wird nur ``loop.ended``. Endgültig. ◄◄"""
     if settings(db, order) is None:
-        raise HTTPException(status_code=409,
-                            detail=f"Auftrag {order.object_id} wiederholt sich nicht.")
+        raise Conflict(f"Auftrag {order.object_id} wiederholt sich nicht.")
     nxt = successor(db, order)
     if nxt is not None:
-        raise HTTPException(status_code=409, detail=(
-            f"Die Wiederholung läuft in Auftrag {nxt} weiter – beendet wird sie dort."))
+        raise Conflict(f"Die Wiederholung läuft in Auftrag {nxt} weiter – beendet wird sie dort.")
     if is_ended(db, order):
-        raise HTTPException(status_code=409, detail="Die Wiederholung ist schon beendet.")
+        raise Conflict("Die Wiederholung ist schon beendet.")
     log_svc.event(db, ENDED, order.object_id, {})
 
 
@@ -330,7 +328,7 @@ def _carry_agreement(db: Session, prev: Order, new: Order) -> None:
                 voucher_actions.apply(db, order=new, step=step, action="agree",
                                       payload={"party": party})
             point.commit()
-        except HTTPException:
+        except Rejected:
             point.rollback()
             continue
         log_svc.event(db, AGREED, new.object_id, {"position": step.position, **basis})

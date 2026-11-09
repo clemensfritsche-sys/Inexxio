@@ -92,25 +92,25 @@ def test_no_entry_without_verification():
     Ein deaktivierter Knopf ist eine Bitte. Geprüft wird darum am Dienst, und zwar in
     beiden Formen: gar keine Angabe, und eine Instanz, die es nicht gibt.
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import process as proc
 
     db = session()
     try:
         order, step = _order(db, serialization="batch", quantity=2)
 
-        with pytest.raises(HTTPException) as without:
+        with pytest.raises(Rejected) as without:
             proc.confirm_step(db, order=order, step_id=step.id, values={"ok": True},
                               actor_id=None)
-        assert without.value.status_code == 400
+        assert without.value.status == 400
 
-        with pytest.raises(HTTPException) as unknown:
+        with pytest.raises(Rejected) as unknown:
             proc.confirm_step(
             db, order=order, step_id=step.id,
             values=per_unit(db, order=order, step=step, instance_object_id=999_999_999,
                             values={"ok": True}),
             instance_object_id=999_999_999, verification="scan", actor_id=None)
-        assert unknown.value.status_code == 404
+        assert unknown.value.status == 404
 
         # **Die Tastatur ist die Alternative, nicht die Umgehung** – und sie wird als
         # solche vermerkt.
@@ -346,12 +346,12 @@ def test_a_failed_capture_holds_and_nothing_is_created():
         failed = order_state.held_numbers(db, order, step,
                                    instance_object_id=work["instance_object_id"], group="failed")
         assert len(failed) == 1
-        from fastapi import HTTPException
+        from app.domain.errors import Rejected
 
-        with pytest.raises(HTTPException) as weg:
+        with pytest.raises(Rejected) as weg:
             order_state.held_numbers(db, order, step,
                               instance_object_id=work["instance_object_id"], group="rest")
-        assert weg.value.status_code == 400
+        assert weg.value.status == 400
     finally:
         db.rollback()
         db.close()
@@ -612,7 +612,7 @@ def test_a_capture_covers_exactly_the_drawn_pieces():
     geprüft werden sollte; ein fehlender wäre eine Lücke, die hinterher aussieht wie
     «durchgelaufen, nichts gemessen».
     """
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.services import process as proc
 
     db = session()
@@ -631,19 +631,19 @@ def test_a_capture_covers_exactly_the_drawn_pieces():
             if n not in set(drawn)
         )
 
-        with pytest.raises(HTTPException) as zu_wenig:
+        with pytest.raises(Rejected) as zu_wenig:
             proc.confirm_step(db, order=order, step_id=step.id,
                               values={drawn[0]: {"ok": True}},
                               instance_object_id=inst, verification="scan", actor_id=None)
-        assert zu_wenig.value.status_code == 400
+        assert zu_wenig.value.status == 400
         assert "je Stück" in str(zu_wenig.value.detail)
 
-        with pytest.raises(HTTPException) as zu_viel:
+        with pytest.raises(Rejected) as zu_viel:
             proc.confirm_step(
                 db, order=order, step_id=step.id,
                 values={**{n: {"ok": True} for n in drawn}, ungezogen: {"ok": True}},
                 instance_object_id=inst, verification="scan", actor_id=None)
-        assert zu_viel.value.status_code == 400
+        assert zu_viel.value.status == 400
         assert "nicht gezogen" in str(zu_viel.value.detail)
     finally:
         db.rollback()

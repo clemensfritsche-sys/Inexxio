@@ -9,7 +9,6 @@ Die Regeln stehen in PROCESS_CORE.md.
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
@@ -30,6 +29,7 @@ from . import (
 from .instances import find_units
 from .order_state import _chunks, held_by, holders
 from .process import _join, _pass, _run_through, lock_orders
+from ..domain.errors import Conflict, Invalid, NotFound
 
 
 # ---------------------------------------------------------------------------
@@ -66,35 +66,24 @@ def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
     for position, row in enumerate(raw, start=1):
         origin = row.get("origin")
         if origin not in ORIGINS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Zeile {position}: «{origin}» ist keine Herkunft. Erlaubt: {', '.join(ORIGINS)}.",
-            )
+            raise Invalid(f"Zeile {position}: «{origin}» ist keine Herkunft. Erlaubt: {', '.join(ORIGINS)}.")
         object_id = row.get("article_object_id")
         article = (
             db.query(Article).filter(Article.object_id == object_id).first()
             if object_id else None
         )
         if article is None:
-            raise HTTPException(
-                status_code=404, detail=f"Zeile {position}: Artikel {object_id} gibt es nicht.",
-            )
+            raise NotFound(f"Zeile {position}: Artikel {object_id} gibt es nicht.")
         # **Nur ein freigegebener Artikel erzeugt Neues** (``articles.may_create``) – nur für
         # «Neu»; bestehende Stücke bleiben abwickelbar.
         if origin == NEU:
             problem = articles_svc.may_create(article)
             if problem:
-                raise HTTPException(status_code=400,
-                                    detail=f"Zeile {position}: {problem}")
+                raise Invalid(f"Zeile {position}: {problem}")
         quantity = int(row.get("quantity") or 0)
         if quantity < 1:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Zeile {position} ({article.name}): die Menge muss mindestens 1 sein. "
-                    f"Eine Zeile ohne Stück bewegt nichts."
-                ),
-            )
+            raise Invalid(f"Zeile {position} ({article.name}): die Menge muss mindestens 1 sein. "
+                    f"Eine Zeile ohne Stück bewegt nichts.")
         out.append(_Line(
             position=position,
             article=article,
@@ -119,14 +108,9 @@ def _assert_single_new(lines: list[_Line]) -> None:
     """
     new_lines = [ln for ln in lines if ln.origin == NEU]
     if len(new_lines) > 1:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"{new_lines[1].label}: ein Auftrag hat genau einen Erzeugungsprozess – "
+        raise Invalid(f"{new_lines[1].label}: ein Auftrag hat genau einen Erzeugungsprozess – "
                 f"«Neu» steht schon bei {new_lines[0].label}. Für den zweiten Artikel "
-                f"einen eigenen Auftrag anlegen."
-            ),
-        )
+                f"einen eigenen Auftrag anlegen.")
 
 
 def _assert_no_self_consumption(lines: list[_Line], steps: list[dict[str, Any]]) -> None:
@@ -142,14 +126,9 @@ def _assert_no_self_consumption(lines: list[_Line], steps: list[dict[str, Any]])
     produced = {ln.article.object_id for ln in lines if ln.origin == NEU}
     clash = [n for n in dict.fromkeys(named) if n in produced]
     if clash:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Artikel {clash[0]} wird in diesem Auftrag erzeugt und steht zugleich in "
+        raise Invalid(f"Artikel {clash[0]} wird in diesem Auftrag erzeugt und steht zugleich in "
                 f"der Stückliste eines Verbrauchsmoduls. Ein Auftrag kann nicht verbauen, "
-                f"was er gerade herstellt."
-            ),
-        )
+                f"was er gerade herstellt.")
 
 
 def _from_module(data: dict[str, Any]) -> dict[str, Any]:
@@ -179,14 +158,9 @@ def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) 
     ln = new_lines[0]
     copied = article_process.mirror(db, ln.article)
     if not copied:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"{ln.label}: dieser Artikel hat keinen Erzeugungsprozess. "
+        raise Invalid(f"{ln.label}: dieser Artikel hat keinen Erzeugungsprozess. "
                 f"«Neu» ist erst wählbar, wenn im Artikel-Reiter «Erzeugungsprozess» "
-                f"mindestens ein Modul steht."
-            ),
-        )
+                f"mindestens ein Modul steht.")
     return copied
 
 
@@ -244,16 +218,11 @@ def _resolve_units(db: Session, numbers: list[str], *, seen: set[str]) -> list[t
     out: list[tuple[InstanceUnit, str]] = []
     for number in clean:
         if number in seen:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Einzelinstanz {number} ist doppelt in der Definition.",
-            )
+            raise Invalid(f"Einzelinstanz {number} ist doppelt in der Definition.")
         seen.add(number)
         unit = found.get(number)
         if unit is None:
-            raise HTTPException(
-                status_code=404, detail=f"Einzelinstanz {number} gibt es nicht.",
-            )
+            raise NotFound(f"Einzelinstanz {number} gibt es nicht.")
         out.append((unit, number))
     return out
 
@@ -272,14 +241,9 @@ def _assert_may_leave(db: Session, membership: OrderUnit, number: str) -> None:
     module = modules.get(step.module_type)
     if module.units_may_leave:
         return
-    raise HTTPException(
-        status_code=409,
-        detail=(
-            f"Einzelinstanz {number} steht vor «{module.label}» und kann dort nicht "
+    raise Conflict(f"Einzelinstanz {number} steht vor «{module.label}» und kann dort nicht "
             f"herausgenommen werden – dieses Modul wirkt nach aussen. Der Vorgang muss "
-            f"dort erst abgeschlossen oder storniert werden."
-        ),
-    )
+            f"dort erst abgeschlossen oder storniert werden.")
 
 
 def _assert_as_picked(
@@ -314,20 +278,11 @@ def _assert_as_picked(
         f"jetzt {where(s['now_in'])}"
         for s in stale
     ]
-    raise HTTPException(
-        status_code=409,
-        detail={
-            "code": "pick_stale",
-            "message": (
-                ("Eine Einzelinstanz hat " if len(stale) == 1
-                 else f"{len(stale)} Einzelinstanzen haben ")
-                + "seit der Auswahl den Auftrag gewechselt – "
-                + "; ".join(lines)
-                + ". Die Auswahl ist veraltet – bitte prüfen und erneut freigeben."
-            ),
-            "units": stale,
-        },
-    )
+    raise Conflict(
+        ("Eine Einzelinstanz hat " if len(stale) == 1 else f"{len(stale)} Einzelinstanzen haben ")
+        + "seit der Auswahl den Auftrag gewechselt – " + "; ".join(lines)
+        + ". Die Auswahl ist veraltet – bitte prüfen und erneut freigeben.",
+        code="pick_stale")
 
 
 def _lock_picks(db: Session, lines: list[_Line],
@@ -369,7 +324,7 @@ def _take_picks(db: Session, lines: list[_Line], *, lock: bool) -> None:
         for unit, number in pairs:
             problem = pick_problem(unit, number)
             if problem:
-                raise HTTPException(status_code=409, detail=problem)
+                raise Conflict(problem)
             source = held.get(unit.id)
             if source is not None:
                 _assert_may_leave(db, source, number)
@@ -388,11 +343,8 @@ def _checked(db: Session, lines: list[dict[str, Any]], steps: list[dict[str, Any
     effective = steps_for(db, resolved, steps)
     missing = assert_releasable(sum(ln.quantity for ln in resolved), effective)
     if missing:
-        raise HTTPException(
-            status_code=400,
-            detail="Der Auftrag ist noch nicht freigebbar – es fehlt: "
-                   + ", ".join(missing) + ".",
-        )
+        raise Invalid("Der Auftrag ist noch nicht freigebbar – es fehlt: "
+                   + ", ".join(missing) + ".")
     for step in effective:
         st.assert_known(step["status_before"], field="Vorher-Status")
         st.assert_known(step["status_after"], field="Nachher-Status")

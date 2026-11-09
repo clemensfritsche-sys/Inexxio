@@ -24,11 +24,12 @@ from ..domain import timekeeping as tk
 from ..models import CompanySettings, TimeContract, UserProfile
 from ..schemas.timekeeping import TodoItem, TodoOut
 from . import communication, holidays, legal, payment_list, people, timekeeping
+from ..domain import policy
 
 
 def _time_items(db: Session, actor: UserProfile) -> dict[int, list[TodoItem]]:
     oids = {o for (o,) in db.query(TimeContract.person_object_id).distinct().all()}
-    if actor.role != "admin":
+    if not policy.may(actor, "overview"):
         oids &= {actor.object_id}
     out: dict[int, list[TodoItem]] = {}
     if not oids:
@@ -83,7 +84,7 @@ def _ai_items(db: Session, actor: UserProfile) -> list[tuple[int, TodoItem]]:
     for oid, n in handgriff.open_mail_counts(db).items():
         out.append((oid, TodoItem(section="handgriffe", count=n,
                                   label=f"{n} Handgriff{'e' if n != 1 else ''}")))
-    if actor.role == "admin" and ai.near_cap(db):
+    if policy.may(actor, "overview") and ai.near_cap(db):
         op = sites.find_operator(db)
         if op is not None and op.object_id:
             out.append((op.object_id, _cap_item(ai.spent_today(db), ai.cap_chf())))
@@ -115,7 +116,7 @@ def todo(db: Session, actor: UserProfile) -> list[TodoOut]:
     from . import loop
     for oid, label, red in loop.todo_items(db):
         items[oid].append(TodoItem(section="wiederholung", count=1, label=label, red=red))
-    if actor.role == "admin":
+    if policy.may(actor, "overview"):
         for c in db.query(CompanySettings).filter(CompanySettings.is_own.is_(True),
                                                   CompanySettings.is_active.is_(True)).all():
             for kind in legal.FIELD_OF:

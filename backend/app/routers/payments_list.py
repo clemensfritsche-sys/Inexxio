@@ -3,7 +3,7 @@ Zahlungsmodulen (``services/payment_list``)."""
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from ..core.auth import require_employee
 from ..core.database import DB
 from ..models import UserProfile
 from ..services import payment_list
+from ..domain.errors import Invalid
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
 
@@ -42,7 +43,6 @@ def list_payments(
     """**Die Zahlungen einer Person** (``person=``) **oder einer eigenen Gesellschaft**
     (``company=``) – neueste Nummer zuoberst."""
     if (person is None) == (company is None):
-        raise HTTPException(status_code=400,
-                            detail="Entweder eine Person oder eine Gesellschaft angeben.")
+        raise Invalid("Entweder eine Person oder eine Gesellschaft angeben.")
     return (payment_list.of_person(db, person) if person is not None
             else payment_list.of_company(db, company))

@@ -9,7 +9,7 @@ behauptet – ein Test, der alles prüft, prüft nichts.
 
 from typing import Any
 
-from fastapi import HTTPException
+from app.domain.errors import Rejected
 from app.services import order_state
 from app.services import release as release_svc
 
@@ -47,9 +47,9 @@ def _err(fn, *a, **kw) -> dict[str, Any]:
     """Einen erwarteten Fehler einfangen – Code **und** ob die Meldung etwas sagt."""
     try:
         fn(*a, **kw)
-    except HTTPException as exc:
+    except Rejected as exc:
         detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
-        return {"code": exc.status_code, "spricht": _speaks(detail),
+        return {"code": exc.status, "spricht": _speaks(detail),
                 "meldung": detail[:90]}
     except Exception as exc:                                   # noqa: BLE001
         return {"code": type(exc).__name__, "spricht": False, "meldung": str(exc)[:90]}

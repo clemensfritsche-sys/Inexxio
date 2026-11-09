@@ -10,7 +10,9 @@ import random
 from types import SimpleNamespace
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
+
+from app.domain.errors import Rejected
 from fastapi.testclient import TestClient
 
 from app.core.auth import require_employee
@@ -78,13 +80,13 @@ def test_same_file_twice_is_the_same_document(world):
 
 
 def test_release_needs_art_and_name(world):
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         _file(world.db, world.staff, art=" ", name="x")
-    assert e.value.status_code == 400
+    assert e.value.status == 400
 
 
 def test_unknown_reference_is_refused(world):
-    with pytest.raises(HTTPException):
+    with pytest.raises(Rejected):
         _file(world.db, world.staff, refs=[docs.RefIn(999_999_998)])
 
 
@@ -122,9 +124,9 @@ def test_mandatory_field_is_changed_never_emptied(world):
     docs.set_field(db, document_object_id=first.object_id, object_id=target.object_id,
                    part=None, field="company.agb", actor=staff)
     (ref,) = docs.refs_of(db, [first.id])[first.id]
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         docs.detach(db, first, ref.id, staff)
-    assert e.value.status_code == 409
+    assert e.value.status == 409
     docs.set_field(db, document_object_id=second.object_id, object_id=target.object_id,
                    part=None, field="company.agb", actor=staff)
     assert docs.field_document(db, target.object_id, "company.agb").id == second.id
@@ -138,9 +140,9 @@ def test_only_what_hangs_nowhere_can_be_deleted(world):
     person = _person(db, "user")
     doc, _ = _file(db, staff, refs=[docs.RefIn(person.object_id)])
     assert docs.delete_problem(db, doc)
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         docs.delete(db, doc, "weg", staff)
-    assert e.value.status_code == 409
+    assert e.value.status == 409
     (ref,) = docs.refs_of(db, [doc.id])[doc.id]
     docs.detach(db, doc, ref.id, staff)
     file_id = doc.file_id
@@ -175,9 +177,9 @@ def test_a_private_part_is_seen_only_by_the_person_and_the_admin(world):
     assert access.visible(q, colleague).count() == 0
     assert access.visible(q, owner).count() == 1
     assert access.visible(q, admin).count() == 1
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(Rejected) as e:
         docs.readable(db, doc.object_id, colleague)
-    assert e.value.status_code == 404
+    assert e.value.status == 404
 
 
 def test_customers_see_no_documents_in_the_erp(world):

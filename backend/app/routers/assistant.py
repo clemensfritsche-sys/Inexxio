@@ -6,7 +6,7 @@ echte Route, mit ihren Rechten (``services/handgriff``). Was hier steht, ist sel
 Handgriff (der Assistent bereitet nichts an sich selbst vor).
 """
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from ..models import UserProfile
 from ..schemas.assistant import (DoneIn, DoorOut, FileRef, HandgriffOut, OperationOut, PinnedOut, ProbeOut,
                                  RunIn, RunOut, TalkIn, TalkOut)
 from ..services import ai, attachments, handgriff, pins, talk
+from ..domain.errors import Gone, Invalid, rejected
 
 router = APIRouter(prefix="/api/v1/erp/assistant", tags=["assistent"])
 
@@ -34,7 +35,7 @@ def say(data: TalkIn, db: Session = DB, user: UserProfile = Depends(require_empl
     elif data.talk is not None:
         tid = talk.assert_may(db, data.talk, user).id
     else:
-        raise HTTPException(400, detail="Eine Nachricht braucht Text oder eine Datei.")
+        raise Invalid("Eine Nachricht braucht Text oder eine Datei.")
     return StreamingResponse(talk.stream(user.id, tid), media_type="application/x-ndjson",
                              headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
@@ -88,7 +89,7 @@ def operation_of(handgriff_id: int, db: Session = DB,
     h = handgriff.assert_may(db, handgriff_id, user)
     op = handgriff.operation_for(h.payload["method"], handgriff.fill_or_raw(h.payload["path"]))
     if op is None:
-        raise HTTPException(410, detail="Diese Handlung gibt es im ERP nicht mehr.")
+        raise Gone("Diese Handlung gibt es im ERP nicht mehr.")
     return OperationOut(key=op.key, summary=op.summary, admin=op.admin, hand=op.hand, schema=op.schema)
 
 
@@ -99,8 +100,7 @@ def run(handgriff_id: int, data: RunIn, db: Session = DB,
     ich die Werte geändert habe. Geht es nicht, sagt der Satz der Route warum (409/4xx)."""
     h, out = handgriff.run(db, user, handgriff_id, data.body)
     if not out.ok:
-        raise HTTPException(out.status if out.status >= 400 else 409,
-                            detail=out.detail or f"Das geht nur von Hand ({out.hand}).")
+        raise rejected(out.status if out.status >= 400 else 409, out.detail or f"Das geht nur von Hand ({out.hand}).")
     return RunOut(handgriff=handgriff.view(db, [h])[0], data=out.data)
 
 

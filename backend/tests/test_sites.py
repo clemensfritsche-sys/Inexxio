@@ -168,7 +168,7 @@ def test_a_company_never_loses_its_name():
 
     for fn in (sites._new, sites.apply_update):
         code = _code(fn)
-        assert "company_name" in code and "400" in code, \
+        assert "company_name" in code and "Invalid(" in code, \
             f"{fn.__name__} muss einen leeren Namen ablehnen"
 
 

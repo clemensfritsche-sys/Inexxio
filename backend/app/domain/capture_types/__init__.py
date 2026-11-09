@@ -22,9 +22,8 @@ from importlib import import_module
 from pkgutil import iter_modules
 from typing import Any, Optional
 
-from fastapi import HTTPException
-
 from .base import CaptureType, bad
+from ..errors import Invalid
 
 _TYPES: dict[str, CaptureType] = {}
 
@@ -135,11 +134,8 @@ def check_values(points: list[dict[str, Any]], values: dict[str, Any]) -> None:
     known = {p["key"] for p in points}
     unknown = sorted(set(values) - known)
     if unknown:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"Unbekannte Erfassungspunkte: {', '.join(unknown)}. "
-                    f"Dieses Modul kennt sie nicht."),
-        )
+        raise Invalid(f"Unbekannte Erfassungspunkte: {', '.join(unknown)}. "
+                    f"Dieses Modul kennt sie nicht.")
     # **Alles, was angelegt ist, ist Pflicht.** Ein Schalter «Pflicht ja/nein» wäre die
     # Frage, warum man einen Erfassungspunkt anlegt, den niemand ausfüllen muss – und
     # jeder ausgeschaltete Punkt eine Lücke, die erst später auffällt.
@@ -148,10 +144,7 @@ def check_values(points: list[dict[str, Any]], values: dict[str, Any]) -> None:
         if get(p["type"]).missing(p, values.get(p["key"]))
     ]
     if open_points:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Noch nicht erfasst: {', '.join(open_points)}.",
-        )
+        raise Invalid(f"Noch nicht erfasst: {', '.join(open_points)}.")
 
 
 def verdict(points: list[dict[str, Any]], values: dict[str, Any]) -> Optional[str]:

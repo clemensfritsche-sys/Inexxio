@@ -125,7 +125,7 @@ def test_one_field_asked_two_questions_so_there_are_two():
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from fastapi import HTTPException
+    from app.domain.errors import Rejected
     from app.domain import modules as dmod
     from app.domain import voucher as vo
 
@@ -144,7 +144,7 @@ def test_one_field_asked_two_questions_so_there_are_two():
     try:
         module.clean_config({"direction": "out",
                              "parties": [{"party": 100000001, "ref": "  "}]})
-    except HTTPException as e:
+    except Rejected as e:
         assert vo.ORDER_REF in str(e.detail), "Der Satz nennt die Angabe nicht."
     else:
         raise AssertionError("Beim Einkauf ist die Bestellangabe freiwillig geworden (c).")
@@ -164,7 +164,7 @@ def test_one_field_asked_two_questions_so_there_are_two():
     # (f) Und er ist kein Pflichtenheft.
     try:
         module.clean_config({"direction": "in", "instruction": "x" * (vo.MAX_TASK + 1)})
-    except HTTPException:
+    except Rejected:
         pass
     else:
         raise AssertionError("Die Länge des Auftrags ist ungeprüft (f).")

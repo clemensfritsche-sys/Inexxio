@@ -137,7 +137,9 @@ function NewsletterConsent({ person }: { person: number }) {
 function ProfileForm({ record, isAdmin, onSaved, todo }: {
   record: UserProfile; isAdmin: boolean; onSaved: (u: UserProfile) => void; todo?: Todo | null;
 }) {
-  const canEdit = isAdmin;
+  // Ändern darf, wem der Server es sagt (`may_edit`, `domain/policy`): Kunden jedes Personal,
+  // Mitarbeitende nur der Admin. Die Rolle vergibt nur der Admin.
+  const canEdit = record.may_edit;
   const ro = !canEdit;
   const mapsKey = useMapsApiKey();
   // **Einmal befüllt** – ein neuer `record` nach dem Auto-Save überschreibt nichts, was gerade
@@ -171,7 +173,7 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
         {/* Rolle – ERP-Extra (das Konto kennt sie nicht, die eigene Rolle ändert man nicht). */}
         {/* ►►► **Die Rolle ist der ZUGANG** (`people.STAFF_ROLES`). ◄◄◄ Lieferant ↔ Kunde ist
             eine Eigenschaft des Vorgangs, nicht der Person. */}
-        {canEdit ? (
+        {canEdit && isAdmin ? (
           <SelectField name="role" label="Rolle" value={role} onChange={(x) => set('role', x as UserRole)} options={[
             { value: 'admin', label: 'Admin' }, { value: 'employee', label: 'Mitarbeiter' },
             { value: 'user', label: 'Benutzer' },

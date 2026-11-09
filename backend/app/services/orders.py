@@ -10,7 +10,6 @@ Die Fachlogik steht in ``services/release.py``; hier stehen die Freigabebedingun
 
 from typing import Any
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Order
@@ -18,6 +17,7 @@ from ..models.order_line import LAGER
 from .release import (
     _checked, assert_releasable, release, resolve_lines, steps_for, unpickable,
 )
+from ..domain.errors import Invalid, NotFound, Rejected
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ def validate_draft(db: Session | None, draft: dict[str, Any]) -> list[str]:
     try:
         lines = resolve_lines(db, raw_lines)
         steps = steps_for(db, lines, raw_steps)
-    except HTTPException as e:
+    except Rejected as e:
         return [_said(e)]
 
     missing = assert_releasable(sum(ln.quantity for ln in lines), steps)
@@ -68,15 +68,14 @@ def validate_draft(db: Session | None, draft: dict[str, Any]) -> list[str]:
         return missing
     try:
         _checked(db, raw_lines, raw_steps)
-    except HTTPException as e:
+    except Rejected as e:
         return [_said(e)]
     return []
 
 
-def _said(e: HTTPException) -> str:
-    """Der Satz eines Fehlers – auch wenn er mit Code und Einzelheiten kommt."""
-    detail = e.detail
-    return str(detail.get("message") or detail) if isinstance(detail, dict) else str(detail)
+def _said(e: Rejected) -> str:
+    """Der Satz eines Fehlers."""
+    return e.detail
 
 
 def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None,
@@ -93,7 +92,7 @@ def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None,
         # Vor der ersten Nummer: eine unmögliche Schlaufe verbrennt keine Objektnummer (§6.3).
         problems = loop.draft_problems(db, draft)
         if problems:
-            raise HTTPException(status_code=400, detail=problems[0])
+            raise Invalid(problems[0])
     order = release(
         db,
         lines=[dict(ln) for ln in (draft.get("lines") or [])],
@@ -108,5 +107,5 @@ def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None,
 def get(db: Session, object_id: int) -> Order:
     order = db.query(Order).filter(Order.object_id == object_id).first()
     if order is None:
-        raise HTTPException(status_code=404, detail=f"Auftrag {object_id} nicht gefunden.")
+        raise NotFound(f"Auftrag {object_id} nicht gefunden.")
     return order

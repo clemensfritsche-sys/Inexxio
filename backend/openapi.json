@@ -1304,7 +1304,7 @@
           "erp"
         ],
         "summary": "Update Erp Record",
-        "description": "Angaben einer Person ändern (Name, Kontakt, Firma, Rolle, Anstellung) – nur ein Admin.",
+        "description": "Angaben einer Person ändern (Name, Kontakt, Firma, Rolle, Anstellung) – jede Person mit\nERP-Zugang; Rollen und Mitarbeitende nur der Admin (``domain/policy``).",
         "operationId": "update_erp_record_api_v1_erp_records__object_id__patch",
         "security": [
           {
@@ -1362,7 +1362,7 @@
           "erp"
         ],
         "summary": "Add Record Address",
-        "description": "Eine Anschrift ins Adressbuch einer Person aufnehmen – nur ein Admin.",
+        "description": "Eine Anschrift ins Adressbuch einer Person aufnehmen.",
         "operationId": "add_record_address_api_v1_erp_records__object_id__addresses_post",
         "security": [
           {
@@ -1420,7 +1420,7 @@
           "erp"
         ],
         "summary": "Change Record Address",
-        "description": "Eine Anschrift im Adressbuch einer Person ändern – nur ein Admin.",
+        "description": "Eine Anschrift im Adressbuch einer Person ändern.",
         "operationId": "change_record_address_api_v1_erp_records__object_id__addresses__address_id__patch",
         "security": [
           {
@@ -1485,7 +1485,7 @@
           "erp"
         ],
         "summary": "Remove Record Address",
-        "description": "Eine Anschrift aus dem Adressbuch einer Person entfernen – nur ein Admin.",
+        "description": "Eine Anschrift aus dem Adressbuch einer Person entfernen.",
         "operationId": "remove_record_address_api_v1_erp_records__object_id__addresses__address_id__delete",
         "security": [
           {
@@ -8521,12 +8521,17 @@
           "host": {
             "type": "string",
             "title": "Host"
+          },
+          "redirect": {
+            "type": "string",
+            "title": "Redirect"
           }
         },
         "type": "object",
         "required": [
           "client",
-          "host"
+          "host",
+          "redirect"
         ],
         "title": "AskOut",
         "description": "Welcher Claude-Client verbunden werden will – und wohin er zurückkehrt."
@@ -16404,6 +16409,11 @@
               }
             ],
             "title": "Last Login At"
+          },
+          "may_edit": {
+            "type": "boolean",
+            "title": "May Edit",
+            "default": false
           }
         },
         "type": "object",
