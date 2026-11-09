@@ -24,6 +24,4 @@ class Attachment(Base, TimestampMixin):
     #: Die Bytes – nur, wenn kein Bucket sie hält (``attachments.keep``).
     data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
     filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     byte_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

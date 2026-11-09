@@ -8161,7 +8161,7 @@
         },
         "type": "object",
         "title": "ArticleProcess",
-        "description": "Der Erzeugungsprozess eines Artikels – eingefroren: ein Artikel ändert sich nie, eine\nÄnderung ist ein neuer Artikel. Die Kopie im Auftrag nennt ihn (``source_article_id``)."
+        "description": "Der Erzeugungsprozess eines Artikels – eingefroren: ein Artikel ändert sich nie, eine\nÄnderung ist ein neuer Artikel. Der Auftrag trägt eine Kopie."
       },
       "ArticleProcessStepResponse": {
         "properties": {
@@ -13232,17 +13232,6 @@
             ],
             "title": "Device Name"
           },
-          "device_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Type"
-          },
           "backed_up": {
             "type": "boolean",
             "title": "Backed Up",
@@ -16199,28 +16188,6 @@
           "url": {
             "type": "string",
             "title": "Url"
-          },
-          "width": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Width"
-          },
-          "height": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height"
           }
         },
         "type": "object",

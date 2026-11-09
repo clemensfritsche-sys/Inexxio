@@ -26,7 +26,7 @@ class ArticleProcessStep(Base, TimestampMixin):
     Feld, dessen einzige richtige Antwort feststeht, ist keine Frage (#682).
 
     **Kopie, nicht Verweis.** Bei der Freigabe wird diese Liste in ``process_steps``
-    **kopiert** und nennt den Artikel (``source_article_id``). Ein Verweis hiesse, dass
+    **kopiert**. Ein Verweis hiesse, dass
     eine spätere Artikeländerung rückwirkend laufende Aufträge umschreibt — das
     widerspricht «eingefroren» (§6.4).
     """

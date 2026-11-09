@@ -21,8 +21,6 @@ class UploadResult(BaseModel):
     #: Die Nummer des Bildes; die ``url`` ist, wie man es zeigt.
     id: int
     url: str
-    width: int | None = None
-    height: int | None = None
 
 
 @router.post("/api/v1/erp/attachments", response_model=UploadResult, status_code=201)
@@ -35,7 +33,7 @@ def upload_attachment(
     raw = file.file.read()
     att = attachments_svc.store_image(db, raw, file.filename)
     db.flush()
-    return UploadResult(id=att.id, url=attachments_svc.public_url(att), width=att.width, height=att.height)
+    return UploadResult(id=att.id, url=attachments_svc.public_url(att))
 
 
 @router.get("/api/v1/attachments/{token}", dependencies=[public("link")])

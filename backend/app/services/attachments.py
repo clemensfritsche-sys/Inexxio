@@ -82,8 +82,6 @@ def store_image(db: Session, raw: bytes, filename: str | None) -> Attachment:
         token=secrets.token_urlsafe(24),
         mime="image/jpeg",
         filename=(filename or None),
-        width=img.width,
-        height=img.height,
         byte_size=len(data),
     )
     keep(att, data)

@@ -57,4 +57,3 @@ class ProcessStep(Base, TimestampMixin):
     # die id IST die Fassung). ``None`` = im Auftrag von Hand modelliert.
     # Ein **Verweis** auf die Vorlage statt einer Kopie hiesse, dass eine spätere
     # Artikeländerung laufende Aufträge rückwirkend umschreibt – genau das darf nicht sein.
-    source_article_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("articles.id", ondelete="RESTRICT"), nullable=True)

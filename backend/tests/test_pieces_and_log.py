@@ -151,6 +151,12 @@ def test_the_order_process_is_a_stamped_copy_of_the_template(db):
     w = World(db)
     article = w.article()
     order = w.produce(article, 1)
-    steps = db.query(ProcessStep).filter(ProcessStep.order_id == order.id).all()
-    assert steps and all(s.source_article_id == article.id for s in steps), (
-        "Der Auftrag trägt nicht die Herkunft seiner Schritte.")
+    from app.services.article_process import steps_of
+
+    def shape(rows):
+        return [(r.module_type, r.status_before, r.status_after, r.config or None) for r in rows]
+
+    steps = (db.query(ProcessStep).filter(ProcessStep.order_id == order.id)
+             .order_by(ProcessStep.position).all())
+    assert steps and shape(steps) == shape(steps_of(db, article)), (
+        "Der Prozess im Auftrag ist keine Kopie der Vorlage des Artikels.")

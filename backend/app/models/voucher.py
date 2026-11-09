@@ -67,7 +67,7 @@ class Voucher(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     #: Das Modul, zu dem dieser Beleg gehört.
-    step_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    step_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
     #: ``in`` · ``out`` (``domain/voucher``). Eingefroren bei der Anlage aus der
     #: Konfiguration des Schritts: ein laufender Auftrag trägt seinen Prozess eingefroren,

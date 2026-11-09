@@ -27,7 +27,6 @@ class Log(Base):
     __table_args__ = (
         Index("ix_log_object_at", "object_id", "at"),        # der Verlauf am Ding
         Index("ix_log_request", "request_id"),               # alles einer Handlung
-        Index("ix_log_actor_at", "actor_id", "at"),          # was hat jemand getan
         Index("ix_log_event_at", "event", "at"),             # Ereignisse einer Art
         Index("ix_log_at", "at"),                            # die Siegel je Tag
     )

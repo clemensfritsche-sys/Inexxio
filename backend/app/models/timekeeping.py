@@ -29,7 +29,7 @@ class TimeContract(Base, TimestampMixin):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    person_object_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    person_object_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     valid_from: Mapped[date] = mapped_column(Date, nullable=False)
     #: Wochenstunden in Minuten – 0 = Austritt.
     weekly_minutes: Mapped[int] = mapped_column(Integer, nullable=False)

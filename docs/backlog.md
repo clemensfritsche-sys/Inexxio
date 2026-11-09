@@ -8,7 +8,9 @@ steht nicht hier, sondern in `docs/history/` (zuletzt `2026-10-backlog-erledigt.
 
 ## Zwei-Deploy-Regel: vorgemerkte Drops
 
-Heute keiner. Zuletzt gefallen: die Tabelle `voucher_documents` (Migration 178, die Papiere
+**Offen (Aufräumen A1, Änderungsakte §6):** `captures.note`, `process_steps.source_article_id`, `webauthn_credentials.transports`, `webauthn_credentials.device_type`, `attachments.width`, `attachments.height` – entmappt mit Migration 181, Drop mit 182.
+
+Zuletzt gefallen: die Tabelle `voucher_documents` (Migration 178, die Papiere
 sind gewöhnliche Dokumente mit `document_links`); davor (Aufräumen 1, Migration 176): `is_active` an 23 Tabellen, an
 denen nie gelöscht wird; `created_by` an `attachments`, `document_refs`, `document_links`,
 `holidays`; `captures.captured_by`; `articles.process_version`, `process_steps.source_version`;

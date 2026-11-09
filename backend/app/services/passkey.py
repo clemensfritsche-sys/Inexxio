@@ -174,9 +174,6 @@ def complete_registration(
     ).first():
         raise Conflict("Dieser Passkey ist bereits registriert.")
 
-    transports = (credential.get("response") or {}).get("transports")
-    dev_type = verified.credential_device_type
-    device_type = getattr(dev_type, "value", None) or (str(dev_type) if dev_type else None)
     # Name ist optional – ohne Eingabe automatisch vergeben (durchnummeriert), damit der
     # Nutzer beim Hinzufügen nichts eintippen muss.
     name = (device_name or "").strip()[:80]
@@ -190,9 +187,7 @@ def complete_registration(
         public_key=verified.credential_public_key,
         sign_count=verified.sign_count,
         rp_id=rp_id,
-        transports=transports if isinstance(transports, list) else None,
         device_name=name,
-        device_type=device_type,
         backed_up=bool(verified.credential_backed_up),
         last_used_at=clock.utcnow(),
     )

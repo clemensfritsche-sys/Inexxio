@@ -108,8 +108,7 @@ def address_of(db: Session, channel: str) -> str:
     """Die Adresse hinter einem Mail-Kanal – angezeigt als sein Name."""
     if dc.company_of(channel) is not None:
         return company_address(db, channel)     # leer = (noch) kein Postfach verbunden
-    mb = active(db, channel)
-    return mb.address if mb is not None else channel
+    return channel
 
 
 def _ours(db: Session) -> dict[str, Optional[int]]:

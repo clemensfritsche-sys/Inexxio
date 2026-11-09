@@ -90,7 +90,6 @@ def mirror(db: Session, article: Article) -> list[dict[str, Any]]:
             "status_after": s.status_after,
             # Die Konfiguration muss mit (z. B. die Erfassungspunkte).
             "config": dict(s.config) if s.config else None,
-            "source_article_id": article.id,
         }
         for s in steps_of(db, article)
     ]

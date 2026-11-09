@@ -333,6 +333,6 @@ class ArticleProcessStepResponse(ModuleFacts):
 
 class ArticleProcess(BaseModel):
     """Der Erzeugungsprozess eines Artikels – eingefroren: ein Artikel ändert sich nie, eine
-    Änderung ist ein neuer Artikel. Die Kopie im Auftrag nennt ihn (``source_article_id``)."""
+    Änderung ist ein neuer Artikel. Der Auftrag trägt eine Kopie."""
 
     steps: list[ArticleProcessStepResponse] = Field(default_factory=list)

@@ -46,6 +46,4 @@ class Capture(Base, TimestampMixin):
     values: Mapped[dict] = mapped_column(JSONB, nullable=False)
     result: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # passed | failed | NULL
 
-    note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-
 

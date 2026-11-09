@@ -429,7 +429,7 @@ def _write_definition(db: Session, lines: list[_Line],
         ProcessStep(
             order_id=order.id, position=position, module_type=step["module_type"],
             status_before=step["status_before"], status_after=step["status_after"],
-            config=step.get("config"), source_article_id=step.get("source_article_id"),
+            config=step.get("config"),
         )
         for position, step in enumerate(steps, start=1)
     ]

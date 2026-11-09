@@ -28,7 +28,7 @@ class InstanceUnit(Base, TimestampMixin):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    instance_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("instances.id", ondelete="RESTRICT"), index=True, nullable=False)
+    instance_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("instances.id", ondelete="RESTRICT"), nullable=False)
 
     # Laufende Nummer innerhalb der Instanz, beginnend bei 1.
     suffix: Mapped[int] = mapped_column(Integer, nullable=False)

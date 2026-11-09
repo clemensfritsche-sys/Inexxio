@@ -3197,7 +3197,7 @@ export interface components {
         /**
          * ArticleProcess
          * @description Der Erzeugungsprozess eines Artikels – eingefroren: ein Artikel ändert sich nie, eine
-         *     Änderung ist ein neuer Artikel. Die Kopie im Auftrag nennt ihn (``source_article_id``).
+         *     Änderung ist ein neuer Artikel. Der Auftrag trägt eine Kopie.
          */
         ArticleProcess: {
             /** Steps */
@@ -5491,8 +5491,6 @@ export interface components {
             id: number;
             /** Device Name */
             device_name?: string | null;
-            /** Device Type */
-            device_type?: string | null;
             /**
              * Backed Up
              * @default false
@@ -6960,10 +6958,6 @@ export interface components {
             id: number;
             /** Url */
             url: string;
-            /** Width */
-            width?: number | null;
-            /** Height */
-            height?: number | null;
         };
         /** UserProfileResponse */
         UserProfileResponse: {

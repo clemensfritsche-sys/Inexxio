@@ -30,7 +30,6 @@ class PasskeyResponse(BaseModel):
 
     id: int
     device_name: Optional[str] = None
-    device_type: Optional[str] = None
     backed_up: bool = False
     created_at: datetime
     last_used_at: Optional[datetime] = None

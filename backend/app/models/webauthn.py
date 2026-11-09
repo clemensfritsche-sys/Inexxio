@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import BigInteger, DateTime, LargeBinary, String
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -36,11 +35,9 @@ class WebAuthnCredential(Base, TimestampMixin, SoftDeleteMixin):
     # An welche Domain der Passkey gebunden ist (aus der Origin beim Registrieren).
     rp_id: Mapped[str] = mapped_column(String(255), nullable=False)
     # Transport-Hinweise (['internal','hybrid',…]) für schnellere Auswahl beim Login.
-    transports: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
     # Vom Nutzer vergebener Anzeigename ("iPhone", "Laptop").
     device_name: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     # 'singleDevice' | 'multiDevice' (synchronisierter Passkey) – informativ.
-    device_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     backed_up: Mapped[bool] = mapped_column(default=False, nullable=False)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     # created_at/updated_at/is_active kommen aus dem TimestampMixin.
