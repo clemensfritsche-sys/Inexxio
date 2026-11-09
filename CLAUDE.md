@@ -229,7 +229,7 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   Grund. **Ausfuhrnachweis** = Nummer der Veranlagungsverfügung + ihr Dokument (Feld
   `voucher.export`) – beide über `components/erp/document-field.tsx`. Teilbetrag je Position. Mahnung 3 Stufen à 10 Tage, von Hand. **Jedes Papier**
   (Offerte, AB, Rechnung, Quittung, Stornierung, Gutschrift, Mahnung) entsteht aus **einer
-  A4-Vorlage** (`services/document.py`), nennt je Position die **Seriennummer** (Instanznummer,
+  A4-Vorlage** (`services/a4.py`), nennt je Position die **Seriennummer** (Instanznummer,
   `voucher.serials_of`), ist ein **Dokument** (Feld `voucher.doc`, nie löschbar; Art, Nummer,
   Stufe in seinen Angaben, je Partei ein gewöhnlicher Link `document_links`), trägt die
   AGB der stellenden Gesellschaft auf eigenen A4-Seiten. **Vorschau → Freigeben**: was ein Papier
@@ -429,7 +429,9 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   pgvector; der Takt holt nach). Werkzeug `wissen` der KI; gefunden wird nur, was jedes Personal
   sehen darf. Ohne Vertex keine Suche nach Bedeutung, sonst nichts.
 - **Die KI liest, was jedes Personal sehen darf** (`ai_tools.reader`: Rolle `employee`, ohne eigene
-  Nummer) – auch wenn ein Admin spricht. Eine Tür: `services/ai.py` (`converse` mit Werkzeugen,
+  Nummer) – auch wenn ein Admin spricht. **Einen Datensatz liest sie über die Route, die ihn einem
+  Menschen zeigt** (`ai_tools.ROUTES` → `handgriff.look`): dieselben Felder, dieselben Rechte; ein
+  Dokument dazu mit seinem gelesenen Text (nach `access`). Eine Tür: `services/ai.py` (`converse` mit Werkzeugen,
   Aufgaben `talk` · `follow` · `pin` · `read` · `compose`, je Zug ein `ai.call` mit Kosten und Dauer
   `ms`; Anleitung und Werkzeuge im Zwischenspeicher des Anbieters, `cache_control`; `ai.until` hält
   jede Anfrage über das Hosting unter 60 s). Der Auftrag steht wörtlich in `backend/app/assets/ai/auftrag.md`.
@@ -499,7 +501,7 @@ Gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine** Implementierung
 `services/address.py` (Adressen) · `services/people.py` (Personennamen, Personensuche
 `people.search` hinter `GET /erp/people`) · `services/address_book.py` · `services/places.py`
 (Orte, Halter) · `services/lookup.py` («welchen Datensatz meinst du», Nummer ODER Name) ·
-`services/sites.py` (Gesellschaften) · `objects.obj_nr` (Objektnummer) · `domain/policy.py` (**wer
+`services/sites.py` (Gesellschaften) · `objects.obj_nr` (Objektnummer) · `objects.TYPES` (**welche Typen eine Nummer tragen** – Tabelle und Wort; Namen über die Registry, `record_labels`) · `core/clock` (**jetzt, Tag, Zeitstempel** – `utcnow` · `day` · `stamp`; Wächter `test_clock`) · `core/locks` (**jede Sperre** – Räume und Schlüssel, `xact` · `hold`; Wächter `test_locks`) · `domain/policy.py` (**wer
 darf was** – eine Regeltabelle `RULES`, `may` ↔ `require`; Rollen nur dort) · `domain/errors.py`
 (**jede Abweisung**: `Invalid` · `Forbidden` · `NotFound` · `Conflict` …, EINE Antwortform
 `{detail, code, field?}`) · `domain/number.py` (jede Zahl aus einer Eingabe) ·
@@ -669,7 +671,7 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   Besuchers, `/datenschutz` und `/impressum` die des Betreibers; das Impressum sind die Angaben des
   Betreibers in der Vorlage. Vorlage: `backend/app/assets/legal/<art>/<gültig ab>.md`; Name,
   Anschrift, Kontakt und UID setzt das ERP ein (`{{firma}}` …); ein PDF steht, wie es ist. Gezeigt als
-  A4-Dokument aus derselben Vorlage wie jeder Beleg (`services/document.py`), **in echte
+  A4-Dokument aus derselben Vorlage wie jeder Beleg (`services/a4.py`), **in echte
   A4-Seiten geteilt** – der Download hat genau so viele Seiten, wie «Seite x/n» sagt; die Schrift
   steckt im Dokument (kein Abruf bei Google). Seite `components/beleg/legal-page.tsx`.
 - **Keine Beispielbilder, kein Bildnachweis**: ein fehlendes Foto ist der graue Rahmen «Foto
