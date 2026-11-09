@@ -12,6 +12,7 @@
 > welche Entscheidung darin steckt) → `docs/history/` (warum es so wurde). Dazu
 > `backend/CLAUDE.md`, `frontend/CLAUDE.md`, `website/WEBSITE_PLAN.md` für die Teilprojekte.
 > Anforderungen (Zielbild, mit Kopfstatus): `docs/Lastenheft_v1.0.md`.
+> **Entscheide des Inhabers** (bleibt so · wird umgesetzt · offen): `docs/aenderungsakte.md`.
 
 ## Was ist Inexxio?
 Zentrales Unternehmenssystem für ein produzierendes Schweizer KMU (AG, Maschinenbau,
