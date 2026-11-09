@@ -37,9 +37,9 @@ from .voucher_head import (
 from .voucher_money import (
     PAPER_VERBS, papers_due, refundable,
 )
-from .voucher_actions import (
-    ask_problem, can, correction_problem, gaps, next_action, reversible,
-)
+from .voucher_actions import can, next_action
+from .voucher_billing import correction_problem, reversible
+from .voucher_rules import ask_problem, gaps
 from ..domain import policy
 
 

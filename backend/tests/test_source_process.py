@@ -766,7 +766,7 @@ def test_many_deviations_are_cut_off_and_say_so():
     Gruppieren wäre hier falsch: zwei Abweichungen sind zwei verschiedene Abläufe, eine
     Gruppe daraus sagte nichts. Eine stumm gekappte Liste sähe aus wie alles.
     """
-    router = _read(BACKEND / "app" / "routers" / "orders.py")
+    router = _read(BACKEND / "app" / "services" / "order_view.py")
     assert "RELATED_LIMIT" in router, "Es gibt keine Grenze – die Antwort wächst unbegrenzt."
     assert '"deviation_total": len(branches)' in router, (
         "Die wahre Zahl wird nicht mitgeliefert – die gekappte Liste sähe aus wie alles."

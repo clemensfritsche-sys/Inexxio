@@ -29,6 +29,7 @@ import pytest
 from tests.runner import acting, session
 from tests.scenes import voucher as scene
 from tests.scenes.voucher import house as _house
+from app.services import voucher_billing, voucher_rules
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
@@ -116,8 +117,10 @@ def _price(db, order, step, row, *, price: str = "100.00", vat: str = "normal"):
 # ►► §1 – EIN VERB HAT EINE DEKLARATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-#: Der Beleg-Dienst in seinen fünf Dateien (Kern, Kopf, Geld, Handlungen, Ansicht).
-VOUCHER_FILES = ("voucher", "voucher_head", "voucher_money", "voucher_actions", "voucher_view")
+#: Der Beleg-Dienst in seinen Dateien (Kern, Kopf, Geld, Handlungen mit Regeln, Eingaben, Angebot und
+#: Rechnung, Ansicht).
+VOUCHER_FILES = ("voucher", "voucher_head", "voucher_money", "voucher_actions", "voucher_rules",
+                 "voucher_input", "voucher_offer", "voucher_billing", "voucher_view")
 
 
 def _code(path: pathlib.Path) -> str:
@@ -486,7 +489,7 @@ def test_a_missing_master_record_is_a_line_not_a_state(db):
     house.email = ""
     house.phone = ""
     db.flush()
-    rows = voucher_actions.gaps(db, row, action="ask")
+    rows = voucher_rules.gaps(db, row, action="ask")
     assert rows, "Ohne Kontaktweg meldet das Modul keine Lücke."
     assert rows[0]["record_object_id"], "Die Lücke nennt ihren Datensatz nicht (b)."
     assert rows[0]["why"].strip(), "Die Lücke sagt nicht, warum."
@@ -596,13 +599,13 @@ def test_falsch_erfasst_undoes_exactly_one_money_row(db):
     voucher_money.record_payment(db, row=row, amount=Decimal("5.00"),
                        reference=f"pi_{row.id}", method="card")
     cash, card = svc.entries_of(db, row)
-    assert card.id not in {e.id for e in voucher_actions.reversible(db, row)}, "(a)"
+    assert card.id not in {e.id for e in voucher_billing.reversible(db, row)}, "(a)"
     voucher_actions.apply(db, order=order, step=step, action="reverse", payload={"entry": cash.id})
     rows = svc.entries_of(db, row)
     assert len(rows) == 3, "Die alte Zeile ist verschwunden (c)."
     assert rows[2].reverses_id == cash.id, "Die Gegenbuchung nennt ihre Zeile nicht."
     assert svc.balance_of(db, row).paid == Decimal("5.00"), "Gegengebucht zählt nicht mehr."
-    assert not voucher_actions.reversible(db, row), "Eine Gegenbuchung lässt sich gegenbuchen (b)."
+    assert not voucher_billing.reversible(db, row), "Eine Gegenbuchung lässt sich gegenbuchen (b)."
 
 
 def test_a_payment_needs_no_allocation():
@@ -676,7 +679,7 @@ def test_a_correction_carries_the_reference_to_what_it_corrects(db):
                   payload={"corrects": credit.id})
     assert e.value.status == 400 and "Gutschrift" in str(e.value.detail), (
         "Eine Gutschrift lässt sich mindern (d) – dann gibt es Ketten und Kreise.")
-    assert e.value.detail == voucher_actions.correction_problem(db, third, credit), (
+    assert e.value.detail == voucher_billing.correction_problem(db, third, credit), (
         "Tor und Auskunft sagen Verschiedenes (d).")
     assert credit.id not in [r["id"] for r in voucher_view.correctable(db, third, third_step)], (
         "Die Suche bietet an, was das Tor abweist (d).")
@@ -1044,12 +1047,12 @@ def test_a_view_that_writes_its_lines_also_keeps_them(db):
     neue Ids; (c) ein Preis auf die eben gezeigte Id kommt nicht an.
     """
     from app.models import VoucherLine
-    from app.routers import orders as router
+    from app.services import order_view as router
     from app.services import voucher_actions, voucher_head
     _house(db)
     order, step, row, _who, _art = _scene(db)
 
-    shown = router._steps(db, order)
+    shown = router.steps_view(db, order)
     paper = next((s.voucher for s in shown if s.voucher is not None), None)
     assert paper is not None, "Die Ansicht zeigt keinen Beleg."
     ids = [ln.id for ln in paper.lines]
@@ -1065,7 +1068,7 @@ def test_a_view_that_writes_its_lines_also_keeps_them(db):
 
     # (b) **Dieselbe Ansicht noch einmal: dieselben Ids.** Neue wären dasselbe
     # Problem mit einem Schritt Verzögerung.
-    again = next(s.voucher for s in router._steps(db, order) if s.voucher is not None)
+    again = next(s.voucher for s in router.steps_view(db, order) if s.voucher is not None)
     assert [ln.id for ln in again.lines] == ids, (
         "Die zweite Anzeige vergibt andere Ids (b) – dann zeigt jede Ansicht auf "
         "Zeilen, die die nächste nicht mehr kennt."
@@ -1115,7 +1118,7 @@ def test_the_addressee_is_the_one_we_asked(db):
 
     # (c) **Gebunden ist er damit nicht.** Die Lücken fragen weiter nach der Zusage –
     # sonst verlangte eine blosse Anfrage bereits die Angaben eines Vertrags.
-    assert voucher_actions.gaps(db, row, action="ask") == [], (
+    assert voucher_rules.gaps(db, row, action="ask") == [], (
         "Eine Anfrage verlangt die Angaben der Gegenseite (c) – die steht erst mit "
         "der Zusage fest, und genau dafür gibt es die Stufe."
     )
@@ -1147,14 +1150,14 @@ def test_a_module_says_why_it_cannot_be_finished_yet(db):
     """
     import pytest as _pytest
     from app.domain.errors import Rejected
-    from app.routers import orders as router
+    from app.services import order_view as router
     from app.services import voucher as svc
     _house(db)
     order, step, row, _who, _art = _scene(db)
 
     why = svc.completion_problem(db, step=step)
     assert why, "Eine Offerte lässt sich abschliessen? (a)"
-    shown = next(s for s in router._steps(db, order) if s.id == step.id)
+    shown = next(s for s in router.steps_view(db, order) if s.id == step.id)
     assert shown.blocked == why, (
         f"Der Grund erreicht den Schritt nicht (b): «{shown.blocked}»."
     )
@@ -1167,7 +1170,7 @@ def test_a_module_says_why_it_cannot_be_finished_yet(db):
     )
 
     # **Und ein Modul ohne Beleg ist nie gesperrt** – der Rahmen erbt nichts.
-    plain = next(s for s in router._steps(db, order) if s.module_type != "beleg")
+    plain = next(s for s in router.steps_view(db, order) if s.module_type != "beleg")
     assert plain.blocked is None, (
         "Ein Modul ohne Geldvorgang meldet eine Sperre – die Regel ist die des "
         "Belegs, nicht die des Rahmens."
@@ -2708,7 +2711,7 @@ def test_the_reason_stands_at_the_button_not_after_the_click(db):
     assert problem and "Preis" in problem and art.name in problem, (
         f"Der Grund fehlt oder nennt die Position nicht (a/c): {problem!r}."
     )
-    assert problem == voucher_actions.ask_problem(db, row, step), (
+    assert problem == voucher_rules.ask_problem(db, row, step), (
         "Die Antwort baut den Satz selbst – dann ist er die zweite Fassung."
     )
     # (b) **Derselbe Satz ist das Tor** – ein zweiter, milderer Massstab wäre ein
@@ -2728,14 +2731,14 @@ def test_the_reason_stands_at_the_button_not_after_the_click(db):
     art.hs_code = None
     db.flush()
     _price(db, order, step, row, vat="export")     # im Ausland gilt nur der Export
-    gone = voucher_actions.ask_problem(db, row, step)
+    gone = voucher_rules.ask_problem(db, row, step)
     assert gone and art.name in gone, (
         f"Der Satz nennt die Position nicht: {gone!r}."
     )
     # (d) **Steht alles da, schweigt er** – sonst wäre der Knopf für immer gesperrt.
     art.hs_code = "848210"
     db.flush()
-    assert voucher_actions.ask_problem(db, row, step) is None, (
+    assert voucher_rules.ask_problem(db, row, step) is None, (
         "Der Grund bleibt stehen, obwohl der Beleg vollständig ist (d)."
     )
     voucher_actions.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)

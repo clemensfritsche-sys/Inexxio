@@ -6,7 +6,7 @@ Freigabe. ``/validate`` sagt der Oberfläche vorher, ob es reichen würde, ohne 
 anzulegen und ohne eine Nummer zu ziehen.
 """
 
-from typing import Optional, Sequence, Union
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
@@ -14,20 +14,16 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
 from ..core.database import DB
-from ..domain import statuses as st
 from ..models import (
-    Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
+    Article, Instance, InstanceUnit, Order, ProcessStep, UserProfile,
 )
 from ..schemas.voucher import (
-    PaperOut, PapersOut, VoucherCorrectable, VoucherEmbed, VoucherUpdate,
+    PaperOut, PapersOut, VoucherCorrectable, VoucherUpdate,
 )
 from ..schemas.instance import stock_states
-from ..schemas.place import PlaceRef
 from ..schemas.order import (
-    ArticleOption, FlowGraph, JourneyNeighbour, LoopView, OrderCreate, OrderLineResponse,
-    OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
-    DRAFT_OBJECT_ID, NeedSource, ProcessEventResponse, ProcessStepResponse,
-    RelatedOrder, StepNeed, StepWork, UnitOption, UnitChoices,
+    ArticleOption, OrderCreate, OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
+    UnitChoices,
 )
 from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PaymentSetup,
@@ -37,292 +33,27 @@ from ..domain import capture_types, modules
 from ..services import log
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
-from ..services import consumption as consumption_svc
 from ..services import voucher as voucher_svc
 from ..services import voucher_actions, voucher_money, voucher_view
 from ..services import voucher_docs
 from ..services import flow as flow_svc
 from ..services import lookup
-from ..services import places as places_svc
 from ..services import record as record_svc
-from ..services import journey as journey_svc
 from ..services import orders as orders_svc
 from ..services import loop as loop_svc
 from ..services import order_state
 from ..services import process as process_svc
 from ..services import stripe_pay
-from ..services import people
-from ..services.instances import find_units, unit_number, unit_number_matches, unit_numbers
+from ..services.instances import unit_number_matches, unit_numbers
 from ..domain.errors import NotFound
+from ..services import order_view as view
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
-
-#: Wie viele Log-Einträge das Detail mitliefert; die Gesamtzahl steht daneben (``event_count``).
-EVENT_LIMIT = 200
-
-#: Wie viele Abweichungen die Spalte **vollständig** zeigt (je ihr echter Ablauf, nie
-#: gruppiert); die wahre Zahl steht daneben (``deviation_total``).
-RELATED_LIMIT = 3
 
 
 # ---------------------------------------------------------------------------
 # Antwort zusammensetzen
 # ---------------------------------------------------------------------------
-
-def _place_ref(db: Session, object_id) -> Optional[PlaceRef]:
-    """Eine Objektnummer → ihr Halter. ``None`` bleibt ``None``."""
-    return PlaceRef.of(places_svc.station_of(db, int(object_id))) if object_id else None
-
-
-def _steps(db: Session, order: Order, *, viewer: Optional[UserProfile] = None,
-           only: Optional[set[int]] = None, drawn: bool = False) -> list[ProcessStepResponse]:
-    """Die Module eines Auftrags – **mit ihrer Sperre**.
-
-    Ob ein Modul laufen darf, entscheidet nicht das Modul: es steht hier als Auskunft am
-    Schritt (``waiting_for``), und durchgesetzt wird es serverseitig in
-    ``process.confirm_step``. Ein neuer Modultyp erbt beides, ohne etwas dafür zu tun.
-    ``only`` beschränkt auf die Module, die ein Betrachter sehen darf. ``drawn``: nur, was
-    das Bild eines **Nachbarn** liest (Modul, Farbe, Sperre) – er wird blass gezeichnet, ohne
-    Arbeit, Bedarf oder Beleg; die volle Antwort holt sein eigener Datensatz.
-    """
-    pending = order_state.pending_returns(db, order)
-    out: list[ProcessStepResponse] = []
-    for s in order_state.steps_of(db, order):
-        if only is not None and s.id not in only:
-            continue
-        row = ProcessStepResponse.model_validate(s)
-        row.waiting_for = pending.get(s.id, [])
-        if drawn:
-            out.append(row)
-            continue
-        # **Die Arbeitsliste** – je wartender Instanz eine Zeile (Scan-Regel §3).
-        row.work = [StepWork(**w) for w in order_state.step_work(db, order, s)]
-        # **Was das Modul verbraucht** – gerechnet beim Erreichen gegen das, was davorsteht
-        # (``services/consumption``).
-        row.needs = [
-            StepNeed(
-                article_object_id=n.article_object_id, article_name=n.article_name,
-                per_unit=n.per_unit, required=n.required, available=n.available,
-                here=n.here, place=PlaceRef.of(places_svc.describe(db, n.place)),
-                sources=[NeedSource(
-                    instance_object_id=src.instance_object_id, free=src.free,
-                    here=src.here,
-                    place=PlaceRef.of(places_svc.describe(db, src.place)))
-                    for src in n.sources],
-            )
-            for n in consumption_svc.needs(
-                db, s, products=order_state.units_before(db, order, s))
-        ]
-        # **Wohin es geht** – aufgelöst zum Namen des Halters.
-        row.target = _place_ref(db, (s.config or {}).get("target"))
-        # **Der Beleg** (nur Modul «Zahlung»). Eine Gegenpartei sieht nur ihre eigene
-        # Angebotszeile und keine Zahl über Forderung und Geld – gefiltert hier.
-        paper = voucher_view.embed_data(db, order=order, step=s, viewer=viewer)
-        row.voucher = VoucherEmbed(**paper) if paper else None
-        # **Warum es jetzt nicht abzuschliessen ist** – die Regel von ``confirm_step`` als
-        # Auskunft.
-        row.blocked = voucher_svc.completion_problem(db, step=s)
-        out.append(row)
-    _keep(db)
-    return out
-
-
-def _keep(db: Session) -> None:
-    """**Was eine Ansicht schreibt, bleibt** – gespeichert am Ende der Anfrage (``get_db``).
-
-    Der Beleg zieht seine Positionen beim Anzeigen aus dem Prozess nach
-    (``voucher.sync_lines``) – der einzige Schreibvorgang auf einem Lesepfad, und er ist
-    Absicht: die Positionen brauchen eine Id, damit man sie bepreisen kann. ``flush`` gibt sie
-    ihr, ohne die geladenen Objekte zu verwerfen.
-    """
-    db.flush()
-
-
-def _involved(db: Session, viewer: UserProfile) -> Optional[set[tuple[int, int]]]:
-    """►►► **Woran ist dieser Betrachter beteiligt?** – (Auftrag, Modul) je Zeile. ◄◄◄
-
-    Ein Modul hat Aussenwirkung: der **Geldvorgang**. Beteiligt ist, wer in einem
-    vorkommt; ``None`` heisst «Personal, sieht alles».
-
-    Sie steht **hier** und wird von Feed **und** Detail gelesen. Vorher fragte der Feed
-    eine andere Quelle als das Detail: die Gegenpartei eines Geldvorgangs hatte
-    ERP-Zugang, sah ihren Auftrag aber in **keiner Liste** – erreichbar nur über die
-    direkte Adresse. Zwei Ableitungen derselben Frage laufen genau so auseinander.
-    """
-    papers = voucher_svc.mine(db, viewer)
-    if papers is None:
-        # **Personal sieht alles** – das Modul antwortet darauf mit ``None``.
-        return None
-    return {(r.order_id, r.step_id) for r in papers}
-
-
-def _visible(db: Session, order: Order, viewer: UserProfile) -> Optional[set[int]]:
-    """Die Module dieses Auftrags, die der Betrachter sehen darf. ``None`` = alle.
-
-    Ist er an diesem Auftrag gar nicht beteiligt, gibt es ihn für ihn nicht – **404**,
-    nicht 403: ein «du darfst nicht» bestätigt, dass es ihn gibt.
-    """
-    rows = _involved(db, viewer)
-    if rows is None:
-        return None
-    steps = {step_id for order_id, step_id in rows if order_id == order.id}
-    if not steps:
-        raise NotFound(f"Auftrag {order.object_id} nicht gefunden.")
-    return steps
-
-
-def _to_response(db: Session, order: Order, *,
-                 viewer: Optional[UserProfile] = None) -> OrderResponse:
-    """Der Auftrag als Antwort – **und für eine Gegenpartei derselbe, nur ihr Teil**.
-
-    Die Verengung steht hier und nicht an den Aufrufstellen: wer sie dort formulierte,
-    hätte sie beim zweiten Endpunkt nicht. ``viewer=None`` heisst «interner Aufruf»
-    (Personal-only-Endpunkte) und ändert nichts.
-
-    **Eine Gegenpartei sieht ihren Beleg**, nicht die Reise des Materials: nur ihre
-    Module, kein Prozess-Graph, keine Historie, keine Nachbar-Aufträge, keine Positionen.
-    Darum wird zuerst gefragt, wer schaut – und der interne Teil (``_internal``) nur für
-    das Personal gerechnet, nicht gerechnet und dann weggeworfen.
-    """
-    mine = _visible(db, order, viewer) if viewer is not None else None
-    active = order_state.active_step_id(db, order)
-    resp = OrderResponse(
-        id=order.id,
-        object_id=order.object_id,
-        name=order.name,
-        status=order_state.order_status(db, order),
-        created_at=order.created_at,
-        updated_at=order.updated_at,
-        steps=_steps(db, order, viewer=viewer, only=mine),
-        active_step_id=active if mine is None or active in mine else None,
-        is_deviation=order_state.deviation_flags(db, [order.id]).get(order.id, False),
-    )
-    return resp if mine is not None else resp.model_copy(update=_internal(db, order))
-
-
-def _internal(db: Session, order: Order) -> dict:
-    """**Was nur das Personal sieht** – der interne Lauf des Auftrags."""
-    lines = order_state.lines_of(db, order)
-    articles = {
-        a.id: a
-        for a in db.query(Article).filter(Article.id.in_([ln.article_id for ln in lines])).all()
-    } if lines else {}
-    events, event_count = order_state.events_page(db, order, limit=EVENT_LIMIT)
-    numbers = _event_numbers(db, events)
-    actors = people.names(db, {e.actor_id for e in events if e.actor_id})
-    came_from, went_to = journey_svc.neighbours(db, order)
-    # **Ein Graph, ein Bild.** Spalten und Linien kommen aus derselben Kantenliste.
-    graph = flow_svc.build(db, order)
-    branches = graph.neighbours
-    return {
-        "lines": [
-            OrderLineResponse(
-                id=ln.id, position=ln.position, quantity=ln.quantity, origin=ln.origin,
-                article_object_id=(articles[ln.article_id].object_id
-                                   if ln.article_id in articles else None),
-                article_name=articles[ln.article_id].name if ln.article_id in articles else None,
-            )
-            for ln in lines
-        ],
-        "flow": FlowGraph(**flow_svc.as_dict(graph)),
-        "events": [
-            ProcessEventResponse(
-                id=e.id, kind=e.kind, step_id=e.step_id,
-                unit_number=numbers.get(e.instance_unit_id, str(e.instance_unit_id)),
-                status_before=e.status_before, status_after=e.status_after,
-                actor=actors.get(e.actor_id), created_at=e.created_at,
-            )
-            for e in events
-        ],
-        "event_count": event_count,
-        "journey_in": [JourneyNeighbour(**n) for n in came_from],
-        "journey_out": [JourneyNeighbour(**n) for n in went_to],
-        "parents": _related(db, order, journey_svc.parents(db, order)[:RELATED_LIMIT],
-                            incoming=True),
-        "deviations": _related(db, order, branches[:RELATED_LIMIT], incoming=False),
-        "deviation_total": len(branches),
-        # **Die Schlaufe** – abgeleitet aus dem Log (``services/loop``).
-        "loop": _loop_view(db, order),
-    }
-
-
-def _loop_view(db: Session, order: Order) -> Optional[LoopView]:
-    found = loop_svc.view(db, order)
-    return LoopView(**found) if found is not None else None
-
-
-def _related(db: Session, order: Order,
-             counts: Sequence[Union[journey_svc.Related, flow_svc.Neighbour]],
-             *, incoming: bool) -> list[RelatedOrder]:
-    """Nachbar-Aufträge mit **ihrem eigenen Ablauf** – dieselbe Form wie die Mitte.
-
-    Sie werden daneben mit derselben Komponente gezeichnet, aber blass und ohne Inhalt der
-    Module: geliefert wird, was das Bild liest (``_steps(drawn=True)``, Graph, Zustand). Die
-    volle Antwort – Arbeitsliste, Bedarf, Beleg – kostete je Nachbar so viel wie ein ganzer
-    Auftrag und zog dabei dessen Belegpositionen nach (gemessen, ``test_order_view_queries``).
-
-    Die Liste kommt für Abweichungen aus dem **Graph** (dort steht die Abzweigung) und
-    für übergeordnete Aufträge aus dem **Log** (dort steht die Übernahme) – beide nennen
-    einen Auftrag über seine ``order_id``, mehr braucht es hier nicht.
-    """
-    if not counts:
-        return []
-    wanted = _order_ids(db, counts)
-    rows = {o.id: o for o in db.query(Order).filter(Order.id.in_(wanted)).all()}
-    states = order_state.order_statuses(db, list(rows))
-    # Wer gibt zurück: bei Abweichungen die Verbindung des Nachbarn zu mir, bei einem
-    # übergeordneten Auftrag meine eigene zu ihm.
-    if incoming:
-        mine = {m.return_to_order_id for m in db.query(OrderUnit).filter(
-            OrderUnit.order_id == order.id, OrderUnit.return_to_order_id.isnot(None)).all()}
-        returning = {oid for oid in rows if oid in mine}
-    else:
-        returning = journey_svc.returning_to(db, order, list(rows))
-
-    out: list[RelatedOrder] = []
-    for rel, oid in zip(counts, wanted):
-        row = rows.get(oid)
-        if row is None:
-            continue
-        out.append(RelatedOrder(
-            object_id=row.object_id,
-            name=row.name,
-            status=states.get(oid, st.IM_PROZESS),
-            steps=_steps(db, row, drawn=True),
-            flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row))),
-            active_step_id=order_state.active_step_id(db, row),
-            unit_count=rel.unit_count,
-            returns=oid in returning,
-        ))
-    return out
-
-
-def _order_ids(db: Session,
-               counts: Sequence[Union[journey_svc.Related, flow_svc.Neighbour]]) -> list[int]:
-    """Die internen ``id``s der Nachbarn – gleich, aus welcher Quelle sie kommen.
-
-    Der Graph kennt einen Auftrag über seine **Objektnummer** (nach aussen ist das seine
-    Identität), der Log über die interne ``id``. Hier wird das **einmal** übersetzt, in
-    einer Abfrage – statt die eine Quelle der anderen anzupassen.
-    """
-    objs = [r.object_id for r in counts if isinstance(r, flow_svc.Neighbour)]
-    known = {
-        int(o): int(i)
-        for o, i in db.query(Order.object_id, Order.id).filter(Order.object_id.in_(objs)).all()
-    } if objs else {}
-    return [
-        known.get(r.object_id, -1) if isinstance(r, flow_svc.Neighbour) else r.order_id
-        for r in counts
-    ]
-
-
-def _event_numbers(db: Session, events) -> dict[int, str]:
-    """Nummern nur für die Stücke, die in den gezeigten Einträgen vorkommen."""
-    ids = {e.instance_unit_id for e in events}
-    if not ids:
-        return {}
-    units = db.query(InstanceUnit).filter(InstanceUnit.id.in_(ids)).all()
-    return unit_numbers(db, units)
 
 
 # ---------------------------------------------------------------------------
@@ -339,14 +70,14 @@ def list_orders(
     """Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).
 
     **Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine
-    Frage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen
+    Frage wie im Detail (``involved``), damit Liste und Datensatz nicht auseinanderlaufen
     können.
 
     Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
     gespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.
     """
     query = db.query(Order)
-    involved = _involved(db, user)
+    involved = view.involved(db, user)
     if involved is not None:
         query = query.filter(Order.id.in_({order_id for order_id, _ in involved} or {0}))
     rows = query.order_by(Order.object_id.desc()).limit(limit).offset(offset).all()
@@ -486,64 +217,11 @@ def unit_options(
     rows = q.order_by(InstanceUnit.id).limit(limit).offset(offset).all()
 
     return UnitChoices(
-        units=_unit_options(db, rows),
+        units=view.unit_option_rows(db, rows),
         total=int(total),
         states=stock_states(counts),
-        preselect=_fifo(db, base, preselect),
+        preselect=view.fifo(db, base, preselect),
     )
-
-
-def _unit_options(db: Session, rows: Sequence[tuple]) -> list[UnitOption]:
-    """Die geladenen Stücke als Antwort. Wo ein Stück läuft, sagt ``order_state.holders`` –
-    gefragt nur für die Stücke dieser Seite."""
-    running = order_state.holders(db, [u.id for u, _i, _a in rows])
-    return [
-        UnitOption(
-            number=unit_number(instance, unit),
-            status=unit.status,
-            article_object_id=art.object_id if art else None,
-            article_name=art.name if art else None,
-            # Dieselbe Frage wie in der Freigabe (``statuses.is_selectable``): nicht nehmen
-            # lässt sich nur, was es physisch nicht mehr gibt.
-            available=st.is_selectable(unit.status),
-            # Und die Frage von FIFO: liegt es im Regal? Verbaut heisst nein.
-            in_stock=st.stock_kind(unit.status) == st.LIVE,
-            in_order=running.get(unit.id),
-        )
-        for unit, instance, art in rows
-    ]
-
-
-def _fifo(db: Session, base, want: int) -> list[str]:
-    """Die **Vorauswahl**: die ältesten Stücke, die im Regal liegen und frei sind.
-
-    Älteste zuerst heisst aufsteigende ``id`` – Nummern werden aufsteigend vergeben, und
-    ein Stück entsteht mit seiner Instanz; ein zweites Datum gibt es nicht.
-
-    **Gebunden ist nicht frei**: ein Stück, das in einem laufenden Auftrag läuft, lässt
-    sich zwar nehmen – daraus wird eine Abweichung, die einem anderen Auftrag sein
-    Material entzieht. Das darf nie die Voreinstellung sein, also steht es hier nicht.
-
-    **Gesperrt wird bewusst vorgeschlagen**: es liegt im Regal, und das Greifen IST das
-    Aufheben der Sperre – der Auftrag, der so entsteht, ist damit eine Abweichung
-    (``order_state.deviation_flags``: sein Start weicht vom Regelstart ab).
-
-    **Sie ignoriert Suche und Zustandsfilter** – bewusst: ``base`` trägt nur den Artikel.
-    Der Vorschlag ist eine Aussage über den Bestand, keine über den gerade gewählten
-    Ausschnitt; wer nach «verbaut» filtert, bekäme sonst eine Vorauswahl, die sich beim
-    Zurücksetzen des Filters wieder ändert.
-    """
-    if want <= 0:
-        return []
-    busy = db.query(OrderUnit.instance_unit_id).filter(OrderUnit.released_at.is_(None))
-    rows = (
-        base.filter(InstanceUnit.status.in_(st.IN_STOCK_UNIT_STATUSES),
-                    InstanceUnit.id.notin_(busy))
-        .order_by(InstanceUnit.id)
-        .limit(want)
-        .all()
-    )
-    return [unit_number(instance, unit) for unit, instance, _a in rows]
 
 
 @router.post("/validate", response_model=OrderValidation)
@@ -561,67 +239,7 @@ def validate_order(
     """
     draft = data.model_dump()
     missing = orders_svc.validate_draft(db, draft)
-    return OrderValidation(missing=missing, parents=_preview_parents(db, draft))
-
-
-def _preview_parents(db: Session, draft: dict) -> list[RelatedOrder]:
-    """Die Quell-Aufträge des Entwurfs – **mit der Abzweigung, die entstehen würde**.
-
-    Woher ein Stück kommt, sagt die Auswahl selbst (``UnitPick.from_order``): sie ist die
-    **Absicht** des Menschen und wird bei der Freigabe gegen die Wirklichkeit geprüft.
-    Genau diese Absicht wird hier gezeichnet – nicht der heutige Aufenthaltsort, sonst
-    zeigte die Vorschau etwas anderes, als die Freigabe täte.
-
-    Der Zustandspunkt steht an der Zeile des Quell-Auftrags (``current_step_id``); dort
-    entsteht der Abzweigepunkt, und dorthin kehrt das Stück zurück (§12.4).
-    """
-    want: dict[int, bool] = {}          # Objektnummer des Quell-Auftrags → kehrt zurück?
-    picked: list[str] = []
-    for ln in draft.get("lines") or []:
-        for u in ln.get("units") or []:
-            src = u.get("from_order")
-            if src is None:
-                continue
-            want[int(src)] = want.get(int(src), False) or bool(ln.get("returns", True))
-            picked.append(str(u.get("number") or "").strip())
-    if not want:
-        return []
-
-    rows = db.query(Order).filter(Order.object_id.in_(list(want))).all()
-    if not rows:
-        return []
-    # Die offene Zeile des Quell-Auftrags sagt, an welchem Punkt die Stücke hängen; die
-    # Nummer löst `instances.find_units` auf.
-    chosen = {u.id for u in find_units(db, picked).values()}
-    holds = {
-        (m.order_id, m.instance_unit_id): m.current_step_id
-        for m in db.query(OrderUnit).filter(
-            OrderUnit.order_id.in_([o.id for o in rows]),
-            OrderUnit.released_at.is_(None),
-        ).all()
-    }
-
-    out: list[RelatedOrder] = []
-    for row in rows:
-        points = {step for (oid, uid), step in holds.items()
-                  if oid == row.id and uid in chosen}
-        plan = [
-            flow_svc.Planned(at=at, target=DRAFT_OBJECT_ID, returns=want[row.object_id])
-            for at in sorted(points, key=lambda x: (x is None, x))
-        ]
-        taken = sum(1 for (oid, uid), _ in holds.items()
-                    if oid == row.id and uid in chosen)
-        out.append(RelatedOrder(
-            object_id=row.object_id,
-            name=row.name,
-            status=order_state.order_status(db, row),
-            steps=_steps(db, row, drawn=True),
-            flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row, planned=plan))),
-            active_step_id=order_state.active_step_id(db, row),
-            unit_count=taken,
-            returns=want[row.object_id],
-        ))
-    return out
+    return OrderValidation(missing=missing, parents=view.preview_parents(db, draft))
 
 
 @router.post("", response_model=OrderResponse, status_code=201)
@@ -634,7 +252,7 @@ def create_order(
     order = orders_svc.create_order(db, data.model_dump(), actor_id=user.id, actor=user)
     db.flush()
     db.refresh(order)
-    return _to_response(db, order)
+    return view.response(db, order)
 
 
 @router.post("/{object_id}/loop/end", response_model=OrderResponse)
@@ -648,7 +266,7 @@ def end_loop(
     order = orders_svc.get(db, object_id)
     loop_svc.end(db, order)
     db.flush()
-    return _to_response(db, order)
+    return view.response(db, order)
 
 
 @router.get("/{object_id}", response_model=OrderResponse)
@@ -658,7 +276,7 @@ def get_order(
     user: UserProfile = Depends(get_current_user),
 ):
     """Der Auftrag – und für eine Gegenpartei **derselbe, nur ihr Modul**."""
-    return _to_response(db, orders_svc.get(db, object_id), viewer=user)
+    return view.response(db, orders_svc.get(db, object_id), viewer=user)
 
 
 @router.get("/{object_id}/units", response_model=OrderUnitPage)
@@ -723,7 +341,7 @@ def confirm_step(
         actor_id=user.id)
     db.flush()
     db.refresh(order)
-    return _to_response(db, order)
+    return view.response(db, order)
 
 
 @router.get("/{object_id}/steps/{step_id}/hold", response_model=HoldNumbers)
@@ -804,7 +422,7 @@ def _voucher_step(db: Session, order, step_id: int, user: UserProfile):
     ausgeschrieben wäre sie viermal dieselbe Chance, eine der beiden Prüfungen zu
     vergessen.
     """
-    mine = _visible(db, order, user)
+    mine = view.visible_steps(db, order, user)
     step = (
         db.query(ProcessStep)
         .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
@@ -836,7 +454,7 @@ def update_voucher(
     soll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
 
     **Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:
-    ``_visible`` zeigt ihr nur ihr Modul, ``voucher_view.embed_data`` nur ihre eigene
+    ``visible_steps`` zeigt ihr nur ihr Modul, ``voucher_view.embed_data`` nur ihre eigene
     Angebotszeile und keine Zahl über Forderung und Geld.
     """
     order = orders_svc.get(db, object_id)
@@ -849,7 +467,7 @@ def update_voucher(
               table="vouchers", row=row.id)
     db.flush()
     db.refresh(order)
-    return _to_response(db, order, viewer=user)
+    return view.response(db, order, viewer=user)
 
 
 @router.post("/{object_id}/steps/{step_id}/voucher/preview", response_model=PapersOut)
@@ -920,7 +538,7 @@ def refund_voucher_payment(
               {"entry": body.entry, "amount": body.amount, "step": step_id},
               table="vouchers", row=row.id)
     db.flush()
-    return _to_response(db, order, viewer=user)
+    return view.response(db, order, viewer=user)
 
 
 @router.get("/{object_id}/steps/{step_id}/voucher/transfer",

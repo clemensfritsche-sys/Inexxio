@@ -689,8 +689,10 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   prüft Links, JSON-LD, Sitemap, Weiterleitungen alter hs-steiner.ch-Pfade, Budget.
 
 ## Sicherheit und Datenschutz
-**Gebaut:** HTTPS/HSTS, CSP und Security-Header (`firebase.json`; `connect-src` erlaubt
-Cloud Run `*.a.run.app` – dort läuft das Gespräch mit der KI live); Firebase-Anmeldung,
+**Gebaut:** HTTPS/HSTS, CSP und Security-Header (`firebase.json`; Google nur mit den genauen
+Adressen – Anmeldung, Karten; `connect-src` nennt den eigenen Cloud-Run-Dienst genau, der Deploy
+setzt ihn statt `*.a.run.app` ein – dort läuft das Gespräch mit der KI live; `unsafe-inline`/
+`unsafe-eval` bleiben, solange Next-Export, Google Maps und der Scanner sie brauchen); Firebase-Anmeldung,
 Passkeys serverseitig (`services/passkey.py`); Secrets nur im Google Secret Manager. **Jede
 Änderung** steht im Log (`log`, von der Datenbank selbst geschrieben, mit Handelndem und
 Vorgang), jeder KI-Aufruf auch (`ai.call`, Handelnder `ai` im Namen der Person); geöffnete

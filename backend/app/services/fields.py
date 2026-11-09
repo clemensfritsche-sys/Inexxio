@@ -48,7 +48,7 @@ def _original(db: Session, actor: UserProfile, doc: Document, object_id: int,
     Feld (das Modul füllt seine Felder daraus vor); nach dem Buchen ist es ein Ändern – weicht
     der Betrag ab, wird es mit Grund angenommen, gebucht wird nie neu von selbst."""
     from ..domain import voucher as vo
-    from . import voucher_actions as va
+    from . import voucher_input as va
     _order, _step, row = _voucher(db, object_id, part)
     if vo.of(row.direction).collects:
         raise Conflict("Eine Lieferantenrechnung gibt es nur bei einer Ausgabe.")

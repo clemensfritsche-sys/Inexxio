@@ -8,7 +8,7 @@ gelesen: gezählt wird jede Anweisung, die die Antwort an die Datenbank schickt.
 from sqlalchemy import event
 
 from app.core.database import engine
-from app.routers import orders as router
+from app.services import order_view as router
 from tests.runner import session
 from tests.scenarios import World
 
@@ -24,14 +24,14 @@ def _queries(products: int) -> int:
         order = w.release(lines=[{"article_object_id": product.object_id,
                                   "quantity": products, "origin": "neu", "units": []}])
         w.run_step(order, w.steps(order)[0])          # füllt den Log: start + step je Stück
-        router._to_response(w.db, order)             # einmal warm
+        router.response(w.db, order)             # einmal warm
         seen = {"n": 0}
 
         def tally(*_a, **_k):
             seen["n"] += 1
         event.listen(engine, "before_cursor_execute", tally)
         try:
-            router._to_response(w.db, order)
+            router.response(w.db, order)
         finally:
             event.remove(engine, "before_cursor_execute", tally)
         return seen["n"]

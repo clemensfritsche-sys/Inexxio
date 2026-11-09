@@ -1937,7 +1937,7 @@
           "orders"
         ],
         "summary": "List Orders",
-        "description": "Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).\n\n**Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine\nFrage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen\nkönnen.\n\nDer Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends\ngespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.",
+        "description": "Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).\n\n**Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine\nFrage wie im Detail (``involved``), damit Liste und Datensatz nicht auseinanderlaufen\nkönnen.\n\nDer Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends\ngespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.",
         "operationId": "list_orders_api_v1_erp_orders_get",
         "security": [
           {
@@ -2746,7 +2746,7 @@
           "orders"
         ],
         "summary": "Update Voucher",
-        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher_actions.VERBS``).\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle** erlaubt ist, sagt\n``voucher_actions.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``VoucherUpdate.changes``): wer den Betrag ändert,\nsoll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:\n``_visible`` zeigt ihr nur ihr Modul, ``voucher_view.embed_data`` nur ihre eigene\nAngebotszeile und keine Zahl über Forderung und Geld.",
+        "description": "**Eine Handlung am Beleg** – ein Endpunkt, eine Tabelle (``voucher_actions.VERBS``).\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle** erlaubt ist, sagt\n``voucher_actions.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``VoucherUpdate.changes``): wer den Betrag ändert,\nsoll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:\n``visible_steps`` zeigt ihr nur ihr Modul, ``voucher_view.embed_data`` nur ihre eigene\nAngebotszeile und keine Zahl über Forderung und Geld.",
         "operationId": "update_voucher_api_v1_erp_orders__object_id__steps__step_id__voucher_post",
         "security": [
           {

@@ -764,7 +764,7 @@ export interface paths {
          * @description Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).
          *
          *     **Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine
-         *     Frage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen
+         *     Frage wie im Detail (``involved``), damit Liste und Datensatz nicht auseinanderlaufen
          *     können.
          *
          *     Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
@@ -1070,7 +1070,7 @@ export interface paths {
          *     soll nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
          *
          *     **Auch für die Gegenpartei offen** – und das geht, weil die Antwort verengt wird:
-         *     ``_visible`` zeigt ihr nur ihr Modul, ``voucher_view.embed_data`` nur ihre eigene
+         *     ``visible_steps`` zeigt ihr nur ihr Modul, ``voucher_view.embed_data`` nur ihre eigene
          *     Angebotszeile und keine Zahl über Forderung und Geld.
          */
         post: operations["update_voucher_api_v1_erp_orders__object_id__steps__step_id__voucher_post"];

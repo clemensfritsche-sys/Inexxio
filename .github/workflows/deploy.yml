@@ -354,5 +354,17 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools@15.34.0
 
+      # Die Browser-Schutzregel (CSP) nennt den eigenen Dienst genau statt «*.a.run.app»: dort
+      # kann jeder einen Dienst betreiben, an den eine eingeschleuste Seite Daten schicken könnte.
+      # (Das Gespräch mit der KI läuft direkt an dieser Adresse, BACKEND_URL.)
+      - name: CSP auf den eigenen Dienst einschränken
+        run: |
+          url=$(gcloud run services describe "${{ inputs.service }}" --project "${{ inputs.gcp_project }}" \
+                  --region "${{ inputs.region }}" --format='value(status.url)')
+          [ -n "$url" ] || { echo "::error::Die Adresse von ${{ inputs.service }} ist nicht lesbar."; exit 1; }
+          jq --arg u "$url" '(.hosting.headers[].headers[] | select(.key == "Content-Security-Policy") | .value) |= gsub("https://\\*\\.a\\.run\\.app"; $u)' firebase.json > firebase.tmp.json
+          mv firebase.tmp.json firebase.json
+          jq -e --arg u "$url" '[.hosting.headers[].headers[] | select(.key == "Content-Security-Policy") | .value] | all(contains($u) and (contains("*.a.run.app") | not))' firebase.json
+
       - name: Deploy to Firebase Hosting
         run: firebase deploy --only hosting --project "${{ inputs.gcp_project }}" --non-interactive

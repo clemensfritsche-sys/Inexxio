@@ -56,7 +56,9 @@ def test_a_note_is_found_by_meaning_not_by_words(db, monkeypatch):
     _note(db, staff, firm.object_id, "Anruf", "Neue Telefonnummer der Zentrale.")
     db.flush()
     assert memory.catch_up(db, time.monotonic() + 30) >= 2
-    found = memory.search(db, "Die Pumpe tropft wieder", actor=None, kinds=("note",))
+    # Andere Tests hinterlassen gespeicherte Bedeutungs-Zahlen (der Takt speichert je Einheit) –
+    # gefragt wird darum nicht nur nach den ersten Treffern, sondern ob DIESE Notiz gefunden wird.
+    found = memory.search(db, "Die Pumpe tropft wieder", actor=None, kinds=("note",), k=10_000)
     mine = [f for f in found if f.ref_id == note.id]
     assert mine and mine[0].object_id == firm.object_id
     assert "Wellendichtung" in memory.as_lines(mine)

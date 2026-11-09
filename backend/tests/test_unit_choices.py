@@ -141,7 +141,8 @@ def test_the_in_stock_rule_lives_in_the_catalog():
         if st.UNIT in s.axes and s.stock == st.LIVE and not s.terminal
     ), "Die Liste ist abgeleitet, nicht aufgezählt."
 
-    router = (BACKEND / "app" / "routers" / "orders.py").read_text(encoding="utf-8")
+    router = "".join((BACKEND / "app" / f).read_text(encoding="utf-8")
+                     for f in ("routers/orders.py", "services/order_view.py"))
     assert "IN_STOCK_UNIT_STATUSES" in router and "s.stock == st.LIVE" not in router, (
         "Der Router leitet die Liste wieder selbst ab – zwei Stellen für eine Regel."
     )

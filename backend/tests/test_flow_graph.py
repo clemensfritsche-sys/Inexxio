@@ -707,7 +707,7 @@ def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
     danach, bis auf die Objektnummer (die es vorher nicht gibt) und ``walked`` (vorher ist
     nichts gegangen). Läuft eine der beiden Seiten weg, bricht genau das.
     """
-    from app.routers import orders as router
+    from app.services import order_view as router
     from app.schemas.order import DRAFT_OBJECT_ID
     from app.services import article_process as tpl, flow, objects as obj
     from app.models import InstanceUnit, OrderUnit
@@ -736,7 +736,7 @@ def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
                 "steps": [{"module_type": "datenerfassung",
                            "config": {"points": [{"label": "OK", "type": "bool"}]}}],
             }
-            preview = router._preview_parents(db, draft)
+            preview = router.preview_parents(db, draft)
             assert len(preview) == 1, "Der Quell-Auftrag fehlt in der Vorschau."
             shown = preview[0]
             assert shown.object_id == parent.object_id

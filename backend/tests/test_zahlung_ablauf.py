@@ -20,6 +20,7 @@ from app.services import release as release_svc
 from tests.factories import new_person
 from tests.scenes import voucher as scene
 from tests.scenes.voucher import do as _do, house as _house, document as _file
+from app.services import voucher_rules
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -376,16 +377,16 @@ def test_domestic_has_no_customs_and_no_foreign_currency(db):
     order, step, row, who = _scene(db, first=True)
     _ready(db, order, step, row)
     assert "currency" not in voucher_actions.can(db, row, None)
-    assert voucher_actions.ask_problem(db, row, step) is None
+    assert voucher_rules.ask_problem(db, row, step) is None
 
 
 def test_service_abroad_is_reverse_charge_without_incoterm(db):
-    from app.services import voucher as svc, voucher_actions, voucher_head
+    from app.services import voucher as svc, voucher_head
     order, step, row, who = _scene(db, first=True, party=_person(db, country="DE"),
                                    service=True)
     _ready(db, order, step, row, incoterm=None)
     assert all(ln.vat == "reverse" for ln in svc.lines_of(db, row))
-    assert not voucher_head.has_goods(db, row) and voucher_actions.ask_problem(db, row, step) is None
+    assert not voucher_head.has_goods(db, row) and voucher_rules.ask_problem(db, row, step) is None
 
 
 def test_our_own_company_is_never_the_counterparty(db):
@@ -503,10 +504,9 @@ def test_ownership_must_be_chosen_and_has_two_options(db):
     """Ohne Wahl kein Anbieten und keine Zusage; «bleibt» gibt es nicht mehr."""
     from app.domain.errors import Rejected
     from app.domain import voucher as vo
-    from app.services import voucher_actions
     order, step, row, who = _scene(db, first=True, config={"ownership": None})
     _ready(db, order, step, row)
-    assert "Eigentum" in (voucher_actions.ask_problem(db, row, step) or "")
+    assert "Eigentum" in (voucher_rules.ask_problem(db, row, step) or "")
     with pytest.raises(Rejected):
         _do(db, order, step, "ask")
     with pytest.raises(Rejected):
@@ -802,10 +802,10 @@ def test_the_offer_button_names_everything_that_is_missing(db):
     """Der Hover nennt ALLES, was fehlt – nicht nur den ersten Punkt.
 
     Bug-Form: der Satz endet beim ersten Fund (Preis), Fristen und Eigentum fehlen."""
-    from app.services import voucher_actions, voucher_head
+    from app.services import voucher_head
     order, step, row, _who = _scene(db, first=True, config={"ownership": None})
     voucher_head.sync_lines(db, row, order, step)
-    problem = voucher_actions.ask_problem(db, row, step) or ""
+    problem = voucher_rules.ask_problem(db, row, step) or ""
     for word in ("Preis", "Lieferbedingung", "Lieferfrist", "Eigentum"):
         assert word in problem, f"«{word}» fehlt im Grund: {problem!r}"
     assert problem.count("\n") >= 3, "Die Gründe stehen nicht untereinander."

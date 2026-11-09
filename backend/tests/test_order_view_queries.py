@@ -6,7 +6,7 @@ rechnet für sie darum nur, was das Bild liest: Schritte, Graph, Zustand. Bug-Fo
 die volle Antwort eines Auftrags (Arbeitsliste, Bedarf, Beleg samt Nachziehen der Positionen).
 """
 
-from app.routers import orders as orders_router
+from app.services import order_view as orders_router
 from tests.scenarios import World
 from tests.test_feed_queries import _counted
 
@@ -28,10 +28,10 @@ def test_a_neighbour_costs_only_what_the_picture_reads(db):
     assert branches, "Die Abweichung steht als Nachbar am Elternauftrag."
     db.expire_all()
     with _counted(db) as full:
-        orders_router._steps(db, child)
+        orders_router.steps_view(db, child)
     db.expire_all()
     with _counted(db) as neighbour:
-        orders_router._related(db, parent, branches, incoming=False)
+        orders_router.related(db, parent, branches, incoming=False)
     # Gezeichnet wird der Nachbar mit Schritten, Graph und Zustand – nie mit seiner vollen
     # Schrittliste (Arbeit, Bedarf, Beleg). Der Graph allein kostet mehr als nichts; die volle
     # Schrittliste kommt nicht noch einmal dazu.
