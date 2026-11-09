@@ -389,6 +389,24 @@ def test_service_abroad_is_reverse_charge_without_incoterm(db):
     assert not voucher_head.has_goods(db, row) and voucher_rules.ask_problem(db, row, step) is None
 
 
+def test_a_service_to_a_private_person_abroad_is_not_taxable_here_and_billable(db):
+    """Änderungsakte V1 – Bug-Form: auch eine Privatperson im Ausland bekam «Reverse Charge», und
+    die Rechnung verlangte eine MWST-Nr., die sie nicht hat – sie liess sich nie stellen."""
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    order, step, row, who = _scene(db, first=True, party=_person(db, country="DE", firm=False),
+                                   service=True)
+    _ready(db, order, step, row, incoterm=None)
+    assert all(ln.vat == vo.OUTSIDE_VAT for ln in svc.lines_of(db, row))
+    _do(db, order, step, "ask")
+    _do(db, order, step, "agree", party=who.object_id)
+    _do(db, order, step, "release", kind="confirmation")
+    _do(db, order, step, "bill")
+    db.refresh(row)
+    assert row.stage == vo.BILLED
+    assert "nicht im Inland steuerbar" in (vo.vat_entry(vo.OUTSIDE_VAT).note or "")
+
+
 def test_our_own_company_is_never_the_counterparty(db):
     from app.domain.errors import Rejected
     from app.services import voucher_head

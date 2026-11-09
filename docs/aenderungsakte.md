@@ -23,6 +23,8 @@ Stand: 09.11.2026
 | E10 | Belege ohne Ware (Leistungs-Artikel, V5) | **Nicht umsetzen.** |
 | E11 | Lohn-Export der Zeiterfassung | **Nicht gewünscht.** |
 | E12 | Mengen in m/kg/l als «Gebinde mit Menge» (V4) | **Nicht umsetzen** – die Logik Instanz · Charge · Einzelinstanz (Menge immer 1) bleibt. |
+| E13 | Handgriffe aus fremden Mails (V9) | **Bleibt, wie es ist** – keine Sonderlogik. |
+| E14 | Klick-Tests der Oberfläche (V8b) | **Nicht gewünscht.** |
 
 ## 2. Freigegeben: wird umgesetzt
 
@@ -43,6 +45,9 @@ Stand: 09.11.2026
 | U13 | Mails nie doppelt, nie verloren (V3) | Kennung = die eigene Nummer der Mail im ERP (`Message-ID`, `mailbox.own_message_id`); vor jedem Senden fragt Gmail danach (`rfc822msgid:`). Dasselbe Postfach neu verbunden macht weiter, wo es aufhörte; ist Gmails Stand zu alt, kommen alle Mails seit dem letzten Abgleich, seitenweise. | erledigt |
 | U14 | Rechnungsdatum (F9) | Unsere Rechnung trägt immer den Tag, an dem sie gestellt wird; nur eine Lieferantenrechnung trägt das Datum auf ihrem Papier. | erledigt |
 | U15 | Eine Meldestelle (V7) | `core/report.py`: `info` · `warn` · `error`, eine JSON-Zeile mit Stufe; auch `logging` geht dorthin. Mail bei ERROR: einmal `infra/setup-meldungen.sh PROJEKT EMAIL`. | erledigt (Mail-Alarm: Skript einmal ausführen) |
+| U16 | Dienstleistung an Private im Ausland (V1) | Dritter 0-%-Satz «Nicht im Inland steuerbar» (Vermerk MWSTG Art. 8 Abs. 1). Geht die Rechnung an eine **Firma** im Ausland: Reverse Charge mit ihrer MWST-Nr.; an eine **Privatperson**: nicht im Inland steuerbar, ohne Nummer (`vo.vat_choices(business=…)`, `voucher_head.recipient_business`). | erledigt |
+| U17 | 7-Tage-Regel für alles und alle | Kein Stempel, keine Absenz, keine Buchung, kein Vertrag, kein Feiertag älter als 7 Tage – auch nicht durch den Admin (`domain/timekeeping.closed`). Ein Vertrag ändert sich nur durch einen neuen Vertrag; die Vergangenheit korrigiert eine Buchung im offenen Zeitraum. Ein Nachweis lässt sich jederzeit nachreichen (er ändert keine Zahl). | erledigt |
+| U18 | Frontend schneller laden (V8a) | Die Detailansichten und das «+» laden erst beim Öffnen (`next/dynamic`): beim Öffnen des ERP 1'468 → 1'024 KB JavaScript. | erledigt |
 
 ## 3. Vorschläge: Entscheid offen
 

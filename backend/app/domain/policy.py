@@ -47,7 +47,6 @@ RULES: dict[str, Rule] = {
     "time.see": Rule(SELF, "Die Zeiterfassung führt nur die Person selbst oder der Admin."),
     "time.contract": Rule(ADMIN, "Verträge pflegt nur der Admin."),
     "time.booking": Rule(ADMIN, "Buchungen macht nur der Admin."),
-    "time.past": Rule(ADMIN, "Ältere Tage ändert nur der Admin."),
     "time.company": Rule(ADMIN, "Feiertage und Regeln der Gesellschaft pflegt nur der Admin."),
     # Privates: Gespräche, Aufnahmen, Handgriffe aus dem eigenen Claude, private Dokumentteile
     "private": Rule(SELF, "Das sieht nur die Person selbst und der Admin."),

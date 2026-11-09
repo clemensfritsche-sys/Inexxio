@@ -228,7 +228,7 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
       </div>
       {d.locked && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-3)' }}>
-          Abgeschlossen – Änderung über die Administration<InfoHint text={view.vocab.texts.locked} />
+          Abgeschlossen – korrigiert wird mit einer Buchung<InfoHint text={view.vocab.texts.locked} />
         </div>
       )}
       {!d.workday && !d.stamps.length && <Note>{d.holiday ? `${d.holiday} – Feiertag am Standort.` : 'Kein Arbeitstag.'}</Note>}

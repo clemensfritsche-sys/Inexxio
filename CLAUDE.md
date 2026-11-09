@@ -473,7 +473,10 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
   Regel, ohne zu schreiben. Alles in Minuten, Tage in Europe/Zurich.
 - Sieben Absenzarten mit je EINER Wirkung (Erfüllt · Ferien · Entfällt), Regeln Schweiz und
   die Reglement-Sätze (ⓘ) in `domain/timekeeping`; geschickt mit der Ansicht (`vocab`).
-- **7-Tage-Regel**: ältere Tage ändert nur der Admin, im Kalender **blass**. Nur online.
+- **7-Tage-Regel – für alles und alle** (`domain/timekeeping.closed`): kein Stempel, keine Absenz,
+  keine Buchung, kein Vertrag, kein Feiertag älter als 7 Tage, auch nicht durch den Admin; ein
+  Vertrag ändert sich nur durch einen neuen; die Vergangenheit korrigiert eine Buchung. Im
+  Kalender **blass**. Ein Nachweis lässt sich jederzeit nachreichen. Nur online.
 - **«Zu tun»** (`services/todo`, `GET /erp/todo`): EINE Zahl am Symbol jedes Datensatzes –
   offene Nachrichten + Aufgaben der Zeiterfassung + fehlende Pflichtangaben
   (`people.missing_fields`, Quelle auch für den Fortschritt im Konto) + fehlende Feiertage +
@@ -556,8 +559,9 @@ Oberfläche und Dienst garantiert dasselbe.
   und Gutschrift ziehen aus **einer** Zählung je Auftrag (unter Sperre, je Nummer ein
   Unique-Index); die Gutschrift ist ein eigenes Papier und nennt die Originalrechnung mit
   Nummer und Datum.
-- **MWST CH** (`domain/voucher.VAT_RATES`): 8.1 % · 2.6 % · 3.8 % · 0 % Export · 0 %
-  Reverse Charge (je mit Pflichtsatz auf dem Beleg).
+- **MWST CH** (`domain/voucher.VAT_RATES`): 8.1 % · 2.6 % · 3.8 % · 0 % Export (Ware ins Ausland) ·
+  0 % Reverse Charge (Dienstleistung an eine Firma im Ausland, mit ihrer MWST-Nr.) · 0 % nicht im
+  Inland steuerbar (Dienstleistung an eine Privatperson im Ausland) – je mit Pflichtsatz auf dem Beleg.
 
 ## Design System (VERBINDLICH)
 Grundlage ALLER Oberflächen (Website, Konto, ERP). Regeln: **`docs/design-system/README.md`**

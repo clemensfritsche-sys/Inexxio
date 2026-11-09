@@ -10,7 +10,7 @@ Zahl ist eine Menge Minuten. Ein «Tag» ist nur eine Anzeige: das Tagessoll aus
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 #: Was ein Eintrag ist. Eine Tabelle für alles, was einen Tag füllt oder ein Konto bewegt:
@@ -77,8 +77,20 @@ RUNNING_MAX = 14 * 60
 #: wer um 18 Uhr kommt und das Gehen vergisst, hat am Morgen einen offenen Tag – keine
 #: 13-Stunden-Nachtschicht.
 SHIFT_FROM = 20 * 60
-#: Eigene Einträge lassen sich so viele Tage zurück ändern; ältere ändert der Admin.
+#: ►►► **Die 7-Tage-Regel – für alles und für alle** (Änderungsakte U17). ◄◄◄ Was länger zurückliegt,
+#: ist abgeschlossen: kein Stempel, keine Absenz, keine Buchung, kein Vertrag, kein Feiertag davor –
+#: auch nicht durch den Admin. Die Vergangenheit korrigiert eine Buchung im offenen Zeitraum.
 CORRECTION_DAYS = 7
+
+
+def closed(d: date, today: date) -> bool:
+    """Liegt der Tag ausserhalb der 7 Tage? Dann ändert ihn niemand mehr."""
+    return d < today - timedelta(days=CORRECTION_DAYS)
+
+
+def closed_sentence(d: date, what: str = "Tag") -> str:
+    return (f"Der {dmy(d)} ist abgeschlossen (älter als {CORRECTION_DAYS} Tage) – {what} lässt sich "
+            f"nicht mehr ändern. Korrigiert wird mit einer Buchung.")
 #: Ein zweiter Wisch innerhalb dieser Sekunden gilt als derselbe.
 DOUBLE_SWIPE_S = 60
 #: Eine Aufgabe ist ab so vielen Tagen dringend (rot).
@@ -146,11 +158,12 @@ TEXTS: dict[str, str] = {
                  "bestimmt Feiertage und Gesetz. Die Verträge pflegt die Administration."),
     "calendar": ("Punkt orange: Hinweis oder es fehlt etwas. Punkt rot: gesetzliche Grenze. "
                  "Grau hinterlegt: ganztägige Absenz. Blass: abgeschlossen (älter als "
-                 f"{CORRECTION_DAYS} Tage) – ändern kann nur die Administration. Tag "
+                 f"{CORRECTION_DAYS} Tage) – korrigiert wird mit einer Buchung. Tag "
                  "antippen: Stempel, Nachtrag, Absenz."),
-    "locked": (f"Eigene Einträge lassen sich {CORRECTION_DAYS} Tage lang ändern. Danach ist "
-               "der Tag abgeschlossen; korrigieren kann nur noch die Administration – "
-               "sichtbar an der Zeile. Einen Nachweis kann man jederzeit nachreichen."),
+    "locked": (f"Einträge lassen sich {CORRECTION_DAYS} Tage lang ändern – auch Verträge und "
+               "Feiertage wirken nie weiter zurück. Danach ist der Tag abgeschlossen, für alle; "
+               "korrigiert wird mit einer Buchung der Administration. Einen Nachweis kann man "
+               "jederzeit nachreichen."),
     "pause": "Mindestpausen: ab 5½ h Arbeit 15 Minuten, ab 7 h 30 Minuten, ab 9 h 1 Stunde.",
     "limits": ("Höchstens 45 h pro Woche, mindestens 11 h Ruhe zwischen zwei Arbeitstagen "
                "(unter 18: 12 h), keine Arbeit am Sonntag und zwischen 23 und 6 Uhr, unter 18 "

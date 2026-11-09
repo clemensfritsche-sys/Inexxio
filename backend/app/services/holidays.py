@@ -19,7 +19,7 @@ from ..schemas.timekeeping import CompanyTimeView, HolidayOut, TaskOut
 from . import sites
 from .time_view import vocab
 from .timekeeping import local, now_utc
-from ..domain.errors import Invalid, NotFound, Upstream
+from ..domain.errors import Conflict, Invalid, NotFound, Upstream
 from ..domain import policy
 
 PROPOSAL_URL = "https://openholidaysapi.org/PublicHolidays"
@@ -82,8 +82,11 @@ def add(db: Session, actor: UserProfile, object_id: int, items) -> None:
     c = company(db, object_id)
     taken = {h.day for h in db.query(Holiday).filter(
         Holiday.company_object_id == c.object_id, Holiday.is_active.is_(True)).all()}
+    today = local(now_utc()).date()
     for it in items:
-        if it.day in taken:
+        # Was zurückliegt, bleibt, wie es war (7-Tage-Regel): ein Feiertag davor änderte
+        # schon abgerechnete Tage.
+        if it.day in taken or tk.closed(it.day, today):
             continue
         db.add(Holiday(company_object_id=c.object_id, day=it.day, name=it.name.strip()))
         taken.add(it.day)
@@ -99,6 +102,8 @@ def remove(db: Session, actor: UserProfile, object_id: int, holiday_id: int) -> 
                                  Holiday.is_active.is_(True)).first()
     if h is None:
         raise NotFound(f"Den Feiertag «{holiday_id}» gibt es nicht (mehr).")
+    if tk.closed(h.day, local(now_utc()).date()):
+        raise Conflict(tk.closed_sentence(h.day, "der Feiertag"))
     h.is_active = False
 
 

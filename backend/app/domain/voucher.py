@@ -590,6 +590,8 @@ VAT_RATES: tuple[VatRate, ...] = (
             "Steuerfreie Ausfuhrlieferung"),
     VatRate("reverse", "0.00", "Reverse Charge",
             "Steuerschuldnerschaft des Leistungsempfängers"),
+    VatRate("outside", "0.00", "Nicht im Inland steuerbar",
+            "Ort der Dienstleistung im Ausland (MWSTG Art. 8 Abs. 1) – nicht im Inland steuerbar"),
 )
 
 _BY_KEY: dict[str, VatRate] = {v.key: v for v in VAT_RATES}
@@ -609,6 +611,7 @@ HOME_COUNTRIES: frozenset[str] = frozenset({"CH", "LI"})
 DOMESTIC_VAT: tuple[str, ...] = ("normal", "reduced", "lodging")
 EXPORT_VAT = "export"
 REVERSE_VAT = "reverse"
+OUTSIDE_VAT = "outside"
 
 
 def abroad(country: Optional[str]) -> bool:
@@ -619,14 +622,18 @@ def abroad(country: Optional[str]) -> bool:
 
 
 def vat_choices(*, service: bool, delivery_country: Optional[str],
-                seat_country: Optional[str]) -> tuple[str, ...]:
+                seat_country: Optional[str], business: bool = True) -> tuple[str, ...]:
     """►►► **Welche Sätze an einer Position wählbar sind – die Adresse entscheidet.** ◄◄◄
 
     **Ware** folgt der Lieferadresse (Ausland: Export, fest), eine **Dienstleistung** dem Sitz
-    des Empfängers (MWSTG Art. 8; Ausland: Reverse Charge, fest). Im Inland: die drei Sätze.
+    bzw. Wohnort des Empfängers (MWSTG Art. 8 Abs. 1, für Firmen UND Private). Ausland: eine
+    Firma (``business``) rechnet die Steuer selbst ab – Reverse Charge, mit ihrer MWST-Nr.; eine
+    Privatperson nicht – «nicht im Inland steuerbar», ohne Nummer. Im Inland: die drei Sätze.
     """
     if service:
-        return (REVERSE_VAT,) if abroad(seat_country) else DOMESTIC_VAT
+        if not abroad(seat_country):
+            return DOMESTIC_VAT
+        return (REVERSE_VAT,) if business else (OUTSIDE_VAT,)
     return (EXPORT_VAT,) if abroad(delivery_country) else DOMESTIC_VAT
 
 

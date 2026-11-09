@@ -18,7 +18,11 @@ import { useUrlParams } from '@/lib/use-url-params';
 import { type Creatable, FeedPanel } from '@/components/erp/feed-panel';
 import { DetailPane, type DetailHandlers } from '@/components/erp/detail-pane';
 import type { DraftSeed } from '@/components/erp/document-draft';
-import { CaptureSheet, type CaptureHint } from '@/components/erp/capture/capture-sheet';
+import dynamic from 'next/dynamic';
+import type { CaptureHint } from '@/components/erp/capture/capture-sheet';
+
+// Das «+» (Gespräch, Aufnahme, Kamera) kommt erst beim ersten Öffnen.
+const CaptureSheet = dynamic(() => import('@/components/erp/capture/capture-sheet').then((m) => m.CaptureSheet), { ssr: false });
 import { CaptureContext, type CaptureActions, type DraftFromHandgriff } from '@/components/erp/capture/capture-context';
 
 // Wie viele Vorschläge der Scanner höchstens anbietet (er zeigt ohnehin nur die ersten).

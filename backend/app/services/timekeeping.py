@@ -491,8 +491,8 @@ def may_see(actor: UserProfile, person: UserProfile) -> bool:
 
 
 def locked(actor: UserProfile, d: date, today: date) -> bool:
-    """Abgeschlossen: älter als ``CORRECTION_DAYS`` – ändern kann ihn nur der Admin."""
-    return not policy.may(actor, "time.past") and d < today - timedelta(days=tk.CORRECTION_DAYS)
+    """Abgeschlossen: älter als ``CORRECTION_DAYS`` – für alle (``tk.closed``)."""
+    return tk.closed(d, today)
 
 
 # ─── Die eine Schreibstelle ─────────────────────────────────────────────────────────
@@ -512,8 +512,7 @@ def _no_contract(d: date) -> Problem:
 
 
 def _locked(d: date) -> Problem:
-    return 403, (f"Der {tk.dmy(d)} ist abgeschlossen (älter als {tk.CORRECTION_DAYS} Tage) – "
-                 f"ändern kann ihn nur die Administration.")
+    return 409, tk.closed_sentence(d)
 
 
 def _full_day(book: Book, d: date) -> Optional[Problem]:
@@ -652,6 +651,8 @@ def _other(book: Book, actor: UserProfile, data, now: datetime
         return None, (403, policy.RULES["time.booking"].why)
     if data.day is None:
         return None, (400, "Für eine Buchung fehlt das Datum.")
+    if tk.closed(data.day, today):
+        return None, _locked(data.day)
     hours, vac = data.minutes or 0, data.vacation_minutes or 0
     if not hours and not vac:
         return None, (400, "Stunden oder Ferien angeben.")
@@ -807,6 +808,11 @@ def contract_problem(db: Session, actor: UserProfile, book: Book, data) -> Optio
     if born is None:
         return 400, ("Geburtsdatum fehlt in den Stammdaten – es bestimmt Jugendschutz und "
                      "gesetzliche Ferien.")
+    today = local(now_utc()).date()
+    if tk.closed(data.valid_from, today):
+        return 409, tk.closed_sentence(data.valid_from, "ein Vertrag ab diesem Tag") + (
+            " Ein neuer Vertrag gilt frühestens ab "
+            f"{tk.dmy(today - timedelta(days=tk.CORRECTION_DAYS))}.")
     if any(c.valid_from == data.valid_from for c in book.contracts):
         return 409, f"Für den {tk.dmy(data.valid_from)} gibt es schon einen Vertrag."
     if data.weekly_minutes == 0:

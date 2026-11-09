@@ -164,11 +164,14 @@ Zeitumstellung).
   mit Stempeln, Bis ≥ Tag, höchstens ein Jahr.
 - «Gehen» nach Mitternacht (02:00 nach Kommen 22:00) wird als Folgetag erkannt.
 
-### 5.3 Die 7-Tage-Regel
-Eigene Einträge lassen sich 7 Tage zurück ändern; ältere Tage sind **abgeschlossen** – im
-Kalender **blass** (antippen geht, der Tag sagt «Abgeschlossen – Änderung über die
-Administration» ⓘ). Der Admin ist nicht beschränkt. Ein **Nachweis** lässt sich jederzeit
-nachreichen.
+### 5.3 Die 7-Tage-Regel – für alles und alle
+Einträge lassen sich 7 Tage zurück ändern; ältere Tage sind **abgeschlossen** – im Kalender
+**blass** (antippen geht, der Tag sagt «Abgeschlossen – korrigiert wird mit einer Buchung» ⓘ).
+**Das gilt auch für den Admin und für Stammdaten**: keine Buchung, kein Vertrag (Stichtag) und
+kein Feiertag älter als 7 Tage; ein Vertrag ändert sich nur durch einen neuen Vertrag. So
+ändert sich ein schon abgerechneter Monat nie mehr still. Die Vergangenheit korrigiert eine
+**Buchung** im offenen Zeitraum. Ein **Nachweis** lässt sich jederzeit nachreichen (er ändert
+keine Zahl). (Änderungsakte U17)
 
 ### 5.4 Vertrag und Buchungen (Admin)
 Unter «Vertrag» (aufklappbar): die Verträge (Eintritt/ab/Austritt, «42 h/Woche · Mo–Fr ·

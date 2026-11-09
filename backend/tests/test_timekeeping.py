@@ -3,9 +3,14 @@
 Jede Prüfung nennt ihr Soll vorher (docs/zeiterfassung-spezifikation.md). «Heute» ist fest:
 Freitag, 23.10.2026, 12:33 in Zürich – die Zeit kommt immer vom Server
 (``timekeeping.now_utc``), darum genügt es, sie hier zu setzen.
+
+**Die Vorgeschichte entsteht «damals»** (``_then``): was älter als sieben Tage ist, lässt sich
+nicht mehr ändern – auch nicht durch den Admin. Ein Vertrag vom 1. Oktober oder ein Stempel vom
+12. wird darum mit der Uhr an jenem Tag angelegt, wie im echten Betrieb.
 """
 
-from datetime import date, datetime, timedelta
+from contextlib import contextmanager
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
@@ -42,13 +47,27 @@ def _admin(db, company) -> UserProfile:
     return _person(db, company, role="admin")
 
 
+@contextmanager
+def _then(d: date):
+    """Die Uhr auf den Abend von ``d`` – nur, wenn ``d`` heute schon abgeschlossen wäre."""
+    now = t.now_utc
+    if tk.closed(d, t.local(now()).date()):
+        t.now_utc = lambda: datetime.combine(d, time(23, 0), ZONE).astimezone(ZONE)
+    try:
+        yield
+    finally:
+        t.now_utc = now
+
+
 def _contract(db, admin, p, start, hours=42, days=(0, 1, 2, 3, 4), weeks=None):
-    t.add_contract(db, admin, p, ContractIn(valid_from=start, weekly_minutes=hours * 60,
-                                            workdays=list(days), vacation_weeks=weeks))
+    with _then(start):
+        t.add_contract(db, admin, p, ContractIn(valid_from=start, weekly_minutes=hours * 60,
+                                                workdays=list(days), vacation_weeks=weeks))
 
 
 def _stamp(db, actor, p, d, hhmm, kind="in"):
-    t.record(db, actor, p, EntryIn(kind=kind, day=d, time=hhmm))
+    with _then(d):
+        t.record(db, actor, p, EntryIn(kind=kind, day=d, time=hhmm))
 
 
 def _day(db, actor, p, d, pairs):
@@ -108,8 +127,9 @@ def test_holiday_has_no_soll_and_vacation_is_not_taken_on_it(world):
     used = sum(d.vacation_used for d in led.days.values())
     assert used == 5 * 504
     # Ferien über den Feiertag: nur die Arbeitstage zählen
-    t.record(db, admin, lena, EntryIn(kind="absence", art="ferien", day=date(2026, 10, 12),
-                                      until=date(2026, 10, 16)))
+    with _then(date(2026, 10, 12)):
+        t.record(db, admin, lena, EntryIn(kind="absence", art="ferien", day=date(2026, 10, 12),
+                                          until=date(2026, 10, 16)))
     led = t.ledger(t.load(db, lena), TODAY, t.now_utc())
     assert led.days[date(2026, 10, 14)].vacation_used == 0
 
@@ -259,17 +279,25 @@ def test_an_unchanged_edit_records_nothing_and_a_change_is_marked(world):
     assert stamp.mark.tip.startswith("Vorher 07:55")
 
 
-def test_seven_day_rule_locks_the_employee_not_the_admin(world):
+def test_seven_day_rule_locks_everyone_and_a_booking_corrects(world):
+    """Änderungsakte U17 – die 7-Tage-Regel gilt für alles und für alle, auch den Admin: kein
+    Stempel, keine Buchung, kein Vertrag, kein Feiertag davor. Korrigiert wird mit einer Buchung
+    im offenen Zeitraum. Bug-Form: der Admin änderte still schon bezahlte Monate."""
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 1))
-    with pytest.raises(Rejected) as e:
-        _day(db, lena, lena, date(2026, 10, 15), [("07:00", "16:00")])
-    assert e.value.status == 403 and "abgeschlossen" in e.value.detail
-    _day(db, admin, lena, date(2026, 10, 15), [("07:00", "16:00")])
-    days = _days(_view(db, lena, lena))
-    assert days[date(2026, 10, 15)].locked and not days[date(2026, 10, 16)].locked
-    assert days[date(2026, 10, 15)].stamps[0].mark.kind == "added"
-    assert not any(d.locked for d in _view(db, admin, lena).days)
+    old = date(2026, 10, 15)
+    for who in (lena, admin):
+        with pytest.raises(Rejected) as e:
+            t.record(db, who, lena, EntryIn(kind="in", day=old, time="07:00"))
+        assert e.value.status == 409 and "abgeschlossen" in e.value.detail
+    with pytest.raises(Rejected, match="abgeschlossen"):
+        t.record(db, admin, lena, EntryIn(kind="booking", day=old, minutes=60, note="x"))
+    with pytest.raises(Rejected, match="frühestens"):
+        t.add_contract(db, admin, lena, ContractIn(valid_from=old, weekly_minutes=2400,
+                                                   workdays=[0, 1, 2, 3, 4]))
+    t.record(db, admin, lena, EntryIn(kind="booking", day=TODAY, minutes=540, note="Nachtrag 15.10."))
+    days = _days(_view(db, admin, lena))
+    assert days[old].locked and not days[date(2026, 10, 16)].locked
 
 
 def test_only_self_and_admin_see_the_time(world):
@@ -499,8 +527,9 @@ def test_a_proof_does_not_make_an_absence_newer(world):
 def test_the_closing_balance_contains_earlier_bookings(world):
     db, co, admin, lena = world
     _contract(db, admin, lena, date(2026, 10, 1))
-    t.record(db, admin, lena, EntryIn(kind="booking", day=date(2026, 10, 1), minutes=1200,
-                                      note="Übertrag"))
+    with _then(date(2026, 10, 1)):
+        t.record(db, admin, lena, EntryIn(kind="booking", day=date(2026, 10, 1), minutes=1200,
+                                          note="Übertrag"))
     _contract(db, admin, lena, date(2026, 10, 3), hours=0, days=())
     exit_ = next(c for c in _view(db, admin, lena).contracts if c.weekly_minutes == 0)
     assert exit_.closing_account == 1200 - 2 * 504          # +20:00 − zwei Tage Soll
@@ -643,3 +672,14 @@ def test_a_proof_has_one_way_only(db):
                      "/api/v1/erp/time/100000001/entries/preview"):
             res = client.post(path, json=body)
             assert res.status_code == 400 and "Nachreichen" in res.json()["detail"], (path, body)
+
+
+def test_a_holiday_in_a_closed_day_stays_as_it_was(world):
+    """Ein Feiertag davor käme still in schon abgerechnete Tage – er bleibt, wie er war."""
+    from app.schemas.timekeeping import HolidayIn
+    from app.services import holidays
+    db, co, admin, lena = world
+    holidays.add(db, admin, co, [HolidayIn(day=date(2026, 10, 2), name="zu spät"),
+                                 HolidayIn(day=date(2026, 12, 25), name="Weihnachten")])
+    days = {h.day for h in db.query(Holiday).filter(Holiday.company_object_id == co)}
+    assert date(2026, 12, 25) in days and date(2026, 10, 2) not in days

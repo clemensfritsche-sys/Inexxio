@@ -22,7 +22,8 @@ from .voucher import (
     priced_dicts, quotes_of,
 )
 from .voucher_head import (
-    account_for, business_possible, destination, fit_to_address, freeze, incoterm_place_of, preset_prices, services_of, sync_lines,
+    account_for, business_possible, destination, fit_to_address, freeze, incoterm_place_of,
+    preset_prices, recipient_business, services_of, sync_lines,
 )
 from .voucher_money import (
     AUTO_RELEASE, papers_due,
@@ -186,7 +187,8 @@ def _price(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
                 except ValueError as e:
                     raise Invalid(str(e))
                 allowed = vo.vat_choices(service=kinds.get(found.article_id or 0, False),
-                                         delivery_country=delivery, seat_country=seat)
+                                         delivery_country=delivery, seat_country=seat,
+                                         business=recipient_business(db, row))
                 if key not in allowed:
                     raise Invalid(f"«{vo.vat_label(key)}» gilt hier nicht – die Anschrift lässt "
                         + ", ".join(vo.vat_label(k) for k in allowed) + " zu.")

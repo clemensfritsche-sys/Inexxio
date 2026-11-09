@@ -5,16 +5,25 @@ import { cn } from '@/lib/utils';
 import type { Row } from '@/lib/use-feed-lists';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
-import { ArticleDetail } from '@/components/erp/article-detail';
-import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
-import { InstanceDetail } from '@/components/erp/instance-detail';
-import { OrganizationDetail } from '@/components/erp/organization-detail';
-import { UserDetail } from '@/components/erp/user-detail';
-import { NewCompany, NewPerson } from '@/components/erp/new-record';
-import { DocumentDetail } from '@/components/erp/document-detail';
-import { DocumentDraft, type DraftSeed } from '@/components/erp/document-draft';
+import dynamic from 'next/dynamic';
+import type { OrderSeed } from '@/components/erp/order-detail';
+import type { DraftSeed } from '@/components/erp/document-draft';
+import { DetailSkeleton } from '@/components/erp/skeleton';
 import type { Creatable } from '@/components/erp/feed-panel';
 import type { Article, CompanySettings, ErpRecordType, Order, Todo, UserProfile } from '@/types';
+
+// ►►► **Jede Ansicht wird erst geladen, wenn man sie öffnet** (Änderungsakte U18) – das ERP
+// startet schlank, der Prozess-Editor, die Zahlung oder die Gebietskarte kommen beim ersten
+// Öffnen nach; bis dahin steht die graue Form des Fensters. ◄◄◄
+const ArticleDetail = dynamic(() => import('@/components/erp/article-detail').then((m) => m.ArticleDetail), { loading: () => <DetailSkeleton />, ssr: false });
+const OrderDetail = dynamic(() => import('@/components/erp/order-detail').then((m) => m.OrderDetail), { loading: () => <DetailSkeleton />, ssr: false });
+const InstanceDetail = dynamic(() => import('@/components/erp/instance-detail').then((m) => m.InstanceDetail), { loading: () => <DetailSkeleton />, ssr: false });
+const OrganizationDetail = dynamic(() => import('@/components/erp/organization-detail').then((m) => m.OrganizationDetail), { loading: () => <DetailSkeleton />, ssr: false });
+const UserDetail = dynamic(() => import('@/components/erp/user-detail').then((m) => m.UserDetail), { loading: () => <DetailSkeleton />, ssr: false });
+const NewCompany = dynamic(() => import('@/components/erp/new-record').then((m) => m.NewCompany), { loading: () => <DetailSkeleton />, ssr: false });
+const NewPerson = dynamic(() => import('@/components/erp/new-record').then((m) => m.NewPerson), { loading: () => <DetailSkeleton />, ssr: false });
+const DocumentDetail = dynamic(() => import('@/components/erp/document-detail').then((m) => m.DocumentDetail), { loading: () => <DetailSkeleton />, ssr: false });
+const DocumentDraft = dynamic(() => import('@/components/erp/document-draft').then((m) => m.DocumentDraft), { loading: () => <DetailSkeleton />, ssr: false });
 
 /** Was der Feed nach einer Anlage oder Änderung tut – an EINER Stelle (Feed-Seite). */
 export interface DetailHandlers {

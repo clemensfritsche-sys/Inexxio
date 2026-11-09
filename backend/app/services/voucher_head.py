@@ -141,11 +141,12 @@ def fit_to_address(db: Session, row: Voucher, rows: list[VoucherLine]) -> None:
     if vo.of(row.direction).quoted_by != vo.BY_US:
         return
     delivery, seat = destination(db, row)
+    business = recipient_business(db, row)
     kinds = services_of(db, rows)
     changed = False
     for ln in rows:
         allowed = vo.vat_choices(service=kinds.get(ln.article_id or 0, False),
-                                 delivery_country=delivery, seat_country=seat)
+                                 delivery_country=delivery, seat_country=seat, business=business)
         if ln.vat not in allowed:
             ln.vat = allowed[0]
             changed = True
@@ -172,6 +173,16 @@ def destination(db: Session, row: Voucher) -> tuple[Optional[str], Optional[str]
     seat = (who.get("address") or {}).get("country")
     delivery = (who.get("delivery") or {}).get("country") or seat
     return delivery, seat
+
+
+def recipient_business(db: Session, row: Voucher) -> bool:
+    """Ist der Leistungsempfänger eine **Firma** (die Rechnung geht an sie)? Dann rechnet sie die
+    Steuer im Ausland selbst ab (Reverse Charge, ihre MWST-Nr. ist Pflicht); eine Privatperson
+    nicht. Bei einer Ausgabe sind wir es; ohne Adressaten gilt das Strengere (Firma)."""
+    if not vo.of(row.direction).collects:
+        return True
+    number = party_of(db, row) or addressee_of(db, row)
+    return bool(billing_of(db, row, number).get("bill_to_company", True)) if number is not None else True
 
 
 def has_goods(db: Session, row: Voucher) -> bool:
@@ -238,6 +249,7 @@ def embed_lines(db: Session, row: Voucher) -> list[dict[str, Any]]:
         if ids else {}
     frozen = (row.head or {}).get("names") or {}
     delivery, seat = destination(db, row)
+    business = recipient_business(db, row)
     fixed = preset_prices(db, row)
     out: list[dict[str, Any]] = []
     for ln in rows:
@@ -263,7 +275,7 @@ def embed_lines(db: Session, row: Voucher) -> list[dict[str, Any]]:
             else None,
             # **Was an dieser Position wählbar ist** – die Anschrift entscheidet.
             "vat_choices": list(vo.vat_choices(service=service, delivery_country=delivery,
-                                               seat_country=seat)),
+                                               seat_country=seat, business=business)),
             "id": ln.id,
             "article_id": ln.article_id,
             "article_object_id": art.object_id if art else None,
