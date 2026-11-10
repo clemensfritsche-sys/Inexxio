@@ -454,15 +454,27 @@ class Direction:
     stage_labels: dict[str, str]
     #: **Wie man auf den Partner zugeht** – anfragen ↔ anbieten.
     ask_verb: str
-    #: ►►► **Wer den Preis nennt** – ``BY_US`` ↔ ``BY_PARTY``. ◄◄◄
-    quoted_by: str
-    #: Wie die Nummer einer Geld-Zeile entsteht; ``None`` = wir nummerieren, kein Feld.
-    reference: Optional[str]
-    #: ►►► **Kassieren wir hier – oder zahlen wir?** ◄◄◄ Sagt auch, wer Leistungserbringer ist.
+    #: ►►► **Kassieren wir hier – oder zahlen wir?** ◄◄◄ Das eine Bit der Richtung: daraus
+    #: folgen, wer den Preis nennt, wer den Beleg stellt (Leistungserbringer), wessen Nummer
+    #: die Rechnung trägt und ob es die Frage «wie bestelle ich bei ihm?» gibt.
     collects: bool
-    #: ►►► **Gibt es die Frage «wie bestelle ich bei ihm?»** ◄◄◄ Nur, wo **wir** bestellen
-    #: (``ORDER_REF``).
-    party_ref: bool
+
+    @property
+    def quoted_by(self) -> str:
+        """►►► **Wer den Preis nennt** – ``BY_US``, wo wir kassieren, sonst ``BY_PARTY``. ◄◄◄"""
+        return BY_US if self.collects else BY_PARTY
+
+    @property
+    def reference(self) -> Optional[str]:
+        """Wessen Nummer die Rechnung trägt – ``None`` = unsere, kein Feld; wo wir zahlen,
+        die **seine** (sie steht auf seinem Papier, ``PARTY_REFERENCE``)."""
+        return None if self.collects else PARTY_REFERENCE
+
+    @property
+    def party_ref(self) -> bool:
+        """►►► **Gibt es die Frage «wie bestelle ich bei ihm?»** ◄◄◄ Nur, wo **wir** bestellen
+        (``ORDER_REF``) – wo wir liefern, gibt es nichts zu bestellen."""
+        return not self.collects
 
     def label_of(self, stage: str) -> str:
         """Wie diese Stufe heisst; die beiden Ausgänge heissen in beiden Richtungen gleich."""
@@ -485,11 +497,7 @@ DIRECTIONS: dict[str, Direction] = {
         stage_labels={OFFER: "Offerte", AGREED: "Auftragsbestätigung",
                       BILLED: "Rechnung"},
         ask_verb="Anbieten",
-        quoted_by=BY_US,
-        reference=None,
         collects=True,
-        # **Wir liefern** – es gibt nichts zu bestellen, also auch keine Bestellangabe.
-        party_ref=False,
     ),
     OUT: Direction(
         key=OUT,
@@ -499,12 +507,7 @@ DIRECTIONS: dict[str, Direction] = {
                       # **Seine Rechnung** – sie entsteht bei ihm, wir schreiben sie ab.
                       BILLED: "Rechnung"},
         ask_verb="Anfragen",
-        quoted_by=BY_PARTY,
-        # Seine Rechnung trägt **seine** Nummer – sie steht auf seinem Papier.
-        reference=PARTY_REFERENCE,
         collects=False,
-        # **Wir bestellen bei ihm** – und *wie*, führt er unter seiner eigenen Nummer.
-        party_ref=True,
     ),
 }
 

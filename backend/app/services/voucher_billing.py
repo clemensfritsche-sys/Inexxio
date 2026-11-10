@@ -98,42 +98,22 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     """
     from . import voucher_docs
     flow = vo.of(row.direction)
-    if flow.quoted_by == vo.BY_US:
-        priced = [ln for ln in priced_dicts(db, row)
-                  if vo.line_net(ln, row.currency) != 0]
-        if not priced:
-            raise Invalid(f"Ohne Preis gibt es nichts zu berechnen – bei einer "
-                        f"{flow.label} nennen wir ihn.")
-        gross = vo.gross_of(priced, row.currency)
-        split = vo.vat_split(priced, row.currency)
-    else:
-        given = amount_of(data.get("amount"), row.currency)
-        gross = given if given is not None else agreed_amount(db, row)
-        if gross is None:
-            raise Invalid("Ohne Betrag ist es keine Rechnung.")
-        try:
-            split = vo.split_at(gross, data.get("vat") or vo.DEFAULT_VAT, row.currency)
-        except ValueError as e:
-            raise Invalid(str(e))
-        _record_original(db, row, data, split)
+    gross, split = _our_sum(db, row, flow) if flow.collects else _their_sum(db, row, data)
     if gross == 0:
         raise Invalid("Eine Rechnung über null ist keine.")
     if minus(row):
         # **Nie mehr gutschreiben, als die Rechnung trägt** – geprüft mit dem Betrag, der jetzt
         # feststeht (die Rechnung kann inzwischen storniert oder gemindert sein).
         _assert_correction(db, row, corrects(db, row), amount=gross)
-    if flow.reference is not None and not row.number:
-        number = _text(data.get("reference"), 120)
-        if not number:
-            raise Invalid(f"Ohne {flow.reference} lässt sich diese Rechnung nicht "
-                        f"zuordnen – sie steht auf seinem Papier.")
-        row.number = number
-    elif not row.number:
-        row.number = _our_number(db, row)
-    # **Unsere Rechnung trägt den Tag, an dem sie gestellt wird** – nie ein anderes Datum (sonst
-    # fiele sie in eine schon abgerechnete MWST-Periode). Eine Lieferantenrechnung trägt das
-    # Datum auf ihrem Papier.
-    booked = clock.today() if flow.collects else (_day(data.get("billed_on")) or clock.today())
+    # **Unsere Rechnung trägt unsere Nummer und den Tag, an dem sie gestellt wird** – nie ein
+    # anderes Datum (sonst fiele sie in eine schon abgerechnete MWST-Periode). Eine
+    # Lieferantenrechnung trägt Nummer und Datum ihres Papiers.
+    if flow.collects:
+        row.number = row.number or _our_number(db, row)
+        booked = clock.today()
+    else:
+        row.number = row.number or _their_number(data, flow)
+        booked = _day(data.get("billed_on")) or clock.today()
     row.billed_on = booked
     row.due_on = days_after(booked, due_days_of(db, row))
     row.amount = gross
@@ -146,6 +126,40 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     if flow.collects:
         voucher_docs.issue(db, row=row,
                            kind=vo.CREDIT_DOC if minus(row) else vo.INVOICE_DOC, actor=actor)
+
+
+def _our_sum(db: Session, row: Voucher, flow: vo.Direction) -> tuple[Decimal, list]:
+    """**Unsere Rechnung** – die Summe der Positionen (Teilbeträge eingeschlossen; eine
+    Position mit null steht nicht darauf) und ihre Steuer je Satz."""
+    priced = [ln for ln in priced_dicts(db, row) if vo.line_net(ln, row.currency) != 0]
+    if not priced:
+        raise Invalid(f"Ohne Preis gibt es nichts zu berechnen – bei einer "
+                      f"{flow.label} nennen wir ihn.")
+    return vo.gross_of(priced, row.currency), vo.vat_split(priced, row.currency)
+
+
+def _their_sum(db: Session, row: Voucher, data: dict[str, Any]) -> tuple[Decimal, list]:
+    """**Seine Rechnung, abgeschrieben** – Betrag (sonst die Zusage) und Satz, dazu das
+    Dokument und seine MWST-Nummer (``_record_original``)."""
+    given = amount_of(data.get("amount"), row.currency)
+    gross = given if given is not None else agreed_amount(db, row)
+    if gross is None:
+        raise Invalid("Ohne Betrag ist es keine Rechnung.")
+    try:
+        split = vo.split_at(gross, data.get("vat") or vo.DEFAULT_VAT, row.currency)
+    except ValueError as e:
+        raise Invalid(str(e))
+    _record_original(db, row, data, split)
+    return gross, split
+
+
+def _their_number(data: dict[str, Any], flow: vo.Direction) -> str:
+    """**Seine Rechnungsnummer** – Pflicht, sie steht auf seinem Papier."""
+    number = _text(data.get("reference"), 120)
+    if not number:
+        raise Invalid(f"Ohne {flow.reference} lässt sich diese Rechnung nicht "
+                      f"zuordnen – sie steht auf seinem Papier.")
+    return number
 
 
 def _record_original(db: Session, row: Voucher, data: dict[str, Any],

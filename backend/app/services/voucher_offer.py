@@ -248,12 +248,11 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         q.sent_on = clock.today()
         sent.append(number)
     db.flush()
-    if flow.quoted_by == vo.BY_US:
+    # **Wo wir den Preis nennen, geht unsere Offerte hinaus** – und nur diese Fassung gilt.
+    if flow.collects:
         row.offered_hash = fingerprint(db, row)
-        if flow.collects:
-            for number in sent:
-                voucher_docs.issue(db, row=row, kind=vo.OFFER_DOC, actor=actor,
-                                   party_id=number)
+        for number in sent:
+            voucher_docs.issue(db, row=row, kind=vo.OFFER_DOC, actor=actor, party_id=number)
 
 
 def _freeze_units(db: Session, row: Voucher, order: Order) -> None:
