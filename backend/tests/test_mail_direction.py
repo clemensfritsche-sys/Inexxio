@@ -146,6 +146,10 @@ def test_an_outlook_quote_is_cut():
           "2026 10:00\nAn: Lea Muster\nBetreff: Offerte\n\nAlter Text")
     en = "Thanks!\n\n________________________________\nFrom: Inexxio\nSent: Monday\n\nold"
     assert mb._strip_quote(de) == "Ja, das passt."
+    # Gmail bricht einen langen Kopf um («… schrieb Clemens Fritsche · INEXXIO <» / «adresse>:»).
+    wrapped = ("OK, danke!\n\nAm Di., 10. Nov. 2026 um 08:31 Uhr schrieb Clemens Fritsche · "
+               "INEXXIO <\ninexxio65@gmail.com>:\n\n> Wunderbar\n")
+    assert mb._strip_quote(wrapped) == "OK, danke!"
     assert mb._strip_quote(en) == "Thanks!"
     assert mb._strip_quote("Von: Bern nach Basel fahren wir morgen.") == \
         "Von: Bern nach Basel fahren wir morgen.", "ein Satz ist kein Zitatkopf"
