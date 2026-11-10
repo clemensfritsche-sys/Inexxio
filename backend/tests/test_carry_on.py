@@ -50,3 +50,24 @@ def test_guard_sees_the_bug_form():
     bug = "def take(db):\n    _run_through(db, order=o, step=s, actor_id=None)\n"
     assert offenders({"services/release.py": bug}) == {
         ("services/release.py", "take", "_run_through")}
+
+
+def test_a_payment_without_voucher_lets_nothing_through():
+    """**Ohne Beleg zieht nichts durch.** Der Kern erkennt ein Modul, das von selbst
+    durchlässt, an seiner Eigenschaft (``Module.passes_itself``), nicht mehr an einer Abfrage
+    nach dem Beleg. Fehlt der Beleg doch einmal, muss die Auskunft «nein» sein – sonst liefen
+    die Stücke ohne Zusage und ohne Geld durch."""
+    from types import SimpleNamespace
+
+    from app.domain import modules
+    from app.services import voucher
+    from tests.runner import session
+
+    assert modules.get(modules.BELEG).passes_itself, "Die Zahlung lässt nicht von selbst durch."
+    assert all(not modules.get(k).passes_itself for k in modules.KEYS if k != modules.BELEG)
+    db = session()
+    try:
+        assert voucher.pass_problem(db, step=SimpleNamespace(id=-1)), (
+            "Ein Zahlungsmodul ohne Beleg lässt die Stücke durch.")
+    finally:
+        db.close()

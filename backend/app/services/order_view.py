@@ -9,7 +9,7 @@ Gelesen, nie geschrieben – ausser den Positionen des eigenen Belegs beim Anzei
 
 from typing import Optional, Sequence
 from sqlalchemy.orm import Session
-from ..domain import statuses as st
+from ..domain import modules, statuses as st
 from ..models import (
     Article, InstanceUnit, Order, OrderUnit, UserProfile,
 )
@@ -100,7 +100,7 @@ def steps_view(db: Session, order: Order, *, viewer: Optional[UserProfile] = Non
         row.voucher = VoucherEmbed(**paper) if paper else None
         # **Warum es jetzt nicht abzuschliessen ist** – die Regel von ``confirm_step`` als
         # Auskunft.
-        row.blocked = voucher_svc.completion_problem(db, step=s)
+        row.blocked = modules.get(s.module_type).passes_itself
         out.append(row)
     keep(db)
     return out

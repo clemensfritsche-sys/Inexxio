@@ -32,7 +32,6 @@ from ..models import (
 from ..models.process_event import KIND_START, KIND_STEP
 from . import sites
 # Wer ohnehin alles sieht – Personal hat keine verengte Sicht (die eine Stelle).
-from ..domain.errors import Conflict
 from ..domain import policy
 
 
@@ -745,25 +744,15 @@ def where_of(db: Session, row: Voucher) -> tuple[Order, ProcessStep]:
 # ►► DIE DREI BERÜHRUNGSPUNKTE MIT DEM RAHMEN — je eine Zeile, no-op ohne dieses Modul
 # ---------------------------------------------------------------------------
 
-#: ►►► **Die Stücke passieren dieses Modul von selbst** – es gibt keinen Knopf dafür. ◄◄◄
-PASSES_ITSELF = ("Die Stücke ziehen von selbst weiter – mit der Zusage, bei einer "
-                 "Vorauszahlung mit dem Geld.")
-
-
-def completion_problem(db: Session, *, step: ProcessStep) -> Optional[str]:
-    """►►► **Warum es an diesem Modul keinen «Bestätigen»-Knopf gibt** – oder ``None``. ◄◄◄
-
-    Ein Zahlungsmodul bestätigt niemand von Hand: die Stücke ziehen von selbst weiter
-    (``advance``), sobald sie dürfen. Für jedes andere Modul ``None``.
-    """
-    return PASSES_ITSELF if of_step(db, step.id) is not None else None
-
-
 def pass_problem(db: Session, *, step: ProcessStep) -> Optional[str]:
     """**Warum die Stücke noch nicht weiter dürfen** – oder ``None``. Die Auskunft zu
     ``passable``, mit dem Grund im Satz."""
     row = of_step(db, step.id)
-    if row is None or passable(db, row):
+    if row is None:
+        # Jedes Zahlungsmodul bekommt seinen Beleg bei der Freigabe; fehlt er doch, steht
+        # alles still – nie zieht ein Stück ohne Beleg durch.
+        return "Zu diesem Modul gibt es keinen Beleg – die Stücke stehen still."
+    if passable(db, row):
         return None
     flow = vo.of(row.direction)
     if row.stage == vo.OFFER:
@@ -777,16 +766,6 @@ def pass_problem(db: Session, *, step: ProcessStep) -> Optional[str]:
     return (f"«{flow.label}» wartet auf die {noun}: {amount_text(money.paid, row.currency)} "
             f"von {amount_text(money.agreed, row.currency)} {row.currency} – "
             f"{vo.PAYMENT_TERMS[0][1]}, erst das Geld, dann weiter.")
-
-
-def assert_completable(db: Session, *, step: ProcessStep, auto: bool = False) -> None:
-    """**Die Tür** – gerufen von ``process.confirm_step``. Von Hand gibt es sie an einem
-    Zahlungsmodul nicht; von selbst nur, wenn die Stücke dürfen."""
-    if of_step(db, step.id) is None:
-        return
-    why = pass_problem(db, step=step) if auto else PASSES_ITSELF
-    if why:
-        raise Conflict(why)
 
 
 def service_day(db: Session, step: ProcessStep) -> Optional[date]:

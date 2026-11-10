@@ -1038,7 +1038,6 @@ def test_prepayment_is_the_payment_term_not_a_switch(db):
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from app.domain.errors import Rejected
     from app.services import voucher as svc, voucher_actions
     order, step, row, who, _art = _scene(db, quantity=1)
     _price(db, order, step, row, price="10.00")
@@ -1049,9 +1048,7 @@ def test_prepayment_is_the_payment_term_not_a_switch(db):
     voucher_actions.apply(db, order=order, step=step, action="agree",
               payload={"party": who[0].object_id})
     db.flush()
-    with pytest.raises(Rejected) as e:
-        svc.assert_completable(db, step=step, auto=True)
-    assert e.value.status == 409, "Die Vorauszahlung hält nicht an (a)."
+    assert svc.pass_problem(db, step=step), "Die Vorauszahlung hält nicht an (a)."
     assert not svc.passable(db, row), "Die Stücke dürfen trotz offener Vorauszahlung weiter."
     # (b) **Dieselbe Szene mit 30 Tagen läuft durch.**
     order2, step2, row2, who2, _a2 = _scene(db, quantity=1)
@@ -1063,7 +1060,7 @@ def test_prepayment_is_the_payment_term_not_a_switch(db):
     voucher_actions.apply(db, order=order2, step=step2, action="agree",
               payload={"party": who2[0].object_id})
     db.flush()
-    svc.assert_completable(db, step=step2, auto=True)   # kein Fehler = keine Sperre
+    assert svc.pass_problem(db, step=step2) is None, "30 Tage sperren (b)."
 
 
 def test_the_door_knows_every_field_it_accepts():
@@ -1247,21 +1244,22 @@ def test_a_module_says_why_it_cannot_be_finished_yet(db):
     *«Ich weiss nicht, warum hier ‹Vorgang abschliessen› kommt – passt das schon in die
     bestehende Lösung?»* Der Knopf gehört dorthin (jedes Modul endet mit ihm), aber er
     stand als vollflächige Einladung über einem Beleg, den der Dienst gleich darauf mit
-    409 abwies. **Zwei Formen einer Regel**: ``completion_problem`` nennt den Grund,
-    ``assert_completable`` ist die Tür – und die Ansicht reicht ihn als ``step.blocked``
-    durch.
+    409 abwies. **Eine Eigenschaft des Moduls** (``Module.passes_itself``) nennt den Grund,
+    ``process.confirm_step`` weist mit genau diesem Satz ab – und die Ansicht reicht ihn als
+    ``step.blocked`` durch.
 
     Bug-Formen: (a) es gibt keinen Grund, nur die Ablehnung; (b) der Grund kommt nicht am
     Schritt an; (c) die beiden Formen sagen Verschiedenes.
     """
     import pytest as _pytest
+    from app.domain import modules as dmod
     from app.domain.errors import Rejected
     from app.services import order_view as router
-    from app.services import voucher as svc
+    from app.services import process as proc
     _house(db)
     order, step, row, _who, _art = _scene(db)
 
-    why = svc.completion_problem(db, step=step)
+    why = dmod.get(step.module_type).passes_itself
     assert why, "Eine Offerte lässt sich abschliessen? (a)"
     shown = next(s for s in router.steps_view(db, order) if s.id == step.id)
     assert shown.blocked == why, (
@@ -1270,7 +1268,7 @@ def test_a_module_says_why_it_cannot_be_finished_yet(db):
 
     # (c) **Dieselbe Regel, zwei Formen** – die Tür sagt wörtlich denselben Satz.
     with _pytest.raises(Rejected) as err:
-        svc.assert_completable(db, step=step)
+        proc.confirm_step(db, order=order, step_id=step.id, values={}, actor_id=None)
     assert err.value.detail == why, (
         f"Tür und Auskunft sagen Verschiedenes (c): «{err.value.detail}» ≠ «{why}»."
     )
@@ -3225,7 +3223,7 @@ def test_nobody_confirms_a_payment_module_by_hand(db):
     Knopf gibt – **in jeder Stufe**, auch wenn alles bezahlt ist.
 
     Bug-Formen: (a) das Modul nennt wieder eine Handlung («Vorgang abschliessen»); (b) nach
-    Zusage und Zahlung lässt ``completion_problem`` einen Knopf zu; (c) die Tür lässt von
+    Zusage und Zahlung lässt das Modul einen Knopf zu; (c) ``confirm_step`` lässt von
     Hand durch.
     """
     from app.domain import modules as dmod
@@ -3241,10 +3239,12 @@ def test_nobody_confirms_a_payment_module_by_hand(db):
     voucher_money.record_payment(db, row=row, amount=svc.balance_of(db, row).open,
                                  reference=f"bar-{uuid.uuid4().hex[:8]}", method=vo.CASH)
     db.flush()
-    assert svc.completion_problem(db, step=step) == svc.PASSES_ITSELF, "(b)"
+    from app.services import process as proc
+    by_itself = dmod.get(step.module_type).passes_itself
+    assert by_itself, "(b)"
     with pytest.raises(Rejected) as e:
-        svc.assert_completable(db, step=step)
-    assert e.value.detail == svc.PASSES_ITSELF, "(c)"
+        proc.confirm_step(db, order=order, step_id=step.id, values={}, actor_id=None)
+    assert e.value.detail == by_itself, "(c)"
 
 
 def test_the_payment_form_is_ours_and_knows_what_we_know(db, monkeypatch):

@@ -142,7 +142,7 @@ class ProcessStepResponse(ModuleFacts):
     #: ►►► **Der Beleg** (``services/voucher``) – nur beim Modul «Zahlung», sonst ``None``.
     voucher: Optional[VoucherEmbed] = None
     #: ►►► **Warum lässt sich dieses Modul JETZT nicht abschliessen?** ◄◄◄ ``None`` = nichts
-    #: im Weg. Auskunfts-Form von ``process.completion_problem`` (Regel in ``confirm_step``).
+    #: im Weg. aus ``Module.passes_itself`` (dieselbe Regel weist in ``confirm_step`` ab).
     blocked: Optional[str] = None
 
     @computed_field  # type: ignore[prop-decorator]

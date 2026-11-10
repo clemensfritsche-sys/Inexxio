@@ -36,3 +36,11 @@ Zwischenkopie; Orte: `place_from` · `one_place` · `describe_all`; FIFO eine Ab
 
 ## Geprüft
 Backend 821 grün, Frontend Typen · Lint · 161 Tests grün, generierte Dateien aktuell.
+
+## Nachtrag · C umgesetzt
+Die Zahlung ist im Prozesskern kein Sonderfall mehr: **`Module.passes_itself`** (wie
+`terminal`) sagt, dass ein Modul von selbst durchlässt, mit dem Satz für «warum kein Knopf».
+`confirm_step`, `advance_payments` und die Ansicht fragen die Eigenschaft statt je Modul die
+Datenbank nach einem Beleg (`voucher.completion_problem`, `assert_completable`,
+`PASSES_ITSELF` sind weg). Fehlt einem Zahlungsmodul der Beleg, sagt `pass_problem` «nein» –
+nie zieht ein Stück ohne Beleg durch (Wächter in `test_carry_on`, rot gegen den alten Stand).

@@ -282,8 +282,13 @@ def _ready_at(db: Session, *, order: Order, step: ProcessStep, auto: bool,
     if current != st.IM_PROZESS:
         raise Conflict(f"Der Auftrag ist «{st.label(current)}» – "
                     f"es gibt nichts mehr zu bestätigen.")
-    # **Ein Zahlungsmodul bestätigt niemand von Hand** (``advance_payments`` ruft mit ``auto``).
-    voucher_svc.assert_completable(db, step=step, auto=auto)
+    # **Ein Modul, das von selbst durchlässt, bestätigt niemand von Hand** (``Module.
+    # passes_itself``); von selbst (``auto``) nur, wenn es die Stücke lässt.
+    by_itself = modules.get(step.module_type).passes_itself
+    if by_itself:
+        why = voucher_svc.pass_problem(db, step=step) if auto else by_itself
+        if why:
+            raise Conflict(why)
     instance = _verified_instance(
         db, order=order, step=step,
         instance_object_id=instance_object_id, verification=verification,
@@ -451,8 +456,8 @@ def advance_payments(db: Session, *, order: Order, actor_id: Optional[int]) -> i
     über ``confirm_step``. Gibt zurück, wie viele Stücke weitergezogen sind.
     """
     lock_orders(db, [order.id])
-    # Erkannt daran, dass es einen Beleg gibt – nie am Modultyp.
-    paying = [s for s in steps_of(db, order) if voucher_svc.of_step(db, s.id) is not None]
+    # Erkannt an der Eigenschaft des Moduls – nie am Modultyp, ohne Abfrage je Modul.
+    paying = [s for s in steps_of(db, order) if modules.get(s.module_type).passes_itself]
     moved = 0
     for _ in range(64):
         if not paying or order_status(db, order) != st.IM_PROZESS:

@@ -657,7 +657,7 @@ cancelled  storniert    Ausgang
 #### Die Stücke ziehen von selbst weiter – und das Eigentum wird abgeleitet
 
 - **Die Stücke passieren das Modul von selbst** (`voucher.passable`, `process.carry_on`): mit der
-  Zusage, bei Vorauszahlung mit der vollen Zahlung; kein «Bestätigen» (`PASSES_ITSELF`). Sie
+  Zusage, bei Vorauszahlung mit der vollen Zahlung; kein «Bestätigen» (`Module.passes_itself`). Sie
   bleiben `Im Prozess`, ein Ort wird nicht gesetzt.
 - **Eigentum** «geht an die Partei · geht an uns» ist eine **Pflichtwahl ohne Vorbelegung**
   (`ownership_problem`), eingefroren mit der Zusage; ausgewertet nur am Ende-Objekt

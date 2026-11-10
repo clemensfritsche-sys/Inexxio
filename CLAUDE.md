@@ -170,7 +170,9 @@ Was ein Modultyp ist, steht in `backend/app/domain/modules.py` (`MODULES`); was 
 Editor mitbringt, in `frontend/src/lib/modules.ts`. Ausgeführt wird jedes Modul über
 **einen** Endpunkt (`…/steps/{id}/confirm`, `process.confirm_step`). Rahmenregeln, die jedes
 Modul erbt: **`Module.terminal` = Ausgang** (Editor bietet dahinter nichts an, Freigabe
-weist ab, das Bild endet dort); Kettenregel `domain/chain.py`; Farbe/Symbol reisen mit dem
+weist ab, das Bild endet dort); **`Module.passes_itself` = lässt von selbst durch** (kein
+«Bestätigen» von Hand, der Satz dazu; der Kern fragt die Eigenschaft, nie den Beleg – heute nur
+die Zahlung); Kettenregel `domain/chain.py`; Farbe/Symbol reisen mit dem
 Schritt (`ModuleFacts`), Unbekanntes sieht unbekannt aus; ein abgeschlossenes Modul zeigt
 sein Protokoll (`services/record.py`, eine Ableitung für alle); ein Modul zeigt seine Sache
 in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.

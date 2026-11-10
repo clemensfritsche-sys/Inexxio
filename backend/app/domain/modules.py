@@ -56,6 +56,12 @@ class Module:
     #: nie nach dem Modultyp.
     moves: bool = False
 
+    #: **Lässt dieses Modul die Stücke von selbst durch?** ``None`` (Vorgabe): nein, ein
+    #: Mensch bestätigt. Sonst der Satz, warum es keinen «Bestätigen»-Knopf gibt – dann zieht
+    #: der Prozess die Stücke weiter, sobald das Modul es erlaubt (``process.carry_on``).
+    #: Eine Eigenschaft wie ``terminal``: der Kern fragt sie, nie den Modultyp.
+    passes_itself: Optional[str] = None
+
     def __init__(self, key: str, label: str, tone: str):
         self.key = key
         self.label = label
@@ -323,6 +329,9 @@ class Beleg(Module):
     Ein **Durchläufer**, ``terminal = False``, ``moves = False`` – darum muss keine andere
     Regel von ihm wissen.
     """
+
+    passes_itself = ("Die Stücke ziehen von selbst weiter – mit der Zusage, bei einer "
+                     "Vorauszahlung mit dem Geld.")
 
     #: Die **drei** Schlüssel der Konfiguration – hier und nirgends sonst als Zeichenkette.
     DIRECTION = "direction"

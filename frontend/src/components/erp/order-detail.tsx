@@ -384,7 +384,7 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
     // Ein Modul ohne Scan bekommt eine Bestätigung, kein Scan-Tor (`step.verifies`) – ein
     // Vorgang, nicht einer je Instanz. Eine Gegenpartei bestätigt kein Modul.
     const plain = step.verifies === false;
-    // Warum jetzt nicht? – der Satz kommt vom Server (`process.completion_problem`).
+    // Warum jetzt nicht? – der Satz kommt vom Server (`Module.passes_itself`).
     const blocked = stepInfo(order, step.id)?.blocked ?? null;
     // Der Beleg umschliesst den Scan; erkannt daran, dass es einen gibt, nie am Modultyp.
     const paper = stepInfo(order, step.id)?.voucher ?? null;
