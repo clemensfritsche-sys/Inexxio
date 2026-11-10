@@ -21,7 +21,8 @@ Wer eine Spalte entmappt, trägt sie in `PENDING_DROP`
 dem Drop.
 Bewusst gemappt geblieben (Entscheid E7): `articles.safety_stock`, `min_order_qty`,
 `supplier_article_number`, `user_profiles.language`, `notification_email`,
-`notification_inapp`.
+`notification_inapp`. Die beiden `notification_*` nimmt seit November 2026 keine Route mehr an
+(`docs/history/2026-11-11-erp-master-pruefung.md`) – Kandidaten für die Zwei-Deploy-Regel.
 
 ## Offene Befunde
 
@@ -39,6 +40,10 @@ Aus dem Audit vom August 2026 (`docs/history/2026-08-findings.md`, dort mit Ursa
 4. **Der Verlierer einer echten Nebenläufigkeit sieht eine rohe Datenbankmeldung** (S63):
    die Exklusivität hält, aber statt des Satzes aus `_assert_as_picked` kommt ein
    `IntegrityError`. Erst angehen, wenn mehrere Personen gleichzeitig freigeben.
+5. **Die Anmelde-E-Mail einer Person kann das ERP nicht korrigieren** («ERP ist Master»,
+   `docs/history/2026-11-11-erp-master-pruefung.md`, Vorschlag 1): heute nur die Person im Konto
+   (`policy.SELF_SERVICE`, `SelfOnly`). Vorschlag: Admin-Handlung – ohne je eine Anmeldung direkt
+   über das Firebase Admin SDK, sonst der Bestätigungslink an die neue Adresse.
 
 ## Shop
 

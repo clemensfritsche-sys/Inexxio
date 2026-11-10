@@ -58,6 +58,7 @@ sucht, ist hier falsch; wer wissen will, **warum** etwas so entschieden wurde, r
 | `2026-10-process-core-9-15-chronik.md` | PROCESS_CORE §9.8–§9.15 im Wortlaut bis Oktober 2026 (§9.15a–s, entfernte Module) |
 | `2026-10-backlog-erledigt.md` | Erledigte und überholte Einträge aus `docs/backlog.md` (Standort-Modell, Chargen, Drops, Stripe-Einrichtung) |
 | `2026-10-cleanup/`, `2026-10-cleanup-analyse.md` | Analyse und Paketplan des Cleanups Oktober 2026 (vormals `docs/cleanup-2026-10*`) |
+| `2026-11-11-erp-master-pruefung.md` | «ERP ist Master» geprüft: Karte «Zugang» am Personendatensatz (Passkeys, Claude), offene Verbindungen mit Claude, Tabelle aussen ↔ ERP, Wächter `policy.SELF_SERVICE` |
 
 > **Regel:** Ein Rundenbericht gehört hierher, nicht in `CLAUDE.md` – `CLAUDE.md`
 > beschreibt nur den Ist-Stand. Dateiname `JJJJ-MM[-TT]-<thema>.md`.

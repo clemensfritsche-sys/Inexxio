@@ -270,6 +270,11 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   der Person. **Admin wird nur `initial_admin_email`** (beim Login), nie «wer zuerst
   kommt». Personen werden nicht deaktiviert; Personal kann eine Person anlegen
   (`POST /erp/records`, das Anmeldekonto entsteht bei der ersten Anmeldung).
+- **Der Zugang einer Person** (Karte «Zugang» am Personendatensatz, `components/erp/person-access`
+  – dasselbe Bauteil wie «Sicherheit» im Konto; `routers/access.py`): ihre Passkeys (entfernen) und
+  ihre Verbindungen mit Claude (trennen), sichtbar und änderbar nur für sie selbst und den Admin
+  (`policy` «person.access», `may_access`). Einen Passkey einrichten kann nur die Person auf ihrem
+  Gerät (Konto).
 - **Es bestellt immer eine Person**; die Firma ist höchstens Rechnungsempfänger «z. H.».
   **Eine fremde Firma ist ihre Identität** – Name, Rechtsform, UID (`sites.EXTERNAL_FIELDS`).
   Eigene Gesellschaften (`is_own`, nur Admin) tragen Anschrift, Bank, Währung, Gebiete und
@@ -454,8 +459,11 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   `erp_tools`), aber mit ihren Rechten. Er liest und bereitet vor; ein Vorschlag aus Claude ist
   privat (`payload.mcp`) und wird in «Auf einen Blick» am Datensatz übernommen – nie über MCP. Anmelden ist OAuth 2.1 über die bestehende Anmeldung, **ohne Tabelle**:
   Client-Kennung, Code und Zugang sind signiert (`core/signed`), der Code (PKCE S256) gilt genau
-  einmal (`mcp.grant`, eindeutiger Index), getrennt ist getrennt (`mcp.revoked`, Konto ·
-  Sicherheit); nur Personal. Erlauben auf `/erp/verbinden`; das Hosting leitet
+  einmal (`mcp.grant`, eindeutiger Index), getrennt ist getrennt (`mcp.revoked`); nur Personal.
+  **Offen** ist eine Verbindung, solange sie nicht getrennt und zuletzt (Erlauben oder jüngste
+  Erneuerung) vor höchstens 30 Tagen benutzt ist (`mcp._OPEN`, dieselbe Abfrage für Liste und jede
+  Anfrage) – trennt jemand in Claude selbst, fällt sie so von selbst weg. Gesehen und getrennt im
+  Konto (Sicherheit) und am ERP-Datensatz (Karte «Zugang», selbst · Admin). Erlauben auf `/erp/verbinden`; das Hosting leitet
   `/.well-known/oauth-*` an den Dienst. Protokoll: JSON-RPC über einen `POST`, ohne SDK.
 - **Vorschläge aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person liest die
   KI im Takt und bereitet Vorschläge am Datensatz vor (Probelauf mit den Rechten der Person, die
@@ -546,7 +554,10 @@ und alles andere sind Spiegel. Dieselbe fachliche Angabe ist **nie an zwei Stell
 editierbar**; ausserhalb des ERP schreibt nur der **Selbstbedienungs-Pfad** einer Person auf
 ihre eigenen Daten, und zwar über **denselben Pfad** (`people.apply_profile_update`).
 **Das ERP muss ALLES können**, was aussen geht (`ErpAdminUpdate` erbt von
-`UserProfileUpdate`).
+`UserProfileUpdate`). **Jede Route der Selbstbedienung** (`/api/v1/auth/…`) steht in
+`domain/policy.SELF_SERVICE` – mit ihrem Gegenstück am ERP-Datensatz oder als `SelfOnly` mit Grund
+(Passkey einrichten, Anmelde-E-Mail wechseln); Wächter `test_erp_master`, Prüfung
+`docs/history/2026-11-11-erp-master-pruefung.md`.
 
 ### Eine Sache, eine Stelle
 Gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine** Implementierung:
