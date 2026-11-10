@@ -9,10 +9,13 @@ Datensatzes heisst und wie der Zustand aus den Fakten folgt.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
+from typing import Any, Optional
 
 from . import statuses as st
+from .errors import Invalid
 
 #: Woher ein Dokument kam – nur Auskunft. Jede Quelle endet in derselben Freigabe.
 SOURCES: dict[str, str] = {
@@ -51,6 +54,26 @@ ART_MAX, NAME_MAX, REASON_MAX = 80, 200, 300
 def clean(value: object, limit: int) -> str:
     """Ein Feld, wie es gespeichert wird: getrimmt, ohne Zeilenumbruch, gekürzt."""
     return " ".join(str(value or "").split())[:limit]
+
+
+#: ►► **Die Angaben eines Dokuments** (``facts``) – ein JSON-Objekt, höchstens so gross. ◄◄
+#: Das Lesen der KI liefert höchstens 80 Angaben à 80 + 300 Zeichen; mehr nimmt niemand an.
+FACTS_MAX_BYTES = 64 * 1024
+
+
+def clean_facts(value: Any) -> Optional[dict]:
+    """**Die Angaben, wie sie gespeichert werden** – ein Objekt (Bezeichnung → Wert) oder nichts.
+    Eine Liste, ein Text oder ein übergrosses Objekt wird abgewiesen: die Dokumentseite liest
+    sie als Objekt, und was einmal gespeichert ist, bleibt."""
+    if value is None or value == {}:
+        return None
+    if not isinstance(value, dict):
+        raise Invalid("Die Angaben eines Dokuments sind Bezeichnung und Wert – keine Liste, kein Text.",
+                      field="facts")
+    if len(json.dumps(value, ensure_ascii=False).encode("utf-8")) > FACTS_MAX_BYTES:
+        raise Invalid(f"Die Angaben eines Dokuments sind zu gross (höchstens {FACTS_MAX_BYTES // 1024} KB).",
+                      field="facts")
+    return value
 
 
 def part_kind(part: str | None) -> str | None:

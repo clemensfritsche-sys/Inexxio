@@ -223,6 +223,31 @@ def test_routes_release_reference_and_delete(world):
     assert r.json()["file_url"] is None
 
 
+@pytest.mark.parametrize("facts, sentence", [
+    ('["a", "b"]', "keine Liste"),
+    ('"Text"', "keine Liste"),
+    (json.dumps({"x": "y" * (dd.FACTS_MAX_BYTES + 1)}), "zu gross"),
+])
+def test_facts_from_the_browser_are_an_object_of_bounded_size(world, facts, sentence):
+    """Bug-Form: ``facts`` als Liste freigegeben – die Dokumentseite scheiterte danach für immer
+    (``.get`` an einer Liste); ein riesiges Objekt wurde gespeichert, wie es kam."""
+    from app.main import rejected_handler
+    world.app.add_exception_handler(Rejected, rejected_handler)
+    before = world.db.query(Document).count()
+    r = world.client.post("/api/v1/erp/documents", data={
+        "art": "Vertrag", "name": "Angaben", "source": "file", "facts": facts},
+        files=[("files", ("v.pdf", PDF + str(random.random()).encode(), "application/pdf"))])
+    assert r.status_code == 400 and sentence in r.json()["detail"], r.text
+    assert r.json()["field"] == "facts"
+    assert world.db.query(Document).count() == before
+    ok = world.client.post("/api/v1/erp/documents", data={
+        "art": "Vertrag", "name": "Angaben", "source": "file", "facts": '{"Nummer": "7"}'},
+        files=[("files", ("v.pdf", PDF + str(random.random()).encode(), "application/pdf"))])
+    assert ok.status_code == 201, ok.text
+    oid = ok.json()["document"]["object_id"]
+    assert world.client.get(f"/api/v1/erp/documents/{oid}").status_code == 200
+
+
 def test_uploaded_html_is_never_served_with_scripts(world):
     doc, _ = docs.file(world.db, raw=b"<script>alert(1)</script>", filename="x.html",
                        mime="text/html", art="Notiz", name="x", source="file", refs=[],

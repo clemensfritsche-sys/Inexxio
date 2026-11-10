@@ -202,6 +202,7 @@ def file(db: Session, *, raw: bytes, filename: Optional[str], mime: str, art: st
         raise Invalid("Ohne Art und Name lässt sich nichts freigeben.")
     if source not in dd.SOURCES:
         raise Invalid(f"Eine Quelle «{source}» gibt es nicht.")
+    facts = dd.clean_facts(facts)
     digest = hashlib.sha256(raw or b"").hexdigest()
     same = (db.query(Document).filter(Document.sha256 == digest,
                                       Document.deleted_at.is_(None)).first())

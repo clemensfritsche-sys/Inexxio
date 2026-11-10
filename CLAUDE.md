@@ -116,7 +116,8 @@ Artikel        Ordner + Spezifikation + Erfassungsmaske + Erzeugungsprozess. Kei
   Objektnummer. Neun Regeln; die wichtigsten: dieselbe Datei ist dasselbe Dokument, vorher gibt
   es nichts (Entwurf im Browser, «Freigeben» legt an), es erscheint genau dort, wohin seine
   Referenz zeigt, ein **Pflichtfeld** (`domain/documents.FIELDS`) ist änderbar, nie leer,
-  gelöscht wird nur, was nirgends hängt. Zustand abgeleitet: Freigegeben · Unterschrift
+  gelöscht wird nur, was nirgends hängt; die Angaben (`facts`) sind ein JSON-Objekt bis 64 KB
+  (`domain/documents.clean_facts`). Zustand abgeleitet: Freigegeben · Unterschrift
   angefragt · Abgelehnt · Gelöscht.
 - **Status** (`domain/statuses.py`, `CATALOG`): ein Eintrag trägt Beschriftung, Ampelton,
   Achsen, Bestand ↔ Historie (`stock`) und Endgültigkeit (`terminal`); ein Stück-Status ohne
