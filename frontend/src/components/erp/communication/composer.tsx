@@ -147,7 +147,6 @@ function KindBar({ value, onPick }: { value: string; onPick: (k: Kind) => void }
         const on = value === k.key;
         return (
           <span key={k.key} style={{ display: 'inline-flex', alignItems: 'center' }}>
-            {k.sep && <span aria-hidden="true" style={{ width: 1, height: 18, background: 'var(--border-1)', margin: '0 6px' }} />}
             <button type="button" role="radio" aria-checked={on} aria-label={k.label}
               data-tip={on ? k.tip : `${k.label} – ${k.tip}`} onClick={() => onPick(k)}
               style={{ border: 0, height: 30, padding: on ? '0 12px 0 10px' : '0 8px', borderRadius: 999,
@@ -235,6 +234,40 @@ function From({ mails, value, onChange, me }: {
 type Set<T> = (v: T) => void;
 
 /** Wann: später senden bzw. erinnern – drei Zeitpunkte, ein Klick. */
+/** ►►► **Die Zeile «Versand»** – nur, wenn zwei oder mehr im «An» stehen: alle sehen einander
+ *  (eine Mail), oder jede Person bekommt ihre eigene, mit Anrede (Rundschreiben); als
+ *  Newsletter nur an Angemeldete, mit Abmeldelink. Keine eigene Maske – dieselbe Eingabe. ◄◄◄ */
+function Spread({ delivery, setDelivery }: { delivery: Delivery; setDelivery: Set<Delivery> }) {
+  const single = delivery !== 'mail';
+  const seg = (on: boolean) => ({ border: 0, height: 26, padding: '0 12px', borderRadius: 999,
+    fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: on ? 600 : 400,
+    background: on ? 'var(--bg-1)' : 'transparent', color: on ? 'var(--fg-1)' : 'var(--fg-3)',
+    boxShadow: on ? 'var(--shadow-sm)' : 'none' }) as const;
+  return (
+    <ComposerRow label="Versand">
+      <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, minHeight: 28 }}>
+        <span role="radiogroup" aria-label="Versand" style={{ display: 'inline-flex', padding: 2, gap: 2,
+          borderRadius: 999, background: 'var(--bg-3)' }}>
+          <button type="button" role="radio" aria-checked={!single} onClick={() => setDelivery('mail')}
+            data-tip="Eine Mail – im «An» und «Cc» sehen alle einander" style={seg(!single)}>Alle sehen einander</button>
+          <button type="button" role="radio" aria-checked={single}
+            onClick={() => setDelivery(single ? delivery : 'circular')}
+            data-tip="Rundschreiben – jede Person ihre eigene Mail, mit Anrede" style={seg(single)}>Jede Person einzeln</button>
+        </span>
+        {single && (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12,
+            color: 'var(--fg-2)', cursor: 'pointer' }}
+            data-tip="Werbung – geht nur an Angemeldete und trägt den Abmeldelink">
+            <input type="checkbox" checked={delivery === 'newsletter'}
+              onChange={(e) => setDelivery(e.target.checked ? 'newsletter' : 'circular')} style={{ margin: 0 }} />
+            Als Newsletter
+          </label>
+        )}
+      </span>
+    </ComposerRow>
+  );
+}
+
 function LaterRow({ mode, later, setLater }: { mode: Mode; later: string; setLater: Set<string | null> }) {
   return (
     <ComposerRow label={mode === 'internal' ? 'Erinnern' : 'Senden'}>
@@ -264,10 +297,13 @@ function Fields(p: {
   later: string | null; setLater: Set<string | null>;
   incoming: boolean; setIncoming: Set<boolean>;
   delivery: Delivery;
+  /** Stehen zwei oder mehr im «An» einer neuen Mail, fragt die Zeile «Versand», wie sie
+   *  hinausgeht – sonst gibt es sie nicht. */
+  spread: boolean; setDelivery: Set<Delivery>;
 }) {
   const { mode, me, person, channel, mails, setChannel, to, setTo, cc, setCc, bcc, setBcc,
     showCc, setShowCc, showBcc, setShowBcc, subject, setSubject, topics, fixed, locked, later,
-    setLater, incoming, setIncoming, delivery } = p;
+    setLater, incoming, setIncoming, delivery, spread, setDelivery } = p;
   // Rundschreiben und Newsletter gehen an jede Person einzeln – ohne Cc und Bcc.
   const single = mode === 'email' && delivery !== 'mail';
   const chip = (x: Person) => <span style={{ flex: 1, minWidth: 0 }}>
@@ -321,6 +357,7 @@ function Fields(p: {
           <ComposerRow label="Bcc"><People value={bcc} onChange={setBcc} autoFocus={!bcc.length}
             onLeave={() => setShowBcc(false)} /></ComposerRow>
         )}
+        {spread && <Spread delivery={delivery} setDelivery={setDelivery} />}
         {!fixed && (
           <ComposerRow label="Betreff">
             {/* Ein bestehendes Anliegen wählen oder ein neues tippen – Pflicht für jede Art. */}
@@ -458,22 +495,18 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
     setDraft((d) => ({ ...d, reply: null, subject: '', cc: [], bcc: [], showCc: false,
       showBcc: false, to: d.mode === 'internal' ? [] : [person] }));
   };
-  const pick = (m: Mode) => {
+  const pick = (k: Kind) => {
     setError(null);
     setDraft((d) => ({
-      ...d, mode: m, incoming: false, delivery: m !== 'email' ? 'mail' : d.delivery,
-      to: !d.reply ? (m === 'internal' ? [] : [person]) : m === 'internal' ? [] : d.to,
+      ...d, mode: k.key, incoming: false, delivery: 'mail',
+      to: !d.reply ? (k.key === 'internal' ? [] : [person]) : k.key === 'internal' ? [] : d.to,
     }));
   };
-  // Eine Wahl der Leiste setzt Art UND Versand. Rundschreiben oder Newsletter aus einer Antwort
-  // heraus beginnt eine neue Nachricht – eine Antwort ist immer eine Mail.
-  const pickKind = (k: Kind) => {
-    if (k.delivery !== 'mail' && reply) fresh();
-    pick(k.mode);
-    patch({ delivery: k.delivery });
-  };
-  // Die Versandart dieser Nachricht – eine Antwort und alles ausser E-Mail ist eine Mail.
-  const kind: Delivery = mode === 'email' && !reply ? delivery : 'mail';
+  // ►►► Wie eine Mail an mehrere hinausgeht, fragt erst, wer mehrere im «An» hat – eine
+  // Antwort und alles ausser E-Mail ist eine Mail. Fällt das «An» auf eine Person zurück,
+  // ist es wieder eine gewöhnliche Mail (abgeleitet, nichts zurückzusetzen). ◄◄◄
+  const spread = mode === 'email' && !reply && to.length > 1;
+  const kind: Delivery = spread ? delivery : 'mail';
   const verb = mode === 'phone' ? 'Anruf festhalten'
     : mode === 'internal' ? (later ? 'Erinnerung setzen' : 'Speichern')
       : later ? 'Später senden'
@@ -629,7 +662,7 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
           sie hierher zurück, und eine zweite Nachricht stünde dabei im Weg. */}
       <fieldset disabled={!!held} style={{ border: 0, margin: 0, padding: 0, minWidth: 0,
         opacity: held ? 0.5 : 1 }}>
-      <KindBar value={mode === 'email' ? (reply ? 'mail' : delivery) : mode} onPick={pickKind} />
+      <KindBar value={mode} onPick={pick} />
 
       {reply && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10,
@@ -638,7 +671,8 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
           {!edit && <span className="truncate" style={{ minWidth: 0 }}>
             {mode === 'phone' ? `mit ${person.name}`
               : to.length ? `an ${to.map((p) => p.name).join(', ')}` : 'Notiz'}
-            {cc.length > 0 && `, Cc ${cc.map((p) => p.name).join(', ')}`}</span>}
+            {cc.length > 0 && `, Cc ${cc.map((p) => p.name).join(', ')}`}
+            {mode === 'email' && channel?.name && ` · von ${channel.name}`}</span>}
           {!edit && <button type="button" onClick={() => setEdit(true)}
             style={{ border: 0, background: 'none', padding: 0, font: 'inherit', fontSize: 12,
               color: 'var(--accent)', cursor: 'pointer' }}>ändern</button>}
@@ -653,7 +687,7 @@ export function Composer({ person, me, channels, target, topics, onSent, onSendi
           showCc={showCc} setShowCc={setShowCc} showBcc={showBcc} setShowBcc={setShowBcc}
           subject={subject} setSubject={setSubject} topics={topics} fixed={fixed} locked={locked}
           later={later} setLater={setLater} incoming={incoming} setIncoming={setIncoming}
-          delivery={kind} />
+          delivery={kind} spread={spread} setDelivery={(v) => patch({ delivery: v })} />
       )}
       {reply && !edit && later !== null && <LaterRow mode={mode} later={later} setLater={setLater} />}
       {mode === 'email' && kind !== 'mail' && <Greeting to={to} />}

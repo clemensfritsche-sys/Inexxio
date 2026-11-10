@@ -33,14 +33,14 @@ const KIND_ICON: Record<ChannelKind, LucideIcon> = {
 export function kindIcon(kind: string): LucideIcon {
   return lookup(KIND_ICON, kind) ?? Mail;
 }
-/** ►►► **EINE Leiste für Art und Versand**: Mail · Rundschreiben · Newsletter | Anruf · Intern. ◄◄◄
- *  Eine Wahl setzt beides (`mode` und `delivery`) – eine Zeile «Versand» gibt es nicht. */
-export type Kind = { key: string; mode: Mode; delivery: Delivery; label: string; tip: string;
-  Icon: LucideIcon; sep?: boolean };
+/** ►►► **Die Leiste: drei Arten** – Mail · Anruf · Intern. ◄◄◄ Wie eine Mail an mehrere
+ *  hinausgeht (Rundschreiben, Newsletter), ist keine Art, sondern eine Frage an die
+ *  Empfänger: die Zeile «Versand» erscheint, sobald zwei im «An» stehen. */
+export type Kind = { key: Mode; label: string; tip: string; Icon: LucideIcon };
 export const KINDS: Kind[] = [
-  ...DELIVERIES.map((d) => ({ ...d, mode: 'email' as Mode, delivery: d.key })),
-  { key: 'phone', mode: 'phone', delivery: 'mail', label: 'Anruf', tip: 'Gespräch festhalten', Icon: Phone, sep: true },
-  { key: 'internal', mode: 'internal', delivery: 'mail', label: 'Intern', tip: 'Nur im Haus sichtbar', Icon: Lock },
+  { key: 'email', label: 'Mail', tip: 'E-Mail über das Postfach der Gesellschaft', Icon: Mail },
+  { key: 'phone', label: 'Anruf', tip: 'Gespräch festhalten', Icon: Phone },
+  { key: 'internal', label: 'Intern', tip: 'Nur im Haus sichtbar', Icon: Lock },
 ];
 
 /** ►►► **Gleicher Betreff, gleiche Farbe.** ◄◄◄ Fest aus dem Anliegen abgeleitet – nicht
