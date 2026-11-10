@@ -115,6 +115,9 @@ class Task:
     rounds: int = 1
     #: Wie gründlich das Modell denkt (``low`` · ``medium`` · ``high``); leer = Vorgabe des Modells.
     effort: Optional[str] = None
+    #: **Darf die KI eine Webseite lesen**, deren Adresse im Gespräch steht (``WEB_FETCH``)?
+    #: Nur im Gespräch – nie bei Mails (``follow``): dort schreibt ein Fremder, was gelesen würde.
+    web: bool = False
 
 
 #: ►►► **Die Aufgaben – und welches Modell sie macht.** ◄◄◄ Lesen und «Auf einen Blick» sind
@@ -128,7 +131,7 @@ TASKS: dict[str, Task] = {
     # Ein Zug im Gespräch, live direkt am Dienst (``talk.stream``): begrenzt durch Schritte,
     # Deckel und «Stopp»; die Uhr ist das äussere Netz (Cloud Run 300 s), im Takt ``until``.
     "talk": Task(model="claude-sonnet-5-5", max_tokens=6000, timeout=240.0, retries=0,
-                 rounds=10, effort="low"),
+                 rounds=10, effort="low", web=True),
     # Was aus einer eingehenden Mail folgt – im Takt: 45 s, kein zweiter Versuch
     # (``follow.TRIES``).
     "follow": Task(model="claude-sonnet-5-5", max_tokens=4000, timeout=45.0, retries=0,
@@ -318,6 +321,30 @@ def _use(tools: dict[str, Tool], block: Any) -> dict[str, Any]:
     return {"type": "tool_result", "tool_use_id": block.id, "content": text, "is_error": error}
 
 
+#: ►►► **Eine Webseite lesen** – das Werkzeug des Anbieters (läuft dort, nicht bei uns). ◄◄◄
+#: Es holt nur Adressen, die schon im Gespräch stehen (die Person gab den Link); höchstens drei
+#: je Antwort, je Seite höchstens ``max_content_tokens``. Bezahlt wird nur, was gelesen wird
+#: (Tokens) – es zählt im ``ai.call`` und unter dem Deckel. Was die Seite sagt, ist Inhalt, nie
+#: Anweisung: die KI führt ohnehin nie aus, sie bereitet nur Vorschläge vor.
+WEB_FETCH = {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 3,
+             "max_content_tokens": 20000}
+#: Was die Person sieht, während die KI eine Seite liest.
+WEB_STEP = "liest eine Webseite …"
+
+
+def _cached(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """**Das Gespräch bis hierher im Zwischenspeicher** – ein Merkpunkt am letzten Block der
+    letzten Nachricht. Jeder weitere Zug liest den ganzen Verlauf (samt Bildern und PDFs) für
+    einen Zehntel, statt ihn voll zu bezahlen. Nur in der Kopie für den Aufruf: der Verlauf
+    selbst trägt keine Merkpunkte (höchstens vier je Anfrage)."""
+    last = messages[-1]
+    content = last.get("content")
+    if last.get("role") != "user" or not isinstance(content, list) or not content:
+        return messages
+    marked = [*content[:-1], {**content[-1], "cache_control": {"type": "ephemeral"}}]
+    return [*messages[:-1], {**last, "content": marked}]
+
+
 def _replay(content: list[Any]) -> list[dict[str, Any]]:
     """Die Antwort des Modells, wie sie im nächsten Zug wieder hinein muss – unverändert
     (auch das Nachdenken), ohne die geprüfte Fassung, die nur dieses SDK anhängt."""
@@ -339,6 +366,34 @@ def _turn(client: Any, on_text: Optional[Callable[[str], None]], **args: Any) ->
             if on_text is not None and piece:
                 on_text(piece)
         return live.get_final_message()
+
+
+def _options(spec: "Task", by_name: dict[str, "Tool"], schema: Optional[type]) -> dict[str, Any]:
+    """Was jeder Zug mitnimmt: die Werkzeuge (eigene und, wo erlaubt, die Webseite), die
+    Gründlichkeit, die feste Form der Antwort."""
+    extra: dict[str, Any] = {}
+    specs = [t.spec() for t in by_name.values()] + ([WEB_FETCH] if spec.web else [])
+    if specs:
+        extra["tools"] = specs
+    if spec.effort:
+        extra["output_config"] = {"effort": spec.effort}
+    if schema is not None:
+        extra["output_format"] = schema
+    return extra
+
+
+def _results(by_name: dict[str, "Tool"], calls: list[Any],
+             on_step: Optional[Callable[[str], None]], *, last: bool) -> list[dict[str, Any]]:
+    """Die Werkzeuge dieses Zugs ausführen – je Aufruf ein Ergebnis; im vorletzten Zug dazu die
+    Bitte, jetzt zu antworten."""
+    results: list[dict[str, Any]] = []
+    for b in calls:
+        if on_step is not None and b.name in by_name:
+            on_step(by_name[b.name].step(dict(b.input or {})))
+        results.append(_use(by_name, b))
+    if last:
+        results.append({"type": "text", "text": "Antworte jetzt – ohne weiteres Nachschlagen."})
+    return results
 
 
 def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: str,
@@ -366,13 +421,7 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
     spec = TASKS[task]
     by_name = {t.name: t for t in tools or []}
     messages: list[dict[str, Any]] = [{"role": "user", "content": content}]
-    extra: dict[str, Any] = {}
-    if by_name:
-        extra["tools"] = [t.spec() for t in by_name.values()]
-    if spec.effort:
-        extra["output_config"] = {"effort": spec.effort}
-    if schema is not None:
-        extra["output_format"] = schema
+    extra = _options(spec, by_name, schema)
     deadline = _time.monotonic() + _left(spec.timeout)
     cached = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
     said: list[str] = []
@@ -392,7 +441,7 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
         try:
             response = _turn(_client(left, _retries(spec.retries)), on_text if schema is None else None,
                              model=spec.model, max_tokens=spec.max_tokens, system=cached,
-                             messages=messages, **extra)
+                             messages=_cached(messages), **extra)
             usage.update({**_tokens(response.usage), "stop": response.stop_reason, "ms": _ms(began)})
         except Exception as exc:                               # noqa: BLE001
             usage.update({"error": type(exc).__name__, "status": getattr(exc, "status_code", None),
@@ -406,16 +455,18 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
         _record(db, task, spec.model, actor, usage)
         said += [b.text for b in getattr(response, "content", None) or []
                  if getattr(b, "type", "") == "text" and (getattr(b, "text", "") or "").strip()]
+        if on_step is not None and any(getattr(b, "type", "") == "server_tool_use"
+                                       for b in getattr(response, "content", None) or []):
+            on_step(WEB_STEP)
+        if response.stop_reason == "pause_turn":
+            # Der Anbieter hat beim Lesen einer Seite pausiert: dieselbe Antwort zurück, er
+            # macht dort weiter – ohne neue Nachricht (sie liefe sonst doppelt).
+            messages.append({"role": "assistant", "content": _replay(response.content)})
+            continue
         if response.stop_reason == "tool_use" and calls:
             messages.append({"role": "assistant", "content": _replay(response.content)})
-            results: list[dict[str, Any]] = []
-            for b in calls:
-                if on_step is not None and b.name in by_name:
-                    on_step(by_name[b.name].step(dict(b.input or {})))
-                results.append(_use(by_name, b))
-            if turn == spec.rounds - 1:
-                results.append({"type": "text", "text": "Antworte jetzt – ohne weiteres Nachschlagen."})
-            messages.append({"role": "user", "content": results})
+            messages.append({"role": "user", "content": _results(
+                by_name, calls, on_step, last=turn == spec.rounds - 1)})
             continue
         if schema is None:
             text = "\n\n".join(t.strip() for t in said)

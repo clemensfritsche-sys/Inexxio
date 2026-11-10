@@ -218,3 +218,53 @@ def test_a_flow_with_a_time_limit_never_gives_a_call_more_time(db, monkeypatch):
     with ai.until(1):
         assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[]) is None
     assert "zu lange" in ai.problem()
+
+
+# ─── Webseiten lesen, Pause des Anbieters, Zwischenspeicher des Verlaufs ─────────────────
+
+def test_the_conversation_may_read_a_web_page_mails_may_not(db, monkeypatch):
+    """Bug-Form: die KI hat kein Werkzeug für einen Link (Amazon) – oder auch eine fremde Mail
+    könnte sie Seiten lesen lassen."""
+    staff = new_person(db, "employee")
+    script = _Script(_answer(parsed=Out(answer="a")), _answer(parsed=Out(answer="b")))
+    _ready(monkeypatch, script)
+    ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[])
+    ai.converse(db, task="follow", actor=staff, system="s", schema=Out, content=[])
+    talk_tools = [t.get("type") for t in script.seen[0].get("tools", [])]
+    follow_tools = [t.get("type") for t in script.seen[1].get("tools", [])]
+    assert ai.WEB_FETCH["type"] in talk_tools, "Das Gespräch kann keine Webseite lesen."
+    assert ai.WEB_FETCH["type"] not in follow_tools, "Eine fremde Mail liesse Webseiten lesen."
+    assert ai.WEB_FETCH["max_uses"] <= 3
+
+
+def test_a_paused_turn_goes_on_without_a_new_message(db, monkeypatch):
+    """Bug-Form: bei «pause_turn» (der Anbieter liest noch) endet der Zug ohne Antwort – oder
+    eine neue Nachricht lässt ihn von vorn beginnen."""
+    staff = new_person(db, "employee")
+    steps = []
+    fetch = _Block(type="server_tool_use", id="s1", name="web_fetch", input={"url": "https://x"})
+    script = _Script(_answer(stop="pause_turn", content=[fetch]), _answer(parsed=Out(answer="ok")))
+    _ready(monkeypatch, script)
+    got = ai.converse(db, task="talk", actor=staff, system="s", schema=Out,
+                      content=[{"type": "text", "text": "x"}], on_step=steps.append)
+    assert got == Out(answer="ok")
+    last = script.seen[1]["messages"][-1]
+    assert last["role"] == "assistant" and last["content"][0]["type"] == "server_tool_use"
+    assert steps == [ai.WEB_STEP]
+
+
+def test_the_history_is_read_from_the_cache(db, monkeypatch):
+    """Bug-Form: jeder Zug schickt das ganze Gespräch (mit Bildern, PDFs) zum vollen Preis –
+    nur die Anleitung lag im Zwischenspeicher."""
+    staff = new_person(db, "employee")
+    call = _Block(type="tool_use", id="t1", name="find", input={"q": "x"})
+    script = _Script(_answer(stop="tool_use", content=[call]), _answer(parsed=Out(answer="ok")))
+    _ready(monkeypatch, script)
+    ai.converse(db, task="talk", actor=staff, system="s", schema=Out,
+                content=[{"type": "text", "text": "x"}], tools=ai_tools.tools_for(db))
+    for seen in script.seen:
+        last = seen["messages"][-1]["content"][-1]
+        assert last.get("cache_control") == {"type": "ephemeral"}
+    marks = sum(1 for m in script.seen[1]["messages"] for b in m["content"]
+                if isinstance(b, dict) and "cache_control" in b)
+    assert marks == 1, "Der Verlauf sammelt Merkpunkte – höchstens vier sind erlaubt."

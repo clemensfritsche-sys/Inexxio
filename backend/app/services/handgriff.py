@@ -511,8 +511,15 @@ def target_of(path: str, body: Any, home: int) -> int:
     return _path_target(path) or _body_target(body) or home
 
 
-def fill_or_raw(path: str) -> str:
-    return re.sub(r"\{\$handgriff:\d+\}", "", path)
+#: Ein Platzhalter im Pfad: die Nummer, die ein anderer Vorschlag erst anlegen wird.
+_WAITING = re.compile(r"\{\$handgriff:\d+\}")
+
+
+def route_of(path: str) -> str:
+    """►► **Der Pfad, wie ihn die Route erkennt** – ein Platzhalter steht für irgendeine Nummer.
+    Die eine Ersetzung für Probelauf und Ansicht: vorher setzte der eine eine Nummer ein und die
+    andere nichts, und ein Vorschlag mit Platzhalter hatte in der Ansicht keinen Satz. ◄◄"""
+    return _WAITING.sub("100000001", path)
 
 
 def prepare(db: Session, person: UserProfile, *, method: str, path: str, body: Any, line: str,
@@ -522,7 +529,7 @@ def prepare(db: Session, person: UserProfile, *, method: str, path: str, body: A
     Vorschläge, auf die er wartet, laufen davor mit), dann das Ereignis ``handgriff``. Geht er
     nicht, entsteht nichts, und das ``Outcome`` sagt warum (die KI korrigiert). Fehlen nur Werte,
     wird er trotzdem einer: die Person ergänzt sie dort, wo sie ihn öffnet. ◄◄◄"""
-    op = operation_for(method, re.sub(r"\{\$handgriff:\d+\}", "100000001", path))
+    op = operation_for(method, route_of(path))
     if op is None:
         return None, Outcome(400, detail=f"«{method} {path}» ist keine Handlung des ERP.")
     # Worauf er wartet, muss die Person sehen dürfen – sonst gäbe es keine Kette, nur ein Leck.
@@ -594,6 +601,9 @@ def run(db: Session, viewer: UserProfile, hid: int) -> tuple[Handgriff, Outcome]
 def drop(db: Session, viewer: UserProfile, hid: int, by: str = "person") -> Handgriff:
     """**Weg** – der Handgriff geschieht nicht. Zweimal ist einmal; ausgeführt ist ausgeführt."""
     h = assert_may(db, hid, viewer)
+    # Dieselbe Sperre wie «Übernehmen» (``_taken``): sonst könnten beide zugleich gelingen.
+    locks.xact(db, locks.HANDGRIFF, hid)
+    h = get(db, hid)
     if h.done is not None:
         raise Conflict(f"Handgriff «{hid}» ist schon ausgeführt.")
     if not h.dropped:
@@ -632,7 +642,7 @@ def view(db: Session, found: list[Handgriff]) -> list[Any]:
     mails = _mail_sources(db, [int(h.payload["mail"]) for h in found if h.payload.get("mail")])
     out = []
     for h in found:
-        op = operation_for(h.payload.get("method") or "", fill_or_raw(h.payload.get("path") or ""))
+        op = operation_for(h.payload.get("method") or "", route_of(h.payload.get("path") or ""))
         waits = [d for d in h.depends if d in open_ids]
         rec = names.get(h.object_id)
         out.append(HandgriffOut(
@@ -668,8 +678,10 @@ def changes_of(h: Handgriff) -> list[Any]:
     body = h.payload.get("body")
     if h.payload.get("method") not in ("PATCH", "PUT") or not isinstance(body, dict):
         return []
-    path = fill_or_raw(h.payload.get("path") or "")
-    now = look(path) if operation_for("GET", path, reads()) else Outcome(404)
+    path = h.payload.get("path") or ""
+    # Wartet er auf einen anderen Vorschlag, gibt es den Datensatz noch nicht – nur «neu».
+    waiting = bool(_WAITING.search(path))
+    now = look(path) if not waiting and operation_for("GET", path, reads()) else Outcome(404)
     before = now.data if now.ok and isinstance(now.data, dict) else {}
     return [Change(field=k, before=_shown(before.get(k)), after=_shown(v))
             for k, v in body.items() if _shown(before.get(k)) != _shown(v)]
