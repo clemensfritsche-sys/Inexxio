@@ -178,12 +178,13 @@ def to_us(*, channel_key: str, inbound: bool, to_staff: bool) -> bool:
 
     Uns = jeder Kanal der eigenen Gesellschaft und jeder Mitarbeiter. Also: was von aussen
     kam (``inbound`` – die Richtung der Nachricht, nicht die Rolle des Absenders), ist an
-    uns; und wer intern einen Mitarbeiter im «An» nennt (auch sich selbst – das ist die
-    Erinnerung), ebenso. Ein Gespräch (``live``) und eine Notiz warten auf niemanden
-    (``quiet``)."""
+    uns; und wer **intern** einen Mitarbeiter im «An» nennt (auch sich selbst – das ist die
+    Erinnerung), ebenso. Was hinausgeht, ist nie an uns – auch nicht die Mail an die
+    private Adresse eines Mitarbeiters. Ein Gespräch (``live``) und eine Notiz warten auf
+    niemanden (``quiet``)."""
     if quiet(channel_key):
         return False
-    return inbound or to_staff
+    return inbound or (to_staff and not channel(channel_key).outside)
 
 
 #: Der Teil rechts vom «@» jeder Kennung, die wir vergeben – daran erkennt der Abgleich

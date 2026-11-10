@@ -39,6 +39,11 @@ def test_a_colleague_writing_from_a_private_address_writes_to_us(world):
                                       subject=out.reply_subject, body="Antwort"), staff)
     assert not reply.inbound
     assert comm.answered(db, [out.id]) == {out.id}, "die Antwort nach aussen erledigt sie"
+    # Bug-Form: die Antwort an die private Adresse galt selbst als «offen» (ein Mitarbeiter
+    # im «An» = eine Bitte an uns) – und stand in «zu tun».
+    mine = comm.load(db, [reply.id])[0]
+    assert mine.ours and not mine.open
+    assert not any(c.object_id == staff.object_id and c.open for c in comm.open_counts(db))
 
 
 def test_what_a_colleague_writes_in_the_erp_is_ours(world):
