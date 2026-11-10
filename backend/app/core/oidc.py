@@ -5,7 +5,9 @@ Dienst weiter). Den Takt (``POST /api/v1/internal/tick``) darf darum nur, wer ei
 signiertes ID-Token (OIDC)** mitbringt, ausgestellt für das Dienstkonto des Takts
 (``TICK_SERVICE_ACCOUNT``) und für genau diese Umgebung (``aud`` = ``TICK_AUDIENCE``). Cloud
 Scheduler holt es bei jedem Aufruf neu (``--oidc-service-account-email`` /
-``--oidc-token-audience``, eingerichtet im Deploy).
+``--oidc-token-audience``, eingerichtet im Deploy). **Dieselbe Anmeldung** trägt die Meldung von
+Gmail über Pub/Sub (``POST /api/v1/mail/push``, ``infra/setup-gmail-push.sh``): gleiches
+Dienstkonto, gleiche Zielgruppe – kein zweiter Weg.
 
 * ohne beide Einstellungen: **503** «Takt nicht eingerichtet» – nie ein Takt ohne Anmeldung,
 * ohne oder mit ungültigem Token (Signatur, Ablauf, Aussteller, Zielgruppe): **401**,

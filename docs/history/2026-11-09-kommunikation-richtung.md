@@ -56,3 +56,20 @@ Backend 798 grün, Frontend Typen · Lint · 161 Tests grün.
   (immer Gmail), Gmail-Push statt Abfragen.
 - Geprüft: Backend 803 grün (neu u. a. Wächter «keine zweite Stelle legt eine Mail an», je
   gegen die Bug-Form gegengeprüft), Frontend Typen · Lint · 161 Tests grün.
+
+## Nachtrag 2026-11-10 · C umgesetzt (7, 8, 9)
+- **8 – ein Modus**: «ohne Gmail nur erfassen» ist weg. Eine Mail geht hinaus oder wartet
+  sichtbar auf ihr Postfach; die Eingabe bietet nur verbundene Postfächer an. Tests: ein
+  Test-Postfach (`factories.post_office`) statt einer eigenen Welt.
+- **7 – Eingabe**: drei Arten (Mail · Anruf · Intern); «an mehrere» ist keine Maske, sondern
+  die Zeile «Versand», die erst ab zwei Empfängern erscheint (einzeln = Rundschreiben,
+  Häkchen = Newsletter). Vorher im Artefakt «Kommunikation – neue Eingabe» gezeigt und
+  freigegeben. Die Antwortzeile nennt das Postfach.
+- **9 – Push**: Gmail meldet über Pub/Sub (`POST /api/v1/mail/push`, dieselbe Anmeldung wie der
+  Takt); die Anmeldung bei Gmail erneuert der Takt (`watch_until`, Migration 185); der Browser
+  holt gemeldete Postfächer nicht mehr bei Gmail ab, er fragt nur nach `latest`. Wirksam erst
+  nach `infra/setup-gmail-push.sh` je Projekt – bis dahin holt der Takt ab (Warnung im Log).
+- Unterwegs: zwei Log-Tests waren lokal rot, weil die Test-Datenbank aus Vortagen schon
+  versiegelte Tage hatte – mit frischer Datenbank grün (kein Befund im Code).
+- Geprüft: Backend 808 grün, Frontend Typen · Lint · 161 Tests grün; Gegenproben der neuen
+  Wächter rot gegen den alten Stand.

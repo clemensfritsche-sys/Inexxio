@@ -5119,7 +5119,7 @@
           "communication"
         ],
         "summary": "Sync",
-        "description": "Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein\nRundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je\nPostfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ohne offenen\nBrowser tut dasselbe der Takt (``services/tick``).",
+        "description": "Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein\nRundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je\nPostfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ein Postfach,\ndas Gmail selbst meldet (Push), holt der Browser nicht ab – er erfährt über ``latest``,\ndass etwas Neues da ist. Ohne offenen Browser tut dasselbe der Takt (``services/tick``).",
         "operationId": "sync_api_v1_erp_messages_sync_post",
         "responses": {
           "200": {
@@ -15072,6 +15072,11 @@
           "sent": {
             "type": "integer",
             "title": "Sent",
+            "default": 0
+          },
+          "latest": {
+            "type": "integer",
+            "title": "Latest",
             "default": 0
           }
         },

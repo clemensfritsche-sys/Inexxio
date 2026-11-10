@@ -164,7 +164,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **158 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **159 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -241,6 +241,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |
 | POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
 | POST | `/api/v1/erp/messages/{message_id}/resend` | staff | **Neu senden** – eine Mail, die nicht hinausging (`communication.failed`), wieder zum Versand geben |
+| POST | `/api/v1/mail/push` | – (Google-Token wie der Takt) | **Gmail meldet** über Pub/Sub: in diesem Postfach ist etwas Neues – es wird abgeholt (`mailbox.push`) |
 | POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) – solange das ERP offen ist; ohne Browser tut es der Takt |
 | POST | `/api/v1/internal/tick` | – (Google-Token, `core/oidc`) | **Der Takt** (Cloud Scheduler, alle 5 Min.): jede Aufgabe aus `tick.TASKS` (Siegel des Logs, Mails holen und senden, Aufnahmen aufräumen und zu Ende abschreiben, KI: Gespräche nachholen, Handgriffe aus Mails, Bedeutungs-Zahlen); je `ok` · `skipped` · `failed`, 500 wenn eine scheitert; ohne `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` 503 |
 | GET | `/api/v1/mail/callback` | – (signierter `state`) | Rückkehr von Google → `/erp?mail=…` |
@@ -349,7 +350,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 `/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,
 `FIREBASE_PROJECT_ID`. Optional: `INITIAL_ADMIN_EMAIL`, `GOOGLE_CLIENT_ID`/`_SECRET`
 (Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP_CHF` (Deckel in Franken), `VERTEX_PROJECT`/`VERTEX_REGION` (Bedeutungs-Zahlen und Abschreiben von Aufnahmen, setzt der Deploy; einmal `infra/setup-vertex.sh`, für Aufnahmen dazu `infra/setup-sprache.sh`), `VERTEX_GEMINI_REGION` (wo Gemini abschreibt; leer = `VERTEX_REGION`), `RECORDINGS_BUCKET` (eigener Bucket der Aufnahmen ohne Soft Delete, setzt der Deploy; leer = Stücke in der DB, nie im Datei-Bucket)
-(KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB), `LINK_SECRET` (signierte Links, `core/signed`; leer = abgeleitet aus `DATABASE_URL`, Warnung im Log), `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` (der Takt, setzt der Deploy; leer = kein Takt, 503), `BACKEND_URL` (die direkte Adresse des Dienstes für das Gespräch live, setzt der Deploy; leer = über dieselbe Adresse). Secrets nie im Repo.
+(KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB), `LINK_SECRET` (signierte Links, `core/signed`; leer = abgeleitet aus `DATABASE_URL`, Warnung im Log), `GMAIL_TOPIC` (Gmail meldet neue Mails über Pub/Sub, setzt der Deploy; einmal `infra/setup-gmail-push.sh`; leer = der Takt holt ab), `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` (der Takt, setzt der Deploy; leer = kein Takt, 503), `BACKEND_URL` (die direkte Adresse des Dienstes für das Gespräch live, setzt der Deploy; leer = über dieselbe Adresse). Secrets nie im Repo.
 
 ## Tote Stellen finden
 ```bash

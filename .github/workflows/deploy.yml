@@ -237,6 +237,9 @@ jobs:
           vars="APP_ENV=${{ inputs.app_env }},FRONTEND_BASE_URL=${{ inputs.site_url }},FILES_BUCKET=${{ inputs.gcp_project }}-files,WEB_WORKERS=${{ inputs.web_workers }}"
           # Der Takt (backend/app/core/oidc.py): wer ihn rufen darf – kein Geheimnis.
           vars="$vars,TICK_SERVICE_ACCOUNT=inexxio-tick@${{ inputs.gcp_project }}.iam.gserviceaccount.com,TICK_AUDIENCE=inexxio-tick-${{ inputs.env_name }}"
+          # Gmail meldet neue Mails selbst (backend/app/services/mailbox.watch) – das Thema;
+          # einmal infra/setup-gmail-push.sh. Fehlt es, holt der Takt ab wie bisher.
+          vars="$vars,GMAIL_TOPIC=projects/${{ inputs.gcp_project }}/topics/inexxio-mail"
           # Bedeutungs-Zahlen der KI (backend/app/services/memory.py) – Vertex AI im eigenen
           # Projekt, angemeldet über das Konto des Dienstes; einmal infra/setup-vertex.sh.
           vars="$vars,VERTEX_PROJECT=${{ inputs.gcp_project }}"

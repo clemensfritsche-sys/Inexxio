@@ -302,8 +302,12 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Gmail-Postfach je eigener Gesellschaft** (`services/mailbox.py`, Kanal `c<Objektnummer>`,
   verbindet nur ein Admin; persönliche Postfächer gibt es nicht). Die Kontakt-E-Mail der
   Gesellschaft **ist** das Postfach (gesetzt durch Verbinden, geleert durch Trennen). Abgleich
-  solange das ERP offen ist (`POST /erp/messages/sync`, 30 s je Postfach) und ohne Browser
-  alle 5 Minuten im **Takt** (siehe «Der Takt»); ein unbekannter
+  über **Push**: Gmail meldet jede neue Mail über Pub/Sub (`POST /api/v1/mail/push`, angemeldet
+  wie der Takt), das Postfach wird sofort abgeholt (`mailbox.push`); die Anmeldung bei Gmail
+  (`mailbox.watch`, 7 Tage) erneuert der Takt (`mailboxes.watch_until`; einmal
+  `infra/setup-gmail-push.sh`). Der Takt holt alle 5 Minuten als Netz ab; ohne Push auch das
+  offene ERP (`POST /erp/messages/sync`, 30 s je Postfach) – mit Push fragt es nur, ob etwas
+  Neues da ist (`latest`). Ein unbekannter
   Absender wird Person (`people.ensure`), Massenpost nicht; eine eigene Adresse ist nie eine
   Person; eine Mail, die sich nicht verarbeiten lässt, wird übersprungen (Log). Senden: jede
   Mail genau einmal (einzeln gesperrt, sofort festgeschrieben), nur über ein verbundenes
@@ -342,9 +346,12 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   einmal («an 23»). Hinaus gehen sie über den Abgleich (`mailbox.send_due`, 20 je Lauf);
   ein Newsletter prüft die Einwilligung beim Senden noch einmal. Die Empfänger wählt heute
   der Mensch von Hand (`MessageIn.to` = Liste von Personen, kein Filter); eine Auswahl per
-  KI setzt später genau dort an. In der Eingabe stehen alle fünf Arten in einer Leiste
-  (Mail · Rundschreiben · Newsletter | Anruf · Intern), Anrede und Newsletter-Fuss fest
-  sichtbar.
+  KI setzt später genau dort an. **Die Leiste hat drei Arten** (Mail · Anruf · Intern); stehen
+  zwei oder mehr im «An» einer neuen Mail, fragt dieselbe Eingabe in der Zeile **«Versand»**:
+  «Alle sehen einander» · «Jede Person einzeln» (Rundschreiben), dazu «Als Newsletter» –
+  keine eigene Maske; Anrede und Newsletter-Fuss fest sichtbar. **Nur ein Modus**: eine Mail
+  geht hinaus oder wartet auf ihr Postfach («nur erfassen» gibt es nicht; ohne verbundenes
+  Postfach bietet die Eingabe keine E-Mail an).
 - **Newsletter «Post von INEXXIO»** (`domain/newsletter.py`, `services/newsletter.py`,
   `routers/newsletter.py`): **Einwilligung ist ein Nachweis** (`newsletter_consents`,
   append-only, Quelle + Wortlaut + Zeitpunkt); angemeldet = jüngste Zeile, **zwei

@@ -63,6 +63,9 @@ USERINFO = "https://www.googleapis.com/oauth2/v3/userinfo"
 MARK_WITHIN = timedelta(days=30)
 CALLBACK = "/api/v1/mail/callback"
 SYNC_EVERY = timedelta(seconds=30)
+#: Gmail meldet höchstens sieben Tage lang (``users.watch``); erneuert wird, was in weniger
+#: als einem Tag abläuft.
+WATCH_RENEW = timedelta(days=1)
 STATE_TTL = 600
 #: Der Zweck des signierten ``state`` (``core/signed``).
 STATE_PURPOSE = "mailbox"
@@ -317,7 +320,8 @@ def _over(deadline: Optional[float]) -> bool:
     return deadline is not None and time.monotonic() >= deadline
 
 
-def sync_all(db: Session, *, deadline: Optional[float] = None) -> tuple[int, int]:
+def sync_all(db: Session, *, deadline: Optional[float] = None,
+             browser: bool = False) -> tuple[int, int]:
     """Alle verbundenen Postfächer abgleichen und Fälliges senden. Gibt die Zahl neuer
     und die Zahl versendeter Nachrichten zurück. Ein Postfach, das gerade ein anderer
     abgleicht, wird übersprungen (``SKIP LOCKED``) – zwei Instanzen holen dieselbe Mail nie
@@ -325,7 +329,11 @@ def sync_all(db: Session, *, deadline: Optional[float] = None) -> tuple[int, int
 
     ``deadline`` (der Takt, ``services/tick``): danach beginnt der Lauf **keinen neuen
     Schritt** mehr (kein Postfach, keine Mail, kein Abruf) – was fehlt, holt der nächste
-    Lauf; ein angefangener Schritt ist durch die Zeitgrenzen der Abrufe begrenzt."""
+    Lauf; ein angefangener Schritt ist durch die Zeitgrenzen der Abrufe begrenzt.
+
+    ►►► **Push** (``watch``): meldet Gmail ein Postfach selbst, holt der Browser (``browser``)
+    dort nichts mehr ab – das tut die Meldung (``push``); der Takt holt trotzdem nach, als
+    Netz. Die Anmeldung bei Gmail erneuert jeder Lauf, bevor sie abläuft. ◄◄◄"""
     if not ready():
         return 0, 0
     due = clock.utcnow() - SYNC_EVERY
@@ -338,7 +346,10 @@ def sync_all(db: Session, *, deadline: Optional[float] = None) -> tuple[int, int
     for mb in boxes:
         if _over(deadline):
             break
-        if mb.synced_at is None or mb.synced_at < due:
+        if not browser:
+            watch(db, mb, tokens)
+        pushed = mb.watch_until is not None and mb.watch_until > clock.utcnow()
+        if (mb.synced_at is None or mb.synced_at < due) and not (browser and pushed):
             try:        # ein gestörtes Postfach hält die übrigen und den Versand nicht auf
                 with db.begin_nested():
                     new += _sync_one(db, mb, ours, tokens, deadline)
@@ -349,6 +360,53 @@ def sync_all(db: Session, *, deadline: Optional[float] = None) -> tuple[int, int
     sent = send_due(db, tokens, deadline)
     db.commit()
     return new, sent
+
+
+def watch(db: Session, mb: Mailbox,
+          tokens: Optional[dict[int, Optional[str]]] = None) -> None:
+    """►►► **Gmail bitten, neue Mails selbst zu melden** (``users.watch`` → Pub/Sub →
+    ``push``). ◄◄◄ Nur mit Thema (``GMAIL_TOPIC``) und nur, wenn die Anmeldung fehlt oder in
+    weniger als einem Tag abläuft. Scheitert sie, steht es im Betriebslog, und der Takt holt
+    ab wie ohne Push."""
+    topic = get_settings().gmail_topic
+    now = clock.utcnow()
+    if not topic or (mb.watch_until is not None and mb.watch_until > now + WATCH_RENEW):
+        return
+    token = _token(mb, tokens)
+    if not token:
+        return
+    try:
+        r = httpx.post(f"{API}/watch", timeout=15, headers={"Authorization": f"Bearer {token}"},
+                       json={"topicName": topic, "labelIds": ["INBOX", "SENT"],
+                             "labelFilterBehavior": "INCLUDE"})
+        until = int(r.json().get("expiration", 0)) if r.status_code == 200 else 0
+    except (httpx.HTTPError, ValueError):
+        until = 0
+    if until:
+        mb.watch_until = datetime.fromtimestamp(until / 1000, timezone.utc)
+    else:
+        report.warn(f"MAILBOX watch {mb.channel} failed – der Takt holt ab")
+        mb.watch_until = None           # der nächste Versuch folgt im Takt
+    db.flush()
+
+
+def push(db: Session, address: str) -> int:
+    """►►► **Gmail meldet: in diesem Postfach ist etwas Neues** – es wird jetzt abgeholt,
+    ohne auf den Takt zu warten. ◄◄◄ Unbekannte Adresse oder ein Postfach, das gerade ein
+    anderer abgleicht: nichts (die Meldung ist ein Anstoss, kein Inhalt). Gibt die Zahl
+    neuer Nachrichten zurück."""
+    if not ready():
+        return 0
+    mb = (db.query(Mailbox).filter(Mailbox.address == normalize_email(address),
+                                   Mailbox.is_active.is_(True), Mailbox.problem.is_(None))
+          .with_for_update(skip_locked=True).first())
+    if mb is None:
+        return 0
+    tokens: dict[int, Optional[str]] = {}
+    new = _sync_one(db, mb, _ours(db), tokens)
+    _mark_read(db, mb, tokens)
+    db.commit()
+    return new
 
 
 def _sync_one(db: Session, mb: Mailbox, ours: dict[str, Optional[int]],

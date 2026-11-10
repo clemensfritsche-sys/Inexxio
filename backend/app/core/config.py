@@ -123,7 +123,7 @@ class Settings(BaseSettings):
 
     # ── Postfach (``services/mailbox``, CRM Schritt 3) ───────────────────────────
     #: Der **OAuth-Client** des Google-Cloud-Projekts (Typ «Webanwendung»). **Leer heisst:
-    #: es gibt keine Anbindung** – eine E-Mail wird dann wie bisher nur erfasst. Beide
+    #: es gibt keine Anbindung** – eine E-Mail wartet dann auf ihr Postfach. Beide
     #: aus dem Secret Manager (``docs/gmail-setup.md``), nie aus dem Repo. Das Secret
     #: verschlüsselt zugleich die gespeicherten Refresh-Tokens.
     google_client_id: str = ""
@@ -133,6 +133,12 @@ class Settings(BaseSettings):
     #: dem Secret Manager (``LINK_SECRET``). Leer: der frühere Schlüssel aus der
     #: Datenbankverbindung, mit Warnung im Log.
     link_secret: str = ""
+
+    #: **Gmail meldet neue Mails selbst** (Push): das Pub/Sub-Thema
+    #: (``projects/<Projekt>/topics/inexxio-mail``), gesetzt vom Deploy, eingerichtet einmal je
+    #: Projekt mit ``infra/setup-gmail-push.sh``. Pub/Sub ruft ``POST /api/v1/mail/push`` mit
+    #: dem Token des Takts (dieselbe Prüfung, ``core/oidc``). Leer: ohne Push – der Takt holt ab.
+    gmail_topic: str = ""
 
     # ── Der Takt (``services/tick``, ``core/oidc``) ──────────────────────────────
     #: Cloud Scheduler ruft alle 5 Minuten ``POST /api/v1/internal/tick`` – mit einem von

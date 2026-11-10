@@ -34,6 +34,9 @@ class Mailbox(Base, TimestampMixin, SoftDeleteMixin):
     #: Das Bild des Google-Kontos – steht neben der Unterschrift jeder Mail des Postfachs.
     picture: Mapped[Optional[str]] = mapped_column(Text)
     synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    #: **Bis wann Gmail neue Mails selbst meldet** (Push, ``mailbox.watch``) – höchstens sieben
+    #: Tage, der Takt erneuert sie vorher. Leer oder vorbei = ohne Push.
+    watch_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         Index("uq_mailboxes_channel", "channel", unique=True,

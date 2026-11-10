@@ -2014,8 +2014,9 @@ export interface paths {
          * Sync
          * @description Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein
          *     Rundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je
-         *     Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ohne offenen
-         *     Browser tut dasselbe der Takt (``services/tick``).
+         *     Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ein Postfach,
+         *     das Gmail selbst meldet (Push), holt der Browser nicht ab – er erfährt über ``latest``,
+         *     dass etwas Neues da ist. Ohne offenen Browser tut dasselbe der Takt (``services/tick``).
          */
         post: operations["sync_api_v1_erp_messages_sync_post"];
         delete?: never;
@@ -6419,6 +6420,11 @@ export interface components {
              * @default 0
              */
             sent: number;
+            /**
+             * Latest
+             * @default 0
+             */
+            latest: number;
         };
         /**
          * TalkIn

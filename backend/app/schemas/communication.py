@@ -56,6 +56,9 @@ class SyncOut(BaseModel):
     new: int
     #: Wie viele Mails dieser Lauf hinausgeschickt hat (geplante, Rundschreiben).
     sent: int = 0
+    #: Die jüngste Nachricht (ihre Nummer) – steigt sie, frischt die Oberfläche den Verlauf
+    #: auf, auch wenn die Mail per Push hereinkam und nicht durch diesen Lauf.
+    latest: int = 0
 
 
 class MessageIn(BaseModel):

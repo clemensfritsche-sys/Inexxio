@@ -3,11 +3,12 @@
 from typing import Optional
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
+from ..core.oidc import require_tick
 from ..core.config import get_settings
 from ..core.actor import public
 from ..core.database import DB
@@ -61,14 +62,34 @@ def resend(message_id: int, db: Session = DB, user: UserProfile = Depends(requir
     return svc.load(db, [msg.id])[0]
 
 
+@callback_router.post("/push", status_code=204, include_in_schema=False,
+                      dependencies=[Depends(require_tick)])
+def push(envelope: dict = Body(...), db: Session = DB) -> Response:
+    """Gmail meldet über Pub/Sub, dass in einem Postfach etwas Neues ist – es wird abgeholt."""
+    import base64
+    import json
+    data = (envelope.get("message") or {}).get("data") or ""
+    try:
+        note = json.loads(base64.b64decode(data + "=" * (-len(data) % 4)) or b"{}")
+    except ValueError:
+        note = {}
+    if isinstance(note, dict) and note.get("emailAddress"):
+        mailbox.push(db, str(note["emailAddress"]))
+    return Response(status_code=204)
+
+
 @router.post("/sync", response_model=SyncOut)
 def sync(db: Session = DB, _: UserProfile = Depends(require_employee)):
     """Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein
     Rundschreiben nach und nach hinaus) – abgeglichen höchstens alle 30 Sekunden je
-    Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ohne offenen
-    Browser tut dasselbe der Takt (``services/tick``)."""
-    new, sent = mailbox.sync_all(db)
-    return SyncOut(new=new, sent=sent)
+    Postfach. Ruft das ERP, solange es offen ist; ohne Anbindung ein No-op. Ein Postfach,
+    das Gmail selbst meldet (Push), holt der Browser nicht ab – er erfährt über ``latest``,
+    dass etwas Neues da ist. Ohne offenen Browser tut dasselbe der Takt (``services/tick``)."""
+    from sqlalchemy import func
+    from ..models import Message
+    new, sent = mailbox.sync_all(db, browser=True)
+    latest = db.query(func.max(Message.id)).scalar() or 0
+    return SyncOut(new=new, sent=sent, latest=latest)
 
 
 @callback_router.get("/callback", include_in_schema=False, dependencies=[public("link")])

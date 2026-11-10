@@ -116,6 +116,24 @@ gcloud run services update inexxio-backend-dev --region europe-west6 --project i
   --update-labels=rotated=$(date +%s)
 ```
 
+## Gmail meldet neue Mails selbst (Push)
+
+**Gmail meldet jede neue Mail eines verbundenen Postfachs an Pub/Sub** (Thema `inexxio-mail`),
+Pub/Sub ruft sofort `POST /api/v1/mail/push` am Cloud-Run-Dienst – angemeldet wie der Takt
+(Dienstkonto `inexxio-tick@`, Zielgruppe `inexxio-tick-<env>`, `backend/app/core/oidc.py`). Das
+Backend holt dann genau dieses Postfach ab (`mailbox.push`). Die Anmeldung bei Gmail
+(`users.watch`, höchstens 7 Tage) erneuert der Takt, bevor sie abläuft (`mailbox.watch`); ein
+gemeldetes Postfach holt der offene Browser nicht mehr bei Gmail ab, er fragt nur, ob etwas Neues
+da ist. **Ohne Push** (Skript nicht gelaufen, Thema fehlt) holt der Takt alle 5 Minuten ab – die
+Anmeldung scheitert dann mit einer Warnung im Betriebslog. Der Deploy setzt `GMAIL_TOPIC`.
+**Einmal je Projekt**, in Cloud Shell, nach `setup-takt.sh` (idempotent):
+
+```bash
+bash infra/setup-gmail-push.sh inexxio-dev
+```
+
+Kosten ≈ 0 (Pub/Sub bis 10 GB im Monat frei; eine Meldung sind wenige hundert Bytes).
+
 ## Der Takt
 
 **Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, `POST /api/v1/internal/tick`** am
@@ -254,6 +272,7 @@ alten Schlüssel löschen (`gcloud iam service-accounts keys list --iam-account 
 
 - `scripts/check-schema.sh` – der Schritt nach dem Deploy (oben).
 - `infra/setup-takt.sh` – der Takt, einmal je Projekt (oben, «Der Takt»).
+- `infra/setup-gmail-push.sh` – Gmail meldet neue Mails selbst, einmal je Projekt nach dem Takt (oben, «Gmail meldet …»).
 - `docker-compose.yml` – nur die lokale Datenbank (PostgreSQL 16).
 - `scripts/dump-db.sh` – vollständige Sicherung der dev-Datenbank (Cloud Shell).
 - `scripts/reset-dev-db.sql` – dev leeren, damit sie neu aus den Migrationen entsteht
