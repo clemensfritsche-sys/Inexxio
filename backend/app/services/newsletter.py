@@ -190,15 +190,14 @@ def _box(db: Session, channel: Optional[str]):
     return channel, box
 
 
-def _request(db: Session, channel: str, box, name: str, url: str) -> mail_layout.Mail:
-    """Die Mail mit dem einen Knopf – gebaut in der einen Vorlage (``mail_layout.compose``)."""
-    from . import mailbox
-    firm = mail_layout.firm_of(mailbox.company(db, channel), box.address, box.picture or "")
-    lead = f"{dc.greeting(name).strip()}\n\n{WORDS['confirmLead']}"
-    action = mail_layout.Action(title="", text="", label=WORDS["confirmButton"], url=url,
-                                note=WORDS["confirmIgnore"])
-    return mail_layout.compose(WORDS["confirmSubject"], lead, firm, None,
-                               kicker=WORDS["kicker"], extra=mail_layout.Extra(action=action))
+def _lead(name: str) -> str:
+    return f"{dc.greeting(name).strip()}\n\n{WORDS['confirmLead']}"
+
+
+def _ask(url: str) -> mail_layout.Extra:
+    """Der eine Knopf der Bitte um Bestätigung."""
+    return mail_layout.Extra(action=mail_layout.Action(
+        title="", text="", label=WORDS["confirmButton"], url=url, note=WORDS["confirmIgnore"]))
 
 
 def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
@@ -207,22 +206,16 @@ def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
     Verlauf, unterschrieben vom Unternehmen. Committet und sendet. 409, wenn sie schon
     angemeldet ist; 503 ohne verbundenes Postfach. Von der Website (``by_name=False``) ohne
     Namen in der Anrede: der Name stammt womöglich aus einem öffentlichen Formular."""
-    from . import mailbox
-    from .communication import write
+    from . import outbox
     if oid in subscribed(db, [oid]):
         raise Conflict("Diese Person ist schon angemeldet.")
-    channel, box = _box(db, channel)
+    channel, _ = _box(db, channel)
     person = db.query(UserProfile).filter(UserProfile.object_id == oid).first()
     if person is None:
         raise NotFound(f"Person «{oid}» gibt es nicht.")
-    mail = _request(db, channel, box, person.display_name if by_name else "",
-                    confirm_url(source, person=oid))
-    msg = Message(sender_object_id=dc.company_of(channel), channel=channel,
-                  subject=WORDS["confirmSubject"], body=mail.body, html=mail.html, at=clock.utcnow(),
-                  created_by=None, outgoing=True)
-    write(db, msg, {"to": [oid], "cc": [], "bcc": [], "about": []})
-    mailbox.send_after(db)
-    return msg
+    return outbox.deliver(db, channel=channel, to=[oid], subject=WORDS["confirmSubject"],
+                          lead=_lead(person.display_name if by_name else ""),
+                          kicker=WORDS["kicker"], extra=_ask(confirm_url(source, person=oid)))
 
 
 def invite_address(db: Session, email: str, source: str, channel: Optional[str] = None) -> None:
@@ -230,8 +223,10 @@ def invite_address(db: Session, email: str, source: str, channel: Optional[str] 
     Website). Angelegt wird nichts: die Adresse steht im signierten Link, die Person entsteht
     erst mit dem Klick (``confirm``). Ohne Person gibt es keinen Verlauf – die Mail geht
     direkt hinaus; 503, wenn das nicht geht."""
-    from . import mailbox
-    channel, box = _box(db, channel)
-    mail = _request(db, channel, box, "", confirm_url(source, email=email))
+    from . import mailbox, outbox
+    channel, _ = _box(db, channel)
+    mail = mail_layout.compose(WORDS["confirmSubject"], _lead(""), outbox.firm(db, channel),
+                               None, kicker=WORDS["kicker"],
+                               extra=_ask(confirm_url(source, email=email)))
     if not mailbox.send_direct(db, channel, email, WORDS["confirmSubject"], mail):
         raise Unavailable("Die Bitte um Bestätigung ging nicht hinaus.")

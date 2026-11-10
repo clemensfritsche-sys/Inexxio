@@ -171,3 +171,40 @@ def test_a_reply_names_the_whole_thread(world, monkeypatch):
     mime = mb._mime(db, box, last, mb._parent(db, last))
     assert mime["In-Reply-To"] == "<b@kunde.ch>"
     assert mime["References"].split() == ["<a@kunde.ch>", reply.rfc_id, "<b@kunde.ch>"]
+
+
+def test_a_mail_is_built_when_it_is_written(world, monkeypatch):
+    """►►► Gebaut beim Anlegen, nicht erst beim Senden: was im Verlauf steht, ist ab sofort,
+    was hinausgeht. Bug-Form: eine Antwort bekam ihre Vorlage erst beim Versand – bis
+    dahin (und wenn der Versand scheiterte, für immer) stand im ERP etwas anderes."""
+    db, staff, _box = world
+    monkeypatch.setattr(mb, "ready", lambda: True)
+    monkeypatch.setattr(mb, "send_after", lambda _db: None)
+    lea = _person(db)
+    msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Offerte",
+                                    body="Anbei die Offerte."), staff)
+    assert msg.outgoing and msg.html and staff.display_name in msg.html
+    assert "Anbei die Offerte." in msg.html and msg.body == "Anbei die Offerte."
+
+
+def test_a_mail_of_the_house_comes_from_one_place(world, monkeypatch):
+    """``outbox.deliver``: wer auslöst und Personal ist, schreibt; sonst die Gesellschaft.
+    Und keine zweite Stelle legt eine Mail an, die hinaus soll."""
+    from pathlib import Path
+    import re
+    from app.services import outbox
+    db, staff, box = world
+    monkeypatch.setattr(mb, "ready", lambda: True)
+    monkeypatch.setattr(mb, "send_after", lambda _db: None)
+    lea = _person(db)
+    by_staff = outbox.deliver(db, channel=CH, to=[lea.object_id], subject="Rechnung 1",
+                              lead="Guten Tag", author=staff)
+    by_customer = outbox.deliver(db, channel=CH, to=[lea.object_id], subject="Rechnung 2",
+                                 lead="Guten Tag", author=lea)
+    assert (by_staff.sender_object_id, by_staff.created_by) == (staff.object_id, staff.id)
+    assert by_customer.sender_object_id == dc.company_of(CH) and by_customer.created_by is None
+    assert by_staff.outgoing and by_staff.html and by_customer.html
+    app = Path(__file__).resolve().parents[1] / "app" / "services"
+    second = [f.name for f in app.glob("*.py") if f.name not in ("outbox.py", "communication.py")
+              and re.search(r"Message\((?:[^()]|\([^()]*\))*outgoing\s*=", f.read_text())]
+    assert second == [], f"Mail an zweiter Stelle angelegt: {second}"

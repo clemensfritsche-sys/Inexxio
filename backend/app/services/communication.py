@@ -292,7 +292,7 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
     Nur, wo es eine Anbindung gibt (``mailbox.ready``) – sonst wird sie wie bisher nur
     erfasst. Gibt es sie, ist das Postfach Pflicht: eine Mail, die das ERP als
     «verschickt» zeigt und die nie hinausging, wäre schlimmer als eine Ablehnung."""
-    from . import mailbox
+    from . import mailbox, outbox
     outward = roles["to"] or roles["cc"] or roles["bcc"]
     if not (dc.is_mail(msg.channel) and outward and mailbox.ready()):
         return
@@ -301,6 +301,7 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
     sender = _people(db, [msg.sender_object_id]).get(msg.sender_object_id)
     mailbox.assert_may_send(db, msg.channel, sender)
     msg.outgoing = True
+    outbox.build(db, msg)       # gebaut jetzt – der Verlauf ist ab hier, was hinausgeht
     if now:
         mailbox.send_after(db)
 

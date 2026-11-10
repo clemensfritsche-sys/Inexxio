@@ -19,6 +19,7 @@ from app.schemas.communication import MessageIn
 from app.services import communication as comm
 from app.services import mail_layout as layout
 from app.services import mailbox as mb
+from app.services import outbox
 from app.services import portrait
 from tests.runner import session
 from tests.test_mailbox import CH, COMPANY, _gmail, _person
@@ -129,14 +130,14 @@ def test_the_picture_opens_once_and_stands():
     assert (portrait.WIDTH * 2, portrait.HEIGHT * 2) == first.size
 
 
-def test_an_automatic_mail_is_signed_by_the_company_with_its_mailbox_picture():
+def test_an_automatic_mail_is_signed_by_the_company_with_its_mailbox_picture(db):
     """Geschrieben hat sie niemand (``created_by`` leer) – also unterschreibt das
-    Unternehmen, mit dem Bild seines Postfachs."""
-    staff = SimpleNamespace(role="employee", display_name="Clemens Fritsche", photo_url=None)
-    assert mb.signer_of(staff, SimpleNamespace(created_by=None)) is None
-    assert mb.signer_of(staff, SimpleNamespace(created_by=7)).name == "Clemens Fritsche"
-    assert mb.signer_of(SimpleNamespace(role="user", display_name="Kunde"),
-                        SimpleNamespace(created_by=7)) is None
+    Unternehmen, mit dem Bild seines Postfachs (``outbox.signer``)."""
+    staff, kunde = _person(db, "employee"), _person(db)
+    assert outbox.signer(db, Message(sender_object_id=staff.object_id, created_by=None)) is None
+    assert outbox.signer(db, Message(sender_object_id=staff.object_id, created_by=7)).name \
+        == staff.display_name
+    assert outbox.signer(db, Message(sender_object_id=kunde.object_id, created_by=7)) is None
     html = layout.compose("x", "y", FIRM, None).html
     assert pictures(html) == [(FIRM.picture, "IA")] and "Monika" not in html
     bare = layout.Firm(name="INEXXIO AG")

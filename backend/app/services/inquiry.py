@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from ..core import clock
 from ..domain import communication as dc
 from ..models import Message
-from . import attachments, mail_layout, mailbox, people, sites
+from . import attachments, mail_layout, mailbox, outbox, people, sites
 from .communication import write
 
 #: Das Vokabular der Website (``website/src/config``, generiert von
@@ -214,7 +214,7 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     verbundenes Postfach gibt es keine (``False``): eine Bestätigung, die nie hinausgeht,
     stünde als Lüge im Verlauf.
 
-    **Gebaut an EINER Stelle** (``mail_layout.compose``): der Verlauf ist der Inhalt der
+    **Gebaut an EINER Stelle** (``outbox.deliver``): der Verlauf ist der Inhalt der
     Mail, Wort für Wort. Unterschrieben vom Unternehmen – geschrieben hat sie niemand.
 
     **Darin der Newsletter** (``newsletter.offer``): mit Häkchen die Bitte um Bestätigung,
@@ -223,18 +223,11 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     box = mailbox.active(db, inquiry.channel)
     if not mailbox.ready() or box is None or box.problem:
         return False
-    firm = mail_layout.firm_of(mailbox.company(db, inquiry.channel), box.address,
-                               box.picture or "")
-    subject = words["confirmSubject"]
     more = extra(inq, inquiry.at, words)
     more.action = offer(db, inquiry.sender_object_id, inq.newsletter)
-    mail = mail_layout.compose(subject, lead(words), firm, None,
-                               kicker=words["kicker"], extra=more)
-    msg = Message(sender_object_id=dc.company_of(inquiry.channel), channel=inquiry.channel,
-                  subject=subject, body=mail.body, html=mail.html,
-                  at=clock.utcnow(), created_by=None, outgoing=True)
-    write(db, msg, {"to": [inquiry.sender_object_id], "cc": [], "bcc": [], "about": []})
-    mailbox.send_after(db)
+    outbox.deliver(db, channel=inquiry.channel, to=[inquiry.sender_object_id],
+                   subject=words["confirmSubject"], lead=lead(words),
+                   kicker=words["kicker"], extra=more)
     return True
 
 

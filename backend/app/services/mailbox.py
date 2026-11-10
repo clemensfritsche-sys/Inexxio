@@ -719,8 +719,6 @@ def send(db: Session, msg: Message,
     msg.outgoing = False
     msg.gmail_id, msg.thread_id = sent.get("id"), sent.get("threadId")
     msg.subject = msg.subject or mime["Subject"] or None
-    html_part = mime.get_body(("html",))
-    msg.html = msg.html or (html_part.get_content() if html_part is not None else None)
     db.flush()
     return True
 
@@ -813,26 +811,16 @@ def _thread(db: Session, msg: Message) -> list[Message]:
         .order_by(Message.at.desc()).limit(THREAD_MAX).all())[::-1]
 
 
-def signer_of(sender: Optional[UserProfile], msg: Message):
-    """Wer unterschreibt: der Mensch, der die Mail **geschrieben** hat (``created_by``),
-    sofort erkennbar als Mitarbeiter – mit seinem Profilbild. Eine automatische Mail
-    unterschreibt das Unternehmen (``None``)."""
-    from . import mail_layout as layout
-    if msg.created_by is None or not policy.is_staff(sender):
-        return None
-    return layout.as_signer(sender)
-
-
 def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> EmailMessage:
     """Die Mail – **in der einen Vorlage des Hauses** (``mail_layout``): als Text und als
     HTML, unterschrieben mit dem Menschen im Namen der Gesellschaft."""
-    from . import mail_layout as layout
+    from . import mail_layout as layout, outbox
+    if not msg.html:        # wartete schon, bevor jede Mail beim Anlegen gebaut wurde
+        outbox.build(db, msg)
     parties = db.query(MessageParty).filter(MessageParty.message_id == msg.id).all()
-    ids = {p.object_id for p in parties} | {msg.sender_object_id}
-    people = {u.object_id: u for u in
-              db.query(UserProfile).filter(UserProfile.object_id.in_(ids)).all()}
-    signer = signer_of(people.get(msg.sender_object_id), msg)
-    firm = layout.firm_of(company(db, msg.channel), mb.address, mb.picture or "")
+    people = {u.object_id: u for u in db.query(UserProfile).filter(
+        UserProfile.object_id.in_({p.object_id for p in parties})).all()}
+    signer = outbox.signer(db, msg)
     mime = EmailMessage()
     mime["From"] = formataddr((layout.sender_name(signer), mb.address))
     for role, header in (("to", "To"), ("cc", "Cc"), ("bcc", "Bcc")):
@@ -843,21 +831,16 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
             mime[header] = ", ".join(addrs)
     mime["Subject"] = msg.subject or ""
     mime["Message-ID"] = msg.rfc_id
-    unsubscribe = _unsubscribe(mime, parties) if msg.newsletter else None
+    if msg.newsletter:
+        _unsubscribe(mime, parties)
     if parent is not None:
         # Der ganze Faden (RFC 5322): so zeigt auch Outlook beim Kunden den Verlauf.
         mime["In-Reply-To"] = parent.rfc_id
         mime["References"] = " ".join(m.rfc_id for m in _thread(db, msg) if m.rfc_id)
-    if msg.html:
-        # Schon gebaut (die Eingangsbestätigung): ``body`` IST ihr Inhalt (``compose``).
-        text, html = layout.text(msg.subject or "", msg.body or "", firm, signer), msg.html
-    else:
-        mail = layout.compose(msg.subject or "", msg.body or "", firm, signer,
-                              unsubscribe=unsubscribe)
-        msg.body = mail.body        # der Verlauf ist, was hinausgeht – Wort für Wort
-        text, html = mail.text, mail.html
-    mime.set_content(text)
-    mime.add_alternative(html, subtype="html")
+    # Gebaut beim Anlegen (``outbox.build``): ``html`` geht hinaus, ``body`` ist sein Inhalt.
+    mime.set_content(layout.text(msg.subject or "", msg.body or "",
+                                 outbox.firm(db, msg.channel), signer))
+    mime.add_alternative(msg.html or "", subtype="html")
     return mime
 
 

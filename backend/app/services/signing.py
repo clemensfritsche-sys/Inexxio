@@ -84,14 +84,10 @@ def send(db: Session, doc: Document, person_ids: list[int], note: str,
 
 def _mail(db: Session, doc: Document, person: UserProfile, link: DocumentLink, note: str,
           actor: UserProfile) -> Optional[Message]:
-    from . import mailbox
-    from .communication import write
+    from . import outbox
     company = sites.find_operator(db)
     if company is None or not company.object_id:
         return None
-    channel = dc.company(company.object_id)
-    box = mailbox.active(db, channel) if mailbox.ready() else None
-    live = box is not None and not box.problem
     asked = any(s.person_object_id == person.object_id and not s.signed_at and not s.declined_at
                 for s in documents.signatures_of(db, [doc.id])[doc.id])
     title = dd.title(doc.art, doc.name)
@@ -99,19 +95,11 @@ def _mail(db: Session, doc: Document, person: UserProfile, link: DocumentLink, n
             + (note.strip() + "\n\n" if note.strip() else "")
             + ("Bitte prüfen und unterschreiben Sie das Dokument online." if asked
                else "Sie finden das Dokument online."))
-    firm = mail_layout.firm_of(company, box.address if box else (company.email or ""),
-                               (box.picture or "") if box else "")
-    mail = mail_layout.compose(title, lead, firm, mail_layout.as_signer(actor),
-                               extra=mail_layout.Extra(action=mail_layout.Action(
-                                   title=title, text="", label="Unterschreiben" if asked else "Öffnen",
-                                   url=link_url(link.token))))
-    msg = Message(sender_object_id=actor.object_id or company.object_id, channel=channel,
-                  subject=title, body=mail.body, html=mail.html, at=clock.utcnow(),
-                  created_by=actor.id, outgoing=mailbox.ready())
-    write(db, msg, {"to": [person.object_id], "cc": [], "bcc": [], "about": []})
-    if live:
-        mailbox.send_after(db)
-    return msg
+    action = mail_layout.Action(title=title, text="", url=link_url(link.token),
+                                label="Unterschreiben" if asked else "Öffnen")
+    return outbox.deliver(db, channel=dc.company(company.object_id), to=[person.object_id],
+                          subject=title, lead=lead, author=actor,
+                          extra=mail_layout.Extra(action=action))
 
 
 # ---------------------------------------------------------------------------

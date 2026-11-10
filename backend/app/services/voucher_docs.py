@@ -388,10 +388,9 @@ def paper_of(db: Session, rec: vs.Paper) -> str:
 
 def _mail(db: Session, *, row: Voucher, token: str, doc: a4.Doc, kind: str,
           party: int, actor: Optional[UserProfile], level: Optional[int]) -> Optional[Message]:
-    """**Die Mail zum Dokument** – über das Postfach der Gesellschaft, im Verlauf der Person.
-    Ohne verbundenes Postfach wird sie nur erfasst (wie jede Mail des Hauses)."""
-    from . import mailbox
-    from .communication import write
+    """**Die Mail zum Dokument** – über das Postfach der Gesellschaft, im Verlauf der Person
+    (``outbox.deliver``, wie jede Mail des Hauses)."""
+    from . import outbox
     company = vh.issuer_company(db, row)
     if company is None or not getattr(company, "object_id", None):
         return None
@@ -399,8 +398,6 @@ def _mail(db: Session, *, row: Voucher, token: str, doc: a4.Doc, kind: str,
     if person is None:
         return None
     channel = dc.company(company.object_id)
-    box = mailbox.active(db, channel) if mailbox.ready() else None
-    live = box is not None and not box.problem
     if kind == vo.REMINDER_DOC:
         title = f"{vo.remind_word(level or 1)} zur Rechnung {doc.number}"
         lead = _reminder_text(row, level, doc.number)
@@ -411,28 +408,14 @@ def _mail(db: Session, *, row: Voucher, token: str, doc: a4.Doc, kind: str,
         due = f", zahlbar bis {_day(row.due_on)}" if row.due_on else ""
         lead = lead.replace("{due}", due)
     body = f"{dc.greeting(person.display_name)}\n\n{lead}"
-    firm = mail_layout.firm_of(company, box.address if box else (company.email or ""),
-                               (box.picture or "") if box else "")
     paper = mail_layout.Paper(
         stations=list(STATIONS), at=AT.get(kind),
         rows=[(ln.qty, ln.name, ln.amount) for ln in doc.lines],
         total_label=f"{doc.total_label} {doc.currency}", total=doc.total,
         label=label, url=vs.public_link(token),
         tax=(doc.sums[1] if len(doc.sums) == 2 and kind != vo.REMINDER_DOC else None))
-    staff = policy.is_staff(actor) and actor.object_id
-    signer = mail_layout.as_signer(actor) if staff else None
-    mail = mail_layout.compose(title, body, firm, signer,
-                               extra=mail_layout.Extra(paper=paper))
-    # Wer nicht als Mensch unterschreibt, schreibt nicht – dann die Gesellschaft. Gibt es
-    # eine Anbindung, wartet die Mail auf ihr Postfach, statt still als «gesendet» dazustehen.
-    sender = actor.object_id if staff else company.object_id
-    msg = Message(sender_object_id=sender, channel=channel, subject=title, body=mail.body,
-                  html=mail.html, at=clock.utcnow(),
-                  created_by=actor.id if staff else None, outgoing=mailbox.ready())
-    write(db, msg, {"to": [party], "cc": [], "bcc": [], "about": []})
-    if live:
-        mailbox.send_after(db)
-    return msg
+    return outbox.deliver(db, channel=channel, to=[party], subject=title, lead=body,
+                          author=actor, extra=mail_layout.Extra(paper=paper))
 
 
 def preview(db: Session, *, order: Order, step: Any, action: str, payload: dict[str, Any],
