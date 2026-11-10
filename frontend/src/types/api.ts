@@ -3978,8 +3978,11 @@ export interface components {
             article_object_id: number;
             /** Quantity */
             quantity: number;
-            /** Origin */
-            origin: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "neu" | "lager";
             /** Units */
             units?: components["schemas"]["UnitPick"][];
             /**
@@ -4829,8 +4832,11 @@ export interface components {
          *     Entwurfs jeden fehlenden Teil als Satz, statt mit 422 abzubrechen.
          */
         LoopIn: {
-            /** Every */
-            every?: string | null;
+            /**
+             * Every
+             * @enum {unknown}
+             */
+            every?: "week" | "month" | "quarter" | "half" | "year" | null;
             /** First */
             first?: string | null;
             /** Until */
@@ -4838,7 +4844,7 @@ export interface components {
             /** Count */
             count?: number | null;
             /** Takes */
-            takes?: (string | null)[];
+            takes?: ("same" | "fifo" | "new" | null)[];
         };
         /**
          * LoopLineView

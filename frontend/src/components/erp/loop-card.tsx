@@ -10,7 +10,8 @@ import { ActionButton } from '@/components/erp/module-ui';
 import { ObjId } from '@/components/erp/obj-id';
 import { TONE } from '@/lib/status-tone';
 import { day } from '@/lib/when';
-import { LOOP_EVERY, LOOP_TAKES, type LoopEvery } from '@/lib/vocab';
+import { LOOP_EVERY, LOOP_TAKES, type LoopEvery, type LoopTake } from '@/lib/vocab';
+import { everyOf, takeOf } from '@/lib/loop';
 import { LAGER, type DefinitionLine } from '@/components/erp/definition-lines';
 
 /**
@@ -35,13 +36,13 @@ const ENDS = [
 
 /** Die Einstellung im Entwurf – lebt nur im Browser, wie der ganze Entwurf. */
 export interface LoopDraft {
-  every: string;
+  every: LoopEvery;
   first: string;
   end: 'never' | 'until' | 'count';
   until: string;
   count: string;
   /** Was die Wiederholung je Zeile nimmt, nach dem Schlüssel der Zeile; ohne Vorbelegung. */
-  takes: Record<number, string>;
+  takes: Record<number, LoopTake>;
 }
 
 const NEW_LOOP: LoopDraft = {
@@ -101,7 +102,7 @@ export function LoopDraftCard({ loop, onChange, lines }: {
         onClick={() => onChange(null)} />} />
       <div style={ROW}>
         <span style={KEY}>Takt</span>
-        <Segmented value={loop.every} onChange={(v) => set({ every: v })} options={EVERY} />
+        <Segmented value={loop.every} onChange={(v) => set({ every: everyOf(v) ?? loop.every })} options={EVERY} />
       </div>
       <div style={ROW}>
         <span style={KEY}>Ab</span>
@@ -128,7 +129,10 @@ export function LoopDraftCard({ loop, onChange, lines }: {
           <span style={KEY}>{stock.length > 1 ? `Nimmt ${i + 1}` : 'Nimmt'}</span>
           <Segmented value={loop.takes[l.key] ?? ''} options={TAKES}
             tip="Aus dem Lager: jedes Mal dieselben Stücke – oder die ältesten freien (FIFO)"
-            onChange={(v) => set({ takes: { ...loop.takes, [l.key]: v } })} />
+            onChange={(v) => {
+              const take = takeOf(v);
+              if (take) set({ takes: { ...loop.takes, [l.key]: take } });
+            }} />
         </div>
       ))}
     </div>

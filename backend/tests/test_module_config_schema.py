@@ -155,3 +155,20 @@ def test_the_ai_reads_every_module_and_its_settings_from_the_route(key):
     assert points["properties"]["type"]["enum"] == list(capture_types.KEYS)
     assert {"target", "unit"} <= set(points["properties"])
     assert {"direction", "parties", "prices"} <= set(by_type[modules.BELEG]["properties"])
+
+
+def test_the_ai_reads_the_allowed_origin_and_loop_values_from_the_route():
+    """Bug-Form: Herkunft einer Zeile und Takt der Wiederholung sind freier Text – die KI rät
+    «new», «stock», «monthly» und erfährt erst beim Probelauf, dass es das nicht gibt."""
+    from app.domain import loop as loop_rules
+    from app.models.order_line import ORIGINS
+    from app.services import ai_tools
+    tool = next(t for t in ai_tools.erp_tools(lambda *a: (None, None)) if t.name == "handlung")
+    schema = json.loads(tool.run({"handlung": "POST /api/v1/erp/orders"})
+                        .split("Werte (JSON-Schema): ", 1)[1])
+    line = schema["properties"]["lines"]["items"]
+    assert line["properties"]["origin"]["enum"] == list(ORIGINS)
+    loop = schema["properties"]["loop"]
+    loop = next((a for a in loop.get("anyOf", [loop]) if "properties" in a), loop)
+    assert set(loop_rules.EVERY) <= set(loop["properties"]["every"]["enum"])
+    assert set(loop_rules.TAKES) <= set(loop["properties"]["takes"]["items"]["enum"])

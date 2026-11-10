@@ -179,7 +179,7 @@ sein Protokoll (`services/record.py`, eine Ableitung für alle); ein Modul zeigt
 in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist. **Jedes Modul beschreibt seine
 Einstellungen** neben `clean_config` als JSON-Schema mit Beispielen (`Module.config_schema`,
 Erfassungstypen `CaptureType.FIELDS`, `sampling.SCHEMA`); daraus beschreibt sich `ModuleInput`
-(`module_type` als `enum`, je Typ `x-config-by-module-type`) und damit jede Route, die Schritte
+(`module_type` als `enum`, je Typ `x-config-by-module-type`; Herkunft einer Zeile und Takt/Wahl der Wiederholung ebenfalls als `enum`) und damit jede Route, die Schritte
 nimmt – die KI liest es über `handlung`. Wächter `test_module_config_schema`: was `clean_config`
 liest, ist beschrieben, und umgekehrt.
 

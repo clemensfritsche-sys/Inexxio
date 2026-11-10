@@ -9954,6 +9954,10 @@
           },
           "origin": {
             "type": "string",
+            "enum": [
+              "neu",
+              "lager"
+            ],
             "title": "Origin"
           },
           "units": {
@@ -11883,6 +11887,14 @@
                 "type": "null"
               }
             ],
+            "enum": [
+              "week",
+              "month",
+              "quarter",
+              "half",
+              "year",
+              null
+            ],
             "title": "Every"
           },
           "first": {
@@ -11920,13 +11932,11 @@
           },
           "takes": {
             "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "same",
+                "fifo",
+                "new",
+                null
               ]
             },
             "type": "array",

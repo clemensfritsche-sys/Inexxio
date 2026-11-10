@@ -11,7 +11,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from ..domain import modules, sampling
+from ..domain import loop as loop_rules, modules, sampling
+from ..models.order_line import ORIGINS
 
 from .voucher import VoucherEmbed
 from .instance import StockState
@@ -54,7 +55,10 @@ class DefinitionLine(BaseModel):
 
     article_object_id: int
     quantity: int = Field(ge=1)
-    origin: str
+    #: Woher die Stücke kommen: ``neu`` (werden erzeugt) oder ``lager`` (bestehende, in ``units``).
+    #: Die erlaubten Werte stehen im Schema (``enum`` aus ``order_line.ORIGINS``); geprüft wird im
+    #: Dienst, mit einem Satz.
+    origin: str = Field(json_schema_extra={"enum": list(ORIGINS)})
     units: list[UnitPick] = Field(default_factory=list)
     #: **Die Rückführung** – kehren übernommene Stücke in ihren Auftrag zurück (§3.3/§3.4)?
     #: Gespeichert an der Verbindung (``order_units.return_to_order_id``); für freie Stücke
@@ -68,8 +72,8 @@ class LoopIn(BaseModel):
     Geprüft wird sie im Dienst (``loop.draft_problems``), nicht hier: so nennt die Prüfung des
     Entwurfs jeden fehlenden Teil als Satz, statt mit 422 abzubrechen."""
 
-    #: ``week`` · ``month`` · ``quarter`` · ``half`` · ``year``.
-    every: Optional[str] = None
+    #: Der Takt (``domain/loop.EVERY``) – im Schema als ``enum``, geprüft im Dienst.
+    every: Optional[str] = Field(None, json_schema_extra={"enum": [*loop_rules.EVERY, None]})
     #: Die erste Wiederholung (Kalendertag, heute oder später).
     first: Optional[str] = None
     #: Ende: ein Datum **oder** eine Anzahl Wiederholungen – beides leer heisst unbefristet.
@@ -77,7 +81,9 @@ class LoopIn(BaseModel):
     count: Optional[int] = None
     #: Je Zeile des Entwurfs (gleiche Reihenfolge): ``same`` (gleiche Einzelinstanzen) oder
     #: ``fifo``; bei einer Zeile «Neu» bedeutungslos. **Ohne Vorbelegung**.
-    takes: list[Optional[str]] = Field(default_factory=list)
+    takes: list[Optional[str]] = Field(
+        default_factory=list,
+        json_schema_extra={"items": {"enum": [*loop_rules.TAKES, None]}})
 
 
 class OrderCreate(BaseModel):

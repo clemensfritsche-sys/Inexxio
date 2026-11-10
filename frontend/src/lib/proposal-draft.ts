@@ -13,7 +13,8 @@
 import { LAGER, NEU, emptyLine, type DefinitionLine } from '@/components/erp/definition-lines';
 import type { LoopDraft } from '@/components/erp/loop-card';
 import { moduleFromConfig, toModulePayload, type ModuleDraft } from '@/lib/modules';
-import { MODULE_KEYS } from '@/lib/vocab';
+import { MODULE_KEYS, type LoopTake } from '@/lib/vocab';
+import { everyOf, takeOf } from '@/lib/loop';
 
 type Body = Record<string, unknown> | null | undefined;
 
@@ -110,12 +111,19 @@ function loopOf(raw: unknown, lines: DefinitionLine[], left: string[]): LoopDraf
   if (empty(raw)) return null;
   if (!isObj(raw)) { left.push(`Wiederholung: ${show(raw)}`); return null; }
   left.push(...unknownKeys(raw, ['every', 'first', 'until', 'count', 'takes'], 'Wiederholung: '));
-  const takes: Record<number, string> = {};
-  rows(raw.takes).forEach((t, i) => { if (typeof t === 'string' && lines[i]) takes[lines[i].key] = t; });
+  const takes: Record<number, LoopTake> = {};
+  rows(raw.takes).forEach((t, i) => {
+    if (t == null || !lines[i]) return;
+    const take = takeOf(t);
+    if (take) takes[lines[i].key] = take;
+    else left.push(`Wiederholung, Zeile ${i + 1}: ${show(t)}`);
+  });
+  const every = everyOf(raw.every);
+  if (raw.every != null && raw.every !== '' && !every) left.push(`Takt: ${show(raw.every)}`);
   const until = typeof raw.until === 'string' ? raw.until : '';
   const count = asInt(raw.count);
   return {
-    every: typeof raw.every === 'string' && raw.every ? raw.every : 'month',
+    every: every ?? 'month',
     first: typeof raw.first === 'string' ? raw.first : '',
     end: until ? 'until' : count !== null ? 'count' : 'never',
     until,
