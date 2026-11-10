@@ -1,9 +1,9 @@
 """►►► **Die Handlungen am Beleg** – jedes Verb EINMAL (``VERBS``), ``can`` als Auskunft
 und Tor (``assert_allowed``), ``apply`` als die eine Tür. ◄◄◄
 
-Was ein Verb an Stammdaten braucht, steht in ``REQUIRED_FOR`` (``gaps``); die Eingabe-Leser
-(``_int`` · ``amount_of`` · ``_days`` · ``_day`` · ``_text``) stehen hier, weil nur Handlungen
-lesen, was hereinkommt.
+Die Verben selbst stehen in ``voucher_offer`` (bis zur Zusage) und ``voucher_billing`` (ab der
+Zusage); was ein Verb an Stammdaten braucht, in ``voucher_rules`` (``NEEDS`` → ``gaps``); was
+hereinkommt, liest ``voucher_input``.
 """
 
 from dataclasses import dataclass
@@ -33,10 +33,10 @@ from .voucher_money import (
 )
 from ..domain.errors import Conflict, Invalid, NotFound
 from ..domain import policy
-from .voucher_input import _int
-from .voucher_billing import _accept, _bill, _correct, _export, _pay, _refund, _release, _remind, _reverse, _revoke, _tip, _writeoff, credit_problem, reversible
+from .voucher_input import int_of
+from . import voucher_billing as billing, voucher_offer as offer
+from .voucher_billing import credit_problem, reversible
 from .voucher_rules import NEEDS, gaps
-from .voucher_offer import _add_party, _address, _agree, _ask, _currency, _decline, _incoterm, _issuer, _ownership, _price, _quote, _terms, _unask
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +128,7 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
         drop.add("remind")
     if not (billed and is_export(db, row) and not row.export_number):
         drop.add("export")
-    # **Eine Gutschrift nie über den Rest ihrer Rechnung** – dieselbe Regel wie ``_bill``.
+    # **Eine Gutschrift nie über den Rest ihrer Rechnung** – dieselbe Regel wie ``bill``.
     if row.stage == vo.AGREED and credit_problem(db, row):
         drop.add("bill")
     if not reversible(db, row):
@@ -230,8 +230,8 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
     if action not in VERBS:
         raise Invalid(f"«{action}» ist keine Handlung an einem Beleg.")
     # **Die Nutzlast weiss, um wen es geht** – beim Zuschlag steht die Gegenpartei dort,
-    # und die Vollständigkeitsprüfung muss sie kennen, bevor ``_agree`` sie setzt.
-    assert_allowed(db, row, action, actor, _int(payload.get("party")))
+    # und die Vollständigkeitsprüfung muss sie kennen, bevor ``agree`` sie setzt.
+    assert_allowed(db, row, action, actor, int_of(payload.get("party")))
     run = VERBS[action].run
     if run is None:
         raise Conflict(f"«{action}» ändert den Beleg nicht – diese Handlung hat ihren "
@@ -248,51 +248,41 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
 VERBS: dict[str, Verb] = {
     # **Vor der Zusage** – hier wird der Beleg geschrieben. Die Währung gehört dem, der
     # den Preis nennt.
-    "currency": Verb(stages=(vo.OFFER,), run=_currency, party=IF_THEY_PRICE),
-    "issuer": Verb(stages=(vo.OFFER,), run=_issuer),
-    "incoterm": Verb(stages=(vo.OFFER,), run=_incoterm),
-    "terms": Verb(stages=(vo.OFFER,), run=_terms),
-    "price": Verb(stages=(vo.OFFER,), run=_price),
-    "party": Verb(stages=(vo.OFFER,), run=_add_party),
-    "address": Verb(stages=(vo.OFFER,), run=_address),
-    "ownership": Verb(stages=(vo.OFFER,), run=_ownership),
-    "correct": Verb(stages=(vo.OFFER,), run=_correct),
-    "ask": Verb(stages=(vo.OFFER,), run=_ask, needs=NEEDS["ask"]),
-    "unask": Verb(stages=(vo.OFFER,), run=_unask),
-    "quote": Verb(stages=(vo.OFFER,), run=_quote, needs=NEEDS["quote"], party=IF_THEY_PRICE),
-    "decline": Verb(stages=(vo.OFFER,), run=_decline, party=ALWAYS),
-    "agree": Verb(stages=(vo.OFFER,), run=_agree, needs=NEEDS["agree"],
+    "currency": Verb(stages=(vo.OFFER,), run=offer.currency, party=IF_THEY_PRICE),
+    "issuer": Verb(stages=(vo.OFFER,), run=offer.issuer),
+    "incoterm": Verb(stages=(vo.OFFER,), run=offer.incoterm),
+    "terms": Verb(stages=(vo.OFFER,), run=offer.terms),
+    "price": Verb(stages=(vo.OFFER,), run=offer.price),
+    "party": Verb(stages=(vo.OFFER,), run=offer.add_party),
+    "address": Verb(stages=(vo.OFFER,), run=offer.address),
+    "ownership": Verb(stages=(vo.OFFER,), run=offer.ownership),
+    "correct": Verb(stages=(vo.OFFER,), run=billing.correct),
+    "ask": Verb(stages=(vo.OFFER,), run=offer.ask, needs=NEEDS["ask"]),
+    "unask": Verb(stages=(vo.OFFER,), run=offer.unask),
+    "quote": Verb(stages=(vo.OFFER,), run=offer.quote, needs=NEEDS["quote"], party=IF_THEY_PRICE),
+    "decline": Verb(stages=(vo.OFFER,), run=offer.decline, party=ALWAYS),
+    "agree": Verb(stages=(vo.OFFER,), run=offer.agree, needs=NEEDS["agree"],
                   party=IF_WE_PRICE),
     # **Stornieren** – ein Wort in jeder Stufe (vor der Zusage erst, wenn etwas
     # hinausging, ``can``).
-    "revoke": Verb(stages=(vo.OFFER, vo.AGREED, vo.BILLED), run=_revoke),
+    "revoke": Verb(stages=(vo.OFFER, vo.AGREED, vo.BILLED), run=billing.revoke),
     # **DIE Rechnung** – eine Schwelle von ``agreed`` nach ``billed``.
-    "bill": Verb(stages=(vo.AGREED,), run=_bill, needs=NEEDS["bill"]),
-    "accept": Verb(stages=(vo.BILLED,), run=_accept),
+    "bill": Verb(stages=(vo.AGREED,), run=billing.bill, needs=NEEDS["bill"]),
+    "accept": Verb(stages=(vo.BILLED,), run=billing.accept),
     # **Das Geld** – auch nach dem Storno muss es zurückgehen können.
-    "pay": Verb(stages=(vo.BILLED,), run=_pay),
-    "refund": Verb(stages=(vo.BILLED, vo.CANCELLED), run=_refund),
-    "writeoff": Verb(stages=(vo.BILLED,), run=_writeoff),
-    "tip": Verb(stages=(vo.BILLED,), run=_tip),
-    "reverse": Verb(stages=(vo.BILLED, vo.CANCELLED), run=_reverse),
-    "remind": Verb(stages=(vo.BILLED,), run=_remind),
-    "export": Verb(stages=(vo.BILLED,), run=_export),
+    "pay": Verb(stages=(vo.BILLED,), run=billing.pay),
+    "refund": Verb(stages=(vo.BILLED, vo.CANCELLED), run=billing.refund),
+    "writeoff": Verb(stages=(vo.BILLED,), run=billing.writeoff),
+    "tip": Verb(stages=(vo.BILLED,), run=billing.tip),
+    "reverse": Verb(stages=(vo.BILLED, vo.CANCELLED), run=billing.reverse),
+    "remind": Verb(stages=(vo.BILLED,), run=billing.remind),
+    "export": Verb(stages=(vo.BILLED,), run=billing.export),
     # **Ein anstehendes Papier freigeben** (Auftragsbestätigung, Quittung – ``papers_due``).
-    "release": Verb(stages=(vo.AGREED, vo.BILLED), run=_release),
+    "release": Verb(stages=(vo.AGREED, vo.BILLED), run=billing.release),
     # ``run=None``: **sie ändern den Beleg nicht.** Gebucht wird erst, wenn der
     # Zahlungsdienst es meldet. Eigener Weg, **dieselbe Tür** (``assert_allowed``).
     "pay_online": Verb(stages=(vo.BILLED,), party=ALWAYS),
     "refund_online": Verb(stages=(vo.BILLED, vo.CANCELLED)),
 }
-
-
-# ---------------------------------------------------------------------------
-# ►► DIE GEGENPARTEI
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# ►► KLEINE HELFER — jeder mit genau einer Aufgabe
-# ---------------------------------------------------------------------------
 
 

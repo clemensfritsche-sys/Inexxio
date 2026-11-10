@@ -1,6 +1,6 @@
 """►►► **Die Handlungen ab der Zusage: Rechnung, Geld, Papiere.** ◄◄◄
 
-Rechnen (``_bill``), Lieferantenrechnung annehmen (``_accept``), Korrektur
+Rechnen (``bill``), Lieferantenrechnung annehmen (``accept``), Korrektur
 (``correction_problem`` ↔ ``_assert_correction``), Geld-Zeilen (Zahlung, Ausbuchung, Trinkgeld,
 «falsch erfasst?» – ``reversible``), Mahnung, Ausfuhrnachweis, Papiere freigeben, Stornieren.
 Eingetragen in ``voucher_actions.VERBS``; ob ein Verb geht, entscheidet dort ``can``.
@@ -25,7 +25,7 @@ from .voucher_money import (
     book, papers_due,
 )
 from ..domain.errors import Conflict, Invalid
-from .voucher_input import _day, _iban, _int, _our_number, _text, amount_of
+from .voucher_input import day_of, iban_of, int_of, our_number, text_of, amount_of
 
 
 def reversible(db: Session, row: Voucher) -> list[VoucherEntry]:
@@ -38,7 +38,7 @@ def reversible(db: Session, row: Voucher) -> list[VoucherEntry]:
             and e.method != vo.CARD]
 
 
-def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def revoke(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Stornieren** – ein Wort in jeder Stufe; was es bewirkt, folgt aus ihr. ◄◄◄
 
@@ -54,14 +54,14 @@ def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     """
     from . import voucher_docs
     flow = vo.of(row.direction)
-    row.cancel_note = _text(data.get("note"), 200)
+    row.cancel_note = text_of(data.get("note"), 200)
     # **Eine Gutschrift entsteht nur aus einer Rechnung, die wir stellen** – über das, was
     # Gutschriften nicht schon gemindert haben. Wer eine Gutschrift storniert, bekommt eine
     # Stornierung, keine Gutschrift auf die Gutschrift (und keine neue Nummer).
     credit = (is_billed(row) and flow.collects and not minus(row)
               and credit_room(db, row) > vo.SETTLED_TOLERANCE)
     if credit and not row.credit_number:
-        row.credit_number = _our_number(db, row)
+        row.credit_number = our_number(db, row)
     told = _told(db, row) if flow.collects else []
     row.stage = vo.CANCELLED
     row.cancelled_on = clock.today()
@@ -83,7 +83,7 @@ def _told(db: Session, row: Voucher) -> list[int]:
     return out
 
 
-def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
           data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Die Rechnung stellen bzw. erfassen — und damit IST der Beleg eine.** ◄◄◄
 
@@ -109,11 +109,11 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     # anderes Datum (sonst fiele sie in eine schon abgerechnete MWST-Periode). Eine
     # Lieferantenrechnung trägt Nummer und Datum ihres Papiers.
     if flow.collects:
-        row.number = row.number or _our_number(db, row)
+        row.number = row.number or our_number(db, row)
         booked = clock.today()
     else:
         row.number = row.number or _their_number(data, flow)
-        booked = _day(data.get("billed_on")) or clock.today()
+        booked = day_of(data.get("billed_on")) or clock.today()
     row.billed_on = booked
     row.due_on = days_after(booked, due_days_of(db, row))
     row.amount = gross
@@ -155,7 +155,7 @@ def _their_sum(db: Session, row: Voucher, data: dict[str, Any]) -> tuple[Decimal
 
 def _their_number(data: dict[str, Any], flow: vo.Direction) -> str:
     """**Seine Rechnungsnummer** – Pflicht, sie steht auf seinem Papier."""
-    number = _text(data.get("reference"), 120)
+    number = text_of(data.get("reference"), 120)
     if not number:
         raise Invalid(f"Ohne {flow.reference} lässt sich diese Rechnung nicht "
                       f"zuordnen – sie steht auf seinem Papier.")
@@ -171,18 +171,18 @@ def _record_original(db: Session, row: Voucher, data: dict[str, Any],
         "Ohne die Rechnung als Dokument geht es nicht – sie ist der Beleg, aufbewahrt zehn "
         "Jahre."))
     taxed = any(Decimal(r.get("tax") or "0") != 0 for r in split)
-    uid = _text(data.get("party_uid"), 40)
+    uid = text_of(data.get("party_uid"), 40)
     if taxed and not uid:
         raise Invalid("Ohne MWST-Nummer des Lieferanten gibt es keinen Vorsteuerabzug "
             "(MWSTG Art. 28) – sie steht auf seiner Rechnung.")
     row.party_uid = uid
 
 
-def _accept(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def accept(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """**Die Lieferantenrechnung so annehmen, wie sie ist** – mit Grund. Die Differenz
     bleibt als Zeile stehen; jetzt wird bezahlt."""
-    note = _text(data.get("note"), 200)
+    note = text_of(data.get("note"), 200)
     if not note:
         raise Invalid("Eine Abweichung nimmt man mit Grund an – er bleibt als Nachweis stehen.")
     row.deviation_note = note
@@ -228,7 +228,7 @@ def correction_problem(db: Session, row: Voucher, target: Optional[Voucher], *,
 def credit_problem(db: Session, row: Voucher) -> Optional[str]:
     """**Darf diese Gutschrift jetzt gestellt werden?** – ``correction_problem`` mit dem
     zugesagten Betrag; ``None`` an jedem Beleg, der nicht mindert. ``can`` nimmt damit
-    «Gutschrift stellen» weg, ``_bill`` prüft mit dem Betrag der Rechnung."""
+    «Gutschrift stellen» weg, ``bill`` prüft mit dem Betrag der Rechnung."""
     if not minus(row):
         return None
     return correction_problem(db, row, corrects(db, row), amount=agreed_amount(db, row))
@@ -242,11 +242,11 @@ def _assert_correction(db: Session, row: Voucher, target: Optional[Voucher], *,
         raise Invalid(problem)
 
 
-def _correct(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def correct(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
              data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """**Welche Rechnung mindert dieser Beleg?** Der Verweis darf über Auftragsgrenzen zeigen
     – die Gutschrift gehört dorthin, wo die Ware zurückkommt (``correction_problem``)."""
-    value = _int(data.get("corrects"))
+    value = int_of(data.get("corrects"))
     if value is None:
         row.corrects_id = None
         return
@@ -269,10 +269,10 @@ def _entry(db: Session, row: Voucher, *, amount: Decimal, kind: str = vo.PAYMENT
     data = data or {}
     entry = VoucherEntry(
         voucher_id=row.id, amount=amount, kind=kind,
-        booked_on=_day(data.get("booked_on")) or clock.today(),
-        reference=_text(data.get("reference"), 120),
-        note=_text(data.get("note"), 200), method=method, reason=reason,
-        reverses_id=reverses, iban=_iban(data.get("iban")),
+        booked_on=day_of(data.get("booked_on")) or clock.today(),
+        reference=text_of(data.get("reference"), 120),
+        note=text_of(data.get("note"), 200), method=method, reason=reason,
+        reverses_id=reverses, iban=iban_of(data.get("iban")),
     )
     book(db, row, entry)
     return entry
@@ -287,7 +287,7 @@ def _method(row: Voucher, value: Any) -> Optional[str]:
         raise Invalid(str(e))
 
 
-def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
          data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """**Eine Zahlung erfassen** – vorbelegt mit dem Offenen. Positiv: wer überzahlt, tut
     das mit einem grösseren Betrag; zurück geht es mit «Erstatten»."""
@@ -298,12 +298,12 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     method = _method(row, data.get("method"))
     # **Eine Erstattung per Überweisung braucht das Konto, wohin** – es kommt über den
     # gewöhnlichen Verlauf und wird hier eingetragen (keine Anfrage, kein Formular).
-    if minus(row) and method == vo.TRANSFER and not _iban(data.get("iban")):
+    if minus(row) and method == vo.TRANSFER and not iban_of(data.get("iban")):
         raise Invalid("Zuerst die IBAN eintragen – wohin die Erstattung geht.")
     _entry(db, row, amount=value, data=data, method=method)
 
 
-def _refund(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def refund(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Erstatten** – das Geld geht dorthin zurück, woher es kam (bar, an die IBAN).
     Vorbelegt mit dem, was zu viel ist. Auf die Karte geht es über den Zahlungsdienst."""
@@ -313,13 +313,13 @@ def _refund(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     if value is None or value <= 0:
         raise Invalid("Hier ist nichts zu erstatten.")
     method = _method(row, data.get("method"))
-    if method == vo.TRANSFER and not _iban(data.get("iban")):
+    if method == vo.TRANSFER and not iban_of(data.get("iban")):
         raise Invalid("Eine Überweisung braucht die IBAN – sie kommt über den gewöhnlichen Verlauf "
             "und wird hier eingetragen.")
     _entry(db, row, amount=-value, data=data, method=method)
 
 
-def _writeoff(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def writeoff(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
               data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """**Ausbuchen** – der Rest als eigene Zeile mit Grund; kein Geld fliesst. Rechtlich eine
     Entgeltsminderung (MWSTG Art. 41) – ihre Steuer rechnet erst die Buchhaltung."""
@@ -331,18 +331,18 @@ def _writeoff(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
            reason=reason)
 
 
-def _tip(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def tip(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
          data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """**Als Trinkgeld behalten** – was zu viel kam, bleibt als eigene Zeile stehen. Es ist
     Entgelt (MWSTG Art. 24) – seine Steuer rechnet erst die Buchhaltung."""
     _entry(db, row, amount=-balance_of(db, row).open, kind=vo.TIP, data=data)
 
 
-def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def reverse(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
              data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """**«Falsch erfasst?»** – die Gegenbuchung genau dieser Zeile, für einen Tippfehler.
     Gelöscht wird nichts; beide Zeilen bleiben stehen."""
-    wanted = _int(data.get("entry"))
+    wanted = int_of(data.get("entry"))
     found = next((e for e in reversible(db, row) if e.id == wanted), None)
     if found is None:
         raise Conflict("Diese Zeile lässt sich nicht gegenbuchen – sie ist schon gegengebucht, ist "
@@ -352,7 +352,7 @@ def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
            data={"note": vo.REVERSE_WORD.rstrip("?")})
 
 
-def _remind(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def remind(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """►►► **Mahnen** – die nächste Stufe, als Dokument mit Mail. Nichts geht von selbst;
     ``can`` lässt es erst zu, wenn die Stufe fällig ist (zehn Tage Abstand). ◄◄◄"""
@@ -363,25 +363,25 @@ def _remind(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     voucher_docs.issue(db, row=row, kind=vo.REMINDER_DOC, actor=actor, level=step_no)
 
 
-def _export(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def export(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """**Den Ausfuhrnachweis erfassen** – Nummer der Veranlagungsverfügung und das Dokument
     (PDF oder Bild, hochgeladen). Ohne ihn gilt der Nullsatz nicht; erledigt ist der Beleg
     erst damit."""
     message = ("Der Ausfuhrnachweis braucht die Nummer der Veranlagungsverfügung und das "
                "Dokument dazu.")
-    number = _text(data.get("reference"), 60)
+    number = text_of(data.get("reference"), 60)
     if not number:
         raise Invalid(message)
     _module_document(db, row, data, "voucher.export", message)
     row.export_number = number
 
 
-def _release(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
+def release(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
              data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """**Ein anstehendes Papier freigeben** – es entsteht und geht hinaus (``voucher_docs``)."""
     from . import voucher_docs
-    kind = _text(data.get("kind"), 16)
+    kind = text_of(data.get("kind"), 16)
     if kind not in papers_due(db, row):
         raise Conflict(f"«{vo.DOCUMENTS.get(kind or '', kind or '–')}» steht hier nicht an.")
     voucher_docs.issue(db, row=row, kind=kind, actor=actor)
@@ -394,7 +394,7 @@ def _module_document(db: Session, row: Voucher, data: dict[str, Any], field: str
     änderbar, nie leer, nie löschbar, solange es dort steht. ◄◄◄"""
     from ..models import Document
     from . import documents
-    chosen = _int(data.get("original"))
+    chosen = int_of(data.get("original"))
     order = db.query(Order).filter(Order.id == row.order_id).first()
     part = f"step:{row.step_id}"
     if chosen is None:

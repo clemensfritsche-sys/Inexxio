@@ -1,8 +1,8 @@
 """►►► **Was ein Verb am Beleg voraussetzt – Stammdaten und Regeln in zwei Formen.** ◄◄◄
 
 ``REQUIRED_FOR`` (welche Angaben eine Stufe braucht) und ``NEEDS`` (welche Stufen ein Verb
-braucht) → ``gaps`` (was fehlt). Eigentum (``ownership_problem`` ↔ ``_assert_ownership_chosen``)
-und Anfrage (``ask_problem`` ↔ ``_assert_ask``): Grund und Tor stehen nebeneinander, damit Knopf
+braucht) → ``gaps`` (was fehlt). Eigentum (``ownership_problem`` ↔ ``assert_ownership_chosen``)
+und Anfrage (``ask_problem`` ↔ ``assert_ask``): Grund und Tor stehen nebeneinander, damit Knopf
 und Dienst dasselbe sagen.
 """
 
@@ -78,7 +78,7 @@ NEEDS: dict[str, tuple[str, ...]] = {
 
 def ownership_problem(row: Voucher) -> Optional[str]:
     """►►► **Ohne Wahl des Eigentums geht kein Beleg hinaus und keiner wird zugesagt.** ◄◄◄
-    Zwei Formen einer Regel: dieser Satz am gesperrten Knopf, ``_assert_ownership_chosen``
+    Zwei Formen einer Regel: dieser Satz am gesperrten Knopf, ``assert_ownership_chosen``
     als Tor."""
     if ownership_of(row) is None:
         return (f"Ohne Wahl beim {vo.OWNERSHIP_LABEL} ist offen, wem die Stücke danach "
@@ -86,7 +86,7 @@ def ownership_problem(row: Voucher) -> Optional[str]:
     return None
 
 
-def _assert_ownership_chosen(row: Voucher) -> None:
+def assert_ownership_chosen(row: Voucher) -> None:
     problem = ownership_problem(row)
     if problem:
         raise Invalid(problem)
@@ -159,7 +159,7 @@ def ask_problem(db: Session, row: Voucher, step: ProcessStep,
     """►►► **Was fehlt noch, damit dieser Beleg HINAUSGEHEN kann?** ◄◄◄ – oder ``None``.
 
     Zwei Formen einer Regel: der Satz reist mit (``VoucherEmbed.ask_problem``, der Knopf
-    steht gesperrt da und sagt im Hover, was fehlt), ``_assert_ask`` wirft ihn. Pflicht ist,
+    steht gesperrt da und sagt im Hover, was fehlt), ``assert_ask`` wirft ihn. Pflicht ist,
     was auf dem Beleg steht – Preis je Position, bei einer Ausfuhr die Zoll-Angaben, bei Ware
     die Lieferbedingung, beide Fristen, das Eigentum –, gelesen wie es dasteht
     (``embed_lines``). Alles Fehlende auf einmal, je Position benannt. ``parties``/``lines``
@@ -167,7 +167,7 @@ def ask_problem(db: Session, row: Voucher, step: ProcessStep,
     """
     flow = vo.of(row.direction)
     # **Ohne Gegenpartei gibt es nichts anzufragen** – zwei Quellen, dieselben wie in
-    # ``_ask``: was die Definition zulässt und wen der Beleg selbst schon trägt.
+    # ``ask``: was die Definition zulässt und wen der Beleg selbst schon trägt.
     if parties is None:
         parties = modules.Beleg.parties_allowed(step.config) or parties_on(row)
     if not parties:
@@ -209,7 +209,7 @@ def ask_problem(db: Session, row: Voucher, step: ProcessStep,
     return "\n".join(f"– {f}" for f in found)
 
 
-def _assert_ask(db: Session, row: Voucher, step: ProcessStep,
+def assert_ask(db: Session, row: Voucher, step: ProcessStep,
                 parties: list[int]) -> None:
     """Das Tor zu ``ask_problem`` – **derselbe Satz**, nur geworfen."""
     problem = ask_problem(db, row, step, parties=parties)

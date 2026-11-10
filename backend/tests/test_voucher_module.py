@@ -1145,7 +1145,7 @@ def test_a_view_that_writes_its_lines_also_keeps_them(db):
 
     Die Oberfläche war unschuldig. ``sync_lines`` legt die Positionszeilen beim **Anzeigen**
     an; ``get_db`` committete damals nie, und ein blosses ``flush`` fiel beim Schliessen der
-    Sitzung zurück (heute speichert jede Anfrage am Ende, Phase 5). Der Browser bekam damit Ids, **die es nicht gibt** – und ``_price``
+    Sitzung zurück (heute speichert jede Anfrage am Ende, Phase 5). Der Browser bekam damit Ids, **die es nicht gibt** – und ``price``
     findet seine Zeile nicht und schreibt nichts. Dass es «mit Enter ging», war schlicht
     der **zweite** Versuch: der erste ``POST`` legt die Zeilen an und committet sie.
 
@@ -1350,7 +1350,7 @@ def test_an_ask_can_be_taken_back(db):
     # (c) **Ab der Zusage gar nicht mehr** – und zwar ohne eine zweite Regel: die
     # unterlegenen Zeilen sind dann der Nachweis, warum so entschieden wurde, und die
     # gewählte nimmt man mit dem Storno zurück. Eine Sperre «die gewählte nicht» stand
-    # hier einen Anlauf lang und war **unerreichbar**, weil `_agree` Zustand und Stufe
+    # hier einen Anlauf lang und war **unerreichbar**, weil `agree` Zustand und Stufe
     # in einem Zug setzt: gemessen, entfernt, und die Stufe ist das Tor.
     voucher_actions.apply(db, order=order, step=step, action="agree",
               payload={"party": one.object_id}, actor=staff)
@@ -1560,7 +1560,7 @@ def test_an_incomplete_document_does_not_go_out(db):
 
     «Leicht blau hinterlegt» ist die Auszeichnung **änderbarer Werte** (`.ix-editable`,
     #922) – die Regel gilt also jedem Wert, den der Beleg trägt. Geprüft wird an der
-    **einen** Stelle, an der er nach aussen geht (``_ask``); die rote Tönung im Browser
+    **einen** Stelle, an der er nach aussen geht (``ask``); die rote Tönung im Browser
     ist die freundliche Hälfte derselben Regel, nie ein zweiter Massstab.
 
     **Gelesen wird der Wert, der auf dem Beleg STEHT** – die Zeile, wo sie etwas trägt,
@@ -1712,8 +1712,8 @@ def test_a_quote_says_when_it_went_out_and_when_it_was_taken(db):
 
     *«… im Format ‹vor xx Tagen offeriert›, und beim Hovern das genaue Datum und
     Uhrzeit.»* – ``created_at`` einer Angebotszeile **ist** der Moment, in dem sie
-    hinausging (``_ask`` legt sie genau dort an und nirgends sonst), und ``updated_at``
-    der **gewählten** Zeile ist der Moment des Zuschlags (``_agree`` setzt ``CHOSEN`` in
+    hinausging (``ask`` legt sie genau dort an und nirgends sonst), und ``updated_at``
+    der **gewählten** Zeile ist der Moment des Zuschlags (``agree`` setzt ``CHOSEN`` in
     einem Zug mit der Stufe, und danach fasst kein Verb sie mehr an).
 
     ``sent_on`` bleibt daneben: das ist das **Datum auf dem Papier**.
@@ -2827,7 +2827,7 @@ def test_the_reason_stands_at_the_button_not_after_the_click(db):
     Submit-Button ist deaktiviert/ausgegraut, bis alles vollständig ist, und beim Hover
     erklärt er, warum.»*
 
-    Die Prüfung gab es längst, nur **erst beim Klick**: ``_ask`` wies ab, und der Satz
+    Die Prüfung gab es längst, nur **erst beim Klick**: ``ask`` wies ab, und der Satz
     landete als rote Zeile am Kopf des Auftrags – weit weg von der Position, die er
     nennt. Jetzt ist er eine **Ableitung** (``ask_problem``), die mitreist, und derselbe
     Satz ist das Tor. **Zwei Formen einer Regel, ein Namensstamm.**

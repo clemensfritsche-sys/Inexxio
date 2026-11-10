@@ -55,6 +55,10 @@ def hold(db: Session, row: Voucher) -> Voucher:
     Wer handelt oder bucht, wartet hier auf den, der es gerade tut, und sieht danach dessen
     Ergebnis: zweimal «Rechnung stellen» ist eine Rechnung und ein 409. Gesperrt wird VOR
     dem Tor (``assert_allowed``), sonst prüften beide denselben alten Stand.
+
+    ``forget`` ist nicht doppelt: ``after_flush`` feuert nur, wenn es etwas zu schreiben gab –
+    bei einer sauberen Sitzung nicht. Was vor der Sperre gemerkt war, kann der andere aber
+    inzwischen geändert haben.
     """
     db.flush()
     forget(db)
@@ -189,7 +193,7 @@ def chosen_quote(db: Session, row: Voucher) -> Optional[VoucherQuote]:
     """**Die Angebotszeile, bei der zugesagt wurde** – oder ``None``.
 
     Sie sagt *mit wem · zu welchem Betrag · zu welchen Fristen*; ``gewaehlt`` setzt nur
-    ``_agree``.
+    ``agree``.
     """
     return next((q for q in quotes_of(db, row) if q.state == vo.CHOSEN), None)
 
@@ -292,7 +296,7 @@ def credit_room(db: Session, target: Voucher, *, without: Optional[Voucher] = No
 def credited(db: Session, row: Voucher) -> Optional[Decimal]:
     """►►► **Was ein Storno nach der Rechnung gutgeschrieben hat** – der Rest der Rechnung. ◄◄◄
 
-    Keine Spalte: storniert *und* gestellt heisst, die Gutschrift ist entstanden (``_revoke``)
+    Keine Spalte: storniert *und* gestellt heisst, die Gutschrift ist entstanden (``revoke``)
     – über das, was Gutschriften nicht schon gemindert haben (``credits_of``): zusammen nie mehr
     als die Rechnung. Eine stornierte Gutschrift hebt sich ganz auf. Danach schuldet niemand
     mehr etwas – ausser dem, was schon geflossen ist und zurückgeht.

@@ -1,9 +1,11 @@
 """►►► **Was eine Handlung am Beleg hereinbekommt – gelesen an EINER Stelle.** ◄◄◄
 
-Zahl (``_int``), Betrag (``amount_of``), Frist (``_days``), Tag (``_day``), Text (``_text``),
-Gewicht (``_weight``), IBAN (``_iban``), die gemeinte Angebotszeile (``_target``) und die
-Gegenpartei (``_party``); dazu die Regel der Konditionen in ihren zwei Formen
-(``terms_problem`` ↔ ``_assert_terms``) und die eigene Rechnungsnummer (``_our_number``).
+Zahl (``int_of``), Betrag (``amount_of``), Frist (``days_of``), Tag (``day_of``), Text
+(``text_of``), Gewicht (``weight_of``), IBAN (``iban_of``), die gemeinte Angebotszeile
+(``target_quote``) und die Gegenpartei (``checked_party``); dazu die Regel der Konditionen in
+ihren zwei Formen (``terms_problem`` ↔ ``assert_terms``) und die eigene Rechnungsnummer
+(``our_number``). Öffentlich, weil die Verben in ``voucher_offer`` und ``voucher_billing`` sie
+lesen.
 """
 
 from datetime import date
@@ -25,7 +27,7 @@ from ..domain.errors import Invalid, NotFound
 from ..domain import policy
 
 
-def _weight(value: Any) -> Optional[Decimal]:
+def weight_of(value: Any) -> Optional[Decimal]:
     """Ein Gewicht in kg – oder ``None``. Nie negativ."""
     try:
         found = number.decimal(value)
@@ -38,7 +40,7 @@ def _weight(value: Any) -> Optional[Decimal]:
     return found.quantize(Decimal("0.001"))
 
 
-def _iban(value: Any) -> Optional[str]:
+def iban_of(value: Any) -> Optional[str]:
     """Eine IBAN in Normalform (ohne Leerzeichen, gross) – oder ``None``."""
     text = "".join(str(value or "").split()).upper()
     if not text:
@@ -48,7 +50,7 @@ def _iban(value: Any) -> Optional[str]:
     return text
 
 
-def _target(db: Session, row: Voucher, data: dict[str, Any],
+def target_quote(db: Session, row: Voucher, data: dict[str, Any],
             actor: Optional[UserProfile]) -> VoucherQuote:
     """**Welche Angebotszeile ist gemeint?**
 
@@ -57,7 +59,7 @@ def _target(db: Session, row: Voucher, data: dict[str, Any],
     wird. Personal nennt die Partei.
     """
     internal = policy.inside(actor)
-    number = _int(data.get("party")) if internal else (
+    number = int_of(data.get("party")) if internal else (
         actor.object_id if actor else None)
     rows = quotes_of(db, row)
     if number is None and internal and len(rows) == 1:
@@ -69,7 +71,7 @@ def _target(db: Session, row: Voucher, data: dict[str, Any],
     return found
 
 
-def _party(db: Session, *, step: ProcessStep, value: Any,
+def checked_party(db: Session, *, step: ProcessStep, value: Any,
            flow: vo.Direction) -> Optional[int]:
     """Die gewählte Gegenpartei prüfen – gegen die Freigabe und gegen die Wirklichkeit.
 
@@ -77,7 +79,7 @@ def _party(db: Session, *, step: ProcessStep, value: Any,
     """
     if value in (None, "", 0):
         return None
-    number = _int(value)
+    number = int_of(value)
     if number is None:
         raise Invalid(f"«{value}» ist keine Objektnummer.")
     allowed = modules.Beleg.parties_allowed(step.config)
@@ -94,7 +96,7 @@ def _party(db: Session, *, step: ProcessStep, value: Any,
     return number
 
 
-def _int(value: Any) -> Optional[int]:
+def int_of(value: Any) -> Optional[int]:
     """Eine Zahl aus der Nutzlast – **tolerant**, denn hier wird nur nachgesehen."""
     try:
         return int(value) if value not in (None, "") else None
@@ -110,7 +112,7 @@ def amount_of(value: Any, code: str, *, allow_negative: bool = False) -> Optiona
         raise Invalid(str(e))
 
 
-def _days(key: str, value: Any) -> Optional[int]:
+def days_of(key: str, value: Any) -> Optional[int]:
     """Eine Frist – die Regel steht EINMAL in ``domain/voucher.assert_days``."""
     try:
         return vo.assert_days(key, value)
@@ -124,7 +126,7 @@ def terms_problem(lead: Optional[int], days: Optional[int]) -> Optional[str]:
     Aus der **Lieferfrist** kommt der Termin, aus der **Zahlungsfrist** die Fälligkeit (null
     = Vorauszahlung). **Null ist gültig**, darum ``is None``.
 
-    **Zwei Formen, ein Namensstamm**: ``_assert_terms`` wirft ihn an einer Angebotszeile,
+    **Zwei Formen, ein Namensstamm**: ``assert_terms`` wirft ihn an einer Angebotszeile,
     ``ask_problem`` trägt ihn an den gesperrten Knopf.
     """
     for value, label in ((lead, vo.LEAD_TERM_LABEL), (days, vo.PAYMENT_TERM_LABEL)):
@@ -135,14 +137,14 @@ def terms_problem(lead: Optional[int], days: Optional[int]) -> Optional[str]:
     return None
 
 
-def _assert_terms(lead: Optional[int], days: Optional[int]) -> None:
+def assert_terms(lead: Optional[int], days: Optional[int]) -> None:
     """Das Tor zu ``terms_problem`` – derselbe Satz, nur geworfen."""
     problem = terms_problem(lead, days)
     if problem:
         raise Invalid(problem)
 
 
-def _day(value: Any) -> Optional[date]:
+def day_of(value: Any) -> Optional[date]:
     if value in (None, ""):
         return None
     if isinstance(value, date):
@@ -153,14 +155,14 @@ def _day(value: Any) -> Optional[date]:
         raise Invalid(f"«{value}» ist kein Datum.")
 
 
-def _text(value: Any, limit: int) -> Optional[str]:
+def text_of(value: Any, limit: int) -> Optional[str]:
     found = str(value or "").strip()
     if len(found) > limit:
         raise Invalid(f"Der Text ist zu lang (max. {limit} Zeichen).")
     return found or None
 
 
-def _our_number(db: Session, row: Voucher) -> str:
+def our_number(db: Session, row: Voucher) -> str:
     """►►► **Unsere nächste Nummer im Auftrag** – ``<Auftragsnummer>-<laufend>``, ab ``-1``. ◄◄◄
 
     Rechnungen **und** Gutschriften ziehen aus derselben Zählung (eine Gutschrift ist ein
