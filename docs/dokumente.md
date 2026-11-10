@@ -55,6 +55,10 @@ Absenz, Bild der Datenerfassung, Anhang einer Mail, Foto aus dem Kontaktformular
 
 - **Senden** (`services/signing.send`): je Empfänger ein Link `/dokument?t=…` **ohne Ablauf**
   und eine Mail im Verlauf (Postfach des Betreibers). Optional «sollen unterschreiben».
+  **Senden ist Teilen, nicht Ausstellen**: ein Papier eines Belegs zählt einmal je Dokument, mit
+  dem Link seiner Ausgabe (`voucher.issued_link`, der erste des Dokuments). Ein weiterer Link
+  ist keine neue Mahnstufe und keine neue Fassung; wer nicht die Partei ist, sieht auf
+  `/dokument` nur das Dokument – ohne Vorgang, ohne Handlungen, ohne Storno-Mail.
 - **Unterschreiben** auf `/dokument`: ein Zug (PNG) oder Ablehnen mit Grund. Die Unterschrift
   steht auf dem Papier (`signing.signed_html` ersetzt die Marke `<!--sig:…-->`; das Papier
   selbst ändert sich nie). Gelöscht → 410 mit einem Satz.

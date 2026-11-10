@@ -237,7 +237,7 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   (Offerte, AB, Rechnung, Quittung, Stornierung, Gutschrift, Mahnung) entsteht aus **einer
   A4-Vorlage** (`services/a4.py`), nennt je Position die **Seriennummer** (Instanznummer,
   `voucher.serials_of`), ist ein **Dokument** (Feld `voucher.doc`, nie löschbar; Art, Nummer,
-  Stufe in seinen Angaben, je Partei ein gewöhnlicher Link `document_links`), trägt die
+  Stufe in seinen Angaben, je Partei ein gewöhnlicher Link `document_links`; ausgestellt ist es mit dem ersten Link, «Senden» teilt nur – keine Mahnstufe, keine Partei), trägt die
   AGB der stellenden Gesellschaft auf eigenen A4-Seiten. **Vorschau → Freigeben**: was ein Papier
   hinausgibt (`voucher.PAPER_VERBS`), zeigt die Karte vorher (`voucher_docs.preview`,
   zurückgerollter Lauf); **AB und Quittung stehen an** (`voucher.papers_due`, «zu tun») und

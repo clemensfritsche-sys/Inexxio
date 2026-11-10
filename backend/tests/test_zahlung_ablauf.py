@@ -1231,3 +1231,84 @@ def test_our_invoice_is_dated_the_day_it_is_issued(db):
     _do(db, order, step, "bill", billed_on="01.01.2020")
     db.refresh(row)
     assert row.billed_on == clock.today()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► AUSSTELLEN IST NICHT TEILEN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _share(db, paper, *people):
+    """Ein Papier über «Senden» weitergeben (``signing.send``) – wie der Knopf an jedem Dokument."""
+    from app.core.actor import act
+    from app.models import Document
+    from app.services import signing
+    staff = _staff(db)
+    act(db, "person", staff.object_id, "ui")
+    doc = db.query(Document).filter(Document.id == paper.document_id).one()
+    return signing.send(db, doc, [p.object_id for p in people], "", staff)
+
+
+def test_a_reminder_sent_again_is_not_the_next_stage(db):
+    """Bug-Form: eine Mahnung, über «Senden» noch einmal hinaus, zählte als zweite Mahnung –
+    die Mahnstufe sprang."""
+    from app.services import voucher as svc
+    order, step, row, who = _billed(db)
+    row.due_on = clock.today() - timedelta(days=15)
+    db.flush()
+    _do(db, order, step, "remind")
+    _share(db, svc.reminders(db, row)[0], who)
+    assert [d.level for d in svc.reminders(db, row)] == [1]
+
+
+def test_an_offer_sent_again_stays_the_current_one(db):
+    """Bug-Form: dieselbe Offerte, über «Senden» noch einmal an die Partei, machte ihren ersten
+    Link zu «Diese Fassung ist nicht mehr gültig»."""
+    from app.domain import voucher as vo
+    from app.services import voucher_docs as docs, voucher as svc
+    order, step, row, who = _scene(db, first=True)
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    offer = svc.documents_of(db, row, vo.OFFER_DOC)[-1]
+    _share(db, offer, who)
+    view = docs.public_view(db, row, offer)
+    assert view["note"] is None and view["actions"] == ["agree", "reject"]
+    assert len(svc.documents_of(db, row, vo.OFFER_DOC)) == 1
+
+
+def _shared_offer(db):
+    """Eine Offerte an ``who``, über «Senden» auch an eine Dritte (die Treuhänderin)."""
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    order, step, row, who = _scene(db, first=True)
+    _ready(db, order, step, row)
+    _do(db, order, step, "ask")
+    offer = svc.documents_of(db, row, vo.OFFER_DOC)[-1]
+    token = _share(db, offer, _person(db, "Treuhand Muster"))[0].token
+    return order, step, row, who, token
+
+
+def test_who_gets_a_paper_shared_sees_a_document_not_the_deal(db):
+    """Bug-Form: wer ein Papier über «Senden» bekam, wurde Partei – er sah den Vorgang mit
+    «Annehmen» und konnte für die Partei annehmen."""
+    from app.core.actor import act
+    from app.domain import voucher as vo
+    from app.domain.errors import Conflict
+    from app.routers import public_documents as page
+    _order, _step, row, _who, token = _shared_offer(db)
+    act(db, "external", None, "link")
+    shown = page.view(token, db=db)
+    assert shown.get("deal") is None and "Offerte" in shown["html"], "Geteilt ist ein Dokument."
+    with pytest.raises(Conflict):
+        page.agree(token, db=db)
+    assert row.stage == vo.OFFER
+
+
+def test_who_gets_a_paper_shared_is_not_told_of_the_storno(db):
+    """Bug-Form: die Dritte, der eine Offerte über «Senden» gezeigt wurde, bekam die
+    Stornierung wie eine Partei (``voucher_billing._told``)."""
+    from app.domain import voucher as vo
+    from app.services import voucher as svc
+    order, step, row, who, _token = _shared_offer(db)
+    _do(db, order, step, "revoke")
+    told = [d.party_id for d in svc.documents_of(db, row, vo.STORNO_DOC)]
+    assert told == [who.object_id], told

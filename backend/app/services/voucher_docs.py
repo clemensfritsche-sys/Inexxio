@@ -355,7 +355,7 @@ def issue(db: Session, *, row: Voucher, kind: str, actor: Optional[UserProfile] 
                                           party=party, actor=actor, level=level)
     link.message_id = msg.id if msg is not None else None
     db.flush()
-    return vs.paper_of_link(link, paper)
+    return vs.paper_of_link(vs.issued_link(db, paper.id) or link, paper)
 
 
 def _reminder_text(row: Voucher, level: Optional[int], number: str) -> str:
@@ -462,9 +462,11 @@ WAY = (("Sie", "Offerte", "Sie prüfen die Positionen und nehmen die Offerte an.
 
 
 def deal_of(db: Session, link: DocumentLink) -> Optional[tuple[Voucher, vs.Paper]]:
-    """►► **Ist das Dokument hinter dem Link ein Papier eines Belegs?** – dann der Beleg und das
-    Papier, sonst ``None``. Erkannt am Pflichtfeld ``voucher.doc`` (``step:<Modul>``), nicht an
-    einer eigenen Tabelle: jedes Papier ist ein gewöhnliches Dokument mit gewöhnlichem Link. ◄◄"""
+    """►► **Ist das Dokument hinter dem Link ein Papier eines Belegs – und der Link der seiner
+    Partei?** – dann der Beleg und das Papier (mit dem Link seiner Ausgabe), sonst ``None``.
+    Erkannt am Pflichtfeld ``voucher.doc`` (``step:<Modul>``), nicht an einer eigenen Tabelle.
+    **Geteilt ist nicht ausgestellt**: wer das Papier über «Senden» bekam und nicht die Partei
+    ist, sieht ein gewöhnliches Dokument – ohne Vorgang, ohne Handlungen. ◄◄"""
     ref = (db.query(DocumentRef)
            .filter(DocumentRef.document_id == link.document_id,
                    DocumentRef.field == "voucher.doc", DocumentRef.is_active.is_(True))
@@ -474,9 +476,12 @@ def deal_of(db: Session, link: DocumentLink) -> Optional[tuple[Voucher, vs.Paper
         return None
     row = db.query(Voucher).filter(Voucher.step_id == int(step)).first()
     doc = db.query(Document).filter(Document.id == link.document_id).first()
-    if row is None or doc is None:
+    issued = vs.issued_link(db, link.document_id)
+    if row is None or doc is None or issued is None:
         return None
-    return row, vs.paper_of_link(link, doc)
+    if issued.person_object_id != link.person_object_id:
+        return None
+    return row, vs.paper_of_link(issued, doc)
 
 
 def party_user(db: Session, rec: vs.Paper) -> Optional[UserProfile]:

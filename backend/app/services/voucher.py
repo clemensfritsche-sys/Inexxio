@@ -134,10 +134,11 @@ def quotes_of(db: Session, row: Voucher) -> list[VoucherQuote]:
 
 @dataclass(frozen=True)
 class Paper:
-    """►► **Ein Papier des Belegs, wie es hinausging** – ein Link an die Partei auf ein Dokument
-    im Pflichtfeld ``voucher.doc`` des Moduls. Was es ist (Art, Nummer, Mahnstufe, AGB), steht am
-    Dokument (``facts``); es gibt keine eigene Tabelle dafür. ◄◄"""
-    id: int                       # der Link (``document_links``)
+    """►► **Ein Papier des Belegs, wie es hinausging** – ein Dokument im Pflichtfeld
+    ``voucher.doc`` des Moduls, mit dem Link, mit dem ``voucher_docs.issue`` es hinausgab. Was es
+    ist (Art, Nummer, Mahnstufe, AGB), steht am Dokument (``facts``); es gibt keine eigene
+    Tabelle dafür. ◄◄"""
+    id: int                       # der Link der Ausgabe (``document_links``)
     kind: str
     level: Optional[int]
     number: Optional[str]
@@ -157,10 +158,24 @@ def paper_of_link(link: DocumentLink, doc: Document) -> Paper:
                  document_id=doc.id)
 
 
+def issued_link(db: Session, document_id: int) -> Optional[DocumentLink]:
+    """►►► **Der Link, mit dem das Papier ausgestellt wurde** – der erste des Dokuments. ◄◄◄
+
+    ``voucher_docs.issue`` legt das Dokument an und gibt im selben Zug den Link an die Partei;
+    jeder spätere Link (``signing.send``, «Senden») ist **Teilen**, kein neues Papier: er zählt
+    nicht als Papier, nicht als Mahnstufe und macht niemanden zur Partei."""
+    return (db.query(DocumentLink).filter(DocumentLink.document_id == document_id)
+            .order_by(DocumentLink.id).first())
+
+
 def documents_of(db: Session, row: Voucher, kind: Optional[str] = None) -> list[Paper]:
-    """**Die Papiere, so wie sie hinausgingen** – älteste zuerst."""
+    """**Die Papiere, so wie sie hinausgingen** – je Dokument eines, mit dem Link seiner
+    Ausgabe (``issued_link``), älteste zuerst."""
+    first = (db.query(DocumentLink.document_id, func.min(DocumentLink.id).label("link_id"))
+             .group_by(DocumentLink.document_id).subquery())
     rows = once(db, ("documents", row.id), lambda: (
         db.query(DocumentLink, Document)
+        .join(first, first.c.link_id == DocumentLink.id)
         .join(Document, Document.id == DocumentLink.document_id)
         .join(DocumentRef, (DocumentRef.document_id == Document.id)
               & (DocumentRef.field == "voucher.doc")
