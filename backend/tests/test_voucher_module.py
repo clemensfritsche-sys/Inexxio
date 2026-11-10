@@ -390,11 +390,11 @@ def test_the_module_never_touches_a_single_unit():
     """
     import sys
     sys.path.insert(0, str(BACKEND))
-    from app.domain import modules, statuses as st
+    from app.domain import modules
 
     mod = modules.get("beleg")
     assert mod.terminal is False, "Der Beleg ist ein Ausgang geworden (a)."
-    assert mod.status_before == st.IM_PROZESS and mod.status_after == st.IM_PROZESS, (
+    assert mod.exit_status_for(None) is None, (
         "Der Beleg ändert den Zustand eines Stücks (b)."
     )
     assert mod.moves is False, "Der Beleg bewegt Stücke (c)."

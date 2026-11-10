@@ -147,8 +147,7 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
     """
     return ModuleCatalog(
         modules=[
-            ModuleTypeInfo(key=m.key, label=m.label, tone=m.tone, terminal=m.terminal,
-                           status_before=m.status_before, status_after=m.status_after)
+            ModuleTypeInfo(key=m.key, label=m.label, tone=m.tone, terminal=m.terminal)
             for m in modules.MODULES.values()
         ],
         # Keine Steuersätze im Modul-Katalog: der Satz hängt an der Sache

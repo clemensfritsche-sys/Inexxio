@@ -63,20 +63,13 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
             article_id=article.id,
             position=position,
             module_type=module.key,
-            status_before=module.status_before,
-            # Erst prüfen, dann ableiten (``Module.status_after_for``).
-            status_after=module.status_after_for(config),
             config=config,
         )
         db.add(step)
         out.append(step)
     # **Dieselbe Kettenregel wie beim Auftrag** (``domain/chain``) – jetzt, weil die Vorlage
     # danach eingefroren ist.
-    chain.assert_closes([
-        {"module_type": s.module_type, "status_before": s.status_before,
-         "status_after": s.status_after}
-        for s in out
-    ])
+    chain.assert_closes([{"module_type": s.module_type} for s in out])
     return out
 
 
@@ -86,8 +79,6 @@ def mirror(db: Session, article: Article) -> list[dict[str, Any]]:
     return [
         {
             "module_type": s.module_type,
-            "status_before": s.status_before,
-            "status_after": s.status_after,
             # Die Konfiguration muss mit (z. B. die Erfassungspunkte).
             "config": dict(s.config) if s.config else None,
         }

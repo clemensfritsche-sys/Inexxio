@@ -132,17 +132,10 @@ def _assert_no_self_consumption(lines: list[_Line], steps: list[dict[str, Any]])
 
 
 def _from_module(data: dict[str, Any]) -> dict[str, Any]:
-    """Eine Modul-Definition aus dem Entwurf in ihre gespeicherte Form bringen; der Übergang
-    wird vom Modultyp abgeleitet (``domain/modules``), nicht übernommen."""
+    """Eine Modul-Definition aus dem Entwurf in ihre gespeicherte Form bringen: Typ und
+    geprüfte Konfiguration – mehr hat ein Schritt nicht (``domain/modules``)."""
     module = modules.get(data.get("module_type"))
-    config = module.clean_config(data.get("config"))
-    return {
-        "module_type": module.key,
-        "status_before": module.status_before,
-        # Erst prüfen, dann ableiten – das Nachher kann an der bereinigten Konfiguration hängen.
-        "status_after": module.status_after_for(config),
-        "config": config,
-    }
+    return {"module_type": module.key, "config": module.clean_config(data.get("config"))}
 
 
 def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -345,9 +338,6 @@ def _checked(db: Session, lines: list[dict[str, Any]], steps: list[dict[str, Any
     if missing:
         raise Invalid("Der Auftrag ist noch nicht freigebbar – es fehlt: "
                    + ", ".join(missing) + ".")
-    for step in effective:
-        st.assert_known(step["status_before"], field="Vorher-Status")
-        st.assert_known(step["status_after"], field="Nachher-Status")
     chain.assert_closes(effective)
     _assert_no_self_consumption(resolved, effective)
     _take_picks(db, resolved, lock=lock)
@@ -428,7 +418,6 @@ def _write_definition(db: Session, lines: list[_Line],
     rows = [
         ProcessStep(
             order_id=order.id, position=position, module_type=step["module_type"],
-            status_before=step["status_before"], status_after=step["status_after"],
             config=step.get("config"),
         )
         for position, step in enumerate(steps, start=1)

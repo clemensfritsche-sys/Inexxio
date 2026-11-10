@@ -308,7 +308,6 @@ def test_the_bom_graph_survives_a_cycle():
         # A verbraucht B – der Kreis entsteht von Hand, weil kein Dienstpfad ihn zulässt.
         db.add(ArticleProcessStep(
             article_id=a.id, position=9, module_type="verbrauch",
-            status_before="freigegeben", status_after="freigegeben",
             config={"lines": [{"article": b.object_id, "quantity": 1}]}))
         _retire(db, b)
         db.flush()

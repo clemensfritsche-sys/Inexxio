@@ -2,7 +2,8 @@
 
 Schlüssel, Übergang und erlaubte ``config`` jedes Moduls stehen hier; ein Modultyp, den es
 hier nicht gibt, ist nicht anlegbar. **Der Übergang gehört zum Modul, nicht zum Anwender**:
-``status_before``/``status_after`` (§4) werden von hier gefüllt, nie gefragt.
+Wer ein Modul passiert und weiterläuft, bleibt «Im Prozess»; einen Übergang je Schritt
+gibt es nicht (``Module.exit_status_for`` sagt, was beim Hinausgehen geschieht).
 """
 
 from decimal import Decimal, InvalidOperation
@@ -55,12 +56,9 @@ class Module:
     #: nie nach dem Modultyp.
     moves: bool = False
 
-    def __init__(self, key: str, label: str, status_before: str, status_after: str,
-                 tone: str):
+    def __init__(self, key: str, label: str, tone: str):
         self.key = key
         self.label = label
-        self.status_before = status_before
-        self.status_after = status_after
         #: **Die Farbfamilie dieses Modultyps** – ein Wort, das das Frontend auf Tokens
         #: abbildet (``lib/modules.MODULE_TONE``). Getrennt von der Ampel: ein Modul ist
         #: kein Zustand (PROCESS_CORE.md §5.3).
@@ -77,14 +75,6 @@ class Module:
         """Wie heisst die Ausführung dieses Moduls? Vorgabe: sein ``action``; ein Typ darf
         dafür seine Konfiguration lesen (Aussondern: «Verschrotten» · «Sperren»)."""
         return self.action
-
-    def status_after_for(self, config: Optional[dict[str, Any]]) -> str:
-        """Auf welchen Zustand setzt dieses Modul ein Stück, das **weiterläuft**?
-
-        Der Übergang gehört zum Modultyp (§14); der Typ darf seine Konfiguration lesen, der
-        Status **folgt** aus der fachlichen Wahl.
-        """
-        return self.status_after
 
     def movement_for(self, config: Optional[dict[str, Any]], *,
                      target: Optional[int]) -> Optional[int]:
@@ -109,8 +99,12 @@ class Module:
 
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         """Auf welchen Zustand setzt dieses Modul ein Stück, das **hier hinausgeht**?
-        ``None``: hier geht niemand hinaus; bei einem Ausgang gleich ``status_after_for``."""
-        return self.status_after_for(config) if self.terminal else None
+        ``None`` (Vorgabe): hier geht niemand hinaus.
+
+        **Wer weiterläuft, bleibt «Im Prozess»** – an jedem Modul. Ein Zustand ändert sich nur
+        beim Hinausgehen: an einem Ausgang (Aussondern) oder für die Komponenten des
+        Verbrauchs. Darum speichert ein Schritt keinen Übergang (PROCESS_CORE §4)."""
+        return None
 
 
 class Datenerfassung(Module):
@@ -169,7 +163,7 @@ class Aussondern(Module):
     def _mode(self, config: Optional[dict[str, Any]]) -> str:
         return (config or {}).get("mode") or self.DEFAULT_MODE
 
-    def status_after_for(self, config: Optional[dict[str, Any]]) -> str:
+    def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         return self.MODES[self._mode(config)]
 
     def action_for(self, config: Optional[dict[str, Any]]) -> str:
@@ -243,7 +237,7 @@ class Verbrauch(Module):
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         """Der Zustand der **Komponenten**, die dieses Modul zieht.
 
-        Nicht der der ankommenden Stücke: die laufen weiter (``status_after``). Das ist
+        Nicht der der ankommenden Stücke: die laufen weiter («Im Prozess»). Das ist
         der ganze Unterschied zum Aussondern – dort ist beides dasselbe, weil dort nichts
         weiterläuft.
         """
@@ -547,33 +541,21 @@ MODULES: dict[str, Module] = {
         Datenerfassung(
             key=DATENERFASSUNG,
             label="Datenerfassung",
-            status_before=st.IM_PROZESS,
-            status_after=st.IM_PROZESS,
             tone="slate",
         ),
         Aussondern(
             key=AUSSONDERN,
             label="Aussondern",
-            status_before=st.IM_PROZESS,
-            # Der Vorgabewert; das gültige Nachher steht in ``status_after_for``, weil es
-            # an der Ausprägung hängt.
-            status_after=st.VERSCHROTTET,
             tone="clay",
         ),
         Bewegen(
             key=BEWEGEN,
             label="Bewegen",
-            # Ein Ort ist kein Zustand: das Stück läuft weiter, wie es angekommen ist.
-            status_before=st.IM_PROZESS,
-            status_after=st.IM_PROZESS,
             tone="moss",
         ),
         Beleg(
             key=BELEG,
             label="Zahlung",
-            # Ein **Durchläufer**: hält die Stücke auf, verändert sie nicht.
-            status_before=st.IM_PROZESS,
-            status_after=st.IM_PROZESS,
             # Gedämpftes Violett – die anderen Familien sind vergeben (Slate · Sand · Moss ·
             # Clay).
             tone="plum",
@@ -581,10 +563,6 @@ MODULES: dict[str, Module] = {
         Verbrauch(
             key=VERBRAUCH,
             label="Verbrauch",
-            status_before=st.IM_PROZESS,
-            # Das Nachher des **Produkts**; was die Komponenten bekommen, steht in
-            # ``exit_status_for``.
-            status_after=st.IM_PROZESS,
             tone="sand",
         ),
     )

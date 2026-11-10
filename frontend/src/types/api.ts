@@ -3199,10 +3199,6 @@ export interface components {
             id: number;
             /** Position */
             position: number;
-            /** Status Before */
-            status_before: string;
-            /** Status After */
-            status_after: string;
             /** Config */
             config?: {
                 [key: string]: unknown;
@@ -5151,10 +5147,6 @@ export interface components {
              * @default false
              */
             terminal: boolean;
-            /** Status Before */
-            status_before: string;
-            /** Status After */
-            status_after: string;
         };
         /**
          * NeedSource
@@ -5705,10 +5697,6 @@ export interface components {
             id: number;
             /** Position */
             position: number;
-            /** Status Before */
-            status_before: string;
-            /** Status After */
-            status_after: string;
             /** Config */
             config?: {
                 [key: string]: unknown;
@@ -5804,8 +5792,7 @@ export interface components {
              *     Es gibt genau drei Dinge, die ein Eintrag über «wer, wann» hinaus tragen kann:
              *
              *     * **erfasste Werte** – das Modul hat Erfassungspunkte (``config``),
-             *     * **ein Zustandswechsel** – ``status_before`` ≠ ``status_after`` (ein Ausgang,
-             *       ein Verbrauch),
+             *     * **ein Zustandswechsel** – ein Ausgang (``terminal``): wer hier ankommt, geht hinaus,
              *     * **eine Verifikation** – der Scan, der sagt, welches physische Ding es war.
              *
              *     Trifft keines zu, ist das Protokoll leer im Wortsinn und wird nicht angeboten.

@@ -125,8 +125,6 @@ class ProcessStepResponse(ModuleFacts):
 
     id: int
     position: int
-    status_before: str
-    status_after: str
     #: Was der Modultyp braucht – bei der Datenerfassung die Erfassungspunkte.
     config: Optional[dict] = None
     #: **Worauf dieses Modul wartet** – Abweichungen mit ausstehender Rückführung; nicht leer
@@ -198,8 +196,7 @@ class ProcessStepResponse(ModuleFacts):
         Es gibt genau drei Dinge, die ein Eintrag über «wer, wann» hinaus tragen kann:
 
         * **erfasste Werte** – das Modul hat Erfassungspunkte (``config``),
-        * **ein Zustandswechsel** – ``status_before`` ≠ ``status_after`` (ein Ausgang,
-          ein Verbrauch),
+        * **ein Zustandswechsel** – ein Ausgang (``terminal``): wer hier ankommt, geht hinaus,
         * **eine Verifikation** – der Scan, der sagt, welches physische Ding es war.
 
         Trifft keines zu, ist das Protokoll leer im Wortsinn und wird nicht angeboten.
@@ -208,7 +205,7 @@ class ProcessStepResponse(ModuleFacts):
         """
         return bool(
             modules.points_of(self.config)
-            or self.status_after != self.status_before
+            or self.terminal
             or self.verifies
         )
 

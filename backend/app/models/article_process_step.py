@@ -37,6 +37,4 @@ class ArticleProcessStep(Base, TimestampMixin):
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     module_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    status_before: Mapped[str] = mapped_column(String(30), nullable=False)
-    status_after: Mapped[str] = mapped_column(String(30), nullable=False)
     config: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)

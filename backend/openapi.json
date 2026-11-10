@@ -8109,14 +8109,6 @@
             "type": "integer",
             "title": "Position"
           },
-          "status_before": {
-            "type": "string",
-            "title": "Status Before"
-          },
-          "status_after": {
-            "type": "string",
-            "title": "Status After"
-          },
           "config": {
             "anyOf": [
               {
@@ -8165,8 +8157,6 @@
           "module_type",
           "id",
           "position",
-          "status_before",
-          "status_after",
           "label",
           "tone",
           "terminal",
@@ -12484,23 +12474,13 @@
             "type": "boolean",
             "title": "Terminal",
             "default": false
-          },
-          "status_before": {
-            "type": "string",
-            "title": "Status Before"
-          },
-          "status_after": {
-            "type": "string",
-            "title": "Status After"
           }
         },
         "type": "object",
         "required": [
           "key",
           "label",
-          "tone",
-          "status_before",
-          "status_after"
+          "tone"
         ],
         "title": "ModuleTypeInfo",
         "description": "Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut.\n\n``tone`` ist die **Farbfamilie** des Modultyps (``domain/modules``). Sie kommt mit,\nweil sie zum Modul gehört: ein neuer Typ soll ein Eintrag in der Registry sein und\nkein Eingriff in die Oberfläche.\n\n``terminal`` sagt, dass hinter diesem Modul nichts mehr stehen kann – es ist ein\n**Ausgang**, kein Durchgang. Es ist dieselbe Eigenschaft, aus der die Freigabe ihren\nFehler zieht (``domain/chain``) und das Prozessbild sein Ende; die Oberfläche bietet\ndaraufhin gar nicht erst an, etwas dahinter zu setzen. Eine Regel, drei Wirkungen –\nein neuer Modultyp erbt alle drei, ohne eine Zeile dafür."
@@ -13662,14 +13642,6 @@
             "type": "integer",
             "title": "Position"
           },
-          "status_before": {
-            "type": "string",
-            "title": "Status Before"
-          },
-          "status_after": {
-            "type": "string",
-            "title": "Status After"
-          },
           "config": {
             "anyOf": [
               {
@@ -13785,7 +13757,7 @@
           "records": {
             "type": "boolean",
             "title": "Records",
-            "description": "►►► **Hat dieses Modul mehr zu berichten als die blosse Passage?** (#825) ◄◄◄\n\nDas Protokoll (``services/record``) bleibt für **jedes** Modul, was es ist: der\nNachweis. Aber bei einem Modul, das am Stück nichts ändert, nichts erfasst und\nnichts verifiziert, blieben genau drei Angaben übrig – eine Nummer, ein Name und\neine Uhrzeit –, und die Frage «warum steht die hier?» war berechtigt.\n\n**Gefragt wird die Sache, nicht der Modultyp.** Ein ``if module_type ==\n'zahlung'`` wäre beim nächsten Modul ohne physisches Gegenstück wieder falsch.\nEs gibt genau drei Dinge, die ein Eintrag über «wer, wann» hinaus tragen kann:\n\n* **erfasste Werte** – das Modul hat Erfassungspunkte (``config``),\n* **ein Zustandswechsel** – ``status_before`` ≠ ``status_after`` (ein Ausgang,\n  ein Verbrauch),\n* **eine Verifikation** – der Scan, der sagt, welches physische Ding es war.\n\nTrifft keines zu, ist das Protokoll leer im Wortsinn und wird nicht angeboten.\nAlle drei Angaben stehen **am Schritt**; es braucht dafür keine Abfrage auf den\nLog, und schon gar nicht eine je Modul in jeder Auftrags-Antwort.",
+            "description": "►►► **Hat dieses Modul mehr zu berichten als die blosse Passage?** (#825) ◄◄◄\n\nDas Protokoll (``services/record``) bleibt für **jedes** Modul, was es ist: der\nNachweis. Aber bei einem Modul, das am Stück nichts ändert, nichts erfasst und\nnichts verifiziert, blieben genau drei Angaben übrig – eine Nummer, ein Name und\neine Uhrzeit –, und die Frage «warum steht die hier?» war berechtigt.\n\n**Gefragt wird die Sache, nicht der Modultyp.** Ein ``if module_type ==\n'zahlung'`` wäre beim nächsten Modul ohne physisches Gegenstück wieder falsch.\nEs gibt genau drei Dinge, die ein Eintrag über «wer, wann» hinaus tragen kann:\n\n* **erfasste Werte** – das Modul hat Erfassungspunkte (``config``),\n* **ein Zustandswechsel** – ein Ausgang (``terminal``): wer hier ankommt, geht hinaus,\n* **eine Verifikation** – der Scan, der sagt, welches physische Ding es war.\n\nTrifft keines zu, ist das Protokoll leer im Wortsinn und wird nicht angeboten.\nAlle drei Angaben stehen **am Schritt**; es braucht dafür keine Abfrage auf den\nLog, und schon gar nicht eine je Modul in jeder Auftrags-Antwort.",
             "readOnly": true
           },
           "open_actions": {
@@ -13800,8 +13772,6 @@
           "module_type",
           "id",
           "position",
-          "status_before",
-          "status_after",
           "label",
           "tone",
           "terminal",

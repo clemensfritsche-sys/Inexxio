@@ -125,8 +125,6 @@ class ModuleTypeInfo(BaseModel):
     label: str
     tone: str
     terminal: bool = False
-    status_before: str
-    status_after: str
 
 
 class CaptureTypeInfo(BaseModel):

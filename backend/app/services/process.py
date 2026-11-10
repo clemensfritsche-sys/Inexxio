@@ -294,10 +294,10 @@ def _ready_at(db: Session, *, order: Order, step: ProcessStep, auto: bool,
         raise Conflict(f"Vor «{modules.label(step.module_type)}» steht keine Einzelinstanz"
                     f"{where} – hier ist gerade nichts zu tun.")
     for _, unit in waiting:
-        if unit.status != step.status_before:
+        if unit.status != st.IM_PROZESS:
             raise Conflict(f"Einzelinstanz {number_of(db, unit)} steht auf "
                     f"«{st.label(unit.status)}», «{modules.label(step.module_type)}» erwartet "
-                    f"«{st.label(step.status_before)}».")
+                    f"«{st.label(st.IM_PROZESS)}».")
     return waiting
 
 
@@ -361,7 +361,7 @@ def _advance(db: Session, *, order: Order, step: ProcessStep,
         db, order=order, units=units, membership_ids=[m.id for m, _ in waiting],
         kind=KIND_STEP, step=step,
         status_after=(module.exit_status_for(step.config) if module.terminal
-                      else step.status_after),
+                      else st.IM_PROZESS),
         next_step_id=following.id if following else None,
         actor_id=actor_id, payloads=marks,
     )
@@ -507,7 +507,7 @@ def _run_through(db: Session, *, order: Order, step: Optional[ProcessStep],
         following = _following(db, order, step)
         _pass(
             db, order=order, units=units, membership_ids=[m.id for m, _ in waiting],
-            kind=KIND_STEP, step=step, status_after=step.status_after,
+            kind=KIND_STEP, step=step, status_after=st.IM_PROZESS,
             next_step_id=following.id if following else None, actor_id=actor_id,
             payloads={u.id: {"sampled": False} for u in units},
         )

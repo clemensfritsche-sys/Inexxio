@@ -199,7 +199,7 @@ function Palette({ catalog, onPick }: {
 
 /**
  * **Aussondern — eine Entscheidung**: gibt es einen Weg zurück (Sperren) oder nicht
- * (Verschrotten)? Den Zustand leitet das Modul ab (`Aussondern.status_after_for`). Keine
+ * (Verschrotten)? Den Zustand leitet das Modul ab (`Aussondern.exit_status_for`). Keine
  * Erfassungspunkte, keine Stichprobe. Der Grund gehört zum Ablauf, nicht ans Band; ohne ihn
  * lässt sich das Modul nicht anlegen (`Aussondern.clean_config`).
  */

@@ -326,8 +326,6 @@ class ArticleProcessStepResponse(ModuleFacts):
     #: Position.
     id: int
     position: int
-    status_before: str
-    status_after: str
     config: Optional[dict] = None
 
 

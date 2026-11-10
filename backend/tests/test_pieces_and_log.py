@@ -154,7 +154,7 @@ def test_the_order_process_is_a_stamped_copy_of_the_template(db):
     from app.services.article_process import steps_of
 
     def shape(rows):
-        return [(r.module_type, r.status_before, r.status_after, r.config or None) for r in rows]
+        return [(r.module_type, r.config or None) for r in rows]
 
     steps = (db.query(ProcessStep).filter(ProcessStep.order_id == order.id)
              .order_by(ProcessStep.position).all())

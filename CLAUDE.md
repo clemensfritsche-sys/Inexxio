@@ -187,7 +187,7 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   Kamera, genau eine Aufnahme je Stück) · Signatur · Soll-Ist (mit Einheit) – je Typ eine
   Datei in `domain/capture_types/`.
 - **Aussondern** (§9.4): Verschrotten (`Verschrottet`, endgültig) ↔ Sperren (`Gesperrt`)
-  ist ein **Parameter** (`config.mode`), der Zustand wird abgeleitet (`status_after_for`).
+  ist ein **Parameter** (`config.mode`), der Zustand wird abgeleitet (`exit_status_for`).
   Ein **Ausgang**. Der **Grund ist Pflicht beim Modellieren** (`config.reason`), zur Laufzeit
   ist der Scan die Bestätigung.
 - **Verbrauch** (§9.6): Komponenten **treten am Modul ein** (`process._enter_at_step`); die

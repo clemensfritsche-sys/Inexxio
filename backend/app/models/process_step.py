@@ -20,11 +20,9 @@ class ProcessStep(Base, TimestampMixin):
     ist implizit, und ihre Übergänge gehören zum System (``domain/statuses``), nicht zur
     Modellierung.
 
-    ``status_before``/``status_after`` sind **Pflicht**, werden aber nicht **gefragt**:
-    der Übergang gehört zum Modultyp und steht in ``domain/modules`` (die Datenerfassung
-    ist ein Durchläufer – sie misst, sie verändert den Zustand nicht). Zwei Auswahlen
-    beim Anlegen hätten dem Anwender eine Entscheidung angeboten, deren einzige richtige
-    Antwort schon feststand.
+    **Ein Schritt speichert keinen Übergang.** Wer ein Modul passiert und weiterläuft,
+    bleibt «Im Prozess»; was beim Hinausgehen geschieht, sagt der Modultyp
+    (``Module.exit_status_for``).
 
     ``config`` trägt, was der Modultyp braucht – bei der Datenerfassung die
     Erfassungspunkte. Geprüft wird sie beim Anlegen (``Module.clean_config``), nicht zur
@@ -48,8 +46,6 @@ class ProcessStep(Base, TimestampMixin):
     order_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("orders.id", ondelete="RESTRICT"), index=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     module_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    status_before: Mapped[str] = mapped_column(String(30), nullable=False)
-    status_after: Mapped[str] = mapped_column(String(30), nullable=False)
     config: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
 
     # Herkunft der **Kopie** (PROCESS_CORE.md §6.4): stammt diese Zeile aus dem

@@ -12,9 +12,7 @@ from app.schemas.order import ProcessStepResponse
 
 
 def _step(module_type: str, config: dict) -> dict:
-    m = modules.get(module_type)
-    return ProcessStepResponse(id=7, position=1, module_type=module_type, config=config,
-                               status_before=m.status_before, status_after=m.status_after
+    return ProcessStepResponse(id=7, position=1, module_type=module_type, config=config
                                ).model_dump(mode="json")
 
 
@@ -38,6 +36,10 @@ def test_the_transition_and_the_place_are_declared_not_configured():
     """Die Datenerfassung misst, sie verändert nichts – der Übergang ist fest, nicht
     einstellbar. Wo das Material des Verbrauchs liegen muss, folgt aus dem Produkt; ein
     Ortsfeld am Modul wäre eine zweite Ortsangabe neben dem Ziel eines Bewegen-Moduls."""
-    m = modules.get(modules.DATENERFASSUNG)
-    assert (m.status_before, m.status_after) == (st.IM_PROZESS, st.IM_PROZESS)
+    assert modules.get(modules.DATENERFASSUNG).exit_status_for(None) is None, (
+        "Die Datenerfassung schickt niemanden hinaus – wer sie passiert, bleibt «Im Prozess».")
+    aussondern = modules.get(modules.AUSSONDERN)
+    assert (aussondern.exit_status_for({"mode": "scrap"}),
+            aussondern.exit_status_for({"mode": "block"})) == (st.VERSCHROTTET, st.GESPERRT), (
+        "Der Ausgang setzt den Zustand aus seiner Ausprägung.")
     assert modules.get(modules.VERBRAUCH).material_place == modules.AT_PRODUCT
