@@ -814,6 +814,9 @@ class ApiClient {
   syncMail() {
     return this.call('post', '/api/v1/erp/messages/sync');
   }
+  resendMessage(id: number) {
+    return this.call('post', '/api/v1/erp/messages/{message_id}/resend', { path: { message_id: id } });
+  }
 
   // ─── Newsletter ────────────────────────────────────────────────────────────
 

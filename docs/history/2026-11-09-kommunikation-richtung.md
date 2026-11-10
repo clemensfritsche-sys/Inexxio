@@ -39,3 +39,20 @@ untergeschoben, der das Postfach verbunden hatte.
 ## Geprüft
 `tests/test_mail_direction.py` (7 Fälle, je mit Bug-Form; 4 davon rot gegen den alten Stand),
 Backend 798 grün, Frontend Typen · Lint · 161 Tests grün.
+
+## Nachtrag 2026-11-10 · Gesamtschau, umgesetzt A und B
+- **Ein Fehler danach**: die Antwort an die private Adresse eines Mitarbeiters galt selbst als
+  offen («Mitarbeiter im An» – gedacht für die interne Erinnerung). `domain.to_us` zählt das nur
+  noch bei internen Kanälen.
+- **A – kleiner**: `communication.history` (nur noch im Test) und die alte Kennung
+  «Nummer der Zeile» weg (Migration 184 schreibt wartenden Altmails ihre Kennung fest); eine
+  Grussformel-Erkennung statt zwei; `References` mit dem ganzen Faden; Outlook-Zitatkopf
+  («Von: … Gesendet: …») wird abgeschnitten.
+- **B – eine Stelle**: `services/outbox.py` – jede Mail des Hauses entsteht über `deliver`
+  (vorher baute jeder der vier Absender Postfach, Firmenangaben, Absender und Versand selbst –
+  genau dort lagen die Fehler); gebaut beim Anlegen, auch die Antwort aus dem Verlauf; «nicht
+  gesendet» ist EINE Regel (`_FAILED`), an der Mail sichtbar, mit «Neu senden».
+- **Verworfen für jetzt** (C): Eingabe teilen in «Antworten» und «Neu», nur noch ein Modus
+  (immer Gmail), Gmail-Push statt Abfragen.
+- Geprüft: Backend 803 grün (neu u. a. Wächter «keine zweite Stelle legt eine Mail an», je
+  gegen die Bug-Form gegengeprüft), Frontend Typen · Lint · 161 Tests grün.

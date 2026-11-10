@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { Check, Clock, ExternalLink, Loader2, Megaphone, MoreHorizontal, Newspaper, Paperclip, Phone, Reply } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAction } from '@/lib/use-action';
 import { formatWhen, whenTitle } from '@/lib/when';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { DraftSheet } from '@/components/erp/document-draft';
@@ -216,8 +217,8 @@ export function Bubble({ m, mirror, named, onReply, onDone }: {
   );
 }
 
-/** Was an einer Mail hängt: Anhänge und ob sie noch hinaus muss. Steht nichts davon an,
- *  steht hier nichts.
+/** Was an einer Mail hängt: Anhänge, ob sie noch hinaus muss – und ob sie nicht hinausging
+ *  («Neu senden»). Steht nichts davon an, steht hier nichts.
  *
  *  ►►► **Ein Anhang öffnet den Entwurf eines Dokuments** – dasselbe Interface wie überall
  *  (Regel: eine Ablage). Gibt es die Datei schon als Dokument, sagt es der Entwurf und öffnet
@@ -228,7 +229,8 @@ function MailFoot({ m }: { m: Message }) {
   const [draft, setDraft] = useState<File | null>(null);
   const [loading, setLoading] = useState<number | null>(null);
   const [error, setError] = useState('');
-  if (!files.length && !m.pending) return null;
+  const again = useAction('Konnte nicht neu gesendet werden.');
+  if (!files.length && !m.pending && !m.failed) return null;
   const open = async (i: number, name: string) => {
     setError('');
     setLoading(i);
@@ -251,7 +253,17 @@ function MailFoot({ m }: { m: Message }) {
         </button>
       ))}
       {m.pending && <span>{m.planned ? 'wird zum Zeitpunkt gesendet' : 'wartet auf Versand'}</span>}
-      {error && <span style={{ color: 'var(--danger)' }}>{error}</span>}
+      {m.failed && (
+        <>
+          <span style={{ color: 'var(--danger)', fontWeight: 600 }}
+            data-tip="Gmail hat sie mehrmals abgewiesen – der Grund steht als interne Nachricht im Verlauf">
+            nicht gesendet</span>
+          <button type="button" disabled={again.busy} onClick={() => void again.run(() => api.resendMessage(m.id))}
+            style={{ border: 0, padding: '2px 8px', borderRadius: 6, background: 'var(--bg-3)',
+                     color: 'var(--fg-1)', font: 'inherit', cursor: 'pointer' }}>Neu senden</button>
+        </>
+      )}
+      {(error || again.error) && <span style={{ color: 'var(--danger)' }}>{error || again.error}</span>}
       {draft && (
         <DraftSheet onCancel={() => setDraft(null)}
           seed={{ files: [draft], source: form ? 'form' : 'mail', sender: m.sender.object_id,

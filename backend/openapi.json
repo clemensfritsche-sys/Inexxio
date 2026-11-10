@@ -5065,6 +5065,54 @@
         }
       }
     },
+    "/api/v1/erp/messages/{message_id}/resend": {
+      "post": {
+        "tags": [
+          "communication"
+        ],
+        "summary": "Resend",
+        "description": "Eine Mail, die nicht hinausging, neu senden – sie wartet wieder auf ihr Postfach.",
+        "operationId": "resend_api_v1_erp_messages__message_id__resend_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Message Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/messages/sync": {
       "post": {
         "tags": [
@@ -12300,6 +12348,11 @@
           "pending": {
             "type": "boolean",
             "title": "Pending",
+            "default": false
+          },
+          "failed": {
+            "type": "boolean",
+            "title": "Failed",
             "default": false
           },
           "attachments": {

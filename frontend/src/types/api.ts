@@ -1981,6 +1981,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/messages/{message_id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend
+         * @description Eine Mail, die nicht hinausging, neu senden – sie wartet wieder auf ihr Postfach.
+         */
+        post: operations["resend_api_v1_erp_messages__message_id__resend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/messages/sync": {
         parameters: {
             query?: never;
@@ -5030,6 +5050,11 @@ export interface components {
              * @default false
              */
             pending: boolean;
+            /**
+             * Failed
+             * @default false
+             */
+            failed: boolean;
             /**
              * Attachments
              * @default []
@@ -11016,6 +11041,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_api_v1_erp_messages__message_id__resend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
             };
             /** @description Validation Error */
             422: {

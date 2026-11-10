@@ -9,6 +9,8 @@ ist (nur, was auch draussen ankam). Jede Prüfung nennt ihre Bug-Form.
 import base64
 import email
 import time
+
+import pytest
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -208,3 +210,30 @@ def test_a_mail_of_the_house_comes_from_one_place(world, monkeypatch):
     second = [f.name for f in app.glob("*.py") if f.name not in ("outbox.py", "communication.py")
               and re.search(r"Message\((?:[^()]|\([^()]*\))*outgoing\s*=", f.read_text())]
     assert second == [], f"Mail an zweiter Stelle angelegt: {second}"
+
+
+def test_a_mail_that_did_not_go_out_says_so_and_can_be_resent(world, monkeypatch):
+    """►►► Nicht gesendet steht an der Mail selbst – und «Neu senden» gibt sie wieder zum
+    Versand; die Versuche zählen danach von vorn. ◄◄◄ Bug-Form: der Zustand stand an drei
+    Orten (Spalte, zwei Ereignisse), die Mail sah danach aus wie gesendet."""
+    from app.domain.errors import Invalid
+    db, staff, box = world
+    monkeypatch.setattr(mb, "send_after", lambda _db: None)
+    lea = _person(db)
+    msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Termin",
+                                    body="Morgen um 9"), staff)
+    msg.outgoing = True
+    db.flush()
+    with pytest.raises(Invalid):
+        comm.resend(db, msg.id, staff)          # sie wartet ja noch
+    for _ in range(mb.MAX_ATTEMPTS):
+        mb._failed(db, msg, "Gmail hat sie abgewiesen (400).")
+    db.flush()
+    out = comm.load(db, [msg.id])[0]
+    assert out.failed and not out.pending
+    comm.resend(db, msg.id, staff)
+    db.flush()
+    out = comm.load(db, [msg.id])[0]
+    assert out.pending and not out.failed
+    mb._failed(db, msg, "Gmail war nicht erreichbar.")
+    assert msg.outgoing, "nach «Neu senden» zählen die Versuche von vorn"

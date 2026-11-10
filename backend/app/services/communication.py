@@ -320,8 +320,8 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
 #:
 #: * **von uns** heisst: sie ging hinaus (``inbound`` aus) – die Richtung der Nachricht,
 #:   nicht die Rolle ihres Absenders;
-#: * **und sie ist auch draussen**: eine Mail, die noch wartet (``outgoing``) oder an der
-#:   Gmail aufgab (``mail.gave_up``), hat niemanden erreicht und beantwortet nichts;
+#: * **und sie ist auch draussen**: eine Mail, die noch wartet (``outgoing``) oder nicht
+#:   gesendet wurde (``_FAILED``), hat niemanden erreicht und beantwortet nichts;
 #: * **erreicht**: ihr Absender ist an der Antwort beteiligt (Absender, An, Cc, Bcc,
 #:   Betrifft) – damit erledigt eine Antwort alle offenen Nachrichten des Anliegens;
 #: * **wer fragt, beantwortet seine Frage nicht selbst** – ausser was von aussen kam (ein
@@ -337,12 +337,44 @@ def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
 _STAFF = ("WITH staff AS MATERIALIZED (SELECT object_id FROM user_profiles "
           "WHERE role = ANY(:staff) AND object_id IS NOT NULL) ")
 
+#: ►►► **Nicht gesendet – die EINE Regel** (über eine Nachricht ``{m}``): der Versand gab auf
+#: (``mail.gave_up``), sie wartet nicht mehr und ging nie hinaus (keine Gmail-Nummer). Gelesen
+#: von «beantwortet» (``_ANSWERED``) und von der Anzeige an der Mail (``failed``). ◄◄◄
+_FAILED = ("(NOT {m}.outgoing AND {m}.gmail_id IS NULL AND EXISTS ("
+           "SELECT 1 FROM log g WHERE g.event = 'mail.gave_up' AND g.table_name = 'messages' "
+           "AND g.row_key = {m}.id::text))")
+
+
+def failed(db: Session, ids: list[int]) -> set[int]:
+    """Welche dieser Nachrichten gingen nicht hinaus (``_FAILED``)?"""
+    if not ids:
+        return set()
+    rows = db.execute(text(f"SELECT m.id FROM messages m WHERE m.id = ANY(:ids) AND "
+                           f"{_FAILED.format(m='m')}"), {"ids": list(ids)})
+    return {i for (i,) in rows}
+
+
+def resend(db: Session, message_id: int, actor: UserProfile) -> Message:
+    """**Neu senden** – eine Mail, die nicht hinausging, wieder zum Versand geben. Gezählt
+    werden die Versuche danach von vorn (``mail.resend``)."""
+    from . import log, mailbox
+    msg = db.query(Message).filter(Message.id == message_id, Message.is_active.is_(True)).first()
+    if msg is None or not dc.is_mail(msg.channel):
+        raise NotFound("Diese Mail gibt es nicht.")
+    if message_id not in failed(db, [message_id]):
+        raise Invalid(f"Die Mail «{msg.subject or ''}» wartet nicht auf einen neuen Versuch.")
+    mailbox.assert_may_send(db, msg.channel, actor)
+    msg.outgoing = True
+    log.event(db, "mail.resend", msg.sender_object_id, {}, table="messages", row=msg.id)
+    mailbox.send_after(db)
+    return msg
+
+
 _ANSWERED = """EXISTS (
   SELECT 1 FROM messages r
    WHERE r.topic = m.topic AND r.is_active AND r.at <= :now AND r.id <> m.id
      AND r.channel <> 'note' AND NOT r.inbound AND NOT r.outgoing
-     AND NOT EXISTS (SELECT 1 FROM log g WHERE g.event = 'mail.gave_up'
-                       AND g.table_name = 'messages' AND g.row_key = r.id::text)
+     AND NOT """ + _FAILED.format(m="r") + """
      AND (r.at > m.at OR (r.at = m.at AND r.id > m.id))
      AND (m.inbound OR r.sender_object_id <> m.sender_object_id OR EXISTS (
             SELECT 1 FROM message_parties own WHERE own.message_id = m.id
@@ -469,11 +501,15 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
     for p in parties:
         by_msg[p.message_id][p.role].append(p.object_id)
     done = answered(db, [m.id for m in msgs])
+    lost = failed(db, [m.id for m in msgs])
     now = clock.utcnow()
     labels = _labels(db, [m.channel for m in msgs])
     firms = _firms(db, people)
-    return [_out(m, by_msg[m.id], m.id in done, people, now, labels, firms, names)
-            for m in msgs]
+    out = [_out(m, by_msg[m.id], m.id in done, people, now, labels, firms, names)
+           for m in msgs]
+    for o in out:
+        o.failed = o.id in lost
+    return out
 
 
 def _state(m, roles: dict[str, list[int]], answered: bool,

@@ -54,6 +54,13 @@ def disconnect(channel: str, db: Session = DB,
     mailbox.disconnect(db, channel, user)
 
 
+@router.post("/{message_id}/resend", response_model=MessageOut)
+def resend(message_id: int, db: Session = DB, user: UserProfile = Depends(require_employee)):
+    """Eine Mail, die nicht hinausging, neu senden – sie wartet wieder auf ihr Postfach."""
+    msg = svc.resend(db, message_id, user)
+    return svc.load(db, [msg.id])[0]
+
+
 @router.post("/sync", response_model=SyncOut)
 def sync(db: Session = DB, _: UserProfile = Depends(require_employee)):
     """Die Postfächer abgleichen und Fälliges senden (je Lauf höchstens 20 – so geht ein

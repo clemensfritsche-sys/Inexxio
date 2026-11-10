@@ -309,8 +309,10 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Mail genau einmal (einzeln gesperrt, sofort festgeschrieben), nur über ein verbundenes
   Postfach; **nie doppelt**: jede Mail, die hinaus soll, bekommt ihre Kennung (`Message-ID`, zufällig,
   `@mail.inexxio`) mit der Nachricht gespeichert (`Message._message_id`), vor jedem Senden fragt Gmail
-  danach, und der Abgleich holt eine eigene Kennung nie herein; nach drei Abweisungen durch Gmail steht
-  der Grund als interne Nachricht im Verlauf. **Was die Gesellschaft schreibt, schreibt die
+  danach, und der Abgleich holt eine eigene Kennung nie herein; nach drei Abweisungen durch Gmail ist
+  sie **nicht gesendet** (`communication._FAILED`, an der Mail mit «Neu senden»,
+  `POST /erp/messages/{id}/resend`; die Versuche zählen danach von vorn) und der Grund steht als
+  interne Nachricht im Verlauf. **Was die Gesellschaft schreibt, schreibt die
   Gesellschaft**: automatische Mails (Bestätigung, Newsletter-Bitte, Beleg ohne Mensch) und was direkt
   in Gmail hinausging, haben die Gesellschaft als Absenderin, nicht den Admin des Postfachs. Ist
   das Postfach einer Mail getrennt, wählt die Antwort ihres von Hand – nie still ein anderes.
@@ -318,9 +320,14 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   alt, kommen alle Mails seit dem letzten Abgleich (seitenweise). Erledigt im ERP =
   gelesen in Gmail. **Ein Anhang** bleibt in Gmail, bis ihn jemand öffnet – dann geht er in den
   Entwurf eines Dokuments (`mailbox.attachment`); ebenso die Fotos des Kontaktformulars.
+- **Eine Stelle für jede Mail des Hauses** (`services/outbox.py`): `deliver` (anlegen, bauen, zum
+  Versand geben – Beleg, Dokument, Eingangsbestätigung, Newsletter-Bitte), `build` (auch die
+  Antwort aus dem Verlauf), `firm`, `signer`. **Gebaut beim Anlegen, nie beim Versand.**
 - **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Kopf · Betreff als
   Überschrift · Inhalt · Unterschrift mit dem Menschen im Namen der Gesellschaft · Fuss; was
-  im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`). **Ein Unterzeichner**
+  im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`). Antworten nennen den
+  ganzen Faden (`References`); Zitate (auch der Outlook-Kopf) fallen beim Abholen weg
+  (`mail_parse`); eine Grussformel-Erkennung (`domain/communication.is_greeting`). **Ein Unterzeichner**
   für jede Mail (`mail_layout.as_signer`: Name + Profilbild). **Das Bild der Unterschrift**
   (`services/portrait.py`): schräge Streifen, die sich einmal öffnen, links eine rote Kante –
   ein GIF (das erste Bild ist das fertige, für Outlook), durchsichtig für hell und dunkel,

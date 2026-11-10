@@ -116,6 +116,9 @@ class MessageOut(BaseModel):
     planned: bool = False
     #: Eine Mail von uns, die noch nicht hinaus ist (geplant oder Versand gescheitert).
     pending: bool = False
+    #: **Nicht gesendet** – Gmail wies sie wiederholt ab, der Versand gab auf
+    #: (``communication.failed``); «Neu senden» gibt sie wieder zum Versand.
+    failed: bool = False
     #: Anhänge – nur Name und Grösse; die Datei liegt in Gmail.
     attachments: list[Attachment] = []
     #: Wo die Mail in Gmail steht (nur für eine abgeglichene bzw. gesendete).

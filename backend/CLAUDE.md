@@ -131,7 +131,7 @@ scripts/
 | Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, Beleg: `voucher.py` (Kern: lesen, Ableitungen, Anlage, Rahmen) → `voucher_head.py` (Belegkopf, Anschrift, Positionen) → `voucher_money.py` (Geld-Zeilen, Erstattung, QR, anstehende Papiere) → `voucher_rules.py` (`REQUIRED_FOR` · `NEEDS` → `gaps`, Eigentum und Anfrage als Grund ↔ Tor) → `voucher_input.py` (was hereinkommt: Zahl, Betrag, Frist, Tag, Text, Partei) → `voucher_offer.py` (Verben bis zur Zusage) · `voucher_billing.py` (Verben ab der Zusage: Rechnung, Geld, Papiere, Storno) → `voucher_actions.py` (`VERBS`, `can`, `assert_allowed`, `apply`) → `voucher_view.py` (`embed_data`) (+ `voucher_docs.py`, `a4.py` (die A4-Vorlage jedes Papiers), `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
-| Kommunikation | `communication.py` (anlegen, Seiten `page`, «offen» als Abfrage, `move_note`), `mailbox.py` (verbinden, abgleichen, senden) + `mail_parse.py` (eine Gmail-Nachricht lesen: Text, Zitate, Anhänge, Massenpost – rein), `mail_layout.py` (die eine Vorlage, `as_signer`), `portrait.py` (das Bild der Unterschrift als GIF), `inquiry.py`, `newsletter.py` |
+| Kommunikation | `communication.py` (anlegen, Seiten `page`, «offen» als Abfrage, `move_note`), `mailbox.py` (verbinden, abgleichen, senden) + `mail_parse.py` (eine Gmail-Nachricht lesen: Text, Zitate, Anhänge, Massenpost – rein), `outbox.py` (jede Mail des Hauses: `deliver`, `build`, `firm`, `signer`), `mail_layout.py` (die eine Vorlage, `as_signer`), `portrait.py` (das Bild der Unterschrift als GIF), `inquiry.py`, `newsletter.py` |
 | Verlauf | `history.py` (ein Verlauf je Nummer: Nachrichten, Dokumente, Änderungen aus dem Log; `HIDDEN`), Wörter der Tabellen in `domain/log.TABLE_WORDS` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `record_labels.py` (Datensätze benennen: Typ aus der Registry, `objects.TYPES`) |
@@ -164,7 +164,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **157 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **158 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -240,6 +240,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET | `/api/v1/erp/messages/channels` | staff | Kanäle, aus denen man schreiben kann |
 | GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |
 | POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
+| POST | `/api/v1/erp/messages/{message_id}/resend` | staff | **Neu senden** – eine Mail, die nicht hinausging (`communication.failed`), wieder zum Versand geben |
 | POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) – solange das ERP offen ist; ohne Browser tut es der Takt |
 | POST | `/api/v1/internal/tick` | – (Google-Token, `core/oidc`) | **Der Takt** (Cloud Scheduler, alle 5 Min.): jede Aufgabe aus `tick.TASKS` (Siegel des Logs, Mails holen und senden, Aufnahmen aufräumen und zu Ende abschreiben, KI: Gespräche nachholen, Handgriffe aus Mails, Bedeutungs-Zahlen); je `ok` · `skipped` · `failed`, 500 wenn eine scheitert; ohne `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` 503 |
 | GET | `/api/v1/mail/callback` | – (signierter `state`) | Rückkehr von Google → `/erp?mail=…` |

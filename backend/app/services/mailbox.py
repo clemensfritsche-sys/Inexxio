@@ -32,7 +32,7 @@ from urllib.parse import urlencode
 
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -652,9 +652,10 @@ def _failed(db: Session, msg: Message, reason: str) -> None:
     from . import log
     log.event(db, "mail.send_failed", msg.sender_object_id, {"reason": reason[:500]},
               table="messages", row=msg.id)
-    tries = db.query(Log.id).filter(Log.event == "mail.send_failed",
-                                    Log.table_name == "messages",
-                                    Log.row_key == str(msg.id)).count()
+    mine = (Log.table_name == "messages", Log.row_key == str(msg.id))
+    since = db.query(func.max(Log.id)).filter(Log.event == "mail.resend", *mine).scalar() or 0
+    tries = db.query(Log.id).filter(Log.event == "mail.send_failed", Log.id > since,
+                                    *mine).count()
     if tries >= MAX_ATTEMPTS:
         _give_up(db, msg, reason)
 
