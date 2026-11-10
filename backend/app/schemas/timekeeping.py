@@ -22,6 +22,7 @@ class EntryIn(BaseModel):
     * ``in``/``out`` – ein Stempel am ``day`` um ``time`` (nachgetragen); mit ``replaces_id``
       die Korrektur eines Stempels.
     * ``absence`` – ``art`` von ``day`` bis ``until``; ``minutes`` je Tag, leer = ganzer Tag.
+      Mit ``replaces_id`` (und nur ``until``): **«Ende ändern»** – dieselbe Absenz mit neuem Ende.
     * ``proof`` – der Nachweis zu einer Absenz (``replaces_id``, ``proof_url``).
     * ``booking`` – nur Admin: ``minutes`` (Stundenkonto ±), ``vacation_minutes``, ``note``.
     * ``void`` – nimmt den Eintrag ``replaces_id`` zurück (festgehalten, nicht gelöscht).
@@ -100,7 +101,14 @@ class AbsenceOut(BaseModel):
     proof_missing: bool = False
     #: Welche ältere Absenz sie an diesem Tag ersetzt – Satz für den Hover.
     replaces: Optional[str] = None
+    #: Ganz zurücknehmen – nur, solange schon ihr Beginn offen ist (7-Tage-Regel).
     can_void: bool = False
+    #: «Ende ändern»: das früheste neue Ende (davor ist abgeschlossen); ``None`` = die Absenz
+    #: ist ganz abgeschlossen. Begann sie vor den 7 Tagen, ist «den offenen Teil
+    #: zurücknehmen» = das Ende auf diesen Tag (``timekeeping.end_from``).
+    end_from: Optional[date] = None
+    #: Der Satz dazu für den Hover – warum das Ende nicht früher sein kann.
+    end_note: Optional[str] = None
 
 
 class DayOut(BaseModel):
@@ -112,7 +120,8 @@ class DayOut(BaseModel):
     credit: int
     today: bool = False
     future: bool = False
-    #: Abgeschlossen – ändern kann nur der Admin (blass im Kalender).
+    #: Abgeschlossen (älter als 7 Tage) – niemand ändert ihn mehr, auch nicht der Admin;
+    #: korrigiert wird mit einer Buchung (blass im Kalender, ``timekeeping.closed``).
     locked: bool = False
     open: bool = False
     hints: list[str] = []
@@ -228,6 +237,10 @@ class HolidayOut(BaseModel):
     name: str
     #: Vorschlag: steht schon in der Liste.
     taken: bool = False
+    #: Vorschlag: der Tag ist abgeschlossen (7-Tage-Regel) – nicht wählbar, ``closed_note`` sagt
+    #: warum.
+    closed: bool = False
+    closed_note: Optional[str] = None
 
 
 class CompanyTimeView(BaseModel):

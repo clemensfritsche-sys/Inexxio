@@ -415,7 +415,7 @@ def ledger(book: Book, until: date, now: Optional[datetime] = None) -> Ledger:
     Stundenkonto = Summe der Tagessaldi bis **gestern** (ein offener Tag zählt erst, wenn er
     vollständig ist) plus die Buchungen. Ferien = Anspruch Tag für Tag (auch am Wochenende;
     nicht bei «Entfällt») minus Bezug bis heute, plus Buchungen. Ein Austritt hält den
-    Schlussstand am Vortag fest."""
+    Schlussstand am Vortag fest – sobald der Austrittstag erreicht ist."""
     now = now or now_utc()
     today = local(now).date()
     blocks_by_day: dict[date, list[Block]] = defaultdict(list)
@@ -436,7 +436,9 @@ def ledger(book: Book, until: date, now: Optional[datetime] = None) -> Ledger:
     week = 0.0
     d = first
     while d <= max(until, today):
-        if d in exits:
+        if d in exits and d <= today:
+            # Der Schlussstand steht erst, wenn der Austritt erreicht ist – vorher wäre er der
+            # Stand von gestern unter falschem Datum.
             closings[exits[d]] = (account, vacation)
         if d <= today:
             # Eine Buchung wirkt ab ihrem Tag – im Schlussstand eines späteren Austritts
@@ -515,7 +517,8 @@ def _full_day(book: Book, d: date) -> Optional[Problem]:
     a = absence_on(book, d)
     if a is not None and a.minutes is None:
         return 400, (f"Am {tk.dmy(d)} ist «{tk.ART_BY_KEY[a.art].label}» als ganzer Tag erfasst – "
-                     f"zuerst die Absenz zurücknehmen oder auf Stunden erfassen.")
+                     f"zuerst die Absenz zurücknehmen, ihr Ende ändern oder sie auf Stunden "
+                     f"erfassen.")
     return None
 
 
@@ -603,20 +606,94 @@ def _absence(book: Book, actor: UserProfile, data, now: datetime
         return None, (400, f"Der {tk.dmy(d)} ist kein Arbeitstag.")
     if data.minutes is not None and data.minutes <= 0:
         return None, (400, "Dauer als H:MM, grösser als 0:00.")
-    stamped = {r.day for r in book.live if r.kind in tk.STAMPS}
-    x = d
-    while x <= until:
-        if contract_on(book, x) is None:
-            return None, _no_contract(x)
-        if is_workday(book, x):
-            if data.minutes is not None and data.minutes > soll(book, x):
-                return None, (400, f"Mehr als ein ganzer Tag ({tk.hm(soll(book, x))} h) am {tk.dmy(x)}.")
-            if data.minutes is None and x in stamped:
-                return None, (400, f"Am {tk.dmy(x)} gibt es Stempel – «Stunden» wählen.")
-        x += timedelta(days=1)
+    span = _span_problem(book, data.minutes, d, until)
+    if span is not None:
+        return None, span
     return TimeEntry(kind="absence", day=d, until=until, art=art.key, minutes=data.minutes,
                      note=(data.note or "").strip() or None, proof_url=data.proof_url,
                      source="manual"), None
+
+
+def _span_problem(book: Book, per_day: Optional[int], a: date, b: date) -> Optional[Problem]:
+    """Darf eine Absenz die Tage ``a`` bis ``b`` decken? – Vertrag, höchstens ein ganzer Tag, ein
+    ganzer Tag nicht über Stempel. Gemeinsam für eine neue Absenz und ein späteres Ende."""
+    stamped = {r.day for r in book.live if r.kind in tk.STAMPS}
+    x = a
+    while x <= b:
+        if contract_on(book, x) is None:
+            return _no_contract(x)
+        if is_workday(book, x):
+            if per_day is not None and per_day > soll(book, x):
+                return 400, f"Mehr als ein ganzer Tag ({tk.hm(soll(book, x))} h) am {tk.dmy(x)}."
+            if per_day is None and x in stamped:
+                return 400, f"Am {tk.dmy(x)} gibt es Stempel – «Stunden» wählen."
+        x += timedelta(days=1)
+    return None
+
+
+def end_from(a: TimeEntry, today: date) -> Optional[date]:
+    """►►► **Bis wann frühestens lässt sich das Ende einer Absenz ändern?** ◄◄◄ Geprüft wird die
+    7-Tage-Regel nur an den Tagen, die sich ändern: das neue Ende darf frühestens der letzte
+    abgeschlossene Tag sein (die Tage danach fallen weg), nie vor dem Beginn. ``None`` = die
+    Absenz ist ganz abgeschlossen (ihr Ende liegt schon davor) – dann bleibt sie, wie sie ist.
+    Gelesen von ``_end`` (Tor) und der Ansicht (``AbsenceOut.end_from``)."""
+    if tk.closed(a.until or a.day, today):
+        return None
+    return max(a.day, today - timedelta(days=tk.CORRECTION_DAYS + 1))
+
+
+def _label(a: TimeEntry) -> str:
+    art = tk.ART_BY_KEY.get(a.art or "")
+    return art.label if art else (a.art or "Absenz")
+
+
+def _end(book: Book, data, now: datetime) -> tuple[Optional[TimeEntry], Optional[Problem]]:
+    """►►► **«Ende ändern»** – eine Absenz bekommt ein neues Ende (kürzer oder länger). ◄◄◄ Ein
+    gewöhnlicher Ersatz-Eintrag mit demselben Beginn (``replaces_id``); der unveränderte Teil
+    bleibt, die 7-Tage-Regel gilt nur für die Tage, die wegfallen oder dazukommen."""
+    old = _live_row(book, data.replaces_id, ("absence",))
+    if old is None:
+        return None, (404, f"Die Absenz «{data.replaces_id}» gibt es nicht (mehr).")
+    if (data.day not in (None, old.day) or data.art or data.minutes is not None or data.note
+            or data.time or data.vacation_minutes is not None):
+        return None, (400, "An einer Absenz lässt sich nur das Ende ändern – sonst zurücknehmen "
+                           "und neu erfassen.")
+    if data.until is None:
+        return None, (400, "Das neue Ende fehlt.")
+    today, until, was = local(now).date(), data.until, old.until or old.day
+    if until == was:
+        return None, None                       # unverändert = keine Änderung
+    if until < old.day:
+        return None, (400, f"Das Ende liegt vor dem Beginn ({tk.dmy(old.day)}).")
+    if (until - old.day).days > 366:
+        return None, (400, "Eine Absenz dauert höchstens ein Jahr – bitte aufteilen.")
+    earliest = end_from(old, today)
+    if earliest is None:
+        return None, (409, tk.closed_sentence(was, f"«{_label(old)}» bis {tk.dmy(was)}"))
+    if until < earliest:
+        return None, (409, tk.closed_sentence(until + timedelta(days=1), "die Absenz an diesem Tag")
+                      + f" Frühestes Ende: {tk.dmy(earliest)}.")
+    if until > was:
+        span = _span_problem(book, old.minutes, was + timedelta(days=1), until)
+        if span is not None:
+            return None, span
+    return TimeEntry(kind="absence", day=old.day, until=until, art=old.art, minutes=old.minutes,
+                     note=old.note, proof_url=old.proof_url, source=old.source,
+                     replaces_id=old.id), None
+
+
+def _void_problem(old: TimeEntry, today: date) -> Optional[Problem]:
+    """Eine Rücknahme ändert jeden Tag des Eintrags – also muss jeder offen sein. Eine Absenz,
+    die vor den 7 Tagen begann, aber noch offen endet, wird nicht zurückgenommen, sondern
+    gekürzt: «Ende ändern» auf den letzten abgeschlossenen Tag."""
+    if not tk.closed(old.day, today):
+        return None
+    earliest = end_from(old, today) if old.kind == "absence" else None
+    if earliest is None:
+        return _locked(old.day)
+    return 409, (f"«{_label(old)}» begann am {tk.dmy(old.day)} – das ist abgeschlossen. "
+                 f"Zurückgenommen wird nur der offene Teil: «Ende ändern» auf den "
+                 f"{tk.dmy(earliest)}.")
 
 
 def _other(book: Book, actor: UserProfile, data, now: datetime
@@ -635,8 +712,9 @@ def _other(book: Book, actor: UserProfile, data, now: datetime
         old = _live_row(book, data.replaces_id, tk.STAMPS + ("absence",))
         if old is None:
             return None, (404, f"Den Eintrag «{data.replaces_id}» gibt es nicht (mehr).")
-        if tk.closed(old.day, today):
-            return None, _locked(old.day)
+        void = _void_problem(old, today)
+        if void is not None:
+            return None, void
         if old.kind in tk.STAMPS:
             seq = sequence_problem(around(
                 [r for r in book.live if r.kind in tk.STAMPS and r is not old], old.day))
@@ -671,6 +749,8 @@ def entry_problem(book: Book, actor: UserProfile, data, now: datetime
     if data.kind in tk.STAMPS:
         return _stamp(book, actor, data, now)
     if data.kind == "absence":
+        if data.replaces_id is not None:
+            return _end(book, data, now)
         return _absence(book, actor, data, now)
     return _other(book, actor, data, now)
 
@@ -735,15 +815,22 @@ def preview(db: Session, actor: UserProfile, person: UserProfile, data) -> dict:
     horizon = max([until] + [a.until or a.day for a in absences(book)])
     old = ledger(book, horizon, now)
     entry.id = 1 << 62                          # die jüngste – sie gilt an ihren Tagen
-    book.live.append(entry)
+    # «Ende ändern»: die neue Fassung tritt an die Stelle der alten – ohne sie und mit ihrem
+    # Alter (``rank``), wie nach dem Speichern.
+    gone = _live_row(book, entry.replaces_id, ("absence",))
+    live = book.live
+    book.live = [r for r in live if r is not gone] + [entry]
+    if gone is not None:
+        book.replaced[entry.id] = gone
     new = ledger(book, horizon, now)
     due = proof_due(book, entry)                 # solange sie gilt – an ihren eigenen Tagen
-    book.live.pop()
+    book.live = live
+    book.replaced.pop(entry.id, None)
     days = workdays_in(book, entry.day, until)
     labels: dict[str, int] = defaultdict(int)
     for d in days:
         was = old.days[d].absence
-        if was is not None and was.art in tk.ART_BY_KEY:
+        if was is not None and was is not gone and was.art in tk.ART_BY_KEY:
             labels[tk.ART_BY_KEY[was.art].label] += 1
     # Ferien danach = Guthaben heute minus geplanten Bezug. Künftiger Anspruch steht auch
     # sonst nicht im Guthaben – also fehlt er hier ebenso (unbezahlter Urlaub senkt nichts).
@@ -766,7 +853,9 @@ def swipe(db: Session, actor: UserProfile, person: UserProfile, direction: str,
     (zweites Gerät, veraltete Seite), schreiben auch nichts – dann kommt der Satz zurück,
     der es sagt. ``None`` = geschrieben (oder derselbe Wisch noch einmal)."""
     _lock(db, person)
-    if db.query(TimeEntry.id).filter(TimeEntry.idem_key == key).first() is not None:
+    # Der Schlüssel gilt je Person: derselbe Schlüssel einer anderen Person ist ein anderer Wisch.
+    if db.query(TimeEntry.id).filter(TimeEntry.person_object_id == person.object_id,
+                                     TimeEntry.idem_key == key).first() is not None:
         return None
     book = load(db, person)
     if not may_see(actor, person):

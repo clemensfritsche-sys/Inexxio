@@ -674,12 +674,146 @@ def test_a_proof_has_one_way_only(db):
             assert res.status_code == 400 and "Nachreichen" in res.json()["detail"], (path, body)
 
 
-def test_a_holiday_in_a_closed_day_stays_as_it_was(world):
-    """Ein Feiertag davor käme still in schon abgerechnete Tage – er bleibt, wie er war."""
-    from app.schemas.timekeeping import HolidayIn
+def test_a_holiday_in_a_closed_day_is_refused_not_skipped(world, monkeypatch):
+    """Ein Feiertag davor käme in schon abgerechnete Tage. Der Vorschlag nennt je Tag, ob er
+    abgeschlossen ist (mit Satz); «Übernehmen» weist einen solchen Tag ab und schreibt nichts.
+    Bug-Form: er wurde still übergangen, die Oberfläche zählte ihn in «Übernehmen (n)»."""
+    from app.schemas.timekeeping import HolidayIn, TimeRulesIn
     from app.services import holidays
     db, co, admin, lena = world
-    holidays.add(db, admin, co, [HolidayIn(day=date(2026, 10, 2), name="zu spät"),
-                                 HolidayIn(day=date(2026, 12, 25), name="Weihnachten")])
-    days = {h.day for h in db.query(Holiday).filter(Holiday.company_object_id == co)}
-    assert date(2026, 12, 25) in days and date(2026, 10, 2) not in days
+    holidays.set_rules(db, admin, co, TimeRulesIn(canton="TG"))
+
+    class Answer:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return [{"startDate": "2026-10-02", "name": [{"language": "DE", "text": "zu spät"}]},
+                    {"startDate": "2026-12-25", "name": [{"language": "DE", "text": "Weihnachten"}]}]
+
+    monkeypatch.setattr(holidays.httpx, "get", lambda *a, **k: Answer())
+    prop = {h.day: h for h in holidays.proposal(db, admin, co, 2026)}
+    assert prop[date(2026, 10, 2)].closed and "abgeschlossen" in prop[date(2026, 10, 2)].closed_note
+    assert not prop[date(2026, 12, 25)].closed and prop[date(2026, 12, 25)].closed_note is None
+    with pytest.raises(Rejected) as e:
+        holidays.add(db, admin, co, [HolidayIn(day=date(2026, 10, 2), name="zu spät"),
+                                     HolidayIn(day=date(2026, 12, 25), name="Weihnachten")])
+    assert e.value.status == 409 and "02.10.2026" in e.value.detail
+    assert not db.query(Holiday).filter(Holiday.company_object_id == co).count()
+    holidays.add(db, admin, co, [HolidayIn(day=date(2026, 12, 25), name="Weihnachten")])
+    assert db.query(Holiday).filter(Holiday.company_object_id == co).count() == 1
+
+
+# ─── «Ende ändern» an einer Absenz ──────────────────────────────────────────────────
+
+def _vacation(db, actor, p, start, end):
+    with _then(start):
+        t.record(db, actor, p, EntryIn(kind="absence", art="ferien", day=start, until=end))
+    return next(r for r in t.load(db, p).live if r.kind == "absence" and r.day == start)
+
+
+def _end(db, actor, p, absence_id, until):
+    return t.record(db, actor, p, EntryIn(kind="absence", replaces_id=absence_id, until=until))
+
+
+def test_the_end_of_an_absence_changes_where_it_is_open(world):
+    """Ferien 12.–30.10., heute 23.10.: der Beginn ist abgeschlossen, das Ende nicht. «Ende
+    ändern» prüft die 7-Tage-Regel nur an den Tagen, die sich ändern – der vergangene Teil
+    bleibt. Bug-Form: die ganze Absenz war gesperrt, auch für den Admin, und «Kommen» an einem
+    Tag darin sagte «ganzer Tag erfasst»."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    a = _vacation(db, lena, lena, date(2026, 10, 12), date(2026, 10, 30))
+    with pytest.raises(Rejected) as e:
+        _end(db, admin, lena, a.id, date(2026, 10, 14))            # 15.10. ist abgeschlossen
+    assert e.value.status == 409 and "15.10.2026" in e.value.detail
+    new = _end(db, lena, lena, a.id, date(2026, 10, 21))
+    assert (new.day, new.until, new.replaces_id, new.art) == (a.day, date(2026, 10, 21), a.id, "ferien")
+    book = t.load(db, lena)
+    assert t.absence_on(book, date(2026, 10, 20)) is not None
+    assert t.absence_on(book, date(2026, 10, 22)) is None
+    _stamp(db, lena, lena, date(2026, 10, 22), "08:00")              # der Tag ist wieder frei
+    with pytest.raises(Rejected, match="Stempel"):                    # wieder darüber: nein
+        _end(db, admin, lena, new.id, date(2026, 11, 6))
+    absence = _days(_view(db, lena, lena))[date(2026, 10, 20)].absence
+    assert absence.id == new.id and not absence.can_void
+    assert absence.end_from == date(2026, 10, 15) and "15.10.2026" in absence.end_note
+
+
+def test_a_closed_start_is_not_voided_but_cut_to_the_open_part(world):
+    """Rücknahme einer Absenz, deren Beginn abgeschlossen ist: der Satz bietet «Ende ändern» auf
+    den letzten abgeschlossenen Tag an – das ist die Rücknahme des offenen Teils."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    a = _vacation(db, lena, lena, date(2026, 10, 12), date(2026, 10, 30))
+    with pytest.raises(Rejected) as e:
+        t.record(db, admin, lena, EntryIn(kind="void", replaces_id=a.id))
+    assert e.value.status == 409 and "Ende ändern" in e.value.detail
+    assert "15.10.2026" in e.value.detail
+    cut = _end(db, admin, lena, a.id, date(2026, 10, 15))
+    assert cut.until == date(2026, 10, 15)
+    assert t.absence_on(t.load(db, lena), date(2026, 10, 16)) is None
+
+
+def test_a_fully_closed_absence_stays_locked(world):
+    """Liegt auch das Ende vor den 7 Tagen, bleibt die Absenz, wie sie ist – kürzer wie länger."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    a = _vacation(db, lena, lena, date(2026, 10, 5), date(2026, 10, 9))
+    for until in (date(2026, 10, 7), date(2026, 10, 20)):
+        with pytest.raises(Rejected, match="abgeschlossen"):
+            _end(db, admin, lena, a.id, until)
+    assert _days(_view(db, admin, lena))[date(2026, 10, 7)].absence.end_from is None
+
+
+def test_only_the_end_of_an_absence_can_change(world):
+    """«Ende ändern» ändert nur das Ende – eine andere Art oder Dauer ist eine neue Absenz."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    a = _vacation(db, lena, lena, date(2026, 10, 19), date(2026, 10, 23))
+    with pytest.raises(Rejected, match="nur das Ende"):
+        t.record(db, lena, lena, EntryIn(kind="absence", replaces_id=a.id, art="krank",
+                                         until=date(2026, 10, 21)))
+    with pytest.raises(Rejected, match="vor dem Beginn"):
+        _end(db, lena, lena, a.id, date(2026, 10, 16))
+    assert _end(db, lena, lena, a.id, date(2026, 10, 23)) is None     # unverändert
+    longer = _end(db, lena, lena, a.id, date(2026, 10, 30))           # verlängern
+    assert t.absence_on(t.load(db, lena), date(2026, 10, 29)).id == longer.id
+
+
+def test_the_preview_of_a_new_end_counts_the_absence_as_it_will_be(world):
+    """Die Vorschau prüft «Ende ändern» mit derselben Regel und rechnet die neue Fassung an
+    Stelle der alten (sie ersetzt nicht sich selbst)."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    a = _vacation(db, lena, lena, date(2026, 10, 12), date(2026, 10, 30))
+    p = t.preview(db, lena, lena, EntryIn(kind="absence", replaces_id=a.id,
+                                          until=date(2026, 10, 21)))
+    assert p["problem"] is None and p["workdays"] == 8 and p["replaces"] is None
+    p = t.preview(db, lena, lena, EntryIn(kind="absence", replaces_id=a.id,
+                                          until=date(2026, 10, 13)))
+    assert "abgeschlossen" in p["problem"]
+
+
+# ─── Austritt, Wisch ────────────────────────────────────────────────────────────────
+
+def test_a_planned_exit_has_no_closing_balance_yet(world):
+    """Ein Austritt in der Zukunft hat noch keinen Schlussstand – sonst stünde der Stand von
+    gestern unter «Schlussstand per <Vortag des Austritts>»."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    _contract(db, admin, lena, date(2026, 11, 2), hours=0, days=())
+    # Der Monat des Austritts: das Konto wird bis zu seinem Ende gerechnet.
+    exit_ = next(c for c in _view(db, admin, lena, "2026-11").contracts if c.weekly_minutes == 0)
+    assert exit_.state == "planned"
+    assert exit_.closing_account is None and exit_.closing_vacation is None
+
+
+def test_a_swipe_key_belongs_to_one_person(world, clock):
+    """Derselbe Schlüssel bei zwei Personen sind zwei Wische – keiner fällt still weg."""
+    db, co, admin, lena = world
+    _contract(db, admin, lena, date(2026, 10, 1))
+    _contract(db, admin, admin, date(2026, 10, 1))
+    t.swipe(db, lena, lena, "in", "key-same-01")
+    t.swipe(db, admin, admin, "in", "key-same-01")
+    assert t.running(t.load(db, admin), t.now_utc()) is not None

@@ -76,6 +76,12 @@ def view(db: Session, actor: UserProfile, object_id: int, year: Optional[int]) -
         can_edit=policy.may(actor, "time.company"), vocab=vocab(rules.get("proof", {})))
 
 
+def _closed_note(d: date) -> str:
+    """Der eine Satz für einen Feiertag in einem abgeschlossenen Tag – im Vorschlag (Hover) und
+    in der Abweisung von ``add``."""
+    return tk.closed_sentence(d, "ein Feiertag an diesem Tag")
+
+
 def add(db: Session, actor: UserProfile, object_id: int, items) -> None:
     """Feiertage übernehmen – was schon dasteht, bleibt (kein Doppel)."""
     _admin(actor)
@@ -85,8 +91,10 @@ def add(db: Session, actor: UserProfile, object_id: int, items) -> None:
     today = local(now_utc()).date()
     for it in items:
         # Was zurückliegt, bleibt, wie es war (7-Tage-Regel): ein Feiertag davor änderte
-        # schon abgerechnete Tage.
-        if it.day in taken or tk.closed(it.day, today):
+        # schon abgerechnete Tage. Abgewiesen mit dem Satz – nie still übergangen.
+        if tk.closed(it.day, today):
+            raise Conflict(_closed_note(it.day))
+        if it.day in taken:
             continue
         db.add(Holiday(company_object_id=c.object_id, day=it.day, name=it.name.strip()))
         taken.add(it.day)
@@ -137,7 +145,8 @@ def _text(names: list) -> str:
 
 
 def proposal(db: Session, actor: UserProfile, object_id: int, year: int) -> list[HolidayOut]:
-    """Der Vorschlag für ein Jahr – geholt, nicht gespeichert."""
+    """Der Vorschlag für ein Jahr – geholt, nicht gespeichert. Ein Tag, der schon abgeschlossen
+    ist, steht mit ``closed`` und seinem Satz da: nicht wählbar (``add`` wiese ihn ab)."""
     _admin(actor)
     c = company(db, object_id)
     canton = (c.time_rules or {}).get("canton")
@@ -155,6 +164,7 @@ def proposal(db: Session, actor: UserProfile, object_id: int, year: int) -> list
                                          "Feiertage lassen sich von Hand eintragen.")
     taken = {h.day for h in db.query(Holiday).filter(
         Holiday.company_object_id == c.object_id, Holiday.is_active.is_(True)).all()}
+    today = local(now_utc()).date()
     out: dict[date, HolidayOut] = {}
     for it in items if isinstance(items, list) else []:
         try:
@@ -164,7 +174,9 @@ def proposal(db: Session, actor: UserProfile, object_id: int, year: int) -> list
             continue
         d = start
         while d <= end and d.year == year:
+            closed = tk.closed(d, today)
             out.setdefault(d, HolidayOut(day=d, name=_text(it.get("name") or [])[:120],
-                                         taken=d in taken))
+                                         taken=d in taken, closed=closed,
+                                         closed_note=_closed_note(d) if closed else None))
             d += timedelta(days=1)
     return [out[d] for d in sorted(out)]

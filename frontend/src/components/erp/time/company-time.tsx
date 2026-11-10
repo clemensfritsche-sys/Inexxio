@@ -70,11 +70,13 @@ function Holidays({ v, company, onView, onYear, todo }: {
   }, (e) => setMsg(err(e)));
   const load = () => act(async () => {
     const list = await api.holidayProposal(company, v.year);
-    setProp(list.map((h) => ({ ...h, on: !h.taken })));
+    // Ein abgeschlossener Tag (7-Tage-Regel) ist nicht wählbar – der Server weist ihn ab.
+    setProp(list.map((h) => ({ ...h, on: !h.taken && !h.closed })));
   }, (e) => setMsg(err(e)));
   const canton = v.cantons.find(([c]) => c === v.canton);
   const year = onYear;
-  const n = prop?.filter((h) => h.on && !h.taken).length ?? 0;
+  const picked = prop?.filter((h) => h.on && !h.taken && !h.closed) ?? [];
+  const n = picked.length;
   const iso = add ? parseDay(add.d) : null;
   return (
     <Sect icon={CalendarDays} title={<>Feiertage{canton ? ` · ${canton[1]}` : ''}<TodoChip items={todo} /></>}
@@ -118,9 +120,10 @@ function Holidays({ v, company, onView, onYear, todo }: {
         <>
           <div style={GRID}>
             {prop.map((h, i) => (
-              <label key={h.day} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer',
-                opacity: h.taken ? 0.55 : 1 }}>
-                <input type="checkbox" checked={h.on || h.taken} disabled={h.taken}
+              <label key={h.day} data-tip={h.closed_note ?? undefined}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
+                  cursor: h.taken || h.closed ? 'default' : 'pointer', opacity: h.taken || h.closed ? 0.55 : 1 }}>
+                <input type="checkbox" checked={h.taken || (h.on && !h.closed)} disabled={h.taken || h.closed}
                   onChange={() => setProp(prop.map((x, j) => (j === i ? { ...x, on: !x.on } : x)))}
                   style={{ accentColor: 'var(--accent)', width: 15, height: 15, margin: 0 }} />
                 <span className="tabular-nums" style={{ color: 'var(--fg-3)', minWidth: 52 }}>{dayShort(h.day)}</span>
@@ -130,7 +133,7 @@ function Holidays({ v, company, onView, onYear, todo }: {
           </div>
           {!prop.length && <Note>Der Vorschlag ist leer – Feiertage lassen sich von Hand eintragen.</Note>}
           <StageAction icon={Check} label={`Übernehmen (${n})`} disabled={!n || busy}
-            onClick={() => run(() => api.addHolidays(company, prop.filter((h) => h.on && !h.taken)
+            onClick={() => run(() => api.addHolidays(company, picked
               .map((h) => ({ day: h.day, name: h.name })), v.year))} />
         </>
       )}

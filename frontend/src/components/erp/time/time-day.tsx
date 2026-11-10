@@ -11,7 +11,8 @@
  */
 import { useState } from 'react';
 import {
-  Calendar, Check, ChevronDown, Clock, FileCheck, LogIn, LogOut, Pencil, Plus, Undo2, Upload,
+  Calendar, CalendarRange, Check, ChevronDown, Clock, FileCheck, LogIn, LogOut, Pencil, Plus, Undo2,
+  Upload, X,
 } from 'lucide-react';
 import { ErrorText, InfoHint } from '@/components/erp/hints';
 import { IconSwitch } from '@/components/erp/controls';
@@ -90,9 +91,49 @@ function StampRow({ s, editable, onSave, onVoid }: {
   );
 }
 
-function AbsenceRow({ a, view, onVoid, onProof }: {
-  a: TimeAbsence; view: TimeView; onVoid: () => void; onProof: () => void;
+/**
+ * **«Ende ändern»** – eine Absenz bekommt ein neues Ende (kürzer oder länger). Ob es geht und
+ * was es bewirkt, sagt der Server mit derselben Regel (`/entries/preview`); geprüft wird die
+ * 7-Tage-Regel nur an den Tagen, die sich ändern. Steht nur da, wenn der Server `end_from` gibt.
+ */
+function EndEdit({ a, person, onSave, onClose }: {
+  a: TimeAbsence; person: number;
+  onSave: (until: string) => Promise<string | null>; onClose: () => void;
 }) {
+  const [text, setText] = useState(dayText(a.until));
+  const [err, setErr] = useState<string | null>(null);
+  const until = parseDay(text);
+  const changed = !!until && until !== a.until;
+  const preview = useDebouncedQuery({
+    name: 'time-end', what: 'Vorschau der Zeiterfassung',
+    input: changed ? { person, entry: { kind: 'absence' as const, replaces_id: a.id, until } } : null,
+    ask: (i, req) => api.timePreview(i.person, i.entry, req),
+  });
+  const p = changed ? preview.data ?? null : null;
+  const problem = err ?? p?.problem ?? null;
+  const ready = changed && !!p && !p.problem;
+  const save = async () => { if (until && ready) { const e = await onSave(until); if (e) setErr(e); else onClose(); } };
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <div style={ROW_FORM}>
+        <TimeField id={`end-${a.id}`} name="until" label="Neues Ende" value={text}
+          onChange={(v) => { setText(v); setErr(null); }} bad={!until} placeholder="TT.MM.JJJJ" width={140}
+          info={a.end_note ?? 'Kürzer oder länger – der Beginn bleibt.'} onEnter={ready ? save : undefined} />
+        <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!ready} onClick={save}>
+          <Check size={15} />Übernehmen</button>
+        <IconButton icon={X} label="Abbrechen" onClick={onClose} />
+      </div>
+      {problem && <ErrorText msg={problem} />}
+      {ready && p && <Row k="Danach" v={`${dayShort(a.day)}–${dayShort(until)} · ${p.workdays} Arbeitstage · ${hm(p.minutes)} h`} />}
+    </div>
+  );
+}
+
+function AbsenceRow({ a, view, onVoid, onProof, onEnd, onCut }: {
+  a: TimeAbsence; view: TimeView; onVoid: () => void; onProof: () => void;
+  onEnd: (until: string) => Promise<string | null>; onCut: (until: string) => void;
+}) {
+  const [editEnd, setEditEnd] = useState(false);
   const art = view.vocab.arts.find((x) => x.key === a.art);
   const Icon = timeIcon(art?.icon ?? '');
   const multi = a.day !== a.until;
@@ -109,13 +150,22 @@ function AbsenceRow({ a, view, onVoid, onProof }: {
           </button>
         </span>)
     : null;
+  // Begann sie vor den 7 Tagen, ist «Zurücknehmen» der offene Teil: das Ende auf `end_from`.
+  const cut = !a.can_void && a.end_from != null && a.end_from < a.until ? a.end_from : null;
+  if (editEnd) return <EndEdit a={a} person={view.person_object_id} onSave={onEnd} onClose={() => setEditEnd(false)} />;
+  const actions = (a.can_void || cut || a.end_from) ? <>
+    {a.end_from && <IconButton icon={CalendarRange} label="Ende ändern" onClick={() => setEditEnd(true)} />}
+    {a.can_void && <IconButton icon={Undo2} label="Zurücknehmen – wird festgehalten, nicht gelöscht" onClick={onVoid} />}
+    {cut && <IconButton icon={Undo2} label={`Offenen Teil zurücknehmen – Ende auf den ${dayText(cut)}. ${a.end_note ?? ''}`.trim()}
+      onClick={() => onCut(cut)} />}
+  </> : undefined;
   return (
     <LedgerRow
       ident={<span data-tip={art ? `${art.effect_label}: ${art.effect_tip}` : undefined} style={{ cursor: 'help' }}>
         <Icon size={13} style={{ display: 'inline', verticalAlign: -2, marginRight: 8, color: 'var(--fg-3)' }} />
         {art?.label ?? a.art}{a.note ? ` · ${a.note}` : ''}</span>}
       meta={multi ? `${dayShort(a.day)}–${dayShort(a.until)}` : undefined}
-      actions={a.can_void ? <IconButton icon={Undo2} label="Zurücknehmen – wird festgehalten, nicht gelöscht" onClick={onVoid} /> : undefined}
+      actions={actions}
       date={<>{a.replaces && <Pill tone="neutral" label="ersetzt" icon={Undo2} tip={a.replaces} />}{proof}</>}
       amount={`${hm(a.minutes_on_day)} h`} />
   );
@@ -250,6 +300,8 @@ export function TimeDayDetail({ view, d, cap, setCap, preview, onEntry, onProof 
           ))}
           {d.absence && <AbsenceRow a={d.absence} view={view}
             onVoid={() => act({ kind: 'void', replaces_id: d.absence!.id })}
+            onEnd={(until) => onEntry({ kind: 'absence', replaces_id: d.absence!.id, until })}
+            onCut={(until) => act({ kind: 'absence', replaces_id: d.absence!.id, until })}
             onProof={() => onProof(d.absence!)} />}
         </div>
       )}

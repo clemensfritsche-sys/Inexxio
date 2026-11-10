@@ -7444,6 +7444,29 @@
             "type": "boolean",
             "title": "Can Void",
             "default": false
+          },
+          "end_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End From"
+          },
+          "end_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Note"
           }
         },
         "type": "object",
@@ -10531,7 +10554,7 @@
           "kind"
         ],
         "title": "EntryIn",
-        "description": "EIN Eingang für alles, was einen Tag füllt oder ein Konto bewegt.\n\n* ``in``/``out`` – ein Stempel am ``day`` um ``time`` (nachgetragen); mit ``replaces_id``\n  die Korrektur eines Stempels.\n* ``absence`` – ``art`` von ``day`` bis ``until``; ``minutes`` je Tag, leer = ganzer Tag.\n* ``proof`` – der Nachweis zu einer Absenz (``replaces_id``, ``proof_url``).\n* ``booking`` – nur Admin: ``minutes`` (Stundenkonto ±), ``vacation_minutes``, ``note``.\n* ``void`` – nimmt den Eintrag ``replaces_id`` zurück (festgehalten, nicht gelöscht)."
+        "description": "EIN Eingang für alles, was einen Tag füllt oder ein Konto bewegt.\n\n* ``in``/``out`` – ein Stempel am ``day`` um ``time`` (nachgetragen); mit ``replaces_id``\n  die Korrektur eines Stempels.\n* ``absence`` – ``art`` von ``day`` bis ``until``; ``minutes`` je Tag, leer = ganzer Tag.\n  Mit ``replaces_id`` (und nur ``until``): **«Ende ändern»** – dieselbe Absenz mit neuem Ende.\n* ``proof`` – der Nachweis zu einer Absenz (``replaces_id``, ``proof_url``).\n* ``booking`` – nur Admin: ``minutes`` (Stundenkonto ±), ``vacation_minutes``, ``note``.\n* ``void`` – nimmt den Eintrag ``replaces_id`` zurück (festgehalten, nicht gelöscht)."
       },
       "EntryPreview": {
         "properties": {
@@ -11361,6 +11384,22 @@
             "type": "boolean",
             "title": "Taken",
             "default": false
+          },
+          "closed": {
+            "type": "boolean",
+            "title": "Closed",
+            "default": false
+          },
+          "closed_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Note"
           }
         },
         "type": "object",

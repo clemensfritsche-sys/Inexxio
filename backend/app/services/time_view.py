@@ -69,12 +69,18 @@ def _absence(book: t.Book, actor: UserProfile, a: TimeEntry, d: date, today: dat
         replaces = (f"Ersetzt «{label} {under.day:%d.%m.}–{(under.until or under.day):%d.%m.%Y}» "
                     f"an diesem Tag")
     due = t.proof_due(book, a)
+    earliest = t.end_from(a, today)
+    note = None
+    if earliest is not None and tk.closed(a.day, today):
+        note = (f"Bis zum {tk.dmy(earliest)} ist abgeschlossen – das Ende lässt sich frühestens "
+                f"auf diesen Tag setzen.")
     return AbsenceOut(
         id=a.id, art=a.art or "", day=a.day, until=a.until or a.day, minutes=a.minutes,
         minutes_on_day=round(t.absence_minutes(book, a, d)), note=a.note,
         proof_url=a.proof_url, proof_needed=due is not None,
         proof_missing=due is not None and due <= today and not a.proof_url,
-        replaces=replaces, can_void=not tk.closed(a.day, today))
+        replaces=replaces, can_void=not tk.closed(a.day, today),
+        end_from=earliest, end_note=note)
 
 
 def _day(book: t.Book, actor: UserProfile, day: t.Day, today: date, now) -> DayOut:

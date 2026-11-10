@@ -1,6 +1,6 @@
 # Zeiterfassung – Spezifikation
 
-INEXXIO ECS · Stand 24.10.2026 · Status: **umgesetzt** (Migration 154). Im Zweifel gilt der
+INEXXIO ECS · Stand 10.11.2026 · Status: **umgesetzt** (Migration 154). Im Zweifel gilt der
 Code: `backend/app/domain/timekeeping.py` (Regeln, Wörter), `services/timekeeping.py`
 (rechnen, die eine Schreibstelle), `frontend/src/components/erp/time/`.
 Rundenbericht: `docs/history/2026-10-24-zeiterfassung.md`.
@@ -29,8 +29,8 @@ Rundenbericht: `docs/history/2026-10-24-zeiterfassung.md`.
 - Sichtbar **nur im eigenen Datensatz** (Personal) und **für den Admin** (bei jeder Person mit
   Personal-Rolle). Geprüft vom Server (`timekeeping.may_see`).
 - Der Admin kann im Datensatz einer anderen Person **dasselbe** wie sie (stempeln, erfassen,
-  korrigieren – vermerkt «durch Anna Roth»), dazu: Verträge, Buchungen, Korrekturen ohne
-  7-Tage-Frist.
+  korrigieren – vermerkt «durch Anna Roth»), dazu: Verträge und Buchungen. Die 7-Tage-Regel
+  (§5.3) gilt auch für ihn.
 - An der **eigenen Gesellschaft** (Stammdaten, ganz unten, nur Admin): eine Karte
   «Zeiterfassung» mit Feiertagen, Absenzarten und Regeln.
 - Das frühere Feld «Pensum» (und «Eintrittsdatum») im Profil ist weg – beides steht im Vertrag.
@@ -71,7 +71,9 @@ EINE Tabelle für alles, was einen Tag füllt oder ein Konto bewegt:
 
 - **`replaces_id`**: eine Änderung ist ein neuer Eintrag, der den alten ersetzt (höchstens
   einmal – Unique-Index). Was gilt, ist abgeleitet: nicht ersetzt und keine Rücknahme.
-- `created_by` hält fest, wer erfasst hat; `idem_key` macht einen Wisch idempotent.
+- `created_by` hält fest, wer erfasst hat; `idem_key` macht einen Wisch idempotent – **je
+  Person** (Unique-Index auf Person + Schlüssel; derselbe Schlüssel einer anderen Person ist ein
+  anderer Wisch).
 - **DB-Trigger** `trg_time_entries_append_only` / `trg_time_contracts_append_only`: kein
   UPDATE, kein DELETE – auch nicht von Hand.
 
@@ -131,7 +133,8 @@ Zeitumstellung).
   nicht bei «Entfällt»), minus Bezug bis heute, plus Buchungen. **Anzeige in Stunden**, in
   Klammern in Tagen (÷ Tagessoll des aktuellen Vertrags): `121:48 h (14.5 Tage)`. **Negativ
   erlaubt** (Ferien im Voraus), dann rot. Kein Reset zum Jahreswechsel.
-- **Austritt**: Schlussstand (Konto, Ferien) am Vortag – der Wert für die Lohnabrechnung.
+- **Austritt**: Schlussstand (Konto, Ferien) am Vortag – der Wert für die Lohnabrechnung. Er
+  steht erst da, wenn der Austrittstag erreicht ist; ein geplanter Austritt hat noch keinen.
 - **Ferien danach** (Vorschau): Guthaben heute minus alle geplanten Ferien, mit dieser Absenz.
 
 ---
@@ -149,7 +152,18 @@ Zeitumstellung).
 ### 5.2 Ein Tag – Einträge und «Erfassen»
 - Tag antippen → rechts (schmal: darunter) der Tag: Titel «Freitag, 23.10.2026» mit Hinweisen,
   Stempel (Kommen grün, Gehen rot), höchstens eine Absenz (mit Spanne, «ersetzt»,
-  Nachweis/«Hochladen», «Zurücknehmen»). Ein offener Tag zeigt «Gehen · fehlt» mit «+».
+  Nachweis/«Hochladen», «Ende ändern», «Zurücknehmen»). Ein offener Tag zeigt «Gehen · fehlt»
+  mit «+».
+- **«Ende ändern»** an einer Absenz: ein neues Ende, kürzer oder länger; der Beginn, die Art und
+  die Dauer bleiben. Gespeichert als gewöhnlicher Ersatz-Eintrag (`absence` mit `replaces_id`,
+  gleicher Beginn, neues Ende) über dieselbe Schreibstelle und dieselbe Vorschau. Die 7-Tage-Regel
+  prüft **nur die Tage, die sich ändern** (die wegfallen oder dazukommen) – der vergangene Teil
+  bleibt, wie er ist. Das früheste neue Ende ist der letzte abgeschlossene Tag
+  (`timekeeping.end_from`, an der Absenz als `end_from`). Liegt schon das Ende vor den 7 Tagen,
+  bleibt die Absenz ganz, wie sie ist (kein «Ende ändern»).
+- **Zurücknehmen** einer Absenz geht nur, solange ihr Beginn offen ist. Begann sie vorher und
+  endet offen, heisst Zurücknehmen «den offenen Teil zurücknehmen» = das Ende auf den letzten
+  abgeschlossenen Tag setzen; eine blosse Rücknahme weist der Server mit diesem Satz ab.
 - Eine Änderung steht **an der Zeile**: «geändert» (Hover: «Vorher 07:55 · geändert von …,
   Datum Zeit»), «nachgetragen», «durch Anna Roth». Unverändert übernommen = keine Änderung.
 - **Ein Knopf «Erfassen»**: die Art als Symbole (Name im Hover und im Titel): Kommen/Gehen
@@ -167,6 +181,8 @@ Zeitumstellung).
 ### 5.3 Die 7-Tage-Regel – für alles und alle
 Einträge lassen sich 7 Tage zurück ändern; ältere Tage sind **abgeschlossen** – im Kalender
 **blass** (antippen geht, der Tag sagt «Abgeschlossen – korrigiert wird mit einer Buchung» ⓘ).
+Geprüft wird an den Tagen, die eine Änderung berührt: eine Absenz über die Grenze lässt sich am
+offenen Ende ändern (§5.2, «Ende ändern»), ihr abgeschlossener Teil nicht.
 **Das gilt auch für den Admin und für Stammdaten**: keine Buchung, kein Vertrag (Stichtag) und
 kein Feiertag älter als 7 Tage; ein Vertrag ändert sich nur durch einen neuen Vertrag. So
 ändert sich ein schon abgerechneter Monat nie mehr still. Die Vergangenheit korrigiert eine
@@ -183,7 +199,9 @@ Einführung, Auszahlung, Korrektur – nie geändert, Fehler = Gegenbuchung).
 ### 5.5 Feiertage (Admin, an der Gesellschaft)
 Kanton wählen → «Vorschlag für Kanton TG laden» (OpenHolidays, CC BY 4.0) → abwählen →
 «Übernehmen (n)»; «Ortsfeiertag» von Hand; einen entfernen. Ist der Dienst nicht erreichbar,
-sagt es ein Satz.
+sagt es ein Satz. Ein Tag des Vorschlags, der schon abgeschlossen ist (§5.3), kommt mit
+`closed` und seinem Satz: blass, nicht wählbar, nicht gezählt, der Satz im Hover; «Übernehmen»
+weist einen solchen Tag ab (409), statt ihn still zu übergehen.
 
 ---
 
@@ -227,10 +245,10 @@ daraus den Fortschritt («Profil zu 80 % vollständig»), das ERP die Zahl – E
 
 | Aktion | Mitarbeitende (eigener Datensatz) | Admin (jeder Personal-Datensatz) |
 |---|---|---|
-| Stempeln, erfassen, korrigieren | ✓, 7 Tage zurück | ✓, unbegrenzt (vermerkt «durch …») |
+| Stempeln, erfassen, korrigieren | ✓, 7 Tage zurück | ✓, 7 Tage zurück (vermerkt «durch …») |
 | Nachweis nachreichen | ✓ jederzeit | ✓ |
 | Vertrag, Buchungen sehen | ✓ | ✓ |
-| Vertrag anlegen, buchen | – | ✓ |
+| Vertrag anlegen, buchen | – | ✓, Stichtag/Datum höchstens 7 Tage zurück |
 | Feiertage, Kanton, Nachweis-Regeln | – | ✓ |
 
 ---

@@ -520,7 +520,10 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
 - **7-Tage-Regel – für alles und alle** (`domain/timekeeping.closed`): kein Stempel, keine Absenz,
   keine Buchung, kein Vertrag, kein Feiertag älter als 7 Tage, auch nicht durch den Admin; ein
   Vertrag ändert sich nur durch einen neuen; die Vergangenheit korrigiert eine Buchung. Im
-  Kalender **blass**. Ein Nachweis lässt sich jederzeit nachreichen. Nur online.
+  Kalender **blass**. Ein Nachweis lässt sich jederzeit nachreichen. Nur online. Geprüft werden
+  die Tage, die sich ändern: eine Absenz über die Grenze bekommt **«Ende ändern»** (Ersatz-Eintrag
+  mit gleichem Beginn, `timekeeping.end_from`), ihr abgeschlossener Teil bleibt; ein Feiertag im
+  abgeschlossenen Zeitraum wird abgewiesen, nie still übergangen.
 - **«Zu tun»** (`services/todo`, `GET /erp/todo`): EINE Zahl am Symbol jedes Datensatzes –
   offene Nachrichten + Aufgaben der Zeiterfassung + fehlende Pflichtangaben
   (`people.missing_fields`, Quelle auch für den Fortschritt im Konto) + fehlende Feiertage +

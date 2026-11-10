@@ -49,8 +49,8 @@ class TimeEntry(Base, TimestampMixin):
         # derselben Zeile können sich nicht verzweigen.
         Index("uq_time_entries_replaces", "replaces_id", unique=True,
               postgresql_where=text("replaces_id IS NOT NULL")),
-        # Derselbe Wisch (Netz wackelt, zweimal gesendet) schreibt nur einmal.
-        Index("uq_time_entries_key", "idem_key", unique=True,
+        # Derselbe Wisch (Netz wackelt, zweimal gesendet) schreibt nur einmal – je Person.
+        Index("uq_time_entries_key", "person_object_id", "idem_key", unique=True,
               postgresql_where=text("idem_key IS NOT NULL")),
     )
 

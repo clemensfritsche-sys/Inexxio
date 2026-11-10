@@ -2944,6 +2944,10 @@ export interface components {
              * @default false
              */
             can_void: boolean;
+            /** End From */
+            end_from?: string | null;
+            /** End Note */
+            end_note?: string | null;
         };
         /**
          * AddressIn
@@ -4160,6 +4164,7 @@ export interface components {
          *     * ``in``/``out`` – ein Stempel am ``day`` um ``time`` (nachgetragen); mit ``replaces_id``
          *       die Korrektur eines Stempels.
          *     * ``absence`` – ``art`` von ``day`` bis ``until``; ``minutes`` je Tag, leer = ganzer Tag.
+         *       Mit ``replaces_id`` (und nur ``until``): **«Ende ändern»** – dieselbe Absenz mit neuem Ende.
          *     * ``proof`` – der Nachweis zu einer Absenz (``replaces_id``, ``proof_url``).
          *     * ``booking`` – nur Admin: ``minutes`` (Stundenkonto ±), ``vacation_minutes``, ``note``.
          *     * ``void`` – nimmt den Eintrag ``replaces_id`` zurück (festgehalten, nicht gelöscht).
@@ -4580,6 +4585,13 @@ export interface components {
              * @default false
              */
             taken: boolean;
+            /**
+             * Closed
+             * @default false
+             */
+            closed: boolean;
+            /** Closed Note */
+            closed_note?: string | null;
         };
         /**
          * HolidaysIn
