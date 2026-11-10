@@ -58,7 +58,10 @@ def ensure(db: Session, *, order: Order, step: Optional[ProcessStep],
 
     Gibt die Zahl der gezogenen Stücke zurück.
     """
-    if step is None or was_drawn(db, order=order, step=step):
+    # **Gezogen wird nur, wo erfasst wird**: ohne Erfassungspunkte prüft niemand eine
+    # Stichprobe, und eine Ziehung dort wäre eine Log-Zeile je Stück, die keiner liest.
+    if step is None or not modules.points_of(step.config) or was_drawn(db, order=order,
+                                                                        step=step):
         return 0
     units = _population(db, order)
     if not units:

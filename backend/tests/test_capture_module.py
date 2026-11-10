@@ -177,7 +177,10 @@ def test_the_sample_is_drawn_once_and_frozen():
             values=per_unit(db, order=order, step=step, instance_object_id=work["instance_object_id"],
                             values={"ok": True}),
             instance_object_id=work["instance_object_id"], verification="scan", actor_id=None)
-        assert out["moved"] == 10, "Der ungeprüfte Rest bleibt stehen – er soll durchlaufen."
+        assert out["moved"] == 3, "Bestätigt werden nur die gezogenen Stücke."
+        assert not order_state._units_at(db, order, step.id), (
+            "Der ungeprüfte Rest bleibt stehen – mit der bestandenen Stichprobe soll er "
+            "durchlaufen.")
         assert _captures(db, order) == 3, (
             "Es wurde für mehr Stücke erfasst als gezogen wurden."
         )
@@ -961,3 +964,41 @@ def test_a_picture_is_exactly_one_shot():
     assert photo.missing(point, None) and photo.missing(point, "")
     assert photo.missing(point, ["/x/a.jpg", "/x/b.jpg"]), "eine Liste gilt als Aufnahme"
     assert not photo.missing(point, "/x/aufnahme.jpg")
+
+
+def test_the_unchecked_rest_never_leaves_before_the_sample():
+    """**Der ungeprüfte Rest geht erst, wenn die Stichprobe durch und bestanden ist** (§9.3).
+
+    Vier Stücke je eine Instanz, Regel «Hälfte»: zwei gezogen, zwei nicht. Eine Instanz ohne
+    gezogenes Stück zu bestätigen, hiess früher: sie geht sofort weiter – und fiele danach ein
+    gezogenes Stück durch, wäre der Rest schon fort, obwohl er verdächtig ist (ISO 2859-1).
+    """
+    from app.domain.errors import Conflict
+    from app.services import process as proc
+
+    db = session()
+    try:
+        order, step = _order(db, serialization="unit", quantity=4, sample={"percent": 50})
+        work = order_state.step_work(db, order, step)
+        rest = [w for w in work if not w["sample"]]
+        drawn = [w for w in work if w["sample"]]
+        assert len(rest) == 2 and len(drawn) == 2
+
+        with pytest.raises(Conflict):
+            proc.confirm_step(db, order=order, step_id=step.id, values={},
+                              instance_object_id=rest[0]["instance_object_id"],
+                              verification="scan", actor_id=None)
+
+        # Ein gezogenes fällt durch: der Rest steht weiter da, keiner ist gegangen.
+        bad = drawn[0]["instance_object_id"]
+        proc.confirm_step(db, order=order, step_id=step.id,
+                          values=per_unit(db, order=order, step=step, instance_object_id=bad,
+                                          values={"ok": False}),
+                          instance_object_id=bad, verification="scan", actor_id=None)
+        db.flush()
+        assert len(order_state._units_at(db, order, step.id)) == 4, (
+            "Ein Stück hat das Modul verlassen, obwohl die Stichprobe durchgefallen ist.")
+    finally:
+        db.rollback()
+        db.close()
+

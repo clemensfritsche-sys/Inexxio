@@ -249,12 +249,23 @@ class World:
 
     def run_step(self, order, step, *, values: Optional[dict] = None,
                  sources: Optional[list[int]] = None, place: Optional[int] = None):
-        """Ein Modul für **alle** wartenden Instanzen bestätigen (ein Vorgang je Instanz)."""
-        out = []
-        for row in list(self.work(order, step)):
+        """Ein Modul für **alle** wartenden Instanzen bestätigen (ein Vorgang je Instanz).
+
+        An einem Modul mit Erfassungspunkten nur die Instanzen mit gezogenen Stücken – der
+        Rest läuft von selbst, sobald die Stichprobe durch ist (``process._drawn_only``).
+        Die Arbeitsliste wird nach jedem Vorgang neu gelesen: was durchlief, ist weg.
+        """
+        has_points = bool((step.config or {}).get("points"))
+        out, done = [], set()
+        while True:
+            row = next((r for r in self.work(order, step)
+                        if r["instance_object_id"] not in done
+                        and (r["sample"] or not has_points)), None)
+            if row is None:
+                return out
+            done.add(row["instance_object_id"])
             out.append(self.confirm(order, step, instance=row["instance_object_id"],
                                     values=values, sources=sources, place=place))
-        return out
 
     def run_all(self, order, *, values: Optional[dict] = None):
         """Den ganzen Auftrag durchfahren, Modul für Modul."""

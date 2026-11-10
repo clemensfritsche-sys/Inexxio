@@ -247,15 +247,22 @@ def confirm_step(
     """
     lock_orders(db, [order.id])
     step = step_of(db, order, step_id)
+    # Ein Modul ohne Scan-Pflicht (die Zahlung) hat nichts verifiziert – im Protokoll steht
+    # darum auch nichts von «von Hand».
+    if not modules.get(step.module_type).requires_verification:
+        verification = None
     waiting = _ready_at(db, order=order, step=step, auto=auto,
                         instance_object_id=instance_object_id, verification=verification)
+    # Die Instanz steht als Ganzes still, wenn ein Stück durchfällt (``held``).
+    instance_size = len(waiting)
+    waiting = _drawn_only(db, order=order, step=step, waiting=waiting, actor_id=actor_id)
     units = [u for _, u in waiting]
     result = _record(db, order=order, step=step, units=units, values=values,
                      verification=verification, actor_id=actor_id)
     # **Nicht bestanden ⇒ nichts rückt vor**, auch nicht der ungezogene Rest (§4.1).
     if result == "failed":
         db.flush()
-        return {"moved": 0, "held": len(units), "result": result}
+        return {"moved": 0, "held": instance_size, "result": result}
     _advance(db, order=order, step=step, waiting=waiting, verification=verification,
              sources=sources, place=place, actor_id=actor_id)
     db.flush()
@@ -301,19 +308,40 @@ def _ready_at(db: Session, *, order: Order, step: ProcessStep, auto: bool,
     return waiting
 
 
+def _drawn_only(db: Session, *, order: Order, step: ProcessStep,
+                waiting: list[tuple[OrderUnit, InstanceUnit]],
+                actor_id: Optional[int]) -> list[tuple[OrderUnit, InstanceUnit]]:
+    """►►► **Bestätigt wird, was gezogen ist – der Rest wartet auf die Stichprobe.** ◄◄◄
+
+    An einem Modul mit Erfassungspunkten gehen beim Bestätigen nur die **gezogenen** Stücke
+    weiter. Der ungezogene Rest läuft erst, wenn die ganze Stichprobe durch und bestanden ist
+    (``_run_through`` über ``carry_on``, §9.3) – sonst wäre er schon fort, wenn danach ein
+    gezogenes Stück durchfällt. Hat die Instanz hier kein gezogenes Stück, gibt es an ihr
+    nichts zu bestätigen.
+    """
+    if not modules.points_of(step.config):
+        return waiting
+    sampling.ensure(db, order=order, step=step, actor_id=actor_id)
+    db.flush()
+    drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for _, u in waiting])
+    keep = [(m, u) for m, u in waiting if u.id in drawn]
+    if not keep:
+        raise Conflict(f"An «{modules.label(step.module_type)}» wurde von dieser Instanz kein "
+                       f"Stück für die Stichprobe gezogen – sie läuft von selbst weiter, sobald "
+                       f"die Stichprobe durch und bestanden ist.")
+    return keep
+
+
 def _record(db: Session, *, order: Order, step: ProcessStep, units: list[InstanceUnit],
             values: dict[str, dict[str, Any]], verification: Optional[str],
             actor_id: Optional[int]) -> Optional[str]:
     """**Festhalten, was das Modul festhält** – je gezogener Einzelinstanz ein Wertesatz.
 
-    Gezogen ist, was die Stichprobe zog (``sampling.ensure`` als Netz); Ungezogene laufen
-    ohne ``capture`` durch. Zurück kommt, ob ein Stück durchfiel – das hält die ganze
-    Instanz an (§4.1).
+    ``units`` sind an einem Modul mit Erfassungspunkten schon die gezogenen (``_drawn_only``);
+    ohne Erfassungspunkte wird nichts festgehalten. Zurück kommt, ob ein Stück durchfiel –
+    das hält die ganze Instanz an (§4.1).
     """
-    sampling.ensure(db, order=order, step=step, actor_id=actor_id)
-    db.flush()
-    drawn_ids = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
-    drawn = [u for u in units if u.id in drawn_ids]
+    drawn = units if modules.points_of(step.config) else []
     by_unit = _captures_for(db, step=step, drawn=drawn, values=values)
     captures = capture_svc.record_for_step(
         db, order=order, step=step, units=drawn, captures=by_unit,
@@ -386,7 +414,7 @@ def _build_in(db: Session, *, order: Order, step: ProcessStep, products: list[In
     _pass(
         db, order=order, units=taken, membership_ids=ids,
         kind=KIND_STEP, step=step,
-        status_after=modules.get(step.module_type).exit_status_for(step.config) or st.VERBAUT,
+        status_after=modules.get(step.module_type).exit_status_for(step.config),
         next_step_id=None, actor_id=actor_id,
         payloads=consumption_svc.payloads(built, verification=verification),
     )
@@ -509,7 +537,6 @@ def _run_through(db: Session, *, order: Order, step: Optional[ProcessStep],
             db, order=order, units=units, membership_ids=[m.id for m, _ in waiting],
             kind=KIND_STEP, step=step, status_after=st.IM_PROZESS,
             next_step_id=following.id if following else None, actor_id=actor_id,
-            payloads={u.id: {"sampled": False} for u in units},
         )
         if following is None:
             _finish(db, order=order, rows=waiting, actor_id=actor_id)
