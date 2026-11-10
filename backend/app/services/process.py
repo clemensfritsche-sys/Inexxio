@@ -259,13 +259,10 @@ def confirm_step(
     _advance(db, order=order, step=step, waiting=waiting, verification=verification,
              sources=sources, place=place, actor_id=actor_id)
     db.flush()
-    # **Was hier nicht gezogen wurde, läuft jetzt mit** (§9.3) – siehe ``_run_through``.
-    _run_through(db, order=order, step=step, actor_id=actor_id)
-    db.flush()
-    # ►► **Ein Zahlungsmodul weiter hinten lässt durch, was es darf.** ◄◄ Nur beim Klick
-    # eines Menschen (``auto`` kommt von ``advance_payments``).
-    if not auto:
-        advance_payments(db, order=order, actor_id=actor_id)
+    # Was jetzt von selbst weiterzieht (``carry_on``). Ein Zahlungsmodul, das selbst gerade
+    # durchlässt (``auto``), fragt nicht noch einmal die Zahlungsmodule – das tut die
+    # Schleife, aus der es kommt.
+    carry_on(db, order=order, step=step, actor_id=actor_id, payments=not auto)
     return {"moved": len(units), "held": 0, "result": result}
 
 
@@ -396,6 +393,25 @@ def _build_in(db: Session, *, order: Order, step: ProcessStep, products: list[In
     by_product = {p.id: p for p in products}
     for product_id, components in built.items():
         places_svc.place_in(db, units=components, carrier=by_product[product_id])
+
+
+def carry_on(db: Session, *, order: Order, step: Optional[ProcessStep],
+             actor_id: Optional[int], payments: bool = True) -> None:
+    """►►► **Was jetzt von selbst weiterzieht – EINE Stelle.** ◄◄◄
+
+    Zwei Gründe lassen Stücke ohne Klick weiterziehen, und jeder Ort, an dem sich etwas
+    ändert (bestätigt, abgezweigt, zurückgekehrt, bezahlt), fragt beide – hier, in dieser
+    Reihenfolge:
+
+    1. **Die Stichprobe ist durch** (``_run_through`` ab ``step``) – der ungezogene Rest läuft.
+    2. **Ein Zahlungsmodul darf durchlassen** (``advance_payments``) – zugesagt, bezahlt.
+    """
+    if step is not None:
+        _run_through(db, order=order, step=step, actor_id=actor_id)
+        db.flush()
+    if payments:
+        advance_payments(db, order=order, actor_id=actor_id)
+        db.flush()
 
 
 def advance_payments(db: Session, *, order: Order, actor_id: Optional[int]) -> int:
@@ -534,10 +550,8 @@ def _finish(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUn
     # ►► **Zurück heisst: dort weiter, wo es ausgeschert ist** – und gleich durch, was dort
     # schon erledigt ist (Stichprobe, zugesagtes Zahlungsmodul). ◄◄
     for home_id, at in _return_home(db, order=order, rows=back, actor_id=actor_id):
-        home = db.get(Order, home_id)
-        _run_through(db, order=home, step=db.get(ProcessStep, at), actor_id=actor_id)
-        db.flush()
-        advance_payments(db, order=home, actor_id=actor_id)
+        carry_on(db, order=db.get(Order, home_id), step=db.get(ProcessStep, at),
+                 actor_id=actor_id)
 
 
 def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUnit]],

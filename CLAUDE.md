@@ -209,7 +209,7 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   EINER Stelle** (`VERBS`), **`can` ist Auskunft UND Tor**, die Leiste der Karte ist
   `situation` (nie leer ausser Erledigt/Storniert – Wächter «keine Sackgasse»). **Die Stücke
   passieren das Modul von selbst** – mit der Zusage, bei Vorauszahlung mit dem Geld
-  (`process.advance_payments`). **Preise** gibt das Modul
+  (`process.carry_on` – die eine Stelle, die auch die Stichprobe fragt). **Preise** gibt das Modul
   bei einer Einnahme je Artikel vor, wenn gewünscht (`Beleg.PRICES`, netto, Hauswährung; am
   Beleg fest, `voucher_head.preset_prices`; den Steuersatz entscheidet die Anschrift).
   **Eigentum** «geht an die Partei · geht an uns» ist eine

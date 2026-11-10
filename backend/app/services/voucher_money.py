@@ -50,8 +50,8 @@ def follow_up(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     from . import voucher_docs
     if vo.RECEIPT_DOC in AUTO_RELEASE and vo.RECEIPT_DOC in papers_due(db, row):
         voucher_docs.issue(db, row=row, kind=vo.RECEIPT_DOC, actor=actor)
-    process_svc.advance_payments(db, order=order,
-                                 actor_id=actor.id if actor is not None else None)
+    process_svc.carry_on(db, order=order, step=None,
+                         actor_id=actor.id if actor is not None else None)
     db.flush()
 
 

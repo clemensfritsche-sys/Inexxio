@@ -293,7 +293,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
   400 mit Feldname, falsche Stufe → 409). `pay_online`/`refund_online` ändern den Beleg
   nicht – gebucht wird nur vom Webhook (`record_payment`). Nach jeder Handlung (`_after`)
   entsteht, was dazugehört (Quittung), und die Stücke ziehen weiter
-  (`process.advance_payments` → `confirm_step(auto=True)`). Ein Dokument entsteht nur über
+  (`process.carry_on` → `advance_payments` → `confirm_step(auto=True)`; nur `carry_on` fragt, was von selbst weiterzieht – Wächter `test_carry_on`). Ein Dokument entsteht nur über
   `voucher_docs.issue` (ein Dokument im Feld `voucher.doc` mit Link je Partei, Mail im Postfach der
   Gesellschaft, gesendet nach dem Commit über `send_pending`).
 - **Ein Lesepfad, der schreibt, behält**: die Positionen werden beim Anzeigen aus dem

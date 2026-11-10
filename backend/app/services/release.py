@@ -27,7 +27,7 @@ from . import (
 )
 from .instances import find_units
 from .order_state import _chunks, held_by, holders
-from .process import _join, _pass, _run_through, lock_orders
+from .process import _join, _pass, carry_on, lock_orders
 from ..domain.errors import Conflict, Invalid, NotFound
 from ..core import clock
 
@@ -487,4 +487,4 @@ def _hand_over(db: Session, *, order: Order, lines: list[_Line],
         src = db.query(Order).filter(Order.id == src_id).first()
         step = db.query(ProcessStep).filter(ProcessStep.id == at).first()
         if src is not None and step is not None:
-            _run_through(db, order=src, step=step, actor_id=actor_id)
+            carry_on(db, order=src, step=step, actor_id=actor_id)
