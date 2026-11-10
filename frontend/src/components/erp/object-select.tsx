@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { qk } from '@/lib/queries';
 import { ScanLine } from 'lucide-react';
 import { SearchSelect, type SelectOption } from '@/components/erp/search-select';
 import { useScan } from '@/components/scan/scan-provider';
@@ -23,7 +25,9 @@ interface ObjectOption {
  * Feld, nur gross (Platzhalter {@link LOOKUP_HINT}, Zeilenform, «nichts»-Zeile).
  *
  * Das Feld hält keinen eigenen Zustand: `value` ist die Nummer, `selected` der bekannte
- * Datensatz dazu – den lädt der Aufrufer.
+ * Datensatz dazu. ►► **Kennt der Aufrufer ihn nicht** (vorausgefüllt aus einem Vorschlag, aus der
+ * Adresse, aus einem Entwurf), fragt das Feld seine eigene Suche nach der Nummer – dieselbe wie
+ * beim Tippen und Scannen. So steht jede Nummer mit ihrem Namen da, gleich woher sie kam. ◄◄
  */
 export function ObjectSelect<T extends ObjectOption>({
   label, value, selected, onChange, find, kind, placeholder, emptyOption, required,
@@ -49,6 +53,16 @@ export function ObjectSelect<T extends ObjectOption>({
   disabled?: boolean;
 }) {
   const scan = useScan();
+  // Die Nummer ohne bekannten Datensatz: einmal über die eigene Suche benennen.
+  const unnamed = value != null && selected?.object_id !== value ? value : null;
+  const named = useQuery({
+    queryKey: qk.catalog('object-name', kind ?? '', label ?? '', unnamed),
+    queryFn: () => find(String(unnamed)).then((rows) => rows.find((o) => o.object_id === unnamed) ?? null),
+    enabled: unnamed != null,
+    staleTime: Infinity,
+    meta: { what: 'Name des Datensatzes' },
+  });
+  const known = selected?.object_id === value ? selected : named.data ?? null;
 
   // Nummer und Name getrennt übergeben, damit `SearchSelect` sie auszeichnen kann.
   const row = (o: ObjectOption): SelectOption => ({
@@ -104,7 +118,7 @@ export function ObjectSelect<T extends ObjectOption>({
       required={required}
       value={value == null ? '' : String(value)}
       onChange={pick}
-      options={selected ? [row(selected)]
+      options={known ? [row(known)]
         : value != null ? [{ value: String(value), label: formatObjectId(value) }]
           : []}
       search={search}
