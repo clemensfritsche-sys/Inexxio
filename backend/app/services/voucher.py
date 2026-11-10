@@ -537,6 +537,24 @@ def overdue(db: Session, row: Voucher) -> bool:
                 and balance_of(db, row).open > vo.SETTLED_TOLERANCE)
 
 
+def standing(db: Session, row: Voucher) -> dict[str, str]:
+    """►►► **Wie steht dieser Beleg?** – Schlüssel, Wort, Ton (``vo.STATES``). Die eine
+    Ableitung, die Karte (Rechnung, Saldo) und Zahlungsliste lesen. ◄◄◄"""
+    money = balance_of(db, row)
+    return vo.invoice_state(money.charged, money.open, overdue=overdue(db, row),
+                            billed=is_billed(row), cancelled=row.stage == vo.CANCELLED)
+
+
+def reached(row: Voucher) -> str:
+    """**Bis zu welcher Stufe der Beleg kam** – bei einem Storno die letzte, die er erreichte
+    (gestellt → Rechnung, zugesagt → Zusage, sonst Angebot)."""
+    if row.stage != vo.CANCELLED:
+        return row.stage
+    if row.billed_on is not None:
+        return vo.BILLED
+    return vo.AGREED if row.agreed_on is not None else vo.OFFER
+
+
 def remindable(row: Voucher) -> bool:
     """►►► **Wird an diesem Beleg gemahnt?** – nur eine Rechnung, die **wir** stellen. ◄◄◄
     Nie eine Lieferantenrechnung (dort zahlen wir), nie eine Gutschrift (dort erstatten wir).

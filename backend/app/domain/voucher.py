@@ -405,25 +405,33 @@ def document_word(kind: str, level: Optional[int] = None) -> str:
 #: aus dem Ausland). Eine fachliche Entscheidung, darum hier und nicht in der Oberfläche.
 SETTLED_TOLERANCE = Decimal("0.05")
 
-#: Die Zustände einer Rechnung – Schlüssel, Wort, Ton.
-INVOICE_STATES: dict[str, tuple[str, str]] = {
-    "settled": ("Beglichen", "done"),
+#: ►►► **Der Stand eines Belegs – EIN Vokabular** für die Karte (Rechnung, Saldo) und die
+#: Zahlungsliste: Schlüssel → Wort, Ton. Die Leiste (``situation``) leiht sich daraus ihre
+#: Wörter für dieselben Zustände. ◄◄◄
+STATES: dict[str, tuple[str, str]] = {
+    "open": ("Offen", "pending"),
     "partial": ("Teilweise bezahlt", "pending"),
     "overdue": ("Überfällig", "danger"),
     "overpaid": ("Überzahlt", "danger"),
-    "open": ("Offen", "pending"),
+    "settled": ("Beglichen", "done"),
+    #: Storniert, und es schuldet niemand mehr etwas – grau wie die Leiste eines Stornos.
+    "void": ("Storniert", "neutral"),
 }
 
 
-def invoice_state(total: Decimal, remaining: Decimal, *,
-                  overdue: bool = False) -> dict[str, str]:
-    """**Wie steht diese Rechnung?** – Schlüssel, Wort und Ampelton aus zwei Zahlen.
+def invoice_state(total: Decimal, remaining: Decimal, *, overdue: bool = False,
+                  billed: bool = True, cancelled: bool = False) -> dict[str, str]:
+    """►►► **Wie steht dieser Beleg?** – Schlüssel, Wort und Ton, die eine Ableitung. ◄◄◄
 
-    ``total`` ist ihr Betrag, ``remaining`` was offen ist. Negativ heisst überzahlt (jede
-    Zahl ist eine Menge); «Teilweise bezahlt» unterscheidet eine Anzahlung von nichts.
+    ``total`` ist der Rechnungsbetrag, ``remaining`` was offen ist. Negativ heisst überzahlt
+    (jede Zahl ist eine Menge); «Teilweise bezahlt» unterscheidet eine Anzahlung von nichts.
+    Ohne Rechnung ist ein Beleg offen (bzw. storniert); storniert ist er erst «Storniert», wenn
+    kein Geld mehr zurück- oder nachgeht.
     """
+    if not billed:
+        return _state("void" if cancelled else "open")
     if abs(remaining) <= SETTLED_TOLERANCE:
-        return _state("settled")
+        return _state("void" if cancelled else "settled")
     if remaining < 0:
         return _state("overpaid")
     if overdue:
@@ -433,8 +441,13 @@ def invoice_state(total: Decimal, remaining: Decimal, *,
     return _state("open")
 
 
+def state_word(key: str) -> str:
+    """Das Wort eines Stands (``STATES``)."""
+    return STATES[key][0]
+
+
 def _state(key: str) -> dict[str, str]:
-    label, tone = INVOICE_STATES[key]
+    label, tone = STATES[key]
     return {"state": key, "state_label": label, "state_tone": tone}
 
 
@@ -479,12 +492,16 @@ class Direction:
     def label_of(self, stage: str) -> str:
         """Wie diese Stufe heisst; die beiden Ausgänge heissen in beiden Richtungen gleich."""
         if stage == CANCELLED:
-            return "Storniert"
+            return state_word("void")
         if stage == DONE:
             return "Erledigt"
         return self.stage_labels.get(stage, stage)
 
-    # Der Kopf nennt keine Belegart; ``label_of`` dient Fehlermeldungen über die Stufe.
+    def paper_of(self, stage: str, *, minus: bool) -> str:
+        """►►► **Was der Beleg in dieser Stufe ist** – «Offerte», «Bestellung», «Rechnung» …;
+        eine Gutschrift heisst in jeder Stufe so. Der Kopf nennt keine Belegart; die
+        Zahlungsliste und Fehlermeldungen über die Stufe lesen hier. ◄◄◄"""
+        return CREDIT_NOUN if minus else self.label_of(stage)
 
 
 #: ►►► **Die eine Liste.** Eine dritte Richtung gibt es nicht – Geld kommt oder geht.
@@ -505,7 +522,7 @@ DIRECTIONS: dict[str, Direction] = {
         hint="Ausgabe – wir bekommen Rechnung, Geld geht hinaus.",
         stage_labels={OFFER: "Anfrage", AGREED: "Bestellung",
                       # **Seine Rechnung** – sie entsteht bei ihm, wir schreiben sie ab.
-                      BILLED: "Rechnung"},
+                      BILLED: "Lieferantenrechnung"},
         ask_verb="Anfragen",
         collects=False,
     ),

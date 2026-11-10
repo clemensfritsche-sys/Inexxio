@@ -28,7 +28,7 @@ class PaymentRow(BaseModel):
     sign: str
     amount: Optional[str] = None
     currency: str = "CHF"
-    #: ``overdue`` · ``open`` · ``paid`` · ``void``
+    #: Der Stand – ein Schlüssel aus ``domain/voucher.STATES`` (derselbe wie auf der Karte).
     state: str
     state_label: str
 

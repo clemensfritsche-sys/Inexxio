@@ -97,7 +97,10 @@ def build() -> str:
     lines += _map("VOUCHER_STAGE", "Stufen und Ausgänge eines Geldvorgangs (`voucher.STAGES`, "
                   "`DONE`, `CANCELLED`) – Schlüssel, keine Wörter.", {s: s for s in stages},
                   "VoucherStageKey")
-    lines += _map("QUOTE_STATE", "Zustände einer Angebotszeile (`voucher.ASKED` …).", {
+    lines += _map("VOUCHER_STATES", "Der Stand eines Belegs – Karte und Zahlungsliste "
+                  "(`voucher.STATES`): Schlüssel → Wort.",
+                  {k: word for k, (word, _tone) in voucher.STATES.items()}, "VoucherStateKey")
+    lines += _map("QUOTE_STATE","Zustände einer Angebotszeile (`voucher.ASKED` …).", {
         "asked": voucher.ASKED, "quoted": voucher.QUOTED, "declined": voucher.DECLINED,
         "chosen": voucher.CHOSEN})
     lines += _map("VOUCHER_PRESET_LABELS", "Was das Modul dem Beleg vorgeben darf "

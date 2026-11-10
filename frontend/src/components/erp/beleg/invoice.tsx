@@ -295,7 +295,8 @@ function Balance({ d, busy, form, setForm, onAction }: {
 }) {
   if (d.open == null) return null;
   const color = toneOf(d.open_state_tone);
-  const settled = d.open_state === 'settled';
+  // **Beglichen oder storniert** – es geht kein Geld mehr; das Wort sagt, welches.
+  const settled = d.open_state === 'settled' || d.open_state === 'void';
   const credit = d.open_state === 'overpaid';
   const word = settled || credit
     ? d.open_state_label

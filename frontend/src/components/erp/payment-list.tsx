@@ -7,6 +7,7 @@ import type { PaymentRow } from '@/types';
 import { Amount } from '@/components/erp/module-ui';
 import { useErpNav } from '@/components/erp/obj-id';
 import { NOTHING } from '@/lib/when';
+import type { VoucherStateKey } from '@/lib/vocab';
 
 /**
  * ►►► **Die Zahlungen einer Person bzw. einer eigenen Gesellschaft – eine Ableitung.** ◄◄◄
@@ -17,19 +18,22 @@ import { NOTHING } from '@/lib/when';
  * alles**: `+` kommt zu uns, `−` geht von uns; die Farbe ist der Stand.
  */
 
-/** Der Stand → die Farbe des Betrags (rot überfällig · schwarz ausstehend · grün bezahlt ·
- *  grau storniert). Das Wort dazu kommt vom Server (`state_label`). */
-const TONE: Record<string, string> = {
-  overdue: 'var(--danger)',
+/** Der Stand (`voucher.STATES`, derselbe wie auf der Karte) → die Farbe des Betrags (rot
+ *  überfällig oder überzahlt · schwarz offen · grün beglichen · grau storniert). Das Wort dazu
+ *  kommt vom Server (`state_label`). */
+const TONE: Record<VoucherStateKey, string> = {
   open: 'var(--fg-1)',
-  paid: 'var(--success)',
+  partial: 'var(--fg-1)',
+  overdue: 'var(--danger)',
+  overpaid: 'var(--danger)',
+  settled: 'var(--success)',
   void: 'var(--fg-4)',
 };
 
 /** Der Hover am Wort «Zahlungen» – was die Liste ist und wie sie zu lesen ist. */
 export const PAYMENTS_TIP = 'Eine Ableitung aus allen Zahlungsmodulen – keine eigene Liste. '
   + 'Neueste Nummer zuoberst; ein Klick öffnet den Auftrag. Betrag: + kommt zu uns, '
-  + '− geht von uns · rot überfällig · schwarz ausstehend · grün bezahlt · grau storniert.';
+  + '− geht von uns · rot überfällig oder überzahlt · schwarz offen · grün beglichen · grau storniert.';
 
 /** Die Zahlungen einer Person oder Gesellschaft. `null` = noch nicht geladen; ein Fehler
  *  meldet sich (`meta.what`), der alte Stand bleibt. */
@@ -90,7 +94,7 @@ function PaymentLine({ row, withParty, first }: {
       }}>{order != null ? `Auftrag ${order}` : ''}</span>
       <span style={{ flex: 'none', textAlign: 'right' }}>
         <Amount value={row.amount} sign={row.sign} decimals={row.amount ? decimalsOf(row.amount) : 2}
-          currency={row.currency} color={TONE[row.state] ?? 'var(--fg-1)'} size={13.5} weight={500} tip={tip} />
+          currency={row.currency} color={TONE[row.state as VoucherStateKey] ?? 'var(--fg-1)'} size={13.5} weight={500} tip={tip} />
       </span>
     </button>
   );

@@ -55,6 +55,17 @@ export const VOUCHER_STAGE = {
 } as const;
 export type VoucherStageKey = keyof typeof VOUCHER_STAGE;
 
+/** Der Stand eines Belegs – Karte und Zahlungsliste (`voucher.STATES`): Schlüssel → Wort. */
+export const VOUCHER_STATES = {
+  "open": "Offen",
+  "partial": "Teilweise bezahlt",
+  "overdue": "Überfällig",
+  "overpaid": "Überzahlt",
+  "settled": "Beglichen",
+  "void": "Storniert",
+} as const;
+export type VoucherStateKey = keyof typeof VOUCHER_STATES;
+
 /** Zustände einer Angebotszeile (`voucher.ASKED` …). */
 export const QUOTE_STATE = {
   "asked": "angefragt",

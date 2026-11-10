@@ -2141,11 +2141,13 @@ def test_an_invoice_says_how_it_stands(db):
     )
     # Überfällig schlägt «offen».
     assert vo.invoice_state(d("100"), d("100"), overdue=True)["state"] == "overdue"
-    # (d) **Drei Töne, keine vierte Farbe.**
-    tones = {tone for _, tone in vo.INVOICE_STATES.values()}
+    # (d) **Drei Töne fürs Geld, keine vierte Farbe** – grau ist nur der Storno, wie in der
+    #     Leiste.
+    tones = {tone for key, (_, tone) in vo.STATES.items() if key != "void"}
     assert tones <= {"done", "pending", "danger"}, (
         f"Ein Ton ausserhalb der drei des Hauses (d): {tones}."
     )
+    assert vo.STATES["void"][1] == "neutral"
 
     # (e) **Und er reist mit** – gemessen über den echten Dienstpfad.
     order, step, row, _who, _art = _agreed(db, price="100.00")
@@ -2168,6 +2170,42 @@ def test_an_invoice_says_how_it_stands(db):
     assert again["invoice"]["state"] == "partial", (
         f"Die angezahlte Rechnung sagt «{again['invoice']['state']}» (a/e)."
     )
+
+
+def test_the_payment_list_and_the_card_say_the_same(db):
+    """►►► **Ein Vokabular für den Stand eines Belegs** – Karte und Zahlungsliste. ◄◄◄
+
+    Bug-Formen: (a) die Liste hat eigene Wörter (eine angezahlte Rechnung hiess dort
+    «ausstehend», auf der Karte «Teilweise bezahlt»); (b) die Liste benennt die Stufe mit eigenen
+    Wörtern statt mit denen der Richtung; (c) ein Storno heisst hier anders als dort.
+    """
+    from app.domain import voucher as vo
+    from app.services import payment_list, voucher_actions, voucher_view
+    order, step, row, who, _art = _agreed(db, price="100.00")
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    voucher_actions.apply(db, order=order, step=step, action="pay",
+                          payload={"amount": "50.00", "method": "cash"})
+    db.flush()
+
+    def both() -> tuple[dict, dict]:
+        card = voucher_view.embed_data(db, order=order, step=step)
+        line = next(r for r in payment_list.of_person(db, who[0].object_id)
+                    if r["voucher_id"] == row.id)
+        return card, line
+    card, line = both()
+    assert (line["state"], line["state_label"]) == (card["open_state"],
+                                                    card["open_state_label"]), (
+        f"Liste «{line['state_label']}», Karte «{card['open_state_label']}» (a).")
+    assert line["state"] == "partial"
+    assert line["kind"] == vo.of(row.direction).paper_of(vo.BILLED, minus=False), (
+        f"Die Liste nennt die Rechnung «{line['kind']}» (b).")
+    voucher_actions.apply(db, order=order, step=step, action="revoke", payload={})
+    voucher_actions.apply(db, order=order, step=step, action="refund",
+                          payload={"method": "cash"})
+    db.flush()
+    card, line = both()
+    assert line["state"] == card["open_state"] == "void", (line["state"], card["open_state"])
+    assert line["state_label"] == vo.of(row.direction).label_of(vo.CANCELLED), "(c)"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

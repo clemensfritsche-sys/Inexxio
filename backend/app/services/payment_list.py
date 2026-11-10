@@ -3,8 +3,8 @@
 Keine eigene Liste: jede Zeile ist ein Zahlungsmodul (``vouchers``), gelesen über die
 Angebotszeile der Person bzw. die ausstellende Gesellschaft. **Neueste Nummer zuoberst,
 ohne Datum.** Der Betrag sagt alles: ``+`` kommt zu uns, ``−`` geht von uns; der Ton sagt
-den Stand (überfällig · ausstehend · bezahlt · storniert). Ein Klick öffnet den Auftrag –
-Abkürzungs-Knöpfe gibt es nicht.
+den Stand – derselbe wie auf der Karte (``voucher.standing``, ``domain/voucher.STATES``). Ein
+Klick öffnet den Auftrag – Abkürzungs-Knöpfe gibt es nicht.
 
 **Überfälliges zählt in die Zahl am Symbol der Person** (``services/todo``) – eine eigene
 Mahnliste gibt es nicht; erinnert wird im Modul.
@@ -20,32 +20,12 @@ from ..domain import voucher as vo
 from ..models import Order, UserProfile, Voucher, VoucherQuote
 from . import sites
 from . import voucher as vs
-from . import voucher_head as vh
-
-#: Der Stand einer Zeile – Wort und Ton (``overdue`` rot · ``open`` schwarz · ``paid`` grün ·
-#: ``void`` grau).
-STATES: dict[str, str] = {"overdue": "überfällig", "open": "ausstehend", "paid": "bezahlt",
-                          "void": "storniert"}
 
 
 def kind_of(row: Voucher) -> str:
-    """**Was diese Zeile ist** – das Wort des Papiers in seiner Stufe."""
-    if vs.minus(row):
-        return vo.CREDIT_NOUN
-    flow = vo.of(row.direction)
-    if row.stage == vo.OFFER:
-        return flow.label_of(vo.OFFER)
-    if row.stage == vo.AGREED or (row.stage == vo.CANCELLED and row.billed_on is None):
-        return flow.label_of(vo.AGREED)
-    return "Rechnung" if flow.collects else "Lieferantenrechnung"
-
-
-def state_of(db: Session, row: Voucher) -> str:
-    if row.stage == vo.CANCELLED:
-        return "void"
-    if vh.is_done(db, row):
-        return "paid"
-    return "overdue" if vs.overdue(db, row) else "open"
+    """**Was diese Zeile ist** – das Wort des Papiers in der Stufe, die der Beleg erreichte
+    (``Direction.paper_of``)."""
+    return vo.of(row.direction).paper_of(vs.reached(row), minus=vs.minus(row))
 
 
 def _amount(db: Session, row: Voucher, party: Optional[int]) -> Optional[str]:
@@ -70,7 +50,7 @@ def row_of(db: Session, row: Voucher, order: Optional[Order], party: Optional[in
     inbound = vo.inbound(collects=vo.of(row.direction).collects, minus=vs.minus(row))
     who = _who(db, row, party)
     name = names.get(who) if who is not None else None
-    state = state_of(db, row)
+    state = vs.standing(db, row)
     return {
         "voucher_id": row.id,
         "number": row.number or (str(order.object_id) if order is not None else str(row.id)),
@@ -81,8 +61,8 @@ def row_of(db: Session, row: Voucher, order: Optional[Order], party: Optional[in
         "sign": "+" if inbound else "−",
         "amount": _amount(db, row, party),
         "currency": row.currency,
-        "state": state,
-        "state_label": STATES[state],
+        "state": state["state"],
+        "state_label": state["state_label"],
     }
 
 

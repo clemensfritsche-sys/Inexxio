@@ -28,7 +28,7 @@ from .voucher import (
     credited, delivery_date, deviation, documents_of, due_days_of, entries_of, expired,
     inbound, is_billed, lead_days_of, minus, named, next_reminder, of_step, overdue,
     ownership_of, party_of, possible_parties, priced_dicts, public_link, quotes_of,
-    reading, remindable, reminders, units_problem, valid_days_of, valid_until, Paper,
+    reached, reading, remindable, reminders, standing, units_problem, valid_days_of, valid_until, Paper,
 )
 from .voucher_head import (
     billing_of, document_head, embed_lines, has_goods, incoterm_place_of, is_done,
@@ -104,7 +104,7 @@ def _paper_state(kind: str) -> dict[str, Any]:
 def _cancelled_state(db: Session, row: Voucher) -> dict[str, Any]:
     money = balance_of(db, row)
     if money.open < -vo.SETTLED_TOLERANCE:
-        return _state("cancelled", "Storniert", "danger",
+        return _state("cancelled", vo.state_word("void"), "danger",
                       f"{amount_text(-money.open, row.currency)} gehören dem "
                       f"{'Kunden' if vo.of(row.direction).collects else 'Lieferanten'} – "
                       f"Sie sind dran: erstatten", primary="refund")
@@ -119,7 +119,7 @@ def _cancelled_state(db: Session, row: Voucher) -> dict[str, Any]:
         text = "nach der Zusage – es ist nichts geschuldet"
     else:
         text = "das Angebot gilt nicht mehr"
-    return _state("cancelled", "Storniert", "neutral", text)
+    return _state("cancelled", vo.state_word("void"), "neutral", text)
 
 
 def _offer_state(db: Session, row: Voucher, flow: vo.Direction) -> dict[str, Any]:
@@ -191,10 +191,10 @@ def _billed_state(db: Session, row: Voucher, flow: vo.Direction,
                       f"wir erstatten {amount_text(money.open, row.currency)}{proof}",
                       when=row.due_on, word="bis", primary="pay")
     if not flow.collects:
-        label = "Teilweise bezahlt" if money.paid > 0 else "Rechnung erfasst"
+        label = vo.state_word("partial") if money.paid > 0 else "Rechnung erfasst"
         return _state("open", label, "pending", f"Sie sind dran: bezahlen{proof}",
                       when=row.due_on, word="fällig", primary="pay")
-    label = "Teilweise bezahlt" if money.paid > 0 else "Rechnung gestellt"
+    label = vo.state_word("partial") if money.paid > 0 else "Rechnung gestellt"
     return _state("open", label, "pending", f"{party} ist dran{proof}",
                   when=row.due_on, word="fällig", primary="pay")
 
@@ -205,20 +205,20 @@ def _overdue_state(db: Session, row: Voucher, proof: str) -> dict[str, Any]:
     days = (clock.today() - row.due_on).days if row.due_on else 0
     since = f"seit {days} {'Tag' if days == 1 else 'Tagen'}"
     if not remindable(row):
-        return _state("overdue", "Überfällig", "danger",
+        return _state("overdue", vo.state_word("overdue"), "danger",
                       f"{since} – Sie sind dran: {'erstatten' if minus(row) else 'bezahlen'}"
                       f"{proof}", primary="pay")
     nxt = next_reminder(db, row)
     sent = reminders(db, row)
     if nxt is not None and nxt[1] <= clock.today():
-        return _state("overdue", "Überfällig", "danger",
+        return _state("overdue", vo.state_word("overdue"), "danger",
                       f"{since} – die {vo.remind_word(nxt[0])} ist fällig{proof}",
                       primary="remind")
     if nxt is not None:
-        return _state("overdue", "Überfällig", "danger",
+        return _state("overdue", vo.state_word("overdue"), "danger",
                       f"{vo.remind_word(len(sent))} gesendet – nächste Stufe{proof}",
                       when=nxt[1], word="ab", primary="pay")
-    return _state("overdue", "Überfällig", "danger",
+    return _state("overdue", vo.state_word("overdue"), "danger",
                   f"{vo.REMIND_LEVELS[-1]} gesendet – Sie sind dran{proof}", primary="pay")
 
 
@@ -495,11 +495,9 @@ def _embed_invoice(v: _View) -> dict[str, Any]:
 
 
 def _invoice_state(db: Session, row: Voucher) -> dict[str, str]:
-    """Wie steht die gestellte Rechnung – Schlüssel, Wort, Ton (``vo.invoice_state``)."""
-    if not is_billed(row):
-        return {}
-    money = balance_of(db, row)
-    return vo.invoice_state(money.charged, money.open, overdue=overdue(db, row))
+    """Wie steht die gestellte Rechnung – ``standing``, dieselbe Ableitung wie die
+    Zahlungsliste; vor der Rechnung nichts."""
+    return standing(db, row) if is_billed(row) else {}
 
 
 def _embed_money(v: _View) -> dict[str, Any]:
@@ -673,12 +671,7 @@ def _stages(db: Session, row: Voucher, flow: vo.Direction) -> list[dict[str, Any
     labels = {vo.OFFER: flow.label_of(vo.OFFER), vo.AGREED: "Zusage",
               vo.BILLED: vo.CREDIT_NOUN if minus(row) else vo.INVOICE_NOUN,
               vo.DONE: "Erledigt"}
-    if is_done(db, row):
-        reached = 4
-    elif row.stage == vo.CANCELLED:
-        reached = 2 if row.billed_on is not None else (1 if row.agreed_on else 0)
-    else:
-        reached = keys.index(row.stage)
-    return [{"key": k, "label": labels[k], "verb": None, "done": i < reached,
-             "active": row.stage != vo.CANCELLED and i == reached}
+    at = 4 if is_done(db, row) else keys.index(reached(row))
+    return [{"key": k, "label": labels[k], "verb": None, "done": i < at,
+             "active": row.stage != vo.CANCELLED and i == at}
             for i, k in enumerate(keys)]
