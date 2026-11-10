@@ -176,7 +176,12 @@ weist ab, das Bild endet dort); **`Module.passes_itself` = lässt von selbst dur
 die Zahlung); Kettenregel `domain/chain.py`; Farbe/Symbol reisen mit dem
 Schritt (`ModuleFacts`), Unbekanntes sieht unbekannt aus; ein abgeschlossenes Modul zeigt
 sein Protokoll (`services/record.py`, eine Ableitung für alle); ein Modul zeigt seine Sache
-in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
+in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist. **Jedes Modul beschreibt seine
+Einstellungen** neben `clean_config` als JSON-Schema mit Beispielen (`Module.config_schema`,
+Erfassungstypen `CaptureType.FIELDS`, `sampling.SCHEMA`); daraus beschreibt sich `ModuleInput`
+(`module_type` als `enum`, je Typ `x-config-by-module-type`) und damit jede Route, die Schritte
+nimmt – die KI liest es über `handlung`. Wächter `test_module_config_schema`: was `clean_config`
+liest, ist beschrieben, und umgekehrt.
 
 - **Datenerfassung** (PROCESS_CORE §4.4/§4.5/§9.0–§9.5, `capture-work.tsx`): **Ein Vorgang
   ist EINE Instanz** – Charge = 1 Scan, Einzelserialisierung = n Scans. Ohne Verifikation
@@ -394,7 +399,9 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
 - **Zwei Dinge: Gespräch und Vorschlag.** Im «+» sagt die Person, was ist (Text, Sprache, Foto,
   Datei, Stecknadel); die KI redet mit und bereitet **Vorschläge** vor (im Code: Handgriff) – alles,
   was das ERP kann. **Die KI führt nie aus.** Im Gespräch hat ein Vorschlag nur **Öffnen** (zum
-  Entwurf, überall, wo es «Neu anlegen» gibt, sonst zum Datensatz) und **✕**; entschieden wird
+  Entwurf, überall, wo es «Neu anlegen» gibt, sonst zum Datensatz) und **✕**; der Entwurf bekommt
+  den **ganzen** Wertesatz (Auftrag: alle Zeilen, Schritte mit Einstellungen, Wiederholung; Artikel:
+  Felder, Schritte, Vorgänger – `lib/proposal-draft`), was er nicht darstellen kann, nennt er oben; entschieden wird
   **am Datensatz** in «Auf einen Blick»: was sich ändert (`feld: alt → neu`, wie es jetzt ist,
   `handgriff.changes_of`) und **Übernehmen** – je Vorschlag einzeln, kein «Alles übernehmen».
   **Wissen** ist das Ergebnis: Notizen und Dokumente am richtigen Datensatz.

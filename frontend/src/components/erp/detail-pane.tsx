@@ -54,7 +54,8 @@ export function DetailPane({ show, creating, sel, activeRow, orderSeed, seeds, i
   creating: Creatable | null;
   /** Was ein Entwurf schon mitbringt – aus «+» (Foto, Datei) oder einem Handgriff
    *  («Entwurf öffnen»); `no` zählt je Anlage hoch, damit ein neuer Entwurf neu beginnt. */
-  seeds: { no: number; draft: DraftSeed | null; record: Record<string, string> | null };
+  seeds: { no: number; draft: DraftSeed | null; record: Record<string, string> | null;
+    body: Record<string, unknown> | null };
   sel: { type: ErpRecordType; objectId: number } | null;
   activeRow: Row | null;
   orderSeed: OrderSeed | null;
@@ -71,7 +72,8 @@ export function DetailPane({ show, creating, sel, activeRow, orderSeed, seeds, i
       <ErrorBoundary resetKey={creating ?? (sel ? `${sel.type}-${sel.objectId}` : 'none')} onReset={h.onReset}>
         <ErpNavContext.Provider value={null}>
           {creating === 'article' && (
-            <ArticleDetail key={`new-article-${seeds.no}`} record={null} initial={seeds.record} onSaved={h.onArticleSaved}
+            <ArticleDetail key={`new-article-${seeds.no}`} record={null} initial={seeds.record} proposal={seeds.body}
+              onSaved={h.onArticleSaved}
               onRefresh={h.onRefreshArticles} onBack={h.onCancelCreate} />
           )}
           {creating === 'person' && (

@@ -10,7 +10,8 @@ export interface DraftFromHandgriff {
   kind: 'user' | 'organization' | 'article' | 'order' | 'document';
   /** Die einfachen Werte als Text (Felder des Entwurfs). */
   values: Record<string, string>;
-  /** Die Werte, wie die KI sie vorbereitete (Zeilen eines Auftrags). */
+  /** **Der ganze Wertesatz**, wie die KI ihn vorbereitete – der Entwurf übernimmt ihn ganz
+   *  (Zeilen, Schritte, Wiederholung; `lib/proposal-draft`). */
   body?: Record<string, unknown>;
   handgriff: number;
 }

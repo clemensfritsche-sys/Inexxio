@@ -20,6 +20,7 @@ import { DetailPane, type DetailHandlers } from '@/components/erp/detail-pane';
 import type { DraftSeed } from '@/components/erp/document-draft';
 import dynamic from 'next/dynamic';
 import type { CaptureHint } from '@/components/erp/capture/capture-sheet';
+import { orderFromProposal } from '@/lib/proposal-draft';
 
 // Das «+» (Gespräch, Aufnahme, Kamera) kommt erst beim ersten Öffnen.
 const CaptureSheet = dynamic(() => import('@/components/erp/capture/capture-sheet').then((m) => m.CaptureSheet), { ssr: false });
@@ -34,7 +35,11 @@ const SUGGEST_LIMIT = 8;
  * einer Anlage oder Änderung im Feed passiert, steht hier an EINER Stelle (`handlers`). ◄◄◄
  */
 /** Was ein Entwurf mitbringt (aus «+» oder einem Handgriff). */
-interface Seeds { no: number; draft: DraftSeed | null; record: Record<string, string> | null; handgriff: number | null }
+interface Seeds {
+  no: number; draft: DraftSeed | null; record: Record<string, string> | null; handgriff: number | null;
+  /** Der ganze Wertesatz eines Vorschlags (Artikel: seine Schritte, wen er ablöst). */
+  body: Record<string, unknown> | null;
+}
 
 export default function ErpPage() {
   const [search, setSearch] = useState('');
@@ -62,7 +67,7 @@ export default function ErpPage() {
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   /** Was ein Entwurf aus «+» oder einem Handgriff mitbringt; `no` beginnt ihn neu;
    *  `handgriff` ist erledigt, sobald der Entwurf freigegeben ist. */
-  const [seeds, setSeeds] = useState<Seeds>({ no: 0, draft: null, record: null, handgriff: null });
+  const [seeds, setSeeds] = useState<Seeds>({ no: 0, draft: null, record: null, handgriff: null, body: null });
   /** Das «+» (Erfassen) – offen oder zu. */
   const [capture, setCapture] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
@@ -170,11 +175,12 @@ export default function ErpPage() {
   }
 
   function startCreate(type: Creatable, seed?: OrderSeed,
-    more: { draft?: DraftSeed; record?: Record<string, string>; handgriff?: number } = {}) {
+    more: { draft?: DraftSeed; record?: Record<string, string>; handgriff?: number;
+      body?: Record<string, unknown> } = {}) {
     setSel(null);
     setOrderSeed(seed ?? null);
     setSeeds((s) => ({ no: s.no + 1, draft: more.draft ?? null, record: more.record ?? null,
-      handgriff: more.handgriff ?? null }));
+      handgriff: more.handgriff ?? null, body: more.body ?? null }));
     setCreating(type);
     setCapture(false);
     setMobileView('detail');
@@ -185,17 +191,18 @@ export default function ErpPage() {
     objectId: sel.objectId,
     label: (activeRow && rowTitle(activeRow)) || TYPE_META[sel.type]?.label || '',
   } : null;
-  /** «Entwurf öffnen» aus einem Handgriff – der Anlege-Entwurf des ERP, vorausgefüllt: Person,
-   *  Firma und Artikel mit ihren Werten, ein Auftrag mit seiner ersten Zeile, ein Dokument mit der
-   *  Datei aus dem Gespräch (`values.file` = ihr Schlüssel im Korb). */
+  /** «Entwurf öffnen» aus einem Handgriff – der Anlege-Entwurf des ERP mit dem **ganzen**
+   *  Vorschlag: Person und Firma mit ihren Werten, ein Artikel mit Werten und Schritten, ein
+   *  Auftrag mit allen Zeilen, Schritten und der Wiederholung (`lib/proposal-draft`; was nicht
+   *  passt, nennt der Entwurf), ein Dokument mit der Datei aus dem Gespräch (`values.file`). */
   async function openDraft(d: DraftFromHandgriff) {
     if (d.kind === 'order') {
-      startCreate('order', orderSeedOf(d.body), { handgriff: d.handgriff });
+      startCreate('order', { proposal: orderFromProposal(d.body) }, { handgriff: d.handgriff });
       return;
     }
     if (d.kind !== 'document') {
       const type: Creatable = CREATABLE_OF[d.kind];
-      startCreate(type, undefined, { record: d.values, handgriff: d.handgriff });
+      startCreate(type, undefined, { record: d.values, handgriff: d.handgriff, body: d.body });
       return;
     }
     const file = d.values.file ? await api.attachmentBlob(d.values.file).catch((e: unknown) => {
@@ -288,13 +295,4 @@ export default function ErpPage() {
       </CaptureContext.Provider>
     </ErpNavContext.Provider>
   );
-}
-
-/** Die erste Zeile eines vorbereiteten Auftrags als Seed des Entwurfs (Artikel, Menge) – den Rest
- *  entscheidet der Mensch im Entwurf. */
-function orderSeedOf(body: Record<string, unknown> | undefined): OrderSeed | undefined {
-  const lines = body?.lines;
-  const first = Array.isArray(lines) ? (lines[0] as { article_object_id?: unknown; quantity?: unknown } | undefined) : undefined;
-  if (!first || typeof first.article_object_id !== 'number') return undefined;
-  return { articleObjectId: first.article_object_id, ...(typeof first.quantity === 'number' ? { quantity: first.quantity } : {}) };
 }

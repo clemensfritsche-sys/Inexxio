@@ -35,6 +35,8 @@ import { LoopDraftCard, LoopRunCard, loopPayload, type LoopDraft } from '@/compo
 import { Skeleton } from '@/components/erp/skeleton';
 import { useAction } from '@/lib/use-action';
 import { NOTHING } from '@/lib/when';
+import type { OrderProposal } from '@/lib/proposal-draft';
+import { ProposalLeft } from '@/components/erp/capture/proposal-left';
 
 /**
  * Auftrag – Detailfenster.
@@ -50,7 +52,8 @@ import { NOTHING } from '@/lib/when';
  * eine Abweichung wird, ergibt sich beim Freigeben aus dem Zustand des Stücks.
  */
 export interface OrderSeed {
-  articleObjectId: number;
+  /** Der vorgewählte Artikel – fehlt nur, wo `proposal` alle Zeilen mitbringt. */
+  articleObjectId?: number;
   /** Nur beim Auslöser am Stück (§3.1); der Shortcut am Artikel merkt nur den Artikel vor. */
   unitNumbers?: string[];
   /**
@@ -62,6 +65,9 @@ export interface OrderSeed {
   quantity?: number;
   /** Ein vorbelegter Ablauf (z. B. ein Bewegen-Modul für «Holen lassen») – änderbar, eine Eingabehilfe. */
   steps?: { moduleType: string; target?: number }[];
+  /** **Ein Vorschlag der KI, ganz** – jede Zeile, jeder Schritt, die Wiederholung
+   *  (`lib/proposal-draft.orderFromProposal`); was nicht passte, nennt der Entwurf. */
+  proposal?: OrderProposal;
 }
 
 export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
@@ -77,7 +83,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const isDraft = record === null;
 
   const [lines, setLines] = useState<DefinitionLine[]>(() => {
-    if (!seed) return [emptyLine(1)];
+    if (seed?.proposal) return seed.proposal.lines;
+    if (seed?.articleObjectId == null) return [emptyLine(1)];
     // Mit Stück: es steht schon in der Definition, Herkunft «Lager» folgt daraus.
     // Ohne Stück (Artikel-Shortcut): nur der Artikel – Menge und Herkunft bleiben offen.
     const picked = seed.unitNumbers ?? [];
@@ -93,13 +100,13 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
            quantity: seed.quantity, origin: LAGER }]
       : [{ ...emptyLine(1), articleObjectId: seed.articleObjectId }];
   });
-  const [steps, setSteps] = useState<ModuleDraft[]>(() =>
+  const [steps, setSteps] = useState<ModuleDraft[]>(() => seed?.proposal?.steps ??
     (seed?.steps ?? []).map((m, i) => ({
       ...blankModule(i + 1, m.moduleType),
       target: m.target ? String(m.target) : '',
     })));
   // **Die Wiederholung lebt im Entwurf** – eingefroren wird sie mit der Freigabe.
-  const [loop, setLoop] = useState<LoopDraft | null>(null);
+  const [loop, setLoop] = useState<LoopDraft | null>(seed?.proposal?.loop ?? null);
   const { busy, error, run } = useAction();
   // Zählt hoch, wenn die Freigabe an einer veralteten Auswahl scheitert – der Picker holt
   // die Stückliste dann neu und zeigt, wo die Stücke jetzt liegen.
@@ -218,6 +225,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
           </p>
         )}
 
+        {isDraft && <ProposalLeft left={seed?.proposal?.left ?? []} />}
         {/* Kein Mass von hier: jedes Prozessbild bringt seines mit. */}
         {isDraft ? (
           <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}

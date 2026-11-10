@@ -41,6 +41,8 @@ import { LabelButton } from '@/components/scan/object-label';
 import { useAction } from '@/lib/use-action';
 import { useOutside } from '@/lib/use-outside';
 import { NOTHING } from '@/lib/when';
+import { articleFromProposal } from '@/lib/proposal-draft';
+import { ProposalLeft } from '@/components/erp/capture/proposal-left';
 
 // Artikel-Lebenszyklus: der Artikel entsteht erst mit seiner Freigabe (vollständige
 // Spezifikation UND mindestens ein Modul) und ist danach eingefroren. Ausser Betrieb geht er,
@@ -76,10 +78,14 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?
   { key: 'origin_country', label: 'Ursprungsland', placeholder: 'Wo die Ware hergestellt wurde – z. B. CH' },
 ];
 
+const BLANK: Form = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '', kind: 'goods',
+  material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
+  is_hazmat: '', hs_code: '', origin_country: '' };
+/** Die Felder der Route, die die Maske führt (`fromValues`): `kind` heisst dort `is_service`. */
+const PROPOSAL_FIELDS = [...Object.keys(BLANK).filter((k) => k !== 'kind'), 'is_service'];
+
 function seedFrom(record: Article | null, initial?: Record<string, string> | null): Form {
-  const base: Form = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '', kind: 'goods',
-    material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
-    is_hazmat: '', hs_code: '', origin_country: '' };
+  const base: Form = { ...BLANK };
   if (!record) return initial ? fromValues(base, initial) : base;
   return {
     ...base,
@@ -102,10 +108,12 @@ function fromValues(base: Form, v: Record<string, string>): Form {
     ...(v.is_hazmat === 'true' ? { is_hazmat: 'ja' } : v.is_hazmat === 'false' ? { is_hazmat: '' } : {}) };
 }
 
-export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onCreateOrder }: {
+export function ArticleDetail({ record, initial, proposal, onSaved, onBack, onRefresh, onCreateOrder }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   /** Anlage aus einem Handgriff: die Werte, die die KI kannte. */
   initial?: Record<string, string> | null;
+  /** …und ihr ganzer Wertesatz – Schritte, Vorgänger (`lib/proposal-draft`). */
+  proposal?: Record<string, unknown> | null;
   onSaved: (a: Article) => void;
   onBack: () => void;
   /** Den Feed neu laden: eine Ersetzung ändert zwei Datensätze, `onSaved` meldet nur einen. */
@@ -117,6 +125,18 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
   // **Welchen Artikel löst dieser hier ab?** Nur im Anlage-Modus – die Angabe hat genau
   // einen Moment (siehe `ArticleCreate.replaces_object_id`).
   const [replaces, setReplaces] = useState<Article | null>(null);
+  // Ein Vorschlag bringt alles mit; was die Maske nicht führt, nennt der Entwurf.
+  const [proposed] = useState(() => (isCreate && proposal
+    ? articleFromProposal(proposal, PROPOSAL_FIELDS) : null));
+  // Der Vorgänger aus dem Vorschlag – als Nummer, bis jemand ihn im Feld ändert.
+  const [pendingReplaces, setPendingReplaces] = useState<number | null>(proposed?.replaces ?? null);
+  const pendingArticle = useQuery({
+    queryKey: qk.article(pendingReplaces ?? 0),
+    queryFn: ({ signal }) => api.getArticle(pendingReplaces!, { signal }),
+    enabled: pendingReplaces !== null,
+    meta: { what: 'Abgelöster Artikel' },
+  }).data ?? null;
+  const replacing = replaces ?? (pendingReplaces !== null ? pendingArticle : null);
 
   // Shortcut «Auftrag»: das Anlage-Fenster mit diesem Artikel vorgewählt öffnen, ohne Datensatz.
   // Vorgemerkt wird nur der Artikel – Menge, Herkunft und Ablauf entscheidet der Mensch.
@@ -129,7 +149,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
 
   // **Der Entwurf lebt hier, nicht in der Datenbank.** Spezifikation und Prozess sind
   // zwei Hälften derselben Anlage: der Artikel entsteht erst, wenn beide stehen.
-  const [steps, setSteps] = useState<ModuleDraft[]>([]);
+  const [steps, setSteps] = useState<ModuleDraft[]>(() => proposed?.steps ?? []);
   // Welche optionalen Felder werden angezeigt (mit Wert oder bewusst hinzugefügt)
   const [added, setAdded] = useState<AddKey[]>(() => {
     const s = seedFrom(record, initial);
@@ -178,9 +198,9 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
     origin_country: form.origin_country.trim().toUpperCase() || null,
     // **Ersetzen ist Teil der Anlage** – ein Vorgang, ein Aufruf: der Vorgänger zeigt
     // danach hierher UND ist ausser Betrieb.
-    replaces_object_id: replaces?.object_id ?? null,
+    replaces_object_id: replaces?.object_id ?? pendingReplaces,
     steps: steps.map(toModulePayload),
-  }), [form, steps, replaces]);
+  }), [form, steps, replaces, pendingReplaces]);
 
   // Freigebbarkeit beim Server erfragen, nicht selbst behaupten. Scheitert die Prüfung,
   // nennt der Knopf den Grund – freigeben lässt er dann nicht.
@@ -197,7 +217,7 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
     await run(async () => {
       onSaved(await api.createArticle(payload));
       // Eine Ersetzung ändert **zwei** Datensätze – der Vorgänger ist jetzt inaktiv.
-      if (replaces) onRefresh?.();
+      if (replaces || pendingReplaces !== null) onRefresh?.();
     // Kein Netz (Kaltstart, Funkloch) ist kein fachlicher Fehler – noch einmal geht.
     }, (e) => { if (e instanceof ApiError && e.code === 'offline') setError(`${e.message} – bitte erneut versuchen.`); });
   }
@@ -248,7 +268,11 @@ export function ArticleDetail({ record, initial, onSaved, onBack, onRefresh, onC
             {/* Wie steht dieser Artikel im Netz der anderen? Schmaler Streifen über der
                 Spezifikation – dieselbe Stelle, an der man bei der Anlage den Vorgänger wählt. */}
             {isCreate ? (
-              <ReplacesPicker value={replaces} onChange={setReplaces} />
+              <>
+                <ProposalLeft left={proposed?.left ?? []} />
+                <ReplacesPicker value={replacing}
+                  onChange={(a) => { setPendingReplaces(null); setReplaces(a); }} />
+              </>
             ) : (
               <ContextStrip objectId={record.object_id} />
             )}
