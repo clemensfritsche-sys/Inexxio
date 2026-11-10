@@ -276,11 +276,12 @@ class Bewegen(Module):
         Ausführen gewählt», alles andere Unlesbare ist ein Fehler."""
         if value in (None, "", 0):
             return None
-        if self._object_id(value) is None:
+        number = self._object_id(value)
+        if number is None:
             raise Invalid(f"«{value}» ist keine Objektnummer. Das Ziel von «Bewegen» ist "
                         f"ein Regal, eine Person oder ein Unternehmen – oder es bleibt "
                         f"leer und wird beim Ausführen gewählt.")
-        return self._object_id(value)
+        return number
 
     def movement_for(self, config: Optional[dict[str, Any]], *,
                      target: Optional[int]) -> int:

@@ -206,17 +206,6 @@ def describe(db: Session, place: Optional[Place]) -> Optional[Station]:
     return describe_all(db, [place]).get(place) if place else None
 
 
-def chain(db: Session, place: Optional[Place]) -> list[Station]:
-    """Die Kette von innen nach aussen: Getriebe › Behälter › Regal › Werk Nord.
-
-    Sie endet an einem Halter mit Anschrift, wo nichts mehr liegt oder nichts mehr auflöst;
-    leer heisst standortlos. Zyklensicher (gesehene Orte, Obergrenze).
-    """
-    if not place:
-        return []
-    return chains_for(db, [place]).get(place, [])
-
-
 def _places_of_instances(db: Session, object_ids: list[int]) -> dict[int, Place]:
     """**Wo liegen diese Instanzen?** — eine Abfrage für alle.
 

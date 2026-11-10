@@ -276,7 +276,8 @@ def test_the_chain_reads_from_inside_out_and_stops_at_an_address():
         places_svc.place(db, units=[screw], target=box.object_id)
         db.flush()
 
-        chain = places_svc.chain(db, places_svc.place_of(screw))
+        at = places_svc.place_of(screw)
+        chain = places_svc.chains_for(db, [at]).get(at, [])
         assert [s.object_id for s in chain] == [
             box.object_id, shelf.object_id, works.object_id,
         ]
@@ -285,7 +286,6 @@ def test_the_chain_reads_from_inside_out_and_stops_at_an_address():
         # der Kette steht dieselbe Gesellschaft wie im Feed und auf dem Beleg –
         # ``sites.legal_name``, nicht der blosse Spaltenwert.
         assert chain[-1].label == "Werk Nord AG"
-        assert places_svc.chain(db, None) == [], "Standortlos ist eine leere Kette."
         assert places_svc.place_of(unit_of(shelf)) == (places_svc.OBJECT, works.object_id)
     finally:
         db.rollback()
@@ -315,7 +315,8 @@ def test_a_broken_chain_is_capped_not_endless():
         unit_of(b).place_object_id = a.object_id
         db.flush()
 
-        chain = places_svc.chain(db, (places_svc.OBJECT, a.object_id))
+        at = (places_svc.OBJECT, a.object_id)
+        chain = places_svc.chains_for(db, [at]).get(at, [])
         # **Scharf, nicht nur endlich**: zwei Stationen im Kreis dürfen genau zweimal
         # erscheinen. Eine Obergrenze allein liesse zehn Wiederholungen durchgehen –
         # gekappt wäre es dann zwar, aber gelogen.

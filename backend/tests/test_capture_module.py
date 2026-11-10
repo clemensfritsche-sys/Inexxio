@@ -346,9 +346,6 @@ def test_a_failed_capture_holds_and_nothing_is_created():
         # gibt keine Gruppe mehr dafür: die 100 %-Kontrolle ist ersatzlos entfallen
         # (#713), und damit ist die Abweichung die eine Entscheidung.
         assert after["rest"] == 3
-        failed = order_state.held_numbers(db, order, step,
-                                   instance_object_id=work["instance_object_id"], group="failed")
-        assert len(failed) == 1
         from app.domain.errors import Rejected
 
         with pytest.raises(Rejected) as weg:
@@ -511,12 +508,11 @@ def test_the_endpoints_carry_the_rules_to_the_outside(db, monkeypatch):
         assert row["work"][0]["held"] is True, "Ein «nicht bestanden» rückt vor."
         assert len(row["work"][0]["failed_numbers"]) == 3
 
-        # Die Vorauswahl der EINEN Entscheidung – erst auf Klick.
-        failed = client.get(f"{base}/hold", params={"instance": instance, "group": "failed"})
-        assert len(failed.json()["numbers"]) == 3, failed.text
-        # **Die 100 %-Kontrolle ist ersatzlos entfallen** (#713) – kein toter Pfad.
-        assert client.get(f"{base}/hold",
-                          params={"instance": instance, "group": "rest"}).status_code == 400
+        # Die durchgefallenen stehen in der Arbeitsliste (oben) – eine zweite Frage gibt es
+        # nicht, und die 100 %-Kontrolle ist ersatzlos entfallen (#713): kein toter Pfad.
+        for gone in ("failed", "rest"):
+            assert client.get(f"{base}/hold",
+                              params={"instance": instance, "group": gone}).status_code == 400
         assert client.get(f"{base}/hold",
                           params={"instance": instance, "group": "alles"}).status_code == 400
     finally:
@@ -723,7 +719,7 @@ def test_a_hold_is_never_a_dead_end():
         assert order_state.step_work(db, order, step)[0]["held"] is True
 
         # 2. Die angebotene Abweichung – ein ganz gewöhnlicher Auftrag.
-        failed = order_state.held_numbers(db, order, step, instance_object_id=inst, group="failed")
+        failed = order_state.step_work(db, order, step)[0]["failed_numbers"]
         assert failed == [drawn[0]]
         dev = release_svc.release(
             db,

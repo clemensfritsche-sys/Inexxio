@@ -1001,15 +1001,10 @@ export interface paths {
         };
         /**
          * Hold Numbers
-         * @description Die Nummern einer Gruppe – **erst auf Klick** (§4/§4.1).
+         * @description Die Nummern der gezogenen Stücke einer Instanz – **erst auf Klick** (§9.3).
          *
-         *     ``sample`` sind die gezogenen Stücke (für jedes ist ein Wertesatz zu erfassen),
-         *     ``failed`` die durchgefallenen. Letztere gehen als Vorauswahl in einen ganz
-         *     gewöhnlichen Auftragsentwurf – die Abweichung ist kein eigener Mechanismus, sondern
-         *     dieselbe Anlage mit anderer Vorbelegung.
-         *
-         *     Nicht in der Auftrags-Antwort, weil die Stichprobe einer 6000er-Charge tausende
-         *     Nummern wären – mitgeliefert bei jedem Öffnen.
+         *     Für jedes ist ein Wertesatz zu erfassen. Nicht in der Auftrags-Antwort, weil die
+         *     Stichprobe einer 6000er-Charge tausende Nummern wären – mitgeliefert bei jedem Öffnen.
          */
         get: operations["hold_numbers_api_v1_erp_orders__object_id__steps__step_id__hold_get"];
         put?: never;
@@ -9610,7 +9605,7 @@ export interface operations {
             query: {
                 /** @description Objektnummer der betroffenen Instanz */
                 instance: number;
-                /** @description sample | failed */
+                /** @description sample – die gezogenen Stücke */
                 group: string;
             };
             header?: never;

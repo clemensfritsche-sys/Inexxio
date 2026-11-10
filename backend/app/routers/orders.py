@@ -27,7 +27,7 @@ from ..schemas.order import (
 )
 from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PaymentSetup,
-    RecordEntry, RecordValue, StepConfirm, StepRecord, TransferInfo,
+    StepConfirm, StepRecord, TransferInfo,
 )
 from ..domain import capture_types, modules, statuses as st
 from ..services import log
@@ -351,19 +351,14 @@ def hold_numbers(
     object_id: int,
     step_id: int,
     instance: int = Query(..., description="Objektnummer der betroffenen Instanz"),
-    group: str = Query(..., description="sample | failed"),
+    group: str = Query(..., description="sample – die gezogenen Stücke"),
     db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
-    """Die Nummern einer Gruppe – **erst auf Klick** (§4/§4.1).
+    """Die Nummern der gezogenen Stücke einer Instanz – **erst auf Klick** (§9.3).
 
-    ``sample`` sind die gezogenen Stücke (für jedes ist ein Wertesatz zu erfassen),
-    ``failed`` die durchgefallenen. Letztere gehen als Vorauswahl in einen ganz
-    gewöhnlichen Auftragsentwurf – die Abweichung ist kein eigener Mechanismus, sondern
-    dieselbe Anlage mit anderer Vorbelegung.
-
-    Nicht in der Auftrags-Antwort, weil die Stichprobe einer 6000er-Charge tausende
-    Nummern wären – mitgeliefert bei jedem Öffnen.
+    Für jedes ist ein Wertesatz zu erfassen. Nicht in der Auftrags-Antwort, weil die
+    Stichprobe einer 6000er-Charge tausende Nummern wären – mitgeliefert bei jedem Öffnen.
     """
     order = orders_svc.get(db, object_id)
     step = process_svc.step_of(db, order, step_id)
@@ -394,21 +389,7 @@ def step_record(
     order = orders_svc.get(db, object_id)
     step = process_svc.step_of(db, order, step_id)
     entries, total = record_svc.step_record(db, order, step, limit=limit, offset=offset)
-    return StepRecord(
-        total=total,
-        entries=[
-            RecordEntry(
-                number=e.number, at=e.at, actor=e.actor, verification=e.verification,
-                status_before=e.status_before, status_after=e.status_after,
-                result=e.result, sampled=e.sampled,
-                into=e.into,
-                values=[RecordValue(key=v.key, label=v.label, type=v.type,
-                                    value=v.value, ok=v.ok)
-                        for v in e.values],
-            )
-            for e in entries
-        ],
-    )
+    return StepRecord(total=total, entries=entries)
 
 
 # ---------------------------------------------------------------------------

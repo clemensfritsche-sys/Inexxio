@@ -15,11 +15,6 @@ from ..domain import capture_types, modules
 from ..models import Capture, InstanceUnit, Order, ProcessStep
 
 
-def points_of(step: ProcessStep) -> list[dict[str, Any]]:
-    """Die Erfassungspunkte dieses Moduls. Leer heisst: hier wird nichts erfasst."""
-    return modules.points_of(step.config)
-
-
 def record_for_step(
     db: Session,
     *,
@@ -37,7 +32,7 @@ def record_for_step(
     **vor** der ersten Zeile: fehlt ein Pflichtpunkt, entsteht nichts. Das **Urteil hängt
     am Stück**; was für die Instanz folgt, entscheidet der Aufrufer (§4.1).
     """
-    points = points_of(step)
+    points = modules.points_of(step.config)
     for values in captures.values():
         capture_types.check_values(points, values)
     # **Ohne Erfassungspunkte wird nichts erfasst.** Das Aussondern im Modus «verschrotten»

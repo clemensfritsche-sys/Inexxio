@@ -95,9 +95,9 @@ export function CaptureForm({ points, numbers, action, busy, onConfirm, onDirty 
 }
 
 /** Ist dieser Punkt (noch) nicht erfasst? Knapper Spiegel von `CaptureType.missing`. */
+/** Leer oder nicht gewählt – ob eine Zahl lesbar ist, sagt der Server (`Measure.missing`). */
 function isMissing(point: CapturePoint, value: unknown): boolean {
   if (point.type === 'bool') return value !== true && value !== false;
-  if (point.type === NEEDS_TARGET) return value === undefined || value === null || value === '';
   return value === undefined || value === null || value === '';
 }
 

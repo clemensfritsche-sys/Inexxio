@@ -12,7 +12,7 @@ from typing import Any, Iterable, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..domain import statuses as st
+from ..domain import capture_types, statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent,
     ProcessStep,
@@ -189,21 +189,16 @@ def held_units(db: Session, order: Order, step: ProcessStep,
     if not unit_ids:
         return set()
     latest = _latest_captures(db, order, step, unit_ids)
-    return {u for u, cap in latest.items() if cap is not None and cap.result == "failed"}
+    return {u for u, cap in latest.items()
+            if cap is not None and cap.result == capture_types.FAILED}
 
 
 def held_numbers(db: Session, order: Order, step: ProcessStep, *,
                  instance_object_id: int, group: str) -> list[str]:
-    """Die Nummern **einer Gruppe dieser Instanz an diesem Modul** — erst auf Klick.
+    """Die Nummern der **gezogenen** Stücke dieser Instanz an diesem Modul — erst auf Klick.
 
-    Zwei Rollen, eine Frage – «welche Stücke, und wozu»:
-
-    ``sample``   die **gezogenen**: für sie ist je ein Wertesatz zu erfassen (§9.3)
-    ``failed``   die durchgefallenen – Vorauswahl für einen Abweichungsauftrag
-
-    ``failed`` geht in einen gewöhnlichen Auftragsentwurf (§4.1). Die 100 %-Kontrolle ist
-    ein Abweichungsauftrag mit der Stichprobe «alle». **Erst auf Klick**: die Zahlen in
-    ``step_work`` genügen für die Vorschau.
+    Für jedes ist ein Wertesatz zu erfassen (§9.3). Die durchgefallenen stehen schon in
+    ``step_work`` (``failed_numbers``) – eine zweite Frage danach gibt es nicht.
     """
     instance = (
         db.query(Instance).filter(Instance.object_id == instance_object_id).first()
@@ -212,15 +207,10 @@ def held_numbers(db: Session, order: Order, step: ProcessStep, *,
         raise NotFound(f"Instanz {instance_object_id} gibt es nicht.")
     waiting = _units_at(db, order, step.id, instance_id=instance.id)
     units = [u for _, u in waiting]
-    if group == "failed":
-        latest = _latest_captures(db, order, step, [u.id for u in units])
-        chosen = [u for u in units if (latest.get(u.id) is not None
-                                       and latest[u.id].result == "failed")]
-    elif group == "sample":
-        drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
-        chosen = [u for u in units if u.id in drawn]
-    else:
-        raise Invalid(f"«{group}» ist keine Gruppe – erlaubt: sample, failed.")
+    if group != "sample":
+        raise Invalid(f"«{group}» ist keine Gruppe – erlaubt: sample.")
+    drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
+    chosen = [u for u in units if u.id in drawn]
     numbers = unit_numbers(db, chosen)
     return [numbers[u.id] for u in chosen]
 

@@ -147,6 +147,11 @@ def check_values(points: list[dict[str, Any]], values: dict[str, Any]) -> None:
         raise Invalid(f"Noch nicht erfasst: {', '.join(open_points)}.")
 
 
+#: Die zwei Urteile einer Erfassung – die einen Wörter, die Dienst und Ansicht vergleichen.
+PASSED = "passed"
+FAILED = "failed"
+
+
 def verdict(points: list[dict[str, Any]], values: dict[str, Any]) -> Optional[str]:
     """``"passed"`` | ``"failed"`` | ``None`` — das Urteil über die **bewertbaren** Punkte.
 
@@ -161,10 +166,10 @@ def verdict(points: list[dict[str, Any]], values: dict[str, Any]) -> Optional[st
     judged = [r for r in results if r is not None]
     if not judged:
         return None
-    return "passed" if all(judged) else "failed"
+    return PASSED if all(judged) else FAILED
 
 
 __all__ = [
-    "ALL", "KEYS", "LABELS", "CaptureType",
+    "ALL", "KEYS", "LABELS", "CaptureType", "PASSED", "FAILED",
     "get", "clean_points", "check_values", "verdict",
 ]

@@ -12,7 +12,7 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..domain import modules, statuses as st
+from ..domain import capture_types, modules, statuses as st
 from . import log
 from ..models import (
     Instance, InstanceUnit, Order, OrderUnit, ProcessStep,
@@ -27,7 +27,8 @@ from . import (
 )
 from .instances import number_of, unit_numbers
 from .order_state import (
-    _chunks, _latest_captures, _order_number, _units_at, order_status, pending_returns,
+    _chunks, _latest_captures, _order_number, _units_at, held_units, order_status,
+    pending_returns,
     steps_of,
 )
 from ..domain.errors import Conflict, Failed, Invalid, NotFound
@@ -260,7 +261,7 @@ def confirm_step(
     result = _record(db, order=order, step=step, units=units, values=values,
                      verification=verification, actor_id=actor_id)
     # **Nicht bestanden ⇒ nichts rückt vor**, auch nicht der ungezogene Rest (§4.1).
-    if result == "failed":
+    if result == capture_types.FAILED:
         db.flush()
         return {"moved": 0, "held": instance_size, "result": result}
     _advance(db, order=order, step=step, waiting=waiting, verification=verification,
@@ -362,7 +363,7 @@ def _record(db: Session, *, order: Order, step: ProcessStep, units: list[Instanc
             for u in drawn
         ])
     results = [c.result for c in captures.values()]
-    return "failed" if "failed" in results else next(iter(results), None)
+    return capture_types.FAILED if capture_types.FAILED in results else next(iter(results), None)
 
 
 def _advance(db: Session, *, order: Order, step: ProcessStep,
@@ -494,16 +495,12 @@ def _sample_cleared(db: Session, *, order: Order, step: ProcessStep) -> bool:
         int(i) for (i,) in db.query(OrderUnit.instance_unit_id).filter(
             OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None)).all()
     }
-    latest = _latest_captures(db, order, step, list(drawn))
-    for uid in drawn:
-        capture = latest.get(uid)
-        if capture is None:
-            if uid in here:
-                return False                       # steht hier noch aus
-            continue                               # weg – kann hier nicht mehr erfasst werden
-        if capture.result == "failed" and uid in here:
-            return False                           # hält an, solange es hier steht (§4.1)
-    return True
+    pending = drawn & here
+    if not pending:
+        return True
+    captured = set(_latest_captures(db, order, step, list(pending)))
+    # Steht ein gezogenes hier noch aus, oder hält eines an (§4.1), ist sie nicht durch.
+    return pending <= captured and not held_units(db, order, step, list(pending))
 
 
 def _run_through(db: Session, *, order: Order, step: Optional[ProcessStep],
@@ -649,7 +646,7 @@ def _captures_for(
     gilt: **erfasst wird, was gezogen wurde.** Ohne Erfassungspunkte ist leer das einzig
     Richtige.
     """
-    points = capture_svc.points_of(step)
+    points = modules.points_of(step.config)
     if not points:
         if values:
             raise Invalid(f"«{modules.label(step.module_type)}» erfasst nichts – "

@@ -1079,9 +1079,9 @@ class ApiClient {
 
   /**
    * Die Nummern **einer Gruppe dieser Instanz an diesem Modul** – erst auf Klick.
-   * `sample` = die gezogenen (je ein Wertesatz); `failed`/`rest` = Vorauswahl nach «nicht bestanden».
+   * `sample` = die gezogenen (je ein Wertesatz). Die durchgefallenen stehen in `StepWork.failed_numbers`.
    */
-  stepHold(objectId: number, stepId: number, instance: number, group: 'sample' | 'failed' | 'rest') {
+  stepHold(objectId: number, stepId: number, instance: number, group: 'sample') {
     return this.call('get', '/api/v1/erp/orders/{object_id}/steps/{step_id}/hold',
       { path: { object_id: objectId, step_id: stepId }, query: { instance, group } });
   }

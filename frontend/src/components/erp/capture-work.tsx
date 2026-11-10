@@ -440,7 +440,7 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, o
 
       {/* ── Ebene 3 · der Halt, nur wenn es ihn gibt ────────────────────────── */}
       {work.held && (
-        <Hold work={work} orderObjectId={orderObjectId} stepId={stepId} onDeviate={onDeviate} />
+        <Hold work={work} orderObjectId={orderObjectId} onDeviate={onDeviate} />
       )}
     </div>
   );
@@ -456,22 +456,20 @@ function labelOf(p: CapturePoint): string {
  * **Der Halt — eine Zeile, eine Entscheidung** (§4.1). Die Meldung nennt die Tatsache, die
  * Folgen stehen im Hover. Eine 100 %-Kontrolle ist ein Abweichungsauftrag mit Stichprobe «alle».
  */
-function Hold({ work, orderObjectId, stepId, onDeviate }: {
-  work: StepWork; orderObjectId: number; stepId: number;
+function Hold({ work, orderObjectId, onDeviate }: {
+  work: StepWork; orderObjectId: number;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
   const { busy, run } = useAction();
   const failed = work.failed_numbers ?? [];
 
+  // Die durchgefallenen Nummern stehen schon in der Arbeitsliste (`failed_numbers`).
   const open = () => onDeviate && run(async () => {
-    const [{ numbers = [] }, instance] = await Promise.all([
-      api.stepHold(orderObjectId, stepId, work.instance_object_id, 'failed'),
-      api.getInstance(work.instance_object_id),
-    ]);
-    if (!numbers.length || instance.article_object_id == null) return;
+    const instance = await api.getInstance(work.instance_object_id);
+    if (!failed.length || instance.article_object_id == null) return;
     onDeviate({
       articleObjectId: instance.article_object_id,
-      unitNumbers: numbers,
+      unitNumbers: failed,
       fromOrder: orderObjectId,
     });
   }, tell('Abweichung', 'Nicht vorbereitet'));

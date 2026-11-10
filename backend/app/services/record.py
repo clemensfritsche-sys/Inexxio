@@ -24,8 +24,6 @@ Die Aussage steht allein im ``sample``-Ereignis (``services/sampling``); ein feh
 ``capture``-Eintrag allein sagt nichts.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any, Optional
 
 from sqlalchemy import String, and_, case, cast, func, or_, select
@@ -34,45 +32,9 @@ from sqlalchemy.orm import Session
 from ..domain import capture_types, modules
 from ..models import Capture, Instance, InstanceUnit, Order, ProcessEvent, ProcessStep
 from ..models.process_event import KIND_CAPTURE, KIND_STEP
+from ..schemas.process import RecordEntry as Entry, RecordValue as Value
 from . import people, sampling
 from .instances import SEP, unit_numbers
-
-
-@dataclass
-class Value:
-    """Ein erfasster Wert – mit seiner Frage, nicht nur mit seinem Schlüssel."""
-
-    key: str
-    label: str
-    type: str
-    value: Any
-    #: Das Urteil **dieses** Punktes (``True``/``False``) – ``None``, wenn er keines hat.
-    #: Ein Foto belegt, es bewertet nicht.
-    ok: Optional[bool] = None
-
-
-@dataclass
-class Entry:
-    """Ein Vorgang an diesem Modul, an **einer** Einzelinstanz."""
-
-    number: str
-    at: datetime
-    actor: Optional[str] = None
-    #: Wie die Instanz bestätigt wurde: ``scan`` ↔ ``manual``.
-    verification: Optional[str] = None
-    #: Der Zustand **nach** dem Vorgang. ``None`` heisst: nichts rückte vor (der Fall
-    #: «nicht bestanden»).
-    status_after: Optional[str] = None
-    #: Der Zustand **vor** dem Vorgang. Der Dienst liefert beide Werte; die Anzeige fragt,
-    #: ob sie verschieden sind (ein Durchläufer bleibt ``Im Prozess``).
-    status_before: Optional[str] = None
-    #: Das Urteil der Erfassung: ``passed`` · ``failed`` · ``None`` (nichts Bewertbares).
-    result: Optional[str] = None
-    #: Lief dieses Stück **ohne** Erfassung durch (ausserhalb der Ziehung)?
-    sampled: bool = True
-    #: Nur beim Verbrauch: die Nummer des Stücks, in das hier verbaut wurde.
-    into: Optional[str] = None
-    values: list[Value] = field(default_factory=list)
 
 
 def _points(step: ProcessStep) -> dict[str, dict[str, Any]]:
@@ -184,7 +146,7 @@ def _entry(cap: Optional[ProcessEvent], passed: Optional[ProcessEvent], *, point
         payload = cap.payload or {}
         capture = captures.get(int(payload.get("capture_id") or 0))
         entry.verification = payload.get("verification")
-        entry.result = payload.get("result")
+        entry.result = capture.result if capture else None
         entry.values = _values(points, capture.values if capture else {})
     if passed is not None:
         payload = passed.payload or {}

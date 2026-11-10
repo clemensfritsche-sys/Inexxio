@@ -149,15 +149,13 @@ def built_into(db: Session, unit: InstanceUnit) -> list[dict]:
 
     Je Auftrag **genau ein** Stück – das, das der Log nennt (``into``).
     """
-    out: list[dict] = []
-    for oid, into in sorted(_left_as_built(db, unit.id).items()):
-        products = [into]
-        facts = _describe(db, products)
-        out.append({
-            "order_object_id": _order_numbers(db, {oid}).get(oid),
-            "products": [facts[u] for u in products if u in facts],
-        })
-    return out
+    built = sorted(_left_as_built(db, unit.id).items())
+    # Alles in zwei Abfragen – nicht zwei je Auftrag.
+    facts = _describe(db, [into for _, into in built])
+    numbers = _order_numbers(db, {oid for oid, _ in built})
+    return [{"order_object_id": numbers.get(oid),
+             "products": [facts[into]] if into in facts else []}
+            for oid, into in built]
 
 
 def _left_as_built(db: Session, unit_id: int) -> dict[int, int]:

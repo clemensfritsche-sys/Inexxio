@@ -279,7 +279,8 @@ def test_a_consumed_piece_lies_in_its_carrier():
             )
 
         # **Die Kette läuft über den Träger weiter** – bis zur Anschrift.
-        chain = places.chain(w.db, places.place_of(inst_svc.find_unit(w.db, built[0])))
+        at = places.place_of(inst_svc.find_unit(w.db, built[0]))
+        chain = places.chains_for(w.db, [at]).get(at, [])
         assert [s.kind for s in chain][:2] == ["unit", "instance"]
         assert chain[0].number == unit_numbers(w.db, products)[products[0].id], (
             "Die erste Station ist das Träger-STÜCK, benannt mit seiner Nummer – nicht "
