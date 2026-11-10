@@ -182,8 +182,10 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   Punkt → Wert, Deckung in beide Richtungen). **«Nicht bestanden» rückt nicht vor** und legt
   nichts an; der Halt ist eine **Auskunft** (`held_units`), keine Sperre – das System bietet
   einen gewöhnlichen Auftrag mit vorgewählten Stücken an. **Die Stichprobe ist EINE Zahl**
-  (Anteil an der Gesamtmenge, `domain/sampling.py`), gezogen einmal je Modul beim Erreichen,
-  zufällig, eingefroren als `sample`-Ereignis. Erfassungspunkte: Text · Ja/Nein · Bild (nur
+  (Anteil an der Gesamtmenge, `domain/sampling.py`), gezogen einmal je Modul mit
+  Erfassungspunkten beim Erreichen, zufällig, eingefroren als `sample`-Ereignis. **Bestätigt
+  wird nur, was gezogen ist** (`process._drawn_only`); der ungeprüfte Rest läuft erst, wenn die
+  Stichprobe durch und bestanden ist (`process.carry_on`). Erfassungspunkte: Text · Ja/Nein · Bild (nur
   Kamera, genau eine Aufnahme je Stück) · Signatur · Soll-Ist (mit Einheit) – je Typ eine
   Datei in `domain/capture_types/`.
 - **Aussondern** (§9.4): Verschrotten (`Verschrottet`, endgültig) ↔ Sperren (`Gesperrt`)
@@ -196,6 +198,8 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   eines Stücks ist eine Ableitung (`services/genealogy`). **Nichtverfügbarkeit ist kein
   Zustand** (`StepNeed`: gebraucht · verfügbar · davon am Ort); das Material muss dort
   liegen, wo das Produkt liegt (`material_place`, «am Ort» heisst in der Halter-Kette).
+  **Aus welchen Kisten genommen wird, sagt der Server** (`StepNeed.plan`: älteste zuerst, am
+  Ort, wenn verlangt; dazu `missing` · `misplaced`) – die Oberfläche rechnet nicht nach.
   `Verbaut` ist nicht terminal (Demontage = Greifen). Kein Ausgang.
 - **Bewegen** (§9.8): setzt den Ort, ändert keinen Status. Das **Ziel ist optional**:
   definiert → der Scan verifiziert, offen → der Scan wählt. **Ware zuerst, Ziel zuletzt**
