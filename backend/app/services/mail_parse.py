@@ -8,7 +8,7 @@ gelesen wird (``NEVER``). Reine Funktionen – darum auch einzeln prüfbar.
 import base64
 import re
 from html.parser import HTMLParser
-from typing import Any
+from typing import Any, Optional
 
 
 MAX_BODY = 20_000
@@ -35,25 +35,80 @@ def _bulk(labels: set[str], head: dict[str, str], addr: str) -> bool:
                 or auto != "no" or _ROBOT.search(addr.split("@")[0]))
 
 
+#: ►►► **Wo ein Mailprogramm das Zitat markiert** – im HTML-Teil, dasselbe Zeichen, nach dem
+#: Gmail die «…» einklappt. ◄◄◄ Ein Element mit diesem Zeichen fällt samt Inhalt weg
+#: (Gmail ``gmail_quote``, Apple ``blockquote type=cite``, Thunderbird ``moz-cite-prefix``,
+#: Yahoo ``yahoo_quoted``); bei Outlook beginnt mit dem Kopf das Zitat, und alles danach fällt
+#: weg (``divRplyFwdMsg``, ``appendonsend``, ``OutlookMessageHeader``).
+QUOTE_CLASSES = ("gmail_quote", "moz-cite-prefix", "yahoo_quoted")
+QUOTE_STOPS = ("divrplyfwdmsg", "appendonsend", "outlookmessageheader")
+_VOID = {"br", "img", "hr", "meta", "input", "link", "col", "area", "base", "wbr", "source"}
+
+
 class _Html(HTMLParser):
+    """HTML zu Text – ohne Stil und Skript, und **ohne das Zitat**, wo das Mailprogramm es
+    markiert hat (``quoted`` sagt, ob es eines fand)."""
+
     def __init__(self) -> None:
         super().__init__()
         self.out: list[str] = []
         self.skip = 0
+        self.open: list[str] = []
+        self.hide_from: Optional[int] = None     # Tiefe des Zitat-Elements, das gerade wegfällt
+        self.stopped = False                     # ab hier ist alles Zitat (Outlook)
+        self.quoted = False
+
+    @staticmethod
+    def _marks(tag: str, attrs: Any) -> tuple[bool, bool]:
+        a = {k.lower(): (v or "") for k, v in attrs}
+        names = (a.get("class", "") + " " + a.get("id", "")).lower()
+        stop = any(m in names for m in QUOTE_STOPS)
+        hide = (any(c in names.split() for c in QUOTE_CLASSES)
+                or (tag == "blockquote" and a.get("type", "").lower() == "cite"))
+        return hide, stop
 
     def handle_starttag(self, tag: str, attrs: Any) -> None:
+        if self.stopped:
+            return
+        hide, stop = self._marks(tag, attrs)
+        if stop:
+            self.stopped = self.quoted = True
+            return
+        if tag not in _VOID:
+            self.open.append(tag)
+            if hide and self.hide_from is None:
+                self.hide_from, self.quoted = len(self.open), True
+        if self.hide_from is not None:
+            return
         if tag in ("style", "script"):
             self.skip += 1
         if tag in ("br", "p", "div", "tr", "li"):
             self.out.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in ("style", "script") and self.skip:
+        if self.stopped or tag in _VOID:
+            return
+        if tag in self.open:        # schliesst auch, was das HTML offen liess
+            while self.open:
+                if self.open.pop() == tag:
+                    break
+        if self.hide_from is not None and len(self.open) < self.hide_from:
+            self.hide_from = None
+            return
+        if self.hide_from is None and tag in ("style", "script") and self.skip:
             self.skip -= 1
 
     def handle_data(self, data: str) -> None:
-        if not self.skip:
+        if not (self.skip or self.stopped or self.hide_from is not None):
             self.out.append(data)
+
+
+def _html_text(html: str) -> tuple[str, bool]:
+    """Text eines HTML-Teils und ob ein markiertes Zitat wegfiel."""
+    h = _Html()
+    h.feed(html)
+    h.close()
+    return "".join(h.out), h.quoted
 
 
 def _decode(part: dict[str, Any]) -> str:
@@ -72,17 +127,19 @@ def _parts(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _text(payload: dict[str, Any]) -> str:
-    """Der lesbare Text: ``text/plain`` zuerst, sonst ``text/html`` ohne Auszeichnung."""
+    """►►► **Der lesbare Text – ohne Zitat, wo das Mailprogramm es markiert hat.** ◄◄◄ Trägt
+    der HTML-Teil ein Zitat-Zeichen (``QUOTE_CLASSES`` · ``QUOTE_STOPS``), gilt sein Text ohne
+    das Zitat; sonst der Text-Teil wie bisher (und ``_strip_quote`` sucht das Zitat an seinen
+    Mustern – der Rückfall für Mails ohne Zeichen)."""
     parts = [p for p in _parts(payload) if not p.get("filename")]
-    for mime in ("text/plain", "text/html"):
-        for p in parts:
-            if p.get("mimeType") == mime and (text := _decode(p)):
-                if mime == "text/html":
-                    h = _Html()
-                    h.feed(text)
-                    text = "".join(h.out)
-                return re.sub(r"\n{3,}", "\n\n", text.replace("\r", "")).strip()
-    return ""
+    html = next((t for p in parts if p.get("mimeType") == "text/html" and (t := _decode(p))), "")
+    plain = next((t for p in parts if p.get("mimeType") == "text/plain" and (t := _decode(p))), "")
+    text = plain
+    if html:
+        cleaned, quoted = _html_text(html)
+        if quoted or not plain:
+            text = cleaned
+    return re.sub(r"\n{3,}", "\n\n", text.replace("\r", "").replace("\xa0", " ")).strip()
 
 
 #: Wo das Zitat beginnt: «Am … schrieb …:» (Gmail, Apple – auch umbrochen, wenn Name und

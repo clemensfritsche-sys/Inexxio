@@ -259,3 +259,34 @@ def test_without_a_mailbox_a_mail_waits_and_no_mail_is_offered(db, monkeypatch):
     out = comm.load(db, [msg.id])[0]
     assert msg.outgoing and out.pending, "wartet – steht nie als gesendet da"
     assert "c999999977" not in [c.key for c in comm.channels(db)]
+
+
+def _mime(plain: str, html: str) -> dict:
+    enc = lambda t: base64.urlsafe_b64encode(t.encode()).decode()  # noqa: E731
+    return {"mimeType": "multipart/alternative", "parts": [
+        {"mimeType": "text/plain", "body": {"data": enc(plain)}},
+        {"mimeType": "text/html", "body": {"data": enc(html)}}]}
+
+
+def test_the_quote_is_cut_where_the_mail_program_marked_it():
+    """►►► Das Zitat fällt dort weg, wo das Mailprogramm es markiert hat (wie Gmails «…»),
+    unabhängig von Sprache und Zeilenumbruch. ◄◄◄ Bug-Form: nur Textmuster – ein umbrochener
+    Kopf «… schrieb Clemens Fritsche · INEXXIO <» / «adresse>:» blieb stehen."""
+    from app.services.mail_parse import _text
+    gmail = ('<div dir="ltr">OK, danke!</div><br><div class="gmail_quote"><div dir="ltr" '
+             'class="gmail_attr">Am Di., 10. Nov. 2026 um 08:31 Uhr schrieb Clemens Fritsche · '
+             'INEXXIO &lt;<a href="mailto:x@y.ch">x@y.ch</a>&gt;:<br></div><blockquote '
+             'class="gmail_quote">Wunderbar</blockquote></div>')
+    outlook = ('<div><p>Ja, Freitag passt.</p></div><hr><div id="divRplyFwdMsg"><b>Von:</b> '
+               'Inexxio<br><b>Gesendet:</b> Montag</div><div>Alter Text</div>')
+    apple = ('<div>Gerne!</div><div><br><blockquote type="cite"><div>Wann kommt der '
+             'Techniker?</div></blockquote></div>')
+    inline = ('<div>Zu Punkt 1: ja.</div><div class="gmail_quote"><blockquote class="gmail_quote">'
+              'Punkt 1?</blockquote></div><div>Und sonst alles gut.</div>')
+    assert _text(_mime("OK, danke!\n\nAm … schrieb …\n> Wunderbar", gmail)) == "OK, danke!"
+    assert _text(_mime("x", outlook)) == "Ja, Freitag passt."
+    assert _text(_mime("x", apple)) == "Gerne!"
+    assert _text(_mime("x", inline)) == "Zu Punkt 1: ja.\nUnd sonst alles gut."
+    # Ohne Zeichen gilt der Text-Teil wie bisher (das Muster schneidet später, ``_strip_quote``).
+    plain = "Hallo\n\nGrüsse"
+    assert _text(_mime(plain, "<div>Hallo</div><div>Grüsse</div>")) == plain

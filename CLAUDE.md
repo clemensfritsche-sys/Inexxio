@@ -330,8 +330,10 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Kopf · Betreff als
   Überschrift · Inhalt · Unterschrift mit dem Menschen im Namen der Gesellschaft · Fuss; was
   im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`). Antworten nennen den
-  ganzen Faden (`References`); Zitate (auch der Outlook-Kopf) fallen beim Abholen weg
-  (`mail_parse`); eine Grussformel-Erkennung (`domain/communication.is_greeting`). **Ein Unterzeichner**
+  ganzen Faden (`References`); Zitate fallen beim Abholen weg – **wo das Mailprogramm sie
+  markiert** (HTML-Teil: Gmail `gmail_quote`, Outlook `divRplyFwdMsg`, Apple `blockquote
+  type=cite` …, `mail_parse.QUOTE_CLASSES` · `QUOTE_STOPS`), sonst an ihren Mustern im Text
+  (`mail_parse._QUOTE`); eine Grussformel-Erkennung (`domain/communication.is_greeting`). **Ein Unterzeichner**
   für jede Mail (`mail_layout.as_signer`: Name + Profilbild). **Das Bild der Unterschrift**
   (`services/portrait.py`): schräge Streifen, die sich einmal öffnen, links eine rote Kante –
   ein GIF (das erste Bild ist das fertige, für Outlook), durchsichtig für hell und dunkel,
