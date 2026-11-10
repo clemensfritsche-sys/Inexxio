@@ -10,14 +10,16 @@ from decimal import Decimal
 from typing import Any, Optional
 from sqlalchemy.orm import Session
 from ..core import clock
+from ..domain import currency as cur
 from ..domain import voucher as vo
 from ..models import (
     Order, ProcessStep,
     UserProfile, Voucher, VoucherEntry,
 )
 from .voucher import (
-    agreed_amount, balance_of, days_after, documents_of, due_days_of, entries_of, inbound,
-    is_billed, lines_of, minus, next_reminder, party_of, priced_dicts, service_day,
+    agreed_amount, balance_of, corrects, credit_room, days_after, documents_of, due_days_of,
+    entries_of, inbound, is_billed, lines_of, minus, next_reminder, party_of, priced_dicts,
+    service_day,
 )
 from .voucher_money import (
     book, papers_due,
@@ -53,15 +55,19 @@ def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     from . import voucher_docs
     flow = vo.of(row.direction)
     row.cancel_note = _text(data.get("note"), 200)
-    billed = is_billed(row)
-    if billed and flow.collects and not row.credit_number:
+    # **Eine Gutschrift entsteht nur aus einer Rechnung, die wir stellen** – über das, was
+    # Gutschriften nicht schon gemindert haben. Wer eine Gutschrift storniert, bekommt eine
+    # Stornierung, keine Gutschrift auf die Gutschrift (und keine neue Nummer).
+    credit = (is_billed(row) and flow.collects and not minus(row)
+              and credit_room(db, row) > vo.SETTLED_TOLERANCE)
+    if credit and not row.credit_number:
         row.credit_number = _our_number(db, row)
     told = _told(db, row) if flow.collects else []
     row.stage = vo.CANCELLED
     row.cancelled_on = clock.today()
     db.flush()
     for party in told:
-        voucher_docs.issue(db, row=row, kind=vo.CREDIT_DOC if billed else vo.STORNO_DOC,
+        voucher_docs.issue(db, row=row, kind=vo.CREDIT_DOC if credit else vo.STORNO_DOC,
                            actor=actor, party_id=party)
 
 
@@ -112,6 +118,10 @@ def _bill(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         _record_original(db, row, data, split)
     if gross == 0:
         raise Invalid("Eine Rechnung über null ist keine.")
+    if minus(row):
+        # **Nie mehr gutschreiben, als die Rechnung trägt** – geprüft mit dem Betrag, der jetzt
+        # feststeht (die Rechnung kann inzwischen storniert oder gemindert sein).
+        _assert_correction(db, row, corrects(db, row), amount=gross)
     if flow.reference is not None and not row.number:
         number = _text(data.get("reference"), 120)
         if not number:
@@ -164,32 +174,56 @@ def _accept(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     row.deviation_note = note
 
 
-def correction_problem(db: Session, row: Voucher,
-                       target: Optional[Voucher]) -> Optional[str]:
+def correction_problem(db: Session, row: Voucher, target: Optional[Voucher], *,
+                       amount: Optional[Decimal] = None) -> Optional[str]:
     """►►► **Kann ``row`` diesen Beleg mindern?** – der Satz, oder ``None``. ◄◄◄
 
-    Gemindert wird eine gestellte **Rechnung** in derselben Richtung – nie der Beleg selbst
-    und nie eine Gutschrift (damit kann keine Kette und kein Kreis entstehen). Zwei Formen
-    einer Regel: ``_assert_correction`` ist das Tor, ``correctable`` filtert mit ihr.
+    Gemindert wird eine gestellte, nicht stornierte **Rechnung** in derselben Richtung – nie der
+    Beleg selbst und nie eine Gutschrift (damit kann keine Kette und kein Kreis entstehen).
+    **Gutschriften und Storno zusammen nie mehr als die Rechnung** (``credit_room``): mit
+    ``amount`` (beim Stellen) darf die Gutschrift den Rest nicht übersteigen. Zwei Formen einer
+    Regel: ``_assert_correction`` ist das Tor, ``correctable`` filtert mit ihr.
     """
     if target is None:
         return "Diesen Beleg gibt es nicht."
     if target.id == row.id:
         return "Ein Beleg korrigiert nicht sich selbst."
+    name = target.number or target.id
     if minus(target):
-        return (f"«{target.number or target.id}» ist selbst eine Gutschrift – gemindert wird "
+        return (f"«{name}» ist selbst eine Gutschrift – gemindert wird "
                 f"die Rechnung, nicht ihre Korrektur.")
     if not is_billed(target):
         return "Dieser Beleg trägt noch keine Rechnung – es gibt nichts zu korrigieren."
     if target.direction != row.direction:
         return (f"Eine {vo.of(row.direction).label} korrigiert keine "
                 f"{vo.of(target.direction).label}: das Geld flösse in die andere Richtung.")
+    if target.stage == vo.CANCELLED:
+        return (f"«{name}» ist storniert – die Gutschrift über die Rechnung ist mit dem "
+                f"Storno schon entstanden.")
+    room = credit_room(db, target, without=row)
+    if room <= vo.SETTLED_TOLERANCE:
+        return (f"«{name}» ist schon ganz gutgeschrieben – mehr als die Rechnung lässt "
+                f"sich nicht mindern.")
+    if amount is not None and amount > room + vo.SETTLED_TOLERANCE:
+        return (f"Die Gutschrift über {cur.money(amount, row.currency)} übersteigt, was von "
+                f"«{name}» noch gutgeschrieben werden kann: "
+                f"{cur.money(room, target.currency)} {target.currency}.")
     return None
 
 
-def _assert_correction(db: Session, row: Voucher, target: Optional[Voucher]) -> None:
+def credit_problem(db: Session, row: Voucher) -> Optional[str]:
+    """**Darf diese Gutschrift jetzt gestellt werden?** – ``correction_problem`` mit dem
+    zugesagten Betrag; ``None`` an jedem Beleg, der nicht mindert. ``can`` nimmt damit
+    «Gutschrift stellen» weg, ``_bill`` prüft mit dem Betrag der Rechnung."""
+    if not minus(row):
+        return None
+    return correction_problem(db, row, corrects(db, row), amount=agreed_amount(db, row))
+
+
+def _assert_correction(db: Session, row: Voucher, target: Optional[Voucher], *,
+                       amount: Optional[Decimal] = None) -> None:
     """Das Tor zu ``correction_problem`` – derselbe Satz, nur geworfen."""
-    problem = correction_problem(db, row, target)
+    problem = correction_problem(db, row, target, amount=amount)
     if problem:
         raise Invalid(problem)
 

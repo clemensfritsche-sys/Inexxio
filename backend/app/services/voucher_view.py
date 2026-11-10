@@ -28,7 +28,7 @@ from .voucher import (
     credited, delivery_date, deviation, documents_of, due_days_of, entries_of, expired,
     inbound, is_billed, lead_days_of, minus, named, next_reminder, of_step, overdue,
     ownership_of, party_of, possible_parties, priced_dicts, public_link, quotes_of,
-    reading, reminders, units_problem, valid_days_of, valid_until, Paper,
+    reading, remindable, reminders, units_problem, valid_days_of, valid_until, Paper,
 )
 from .voucher_head import (
     billing_of, document_head, embed_lines, has_goods, incoterm_place_of, is_done,
@@ -38,7 +38,7 @@ from .voucher_money import (
     PAPER_VERBS, papers_due, refundable,
 )
 from .voucher_actions import can, next_action
-from .voucher_billing import correction_problem, reversible
+from .voucher_billing import correction_problem, credit_problem, reversible
 from .voucher_rules import ask_problem, gaps
 from ..domain import policy
 
@@ -75,6 +75,10 @@ def situation(db: Session, row: Voucher, *, order: Order,
     if row.stage == vo.OFFER:
         return _offer_state(db, row, flow)
     if row.stage == vo.AGREED:
+        credit = credit_problem(db, row)
+        if credit:
+            return _state("locked", "Gutschrift geht nicht mehr", "danger", credit,
+                          primary="revoke")
         if vo.CONFIRM_DOC in papers_due(db, row):
             return _paper_state(vo.CONFIRM_DOC)
         verb = vo.charge_word(collects=flow.collects, minus=minus(row))
@@ -104,8 +108,11 @@ def _cancelled_state(db: Session, row: Voucher) -> dict[str, Any]:
                       f"{amount_text(-money.open, row.currency)} gehören dem "
                       f"{'Kunden' if vo.of(row.direction).collects else 'Lieferanten'} – "
                       f"Sie sind dran: erstatten", primary="refund")
-    if credited(row) is not None and vo.of(row.direction).collects:
-        text = "Gutschrift über die ganze Rechnung, von selbst"
+    given = credited(db, row)
+    if given is not None and vo.of(row.direction).collects and not minus(row):
+        text = ("Gutschrift über die ganze Rechnung, von selbst" if given == row.amount
+                else f"Gutschrift über den Rest der Rechnung "
+                     f"({amount_text(given, row.currency)}), von selbst")
     elif row.cancel_note:
         text = f"Grund: {row.cancel_note}"
     elif row.agreed_on is not None:
@@ -193,13 +200,20 @@ def _billed_state(db: Session, row: Voucher, flow: vo.Direction,
 
 
 def _overdue_state(db: Session, row: Voucher, proof: str) -> dict[str, Any]:
+    """**Überfällig** – mit der Mahnstufe nur, wo gemahnt wird (``remindable``): an einer
+    Lieferantenrechnung oder Gutschrift sind wir es, die zahlen."""
+    days = (clock.today() - row.due_on).days if row.due_on else 0
+    since = f"seit {days} {'Tag' if days == 1 else 'Tagen'}"
+    if not remindable(row):
+        return _state("overdue", "Überfällig", "danger",
+                      f"{since} – Sie sind dran: {'erstatten' if minus(row) else 'bezahlen'}"
+                      f"{proof}", primary="pay")
     nxt = next_reminder(db, row)
     sent = reminders(db, row)
-    days = (clock.today() - row.due_on).days if row.due_on else 0
     if nxt is not None and nxt[1] <= clock.today():
         return _state("overdue", "Überfällig", "danger",
-                      f"seit {days} {'Tag' if days == 1 else 'Tagen'} – die "
-                      f"{vo.remind_word(nxt[0])} ist fällig{proof}", primary="remind")
+                      f"{since} – die {vo.remind_word(nxt[0])} ist fällig{proof}",
+                      primary="remind")
     if nxt is not None:
         return _state("overdue", "Überfällig", "danger",
                       f"{vo.remind_word(len(sent))} gesendet – nächste Stufe{proof}",

@@ -685,6 +685,112 @@ def test_a_correction_carries_the_reference_to_what_it_corrects(db):
         "Die Suche bietet an, was das Tor abweist (d).")
 
 
+def test_credits_never_exceed_the_invoice(db):
+    """►►► **Gutschriften und Storno zusammen nie mehr als die Rechnung.** ◄◄◄
+
+    Eine Rechnung über 216.20; eine Gutschrift über 108.10 ist gestellt. Bug-Formen:
+    (a) eine zweite Gutschrift über mehr als den Rest lässt sich stellen; (b) Tor und Knopf sagen
+    Verschiedenes (``bill`` steht da und scheitert); (c) der Storno schreibt danach die ganze
+    Rechnung gut statt des Rests; (d) eine stornierte Rechnung lässt sich noch mindern – und die
+    Suche bietet sie an; (e) eine ganz gutgeschriebene Rechnung lässt sich noch mindern.
+    """
+    from app.domain import voucher as vo
+    from app.domain.errors import Rejected
+    from app.services import voucher as svc, voucher_actions, voucher_view
+    order, step, row, who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    first_order, first_step, first = _credit(db, target=row, who=who[0], price="100.00")
+    voucher_actions.apply(db, order=first_order, step=first_step, action="bill", payload={})
+    db.flush()
+    # (a/b) **Mehr als der Rest geht nicht** – der Knopf fehlt, das Tor sagt denselben Satz.
+    big_order, big_step, big = _credit(db, target=row, who=who[0], price="150.00")
+    assert "bill" not in voucher_actions.can(db, big, None), "Der Knopf verspricht zu viel (b)."
+    state = voucher_view.situation(db, big, order=big_order, step=big_step)
+    assert state["primary"] == "revoke" and "108.10" in state["text"], state
+    with pytest.raises(Rejected) as e:
+        voucher_actions.apply(db, order=big_order, step=big_step, action="bill", payload={})
+    assert e.value.status in (400, 409), "Eine Gutschrift über den Rest hinaus geht durch (a)."
+    assert not svc.is_billed(big)
+    voucher_actions.apply(db, order=big_order, step=big_step, action="revoke", payload={})
+    # (c) **Der Storno schreibt nur den Rest gut.**
+    voucher_actions.apply(db, order=order, step=step, action="revoke", payload={})
+    db.flush()
+    money = svc.balance_of(db, row)
+    assert money.credited == Decimal("108.10"), (
+        f"Der Storno schreibt {money.credited} gut – mit der Gutschrift mehr als die Rechnung (c).")
+    assert money.credited + first.amount == row.amount
+    paper = svc.documents_of(db, row, vo.CREDIT_DOC)
+    assert paper and row.credit_number, "Die Gutschrift aus dem Storno fehlt."
+    # (d) **Eine stornierte Rechnung mindert niemand mehr.**
+    late_order, late_step, late, _w, _a = _scene(db, quantity=1, parties=[who[0]])
+    with pytest.raises(Rejected) as e:
+        voucher_actions.apply(db, order=late_order, step=late_step, action="correct",
+                              payload={"corrects": row.id})
+    assert e.value.status == 400 and "storniert" in str(e.value.detail), e.value.detail
+    assert row.id not in [r["id"] for r in voucher_view.correctable(db, late, late_step)], (
+        "Die Suche bietet an, was das Tor abweist (d).")
+
+
+def test_a_fully_credited_invoice_takes_no_more_credit(db):
+    """(e) Zwei Gutschriften über je die Hälfte – die Rechnung ist ganz gutgeschrieben; eine
+    dritte wird schon beim Zuordnen abgewiesen, und die Suche bietet sie nicht mehr an."""
+    from app.domain.errors import Rejected
+    from app.services import voucher_actions, voucher_view
+    order, step, row, who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    for _ in range(2):
+        o, s, _r = _credit(db, target=row, who=who[0], price="100.00")
+        voucher_actions.apply(db, order=o, step=s, action="bill", payload={})
+    db.flush()
+    third_order, third_step, third, _w, _a = _scene(db, quantity=1, parties=[who[0]])
+    with pytest.raises(Rejected) as e:
+        voucher_actions.apply(db, order=third_order, step=third_step, action="correct",
+                              payload={"corrects": row.id})
+    assert e.value.status == 400 and "ganz gutgeschrieben" in str(e.value.detail), (
+        "Eine ganz gutgeschriebene Rechnung lässt sich weiter mindern (e).")
+    assert row.id not in [r["id"] for r in voucher_view.correctable(db, third, third_step)]
+
+
+def test_a_cancelled_credit_note_is_a_storno_not_a_credit(db):
+    """►►► **Wer eine Gutschrift storniert, bekommt eine Stornierung.** ◄◄◄
+
+    Bug-Form: der Storno einer Gutschrift gab ein Papier «Gutschrift» hinaus und zog eine
+    neue Nummer – eine Gutschrift auf die Gutschrift."""
+    from app.domain import voucher as vo
+    from app.services import voucher as svc, voucher_actions
+    order, step, row, who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    back_order, back_step, back = _credit(db, target=row, who=who[0])
+    voucher_actions.apply(db, order=back_order, step=back_step, action="bill", payload={})
+    db.flush()
+    issued = len(svc.documents_of(db, back, vo.CREDIT_DOC))
+    voucher_actions.apply(db, order=back_order, step=back_step, action="revoke", payload={})
+    db.flush()
+    assert back.credit_number is None, "Der Storno einer Gutschrift zieht eine neue Nummer."
+    assert len(svc.documents_of(db, back, vo.CREDIT_DOC)) == issued, (
+        "Der Storno einer Gutschrift gibt eine Gutschrift hinaus.")
+    assert svc.documents_of(db, back, vo.STORNO_DOC), "Die Partei erfährt nichts vom Storno."
+    assert svc.balance_of(db, back).open == 0, "Die stornierte Gutschrift schuldet noch etwas."
+
+
+def test_an_overdue_credit_note_names_no_reminder(db):
+    """Eine überfällige Gutschrift erstatten WIR – an ihr mahnt niemand. Bug-Form: die Leiste
+    sagte «Letzte Mahnung gesendet»."""
+    from datetime import timedelta
+    from app.core import clock
+    from app.domain import voucher as vo
+    from app.services import voucher_actions, voucher_view
+    order, step, row, who, _art = _agreed(db)
+    voucher_actions.apply(db, order=order, step=step, action="bill", payload={})
+    back_order, back_step, back = _credit(db, target=row, who=who[0])
+    voucher_actions.apply(db, order=back_order, step=back_step, action="bill", payload={})
+    back.due_on = clock.today() - timedelta(days=40)
+    db.flush()
+    late = voucher_view.situation(db, back, order=back_order, step=back_step)
+    assert late["key"] == "overdue" and not any(w in late["text"] for w in vo.REMIND_LEVELS), (
+        f"Eine Gutschrift nennt eine Mahnstufe: «{late['text']}».")
+
+
 def test_a_correction_may_live_in_another_order(db):
     """►►► **Die Gutschrift gehört dorthin, wo die Ware zurückkommt.** ◄◄◄
 

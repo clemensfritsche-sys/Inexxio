@@ -34,7 +34,7 @@ from .voucher_money import (
 from ..domain.errors import Conflict, Invalid, NotFound
 from ..domain import policy
 from .voucher_input import _int
-from .voucher_billing import _accept, _bill, _correct, _export, _pay, _refund, _release, _remind, _reverse, _revoke, _tip, _writeoff, reversible
+from .voucher_billing import _accept, _bill, _correct, _export, _pay, _refund, _release, _remind, _reverse, _revoke, _tip, _writeoff, credit_problem, reversible
 from .voucher_rules import NEEDS, gaps
 from .voucher_offer import _add_party, _address, _agree, _ask, _currency, _decline, _incoterm, _issuer, _ownership, _price, _quote, _terms, _unask
 
@@ -107,22 +107,7 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
     money = balance_of(db, row)
     quotes = quotes_of(db, row)
     billed = is_billed(row)
-    drop: set[str] = set()
-    if row.stage == vo.OFFER:
-        if not quotes:
-            drop |= {"revoke", "decline"}
-        if not (quotes or parties_on(row)):
-            drop.add("unask")
-        # **Annehmen geht nur, solange die Offerte gilt** – und nur die aktuelle Fassung.
-        if expired(db, row) or changed_since_offer(db, row) \
-                or not any(q.state in (vo.QUOTED, vo.CHOSEN) for q in quotes):
-            drop.add("agree")
-        # **Einen fremden Preis erfasst nur, wo die Gegenpartei ihn nennt.**
-        if flow.quoted_by == vo.BY_US or not quotes:
-            drop.add("quote")
-        # **Fremdwährung nur ins Ausland** – wo wir den Preis nennen.
-        if flow.quoted_by == vo.BY_US and not vo.abroad(destination(db, row)[0]):
-            drop.add("currency")
+    drop: set[str] = _offer_drops(db, row, flow, quotes) if row.stage == vo.OFFER else set()
     if not billed:
         drop |= {"pay", "pay_online", "writeoff", "tip", "remind", "export", "accept"}
     if deviation(db, row) is None:
@@ -143,6 +128,9 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
         drop.add("remind")
     if not (billed and is_export(db, row) and not row.export_number):
         drop.add("export")
+    # **Eine Gutschrift nie über den Rest ihrer Rechnung** – dieselbe Regel wie ``_bill``.
+    if row.stage == vo.AGREED and credit_problem(db, row):
+        drop.add("bill")
     if not reversible(db, row):
         drop.add("reverse")
     if not papers_due(db, row):
@@ -169,6 +157,26 @@ def can(db: Session, row: Voucher, viewer: Optional[UserProfile]) -> list[str]:
             return []
         return [a for a in out if VERBS[a].allows(flow)]
     return out
+
+
+def _offer_drops(db: Session, row: Voucher, flow: vo.Direction, quotes: list) -> set[str]:
+    """**Was vor der Zusage wegfällt** – ein Teil von ``can``."""
+    drop: set[str] = set()
+    if not quotes:
+        drop |= {"revoke", "decline"}
+    if not (quotes or parties_on(row)):
+        drop.add("unask")
+    # **Annehmen geht nur, solange die Offerte gilt** – und nur die aktuelle Fassung.
+    if expired(db, row) or changed_since_offer(db, row) \
+            or not any(q.state in (vo.QUOTED, vo.CHOSEN) for q in quotes):
+        drop.add("agree")
+    # **Einen fremden Preis erfasst nur, wo die Gegenpartei ihn nennt.**
+    if flow.quoted_by == vo.BY_US or not quotes:
+        drop.add("quote")
+    # **Fremdwährung nur ins Ausland** – wo wir den Preis nennen.
+    if flow.quoted_by == vo.BY_US and not vo.abroad(destination(db, row)[0]):
+        drop.add("currency")
+    return drop
 
 
 def assert_allowed(db: Session, row: Voucher, action: str,

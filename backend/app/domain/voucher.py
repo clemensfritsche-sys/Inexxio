@@ -766,6 +766,24 @@ def _at(gross: Decimal, key: str, code: str) -> dict[str, str]:
                            "tax": cur.money(gross - net, code)})
 
 
+def less(rows: list[dict[str, str]], taken: list[dict[str, str]],
+         code: str) -> list[dict[str, str]]:
+    """**Eine Aufteilung abzüglich anderer** – je Satz Netto und Steuer, nie unter null (der
+    Rest einer Rechnung, die Gutschriften schon minderten)."""
+    zero = cur.round_to(Decimal(0), code)
+    gone: dict[str, tuple[Decimal, Decimal]] = {}
+    for r in taken:
+        net, tax = gone.get(r["vat"], (zero, zero))
+        gone[r["vat"]] = (net + Decimal(r["net"]), tax + Decimal(r["tax"]))
+    out = []
+    for r in rows:
+        net, tax = gone.get(r["vat"], (zero, zero))
+        out.append(_describe(r["vat"], {
+            "net": cur.money(max(Decimal(r["net"]) - net, zero), code),
+            "tax": cur.money(max(Decimal(r["tax"]) - tax, zero), code)}))
+    return out
+
+
 def totals(rows: list[dict[str, str]], code: str) -> dict[str, str]:
     """Netto · Steuer · Brutto einer Aufteilung – die drei Zahlen unter dem Strich."""
     zero = cur.round_to(Decimal(0), code)
@@ -785,7 +803,8 @@ class Balance:
 
     agreed: Optional[Decimal]
     charged: Decimal
-    #: Was ein Storno nach der Rechnung gutgeschrieben hat – null oder der ganze Betrag.
+    #: Was ein Storno nach der Rechnung gutgeschrieben hat – null oder der Rest, den
+    #: Gutschriften nicht schon minderten.
     credited: Decimal
     #: Zahlungen, Erstattungen abgezogen.
     paid: Decimal

@@ -310,6 +310,28 @@ def test_reminders_three_steps_ten_days_apart(db):
     assert state["date"] == clock.today() + timedelta(days=10)
 
 
+def test_only_our_invoice_is_reminded(db):
+    """Gemahnt wird nur eine Rechnung, die WIR stellen. Bug-Form: eine überfällige
+    Lieferantenrechnung sagte «Letzte Mahnung gesendet» – an ihr mahnt niemand, wir zahlen."""
+    from app.domain import voucher as vo
+    from app.services import voucher_actions, voucher_view
+    order, step, row, who = _scene(db, direction="out", first=True)
+    _do(db, order, step, "incoterm", incoterm="EXW")
+    _do(db, order, step, "ask")
+    _do(db, order, step, "quote", party=who.object_id, amount="427.00", lead_days=5,
+        payment_days=30)
+    _do(db, order, step, "agree", party=who.object_id)
+    _do(db, order, step, "bill", amount="427.00", reference="R-9", original=_file(db).object_id,
+        party_uid="CHE-111.222.333 MWST", vat="normal")
+    row.due_on = clock.today() - timedelta(days=40)
+    db.flush()
+    state = voucher_view.situation(db, row, order=order, step=step)
+    assert state["key"] == "overdue" and state["primary"] == "pay", state
+    assert not any(word in state["text"] for word in vo.REMIND_LEVELS), (
+        f"Eine Lieferantenrechnung nennt eine Mahnstufe: «{state['text']}».")
+    assert "remind" not in voucher_actions.can(db, row, None)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ►► ANGEBOT: ABGELAUFEN, ÜBERHOLT, ALLE ABGESAGT
 # ═══════════════════════════════════════════════════════════════════════════════

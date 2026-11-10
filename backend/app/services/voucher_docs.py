@@ -213,9 +213,14 @@ def _lines(db: Session, row: Voucher, kind: str, doc: a4.Doc) -> None:
         doc.lines.append(a4.Line(
             qty=str(ln["quantity"]), name=ln["article_name"] or "", sub=" · ".join(sub),
             price=_money(Decimal(ln["price"]), code), amount=_money(net, code)))
-    rows = list(row.vat or []) if (row.billed_on and kind != vo.OFFER_DOC
-                                    and kind != vo.CONFIRM_DOC) else vo.vat_split(
-        [x for x in vs.priced_dicts(db, row) if vo.line_net(x, code) != 0], code)
+    if kind == vo.CREDIT_DOC and row.stage == vo.CANCELLED:
+        # **Der Storno schreibt nur gut, was Gutschriften nicht schon minderten.**
+        rows = vs.storno_split(db, row)
+    elif row.billed_on and kind not in (vo.OFFER_DOC, vo.CONFIRM_DOC):
+        rows = list(row.vat or [])
+    else:
+        rows = vo.vat_split(
+            [x for x in vs.priced_dicts(db, row) if vo.line_net(x, code) != 0], code)
     totals = vo.totals(rows, code)
     doc.sums = [("Netto", _money(Decimal(totals["net"]), code))] + [
         (f"MWST {vo.vat_label(r.get('vat'))} {Decimal(r.get('rate') or 0):.1f} % auf "
@@ -253,7 +258,11 @@ def _after(db: Session, row: Voucher, kind: str, party: int) -> str:
     if kind == vo.STORNO_DOC:
         return f'<p class="after"><b>Storniert am {_day(row.cancelled_on or clock.today())}.</b></p>'
     if kind == vo.CREDIT_DOC and row.stage == vo.CANCELLED:
-        return (f'<p class="after"><b>Gutschrift über die ganze Rechnung {escape(row.number or "")}'
+        before = vs.credits_of(db, row)
+        what = ("die ganze Rechnung" if before <= 0 else
+                f"den Rest der Rechnung (abzüglich {_money(before, row.currency)} aus "
+                f"früheren Gutschriften)")
+        return (f'<p class="after"><b>Gutschrift über {what} {escape(row.number or "")}'
                 f'</b> – storniert am {_day(row.cancelled_on or clock.today())}.</p>')
     if kind == vo.RECEIPT_DOC:
         code = row.currency

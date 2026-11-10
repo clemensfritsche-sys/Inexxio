@@ -262,14 +262,57 @@ def lead_days_of(db: Session, row: Voucher) -> Optional[int]:
     return q.lead_days if q is not None else row.lead_days
 
 
-def credited(row: Voucher) -> Optional[Decimal]:
-    """►►► **Was ein Storno nach der Rechnung gutgeschrieben hat** – der ganze Betrag. ◄◄◄
+def credits_of(db: Session, target: Voucher, *, without: Optional[Voucher] = None) -> Decimal:
+    """►►► **Was Gutschriften von dieser Rechnung schon gutschreiben** – die gestellten, nicht
+    stornierten Belege, die sie mindern (``corrects_id``). ◄◄◄ ``without`` lässt einen aus (den,
+    der gerade gefragt wird)."""
+    def read() -> Decimal:
+        q = (db.query(func.coalesce(func.sum(Voucher.amount), 0))
+             .filter(Voucher.corrects_id == target.id, Voucher.billed_on.isnot(None),
+                     Voucher.stage != vo.CANCELLED))
+        if without is not None:
+            q = q.filter(Voucher.id != without.id)
+        return Decimal(q.scalar() or 0)
+    return once(db, ("credits", target.id, getattr(without, "id", None)), read)
 
-    Keine Spalte: storniert *und* gestellt heisst, die Gutschrift über die ganze Rechnung
-    ist entstanden (``_revoke``). Danach schuldet niemand mehr etwas – ausser dem, was
-    schon geflossen ist und zurückgeht.
+
+def credit_room(db: Session, target: Voucher, *, without: Optional[Voucher] = None) -> Decimal:
+    """►►► **Was von dieser Rechnung noch gutgeschrieben werden kann** – nie unter null. ◄◄◄
+
+    Gutschriften und Storno zusammen nie mehr als die Rechnung: eine stornierte Rechnung hat
+    nichts mehr übrig (der Storno schrieb den Rest gut), sonst der Betrag abzüglich der
+    Gutschriften, die sie schon mindern.
     """
-    return row.amount if (row.stage == vo.CANCELLED and row.billed_on is not None) else None
+    if target.stage == vo.CANCELLED or target.amount is None:
+        return Decimal("0")
+    rest = target.amount - credits_of(db, target, without=without)
+    return rest if rest > 0 else Decimal("0")
+
+
+def credited(db: Session, row: Voucher) -> Optional[Decimal]:
+    """►►► **Was ein Storno nach der Rechnung gutgeschrieben hat** – der Rest der Rechnung. ◄◄◄
+
+    Keine Spalte: storniert *und* gestellt heisst, die Gutschrift ist entstanden (``_revoke``)
+    – über das, was Gutschriften nicht schon gemindert haben (``credits_of``): zusammen nie mehr
+    als die Rechnung. Eine stornierte Gutschrift hebt sich ganz auf. Danach schuldet niemand
+    mehr etwas – ausser dem, was schon geflossen ist und zurückgeht.
+    """
+    if not (row.stage == vo.CANCELLED and row.billed_on is not None and row.amount is not None):
+        return None
+    if minus(row):
+        return row.amount
+    rest = row.amount - credits_of(db, row)
+    return rest if rest > 0 else Decimal("0")
+
+
+def storno_split(db: Session, row: Voucher) -> list[dict[str, str]]:
+    """**Die Steuer der Gutschrift aus dem Storno** – die der Rechnung abzüglich der
+    Gutschriften, die sie schon minderten (je Satz)."""
+    others = (db.query(Voucher)
+              .filter(Voucher.corrects_id == row.id, Voucher.billed_on.isnot(None),
+                      Voucher.stage != vo.CANCELLED).all())
+    return vo.less(list(row.vat or []), [r for o in others for r in (o.vat or [])],
+                   row.currency)
 
 
 def balance_of(db: Session, row: Voucher) -> vo.Balance:
@@ -280,7 +323,7 @@ def balance_of(db: Session, row: Voucher) -> vo.Balance:
     """
     return vo.balance(agreed_amount(db, row), row.amount,
                       [(e.kind, e.amount) for e in entries_of(db, row)],
-                      credited=credited(row))
+                      credited=credited(db, row))
 
 
 # ---------------------------------------------------------------------------
@@ -494,13 +537,20 @@ def overdue(db: Session, row: Voucher) -> bool:
                 and balance_of(db, row).open > vo.SETTLED_TOLERANCE)
 
 
+def remindable(row: Voucher) -> bool:
+    """►►► **Wird an diesem Beleg gemahnt?** – nur eine Rechnung, die **wir** stellen. ◄◄◄
+    Nie eine Lieferantenrechnung (dort zahlen wir), nie eine Gutschrift (dort erstatten wir).
+    Die eine Lesestelle für ``next_reminder`` und die Leiste."""
+    return vo.of(row.direction).collects and not minus(row)
+
+
 def next_reminder(db: Session, row: Voucher) -> Optional[tuple[int, date]]:
     """►►► **Welche Mahnstufe als Nächste kommt, und ab wann** – oder ``None``. ◄◄◄
 
     Nur bei einer Rechnung, die **wir** stellen und die überfällig ist; höchstens drei
     Stufen, zehn Tage Abstand. Nichts geht von selbst – das System sagt, wann.
     """
-    if not (vo.of(row.direction).collects and not minus(row) and overdue(db, row)):
+    if not (remindable(row) and overdue(db, row)):
         return None
     sent = reminders(db, row)
     if len(sent) >= len(vo.REMIND_LEVELS):
