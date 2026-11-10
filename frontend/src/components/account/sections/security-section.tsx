@@ -2,7 +2,8 @@
 
 /**
  * **Sicherheit** – der letzte Abschnitt der Konto-Seite: die Anmelde-E-Mail, die Passkeys, für
- * Personal die Verbindungen mit Claude (`claude-card`) und das Abmelden.
+ * Personal die Verbindungen mit Claude (`components/erp/person-access` – dasselbe Bauteil wie die
+ * Karte «Zugang» am ERP-Datensatz) und das Abmelden.
  *
  * **Die Anmelde-E-Mail ändern** (für jede Anmeldeart, auch Google): zuerst fragt der Server,
  * ob die Adresse frei ist (`api.checkMyEmail`, dieselbe Regel wie beim Übernehmen), dann
@@ -17,8 +18,7 @@ import type { UserProfile } from '@/types';
 import { api } from '@/lib/api';
 import { logout, reauthenticate, updateEmailAddress } from '@/lib/firebase';
 import { KtField, KtSection } from '@/components/form/kt-section';
-import { PasskeysCard } from './passkeys-card';
-import { ClaudeCard } from './claude-card';
+import { ClaudeList, PasskeyList } from '@/components/erp/person-access';
 import { isStaff } from '@/lib/record-status';
 import { errorText, useAction } from '@/lib/use-action';
 
@@ -132,9 +132,10 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
         )}
       </div>
 
-      <PasskeysCard />
+      {/* Dasselbe Bauteil wie am ERP-Datensatz («Zugang») – hier mit dem Einrichten. */}
+      <PasskeyList owner={null} cards />
 
-      {isStaff(profile.role) && <ClaudeCard />}
+      {isStaff(profile.role) && <ClaudeList owner={null} cards />}
 
       <a className="kt-out" href="/abmelden"><LogOut size={18} aria-hidden />Abmelden</a>
     </KtSection>

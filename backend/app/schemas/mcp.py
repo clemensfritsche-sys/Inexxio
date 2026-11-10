@@ -24,7 +24,10 @@ class ApproveOut(BaseModel):
 
 
 class GrantOut(BaseModel):
-    """Eine Verbindung mit Claude – je erlaubtem Client eine."""
+    """Eine offene Verbindung mit Claude – je erlaubtem Client eine (``mcp.grants``)."""
     id: int
+    #: Erlaubt am.
     at: datetime
+    #: Zuletzt benutzt (Erlauben oder jüngste Erneuerung) – älter als 30 Tage ist sie nicht offen.
+    used: datetime
     client: str

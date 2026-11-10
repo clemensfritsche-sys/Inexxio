@@ -131,16 +131,13 @@ def protocol_stream():
 
 @router.get("/api/v1/auth/me/mcp", response_model=list[GrantOut])
 def my_grants(db: Session = DB, user: UserProfile = Depends(require_employee)):
-    """Meine Verbindungen mit Claude – je erlaubtem Client eine."""
+    """Meine offenen Verbindungen mit Claude – je erlaubtem Client eine (dieselbe Liste wie am ERP-Datensatz)."""
     return mcp.grants(db, user)
 
 
 @router.post("/api/v1/auth/me/mcp/{grant_id}/revoke", response_model=list[GrantOut])
 def revoke(grant_id: int, db: Session = DB, user: UserProfile = Depends(require_employee)):
     """Eine Verbindung mit Claude trennen – ab sofort kommt dieser Client nicht mehr hinein."""
-    try:
-        mcp.revoke(db, user, grant_id)
-    except mcp.Problem as p:
-        return _problem(p)
+    mcp.revoke(db, user, grant_id)
     db.flush()
     return mcp.grants(db, user)

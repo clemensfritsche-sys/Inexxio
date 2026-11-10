@@ -42,6 +42,7 @@ def _record(user: UserProfile, passkeys: int = 0,
     resp.passkey_count = passkeys
     resp.may_edit = viewer is not None and policy.may(
         viewer, "person.staff" if policy.is_staff(user) else "person.edit")
+    resp.may_access = viewer is not None and policy.may(viewer, "person.access", user.object_id)
     return resp
 
 

@@ -258,6 +258,9 @@ class UserProfileResponse(BaseModel):
     #: Darf, wer fragt, diese Person ändern? (``domain/policy``: Kunden jedes Personal,
     #: Mitarbeitende nur der Admin) – die Oberfläche fragt das, nicht die Rolle.
     may_edit: bool = False
+    #: Darf, wer fragt, den Zugang dieser Person sehen und ändern (Passkeys, Verbindungen mit
+    #: Claude)? (``domain/policy`` «person.access»: sie selbst und der Admin.)
+    may_access: bool = False
 
 
 class UserProfileUpdate(BaseModel):
@@ -274,10 +277,9 @@ class UserProfileUpdate(BaseModel):
     #: man an ihrem Datensatz, nicht hier.
     company_object_id: Optional[int] = None
     new_company: Optional[NewCompany] = None
-
-    # Preferences
-    notification_email: Optional[bool] = None
-    notification_inapp: Optional[bool] = None
+    # ``notification_email``/``notification_inapp`` nimmt keine Seite mehr an: keine Oberfläche
+    # zeigt sie, nichts liest sie – ein Wert, den nur das Konto schreiben konnte und das ERP nie sah
+    # (``docs/history/2026-11-11-erp-master-pruefung.md``). Die Spalten bleiben (Backlog).
 
 
 # Gültige Rollen – EINE Quelle (``PATCH /erp/records/{id}``, ``POST /erp/records``).

@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  User, MapPin, Building2, Bell, Cog,
+  User, MapPin, Building2, Bell, Cog, KeyRound,
 } from 'lucide-react';
+import { ClaudeList, PasskeyList } from '@/components/erp/person-access';
 import { Communication } from '@/components/erp/communication';
 import { userDisplayName } from '@/lib/utils';
 import { NOTHING, day, when } from '@/lib/when';
@@ -216,12 +217,31 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
         {record.object_id != null && <NewsletterConsent person={record.object_id} />}
       </Card>
 
-      {/* ── 5. System (ERP-Extra, read-only) ───────────────────── */}
+      {/* ── 5. Zugang – dasselbe Bauteil wie «Sicherheit» im Konto (ERP ist Master). Nur die Person
+          selbst und der Admin (`may_access`, `policy` «person.access»). ─────────────────── */}
+      {record.may_access && record.object_id != null && (
+        <Card icon={KeyRound} title="Zugang" anchor="zugang"
+          info="Wie die Person hereinkommt: ihre Passkeys und ihre Verbindungen mit Claude. Entfernen und Trennen gelten sofort.">
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <PasskeyList owner={record.object_id} />
+            {isStaff(record.role) && (
+              <div style={{ marginTop: 16 }}>
+                <ClaudeList owner={record.object_id} />
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── 6. System (ERP-Extra, read-only) ───────────────────── */}
       <Card icon={Cog} title="System">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <AField name="email" label="E-Mail" value={record.email} readOnly />
           <AField name="last_sign_in_provider" label="Anmeldung" value={signInLabel(record.last_sign_in_provider)} readOnly />
-          <AField name="passkey_count" label="Passkeys" value={passkeyLabel(record.passkey_count)} readOnly />
+          {/* Die Passkeys selbst stehen in «Zugang» – wer ihn nicht sieht, sieht hier ihre Zahl. */}
+          {!record.may_access && (
+            <AField name="passkey_count" label="Passkeys" value={passkeyLabel(record.passkey_count)} readOnly />
+          )}
           <AField name="last_login_at" label="Letzter Login" value={when(record.last_login_at)} readOnly />
           <AField name="created_at" label="Erstellt" value={when(record.created_at)} readOnly />
           <AField name="updated_at" label="Zuletzt geändert" value={when(record.updated_at)} readOnly />

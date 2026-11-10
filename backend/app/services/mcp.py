@@ -17,11 +17,14 @@ die Person meldet sich im ERP an (Firebase: Magic Link, Google, Passkey) und erl
   einlösen: das Einlösen schreibt das Ereignis ``mcp.grant`` – ein eindeutiger Index auf seiner
   Einmal-Nummer weist ein zweites ab.
 * **Zurück** geht es nur zu Claude (``CLAUDE_HOSTS``) oder auf den eigenen Rechner.
-* **Zugang** (eine Stunde) und **Erneuerung** (30 Tage) sind signiert, nennen ihre Verbindung
+* **Zugang** (eine Stunde) und **Erneuerung** (30 Tage, ``REFRESH_TTL``) sind signiert, nennen ihre Verbindung
   (``mcp.grant``) und ihren Empfänger (dieses ERP – ein Zugang aus dev gilt nicht in prod). Eine
   Erneuerung gilt **genau einmal** und nur für ihren Client (``mcp.refresh``, eindeutiger Index);
   kommt sie ein zweites Mal, wird die Verbindung getrennt. Getrennt ist sie mit ``mcp.revoked`` –
   das prüft jede Anfrage. Wer kein Personal mehr ist, kommt nicht mehr hinein.
+* **Offen** ist eine Verbindung, solange sie nicht getrennt und zuletzt vor höchstens
+  ``REFRESH_TTL`` benutzt ist (``_OPEN``) – trennt jemand in Claude selbst, erfährt das ERP es
+  nie; nach 30 Tagen ohne Erneuerung verschwindet sie von selbst aus der Liste.
 
 Das Protokoll ist JSON-RPC über einen einzigen ``POST`` (Streamable HTTP, Antwort als JSON, ohne
 Sitzung): ``initialize``, ``ping``, ``tools/list``, ``tools/call``.
@@ -32,6 +35,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
+from datetime import timedelta
 from typing import Any, Optional
 from urllib.parse import urlencode, urlsplit
 
@@ -39,11 +43,12 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..core import signed
+from ..core import clock, signed
 from ..core.config import get_settings
 from ..models import UserProfile
 from . import ai, ai_tools, handgriff, log
 from ..domain import policy
+from ..domain.errors import NotFound
 
 PROTOCOLS = ("2025-11-25", "2025-06-18", "2025-03-26")
 SCOPE = "erp"
@@ -279,17 +284,33 @@ def _person(db: Session, object_id: int) -> UserProfile:
     return person
 
 
-_OPEN_GRANT = text("""
-SELECT 1 FROM log g
- WHERE g.id = :g AND g.event = 'mcp.grant' AND g.object_id = :p
-   AND NOT EXISTS (SELECT 1 FROM log x WHERE x.event = 'mcp.revoked'
-                     AND (x.payload ->> 'grant')::bigint = g.id)""")
+#: ►►► **Eine Verbindung ist offen**, solange sie nicht getrennt ist UND ihre letzte Benutzung (das
+#: Erlauben selbst oder die jüngste Erneuerung) jünger ist als ``REFRESH_TTL`` – älter liesse sie
+#: sich nie mehr erneuern. Abgeleitet, keine Spalte; EINE Abfrage für die Liste und jede Anfrage. ◄◄◄
+_OPEN = """
+SELECT * FROM (
+  SELECT g.id, g.at, g.payload ->> 'client' AS client,
+         GREATEST(g.at, (SELECT max(r.at) FROM log r
+                          WHERE r.event = 'mcp.refresh' AND r.at > :since
+                            AND (r.payload ->> 'grant')::bigint = g.id)) AS used
+    FROM log g
+   WHERE g.event = 'mcp.grant' AND g.object_id = :p {only}
+     AND NOT EXISTS (SELECT 1 FROM log x WHERE x.event = 'mcp.revoked'
+                       AND (x.payload ->> 'grant')::bigint = g.id)) o
+ WHERE o.used > :since
+ ORDER BY o.used DESC, o.id DESC"""
+_OPEN_GRANT = text(_OPEN.format(only="AND g.id = :g"))
+_GRANTS = text(_OPEN.format(only=""))
+
+
+def _since():
+    return clock.utcnow() - timedelta(seconds=REFRESH_TTL)
 
 
 def _grant_holder(db: Session, grant: int, person_id: int) -> UserProfile:
     """Die Person einer Verbindung – nur, wenn es die Verbindung gibt, sie IHR gehört, nicht
     getrennt ist und die Person noch Personal ist."""
-    if db.execute(_OPEN_GRANT, {"g": grant, "p": person_id}).first() is None:
+    if db.execute(_OPEN_GRANT, {"g": grant, "p": person_id, "since": _since()}).first() is None:
         raise Problem("invalid_grant", "Diese Verbindung ist getrennt.")
     return _person(db, person_id)
 
@@ -307,24 +328,18 @@ def bearer(db: Session, header: Optional[str]) -> tuple[UserProfile, int]:
         raise Problem("invalid_token", str(e), 401)
 
 
-_GRANTS = text("""
-SELECT g.id, g.at, g.payload ->> 'client' AS client FROM log g
- WHERE g.event = 'mcp.grant' AND g.object_id = :p
-   AND NOT EXISTS (SELECT 1 FROM log x WHERE x.event = 'mcp.revoked'
-                     AND (x.payload ->> 'grant')::bigint = g.id)
- ORDER BY g.id DESC""")
-
-
 def grants(db: Session, person: UserProfile) -> list[dict[str, Any]]:
-    """Die offenen Verbindungen der Person – je erlaubtem Client eine."""
-    return [{"id": r.id, "at": r.at, "client": r.client or "Claude"}
-            for r in db.execute(_GRANTS, {"p": person.object_id})]
+    """►► **Die offenen Verbindungen der Person** – je erlaubtem Client eine, die zuletzt benutzte
+    zuoberst; was sich nicht mehr erneuern lässt, steht nicht mehr da (``_OPEN``). ◄◄"""
+    return [{"id": r.id, "at": r.at, "used": r.used, "client": r.client or "Claude"}
+            for r in db.execute(_GRANTS, {"p": person.object_id, "since": _since()})]
 
 
 def revoke(db: Session, person: UserProfile, grant: int) -> None:
-    """**Trennen** – ab sofort gilt kein Zugang und keine Erneuerung dieser Verbindung mehr."""
+    """**Trennen** – ab sofort gilt kein Zugang und keine Erneuerung dieser Verbindung mehr. Wer
+    trennt, steht im Log (die Person selbst oder der Admin am Datensatz)."""
     if grant not in {g["id"] for g in grants(db, person)}:
-        raise Problem("invalid_request", f"Die Verbindung «{grant}» gibt es nicht.", 404)
+        raise NotFound(f"Die Verbindung «{grant}» gibt es nicht.")
     log.event(db, "mcp.revoked", person.object_id, {"grant": grant})
 
 

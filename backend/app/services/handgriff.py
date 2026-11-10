@@ -105,7 +105,9 @@ def _routes(reading: bool) -> tuple[Operation, ...]:
         methods = set(c.methods or ()) - {"HEAD"}
         if not isinstance(route, APIRoute) or not methods or (methods <= {"GET"}) != reading:
             continue
-        if route.endpoint.__module__.endswith(("routers.assistant", "routers.mcp")):
+        # Das Gespräch selbst, die Anmeldung von Claude und der Zugang einer Person (Passkeys,
+        # Verbindungen) sind keine Handlungen der KI.
+        if route.endpoint.__module__.endswith(("routers.assistant", "routers.mcp", "routers.access")):
             continue
         calls = _calls(route.dependant)
         # Lesen darf die KI, was jedes Personal darf – nur Admin ist für sie nicht lesbar.

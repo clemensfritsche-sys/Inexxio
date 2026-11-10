@@ -51,10 +51,49 @@ RULES: dict[str, Rule] = {
     "time.contract": Rule(ADMIN, "Verträge pflegt nur der Admin."),
     "time.booking": Rule(ADMIN, "Buchungen macht nur der Admin."),
     "time.company": Rule(ADMIN, "Feiertage und Regeln der Gesellschaft pflegt nur der Admin."),
+    # Der Zugang einer Person: Passkeys, Verbindungen mit Claude (``routers/access``)
+    "person.access": Rule(SELF, "Den Zugang einer Person sieht und ändert nur sie selbst oder der Admin."),
     # Privates: Gespräche, Aufnahmen, Handgriffe aus dem eigenen Claude, private Dokumentteile
     "private": Rule(SELF, "Das sieht nur die Person selbst und der Admin."),
     # Überblick, den nur der Admin braucht
     "overview": Rule(ADMIN, "Diesen Überblick hat nur der Admin."),
+}
+
+
+@dataclass(frozen=True)
+class SelfOnly:
+    """Was nur die Person selbst kann – und der Satz, warum (kein Recht, eine Tatsache)."""
+    why: str
+
+
+_REC = "/api/v1/erp/records/{object_id}"
+
+#: ►►► **ERP ist Master – was eine Person ausserhalb des ERP an sich selbst sieht oder tut.** ◄◄◄
+#: Jede Route der Selbstbedienung (``/api/v1/auth/…``, angemeldet) → ihr Gegenstück am
+#: ERP-Datensatz («METHODE /pfad»; mehrere als Tupel) – oder ``SelfOnly`` mit dem Grund. Der Wächter
+#: ``tests/test_erp_master.py`` verlangt für jede solche Route einen Eintrag und dass jedes
+#: Gegenstück eine echte Route ist. Die ganze Prüfung: ``docs/history/2026-11-11-erp-master-pruefung.md``.
+SELF_SERVICE: dict[str, Any] = {
+    "GET /api/v1/auth/me": f"GET {_REC}",
+    "PATCH /api/v1/auth/me": f"PATCH {_REC}",
+    "POST /api/v1/auth/me/email-check": SelfOnly(
+        "Die Anmelde-E-Mail wechselt erst mit dem Klick auf den Link an die neue Adresse – nur die "
+        "Person kann zeigen, dass sie ihr gehört. Das ERP zeigt die Adresse am Datensatz."),
+    "POST /api/v1/auth/me/addresses": f"POST {_REC}/addresses",
+    "PATCH /api/v1/auth/me/addresses/{address_id}": f"PATCH {_REC}/addresses/{{address_id}}",
+    "DELETE /api/v1/auth/me/addresses/{address_id}": f"DELETE {_REC}/addresses/{{address_id}}",
+    "GET /api/v1/auth/me/newsletter": "GET /api/v1/erp/newsletter/{object_id}",
+    # Anmelden ist eine Einwilligung: das ERP bittet darum (invite) oder meldet ab.
+    "PUT /api/v1/auth/me/newsletter": ("POST /api/v1/erp/newsletter/{object_id}/invite",
+                                       "POST /api/v1/erp/newsletter/{object_id}/unsubscribe"),
+    "GET /api/v1/auth/passkeys": f"GET {_REC}/passkeys",
+    "DELETE /api/v1/auth/passkeys/{passkey_id}": f"DELETE {_REC}/passkeys/{{passkey_id}}",
+    "POST /api/v1/auth/passkeys/register/options": SelfOnly(
+        "Einen Passkey richtet die Person auf ihrem eigenen Gerät ein – der Schlüssel verlässt es nie."),
+    "POST /api/v1/auth/passkeys/register/verify": SelfOnly(
+        "Einen Passkey richtet die Person auf ihrem eigenen Gerät ein – der Schlüssel verlässt es nie."),
+    "GET /api/v1/auth/me/mcp": f"GET {_REC}/mcp",
+    "POST /api/v1/auth/me/mcp/{grant_id}/revoke": f"POST {_REC}/mcp/{{grant_id}}/revoke",
 }
 
 

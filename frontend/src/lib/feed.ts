@@ -25,7 +25,7 @@ type FeedList = (typeof FEED_LISTS)[number];
 /** Die Bereiche der Detailansichten – je einer ist das erste Glied ihrer Schlüssel. */
 export const DETAILS = ['order', 'instance', 'article', 'articleProcess', 'stock', 'units',
   'unitOptions', 'document', 'documentsOf', 'payments', 'history', 'senders', 'mailboxes',
-  'newsletter', 'company', 'pins', 'talks', 'recordings', 'time', 'catalog'] as const;
+  'newsletter', 'access', 'company', 'pins', 'talks', 'recordings', 'time', 'catalog'] as const;
 export type Detail = (typeof DETAILS)[number];
 type Area = FeedList | Detail;
 const AREAS: readonly Area[] = [...FEED_LISTS, ...DETAILS];
@@ -76,6 +76,9 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   ['erp/documents', ['documents', 'todo', 'document', 'documentsOf', ...LOGGED]],
   ['erp/attachments', ['documents', 'todo', 'document', 'documentsOf', ...LOGGED]],
   // Eine Person kann dabei eine Firma anlegen (`sites.resolve`); fehlende Angaben zählen.
+  // Der Zugang einer Person (Passkeys zählen in der Liste der Personen).
+  ['erp/records/*/passkeys', ['people', 'access', ...LOGGED]],
+  ['erp/records/*/mcp', ['access', ...LOGGED]],
   ['erp/records', ['people', 'companies', 'todo', ...LOGGED]],
   ['auth/me', ['people', 'companies', 'todo', ...LOGGED]],
   ['erp/newsletter', ['people', 'todo', 'newsletter', ...LOGGED]],

@@ -1536,6 +1536,221 @@
         }
       }
     },
+    "/api/v1/erp/records/{object_id}/passkeys": {
+      "get": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Record Passkeys",
+        "description": "Die Passkeys einer Person (nur sie selbst oder der Admin).",
+        "operationId": "record_passkeys_api_v1_erp_records__object_id__passkeys_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PasskeyResponse"
+                  },
+                  "title": "Response Record Passkeys Api V1 Erp Records  Object Id  Passkeys Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/records/{object_id}/passkeys/{passkey_id}": {
+      "delete": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Remove Record Passkey",
+        "description": "Einen Passkey einer Person entfernen – sie meldet sich danach anders an.",
+        "operationId": "remove_record_passkey_api_v1_erp_records__object_id__passkeys__passkey_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "passkey_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Passkey Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/records/{object_id}/mcp": {
+      "get": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Record Grants",
+        "description": "Die offenen Verbindungen einer Person mit Claude (nur sie selbst oder der Admin).",
+        "operationId": "record_grants_api_v1_erp_records__object_id__mcp_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantOut"
+                  },
+                  "title": "Response Record Grants Api V1 Erp Records  Object Id  Mcp Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/records/{object_id}/mcp/{grant_id}/revoke": {
+      "post": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Revoke Record Grant",
+        "description": "Eine Verbindung einer Person mit Claude trennen – ab sofort kommt dieser Client nicht mehr hinein.",
+        "operationId": "revoke_record_grant_api_v1_erp_records__object_id__mcp__grant_id__revoke_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Grant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantOut"
+                  },
+                  "title": "Response Revoke Record Grant Api V1 Erp Records  Object Id  Mcp  Grant Id  Revoke Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/articles/name-suggestions": {
       "get": {
         "tags": [
@@ -7265,7 +7480,7 @@
           "mcp"
         ],
         "summary": "My Grants",
-        "description": "Meine Verbindungen mit Claude – je erlaubtem Client eine.",
+        "description": "Meine offenen Verbindungen mit Claude – je erlaubtem Client eine (dieselbe Liste wie am ERP-Datensatz).",
         "operationId": "my_grants_api_v1_auth_me_mcp_get",
         "responses": {
           "200": {
@@ -10700,28 +10915,6 @@
               }
             ]
           },
-          "notification_email": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notification Email"
-          },
-          "notification_inapp": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notification Inapp"
-          },
           "role": {
             "anyOf": [
               {
@@ -11083,6 +11276,11 @@
             "format": "date-time",
             "title": "At"
           },
+          "used": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Used"
+          },
           "client": {
             "type": "string",
             "title": "Client"
@@ -11092,10 +11290,11 @@
         "required": [
           "id",
           "at",
+          "used",
           "client"
         ],
         "title": "GrantOut",
-        "description": "Eine Verbindung mit Claude – je erlaubtem Client eine."
+        "description": "Eine offene Verbindung mit Claude – je erlaubtem Client eine (``mcp.grants``)."
       },
       "HTTPValidationError": {
         "properties": {
@@ -16679,6 +16878,11 @@
             "type": "boolean",
             "title": "May Edit",
             "default": false
+          },
+          "may_access": {
+            "type": "boolean",
+            "title": "May Access",
+            "default": false
           }
         },
         "type": "object",
@@ -16770,28 +16974,6 @@
                 "type": "null"
               }
             ]
-          },
-          "notification_email": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notification Email"
-          },
-          "notification_inapp": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notification Inapp"
           }
         },
         "type": "object",

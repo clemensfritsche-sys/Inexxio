@@ -68,7 +68,7 @@ src/app/
                            verbinden/ = «Claude verbinden» (MCP: erlauben → zurück zum Client)
 src/components/
 ├── erp/       ← alle ERP-Bauteile (siehe unten)
-├── account/   ← account-shell (Kopf mit dem Namen als grossem Wort, Sprungleiste), sections/ (profile, security, passkeys, claude-card = Verbindungen mit Claude über MCP)
+├── account/   ← account-shell (Kopf mit dem Namen als grossem Wort, Sprungleiste), sections/ (profile, security – Passkeys und Claude kommen aus `erp/person-access`)
 ├── auth/      ← login-dialog, passkey-nudge, auth-gate (Schutz von /erp und /konto, `staffOnly`)
 ├── scan/      ← scan-provider (useScan), scan-dialog, use-camera, use-barcode-scanner, object-label,
 │                doc-scanner (Dokumentscanner: Blatt finden, Ecken, Seiten – `lib/doc-scan.ts`)
@@ -108,6 +108,7 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `object-select.tsx` | **Jedes Referenzfeld** («welchen Datensatz meinst du?»), Kamera im Feld |
 | `address-field.tsx`, `address-book.tsx` | Jede Adress-Eingabe (Google Places) · das Adressbuch einer Person (zwei Konten) |
 | `company-field.tsx` | Firmenzuordnung einer Person (Konto und ERP) |
+| `person-access.tsx` | **Der Zugang einer Person** (Konto «Sicherheit» und ERP-Karte «Zugang», `owner` wie `AddressBook`): `PasskeyList` (entfernen; einrichten nur im Konto) · `ClaudeList` (erlaubt, zuletzt benutzt, trennen); Schlüssel `qk.access` |
 | `history.tsx` | **Der Verlauf** – EINE Komponente an jeder Detailansicht (Person, Firma, Auftrag, Artikel, Instanz, Dokument): `useHistory` (`useInfiniteQuery`, Seiten vom Server, «ältere laden» beim Rollen), Nachrichten als Blasen, Dokumente als Zeile, Änderungen je Handlung technisch (`feld: alt → neu`, Festbreite) |
 | `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter «Verlauf»): die Ansicht (`communication.tsx`: Postfach, `History`, Eingabe) · `timeline` (die Blase einer Nachricht, Tagestrenner, die wartende Mail) · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – `DELIVERIES` aus `lib/vocab`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |

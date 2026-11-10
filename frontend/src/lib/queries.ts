@@ -37,6 +37,8 @@ export const qk = {
   senders: () => key('senders'),
   mailboxes: (company: number) => key('mailboxes', company),
   newsletter: (person: number) => key('newsletter', person),
+  /** Der Zugang einer Person am Datensatz: Passkeys, Verbindungen mit Claude (`person-access`). */
+  access: (person: number, what: 'passkeys' | 'mcp') => key('access', person, what),
   company: (id: number) => key('company', id),
   /** Das Angeheftete eines Datensatzes (offene Handgriffe, Wissen). */
   pins: (objectId: number) => key('pins', objectId),

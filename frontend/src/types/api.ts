@@ -611,6 +611,86 @@ export interface paths {
         patch: operations["change_record_address_api_v1_erp_records__object_id__addresses__address_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/records/{object_id}/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Record Passkeys
+         * @description Die Passkeys einer Person (nur sie selbst oder der Admin).
+         */
+        get: operations["record_passkeys_api_v1_erp_records__object_id__passkeys_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/records/{object_id}/passkeys/{passkey_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Record Passkey
+         * @description Einen Passkey einer Person entfernen – sie meldet sich danach anders an.
+         */
+        delete: operations["remove_record_passkey_api_v1_erp_records__object_id__passkeys__passkey_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/records/{object_id}/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Record Grants
+         * @description Die offenen Verbindungen einer Person mit Claude (nur sie selbst oder der Admin).
+         */
+        get: operations["record_grants_api_v1_erp_records__object_id__mcp_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/records/{object_id}/mcp/{grant_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Record Grant
+         * @description Eine Verbindung einer Person mit Claude trennen – ab sofort kommt dieser Client nicht mehr hinein.
+         */
+        post: operations["revoke_record_grant_api_v1_erp_records__object_id__mcp__grant_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/articles/name-suggestions": {
         parameters: {
             query?: never;
@@ -2848,7 +2928,7 @@ export interface paths {
         };
         /**
          * My Grants
-         * @description Meine Verbindungen mit Claude – je erlaubtem Client eine.
+         * @description Meine offenen Verbindungen mit Claude – je erlaubtem Client eine (dieselbe Liste wie am ERP-Datensatz).
          */
         get: operations["my_grants_api_v1_auth_me_mcp_get"];
         put?: never;
@@ -4247,10 +4327,6 @@ export interface components {
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
-            /** Notification Email */
-            notification_email?: boolean | null;
-            /** Notification Inapp */
-            notification_inapp?: boolean | null;
             /** Role */
             role?: ("admin" | "employee" | "user") | null;
         };
@@ -4451,7 +4527,7 @@ export interface components {
         };
         /**
          * GrantOut
-         * @description Eine Verbindung mit Claude – je erlaubtem Client eine.
+         * @description Eine offene Verbindung mit Claude – je erlaubtem Client eine (``mcp.grants``).
          */
         GrantOut: {
             /** Id */
@@ -4461,6 +4537,11 @@ export interface components {
              * Format: date-time
              */
             at: string;
+            /**
+             * Used
+             * Format: date-time
+             */
+            used: string;
             /** Client */
             client: string;
         };
@@ -7021,6 +7102,11 @@ export interface components {
              * @default false
              */
             may_edit: boolean;
+            /**
+             * May Access
+             * @default false
+             */
+            may_access: boolean;
         };
         /**
          * UserProfileUpdate
@@ -7039,10 +7125,6 @@ export interface components {
             /** Company Object Id */
             company_object_id?: number | null;
             new_company?: components["schemas"]["NewCompany"] | null;
-            /** Notification Email */
-            notification_email?: boolean | null;
-            /** Notification Inapp */
-            notification_inapp?: boolean | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -9065,6 +9147,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_passkeys_api_v1_erp_records__object_id__passkeys_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_record_passkey_api_v1_erp_records__object_id__passkeys__passkey_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                passkey_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_grants_api_v1_erp_records__object_id__mcp_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_record_grant_api_v1_erp_records__object_id__mcp__grant_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                grant_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantOut"][];
                 };
             };
             /** @description Validation Error */

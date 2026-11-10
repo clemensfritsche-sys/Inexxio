@@ -326,12 +326,36 @@ class ApiClient {
       { body: { credential: { ...credential }, device_name: deviceName ?? null } });
   }
 
-  listPasskeys() {
-    return this.call('get', '/api/v1/auth/passkeys');
+  // ─── Der Zugang einer Person – im Konto die eigene, im ERP ein Datensatz ─────
+  // Dieselben Dienste (`passkey`, `mcp`); im ERP nur die Person selbst und der Admin
+  // (`policy` «person.access», `routers/access.py`). `owner`: `null` = die eigene Person.
+
+  listPasskeys(owner: number | null = null) {
+    return owner == null
+      ? this.call('get', '/api/v1/auth/passkeys')
+      : this.call('get', '/api/v1/erp/records/{object_id}/passkeys', { path: { object_id: owner } });
   }
 
-  deletePasskey(id: number) {
-    return this.call('delete', '/api/v1/auth/passkeys/{passkey_id}', { path: { passkey_id: id } });
+  deletePasskey(owner: number | null, id: number) {
+    return owner == null
+      ? this.call('delete', '/api/v1/auth/passkeys/{passkey_id}', { path: { passkey_id: id } })
+      : this.call('delete', '/api/v1/erp/records/{object_id}/passkeys/{passkey_id}',
+        { path: { object_id: owner, passkey_id: id } });
+  }
+
+  /** Die offenen Verbindungen mit Claude (zuletzt benutzt vor höchstens 30 Tagen). */
+  mcpGrants(owner: number | null) {
+    return owner == null
+      ? this.call('get', '/api/v1/auth/me/mcp')
+      : this.call('get', '/api/v1/erp/records/{object_id}/mcp', { path: { object_id: owner } });
+  }
+
+  /** Eine Verbindung trennen – die Antwort sind die übrigen. */
+  revokeMcpGrant(owner: number | null, id: number) {
+    return owner == null
+      ? this.call('post', '/api/v1/auth/me/mcp/{grant_id}/revoke', { path: { grant_id: id } })
+      : this.call('post', '/api/v1/erp/records/{object_id}/mcp/{grant_id}/revoke',
+        { path: { object_id: owner, grant_id: id } });
   }
 
   passkeyLoginOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
@@ -385,16 +409,6 @@ class ApiClient {
   /** Erlauben oder ablehnen – die Antwort ist die Adresse zurück zum Client. */
   mcpApprove(r: string, allow: boolean) {
     return this.call('post', '/api/v1/mcp/oauth/approve', { body: { r, allow } });
-  }
-
-  /** Meine Verbindungen mit Claude. */
-  myMcpGrants() {
-    return this.call('get', '/api/v1/auth/me/mcp');
-  }
-
-  /** Eine Verbindung trennen – die Antwort sind die übrigen. */
-  revokeMcpGrant(id: number) {
-    return this.call('post', '/api/v1/auth/me/mcp/{grant_id}/revoke', { path: { grant_id: id } });
   }
 
   /** **Ein Rechtstext, wie er heute gilt** (AGB · Datenschutz · Impressum) – als A4-Dokument. */
