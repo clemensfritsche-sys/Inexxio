@@ -30,3 +30,18 @@ vor 20 Uhr (Zeit 6) · B-Vorschläge (Rechtstexte an einer Stelle, Papiere setzt
 
 ## Geprüft
 Backend 839 grün, Frontend Typen · Lint · 161 Tests grün; neue Tests je rot gegen den alten Stand.
+
+## Nachtrag · Referenzfeld und «KI kann Prozesse»
+- **Referenzfeld**: eine vorausgefüllte Nummer (aus einem Vorschlag) stand ohne Namen da; jetzt
+  benennt `ObjectSelect` jede Nummer über seine eigene Suche – für alle Referenzfelder.
+- **Die Route beschreibt ihre Module**: jedes Modul trägt neben `clean_config` ein
+  `config_schema()` (Felder, Pflicht, Beispiele, ein Satz je Feld); `ModuleInput` zeigt es als
+  `x-config-by-module-type`, `module_type` als `enum`. Die KI liest es wie jedes andere Feld über
+  `handlung` – keine Anweisung über Prozesse. Wächter: Beschreibung und `clean_config` lesen
+  dieselben Schlüssel (gegen drei Bug-Formen geprüft). Kein `oneOf`, damit die Typen der
+  Oberfläche ein freier Satz Werte bleiben.
+- **«Öffnen» bringt den ganzen Vorschlag**: Auftrag mit allen Zeilen, Schritten samt Einstellungen
+  und Wiederholung; Artikel mit Schritten und Vorgänger (`lib/proposal-draft.ts`). Was der
+  Entwurf nicht darstellen kann, steht als Hinweis im Entwurf – nichts verschwindet still.
+- Offen: Herkunft einer Zeile und Takt der Wiederholung tragen im Schema noch kein `enum`.
+- Geprüft: Backend 848, Frontend 165 grün.
