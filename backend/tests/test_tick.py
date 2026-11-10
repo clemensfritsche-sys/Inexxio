@@ -275,7 +275,6 @@ def test_the_tick_sends_a_due_mail_signed_by_its_writer(monkeypatch):
     monkeypatch.setattr(mb, "_access", lambda _mb: "tok")
     monkeypatch.setattr(mb, "_new_ids", lambda _t, start: ([], start))
     monkeypatch.setattr(mb, "_post", post)
-    monkeypatch.setattr(mb, "_rfc_id", lambda *_: None)
     try:
         before = len(_events("mail"))
         mail = next(t for t in tick.TASKS if t.name == "mail")

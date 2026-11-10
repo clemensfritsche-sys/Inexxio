@@ -25,7 +25,7 @@ from app.services import inquiry
 from app.services import mail_layout
 from app.services import mailbox as mb
 from app.services import newsletter as nl
-from tests.factories import new_person
+from tests.factories import messages_of, new_person
 
 CH = "c999999992"
 
@@ -164,9 +164,9 @@ def test_the_history_shows_a_circular_once(world):
     db = world.db
     a, b = _person(db), _person(db)
     first = _send(world, "circular", [a.object_id, b.object_id])
-    mine = [m for m in comm.history(db, person=world.staff.object_id) if m.subject == "Betriebsferien"]
+    mine = [m for m in messages_of(db, world.staff.object_id) if m.subject == "Betriebsferien"]
     assert len(mine) == 1 and mine[0].recipients == 2 and mine[0].delivery == "circular"
-    (theirs,) = [m for m in comm.history(db, person=b.object_id) if m.delivery == "circular"]
+    (theirs,) = [m for m in messages_of(db, b.object_id) if m.delivery == "circular"]
     assert theirs.id == _group(db, first)[1].id and [p.object_id for p in theirs.to] == [b.object_id]
 
 

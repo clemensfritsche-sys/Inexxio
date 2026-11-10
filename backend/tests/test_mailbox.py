@@ -45,7 +45,7 @@ def _gmail(frm, to="", cc="", subject="Hallo", body="Text", labels=("INBOX",), *
 @pytest.fixture()
 def world(db, monkeypatch):
     monkeypatch.setattr(mb, "company_address", lambda _db, _key: COMPANY)
-    monkeypatch.setattr(mb, "_company_addresses", lambda _db: {COMPANY})
+    monkeypatch.setattr(mb, "_company_addresses", lambda _db: {COMPANY: 999999990})
     staff = _person(db, "employee")
     box = Mailbox(channel=CH, address=COMPANY, owner_object_id=staff.object_id, token="x")
     db.add(box)

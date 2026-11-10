@@ -208,12 +208,21 @@ def ours(message_id: Optional[str]) -> bool:
 # Die Signatur einer Mail
 # ---------------------------------------------------------------------------
 
-#: Grussformeln, nach denen nur noch der Name steht – und dann die Signatur.
-_CLOSING = re.compile(
+#: ►►► **Die Grussformel – EINE Erkennung** für die Signatur einer eingegangenen Mail
+#: (``split_signature``) und den Gruss der eigenen Vorlage (``mail_layout.greeted``). ◄◄◄
+#: Nur die Formel selbst: «Danke für Ihre Nachricht» ist Inhalt, kein Gruss.
+_GREETING = re.compile(
     r"^(mit )?(freundlichen|herzlichen|besten|lieben|liebe|beste|viele|schöne|"
     r"freundliche|herzliche)?\s*(grüsse|grüße|gruss|gruß|grüssen|grüßen)\b|"
-    r"^(best|kind|warm)( regards| wishes)?\b|^regards\b|^cheers\b|^thanks\b|"
-    r"^danke\b|^merci\b", re.I)
+    r"^(best|kind|warm) (regards|wishes)\b|^regards\b", re.I)
+#: Was eine fremde Mail sonst noch abschliesst – nur für die Signatur, nie für den Gruss.
+_THANKS = re.compile(r"^(best|cheers|thanks|danke|merci)\b", re.I)
+
+
+def is_greeting(line: str) -> bool:
+    """Ist diese Zeile eine Grussformel («Freundliche Grüsse», «Best regards»)?"""
+    line = line.strip()
+    return len(line) <= 40 and bool(_GREETING.match(line))
 #: Mehr Zeilen hat keine Signatur – darüber ist es Inhalt, der nicht verschwinden darf.
 SIGNATURE_MAX = 16
 
@@ -257,7 +266,7 @@ def _cut(lines: list[str], tail: list[int], sender: str) -> Optional[int]:
     name = re.sub(r"\s+", " ", sender).strip().lower()
     for i in reversed(tail):
         line = lines[i].strip()
-        if len(line) <= 40 and _CLOSING.match(line):
+        if is_greeting(line) or (len(line) <= 40 and _THANKS.match(line)):
             after = [j for j in tail if j > i]
             # Gruss + Name bleiben; was danach kommt, ist die Signatur.
             return after[1] if len(after) > 2 else None

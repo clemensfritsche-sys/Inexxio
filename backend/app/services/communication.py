@@ -1,7 +1,7 @@
 """►►► **Kommunikation – der eine Dienst** (CRM Schritt 2, ``domain/communication``). ◄◄◄
 
 * ``create``  – eine Nachricht anlegen. Dieselbe Funktion für jede Art (auch die Notiz).
-* ``page`` / ``history`` – der Verlauf **in Seiten** (die neuesten zuerst, ``before`` ist
+* ``page`` – der Verlauf **in Seiten** (die neuesten zuerst, ``before`` ist
   der Cursor): einer Person, aller Personen einer Firma, oder die Nachrichten, die einen
   beliebigen Datensatz «betreffen» (``scope``). Nie alles auf einmal.
 * ``open_counts`` – je Person, wie viele offene/überfällige Nachrichten in ihrem Verlauf
@@ -448,18 +448,6 @@ def page(db: Session, targets: list[int], before: Optional[Before], limit: int
             break
     shown = {i for i, _ in out}
     return out, {k: v for k, v in sizes.items() if k in shown}
-
-
-def history(db: Session, *, person: Optional[int] = None, company: Optional[int] = None,
-            before: Optional[Before] = None, limit: int = PAGE) -> list[MessageOut]:
-    """Eine Seite des Verlaufs einer Person oder aller Personen einer Firma (Regel 2) –
-    chronologisch, wie er dasteht."""
-    oid = person or company
-    found, sizes = page(db, scope(db, oid) if oid else [], before, limit)
-    out = load(db, [i for i, _ in found])
-    for m in out:
-        m.recipients = sizes.get(m.id, 0)
-    return out
 
 
 def _names(db: Session, ids: Iterable[int]) -> dict[int, str]:

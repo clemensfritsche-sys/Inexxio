@@ -8,6 +8,8 @@ ist (nur, was auch draussen ankam). Jede Prüfung nennt ihre Bug-Form.
 
 import base64
 import email
+import time
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from app.domain import communication as dc
@@ -130,3 +132,42 @@ def test_a_mail_without_a_subject_can_be_answered(world):
     comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject=out.reply_subject,
                               body="Gerne"), staff)
     assert comm.answered(db, [out.id]) == {out.id}
+
+
+def test_an_outlook_quote_is_cut():
+    """Bug-Form: der Kopf, den Outlook über das Zitat setzt, blieb stehen – der ganze alte
+    Verlauf stand ein zweites Mal im Text."""
+    de = ("Ja, das passt.\n\nVon: Inexxio AG <info@example.ch>\nGesendet: Montag, 9. November "
+          "2026 10:00\nAn: Lea Muster\nBetreff: Offerte\n\nAlter Text")
+    en = "Thanks!\n\n________________________________\nFrom: Inexxio\nSent: Monday\n\nold"
+    assert mb._strip_quote(de) == "Ja, das passt."
+    assert mb._strip_quote(en) == "Thanks!"
+    assert mb._strip_quote("Von: Bern nach Basel fahren wir morgen.") == \
+        "Von: Bern nach Basel fahren wir morgen.", "ein Satz ist kein Zitatkopf"
+
+
+def test_a_reply_names_the_whole_thread(world, monkeypatch):
+    """Bug-Form: ``References`` nannte nur die letzte Mail – Outlook zeigte dem Kunden den
+    früheren Verlauf nicht."""
+    db, staff, box = world
+    monkeypatch.setattr(mb, "company", lambda _db, _ch: None)
+    lea = _person(db)
+    now = int(time.time() * 1000)
+    first = _gmail(f"Lea <{lea.email}>", to=COMPANY, subject="Kran", rfc="<a@kunde.ch>")
+    first["internalDate"] = str(now - 3 * 3_600_000)
+    assert mb.ingest(db, box, first)
+    reply = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Re: Kran",
+                                      body="Gerne"), staff)
+    reply.outgoing = True
+    reply.at = datetime.fromtimestamp((now - 2 * 3_600_000) / 1000, timezone.utc)
+    db.flush()
+    again = _gmail(f"Lea <{lea.email}>", to=COMPANY, subject="Re: Kran", rfc="<b@kunde.ch>")
+    again["internalDate"] = str(now - 3_600_000)
+    assert mb.ingest(db, box, again)
+    last = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Re: Kran",
+                                     body="Bis Freitag"), staff)
+    last.outgoing = True
+    db.flush()
+    mime = mb._mime(db, box, last, mb._parent(db, last))
+    assert mime["In-Reply-To"] == "<b@kunde.ch>"
+    assert mime["References"].split() == ["<a@kunde.ch>", reply.rfc_id, "<b@kunde.ch>"]

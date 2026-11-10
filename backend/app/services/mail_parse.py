@@ -85,9 +85,15 @@ def _text(payload: dict[str, Any]) -> str:
     return ""
 
 
+#: Wo das Zitat beginnt: «Am … schrieb …:» (Gmail, Apple), «-----Ursprüngliche Nachricht-----»,
+#: und der Kopf, den Outlook über das Zitat setzt («Von: … / Gesendet: …», auch englisch,
+#: oft nach einer Linie aus Unterstrichen).
 _QUOTE = re.compile(
     r"\n[ \t]*(?:(?:Am|On)\b[^\n]*(?:\n[^\n]*)?(?:schrieb|wrote)[^\n]*:[ \t]*\n"
-    r"|-{2,}[ \t]*(?:Original Message|Ursprüngliche Nachricht)[ \t]*-{2,})", re.I)
+    r"|-{2,}[ \t]*(?:Original Message|Ursprüngliche Nachricht)[ \t]*-{2,}"
+    r"|_{10,}[ \t]*\n"
+    r"|\*?(?:Von|From):\*?[ \t][^\n]*\n(?:[^\n]*\n){0,2}?[ \t]*\*?(?:Gesendet|Sent|Datum|Date):)",
+    re.I)
 
 
 def _strip_quote(text: str) -> str:

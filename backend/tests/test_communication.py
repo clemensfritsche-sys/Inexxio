@@ -15,7 +15,7 @@ from app.models import UserProfile
 from app.schemas.communication import MessageIn
 from app.services import communication as svc
 from tests.runner import BACKEND
-from tests.factories import new_person
+from tests.factories import messages_of, new_person
 
 
 def _person(db, role="user", company=None) -> int:
@@ -120,9 +120,9 @@ def test_history_is_every_message_a_person_takes_part_in(world):
     c = _send(db, actor, channel="c999999990", sender=staff, to=[marco], bcc=[lea], body="c")
     d = _send(db, actor, channel="intern", sender=staff, about=[lea], body="d")
     e = _send(db, actor, channel="intern", sender=staff, body="e")
-    lea_ids = [m.id for m in svc.history(db, person=lea)]
+    lea_ids = [m.id for m in messages_of(db, lea)]
     assert lea_ids == [a.id, b.id, c.id, d.id]
-    firm_ids = {m.id for m in svc.history(db, company=firm)}
+    firm_ids = {m.id for m in messages_of(db, firm)}
     assert firm_ids == {a.id, b.id, c.id, d.id} and e.id not in firm_ids
 
 

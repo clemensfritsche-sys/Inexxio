@@ -40,3 +40,13 @@ def new_firm(db, name: Optional[str] = None, form: str = "AG", *, own: bool = Fa
     db.add(firm)
     db.flush()
     return firm
+
+
+def messages_of(db, object_id: int) -> list:
+    """Der Verlauf eines Datensatzes als Nachrichten, älteste zuerst (``communication.page``)."""
+    from app.services import communication as comm
+    found, sizes = comm.page(db, comm.scope(db, object_id), None, comm.PAGE)
+    out = comm.load(db, [i for i, _ in found])
+    for m in out:
+        m.recipients = sizes.get(m.id, 0)
+    return out

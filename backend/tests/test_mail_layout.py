@@ -176,7 +176,7 @@ def test_what_is_done_in_the_erp_is_read_in_gmail_once(monkeypatch):
     calls: list[list[str]] = []
     try:
         monkeypatch.setattr(mb, "company_address", lambda _db, _key: COMPANY)
-        monkeypatch.setattr(mb, "_company_addresses", lambda _db: {COMPANY})
+        monkeypatch.setattr(mb, "_company_addresses", lambda _db: {COMPANY: 999999990})
         monkeypatch.setattr(mb, "_access", lambda _mb: "token")
         monkeypatch.setattr(mb.httpx, "post", lambda url, **kw: calls.append(kw["json"]["ids"])
                             or SimpleNamespace(status_code=204))

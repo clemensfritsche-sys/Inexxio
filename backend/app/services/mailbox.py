@@ -94,9 +94,11 @@ def company_address(db: Session, channel: str) -> str:
     return normalize_email(c.email if c else "")
 
 
-def _company_addresses(db: Session) -> set[str]:
+def _company_addresses(db: Session) -> dict[str, int]:
+    """Die Kontakt-E-Mail jeder eigenen Gesellschaft → ihre Objektnummer."""
     from .sites import selectable_companies
-    return {a for a in (normalize_email(c.email) for c in selectable_companies(db)) if a}
+    return {a: c.object_id for c in selectable_companies(db)
+            if (a := normalize_email(c.email))}
 
 
 def active(db: Session, channel: str) -> Optional[Mailbox]:
@@ -115,11 +117,7 @@ def _ours(db: Session) -> dict[str, Optional[int]]:
     """Eigene Adresse → die Gesellschaft, die dahinter schreibt (Objektnummer). **Was von
     einer eigenen Adresse hinausgeht, schreibt die Gesellschaft** – nicht der Mensch, der
     das Postfach verbunden hat; wer es in Gmail tippte, weiss das ERP nicht."""
-    from .sites import selectable_companies
-    out: dict[str, Optional[int]] = {}
-    for c in selectable_companies(db):
-        if normalize_email(c.email):
-            out[normalize_email(c.email)] = c.object_id
+    out: dict[str, Optional[int]] = dict(_company_addresses(db))
     for mb in db.query(Mailbox).filter(Mailbox.is_active.is_(True)).all():
         out[mb.address] = dc.company_of(mb.channel)
     return out
@@ -219,7 +217,7 @@ def _store(db: Session, channel: str, actor: UserProfile, address: str, refresh:
     other = db.query(Mailbox).filter(Mailbox.address == address, Mailbox.channel != channel,
                                      Mailbox.is_active.is_(True)).first()
     firm = company(db, channel)
-    taken = _company_addresses(db) - ({normalize_email(firm.email)} if firm else set())
+    taken = set(_company_addresses(db)) - ({normalize_email(firm.email)} if firm else set())
     if other is not None or address in taken:
         return f"«{address}» ist bereits als anderes Postfach verbunden."
     old = active(db, channel)
@@ -506,7 +504,7 @@ def ingest(db: Session, mb: Mailbox, raw: dict[str, Any],
     if not inbound and dc.ours(rfc):
         return False        # vom ERP ohne Nachricht geschickt (Bitte an eine blosse Adresse)
     sender = (ensure(db, sender_addr, name).object_id if inbound
-              else ours.get(sender_addr) or dc.company_of(mb.channel) or mb.owner_object_id)
+              else ours.get(sender_addr) or dc.company_of(mb.channel))
     roles: dict[str, list[int]] = {"to": [], "cc": [], "bcc": [], "about": []}
     for role in ("to", "cc"):
         for n, addr in getaddresses([head.get(role, "")]):
@@ -700,6 +698,9 @@ def send(db: Session, msg: Message,
     token = _token(mb, tokens) if mb is not None and not mb.problem else None
     if not token:
         return False
+    if not msg.rfc_id:      # nie versucht und ohne Kennung (angelegt vor ihrer Einführung)
+        msg.rfc_id = dc.new_message_id()
+        db.flush()
     parent = _parent(db, msg)
     mime = _mime(db, mb, msg, parent)
     body: dict[str, Any] = {"raw": base64.urlsafe_b64encode(mime.as_bytes()).decode()}
@@ -717,7 +718,6 @@ def send(db: Session, msg: Message,
     # stehen und der nächste Abgleich schickte sie ein zweites Mal.
     msg.outgoing = False
     msg.gmail_id, msg.thread_id = sent.get("id"), sent.get("threadId")
-    msg.rfc_id = msg.rfc_id or _rfc_id(token, msg.gmail_id) or mime["Message-ID"]
     msg.subject = msg.subject or mime["Subject"] or None
     html_part = mime.get_body(("html",))
     msg.html = msg.html or (html_part.get_content() if html_part is not None else None)
@@ -771,13 +771,6 @@ def _consents(db: Session, msg: Message) -> bool:
     return bool(to) and subscribed(db, to) == set(to)
 
 
-def own_message_id(msg: Message, mb: Mailbox) -> str:
-    """►► **Die Kennung einer Mail, die wir senden** – ihre eigene Nummer im ERP, als
-    ``Message-ID`` (RFC 5322). Sie steht fest, BEVOR die Mail hinausgeht; Gmails eigene Nummern
-    gibt es erst danach. ◄◄"""
-    return f"<inexxio-{msg.id}@{mb.address.rsplit('@', 1)[-1]}>"
-
-
 def _already_sent(token: str, message_id: str) -> Optional[dict[str, Any]]:
     """Die schon gesendete Mail mit dieser Kennung (``id``, ``threadId``) – oder ``None``. Ist
     Gmail nicht erreichbar, gilt sie als nicht gesendet (der Versand meldet dann selbst)."""
@@ -790,42 +783,34 @@ def _already_sent(token: str, message_id: str) -> Optional[dict[str, Any]]:
     return found[0] if found else None
 
 
-def _rfc_id(token: str, gmail_id: Optional[str]) -> Optional[str]:
-    """Die ``Message-ID`` einer eben gesendeten Mail (für den Faden der Antworten) – oder
-    ``None``. Fehlt sie, ist das ein Schönheitsfehler; ein Fehler hier darf den Versand
-    nicht ungeschehen machen."""
-    if not gmail_id:
-        return None
-    try:
-        meta = _get(token, f"messages/{gmail_id}", format="metadata",
-                    metadataHeaders="Message-ID")
-        if meta.status_code != 200:
-            return None
-        head = {h["name"].lower(): h["value"]
-                for h in (meta.json().get("payload") or {}).get("headers", [])}
-    except (httpx.HTTPError, ValueError, KeyError):
-        return None
-    return (head.get("message-id") or "")[:255] or None
-
-
 def _parent(db: Session, msg: Message) -> Optional[Message]:
+    found = _thread(db, msg)
+    return found[-1] if found else None
+
+
+#: So viele frühere Mails nennt eine Antwort in ``References`` – genug für jeden Faden.
+THREAD_MAX = 20
+
+
+def _thread(db: Session, msg: Message) -> list[Message]:
     """**Der Faden, in dem eine Mail hinausgeht** – wie bei Gmail über den Betreff: die
     jüngste frühere Mail mit **demselben Anliegen** (``domain.topic``), die eine
     ``Message-ID`` trägt und an der einer der Empfänger beteiligt ist. Ohne Betreff gibt
-    es keinen Faden – eine neue Mail beginnt einen."""
+    es keinen Faden – eine neue Mail beginnt einen. Die älteste zuerst, die jüngste ist die,
+    auf die sie antwortet (``_parent``)."""
     key = dc.topic(msg.subject)
     if not key:
-        return None
+        return []
     people = {p.object_id for p in db.query(MessageParty).filter(
         MessageParty.message_id == msg.id, MessageParty.role.in_(("to", "cc"))).all()}
     if not people:
-        return None
+        return []
     involved = select(MessageParty.message_id).where(MessageParty.object_id.in_(people))
     return (db.query(Message).filter(
         Message.id != msg.id, Message.is_active.is_(True), Message.rfc_id.isnot(None),
         Message.at <= msg.at, Message.topic == key,
         or_(Message.sender_object_id.in_(people), Message.id.in_(involved)))
-        .order_by(Message.at.desc()).first())
+        .order_by(Message.at.desc()).limit(THREAD_MAX).all())[::-1]
 
 
 def signer_of(sender: Optional[UserProfile], msg: Message):
@@ -857,11 +842,12 @@ def _mime(db: Session, mb: Mailbox, msg: Message, parent: Optional[Message]) -> 
         if addrs:
             mime[header] = ", ".join(addrs)
     mime["Subject"] = msg.subject or ""
-    mime["Message-ID"] = msg.rfc_id or own_message_id(msg, mb)
+    mime["Message-ID"] = msg.rfc_id
     unsubscribe = _unsubscribe(mime, parties) if msg.newsletter else None
     if parent is not None:
+        # Der ganze Faden (RFC 5322): so zeigt auch Outlook beim Kunden den Verlauf.
         mime["In-Reply-To"] = parent.rfc_id
-        mime["References"] = parent.rfc_id
+        mime["References"] = " ".join(m.rfc_id for m in _thread(db, msg) if m.rfc_id)
     if msg.html:
         # Schon gebaut (die Eingangsbestätigung): ``body`` IST ihr Inhalt (``compose``).
         text, html = layout.text(msg.subject or "", msg.body or "", firm, signer), msg.html

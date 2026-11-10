@@ -51,11 +51,6 @@ GREETING = "Freundliche Grüsse"
 FONT = "Inter, Arial, Helvetica, sans-serif"
 INK, TEXT_2, TEXT_3, LINE = "#0A0A0B", "#44464A", "#66686D", "#E3E4E7"
 GREEN, RED_TEXT = "#1E7F46", "#C8140F"
-#: Nur die Grussformel selbst – «Danke für Ihre Nachricht» ist Inhalt, kein Gruss.
-_GREETING = re.compile(
-    r"^(mit )?(freundlichen|herzlichen|besten|lieben|liebe|beste|viele|schöne|freundliche|"
-    r"herzliche)?\s*(grüsse|grüße|gruss|gruß|grüssen|grüßen)\b|^(best|kind|warm) regards\b|"
-    r"^regards\b", re.I)
 
 
 @dataclass
@@ -171,7 +166,7 @@ def _paragraphs(body: str) -> list[str]:
 def greeted(body: str) -> bool:
     """Steht am Schluss schon ein Gruss? Dann setzt die Vorlage keinen zweiten."""
     lines = [ln.strip() for ln in (body or "").split("\n") if ln.strip()]
-    return any(len(ln) <= 40 and _GREETING.match(ln) for ln in lines[-3:])
+    return any(dc.is_greeting(ln) for ln in lines[-3:])
 
 
 # ---------------------------------------------------------------------------
