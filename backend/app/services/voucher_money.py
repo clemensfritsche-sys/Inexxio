@@ -38,8 +38,7 @@ def follow_up(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     """►►► **Was nach jeder Handlung von selbst geschieht** – an EINER Stelle. ◄◄◄
 
     * **Die Quittung**: wird der Saldo einer Rechnung, die wir stellen, null, steht sie an
-      (``papers_due``) – hinaus geht sie mit der Freigabe, von selbst nur, wo ``AUTO_RELEASE``
-      sie nennt.
+      (``papers_due``) – hinaus geht sie mit der Freigabe durch einen Menschen (``release``).
     * **Die Stücke ziehen weiter**, sobald sie dürfen (``passable``) – mit der Zusage, bei
       einer Vorauszahlung mit dem Geld (``process.advance_payments``).
 
@@ -47,9 +46,6 @@ def follow_up(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     dasselbe auslöst wie eine erfasste.
     """
     from . import process as process_svc
-    from . import voucher_docs
-    if vo.RECEIPT_DOC in AUTO_RELEASE and vo.RECEIPT_DOC in papers_due(db, row):
-        voucher_docs.issue(db, row=row, kind=vo.RECEIPT_DOC, actor=actor)
     process_svc.carry_on(db, order=order, step=None,
                          actor_id=actor.id if actor is not None else None)
     db.flush()
@@ -95,11 +91,6 @@ def book(db: Session, row: Voucher, entry: VoucherEntry) -> None:
 # ►► DIE PAPIERE, DIE ANSTEHEN
 # ---------------------------------------------------------------------------
 
-#: ►►► **Papiere, die ohne Freigabe hinausgehen.** ◄◄◄ Heute keines: jedes Papier sieht ein
-#: Mensch, bevor es geht (Vorschau → Freigeben). Wer eines automatisieren will, nennt es hier –
-#: die Bedingung, WANN es ansteht, bleibt dieselbe (``papers_due``).
-AUTO_RELEASE: tuple[str, ...] = ()
-
 #: Die Verben, die ein Papier hinausgeben – die Karte zeigt es vorher (``voucher_docs.preview``).
 PAPER_VERBS = ("ask", "agree", "bill", "revoke", "remind", "release")
 
@@ -111,7 +102,8 @@ def papers_due(db: Session, row: Voucher) -> list[str]:
     * **Quittung**: eine Rechnung, die wir stellen, ist mit Geld beglichen, und es ging noch
       keine hinaus.
 
-    Nur, wo wir den Beleg stellen und eine Partei feststeht."""
+    Nur, wo wir den Beleg stellen und eine Partei feststeht. **Hinaus geht es nie von selbst**
+    – jedes Papier sieht ein Mensch, bevor es geht (Vorschau → Freigeben, ``release``)."""
     if not vo.of(row.direction).collects or row.stage not in (vo.AGREED, vo.BILLED):
         return []
     if party_of(db, row) is None:

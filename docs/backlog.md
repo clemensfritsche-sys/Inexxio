@@ -92,6 +92,7 @@ mindestens eine Einzelinstanz. Fällt die Regel eines Tages, fällt sie für bei
 
 ## Automatische Freigabe einzelner Papiere
 
-`voucher.AUTO_RELEASE` ist leer: Auftragsbestätigung und Quittung gehen nur mit «Prüfen und
-freigeben» hinaus. Wer ein Papier von selbst freigeben will, trägt es dort ein – zuerst
-entscheiden, welches.
+Nicht gebaut: Auftragsbestätigung und Quittung gibt immer ein Mensch frei («Prüfen und
+freigeben», Verb `release`). Wer ein Papier von selbst freigeben will, entscheidet zuerst,
+welches – WANN es ansteht, sagt schon `voucher_money.papers_due`; der leere Haken
+`AUTO_RELEASE` ist im November 2026 entfernt worden.

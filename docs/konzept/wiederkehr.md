@@ -348,7 +348,7 @@ nachbauen.
   Monats. Wochenenden verschieben nichts (ein Auftrag ist keine Buchung).
 - **O11 · Rechte** – entschieden 07.11.2026: jede Person mit ERP-Zugang.
 - **O12 · Geht die Abo-Rechnung von selbst hinaus?** – ok 07.11.2026: zuerst «Prüfen und
-  freigeben» in «zu tun»; automatisch (`voucher.AUTO_RELEASE`) erst, wenn es sich bewährt hat.
+  freigeben» in «zu tun»; automatisch erst, wenn es sich bewährt hat (heute nicht gebaut).
 
 - **O13 · Ein Stück der Schlaufe ist endgültig weg** – entschieden 08.11.2026. Beim Anlegen
   einer Wiederholung gehen nur Einzelinstanzen hinein, die `Freigegeben` oder `Verkauft` sind.

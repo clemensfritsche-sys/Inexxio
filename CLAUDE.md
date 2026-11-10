@@ -239,7 +239,7 @@ in jedem Zustand, nur die Aktionen hängen daran, ob es dran ist.
   AGB der stellenden Gesellschaft auf eigenen A4-Seiten. **Vorschau → Freigeben**: was ein Papier
   hinausgibt (`voucher.PAPER_VERBS`), zeigt die Karte vorher (`voucher_docs.preview`,
   zurückgerollter Lauf); **AB und Quittung stehen an** (`voucher.papers_due`, «zu tun») und
-  gehen mit «Prüfen und freigeben» (Verb `release`), nie von selbst (`AUTO_RELEASE` leer). Es geht
+  gehen immer mit «Prüfen und freigeben» durch einen Menschen (Verb `release`), nie von selbst. Es geht
   mit Link `/dokument?t=…` per Mail hinaus – **dieselbe Seite wie jedes Dokument**; ist es ein
   Papier eines Belegs, handelt die Partei dort mit denselben Verben. **Unsere Rechnung trägt den Tag, an dem sie gestellt wird** (eine Lieferantenrechnung das
   Datum auf ihrem Papier). Steuer je Position (MWSTG Art. 26), gerundet je Satz auf der Summe; **eine Währung
@@ -873,7 +873,7 @@ Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 - Newsletter-Versand über einen Dienst (heute Gmail, 20 je Abgleich), Rückläufer;
   Google Workspace, zentrale Gmail-Signatur, persönliche Postfächer – verschoben.
 - Zeiterfassung: Export für die Lohnbuchhaltung, Schichtpläne (`docs/zeiterfassung-spezifikation.md` §12).
-- Dokumente: automatische Freigabe einzelner Papiere (`voucher.AUTO_RELEASE`); Zugriff von
+- Dokumente: automatische Freigabe einzelner Papiere (nicht gebaut – heute gibt jedes ein Mensch frei); Zugriff von
   aussen auf Dokumente (heute nur über einen Link).
 - Der Assistent: Lektionen (ab ~100 Fällen) · «Notiz gehört woandershin» als Handlung
   (`communication.move_note` steht bereit) · Massenänderungen

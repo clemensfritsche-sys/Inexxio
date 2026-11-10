@@ -25,9 +25,6 @@ from .voucher_head import (
     account_for, business_possible, destination, fit_to_address, freeze, incoterm_place_of,
     preset_prices, recipient_business, services_of, sync_lines,
 )
-from .voucher_money import (
-    AUTO_RELEASE, papers_due,
-)
 from ..domain.errors import Conflict, Invalid
 from .voucher_input import _assert_terms, _days, _int, _party, _target, _text, _weight, amount_of
 from .voucher_rules import _assert_ask, _assert_ownership_chosen
@@ -308,9 +305,9 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     **Ausgabe** darf die Nutzlast nachverhandeln.
 
     Der Belegkopf friert ein, der Ort der Lieferbedingung auch; danach ziehen die Stücke
-    von selbst weiter (``follow_up``), und die Auftragsbestätigung geht hinaus.
+    von selbst weiter (``follow_up``), und die Auftragsbestätigung steht an (``papers_due``) –
+    hinaus geht sie mit der Freigabe.
     """
-    from . import voucher_docs
     flow = vo.of(row.direction)
     number = _party(db, step=step, value=data.get("party"), flow=flow)
     if number is None:
@@ -345,8 +342,6 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
     row.stage = vo.AGREED
     row.agreed_on = clock.today()
     db.flush()
-    if vo.CONFIRM_DOC in AUTO_RELEASE and vo.CONFIRM_DOC in papers_due(db, row):
-        voucher_docs.issue(db, row=row, kind=vo.CONFIRM_DOC, actor=actor)
 
 
 def _unask(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
