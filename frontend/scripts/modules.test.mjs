@@ -76,7 +76,13 @@ test('ein Stück in einem Endzustand wird nirgends angeboten – aus dem Katalog
 
 // ─── Die Stückliste: was eine Zeile anbietet (#723, #1027) ─────────────────────
 
-const need = (o) => ({ per_unit: 1, required: 3, available: 0, here: 0, place: null, ...o });
+// «fehlt» und «am falschen Ort» liefert der Server (`consumption.Need`) – hier wie dort gerechnet.
+const need = (o) => {
+  const n = { per_unit: 1, required: 3, available: 0, here: 0, place: null, ...o };
+  if (!n.place) n.here = n.available;
+  return { ...n, missing: Math.max(0, n.required - n.available),
+    misplaced: Math.max(0, Math.min(n.required, n.available) - n.here) };
+};
 
 test('angeboten wird nur, was gerade Sinn ergibt', () => {
   const at = { object_id: 100000500, label: 'Werkbank' };
@@ -89,7 +95,7 @@ test('angeboten wird nur, was gerade Sinn ergibt', () => {
   // nichts da → nur Nachschub; wählen liesse sich nichts
   assert.deepEqual(pick(needOffer(need({ available: 0 }))), [false, 0, true]);
   // ohne Ortsbedarf zählt alles Verfügbare als «hier»
-  assert.deepEqual(pick(needOffer(need({ available: 3, here: 0 }))), [false, 0, false]);
+  assert.deepEqual(pick(needOffer(need({ available: 3 }))), [false, 0, false]);
 });
 
 test('gemessen wird am Bedarf des Moduls, nicht am Anteil der Zeile (#1027)', () => {

@@ -29,7 +29,7 @@ from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PaymentSetup,
     RecordEntry, RecordValue, StepConfirm, StepRecord, TransferInfo,
 )
-from ..domain import capture_types, modules
+from ..domain import capture_types, modules, statuses as st
 from ..services import log
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
@@ -38,6 +38,7 @@ from ..services import voucher_actions, voucher_money, voucher_view
 from ..services import voucher_docs
 from ..services import flow as flow_svc
 from ..services import lookup
+from ..services import consumption as consumption_svc
 from ..services import record as record_svc
 from ..services import orders as orders_svc
 from ..services import loop as loop_svc
@@ -219,7 +220,9 @@ def unit_options(
         units=view.unit_option_rows(db, rows),
         total=int(total),
         states=stock_states(counts),
-        preselect=view.fifo(db, base, preselect),
+        # FIFO an der einen Stelle – im Regal, frei, älteste zuerst.
+        preselect=consumption_svc.free_numbers(db, article, preselect,
+                                               statuses=st.IN_STOCK_UNIT_STATUSES),
     )
 
 

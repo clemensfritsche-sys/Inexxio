@@ -76,12 +76,29 @@ class Need:
         """Was da ist, aber **nicht hier**. Der Fall, den ein Transport löst."""
         return max(0, min(self.required, self.available) - self.here)
 
+    def plan(self, want: Optional[int] = None) -> list[int]:
+        """►► **Aus welchen Kisten käme die Menge** – die Kisten, die ``_take`` nähme, in
+        seiner Reihenfolge: älteste zuerst (``sources`` sind so sortiert), mit Ortsanforderung
+        nur, was am Ort liegt. Die Oberfläche liest den Plan und rechnet ihn nicht nach.
+        ``want`` = für wie viel (Vorgabe: der ganze Bedarf des Moduls). ◄◄"""
+        out: list[int] = []
+        left = self.required if want is None else want
+        for src in self.sources:
+            if left <= 0:
+                break
+            usable = src.here if self.place is not None else src.free
+            if usable > 0:
+                out.append(src.instance_object_id)
+                left -= usable
+        return out
 
-def _free(db: Session, article_object_id: int):
+
+def _free(db: Session, article_object_id: Optional[int],
+          statuses: tuple[str, ...] = (st.FREIGEGEBEN,)):
     """Die **freien** Stücke eines Artikels – als Abfrage, noch nicht geladen.
 
-    Frei heisst zweierlei: bei uns (``Freigegeben``) **und** ohne offene
-    Zugehörigkeit. Beides zusammen ist die Aussage «regulär verfügbar»; die zweite Hälfte
+    Frei heisst zweierlei: bei uns (``statuses``, für den Verbrauch nur ``Freigegeben``)
+    **und** ohne offene Zugehörigkeit. Beides zusammen ist die Aussage «regulär verfügbar»; die zweite Hälfte
     deckt ein Stück ab, dessen Zustand an der Schreibstelle vorbei verstellt wurde.
 
     Zwei Leser, zwei Formen derselben Menge: die Auskunft (``needs``) **zählt** sie je
@@ -97,22 +114,26 @@ def _free(db: Session, article_object_id: int):
             & (OrderUnit.released_at.is_(None)),
         )
         .filter(
-            Article.object_id == article_object_id,
-            InstanceUnit.status == st.FREIGEGEBEN,
+            *((Article.object_id == article_object_id,) if article_object_id else ()),
+            InstanceUnit.status.in_(statuses),
             OrderUnit.id.is_(None),
         )
     )
 
 
-def free_numbers(db: Session, article_object_id: int, want: int) -> list[str]:
-    """►► **Die ältesten freien Stücke eines Artikels, als Nummern** – dieselbe Menge wie der
-    Verbrauch (``_free``: bei uns ``Freigegeben``, in keinem Auftrag). Die Schlaufe nimmt damit
-    «FIFO»: ein Nachfolger startet so nie als Abweichung (kein gesperrtes, kein verkauftes
-    Stück). ◄◄"""
+def free_numbers(db: Session, article_object_id: Optional[int], want: int, *,
+                 statuses: tuple[str, ...] = (st.FREIGEGEBEN,)) -> list[str]:
+    """►► **Die ältesten freien Stücke eines Artikels, als Nummern** – FIFO an EINER Stelle.
+
+    Älteste zuerst heisst aufsteigende ``id`` (ein Stück entsteht mit seiner Instanz). Zwei
+    Leser, verschiedene ``statuses``: die Schlaufe und der Verbrauch nehmen nur, was bei uns
+    ``Freigegeben`` ist (ein Nachfolger startet so nie als Abweichung); die **Vorauswahl im
+    Entwurf** nimmt alles, was im Regal liegt (``IN_STOCK_UNIT_STATUSES``) – auch Gesperrtes,
+    denn das Greifen IST das Aufheben der Sperre. Gebunden ist nie frei. ◄◄"""
     from .instances import unit_number
     if want <= 0:
         return []
-    rows = _free(db, article_object_id).order_by(InstanceUnit.id).limit(want).all()
+    rows = _free(db, article_object_id, statuses).order_by(InstanceUnit.id).limit(want).all()
     return [unit_number(inst, unit) for unit, inst in rows]
 
 
@@ -125,11 +146,7 @@ def _counted(db: Session, article_object_id: int) -> list[tuple[int, Optional[pl
         .group_by(Instance.object_id, InstanceUnit.place_object_id, InstanceUnit.place_unit_id)
         .all()
     )
-    return [
-        (int(nr), (places.UNIT, int(pu)) if pu else (places.OBJECT, int(po)) if po else None,
-         int(n))
-        for nr, po, pu, n in rows
-    ]
+    return [(int(nr), places.place_from(po, pu), int(n)) for nr, po, pu, n in rows]
 
 
 def _take(db: Session, article_object_id: int, need: int, *,
@@ -162,19 +179,6 @@ def _take(db: Session, article_object_id: int, need: int, *,
     rows = (q.order_by(rank, InstanceUnit.id).limit(need)
             .with_for_update(of=InstanceUnit, skip_locked=True).all())
     return [u for u, _ in rows]
-
-
-def _one_place(found: list[Optional[places.Place]]) -> Optional[places.Place]:
-    """Der Ort einer Kiste – **nur wenn ihre freien Stücke an EINEM liegen.**
-
-    Der Ort hängt am Stück, nicht an der Gruppe (§9.8): eine Charge darf verteilt sein.
-    Den des ersten Stücks zu nennen wäre die bequeme Antwort und bei einer verteilten
-    Charge schlicht falsch – «40 in Regal A», obwohl zwölf längst auf der Werkbank
-    liegen. Dieselbe Regel wie ``places.common_holder``: keine Antwort ist besser als
-    eine erfundene; die **Zahl** daneben (``here``) bleibt in jedem Fall exakt.
-    """
-    first = found[0] if found else None
-    return first if first is not None and all(p == first for p in found) else None
 
 
 def required_place(step: ProcessStep,
@@ -247,7 +251,7 @@ def needs(db: Session, step: ProcessStep, *,
             place=where,
             sources=[Source(instance_object_id=nr, free=n,
                             here=here_instance.get(nr, 0),
-                            place=_one_place(at_instance.get(nr, [])))
+                            place=places.one_place(at_instance.get(nr, [])))
                      for nr, n in sorted(by_instance.items())],
         ))
     return out

@@ -210,23 +210,19 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
 }
 
 /**
- * **Der Plan: aus welchen Kisten die Menge kommt** – dieselbe Reihenfolge wie der Server
- * (`consumption._free`), damit man vor dem Scan weiss, was zu holen ist.
- */
-/**
- * Welche Kisten der Server nehmen würde. Was am Arbeitsort liegt, kommt zuerst (§9.6); ob
- * eine Kiste «hier» ist, sagt der Server je Quelle (``NeedSource.here``).
+ * **Der Plan: aus welchen Kisten die Menge kommt** – der Plan des Servers (`need.plan`,
+ * `consumption.Need.plan`: älteste zuerst, am Ort, wenn einer verlangt ist), gekürzt auf das,
+ * was **diese** Instanz braucht. Die Reihenfolge rechnet die Oberfläche nicht nach.
  */
 function planBoxes(need: StepNeed, want: number): number[] {
+  const usable = new Map((need.sources ?? []).map(
+    (s) => [s.instance_object_id, need.place ? (s.here ?? 0) : s.free]));
   const out: number[] = [];
   let left = want;
-  const byPlace = [...(need.sources ?? [])].sort((a, b) => (b.here ?? 0) - (a.here ?? 0));
-  for (const s of byPlace) {
+  for (const box of need.plan ?? []) {
     if (left <= 0) break;
-    const usable = need.place ? (s.here ?? 0) : s.free;
-    if (usable <= 0) continue;
-    out.push(s.instance_object_id);
-    left -= usable;
+    out.push(box);
+    left -= usable.get(box) ?? 0;
   }
   return out;
 }

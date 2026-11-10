@@ -34,18 +34,19 @@ interface NeedOffer {
 }
 
 export function needOffer(
-  need: Pick<StepNeed, 'required' | 'per_unit' | 'available' | 'here' | 'place'>,
+  need: Pick<StepNeed, 'required' | 'per_unit' | 'available' | 'here' | 'missing' | 'misplaced'>,
 ): NeedOffer {
+  // «Fehlt» und «liegt woanders» rechnet der Server (`consumption.Need`) – hier wird nur
+  // entschieden, was davon die Zeile anbietet.
   const required = need.required;
   const units = need.per_unit > 0 ? required / need.per_unit : 0;
-  const enough = need.available >= required;
+  const enough = (need.missing ?? 0) === 0;
   const empty = need.available <= 0;
-  const here = need.place ? (need.here ?? 0) : need.available;
-  const misplaced = enough && here < required;
+  const misplaced = enough && (need.misplaced ?? 0) > 0;
   return {
-    required, units, here, enough, misplaced,
+    required, units, here: need.here ?? 0, enough, misplaced,
     choose: misplaced || (!enough && !empty),
-    haul: misplaced ? required - here : 0,
+    haul: misplaced ? need.misplaced ?? 0 : 0,
     supply: empty,
   };
 }

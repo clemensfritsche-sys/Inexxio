@@ -74,19 +74,23 @@ def steps_view(db: Session, order: Order, *, viewer: Optional[UserProfile] = Non
         row.work = [StepWork(**w) for w in order_state.step_work(db, order, s)]
         # **Was das Modul verbraucht** – gerechnet beim Erreichen gegen das, was davorsteht
         # (``services/consumption``).
+        needs = consumption_svc.needs(db, s, products=order_state.units_before(db, order, s))
+        # Alle Orte auf einmal benennen – nicht je Bedarf und je Kiste.
+        named = places_svc.describe_all(
+            db, [n.place for n in needs] + [src.place for n in needs for src in n.sources])
         row.needs = [
             StepNeed(
                 article_object_id=n.article_object_id, article_name=n.article_name,
                 per_unit=n.per_unit, required=n.required, available=n.available,
-                here=n.here, place=PlaceRef.of(places_svc.describe(db, n.place)),
+                here=n.here, place=PlaceRef.of(named.get(n.place) if n.place else None),
                 sources=[NeedSource(
                     instance_object_id=src.instance_object_id, free=src.free,
                     here=src.here,
-                    place=PlaceRef.of(places_svc.describe(db, src.place)))
+                    place=PlaceRef.of(named.get(src.place) if src.place else None))
                     for src in n.sources],
+                missing=n.missing, misplaced=n.misplaced, plan=n.plan(),
             )
-            for n in consumption_svc.needs(
-                db, s, products=order_state.units_before(db, order, s))
+            for n in needs
         ]
         # **Wohin es geht** – aufgelöst zum Namen des Halters.
         row.target = place_ref(db, (s.config or {}).get("target"))
@@ -300,38 +304,6 @@ def unit_option_rows(db: Session, rows: Sequence[tuple]) -> list[UnitOption]:
         )
         for unit, instance, art in rows
     ]
-
-
-def fifo(db: Session, base, want: int) -> list[str]:
-    """Die **Vorauswahl**: die ältesten Stücke, die im Regal liegen und frei sind.
-
-    Älteste zuerst heisst aufsteigende ``id`` – Nummern werden aufsteigend vergeben, und
-    ein Stück entsteht mit seiner Instanz; ein zweites Datum gibt es nicht.
-
-    **Gebunden ist nicht frei**: ein Stück, das in einem laufenden Auftrag läuft, lässt
-    sich zwar nehmen – daraus wird eine Abweichung, die einem anderen Auftrag sein
-    Material entzieht. Das darf nie die Voreinstellung sein, also steht es hier nicht.
-
-    **Gesperrt wird bewusst vorgeschlagen**: es liegt im Regal, und das Greifen IST das
-    Aufheben der Sperre – der Auftrag, der so entsteht, ist damit eine Abweichung
-    (``order_state.deviation_flags``: sein Start weicht vom Regelstart ab).
-
-    **Sie ignoriert Suche und Zustandsfilter** – bewusst: ``base`` trägt nur den Artikel.
-    Der Vorschlag ist eine Aussage über den Bestand, keine über den gerade gewählten
-    Ausschnitt; wer nach «verbaut» filtert, bekäme sonst eine Vorauswahl, die sich beim
-    Zurücksetzen des Filters wieder ändert.
-    """
-    if want <= 0:
-        return []
-    busy = db.query(OrderUnit.instance_unit_id).filter(OrderUnit.released_at.is_(None))
-    rows = (
-        base.filter(InstanceUnit.status.in_(st.IN_STOCK_UNIT_STATUSES),
-                    InstanceUnit.id.notin_(busy))
-        .order_by(InstanceUnit.id)
-        .limit(want)
-        .all()
-    )
-    return [unit_number(instance, unit) for unit, instance, _a in rows]
 
 
 def preview_parents(db: Session, draft: dict) -> list[RelatedOrder]:

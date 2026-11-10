@@ -6311,6 +6311,18 @@ export interface components {
             place?: components["schemas"]["PlaceRef"] | null;
             /** Sources */
             sources?: components["schemas"]["NeedSource"][];
+            /**
+             * Missing
+             * @default 0
+             */
+            missing: number;
+            /**
+             * Misplaced
+             * @default 0
+             */
+            misplaced: number;
+            /** Plan */
+            plan?: number[];
         };
         /**
          * StepRecord

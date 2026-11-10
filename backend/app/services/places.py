@@ -21,7 +21,7 @@ from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
 
-from ..domain import modules
+from ..domain import modules, statuses as st
 from ..models import (
     Article, CompanySettings, Instance, InstanceUnit, ProcessStep, UserProfile,
 )
@@ -58,13 +58,28 @@ class Station:
     number: Optional[str] = None   # nur bei kind == "unit"
 
 
-def place_of(unit: InstanceUnit) -> Optional[Place]:
-    """**Wo liegt dieses Stück?** — die eine Lesestelle für die beiden Spalten."""
-    if unit.place_unit_id:
-        return (UNIT, int(unit.place_unit_id))
-    if unit.place_object_id:
-        return (OBJECT, int(unit.place_object_id))
+def place_from(place_object_id: Optional[int], place_unit_id: Optional[int]) -> Optional[Place]:
+    """**Die zwei Spalten eines Stücks → sein Ort** – die eine Lesestelle, auch für Abfragen,
+    die nur die Spalten holen."""
+    if place_unit_id:
+        return (UNIT, int(place_unit_id))
+    if place_object_id:
+        return (OBJECT, int(place_object_id))
     return None
+
+
+def place_of(unit: InstanceUnit) -> Optional[Place]:
+    """**Wo liegt dieses Stück?**"""
+    return place_from(unit.place_object_id, unit.place_unit_id)
+
+
+def one_place(found: Iterable[Optional[Place]]) -> Optional[Place]:
+    """**Der EINE Ort, an dem alle liegen** – oder ``None`` (verschiedene Orte, nirgends oder
+    leer). Keine Antwort ist besser als eine erfundene: «40 in Regal A», obwohl zwölf auf der
+    Werkbank liegen, wäre falsch."""
+    seen = list(found)
+    first = seen[0] if seen else None
+    return first if first is not None and all(p == first for p in seen) else None
 
 
 def stations_for(db: Session, object_ids: Iterable[int]) -> dict[int, Station]:
@@ -119,9 +134,9 @@ def unit_stations(db: Session, unit_ids: Iterable[int]) -> dict[int, Station]:
     }
 
 
-def _stations(db: Session, places: Iterable[Place]) -> dict[Place, Station]:
-    """Orte beider Arten → Stationen, batchweise je Art."""
-    wanted = set(places)
+def describe_all(db: Session, places: Iterable[Optional[Place]]) -> dict[Place, Station]:
+    """Orte beider Arten → Stationen, batchweise je Art (gegen eine Abfrage je Ort)."""
+    wanted = {p for p in places if p}
     objects = stations_for(db, [pid for kind, pid in wanted if kind == OBJECT])
     units = unit_stations(db, [pid for kind, pid in wanted if kind == UNIT])
     out: dict[Place, Station] = {}
@@ -188,7 +203,7 @@ def station_of(db: Session, object_id: int) -> Optional[Station]:
 
 def describe(db: Session, place: Optional[Place]) -> Optional[Station]:
     """Ein Ort beider Arten → seine Station. Für Meldungen und Antworten."""
-    return _stations(db, [place]).get(place) if place else None
+    return describe_all(db, [place]).get(place) if place else None
 
 
 def chain(db: Session, place: Optional[Place]) -> list[Station]:
@@ -205,8 +220,10 @@ def chain(db: Session, place: Optional[Place]) -> list[Station]:
 def _places_of_instances(db: Session, object_ids: list[int]) -> dict[int, Place]:
     """**Wo liegen diese Instanzen?** — eine Abfrage für alle.
 
-    Eine Instanz als Halter liegt dort, wo alle ihre Stücke am selben Halter liegen; sonst
-    endet die Kette – es wird keine Antwort erfunden.
+    Eine Instanz als Halter liegt dort, wo alle ihre Stücke am selben Halter liegen
+    (``one_place``); sonst endet die Kette – es wird keine Antwort erfunden. **Verschrottete
+    Stücke zählen nicht**: sie haben keinen Ort mehr, und eine verschrottete Kiste in einer
+    Charge darf die Kette der übrigen nicht abbrechen.
     """
     if not object_ids:
         return {}
@@ -217,22 +234,15 @@ def _places_of_instances(db: Session, object_ids: list[int]) -> dict[int, Place]
             InstanceUnit.place_unit_id,
         )
         .join(InstanceUnit, InstanceUnit.instance_id == Instance.id)
-        .filter(Instance.object_id.in_(set(object_ids)))
+        .filter(Instance.object_id.in_(set(object_ids)),
+                InstanceUnit.status.notin_(st.TERMINAL_UNIT_STATUSES))
         .distinct()
         .all()
     )
-    seen: dict[int, Optional[Place]] = {}
+    found: dict[int, list[Optional[Place]]] = {}
     for object_id, place_object_id, place_unit_id in rows:
-        place: Optional[Place] = (
-            (UNIT, int(place_unit_id)) if place_unit_id
-            else (OBJECT, int(place_object_id)) if place_object_id
-            else None
-        )
-        # Zweiter, abweichender Ort → kein EINER Ort; die Kette endet hier.
-        seen[object_id] = place if object_id not in seen else (
-            seen[object_id] if seen[object_id] == place else None
-        )
-    return {o: p for o, p in seen.items() if p is not None}
+        found.setdefault(object_id, []).append(place_from(place_object_id, place_unit_id))
+    return {o: p for o, ps in found.items() if (p := one_place(ps)) is not None}
 
 
 def _places_of_units(db: Session, unit_ids: list[int]) -> dict[int, Place]:
@@ -244,13 +254,7 @@ def _places_of_units(db: Session, unit_ids: list[int]) -> dict[int, Place]:
         .filter(InstanceUnit.id.in_(set(unit_ids)))
         .all()
     )
-    out: dict[int, Place] = {}
-    for unit_id, place_object_id, place_unit_id in rows:
-        if place_unit_id:
-            out[unit_id] = (UNIT, int(place_unit_id))
-        elif place_object_id:
-            out[unit_id] = (OBJECT, int(place_object_id))
-    return out
+    return {unit_id: p for unit_id, po, pu in rows if (p := place_from(po, pu)) is not None}
 
 
 def _next_places(db: Session, places: Iterable[Place]) -> dict[Place, Place]:
@@ -285,7 +289,7 @@ def _walk(db: Session, places: Iterable[Place]) -> dict[Place, list[tuple[Place,
     for _ in range(MAX_STATIONS):
         if not frontier:
             break
-        stations = _stations(db, frontier)
+        stations = describe_all(db, frontier)
         follow: list[Place] = []
         for current, owners in frontier.items():
             station = stations.get(current)
@@ -439,13 +443,7 @@ def for_units(db: Session, units: Iterable[InstanceUnit]) -> dict[int, list[Stat
 def common_holder(units: Iterable[InstanceUnit]) -> Optional[Place]:
     """**Der Ort, an dem ALLE liegen** — oder ``None`` (verschiedene Orte oder nirgends:
     dann wird kein Ort verlangt)."""
-    found: Optional[Place] = None
-    for index, unit in enumerate(units):
-        here = place_of(unit)
-        if here is None or (index and here != found):
-            return None
-        found = here
-    return found
+    return one_place(place_of(u) for u in units)
 
 
 def within(db: Session, places: Iterable[Optional[Place]], holder: Place) -> set[Place]:

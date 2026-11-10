@@ -298,6 +298,14 @@ class StepNeed(BaseModel):
     place: Optional[PlaceRef] = None
     #: Woher genommen werden kann – die Kisten, die der Lagerist scannt.
     sources: list[NeedSource] = Field(default_factory=list)
+    #: **Was an Menge fehlt** – egal wo (``Need.missing``).
+    missing: int = 0
+    #: **Was da ist, aber nicht am Arbeitsort** – der Fall für einen Transport
+    #: (``Need.misplaced``).
+    misplaced: int = 0
+    #: **Die Kisten, aus denen der Server nähme** – älteste zuerst, am Ort, wenn einer verlangt
+    #: ist (``Need.plan``). Die Oberfläche scannt sie; sie rechnet die Reihenfolge nicht nach.
+    plan: list[int] = Field(default_factory=list)
 
 
 class OrderLineResponse(BaseModel):
