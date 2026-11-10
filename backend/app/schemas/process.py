@@ -101,10 +101,23 @@ class ModuleInput(BaseModel):
     ``mode`` (Verschrotten ↔ Sperren) und ``sample`` (die Stichprobe). Beide Angaben
     kamen nie an, beide Vorgaben galten immer – ohne eine einzige Fehlermeldung.
     Geprüft wird jetzt dort, wo die Regel steht, mit einem Satz statt einem Feldpfad.
+
+    ►►► **Beschrieben wird sie trotzdem – aus derselben Stelle.** ◄◄◄ Das Schema dieser Form
+    nennt die Modultypen (``enum``) und je Typ die Form seiner Konfiguration
+    (``x-config-by-module-type``, aus ``Module.config_schema`` neben ``clean_config``). Eine
+    Erweiterung (``x-…``) statt ``oneOf``: geprüft wird ohnehin im Modul, und die generierten
+    Typen der Oberfläche bleiben ein Satz Werte. So liest die KI aus der Route, was ein Modul
+    braucht (``handgriff.operations``) – ein neues Modul erscheint dort von selbst.
     """
 
-    module_type: str
-    config: Optional[dict[str, Any]] = None
+    module_type: str = Field(
+        description="Der Modultyp: " + ", ".join(f"{k} = {modules.label(k)}" for k in modules.KEYS),
+        json_schema_extra={"enum": list(modules.KEYS)})
+    config: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="Die Einstellungen des Moduls – ihre Form je Modultyp steht unter "
+                    "«x-config-by-module-type».",
+        json_schema_extra={"x-config-by-module-type": modules.config_schemas()})
 
 
 class ModuleTypeInfo(BaseModel):

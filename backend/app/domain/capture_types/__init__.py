@@ -115,9 +115,32 @@ def clean_points(raw: Any) -> list[dict[str, Any]]:
             "label": label,
             "type": kind.key,
         }
-        point.update(kind.clean({**row, "label": label}))
+        # Die Zeile selbst, nicht eine Kopie: was der Typ liest, liest er aus der Eingabe.
+        point.update(kind.clean(row))
         out.append(point)
     return out
+
+
+def point_schema() -> dict[str, Any]:
+    """►► **Ein Erfassungspunkt als JSON-Schema** – Bezeichnung, Typ und die Felder, die jeder
+    Typ selbst beschreibt (``CaptureType.FIELDS``). Ein neuer Typ erscheint hier von selbst. ◄◄"""
+    props: dict[str, Any] = {
+        "label": {"type": "string", "maxLength": 120,
+                  "description": "Die Frage, die im Prozess gestellt wird"},
+        "type": {"type": "string", "enum": list(KEYS),
+                 "description": "Erfassungstyp: " + ", ".join(f"{t.key} = {t.label}" for t in ALL)},
+    }
+    for t in ALL:
+        for name, field in t.FIELDS.items():
+            must = " (Pflicht)" if name in t.REQUIRED else ""
+            props[name] = {**field, "description":
+                           f"{field.get('description', '')} – nur bei Typ {t.key}{must}"}
+    return {"type": "object", "properties": props, "required": ["label", "type"]}
+
+
+def example_points() -> list[dict[str, Any]]:
+    """Je Typ ein gültiger Punkt – das Beispiel der Beschreibung (und des Wächters)."""
+    return [{"label": t.label, "type": t.key, **t.EXAMPLE} for t in ALL]
 
 
 # ---------------------------------------------------------------------------
@@ -171,5 +194,5 @@ def verdict(points: list[dict[str, Any]], values: dict[str, Any]) -> Optional[st
 
 __all__ = [
     "ALL", "KEYS", "LABELS", "CaptureType", "PASSED", "FAILED",
-    "get", "clean_points", "check_values", "verdict",
+    "get", "clean_points", "check_values", "verdict", "point_schema", "example_points",
 ]

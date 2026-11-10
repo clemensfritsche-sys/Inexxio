@@ -33,6 +33,15 @@ class CaptureType:
     #: Anzeige-Reihenfolge. Ohne sie entschiede die Dateisortierung, wie das Menü aussieht.
     order: int = 100
 
+    #: ►► **Die Beschreibung der Definitionsfelder** über ``label``/``type`` hinaus – JSON-Schema
+    #: je Feld, mit einem kurzen Satz. Dieselben Felder liest ``clean`` (Wächter
+    #: ``tests/test_module_config_schema.py``); daraus kennt die KI die Form (``ModuleInput``). ◄◄
+    FIELDS: dict[str, dict[str, Any]] = {}
+    #: Welche davon Pflicht sind.
+    REQUIRED: tuple[str, ...] = ()
+    #: Ein gültiges Beispiel dieser Felder – für die Beschreibung und den Wächter.
+    EXAMPLE: dict[str, Any] = {}
+
     # ── Definition ──────────────────────────────────────────────────────────
     def clean(self, point: dict[str, Any]) -> dict[str, Any]:
         """Die **zusätzlichen** Definitionsfelder dieses Typs, geprüft und normalisiert.

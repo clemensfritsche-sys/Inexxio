@@ -12473,7 +12473,15 @@
         "properties": {
           "module_type": {
             "type": "string",
-            "title": "Module Type"
+            "enum": [
+              "datenerfassung",
+              "aussondern",
+              "bewegen",
+              "beleg",
+              "verbrauch"
+            ],
+            "title": "Module Type",
+            "description": "Der Modultyp: datenerfassung = Datenerfassung, aussondern = Aussondern, bewegen = Bewegen, beleg = Zahlung, verbrauch = Verbrauch"
           },
           "config": {
             "anyOf": [
@@ -12485,7 +12493,341 @@
                 "type": "null"
               }
             ],
-            "title": "Config"
+            "title": "Config",
+            "description": "Die Einstellungen des Moduls – ihre Form je Modultyp steht unter «x-config-by-module-type».",
+            "x-config-by-module-type": {
+              "aussondern": {
+                "description": "Aussondern",
+                "examples": [
+                  {
+                    "mode": "scrap",
+                    "reason": "Riss im Gehäuse"
+                  }
+                ],
+                "properties": {
+                  "mode": {
+                    "default": "scrap",
+                    "description": "Was mit den Stücken geschieht: scrap = Verschrotten (verschrottet), block = Sperren (gesperrt)",
+                    "enum": [
+                      "scrap",
+                      "block"
+                    ],
+                    "type": "string"
+                  },
+                  "reason": {
+                    "description": "Warum ausgesondert wird – Pflicht, beim Modellieren",
+                    "maxLength": 200,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "type": "object"
+              },
+              "beleg": {
+                "description": "Zahlung",
+                "examples": [
+                  {
+                    "direction": "in",
+                    "incoterm": "EXW",
+                    "instruction": "Härten auf 58 HRC",
+                    "lead_days": 10,
+                    "ownership": "party",
+                    "parties": [
+                      {
+                        "party": 100000201
+                      }
+                    ],
+                    "payment_days": 30,
+                    "prices": [
+                      {
+                        "article": 100000101,
+                        "price": "120.00"
+                      }
+                    ],
+                    "valid_days": 30
+                  },
+                  {
+                    "direction": "out",
+                    "parties": [
+                      {
+                        "party": 100000202,
+                        "ref": "Art.-Nr. 4711"
+                      }
+                    ]
+                  }
+                ],
+                "properties": {
+                  "direction": {
+                    "description": "Einnahme – wir stellen Rechnung, Geld kommt herein.; Ausgabe – wir bekommen Rechnung, Geld geht hinaus.",
+                    "enum": [
+                      "in",
+                      "out"
+                    ],
+                    "type": "string"
+                  },
+                  "parties": {
+                    "description": "Die zugelassenen Gegenparteien; leer = frei",
+                    "items": {
+                      "properties": {
+                        "party": {
+                          "description": "Gegenpartei (Person) (Objektnummer)",
+                          "type": "integer"
+                        },
+                        "ref": {
+                          "description": "Wie bestellen? (Seine Artikelnummer oder der Link zu seinem Shop) – Pflicht und nur bei out",
+                          "maxLength": 200,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "party"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
+                  },
+                  "instruction": {
+                    "description": "Was ist zu tun? – freiwillig; leer = gemäss Spezifikation",
+                    "maxLength": 400,
+                    "type": "string"
+                  },
+                  "payment_days": {
+                    "description": "Vorgabe Zahlungsfrist in Tagen (0 = Vorauszahlung); leer = am Beleg gewählt",
+                    "maximum": 365,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "lead_days": {
+                    "description": "Vorgabe Lieferfrist in Tagen ab Zusage",
+                    "maximum": 365,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "valid_days": {
+                    "description": "Vorgabe: wie viele Tage die Offerte gilt",
+                    "maximum": 365,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "incoterm": {
+                    "description": "Vorgabe Lieferbedingung (Incoterms 2020)",
+                    "enum": [
+                      "EXW",
+                      "FCA",
+                      "CPT",
+                      "CIP",
+                      "DAP",
+                      "DPU",
+                      "DDP",
+                      "FAS",
+                      "FOB",
+                      "CFR",
+                      "CIF"
+                    ],
+                    "type": "string"
+                  },
+                  "ownership": {
+                    "description": "Vorgabe Eigentum: party = geht an die Partei, us = geht an uns",
+                    "enum": [
+                      "party",
+                      "us"
+                    ],
+                    "type": "string"
+                  },
+                  "prices": {
+                    "description": "Vorgegebene Einzelpreise je Artikel, netto – nur bei in",
+                    "items": {
+                      "properties": {
+                        "article": {
+                          "description": "Der Artikel (Objektnummer)",
+                          "type": "integer"
+                        },
+                        "price": {
+                          "description": "Einzelpreis netto, Hauswährung",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "article",
+                        "price"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 50,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "direction"
+                ],
+                "type": "object"
+              },
+              "bewegen": {
+                "description": "Bewegen",
+                "examples": [
+                  {
+                    "target": 100000123
+                  },
+                  {}
+                ],
+                "properties": {
+                  "target": {
+                    "description": "Wohin die Stücke gebracht werden (Objektnummer eines Halters: Instanz, Person, Unternehmen); leer = wird beim Ausführen gewählt",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "datenerfassung": {
+                "description": "Datenerfassung",
+                "examples": [
+                  {
+                    "points": [
+                      {
+                        "label": "Text",
+                        "type": "text"
+                      },
+                      {
+                        "label": "Ja/Nein",
+                        "type": "bool"
+                      },
+                      {
+                        "label": "Bild",
+                        "type": "photo"
+                      },
+                      {
+                        "label": "Signatur",
+                        "type": "signature"
+                      },
+                      {
+                        "label": "Soll-Ist-Vergleich",
+                        "target": 12.5,
+                        "tolerance": 0.1,
+                        "type": "measure",
+                        "unit": "mm"
+                      }
+                    ],
+                    "sample": {
+                      "percent": 25
+                    }
+                  }
+                ],
+                "properties": {
+                  "points": {
+                    "description": "Die Erfassungspunkte, mindestens einer; jeder ist Pflicht",
+                    "items": {
+                      "properties": {
+                        "label": {
+                          "description": "Die Frage, die im Prozess gestellt wird",
+                          "maxLength": 120,
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Erfassungstyp: text = Text, bool = Ja/Nein, photo = Bild, signature = Signatur, measure = Soll-Ist-Vergleich",
+                          "enum": [
+                            "text",
+                            "bool",
+                            "photo",
+                            "signature",
+                            "measure"
+                          ],
+                          "type": "string"
+                        },
+                        "target": {
+                          "description": "Sollwert – Pflicht beim Soll-Ist-Vergleich – nur bei Typ measure (Pflicht)",
+                          "type": "number"
+                        },
+                        "tolerance": {
+                          "description": "Erlaubte Abweichung ± vom Sollwert; leer = 0 – nur bei Typ measure",
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "unit": {
+                          "description": "Einheit, ein kurzes Wort (mm, °C, bar …); leer = ohne – nur bei Typ measure",
+                          "maxLength": 8,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "type"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "sample": {
+                    "description": "Stichprobe: welcher Anteil aller wartenden Stücke erfasst wird; ohne Angabe alle",
+                    "properties": {
+                      "percent": {
+                        "description": "Anteil in Prozent (100 = alle)",
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "points"
+                ],
+                "type": "object"
+              },
+              "verbrauch": {
+                "description": "Verbrauch",
+                "examples": [
+                  {
+                    "lines": [
+                      {
+                        "article": 100000101,
+                        "quantity": 4
+                      }
+                    ]
+                  }
+                ],
+                "properties": {
+                  "lines": {
+                    "description": "Die Stückliste: je Zeile ein Artikel, jeder Artikel höchstens einmal",
+                    "items": {
+                      "properties": {
+                        "article": {
+                          "description": "Der Artikel, der verbaut wird (Objektnummer)",
+                          "type": "integer"
+                        },
+                        "quantity": {
+                          "description": "Menge je Produkt-Stück",
+                          "maximum": 1000,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "article",
+                        "quantity"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "lines"
+                ],
+                "type": "object"
+              }
+            }
           }
         },
         "type": "object",
@@ -12493,7 +12835,7 @@
           "module_type"
         ],
         "title": "ModuleInput",
-        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt.\n\n**Keinen Namen.** Wie ein Modul heisst, sagt sein Typ (``domain/modules``) – ein\nEingabefeld daneben hätte genau eine richtige Antwort und war trotzdem Pflicht\n(Testnotiz #682). Es war zugleich die Quelle der Meldung «String should have at\nleast 1 character»: ein leer gelassenes Feld, das der Anwender gar nicht sehen\nwollte (#686).\n\nDie **Identität** eines Moduls ist seine ``id``, vergeben beim Anlegen (#687) – sie\nsteht hier nicht, weil der Entwurf noch keine hat.\n\n**Die Konfiguration ist bewusst ein freier Satz Werte.** Was darin stehen darf,\nentscheidet der Modultyp (``domain/modules.Module.clean_config``) – und *nur* er.\nEine Feldliste hier wäre eine zweite Aussage darüber, und sie war es auch: sie kannte\n``points`` und sonst nichts, also verwarf Pydantic beim Eintreffen stillschweigend\n``mode`` (Verschrotten ↔ Sperren) und ``sample`` (die Stichprobe). Beide Angaben\nkamen nie an, beide Vorgaben galten immer – ohne eine einzige Fehlermeldung.\nGeprüft wird jetzt dort, wo die Regel steht, mit einem Satz statt einem Feldpfad."
+        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt.\n\n**Keinen Namen.** Wie ein Modul heisst, sagt sein Typ (``domain/modules``) – ein\nEingabefeld daneben hätte genau eine richtige Antwort und war trotzdem Pflicht\n(Testnotiz #682). Es war zugleich die Quelle der Meldung «String should have at\nleast 1 character»: ein leer gelassenes Feld, das der Anwender gar nicht sehen\nwollte (#686).\n\nDie **Identität** eines Moduls ist seine ``id``, vergeben beim Anlegen (#687) – sie\nsteht hier nicht, weil der Entwurf noch keine hat.\n\n**Die Konfiguration ist bewusst ein freier Satz Werte.** Was darin stehen darf,\nentscheidet der Modultyp (``domain/modules.Module.clean_config``) – und *nur* er.\nEine Feldliste hier wäre eine zweite Aussage darüber, und sie war es auch: sie kannte\n``points`` und sonst nichts, also verwarf Pydantic beim Eintreffen stillschweigend\n``mode`` (Verschrotten ↔ Sperren) und ``sample`` (die Stichprobe). Beide Angaben\nkamen nie an, beide Vorgaben galten immer – ohne eine einzige Fehlermeldung.\nGeprüft wird jetzt dort, wo die Regel steht, mit einem Satz statt einem Feldpfad.\n\n►►► **Beschrieben wird sie trotzdem – aus derselben Stelle.** ◄◄◄ Das Schema dieser Form\nnennt die Modultypen (``enum``) und je Typ die Form seiner Konfiguration\n(``x-config-by-module-type``, aus ``Module.config_schema`` neben ``clean_config``). Eine\nErweiterung (``x-…``) statt ``oneOf``: geprüft wird ohnehin im Modul, und die generierten\nTypen der Oberfläche bleiben ein Satz Werte. So liest die KI aus der Route, was ein Modul\nbraucht (``handgriff.operations``) – ein neues Modul erscheint dort von selbst."
       },
       "ModuleTypeInfo": {
         "properties": {

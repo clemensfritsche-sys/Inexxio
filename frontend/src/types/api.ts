@@ -5119,11 +5119,25 @@ export interface components {
          *     ``mode`` (Verschrotten ↔ Sperren) und ``sample`` (die Stichprobe). Beide Angaben
          *     kamen nie an, beide Vorgaben galten immer – ohne eine einzige Fehlermeldung.
          *     Geprüft wird jetzt dort, wo die Regel steht, mit einem Satz statt einem Feldpfad.
+         *
+         *     ►►► **Beschrieben wird sie trotzdem – aus derselben Stelle.** ◄◄◄ Das Schema dieser Form
+         *     nennt die Modultypen (``enum``) und je Typ die Form seiner Konfiguration
+         *     (``x-config-by-module-type``, aus ``Module.config_schema`` neben ``clean_config``). Eine
+         *     Erweiterung (``x-…``) statt ``oneOf``: geprüft wird ohnehin im Modul, und die generierten
+         *     Typen der Oberfläche bleiben ein Satz Werte. So liest die KI aus der Route, was ein Modul
+         *     braucht (``handgriff.operations``) – ein neues Modul erscheint dort von selbst.
          */
         ModuleInput: {
-            /** Module Type */
-            module_type: string;
-            /** Config */
+            /**
+             * Module Type
+             * @description Der Modultyp: datenerfassung = Datenerfassung, aussondern = Aussondern, bewegen = Bewegen, beleg = Zahlung, verbrauch = Verbrauch
+             * @enum {string}
+             */
+            module_type: "datenerfassung" | "aussondern" | "bewegen" | "beleg" | "verbrauch";
+            /**
+             * Config
+             * @description Die Einstellungen des Moduls – ihre Form je Modultyp steht unter «x-config-by-module-type».
+             */
             config?: {
                 [key: string]: unknown;
             } | null;

@@ -30,8 +30,18 @@ class Measure(CaptureType):
     label = "Soll-Ist-Vergleich"
     order = 50
 
+    FIELDS = {
+        "target": {"type": "number", "description": "Sollwert – Pflicht beim Soll-Ist-Vergleich"},
+        "tolerance": {"type": "number", "minimum": 0,
+                      "description": "Erlaubte Abweichung ± vom Sollwert; leer = 0"},
+        "unit": {"type": "string", "maxLength": UNIT_MAX,
+                 "description": "Einheit, ein kurzes Wort (mm, °C, bar …); leer = ohne"},
+    }
+    REQUIRED = ("target",)
+    EXAMPLE = {"target": 12.5, "tolerance": 0.1, "unit": "mm"}
+
     def clean(self, point: dict[str, Any]) -> dict[str, Any]:
-        label = point.get("label")
+        label = str(point.get("label") or "").strip()
         target = _number(point.get("target"))
         if target is None:
             raise bad(

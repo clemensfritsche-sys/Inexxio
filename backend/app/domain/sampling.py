@@ -27,6 +27,15 @@ FULL = 100
 DEFAULT: dict[str, Any] = {"percent": FULL}
 
 
+#: ►► **Die Regel als JSON-Schema** – die eine Form, die ``clean`` annimmt. ◄◄
+SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "description": "Stichprobe: welcher Anteil aller wartenden Stücke erfasst wird; ohne Angabe alle",
+    "properties": {"percent": {"type": "integer", "minimum": 1, "maximum": FULL,
+                               "description": "Anteil in Prozent (100 = alle)"}},
+}
+
+
 def _bad(detail: str) -> Invalid:
     return Invalid(detail)
 

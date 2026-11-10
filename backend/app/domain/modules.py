@@ -74,6 +74,17 @@ class Module:
         """Die Konfiguration prüfen und normalisieren. Ohne Konfiguration: ``None``."""
         return None
 
+    def config_schema(self) -> dict[str, Any]:
+        """►►► **Die Form der Konfiguration als JSON-Schema** – die andere Form von
+        ``clean_config``, direkt daneben: dieselben Felder, je mit einem kurzen Satz, dazu
+        gültige Beispiele (``examples``). ◄◄◄
+
+        Daraus beschreibt sich jede Route, die Schritte nimmt (``schemas/process.ModuleInput``),
+        und daraus kennt die KI die Einstellungen eines Moduls – ohne einen Satz über Prozesse
+        im Auftrag. Geprüft wird weiter allein in ``clean_config``; dass beide dieselben
+        Felder kennen, hält ``tests/test_module_config_schema.py``. Vorgabe: keine Einstellung."""
+        return _schema({}, examples=[{}])
+
     #: Was der Knopf sagt, der dieses Modul ausführt – ein Verb, kein Modulname.
     action: str = "Erfassen & bestätigen"
 
@@ -128,6 +139,14 @@ class Datenerfassung(Module):
             "sample": sampling.clean((raw or {}).get("sample")),
         }
 
+    def config_schema(self) -> dict[str, Any]:
+        return _schema({
+            "points": {"type": "array", "minItems": 1, "items": capture_types.point_schema(),
+                       "description": "Die Erfassungspunkte, mindestens einer; jeder ist Pflicht"},
+            "sample": sampling.SCHEMA,
+        }, required=["points"],
+            examples=[{"points": capture_types.example_points(), "sample": {"percent": 25}}])
+
 
 class Aussondern(Module):
     """Einzelinstanzen **aus dem Verkehr ziehen** – verschrotten oder sperren.
@@ -165,6 +184,15 @@ class Aussondern(Module):
         # Definition.
         return {"mode": mode, "reason": reason, "points": [],
                 "sample": dict(sampling.DEFAULT)}
+
+    def config_schema(self) -> dict[str, Any]:
+        return _schema({
+            "mode": {"type": "string", "enum": list(self.MODES), "default": self.DEFAULT_MODE,
+                     "description": "Was mit den Stücken geschieht: " + ", ".join(
+                         f"{k} = {self.ACTIONS[k]} ({v})" for k, v in self.MODES.items())},
+            "reason": {"type": "string", "maxLength": self.REASON_MAX,
+                       "description": "Warum ausgesondert wird – Pflicht, beim Modellieren"},
+        }, required=["reason"], examples=[{"mode": "scrap", "reason": "Riss im Gehäuse"}])
 
     def _mode(self, config: Optional[dict[str, Any]]) -> str:
         return (config or {}).get("mode") or self.DEFAULT_MODE
@@ -221,6 +249,19 @@ class Verbrauch(Module):
         # Keine Erfassungspunkte, keine Stichprobe: was gebraucht wird, wird verbaut.
         return {self.LINES: lines, "points": [], "sample": dict(sampling.DEFAULT)}
 
+    def config_schema(self) -> dict[str, Any]:
+        return _schema({
+            self.LINES: {"type": "array", "minItems": 1, "description":
+                         "Die Stückliste: je Zeile ein Artikel, jeder Artikel höchstens einmal",
+                         "items": {"type": "object", "required": ["article", "quantity"],
+                                   "properties": {
+                                       "article": _object_id("Der Artikel, der verbaut wird"),
+                                       "quantity": {"type": "integer", "minimum": 1,
+                                                    "maximum": self.MAX_PER_UNIT,
+                                                    "description": "Menge je Produkt-Stück"}}}},
+        }, required=[self.LINES],
+            examples=[{self.LINES: [{"article": 100000101, "quantity": 4}]}])
+
     @staticmethod
     def _one(row: Any) -> tuple[int, int]:
         """Eine Zeile prüfen: **Artikel + Menge pro Stück**, beide Pflicht."""
@@ -276,6 +317,13 @@ class Bewegen(Module):
         # Lesestelle dieselbe Form vorfindet.
         return {self.TARGET: target,
                 "points": [], "sample": dict(sampling.DEFAULT)}
+
+    def config_schema(self) -> dict[str, Any]:
+        return _schema({
+            self.TARGET: {"type": ["integer", "null"], "description":
+                          "Wohin die Stücke gebracht werden (Objektnummer eines Halters: "
+                          "Instanz, Person, Unternehmen); leer = wird beim Ausführen gewählt"},
+        }, examples=[{self.TARGET: 100000123}, {self.TARGET: None}])
 
     def _as_object_id(self, value: Any) -> Optional[int]:
         """**Das Ziel** – gelesen mit ``Module._object_id``; leer heisst «wird beim
@@ -465,6 +513,47 @@ class Beleg(Module):
             "points": [], "sample": dict(sampling.DEFAULT),
         }
 
+    def config_schema(self) -> dict[str, Any]:
+        from . import incoterms as inc
+        days = {"type": "integer", "minimum": 0, "maximum": 365}
+        return _schema({
+            self.DIRECTION: {"type": "string", "enum": list(vo.DIRECTIONS), "description":
+                             "; ".join(d.hint for d in vo.DIRECTIONS.values())},
+            self.PARTIES: {"type": "array", "maxItems": self.MAX_PARTIES, "description":
+                           "Die zugelassenen Gegenparteien; leer = frei",
+                           "items": {"type": "object", "required": [self.PARTY], "properties": {
+                               self.PARTY: _object_id("Gegenpartei (Person)"),
+                               self.REF: {"type": "string", "maxLength": self.MAX_REF,
+                                          "description": f"{vo.ORDER_REF} ({vo.ORDER_REF_HINT}) "
+                                          f"– Pflicht und nur bei {vo.OUT}"}}}},
+            self.INSTRUCTION: {"type": "string", "maxLength": vo.MAX_TASK,
+                               "description": f"{vo.TASK} – freiwillig; leer = gemäss Spezifikation"},
+            "payment_days": {**days, "description": f"Vorgabe {vo.PAYMENT_TERM_LABEL} in Tagen "
+                             "(0 = Vorauszahlung); leer = am Beleg gewählt"},
+            "lead_days": {**days, "description": f"Vorgabe {vo.LEAD_TERM_LABEL} in Tagen ab Zusage"},
+            "valid_days": {**days, "minimum": 1,
+                           "description": "Vorgabe: wie viele Tage die Offerte gilt"},
+            "incoterm": {"type": "string", "enum": [t.key for t in inc.INCOTERMS],
+                         "description": "Vorgabe Lieferbedingung (Incoterms 2020)"},
+            "ownership": {"type": "string", "enum": [k for k, _ in vo.OWNERSHIP],
+                          "description": f"Vorgabe {vo.OWNERSHIP_LABEL}: " + ", ".join(
+                              f"{k} = {w}" for k, w in vo.OWNERSHIP)},
+            self.PRICES: {"type": "array", "maxItems": self.MAX_PRICES, "description":
+                          f"Vorgegebene Einzelpreise je Artikel, netto – nur bei {vo.IN}",
+                          "items": {"type": "object", "required": ["article", "price"],
+                                    "properties": {
+                                        "article": _object_id("Der Artikel"),
+                                        "price": {"type": ["string", "number"],
+                                                  "description": "Einzelpreis netto, Hauswährung"}}}},
+        }, required=[self.DIRECTION], examples=[
+            {self.DIRECTION: vo.IN, self.PARTIES: [{self.PARTY: 100000201}],
+             self.INSTRUCTION: "Härten auf 58 HRC", "payment_days": 30, "lead_days": 10,
+             "valid_days": 30, "incoterm": "EXW", "ownership": vo.TO_PARTY,
+             self.PRICES: [{"article": 100000101, "price": "120.00"}]},
+            {self.DIRECTION: vo.OUT,
+             self.PARTIES: [{self.PARTY: 100000202, self.REF: "Art.-Nr. 4711"}]},
+        ])
+
     def _clean_instruction(self, value: Any) -> str:
         """**Was ist zu tun?** – freiwillig, in beiden Richtungen, am Modul; leer heisst
         «gemäss Spezifikation»."""
@@ -580,8 +669,26 @@ MODULES: dict[str, Module] = {
 
 KEYS: tuple[str, ...] = tuple(MODULES)
 
+
+def config_schemas() -> dict[str, dict[str, Any]]:
+    """►►► **Die Einstellungen jedes Modultyps als JSON-Schema** – je Schlüssel aus
+    ``Module.config_schema``. Ein neues Modul erscheint hier (und damit in jeder Route, die
+    Schritte nimmt) von selbst. ◄◄◄"""
+    return {k: {"description": m.label, **m.config_schema()} for k, m in MODULES.items()}
+
 LABELS: dict[str, str] = {k: m.label for k, m in MODULES.items()}
 TONES: dict[str, str] = {k: m.tone for k, m in MODULES.items()}
+
+
+def _schema(properties: dict[str, Any], *, required: Optional[list[str]] = None,
+            examples: list[dict[str, Any]]) -> dict[str, Any]:
+    """Ein Objekt-Schema einer Konfiguration – die eine Form für jedes Modul."""
+    return {"type": "object", "properties": properties,
+            **({"required": required} if required else {}), "examples": examples}
+
+
+def _object_id(what: str) -> dict[str, Any]:
+    return {"type": "integer", "description": f"{what} (Objektnummer)"}
 
 
 def get(module_type: Any) -> Module:

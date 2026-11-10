@@ -86,7 +86,9 @@ app/
 │                       oidc.py (der Takt: Google-Token prüfen, require_tick)
 ├── domain/           ← der fachliche Kern: KEINE DB, KEINE Services
 │   ├── statuses.py   ← jeder Zustand: Beschriftung, Ampelton, Achsen, stock, terminal
-│   ├── modules.py    ← die Prozessschrittmodule (MODULES) und was jedes deklariert
+│   ├── modules.py    ← die Prozessschrittmodule (MODULES) und was jedes deklariert; je Modul
+│   │                   `clean_config` ↔ `config_schema` (JSON-Schema → `ModuleInput`, Wächter
+│   │                   `test_module_config_schema`)
 │   ├── capture_types/← Erfassungspunkt-Typen (text · yes_no · photo · signature · measure)
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)

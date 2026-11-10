@@ -400,7 +400,9 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
   };
 }
 
-/** Entwurfsform → API-Form (`schemas/process.ModuleInput`). */
+/** Entwurfsform → API-Form (`schemas/process.ModuleInput`). Der Typ geht hinaus, wie er dasteht –
+ *  ein unbekannter weist der Server mit einem Satz ab (`modules.get`), nicht die Oberfläche. */
 export function toModulePayload(m: ModuleDraft) {
-  return { module_type: m.moduleType, config: lookup(MODULE_FORM, m.moduleType)?.config(m) ?? {} };
+  return { module_type: m.moduleType as ModuleKey,
+           config: lookup(MODULE_FORM, m.moduleType)?.config(m) ?? {} };
 }
