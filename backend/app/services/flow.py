@@ -290,65 +290,53 @@ def _left_through(db: Session, order_id: int) -> dict[int, int]:
     return {int(uid): int(to) for uid, to in rows if to is not None}
 
 
-def _exit_points(db: Session, order_id: int) -> dict[int, int]:
-    """Je Stück das **Modul, an dem es diesen Auftrag verlassen hat** — aus dem Log.
+@dataclass
+class _Last:
+    """Der **letzte Eintrag** eines Stücks in diesem Auftrag – aus dem Log, eine Abfrage."""
 
-    Es gibt genau zwei Arten, einen Auftrag zu verlassen, und der Log unterscheidet sie
-    von selbst: über das **Ende-Objekt** (letzter Eintrag ``end``) oder über ein
-    **Modul**, das ein Stück hinausführt (letzter Eintrag ``step``).
+    kind: str
+    step_id: Optional[int]
+    status_after: str
+
+
+def _last_events(db: Session, order_id: int) -> dict[int, _Last]:
+    """Je Stück sein letzter Eintrag in diesem Auftrag. Zwei Fragen lesen ihn:
+
+    - **Wo hat es den Auftrag verlassen?** (``_exit_points``) – über das Ende-Objekt
+      (``end``) oder über ein Modul, das hinausführt (``step``).
+    - **Mit welchem Zustand?** (``status_after``) – für die Achse des Bildes.
+    """
+    last = (
+        select(func.max(ProcessEvent.id).label("last_id"))
+        .where(ProcessEvent.order_id == order_id)
+        .group_by(ProcessEvent.instance_unit_id)
+        .subquery()
+    )
+    rows = db.execute(
+        select(ProcessEvent.instance_unit_id, ProcessEvent.kind, ProcessEvent.step_id,
+               ProcessEvent.status_after)
+        .join(last, ProcessEvent.id == last.c.last_id)
+    ).all()
+    return {int(u): _Last(k, int(s) if s is not None else None, a) for u, k, s, a in rows}
+
+
+def _exit_points(db: Session, order_id: int,
+                 last: Optional[dict[int, _Last]] = None) -> dict[int, int]:
+    """Je Stück das **Modul, an dem es diesen Auftrag verlassen hat**.
 
     ►► **Ein Stück, das noch läuft, verlässt nichts.** ◄◄ Ein wartendes Stück hat ebenfalls
     ``step`` zuletzt; unterschieden wird an der Zugehörigkeit (geschlossen = ``released_at``).
     So gilt der Ausgang auch für den Verbrauch mitten im Ablauf.
     """
-    last = (
-        select(
-            ProcessEvent.instance_unit_id.label("unit"),
-            func.max(ProcessEvent.id).label("last_id"),
-        )
-        .where(ProcessEvent.order_id == order_id)
-        .group_by(ProcessEvent.instance_unit_id)
-        .subquery()
-    )
-    gone = (
-        select(OrderUnit.instance_unit_id)
-        .where(OrderUnit.order_id == order_id, OrderUnit.released_at.isnot(None))
-        .scalar_subquery()
-    )
-    rows = db.execute(
-        select(ProcessEvent.instance_unit_id, ProcessEvent.step_id)
-        .join(last, ProcessEvent.id == last.c.last_id)
-        .where(
-            ProcessEvent.kind == KIND_STEP,
-            ProcessEvent.step_id.isnot(None),
-            ProcessEvent.instance_unit_id.in_(gone),
-        )
-    ).all()
-    return {int(u): int(s) for u, s in rows}
+    last = _last_events(db, order_id) if last is None else last
+    gone = {int(u) for (u,) in db.query(OrderUnit.instance_unit_id).filter(
+        OrderUnit.order_id == order_id, OrderUnit.released_at.isnot(None)).all()}
+    return {u: e.step_id for u, e in last.items()
+            if e.kind == KIND_STEP and e.step_id is not None and u in gone}
 
 
-def _left_with(db: Session, order_id: int) -> dict[int, str]:
-    """**Mit welchem Zustand hat ein Stück diesen Auftrag verlassen?** — aus dem Log.
-
-    Der letzte Eintrag dieses Stücks in **diesem** Auftrag sagt es.
-    """
-    last = (
-        select(
-            ProcessEvent.instance_unit_id.label("unit"),
-            func.max(ProcessEvent.id).label("last_id"),
-        )
-        .where(ProcessEvent.order_id == order_id)
-        .group_by(ProcessEvent.instance_unit_id)
-        .subquery()
-    )
-    rows = db.execute(
-        select(ProcessEvent.instance_unit_id, ProcessEvent.status_after)
-        .join(last, ProcessEvent.id == last.c.last_id)
-    ).all()
-    return {int(u): s for u, s in rows}
-
-
-def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
+def _rows(db: Session, order: Order, left_at: dict[int, int],
+          last: dict[int, _Last]) -> list[_Row]:
     """Alle Zugehörigkeiten dieses Auftrags, angereichert — **eine** Abfrage plus Log."""
     raw = db.execute(
         select(
@@ -366,7 +354,6 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
     through = _left_through(db, order.id)
     # **Kommt es zurück?** – dieselbe Ableitung, die das Modul sperrt (Kette, §3.5).
     coming = order_state.returning_home(db, order)
-    left_with = _left_with(db, order.id)
 
     out: list[_Row] = []
     for mid, at, active, status, unit_id in raw:
@@ -376,7 +363,7 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
         # (geschlossen ohne Punkt): der Zustand, mit dem es DIESEN Auftrag verliess –
         # sonst schriebe ein fremder Auftrag rückwirkend in dieses Bild.
         if not bool(active) and at is None:
-            status = left_with.get(int(unit_id), status)
+            status = last[int(unit_id)].status_after if int(unit_id) in last else status
         out.append(_Row(
             membership_id=int(mid), at=at, status=status, active=bool(active),
             through=through.get(int(unit_id)),
@@ -425,14 +412,15 @@ def build(db: Session, order: Order, *, planned: Optional[list[Planned]] = None)
     tally = _tally(db, order.id)
     # ►► **Wer hier hinausging, ist nicht weitergelaufen.** ◄◄ ``passed`` zählt auch, wer
     # den Auftrag am Modul verlässt (z. B. verbrauchte Komponenten).
-    left_at = _exit_points(db, order.id)
+    last = _last_events(db, order.id)
+    left_at = _exit_points(db, order.id, last)
     # ``onward`` = weitergelaufen; ``tally.passed`` bleibt roh, gegen ihn prüft
     # ``_verify_walked`` die Linienstärke.
     onward = dict(tally.passed)
     for at in left_at.values():
         if at in onward:
             onward[at] = max(0, onward[at] - 1)
-    rows = _rows(db, order, left_at)
+    rows = _rows(db, order, left_at, last)
     plan = planned or []
     g = Graph()
 

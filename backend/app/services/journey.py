@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session, aliased
 from ..domain import statuses as st
 from ..models import Order, OrderUnit, ProcessEvent
 from ..models.process_event import KIND_START
+from .flow import Neighbour
 
 
 def _walked_the_process(order_id: int):
@@ -169,22 +170,22 @@ def _counts_from(db: Session, *, order_id: int, kind: str, status_before: Option
     return sorted(found.values(), key=lambda r: (-r.unit_count, r.order_id))
 
 
-def parents(db: Session, order: Order) -> list[Related]:
+def parents(db: Session, order: Order) -> list[Neighbour]:
     """Aus welchen **laufenden** Aufträgen hat dieser Auftrag Stücke übernommen?
 
     Anker ist sein eigener Start-Eintrag mit ``status_before = im_prozess`` – dieselbe
     Bedingung, die den Auftrag zur Abweichung macht (§2). Daneben steht dann der
-    Auftrag, aus dem das Stück kam.
-
-    Die Zustandspunkte werden **zusammengefasst**: hier ist der Start der Punkt.
+    Auftrag, aus dem das Stück kam. Genannt wie im Graph (``flow.Neighbour``): mit seiner
+    **Objektnummer** – eine Kennung für Nachbarn, gleich woher sie kommen.
     """
-    out: list[Related] = []
-    for rel in _counts_from(db, order_id=order.id, kind=KIND_START,
-                            status_before=st.IM_PROZESS, before=True):
-        merged = Related(rel.order_id)
-        merged.points = [(None, rel.unit_count)]
-        out.append(merged)
-    return out
+    found = _counts_from(db, order_id=order.id, kind=KIND_START,
+                         status_before=st.IM_PROZESS, before=True)
+    if not found:
+        return []
+    numbers = dict(db.query(Order.id, Order.object_id).filter(
+        Order.id.in_([r.order_id for r in found])).all())
+    return [Neighbour(object_id=int(numbers[r.order_id]), unit_count=r.unit_count)
+            for r in found if r.order_id in numbers]
 
 
 # «Welche Aufträge haben mir Stücke abgenommen» beantwortet allein der Graph

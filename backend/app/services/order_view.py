@@ -7,7 +7,7 @@ Gelesen, nie geschrieben – ausser den Positionen des eigenen Belegs beim Anzei
 (``voucher.sync_lines``, bewusst; ``keep``).
 """
 
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence
 from sqlalchemy.orm import Session
 from ..domain import statuses as st
 from ..models import (
@@ -226,9 +226,8 @@ def loop_view(db: Session, order: Order) -> Optional[LoopView]:
     return LoopView(**found) if found is not None else None
 
 
-def related(db: Session, order: Order,
-             counts: Sequence[Union[journey_svc.Related, flow_svc.Neighbour]],
-             *, incoming: bool) -> list[RelatedOrder]:
+def related(db: Session, order: Order, counts: Sequence[flow_svc.Neighbour],
+            *, incoming: bool) -> list[RelatedOrder]:
     """Nachbar-Aufträge mit **ihrem eigenen Ablauf** – dieselbe Form wie die Mitte.
 
     Sie werden daneben mit derselben Komponente gezeichnet, aber blass und ohne Inhalt der
@@ -238,57 +237,39 @@ def related(db: Session, order: Order,
 
     Die Liste kommt für Abweichungen aus dem **Graph** (dort steht die Abzweigung) und
     für übergeordnete Aufträge aus dem **Log** (dort steht die Übernahme) – beide nennen
-    einen Auftrag über seine ``order_id``, mehr braucht es hier nicht.
+    einen Auftrag gleich: mit seiner Objektnummer (``flow.Neighbour``).
     """
     if not counts:
         return []
-    wanted = order_ids(db, counts)
-    rows = {o.id: o for o in db.query(Order).filter(Order.id.in_(wanted)).all()}
-    states = order_state.order_statuses(db, list(rows))
+    rows = {int(o.object_id): o for o in db.query(Order).filter(
+        Order.object_id.in_([n.object_id for n in counts])).all()}
+    ids = [o.id for o in rows.values()]
+    states = order_state.order_statuses(db, ids)
     # Wer gibt zurück: bei Abweichungen die Verbindung des Nachbarn zu mir, bei einem
     # übergeordneten Auftrag meine eigene zu ihm.
     if incoming:
         mine = {m.return_to_order_id for m in db.query(OrderUnit).filter(
             OrderUnit.order_id == order.id, OrderUnit.return_to_order_id.isnot(None)).all()}
-        returning = {oid for oid in rows if oid in mine}
+        returning = {oid for oid in ids if oid in mine}
     else:
-        returning = journey_svc.returning_to(db, order, list(rows))
+        returning = journey_svc.returning_to(db, order, ids)
 
     out: list[RelatedOrder] = []
-    for rel, oid in zip(counts, wanted):
-        row = rows.get(oid)
+    for rel in counts:
+        row = rows.get(rel.object_id)
         if row is None:
             continue
         out.append(RelatedOrder(
             object_id=row.object_id,
             name=row.name,
-            status=states.get(oid, st.IM_PROZESS),
+            status=states.get(row.id, st.IM_PROZESS),
             steps=steps_view(db, row, drawn=True),
             flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row))),
             active_step_id=order_state.active_step_id(db, row),
             unit_count=rel.unit_count,
-            returns=oid in returning,
+            returns=row.id in returning,
         ))
     return out
-
-
-def order_ids(db: Session,
-               counts: Sequence[Union[journey_svc.Related, flow_svc.Neighbour]]) -> list[int]:
-    """Die internen ``id``s der Nachbarn – gleich, aus welcher Quelle sie kommen.
-
-    Der Graph kennt einen Auftrag über seine **Objektnummer** (nach aussen ist das seine
-    Identität), der Log über die interne ``id``. Hier wird das **einmal** übersetzt, in
-    einer Abfrage – statt die eine Quelle der anderen anzupassen.
-    """
-    objs = [r.object_id for r in counts if isinstance(r, flow_svc.Neighbour)]
-    known = {
-        int(o): int(i)
-        for o, i in db.query(Order.object_id, Order.id).filter(Order.object_id.in_(objs)).all()
-    } if objs else {}
-    return [
-        known.get(r.object_id, -1) if isinstance(r, flow_svc.Neighbour) else r.order_id
-        for r in counts
-    ]
 
 
 def event_numbers(db: Session, events) -> dict[int, str]:
