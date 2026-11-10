@@ -8,9 +8,8 @@ Bestätigung des Newsletters –, entsteht hier, auf demselben Weg:
    dem Postfach. Nie der Admin, der das Postfach verbunden hat.
 2. **Gebaut beim Anlegen, einmal** (``build``): Vorlage, Unterschrift, Fuss. Was im Verlauf
    steht, ist ab diesem Augenblick, was hinausgeht – der Versand baut nichts mehr.
-3. **Zum Versand gegeben** (``outgoing``): sie wartet auf ihr Postfach, bis es verbunden ist,
-   statt still als «gesendet» dazustehen. Ohne Anbindung an Gmail (``mailbox.ready``) wird
-   sie nur erfasst.
+3. **Zum Versand gegeben** (``outgoing``): sie geht hinaus, oder sie wartet auf ihr Postfach,
+   bis es verbunden ist – nie steht sie still als «gesendet» da. Einen dritten Weg gibt es nicht.
 
 Die Gesellschaft, wie sie in Unterschrift und Fuss steht, kommt aus ``firm`` – ebenfalls
 nur hier.
@@ -76,9 +75,8 @@ def deliver(db: Session, *, channel: str, to: list[int], subject: str, lead: str
     staff = author is not None and policy.is_staff(author) and author.object_id
     msg = Message(sender_object_id=author.object_id if staff else dc.company_of(channel),
                   channel=channel, subject=subject, body=lead, at=clock.utcnow(),
-                  created_by=author.id if staff else None, outgoing=mailbox.ready())
+                  created_by=author.id if staff else None, outgoing=True)
     write(db, msg, {"to": to, "cc": [], "bcc": [], "about": []})
     build(db, msg, kicker=kicker, extra=extra)
-    if msg.outgoing:
-        mailbox.send_after(db)
+    mailbox.send_after(db)
     return msg

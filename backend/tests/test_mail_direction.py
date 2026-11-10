@@ -21,6 +21,7 @@ from app.services import communication as comm
 from app.services import mailbox as mb
 from tests import test_mailbox
 from tests.test_mailbox import CH, COMPANY, _gmail, _one, _person
+from tests.factories import post_office
 
 world = test_mailbox.world     # dieselbe Bühne: Postfach, Mitarbeiter, eigene Adresse
 
@@ -29,10 +30,11 @@ def _row(db, raw) -> Message:
     return db.query(Message).filter(Message.gmail_id == raw["id"]).one()
 
 
-def test_a_colleague_writing_from_a_private_address_writes_to_us(world):
+def test_a_colleague_writing_from_a_private_address_writes_to_us(world, monkeypatch):
     """Bug-Form: ein Mitarbeiter schreibt von seiner privaten Adresse an das Postfach – die
     Mail stand als «von uns» da, war nie offen, und «Antworten» hatte niemanden im «An»."""
     db, staff, box = world
+    post_office(db, monkeypatch)
     raw = _gmail(f"{staff.display_name} <{staff.email}>", to=COMPANY, subject="Frage zum Kran")
     assert mb.ingest(db, box, raw)
     out = _one(db, raw["id"])
@@ -122,10 +124,11 @@ def test_a_mail_sent_from_gmail_is_written_by_the_company(world):
     assert not msg.inbound
 
 
-def test_a_mail_without_a_subject_can_be_answered(world):
+def test_a_mail_without_a_subject_can_be_answered(world, monkeypatch):
     """Bug-Form: eine Mail ohne Betreff liess sich nicht beantworten – der Betreff der
     Antwort war leer, der Knopf blieb bei «Betreff fehlt», und sie blieb für immer offen."""
     db, staff, box = world
+    post_office(db, monkeypatch)
     lea = _person(db)
     raw = _gmail(f"Lea <{lea.email}>", to=COMPANY, subject="")
     assert mb.ingest(db, box, raw)
@@ -237,3 +240,18 @@ def test_a_mail_that_did_not_go_out_says_so_and_can_be_resent(world, monkeypatch
     assert out.pending and not out.failed
     mb._failed(db, msg, "Gmail war nicht erreichbar.")
     assert msg.outgoing, "nach «Neu senden» zählen die Versuche von vorn"
+
+
+def test_without_a_mailbox_a_mail_waits_and_no_mail_is_offered(db, monkeypatch):
+    """►►► Nur ein Modus: eine Mail geht hinaus oder wartet auf ihr Postfach. ◄◄◄ Bug-Form:
+    ohne Anbindung an Gmail wurde sie «nur erfasst» – sie stand wie gesendet da und ging nie
+    hinaus; und die Eingabe bot ein Postfach an, das nichts senden konnte."""
+    from app.services import outbox
+    monkeypatch.setattr(mb, "ready", lambda: False)
+    monkeypatch.setattr(mb, "send_after", lambda _db: None)
+    lea = _person(db)
+    msg = outbox.deliver(db, channel="c999999977", to=[lea.object_id], subject="Rechnung 9",
+                         lead="Guten Tag")
+    out = comm.load(db, [msg.id])[0]
+    assert msg.outgoing and out.pending, "wartet – steht nie als gesendet da"
+    assert "c999999977" not in [c.key for c in comm.channels(db)]

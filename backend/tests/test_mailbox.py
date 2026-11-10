@@ -20,7 +20,7 @@ from app.services import communication as comm
 from app.services import mailbox as mb
 from app.services import objects
 from tests.runner import session
-from tests.factories import new_person
+from tests.factories import new_person, quiet_outbox
 
 COMPANY = "info.test@example.com"
 #: Das Postfach einer (gedachten) eigenen Gesellschaft – die Form ``c<Objektnummer>``.
@@ -142,6 +142,7 @@ def test_an_outward_mail_goes_out_through_its_mailbox(world, monkeypatch):
     """Mit Anbindung: ohne verbundenes Postfach keine Mail nach aussen (400); mit ihm
     wird sie gesendet – und bis dahin steht sie als «muss hinaus» da."""
     db, staff, box = world
+    quiet_outbox(db)
     lea = _person(db)
     sent = []
     monkeypatch.setattr(mb, "ready", lambda: True)

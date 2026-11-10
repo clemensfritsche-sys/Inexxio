@@ -23,7 +23,7 @@ from app.services import communication as comm
 from app.services import documents as docs
 from app.services.documents import RefIn
 from app.services import history
-from tests.factories import new_firm, new_person
+from tests.factories import new_firm, new_person, post_office
 from tests.runner import BACKEND
 from tests.scenarios import World
 
@@ -31,7 +31,8 @@ PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"
 
 
 @pytest.fixture()
-def world(db):
+def world(db, monkeypatch):
+    post_office(db, monkeypatch)
     staff = new_person(db, "employee")
     return db, staff
 

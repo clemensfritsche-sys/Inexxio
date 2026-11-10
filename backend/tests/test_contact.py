@@ -22,6 +22,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from tests.factories import quiet_outbox
 from tests.support import after_save
 from app.core.database import get_db
 from app.domain import communication as dc
@@ -42,6 +43,7 @@ CHANNEL = f"c{FIRM}"
 @pytest.fixture
 def world(db, monkeypatch):
     db.commit = db.flush            # zurückrollbar bleiben
+    quiet_outbox(db)
     staff = UserProfile(firebase_uid=f"uid-s{random.randint(1, 10**9)}", role="employee",
                         email=f"staff{random.randint(1, 10**9)}@inexxio.test",
                         object_id=random.randint(900_000_000, 999_999_999))

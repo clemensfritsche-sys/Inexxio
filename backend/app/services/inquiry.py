@@ -221,7 +221,7 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     ohne eine leise Einladung – nie an Angemeldete oder Abgemeldete."""
     from .newsletter import offer
     box = mailbox.active(db, inquiry.channel)
-    if not mailbox.ready() or box is None or box.problem:
+    if box is None or box.problem:
         return False
     more = extra(inq, inquiry.at, words)
     more.action = offer(db, inquiry.sender_object_id, inq.newsletter)

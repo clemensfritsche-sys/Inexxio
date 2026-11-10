@@ -50,3 +50,38 @@ def messages_of(db, object_id: int) -> list:
     for m in out:
         m.recipients = sizes.get(m.id, 0)
     return out
+
+
+#: Das Postfach der Tests – eine (gedachte) eigene Gesellschaft.
+TEST_CHANNEL = "c999999990"
+
+
+def post_office(db, monkeypatch, channel: str = TEST_CHANNEL):
+    """►►► **Das Test-Postfach**: verbunden, und was hinaus soll, ist sofort draussen. ◄◄◄
+    Eine Mail kennt nur zwei Wege – sie geht hinaus, oder sie wartet auf ihr Postfach; hier
+    geht sie hinaus, ohne Gmail (``mailbox.send_after`` vermerkt sie als gesendet)."""
+    import uuid
+    from app.models import Mailbox, Message
+    from app.services import mailbox
+    box = mailbox.active(db, channel)
+    if box is None:
+        box = Mailbox(channel=channel, address=f"info+{channel}@example.ch",
+                      owner_object_id=1, token="x")
+        db.add(box)
+        db.flush()
+
+    def deliver(session) -> None:
+        for m in session.query(Message).filter(Message.outgoing.is_(True)).all():
+            m.outgoing, m.gmail_id = False, f"g-{uuid.uuid4().hex[:12]}"
+        session.flush()
+    monkeypatch.setattr(mailbox, "send_after", deliver)
+    return box
+
+
+def quiet_outbox(db) -> None:
+    """Was andere Tests zum Versand gaben, gilt hier als draussen – ein Test, der zählt, was
+    hinausgeht, sieht nur seine eigenen Mails (zurückgerollt mit dem Test)."""
+    from app.models import Message
+    db.query(Message).filter(Message.outgoing.is_(True)).update(
+        {Message.outgoing: False}, synchronize_session=False)
+    db.flush()

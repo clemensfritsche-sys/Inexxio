@@ -15,7 +15,7 @@ from app.models import UserProfile
 from app.schemas.communication import MessageIn
 from app.services import communication as svc
 from tests.runner import BACKEND
-from tests.factories import messages_of, new_person
+from tests.factories import messages_of, new_person, post_office
 
 
 def _person(db, role="user", company=None) -> int:
@@ -35,7 +35,8 @@ def _one(db, msg_id):
 
 
 @pytest.fixture()
-def world(db):
+def world(db, monkeypatch):
+    post_office(db, monkeypatch)
     staff = _person(db, "employee")
     actor = db.query(UserProfile).filter(UserProfile.object_id == staff).one()
     yield db, actor, staff

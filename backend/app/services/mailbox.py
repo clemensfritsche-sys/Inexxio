@@ -70,7 +70,9 @@ EXPIRED = "Die Verbindung ist abgelaufen – bitte das Postfach neu verbinden."
 
 
 def ready() -> bool:
-    """Gibt es eine Anbindung? Ohne OAuth-Client nicht – dann wird eine Mail nur erfasst."""
+    """Gibt es eine Anbindung an Gmail (OAuth-Client)? Ohne sie lässt sich kein Postfach
+    verbinden und nichts abholen oder senden – eine Mail wartet dann, wie an jedem nicht
+    verbundenen Postfach."""
     s = get_settings()
     return bool(s.google_client_id and s.google_client_secret)
 

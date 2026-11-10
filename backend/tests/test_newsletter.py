@@ -25,7 +25,7 @@ from app.services import inquiry
 from app.services import mail_layout
 from app.services import mailbox as mb
 from app.services import newsletter as nl
-from tests.factories import messages_of, new_person
+from tests.factories import messages_of, new_person, quiet_outbox
 
 CH = "c999999992"
 
@@ -37,6 +37,7 @@ def _person(db, role="user"):
 @pytest.fixture
 def world(db, monkeypatch):
     db.commit = db.flush            # zurückrollbar bleiben
+    quiet_outbox(db)
     staff = _person(db, "employee")
     box = SimpleNamespace(owner_object_id=staff.object_id, problem=None,
                           address="info@example.ch", picture="")

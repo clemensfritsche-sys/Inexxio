@@ -171,7 +171,7 @@ def sending_channel(db: Session, country: Optional[str] = None) -> Optional[str]
     Land (wie auf der Website), sonst der Betreiber. ``None`` = keines verbunden."""
     from . import mailbox, sites
     firm = sites.company_for_country(db, country) or sites.find_operator(db)
-    if firm is None or not firm.object_id or not mailbox.ready():
+    if firm is None or not firm.object_id:
         return None
     key = dc.company(firm.object_id)
     box = mailbox.active(db, key)

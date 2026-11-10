@@ -63,16 +63,14 @@ def channels(db: Session) -> list[ChannelOut]:
     """►►► **Worüber geschrieben werden kann** – im eigenen Namen, und eine E-Mail über das
     Postfach einer eigenen Gesellschaft. Persönliche Postfächer gibt es nicht. ◄◄◄
 
-    Mit Anbindung nur **verbundene** Postfächer (Betreiber zuerst): ein anderes könnte die
-    Mail nicht hinausschicken. Ohne Anbindung wird nur erfasst – dann jede eigene
-    Gesellschaft. Dazu Telefon und Intern."""
+    Nur **verbundene** Postfächer (Betreiber zuerst): ein anderes könnte die Mail nicht
+    hinausschicken. Ist keines verbunden, gibt es keine E-Mail – nur Telefon und Intern."""
     from . import mailbox
     from .sites import find_operator, selectable_companies
     op = find_operator(db)
     firms = sorted(selectable_companies(db), key=lambda c: (op is None or c.id != op.id, c.id))
-    keys = [dc.company(c.object_id) for c in firms if c.object_id]
-    if mailbox.ready():
-        keys = [k for k in keys if (mb := mailbox.active(db, k)) is not None and not mb.problem]
+    keys = [k for k in (dc.company(c.object_id) for c in firms if c.object_id)
+            if (mb := mailbox.active(db, k)) is not None and not mb.problem]
     keys += list(dc.CHANNELS)
     labels = _labels(db, keys)
     return [channel_out(k, *labels.get(k, (None, None))) for k in keys]
@@ -287,14 +285,12 @@ def write(db: Session, msg: Message, roles: dict[str, list[int]]) -> Message:
 
 def _hand_to_mailbox(db: Session, msg: Message, roles: dict[str, list[int]], *,
                      now: bool = True) -> None:
-    """**Eine Mail von uns nach aussen geht hinaus** – über das Postfach ihres Kanals.
-
-    Nur, wo es eine Anbindung gibt (``mailbox.ready``) – sonst wird sie wie bisher nur
-    erfasst. Gibt es sie, ist das Postfach Pflicht: eine Mail, die das ERP als
-    «verschickt» zeigt und die nie hinausging, wäre schlimmer als eine Ablehnung."""
+    """**Eine Mail von uns nach aussen geht hinaus** – über das Postfach ihres Kanals. Das
+    Postfach ist Pflicht: eine Mail, die das ERP als «verschickt» zeigt und die nie
+    hinausging, wäre schlimmer als eine Ablehnung. Einen Modus «nur erfassen» gibt es nicht."""
     from . import mailbox, outbox
     outward = roles["to"] or roles["cc"] or roles["bcc"]
-    if not (dc.is_mail(msg.channel) and outward and mailbox.ready()):
+    if not (dc.is_mail(msg.channel) and outward):
         return
     if msg.inbound:
         return          # eine eingegangene Mail, von Hand erfasst – sie ging nie hinaus
