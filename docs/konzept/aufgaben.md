@@ -1,49 +1,42 @@
 # Projektakte «Aufgaben» – wer macht was
 
-> **Kopfstatus:** Konzept · **nichts gebaut** · Lead: Claude · Entscheid: Clemens Fritsche ·
-> seit 10.11.2026
+> **Kopfstatus:** Konzept, Fassung 2 · **nichts gebaut** · Lead: Claude · Entscheid: Clemens
+> Fritsche · seit 10.11.2026 · zuletzt 10.11.2026 (Rückmeldung zu Fassung 1 eingearbeitet)
 > Bild (das ERP, wie es damit aussieht – 1:1, klickbar): https://claude.ai/artifact/4CpZXNTBtdTzuArnDSHY4r
 > Diese Akte ist die **eine** Quelle für Ziel, Regeln, Modell, Plan und Entscheide des Projekts
 > «Aufgaben». Was hier nicht als **entschieden** steht, ist nicht entschieden. Das Bild zeigt, die
-> Akte hält fest. Vorgänger: `docs/konzept/lernende-firma.md` §3 («feste Zuständigkeit kommt mit
-> dem Projekt «Aufgaben»») und `docs/konzept/wiederkehr.md` O18.
+> Akte hält fest. Fassung 1 steht in der Git-Geschichte dieser Datei. Vorgänger:
+> `docs/konzept/lernende-firma.md` §3 («feste Zuständigkeit kommt mit dem Projekt «Aufgaben»») und
+> `docs/konzept/wiederkehr.md` O18.
 
 ## 0 · Kurzfassung (zum Prüfen)
 
-1. **Eine Aufgabe ist eine Ableitung, keine Zeile.** Das ERP weiss heute schon, wo etwas zu tun
-   ist (ein Prozessschritt hat Stücke, eine Nachricht ist offen, ein Papier steht an …). Diese
-   Stellen werden zu **einer** Liste «Aufgaben». Niemand legt eine Aufgabe von Hand an, niemand
-   hakt sie ab: sie verschwindet, sobald die Sache erledigt ist.
-2. **Kompetenz statt Abteilung.** Jede Person hat Kompetenzen («kann Kranprüfung», «kann
-   Offerten»), vergeben vom Admin. Jede Aufgabe verlangt höchstens **eine** Kompetenz. Wer sie
-   hat, kann die Aufgabe bekommen – egal, was er sonst macht.
+1. **Eine Aufgabe ist eine Ableitung, keine Zeile.** Das ERP weiss schon, wo etwas zu tun ist
+   (Prozessschritt, offene Nachricht, anstehendes Papier, fehlende Angabe …). Niemand legt eine
+   Aufgabe an, niemand hakt sie ab: sie verschwindet, sobald die Sache erledigt ist – und solange
+   sie gerade nicht machbar ist (man wartet), gibt es sie nicht.
+2. **Kompetenz statt Abteilung.** Wer eine Kompetenz hat, bekommt die Aufgaben dazu – egal, was er
+   sonst tut. Kompetenzen gibt der Admin. **Eine Kompetenz ohne Person gibt es nicht.**
 3. **Eine Aufgabe gehört genau einer Person. Eine Person hat genau eine Aufgabe: «Dran».**
-   Beides steht als Regel in der Datenbank (zwei eindeutige Schlüssel) – eine Doppelvergabe ist
-   unmöglich, nicht verboten.
-4. **Zugeteilt wird beim Freiwerden (Pull).** Wird eine Person frei (Aufgabe erledigt, «Kommen»,
-   abgegeben), bekommt sie die **oberste** Aufgabe, die sie kann. Der Rest wartet im Topf
-   «Alle Aufgaben», für alle sichtbar.
-5. **Die Reihenfolge rechnet das System** – erklärbar, in drei Stufen: **dringend** (eine Frist
-   ist vorbei) → **Termin** (früher zuerst) → **wartet am längsten**. Ein einziger Handgriff von
-   Hand: **«Vorziehen»** (mit Grund, im Log).
-6. **Gezeigt wird im Feed, keine neue Maske.** Ein Filter «Aufgaben» im Feed, oben die eine Karte
-   «Dran», am Datensatz eine Leiste «Du bist dran». «Zu tun» heisst künftig «Aufgaben».
-7. **Nichts blockiert.** Jeder darf im ERP jederzeit alles tun, was er darf – die Zuteilung ist
-   Orientierung, keine Sperre. Wer eine fremde Aufgabe erledigt, hat sie erledigt.
+4. **Wer frei wird, bekommt die nächste Aufgabe, die er kann.** Die Reihenfolge rechnet das System;
+   Stufen oder Farben sieht niemand. Die Person tut, was zuoberst steht.
+5. **Keine neue Oberfläche.** Ohne Filter steht im Feed zuoberst genau **eine** Zeile: mein Dran –
+   der Datensatz selbst, kein eigener Bereich, keine Karte, kein «Öffnen». Darunter die übrigen
+   Datensätze nach Aufgaben sortiert. Im Datensatz steht «Du bist dran» **dort, wo man es tut**
+   (am Schritt, an der Nachricht, an der Karte) – nicht im Kopf.
+6. **Abgeben ist ein Klick** – ohne Grund. Die Aufgabe geht an die nächste freie Person, die sie kann.
+7. **Nichts blockiert.** Jeder darf weiterhin alles tun, was er darf. Wer eine fremde Aufgabe
+   erledigt, hat sie erledigt.
 
 ## 1 · Problem
 
-- **«Zu tun» zählt am Ding, nicht bei der Person.** Die Zahl am Symbol sagt: «an diesem Auftrag,
-  dieser Person, dieser Gesellschaft ist etwas offen». Sie sagt nicht, **wer** es tun soll. Eine
-  offene Mail zählt beim Kunden **und** bei jedem Mitarbeitenden, der im Verlauf steht – alle
-  sehen sie, keiner ist zuständig.
-- **Die Hauptarbeit fehlt in «zu tun».** Dass an einem Auftrag ein Prozessschritt dran ist
-  (Stücke warten an einer Datenerfassung, an einem Bewegen), zählt heute **nirgends** – man muss
-  den Auftrag öffnen. Dabei sind Aufträge der Hauptweg, wie im Unternehmen etwas getan wird.
+- **«Zu tun» sagt nur «wo», nie «wer».** Die Zahl hängt am Datensatz. Eine offene Mail zählt bei
+  allen, die im Verlauf stehen: alle sehen sie, zuständig ist niemand.
+- **Die Hauptarbeit fehlt.** Dass an einem Auftrag ein Prozessschritt dran ist, zählt heute
+  nirgends – man muss den Auftrag öffnen. Aufträge sind aber der Hauptweg, wie etwas getan wird.
 - **Keine Reihenfolge.** Was zuerst? Heute entscheidet, wer zuerst hinschaut.
-- **Abteilungsdenken droht, sobald man Zuständigkeit «nach Stelle» baut.** Genau das soll nicht
-  entstehen: «Mein Job ist X, alles andere nicht.»
-- **Zehn Dinge gleichzeitig** heisst: zehn Dinge halb. Wechseln kostet Zeit und Fehler.
+- **Abteilungsdenken** droht, sobald man Zuständigkeit «nach Stelle» baut.
+- **Zehn Dinge gleichzeitig** heisst: zehn Dinge halb.
 
 ## 2 · Ziel
 
@@ -51,387 +44,257 @@
 Person. Ohne dass jemand plant, verteilt oder nachfragt.**
 
 Messpunkte (nach rund drei Monaten, einmal von Hand aus dem Log):
-
-1. **Keine Aufgabe ohne Person**, die länger als eine Stunde frei im Topf liegt, während jemand
-   mit der Kompetenz frei ist.
-2. **Nichts Überfälliges unbemerkt:** eine dringende Aufgabe ist binnen 15 Minuten bei jemandem.
-3. **Kein Verteilen von Hand:** «Vorziehen» höchstens ein paar Mal pro Woche.
-4. **Keine neue Insel:** keine neue Maske, kein neuer Datensatztyp – Feed und Datensatz genügen.
+1. Keine Aufgabe liegt länger als eine Stunde ohne Person, während jemand frei ist, der sie kann.
+2. Kein Verteilen von Hand.
+3. Keine neue Maske, kein neuer Datensatztyp.
 
 ## 3 · Grundsätze
 
-- **Aufgabe = Ableitung.** Wo etwas zu tun ist, weiss die Quelle (Prozess, Kommunikation,
-  Zahlung, Zeiterfassung …). Die Aufgabenliste speichert davon **nichts** – sie fragt die Quellen
-  (wie heute `services/todo`). Erledigt ist, wenn die Quelle nichts mehr meldet. Keine zweite
-  Wahrheit, kein Abhaken.
-- **Gespeichert wird nur, was ein Mensch entscheidet oder was nicht abzuleiten ist:** wer welche
-  Kompetenz hat · welche Kompetenz eine Aufgabe verlangt · wer gerade dran ist · was vorgezogen
-  wurde.
-- **Recht ≠ Kompetenz.** Das Recht (`domain/policy`) ist das **Tor**: darf ich das? Die Kompetenz
-  ist die **Zuteilung**: soll ich das bekommen? Zugeteilt wird nur, wer **darf und kann**.
-  «Admin» ist ein Recht, keine Kompetenz – ein Admin bekommt Aufgaben wie jeder andere, nach
-  seinen Kompetenzen.
-- **Jeder macht alles, was er kann.** Es gibt keine Abteilungen, keine Teams, keine Rollen
-  ausser den drei Zugangsrollen. Wer eine Kompetenz hat, gehört für diese Aufgaben dazu.
-- **Ein Fokus.** Eine Person hat genau eine Aufgabe «Dran». Mehr zeigt das System ihr nicht an
-  erster Stelle – alles andere ist im Topf und läuft nicht weg.
-- **Das System bietet an, der Mensch entscheidet** (Leitbild). Zuteilung ist ein Angebot; jeder
-  kann abgeben, jeder kann jede Aufgabe, die er darf, sofort selbst erledigen.
-- **Erklärbar statt klug.** Die Reihenfolge ist eine feste Regel in drei Stufen, kein Score und
-  keine KI. Jede Aufgabe sagt im Hover, **warum** sie dort steht und **warum** sie bei dieser
-  Person ist.
-- **Keine Überwachung.** Das Log hält fest, wer wann dran war (es hält ohnehin alles fest). Daraus
-  entsteht **keine** Rangliste und keine Leistungsauswertung je Person (CH ArGV 3 Art. 26:
-  Systeme zur Verhaltensüberwachung am Arbeitsplatz sind verboten). Ausgewertet werden
-  Durchlaufzeiten von Aufgaben und Aufträgen, nicht von Menschen.
+- **Aufgabe = Ableitung.** Die Quellen wissen, was zu tun ist (heute `services/todo`, dazu
+  Prozessschritt und Beleg). Gespeichert wird nur, was ein Mensch entscheidet oder nicht abzuleiten
+  ist: wer welche Kompetenz hat, wer gerade dran ist.
+- **Recht ≠ Kompetenz.** Das Recht (`domain/policy`) ist das Tor: darf ich das? Die Kompetenz ist die
+  Zuteilung: soll ich das bekommen? Zugeteilt wird nur, wer **darf und kann**. «Admin» ist ein Recht.
+- **Jeder macht alles, was er kann.** Keine Abteilungen, keine Teams, keine Rollen ausser den drei
+  Zugangsrollen.
+- **Ein Fokus.** Eine Person hat genau eine Aufgabe.
+- **Die Person tut, was das System ihr gibt.** Keine Liste zum Auswählen, keine Prioritätsstufen.
+- **Am Geschehen.** «Dran» steht dort, wo man es tut – nie als Banner.
+- **Erklärbar.** Die Reihenfolge ist eine feste Regel (§6.4), keine KI. Im Hover steht, warum.
+- **Keine Überwachung.** Das Log hält fest, wer wann dran war; daraus entsteht keine Rangliste und
+  keine Leistungsauswertung je Person (CH ArGV 3 Art. 26).
 
 ## 4 · Ist-Analyse (Stand Code 10.11.2026)
 
-**Was es schon gibt und wiederverwendet wird**
-
 | Baustein | Wo | Rolle künftig |
 |---|---|---|
-| «zu tun» – sammelt offene Dinge je Datensatz | `services/todo.py` → `GET /erp/todo`, `lib/todo.ts`, Zahl am `RecordIcon` | wird **die Quelle der Aufgaben** (je Eintrag zusätzlich Art und Schlüssel) |
-| Offene Nachrichten, überfällig nach 2 h | `communication.open_counts` | Aufgabenart «Nachricht beantworten» |
-| Zeiterfassung: «Gehen» fehlt, Nachweis fällig | `timekeeping.tasks` | **persönlich** (nur die Person selbst) |
-| Überfällige Rechnungen | `payment_list.overdue_counts` | «Mahnen» |
-| Pflichtangaben fehlen | `people.missing_fields` | «Stammdaten ergänzen» |
-| Papiere stehen an (AB, Quittung) | `voucher_money.papers_due` | «Papier prüfen und freigeben» |
-| Erwartete Dokumente | `requirements.of_vouchers` | «Dokument nachreichen» |
-| Wiederholung wartet | `loop.todo_items` | «Wiederholung klären» |
-| Feiertage, Rechtstexte fehlen | `holidays.holiday_tasks`, `legal` | «Gesellschaft pflegen» (nur Admin darf) |
-| Handgriffe aus Mails | `handgriff.open_mail_counts` | «Vorschlag prüfen» |
-| Prozessschritt hat wartende Stücke | `order_view` (`waiting`, `waiting_for`), `process.confirm_step` | **neu als Quelle**: «Schritt ausführen» |
-| Zahlung: nächste Handlung von uns | `voucher.situation` (`primary`, `can`) | **neu als Quelle**: «Beleg weiterbringen» |
-| Anwesenheit | Zeiterfassung (Stempel, Absenzen) | wer gerade zugeteilt werden kann |
-| Rechte | `domain/policy.RULES` (`may`) | das Tor vor jeder Zuteilung |
-| Log | `log` (Trigger), `services/log.event` | Ereignisse `task.*`, Geschichte jeder Aufgabe |
-| Sprung zur Stelle | `jumpToTodo` (`data-todo`) | Klick auf «Dran» springt dorthin |
-
-**Was fehlt**
-- Eine Antwort auf **«wer?»** (heute nur «wo?»).
-- Der **Prozessschritt** als Aufgabe (die wichtigste Quelle fehlt).
-- Kompetenzen, Termin am Auftrag, Zuteilung, Reihenfolge.
-- Eine Trennung **Aufgabe ↔ Hinweis**: der KI-Deckel bei 80 % ist eine Auskunft, keine Aufgabe.
+| «zu tun» – sammelt offene Dinge je Datensatz | `services/todo.py` → `GET /erp/todo`, `lib/todo.ts`, Zahl am `RecordIcon` | wird **die Quelle der Aufgaben** (je Eintrag Art, Schlüssel, Kompetenz) |
+| Offene Nachrichten, überfällig nach 2 h | `communication.open_counts` | Nachricht beantworten |
+| Zeiterfassung: «Gehen» fehlt, Nachweis | `timekeeping.tasks` | Aufgabe, die nur die Person selbst kann |
+| Überfällige Rechnungen | `payment_list.overdue_counts` | Mahnen |
+| Pflichtangaben fehlen | `people.missing_fields` | Angaben ergänzen (Kunde: Kundendienst; ich selbst: nur ich) |
+| Papiere stehen an · erwartete Dokumente | `voucher_money.papers_due` · `requirements` | Papier prüfen und freigeben · Dokument nachreichen |
+| Wiederholung wartet | `loop.todo_items` | Wiederholung klären |
+| Feiertage, Rechtstexte fehlen | `holidays`, `legal` | nur der Admin darf |
+| Handgriffe aus Mails | `handgriff.open_mail_counts` | Vorschlag prüfen |
+| Prozessschritt hat wartende Stücke | `order_view` (`waiting`), `process.confirm_step` | **neu als Quelle** |
+| Zahlung: nächste Handlung von uns | `voucher.situation` (`primary`, `can`) | **neu als Quelle** |
+| Anwesenheit | Zeiterfassung | wer gerade zugeteilt werden kann |
+| Sprung zur Stelle | `jumpToTodo` (`data-todo`) | Klick auf die Dran-Zeile springt an die Stelle |
+| KI-Deckel 80 % | `todo._cap_item` | **Hinweis, keine Aufgabe** (nichts zu erledigen) |
 
 ## 5 · Begriffe
 
 | Wort | Bedeutung |
 |---|---|
-| **Aufgabe** | Etwas, das ein Mensch mit einer Handlung im ERP erledigen kann – abgeleitet aus einer Quelle. Hat einen festen **Schlüssel**, eine **Art**, einen **Ort** (Datensatz + Stelle) und höchstens eine **Kompetenz**. |
-| **Art** | Was für eine Aufgabe (Schritt ausführen, Nachricht beantworten, Papier freigeben …) – fester Katalog im Code (`domain/tasks.KINDS`), wie `MODULES`. |
-| **Hinweis** | Etwas, das man wissen soll, aber nicht «erledigen» kann (KI-Deckel, Pause zu kurz). Bleibt als Zahl am Datensatz, kommt **nicht** in den Topf. |
-| **Kompetenz** | Etwas, das eine Person kann (Wissen, das sie umsetzen kann). Ein Name, vom Admin gepflegt. |
-| **Dran** | Die **eine** Aufgabe, die einer Person gerade zugeteilt ist. |
-| **Topf** | Alle Aufgaben, die gerade niemandem zugeteilt sind – sortiert. Im Feed «Alle Aufgaben». |
-| **Persönlich** | Aufgaben, die nur eine bestimmte Person erledigen kann (eigene Zeiterfassung, eigene Stammdaten). Sie gehen nie in den Topf und belegen «Dran» nicht. |
-| **Frei** | Eine Person ist anwesend und hat nichts «Dran». |
+| **Aufgabe** | Etwas, das ein Mensch jetzt mit einer Handlung im ERP erledigen kann – abgeleitet. Fester **Schlüssel**, ein **Ort** (Datensatz + Stelle), höchstens eine **Kompetenz**. |
+| **Hinweis** | Etwas zum Wissen, nicht zum Erledigen (KI-Deckel, Pause zu kurz). Bleibt als Zahl am Datensatz, wird niemandem zugeteilt. |
+| **Kompetenz** | Etwas, das eine Person kann. Zwei Sorten: **Tätigkeit** (fest im Code) und **Fach** (am Schritt angelegt). |
+| **Dran** | Die eine Aufgabe, die einer Person gerade gehört. Wort im ERP. |
+| **Frei** | Eine Person ist da (§6.5) und hat nichts dran. |
 
-Wort im ERP: «Zu tun» wird **«Aufgaben»**. Die Person sieht **«Dran»**. Das ERP sagt heute schon,
-ein Modul sei «dran» – dasselbe Wort, dieselbe Bedeutung: jetzt ist es an der Reihe.
+«Zu tun» bleibt als Zahl am Symbol (was ist an diesem Datensatz offen). «Dran» sagt, was **meins** ist.
 
 ## 6 · Das Modell
 
 ### 6.1 · Die Aufgabe (abgeleitet)
 
-Jede Quelle liefert Zeilen dieser Form (eine Erweiterung von `TodoItem`):
+Jede Quelle liefert: `key` (fest, z. B. `step:<Auftrag>:<Schritt>` · `msg:<Person>:<Betreff>` ·
+`paper:<Beleg>:<Art>`) · `object_id` + `anchor` (Sprungziel) · `label` (ein Satz) · `competence`
+(höchstens eine) · `only` (nur diese Person: eigene Zeiterfassung, eigene Angaben) · `rule`
+(nötiges Recht, Vorgabe `erp`) · `since` · `due` · `overdue`.
 
-```
-key        fester Schlüssel, z. B. step:<Auftrag>:<Schritt> · msg:<Person>:<Betreff>
-           · paper:<Beleg>:<Art> · dunning:<Rechnung> · loop:<Auftrag> · field:<Person>:<Feld>
-kind       Art aus domain/tasks.KINDS
-object_id  der Datensatz, an dem man es tut (Sprungziel)
-anchor     die Stelle darin (data-todo)
-label      ein Satz: «Prüfprotokoll an 1 Stück», «Antwort an Hans Bachmann»
-competence höchstens eine Kompetenz (aus Schritt oder Art), sonst keine
-since      seit wann sie getan werden kann (für «wartet am längsten»)
-due        Termin, falls es einen gibt
-overdue    ist eine Frist vorbei? (rot)
-for_person nur bei persönlichen Aufgaben: wessen
-rule       welches Recht nötig ist (policy-Schlüssel), Vorgabe «erp»
-```
+**Nur was jetzt machbar ist, ist eine Aufgabe**: fehlt Material am Ort, ist der Schritt gesperrt,
+wartet die Zahlung auf die Partei, wartet die Mail auf den Kunden – dann gibt es keine. Körnung: je
+(Auftrag, Schritt) eine, nicht je Stück; je Betreff einer Nachricht eine; je Beleg und Papier eine.
 
-**Nur was jetzt getan werden kann, ist eine Aufgabe** («Nichtverfügbarkeit ist kein Zustand»):
-fehlt Material am Ort (`StepNeed`), ist der Schritt gesperrt (Rückführung ausstehend), wartet die
-Zahlung auf die Partei – dann gibt es **keine** Aufgabe. Sie entsteht von selbst, sobald es geht,
-und `since` beginnt dann.
+### 6.2 · Kompetenz
 
-**Körnung:** eine Aufgabe je **(Auftrag, Schritt)**, nicht je Stück – 20 Stücke an einer
-Endkontrolle sind eine Aufgabe «Endkontrolle an 20 Stück». Eine Nachricht je **Betreff** (das
-Anliegen IST der Betreff). Ein Papier je Beleg und Art.
+**Zwei Sorten, beide ohne eigene Pflegemaske:**
 
-### 6.2 · Arten (erster Katalog)
+- **Tätigkeit – fest im Code**, eine je Sache, die das ERP tun lässt. Jede Aufgabe, die nicht mehr
+  verlangt, verlangt ihre Tätigkeit:
 
-| Art | Quelle | Kompetenz woher | persönlich? |
-|---|---|---|---|
-| Schritt ausführen (je Modultyp) | Prozess: Stücke warten am Schritt | **am Schritt** (im Prozess-Editor gesetzt), sonst Vorgabe der Art | nein |
-| Beleg weiterbringen | Zahlung: `situation.primary` ist eine Handlung von uns | am Schritt, sonst Vorgabe | nein |
-| Papier prüfen und freigeben | `papers_due` | Vorgabe der Art | nein |
-| Dokument nachreichen | `requirements` | Vorgabe der Art | nein |
-| Nachricht beantworten | offene Nachricht | Vorgabe der Art | nein |
-| Mahnen | überfällige Rechnung | Vorgabe der Art | nein |
-| Wiederholung klären | `loop` wartet / geht nicht mehr | Vorgabe der Art | nein |
-| Vorschlag prüfen | offener Handgriff aus Mail | Vorgabe der Art | nein |
-| Stammdaten ergänzen (Kunde) | `missing_fields` einer Partei | Vorgabe der Art | nein |
-| Stammdaten ergänzen (selbst) | `missing_fields` an mir | – | **ja** |
-| Zeiterfassung: «Gehen» fehlt, Nachweis | `timekeeping.tasks` | – | **ja** |
-| Gesellschaft pflegen (Feiertage, Rechtstexte) | `holidays`, `legal` | Vorgabe; Recht `admin` | nein |
+  | Tätigkeit | Aufgaben |
+  |---|---|
+  | Kundendienst | Nachrichten beantworten, Angaben von Kunden ergänzen, Vorschläge aus Mails prüfen |
+  | Verkauf | Zahlung als Einnahme: Offerte, Zusage, Rechnung, Papiere freigeben, Mahnen, Wiederholung klären |
+  | Einkauf | Zahlung als Ausgabe: Bestellung, Lieferantenrechnung |
+  | Logistik | Bewegen |
+  | Montage | Verbrauch (Komponenten verbauen) |
+  | Prüfen | Datenerfassung |
+  | Qualität | Aussondern (sperren, verschrotten) |
 
-Die **Vorgabe je Art** stellt der Admin an **einer** Stelle ein (Karte «Aufgaben» am Betreiber):
-Art → Kompetenz oder «jeder». Ohne Einstellung: jeder Mitarbeitende.
+  Gesellschaft pflegen (Feiertage, Rechtstexte) ist ein **Recht** (Admin), keine Kompetenz.
+  Ein neues Modul bringt seine Tätigkeit mit (`domain/modules`, wie Farbe und Symbol).
+- **Fach – am Schritt angelegt.** Wo eine Tätigkeit nicht reicht (eine Kranprüfung darf nicht jeder,
+  der «Prüfen» kann), wählt man im Prozess-Editor im Feld «Wer kann das?» ein Fach oder legt eines
+  neu an – **immer zusammen mit mindestens einer Person**. Eingefroren mit der Freigabe wie alles am
+  Auftrag.
 
-### 6.3 · Kompetenz
+**Eine Kompetenz ohne Person gibt es nicht** – durchgesetzt, nicht gewarnt: ein Fach entsteht nur mit
+einer Person, die letzte Person einer Kompetenz kann sie nicht verlieren («zuerst einer anderen
+Person geben»), eine Person mit der letzten Kompetenz bekommt eine andere Rolle erst, wenn sie
+weitergegeben ist. Abwesenheit (Ferien) ist davon unberührt – dann wartet die Aufgabe (§9).
 
-- **Ein Katalog**, gepflegt vom Admin: Name (eindeutig), aktiv ja/nein. Beispiele für INEXXIO:
-  Kranprüfung · Montage Kran · Schweissen · Trommeltausch · Offerten & Verkauf · Einkauf ·
-  Buchhaltung · Kundendienst (Mail, Telefon).
-- **Zuordnung je Person**: «kann» – gesetzt vom Admin am Personendatensatz (Karte «Aufgaben &
-  Kompetenzen»). Jede Änderung steht im Log (der Trigger schreibt sie ohnehin).
-- **Eine Aufgabe verlangt höchstens eine Kompetenz.** Braucht ein Schritt zwei Dinge, ist das
-  eine eigene Kompetenz («Prüfung Hubwerk») – das hält die Regel einfach und die Zuteilung
-  eindeutig.
-- **Am Prozessschritt** steht die Kompetenz im Editor (ein Feld «Wer kann das?», Vorgabe aus dem
-  Artikel) und wird mit der Freigabe eingefroren wie alles am Auftrag. Darunter steht, **wie
-  viele Personen** das heute können («3 Personen») – null ist eine Warnung, kein Fehler.
+Gepflegt am Personendatensatz (Karte «Kompetenzen», Admin klickt, jede Änderung im Log). Keine Karte
+am Unternehmen, kein Katalog, keine Vorgabe je Art.
 
-### 6.4 · Zuteilung (Dispatcher)
+### 6.3 · Zuteilung
 
-Gespeichert: **eine Tabelle `task_focus`** – je Person höchstens eine Zeile
-(`person_object_id` eindeutig), je Aufgabe höchstens eine Person (`task_key` eindeutig), dazu
-`since` und `how` (zugeteilt · selbst genommen · vom Admin). Damit sind die zwei Kernregeln
-**Schlüssel der Datenbank** und können nicht verletzt werden.
+Gespeichert: **`task_focus`** – je Person höchstens eine Zeile, je Aufgabe höchstens eine Person
+(zwei eindeutige Schlüssel: unmöglich, nicht verboten).
 
-**Wann wird zugeteilt?** Immer, wenn sich etwas ändert, das es betrifft – gerechnet an **einer**
-Stelle (`services/tasks.dispatch`), aufgerufen:
-- beim Lesen der Aufgaben (`GET /erp/tasks`, jeder offene Feed fragt ohnehin),
-- im Takt (alle 5 Minuten, wie `loop`),
-- nach «Kommen», «Gehen», «Abgeben», «Vorziehen».
+Gerechnet an **einer** Stelle (`services/tasks.dispatch`), beim Lesen der Aufgaben, im Takt und nach
+Stempel, Abgeben und Kompetenz-Änderung:
+1. Aufgaben aus den Quellen holen.
+2. **Aufräumen:** gibt es die Aufgabe einer Fokus-Zeile nicht mehr → erledigt (`task.done`). Fehlt
+   der Person Recht oder Kompetenz, oder ist sie nicht mehr da → zurück (`task.returned`).
+3. Freie Personen bestimmen.
+4. Aufgaben in der Reihenfolge (§6.4) durchgehen; je Aufgabe die Freien, die **dürfen und können**;
+   die mit den **wenigsten anderen passenden Aufgaben** bekommt sie (Spezialisten bleiben frei für
+   das, was nur sie können), bei Gleichstand wer länger frei ist.
+5. `task.assigned` ins Log.
 
-**Der Ablauf (deterministisch, erklärbar):**
-1. Alle Aufgaben aus den Quellen holen. Persönliche beiseite (sie gehen direkt an ihre Person).
-2. **Aufräumen:** eine `task_focus`-Zeile, deren Aufgabe es nicht mehr gibt → **erledigt**
-   (Ereignis `task.done`), Zeile weg. Hat die Person das Recht oder die Kompetenz verloren, ist
-   sie abwesend, oder ist die Aufgabe dringend und die Person nicht eingestempelt → zurück in den
-   Topf (`task.returned`, mit Grund).
-3. **Freie Personen** bestimmen: Personal, anwesend (§6.6), ohne «Dran».
-4. Den Topf **sortieren** (§6.5) und von oben nach unten durchgehen: für jede Aufgabe die freien
-   Personen, die **dürfen und können**. Gibt es welche → die mit den **wenigsten anderen
-   passenden Aufgaben im Topf** bekommt sie (so bleiben Spezialisten frei für das, was nur sie
-   können); bei Gleichstand, wer **länger frei** ist; dann die kleinere Objektnummer.
-5. Ereignis `task.assigned` (Person, Aufgabe, Grund).
+**Abgeben:** ein Klick am Ort, ohne Grund. Die Aufgabe geht an die nächste freie Person, die sie
+kann; wer abgibt, bekommt dieselbe Aufgabe für 30 Minuten nicht wieder, und sofort seine nächste.
+Wer etwas mitteilen will, schreibt wie immer eine Notiz an den Datensatz.
 
-**Selbst nehmen:** Jeder Freie kann eine Aufgabe aus dem Topf nehmen, die er darf und kann
-(«Übernehmen»). Wer schon etwas «Dran» hat, gibt das dafür zuerst ab – ein Knopf, zwei Schritte im
-Log.
+**Dringendes unterbricht nicht.** Es ist die nächste Aufgabe für die erste Person, die frei wird und
+es kann. Gesehen wird es nicht von allen, sondern von der Person, die es bekommt.
 
-**Abgeben:** jederzeit, mit einem Satz Grund («warte auf Rückruf», «brauche Hilfe»). Der Satz
-geht als **interne Nachricht** in den Verlauf des Datensatzes (Kommunikation – kein neues
-Feld), die Aufgabe zurück in den Topf, die Person bekommt sofort die nächste. Wer abgibt, bekommt
-dieselbe Aufgabe in den nächsten 30 Minuten nicht wieder.
+### 6.4 · Reihenfolge (nach aussen unsichtbar)
 
-**Vom Admin zuweisen:** der Admin kann eine Aufgabe einer bestimmten Person geben. Hat sie schon
-etwas «Dran», wird das **reserviert** («als Nächstes für …», gespeichert beim Vorziehen §6.5) –
-ihr Fokus wird nie unterbrochen.
+Eine feste Regel, ohne Stufen oder Farben in der Oberfläche:
+1. **Eine Frist ist verpasst** (Nachricht über 2 h offen, Rechnung überfällig, Termin überschritten) –
+   am längsten verpasst zuerst.
+2. **Termin in den nächsten 5 Arbeitstagen** – früherer zuerst.
+3. **Der Rest** – wartet am längsten zuerst (ein Termin weiter weg zählt wie keiner).
 
-**Keine Person kann es:** die Aufgabe bleibt im Topf mit dem Zeichen «niemand kann das» und geht
-an den **Admin** (der Admin kann alles zuweisen und jede Kompetenz vergeben). Sie liegt nie still.
+Warum gerade diese Aufgabe, steht im Hover («Termin Fr 14.11.», «Antwort seit über 2 h offen»).
+**Termin am Auftrag:** neu, optional, ein Kalendertag; jeder Schritt erbt ihn.
 
-### 6.5 · Reihenfolge
+### 6.5 · Wer ist da
 
-Eine Regel, drei Stufen, in dieser Folge:
+- Mit Zeiterfassung: nur wer **eingestempelt** ist; eine Absenz heute → nichts.
+- Ohne Zeiterfassung (z. B. Admin ohne Vertrag): gilt als da.
+- «Gehen» mit einer Aufgabe dran: sie bleibt bis zum nächsten «Kommen» – ausser die Frist wird
+  verpasst oder die Person hat am nächsten Arbeitstag eine Absenz, dann geht sie weiter.
 
-1. **Vorgezogen** (von Hand, §unten) – in der Reihenfolge des Vorziehens.
-2. **Dringend** – eine Frist ist vorbei: Nachricht über 2 h offen, Rechnung überfällig,
-   Termin überschritten, Nachweis fällig ab `URGENT_DAYS`. Rot. Untereinander: am längsten
-   überfällig zuerst.
-3. **Termin nah** – Termin in den nächsten **5 Arbeitstagen**, früherer zuerst.
-4. **Der Rest** – wartet am längsten zuerst (`since`). Ein Termin, der weiter weg liegt, zählt
-   hier wie keiner – sonst stünde eine Sache für März vor einer, die seit einer Woche wartet.
-
-**Woher kommt ein Termin?** Neu: der **Auftrag hat einen optionalen Termin** («fertig bis»,
-Kalendertag Europe/Zurich, wie in der Wiederkehr). Gesetzt im Entwurf, verschiebbar am laufenden
-Auftrag (Ereignis im Log, mit Grund) – er ist eine Abmachung, kein Teil des eingefrorenen
-Prozesses. Jeder Schritt des Auftrags erbt ihn. Andere Termine kommen aus ihrer Quelle
-(Fälligkeit der Rechnung, Gültigkeit der Offerte, Frist des Nachweises).
-
-**Von Hand: «Vorziehen»** – der einzige Hebel. Jeder Mitarbeitende kann eine Aufgabe vorziehen,
-mit **Pflicht-Grund** («Kunde steht still»). Sie kommt nach oben, bis sie erledigt ist. Der Grund
-steht am Datensatz im Verlauf (interne Nachricht) und im Hover. Zurücknehmen kann es jeder. Keine
-Prioritätszahlen, kein Ziehen in einer Liste: wo alles «Prio 1» ist, ist nichts Prio 1.
-
-### 6.6 · Anwesenheit
-
-- **Mit Zeiterfassung** (Vertrag vorhanden): zugeteilt wird nur, wer **eingestempelt** ist. Wer
-  heute eine Absenz hat (Ferien, Krankheit …), bekommt nichts.
-- **Ohne Zeiterfassung** (z. B. Admin ohne Vertrag): gilt als anwesend.
-- **«Gehen» mit offener Aufgabe:** sie bleibt «Dran» bis zum nächsten «Kommen» (Fortsetzung am
-  Morgen) – **ausser** sie wird dringend oder die Person hat am nächsten Arbeitstag eine Absenz:
-  dann zurück in den Topf.
-
-### 6.7 · Was die Person sieht
-
-- **«Dran»** – eine Karte, ganz oben im Feed, auf jedem Gerät. Satz, Ort, Termin, seit wann, warum
-  bei mir. Klick → der Datensatz öffnet sich und springt an die Stelle (`jumpToTodo`). Dazu
-  **«Abgeben»**. Kein «Erledigt»-Knopf: erledigt meldet die Quelle.
-- **Persönlich** – darunter klein, nur wenn es etwas gibt (««Gehen» fehlt am 07.11.»).
-- **Danach** – die nächsten 3 Aufgaben im Topf, die ich könnte (zum Einschätzen, nicht zum
-  Abarbeiten).
-- **Alle Aufgaben** – der Filter im Feed: der ganze Topf, sortiert; je Zeile, wer dran ist (Bild),
-  oder «frei». Darüber **«Jetzt»**: wer gerade woran ist (je anwesende Person ihr «Dran»). Das ist
-  der Überblick «wer macht was» – für alle, nicht nur den Admin.
-- **Am Datensatz** – im Kopf unter der Kopfzeile eine Leiste: «Du bist dran: …» bzw. «Lea Brunner
-  ist dran: …» bzw. «Frei – Übernehmen». Die Zahl am Symbol bleibt (Aufgaben + Hinweise an diesem
-  Datensatz), Hover je Abschnitt wie heute.
-- **Am Prozessschritt** – das Bild der Person, die dran ist, und die Kompetenz als Chip.
-
-## 7 · Oberfläche (keine neue Maske)
+## 7 · Oberfläche (nur Bestehendes)
 
 | Stelle | Heute | Neu |
 |---|---|---|
-| Feed, Typ-Filter | Benutzer · Artikel · Aufträge · Instanzen · Unternehmen · Dokumente | **erster Chip «Aufgaben»** (Symbol `ListChecks`), Zahl = alle im Topf + meine |
-| Feed, oben | Suche + Scan | dazu die Karte **«Dran»** (immer, auch ohne Filter) |
-| Feed, Zeile | Symbol, Name, Nummer, Status | im Filter «Aufgaben»: zweite Zeile = Satz der Aufgabe, rechts Bild der Person / «frei», rot wenn dringend |
-| Datensatz-Kopf | Symbol mit Zahl «zu tun» | dieselbe Zahl, Hover «Aufgaben»; darunter die **Dran-Leiste** |
-| Personendatensatz | Kommunikation, Zeiterfassung, Stammdaten | neuer Abschnitt **«Aufgaben & Kompetenzen»**: Dran, Kompetenzen (Admin ändert), Hinweis, wenn eine Person die einzige mit einer Kompetenz ist |
-| Betreiber (Gesellschaft) | Stammdaten, Gebiete, Postfach, Rechtstexte | Karte **«Aufgaben»**: Kompetenz-Katalog (Name, wie viele können es) und Vorgabe je Art |
-| Prozess-Editor | Modul, Name, Einstellungen | Feld **«Wer kann das?»** (Kompetenz) je Schritt, mit Anzahl Personen |
-| Auftragsentwurf | Prozess, Wiederholung | Feld **«Termin»** (optional) |
-
-**Mobil:** «Dran» ist das Erste auf dem Bildschirm. Wer in der Halle steht, öffnet das ERP und
-sieht genau eine Sache.
+| Feed ohne Filter | Datensätze | **zuoberst eine Zeile: mein Dran** (der Datensatz; zweite Zeile «DRAN · Prüfprotokoll an 1 Stück», Klick springt an die Stelle); darunter Datensätze mit Aufgaben in der Reihenfolge des Systems (rechts klein, wer dran ist), dann der Rest. Ist nichts dran: eine leise Zeile «Gerade nichts für dich». |
+| Feed mit Filter | Typ | unverändert |
+| Datensatz | Zahl am Symbol | unverändert; **kein** Banner im Kopf |
+| Am Ort (Schritt, Nachricht, Karte) | – | eine Zeile: Bild + «Du bist dran.» (+ warum) + Abgeben-Symbol, bzw. «Marco Keller ist dran.» bzw. «Kommt zur nächsten freien Person mit «Verkauf»» |
+| Prozessschritt (Kopf) | Name | dazu die Kompetenz als Chip |
+| Prozess-Editor | Modul, Einstellungen | Feld **«Wer kann das?»** (Tätigkeit des Moduls · Fach · neues Fach mit Person) und wer es kann |
+| Personendatensatz | Kommunikation, Zeiterfassung, Stammdaten | Karte **«Kompetenzen»** (Tätigkeiten, Fach; Admin klickt) |
+| Auftragsentwurf | – | Feld **«Termin»** (optional) |
+| Persönliches («Gehen» fehlt) | Zahl an mir | gewöhnliche Aufgabe, die nur ich kann: ist sie dran, steht mein eigener Datensatz zuoberst |
 
 ## 8 · Datenmodell (neu)
 
 ```
-competences          id, name (eindeutig), is_active, created_at, updated_at
-person_competences   person_object_id, competence_id, is_active, …   (eindeutig je Paar, Soft-Delete)
-task_kind_rules      kind (PK), competence_id NULL = jeder           (Vorgabe je Art)
-task_focus           person_object_id (eindeutig), task_key (eindeutig), since, how
-task_pulls           task_key (eindeutig, solange offen), by_object_id, reason, for_object_id NULL,
-                     at, is_active                                   (Vorziehen / reserviert)
-orders.due_on        DATE NULL                                       (Termin)
-Schritt-Konfig       competence_id im eingefrorenen Schritt (kein neues Feld am Modell nötig,
-                     wenn der Schritt seine config als JSON trägt – zu prüfen)
+person_competences  person_object_id, competence (Text: Tätigkeit aus dem Code oder Fach),
+                    is_active, …  (eindeutig je Paar; die letzte aktive Zeile einer Kompetenz
+                    lässt sich nicht deaktivieren – Regel in services/competences, Index-Prüfung)
+task_focus          person_object_id (eindeutig), task_key (eindeutig), since
+orders.due_on       DATE NULL
+Schritt-Konfig      competence (Fach) im eingefrorenen Schritt, sonst die Tätigkeit des Moduls
 ```
+Log-Ereignisse: `task.assigned` · `task.returned` · `task.done` · `task.handed` (abgegeben).
+Zwei Formen einer Regel: `competences.drop_problem` ↔ `assert_drop`, `tasks.assign_problem` ↔ Tor.
 
-Ereignisse im Log (`services/log.event`): `task.assigned` · `task.taken` · `task.returned` (mit
-Grund) · `task.done` · `task.pulled` · `task.unpulled`. Daraus sind später Durchlaufzeiten
-ableitbar – ohne eigene Statistik-Tabelle.
+## 9 · Szenarien
 
-**Zwei Formen einer Regel:** `tasks.assign_problem(person, task)` (Grund, z. B. für den Hover
-«Übernehmen» gesperrt: «Dafür fehlt Ihnen die Kompetenz «Kranprüfung»») ↔ `tasks._assert_assign`
-(Tor). Wie überall.
+1. **Kranservice beim Kunden.** Offerte (Verkauf) → Marco. Bewegen «zum Kunden» (Logistik) →
+   die freie Person mit Logistik, die am wenigsten anderes kann (Nico). Prüfprotokoll (Fach
+   Kranprüfung) → Lea. Rechnung (Verkauf) → wer mit Verkauf frei wird.
+2. **Mail kommt, alle stecken in langen Aufgaben.** Sie wartet ohne Person. Nach 2 h steht sie
+   vorne; wer mit Kundendienst als Nächstes frei wird, bekommt sie.
+3. **Material fehlt am Verbrauch.** Keine Aufgabe. Liegt es da, entsteht sie.
+4. **Lea wird krank.** Absenz → ihre Aufgabe geht weiter an eine freie Person mit Kranprüfung; ist
+   keine da, wartet sie (im Hover: wer es kann und warum nicht da).
+5. **Ich warte auf einen Rückruf.** Solange die Mail unbeantwortet beim Kunden liegt, ist es gar
+   keine Aufgabe. Brauche ich trotzdem Abstand: Abgeben.
+6. **Jemand erledigt eine fremde Aufgabe.** Die Quelle meldet nichts mehr → wer dran war, ist frei
+   und bekommt die nächste.
+7. **Nur eine Person im Betrieb.** Alles geht an sie, in der Reihenfolge.
+8. **Eine Wiederholung entsteht** (wiederkehr O18): ihr erster Schritt ist eine Aufgabe → jemand ist
+   dran. O18 ist damit beantwortet.
+9. **Persönliches:** «Gehen» fehlt → Aufgabe nur für mich; ist sie dran, steht mein Datensatz oben.
+10. **Admin entzieht die letzte Kompetenz** → abgewiesen mit Satz.
 
-## 9 · Szenarien (Durchspielen)
+## 10 · Grenzfälle
 
-1. **Kranservice beim Kunden.** Auftrag «Prüfung Hallenkran», Termin Fr. Schritt 1 Zahlung
-   (Offerte) → Aufgabe «Beleg weiterbringen», Kompetenz Offerten → geht an Marco (frei, kann
-   Offerten). Kunde sagt zu → die Zahlung zieht weiter, Schritt 2 Bewegen «zum Kunden» → Aufgabe,
-   keine Kompetenz → an die erste freie Person mit den wenigsten anderen Möglichkeiten (Lehrling
-   Nico). Schritt 3 Datenerfassung «Prüfprotokoll», Kompetenz Kranprüfung → Lea (nur 2 Personen
-   können das). Rechnung → Marco oder wer Offerten kann.
-2. **Mail kommt rein, alle stecken in langen Aufgaben.** Die Mail ist eine Aufgabe ohne Person
-   im Topf. Nach 2 h wird sie rot → oben im Topf, alle mit «Kundendienst» sehen sie. Wer kurz
-   Luft hat, öffnet sie und antwortet – erledigt, ohne Zuteilung. Sein «Dran» bleibt seins.
-3. **Material fehlt am Verbrauch.** Keine Aufgabe (nicht machbar). Liegt das Material da (nach
-   Bewegen), entsteht die Aufgabe; wer dran war, ist längst bei etwas anderem.
-4. **Lea wird krank.** Absenz eingetragen → ihr «Dran» geht zurück in den Topf (mit Grund «Lea
-   abwesend»), der nächste Freie mit Kranprüfung bekommt es. Gibt es keinen: Zeichen «niemand
-   frei», der Admin sieht es oben.
-5. **Niemand hat die Kompetenz.** Neuer Schritt «Schweissnaht prüfen (VT)» – Editor zeigt
-   «0 Personen». Der Auftrag kann trotzdem freigegeben werden; die Aufgabe landet beim Admin
-   mit «niemand kann das». Er vergibt die Kompetenz oder macht es selbst.
-6. **Ich warte auf einen Rückruf.** «Abgeben» mit «warte auf Rückruf Bachmann» → interne
-   Nachricht im Verlauf, Aufgabe zurück im Topf (nicht wieder bei mir für 30 min). Kommt der
-   Rückruf (Nachricht an uns), wird sie sowieso wieder sichtbar.
-7. **Der Chef will etwas sofort.** «Vorziehen» mit Grund, optional «für Lea». Lea bekommt es,
-   sobald ihr jetziges erledigt ist – nicht mitten hinein.
-8. **Jemand erledigt eine fremde Aufgabe.** Der Schritt ist bestätigt → die Quelle meldet
-   nichts mehr → die Person, die dran war, ist frei und bekommt die nächste. Kein Konflikt.
-9. **Ein Mitarbeitender allein / nur der Admin.** Alles geht an ihn, in der Reihenfolge – das
-   System ist dann eine gute, sortierte Liste. Funktioniert ab einer Person.
-10. **Zwei Leute öffnen gleichzeitig «Übernehmen».** Der eindeutige Schlüssel lässt nur einen
-    durch; der andere bekommt einen Satz («Marco ist schon dran») und die nächste.
-11. **Eine Wiederholung entsteht** (wiederkehr O18): ihr erster Schritt ist eine Aufgabe → jemand
-    ist dran. Damit ist O18 beantwortet, ohne Sonderweg.
-12. **Eine Kundenperson ohne Mail ergänzen** (Stammdaten einer Partei) – kleine Aufgabe, geht an
-    Kundendienst; sie ist kurz, gleich erledigt.
-13. **Persönliches**: «Gehen» fehlt gestern – steht unter «Dran» bei mir, belegt «Dran» nicht,
-    geht nie an jemand anderen.
+- Schlüssel stabil (Wächter: zweimal lesen ohne Änderung = dieselben Schlüssel).
+- Aufgabe verschwindet und kommt wieder (Kunde schreibt nochmals): gleicher Schlüssel, neu zugeteilt.
+- Recht weg (Rolle `user`): Fokus weg. Kompetenz entzogen während dran: weiter an die Nächste.
+- Automatische Schritte (Zahlung zieht selbst): keine Aufgabe, solange niemand von uns handeln muss.
+- Externe (Kunde soll zahlen): nie eine Aufgabe bei uns; ihr Ausbleiben kann eine werden (Mahnen).
+- Viele Stücke: jeder darf am Schritt bestätigen; zugeteilt bleibt eine Person.
+- Takt schläft: zugeteilt wird beim nächsten Lesen.
 
-## 10 · Grenzfälle (Regeln)
+## 11 · Bewusst NICHT
 
-- **Aufgabe verschwindet und kommt wieder** (Kunde antwortet nochmals): gleicher Schlüssel →
-  dieselbe Aufgabe, `since` neu. War sie gerade bei jemandem, ist sie inzwischen erledigt gewesen
-  (`task.done`); sie wird neu zugeteilt.
-- **Schlüssel muss stabil sein:** Nachrichten über Betreff + Person; Prozess über Auftrag +
-  Schritt. Ein Wächter prüft: zweimal lesen ohne Änderung = dieselben Schlüssel.
-- **Recht weg** (Rolle zu `user`): alle Zeilen der Person weg, Aufgaben zurück.
-- **Kompetenz entzogen** während «Dran»: zurück in den Topf (Grund im Log).
-- **Kompetenz gelöscht** (Soft-Delete): Schritte, die sie verlangen, gelten als «niemand kann
-  das» bis der Admin entscheidet – keine stille Umdeutung zu «jeder».
-- **Abweichungsauftrag**: ist ein gewöhnlicher Auftrag → gewöhnliche Aufgaben.
-- **Ausgang-Module** (Aussondern): auch nur ein Schritt.
-- **Automatische Schritte** (Zahlung zieht selbst weiter): keine Aufgabe, solange niemand von uns
-  handeln muss.
-- **Externe** (Kunde soll unterschreiben, zahlen): nie eine Aufgabe bei uns – aber deren Ausbleiben
-  kann eine werden (Mahnen).
-- **Viele Stücke, mehrere Leute wollen helfen:** jeder darf am selben Schritt bestätigen (es
-  blockiert nichts). Zugeteilt bleibt eine Person. Teilen ist eine spätere Stufe (§12).
-- **Mehrere eigene Gesellschaften:** Kompetenzen gelten für alle; eine Gesellschafts-Bindung
-  gibt es erst, wenn sie gebraucht wird.
-- **Takt läuft nicht** (Dienst schläft, min 0 Instanzen): zugeteilt wird beim nächsten Lesen –
-  ein offenes ERP genügt. Nichts geht verloren, weil nichts gespeichert wird ausser der Fokus.
-- **Datenschutz:** wer wann woran war, ist Log; Einsicht wie heute (Verlauf). Keine Auswertung je
-  Person.
+Kein Aufgaben-Datensatz zum Anlegen (etwas zu tun → Auftrag) · keine Liste zum Auswählen · keine
+Prioritätsstufen, keine Farben für Wichtigkeit · keine Teams, Abteilungen · keine Kapazitätsplanung ·
+keine Ranglisten · kein Bereich «Aufgaben», keine Karte am Unternehmen, kein Banner im Kopf · keine
+KI in der Reihenfolge (später höchstens als Vorschlag).
 
-## 11 · Was wir bewusst NICHT bauen
+## 12 · Bauplan
 
-- Kein Aufgaben-Datensatz zum Anlegen, kein «Aufgabe erstellen». Etwas zu tun → **Auftrag**
-  (Leitbild der lernenden Firma: «Etwas zu tun → Auftrag»). Eine Erinnerung ist eine Nachricht.
-- Kein Kanban, keine Spalten, keine Prioritätsstufen 1–5, kein Ziehen in Listen.
-- Keine Teams, Abteilungen, Stellenbeschreibungen.
-- Keine Kapazitätsplanung, keine Gantt-Zeitachse, keine Schätzungen in Stunden.
-- Keine Ranglisten, keine Leistungsauswertung je Person.
-- Keine Push-Mitteilungen in Stufe 1 (das ERP ist offen; Handy-Push später).
-- Keine KI in der Reihenfolge (erklärbar bleiben).
+| Stufe | Inhalt |
+|---|---|
+| **A · Eine Liste** | `services/tasks` über alle Quellen (+ Prozessschritt, + Beleg), Aufgabe ↔ Hinweis getrennt, Reihenfolge §6.4, Termin am Auftrag; Feed ohne Filter danach sortiert |
+| **B · Kompetenzen** | Tätigkeiten im Code, Fach am Schritt, Karte am Personendatensatz, Regel «nie ohne Person» |
+| **C · Dran** | `task_focus`, Zuteilung, Anwesenheit, Dran-Zeile im Feed, «Du bist dran» am Ort, Abgeben |
+| **D · später** | Kompetenz «lernt», KI-Vorschlag für Kompetenzen aus dem Log, Handy-Push für «Dran», Teilen grosser Schritte |
 
-## 12 · Bauplan in Stufen
+Wächter (je gegen seine Bug-Form geprüft): nie zwei Personen an einer Aufgabe · nie zwei Aufgaben an
+einer Person · nie zugeteilt ohne Recht oder Kompetenz · nie eine nicht machbare Aufgabe · nie eine
+Kompetenz ohne Person · Reihenfolge = §6.4 (Matrix mit vorher notiertem Soll).
 
-Jede Stufe ist für sich nützlich und einzeln ausrollbar.
+## 13 · Entscheide
 
-| Stufe | Inhalt | Nutzen sofort |
-|---|---|---|
-| **A · Eine Liste** | `services/tasks` sammelt alle Quellen (die von `todo` + **Prozessschritt** + **Beleg weiterbringen**), Art und Schlüssel je Eintrag, Hinweis ↔ Aufgabe getrennt; Feed-Chip «Aufgaben» (sortiert nach §6.5); «zu tun» heisst «Aufgaben»; Termin am Auftrag | Man sieht alles, was zu tun ist, an einer Stelle, in einer Reihenfolge |
-| **B · Kompetenzen** | Katalog, Zuordnung am Personendatensatz, Feld am Prozessschritt, Vorgabe je Art; der Chip zeigt «kann ich» / «kann ich nicht» | Jeder sieht, was er tun kann |
-| **C · Dran** | `task_focus`, Dispatcher, Anwesenheit aus der Zeiterfassung, Karte «Dran», Dran-Leiste, Übernehmen, Abgeben, Vorziehen, «Jetzt» (wer macht was) | Eine Person, eine Sache – jede Sache, eine Person |
-| **D · Lernen** (später) | Kompetenzstufe «lernt» (bekommt Aufgaben, wenn ein «kann» sie begleitet), Vorschlag der KI «Lea hat 10 Prüfungen sauber gemacht – Kompetenz geben?», Durchlaufzeiten je Aufgabenart, Handy-Push für «Dran», Teilen grosser Schritte | Kompetenz wächst, Abteilungen entstehen nicht |
+**Entschieden (10.11.2026)**
+- E1 · Wörter: «Dran» für die eine Aufgabe einer Person. ✔
+- Kein eigener Bereich «Aufgaben», keine Karte am Unternehmen, kein Banner im Kopf: Dran steht im Feed
+  zuoberst und am Ort. ✔
+- Abgeben ohne Grund. ✔
+- Dringendes geht an die, die es können **und frei sind** – nicht an alle. ✔
+- Kompetenzen gibt der Admin. Eine Kompetenz ohne Person ist unmöglich. ✔
+- Keine sichtbaren Prioritätsstufen; das System ordnet. ✔
 
-Wächter (je gegen seine Bug-Form geprüft): eine Aufgabe nie bei zwei Personen · eine Person nie
-mit zwei «Dran» · nie zugeteilt ohne Recht oder Kompetenz · nie eine Aufgabe, die nicht machbar ist ·
-Schlüssel stabil · erledigt in der Quelle = weg aus `task_focus` · Reihenfolge = §6.5 (Matrix mit
-vorher notiertem Soll) · persönliche Aufgaben nie im Topf.
+**Offen (Vorschlag in Klammern)**
+- E2 · Strikt **eine** Aufgabe je Person? (ja – siehe §14 zu den Alternativen)
+- E3 · Kompetenzen: Tätigkeiten fest im Code + Fach am Schritt? (ja)
+- E4 · Termin am Auftrag (optional)? (ja)
+- E5 · Nur wer eingestempelt ist, bekommt Aufgaben? (ja)
+- E6 · Darf Dringendes eine laufende Aufgabe unterbrechen? (nein)
+- E7 · Braucht es einen Hebel von Hand («Vorziehen», «an Person geben»)? (nein – erst, wenn es fehlt)
+- E8 · Wer am wenigsten anderes kann, bekommt es (Spezialisten schonen)? (ja)
 
-## 13 · Offene Entscheide (Clemens)
+## 14 · Andere Wege – und warum «Dran»
 
-| # | Frage | Vorschlag |
-|---|---|---|
-| E1 | Name im ERP: «Aufgaben» (Filter) und «Dran» (meine eine)? | ja |
-| E2 | Strikt **eine** Aufgabe «Dran» je Person? | ja – mit den drei Ventilen: Abgeben, alles darf man trotzdem tun, Dringendes sehen alle |
-| E3 | Wer darf «Vorziehen»? | jeder Mitarbeitende, mit Pflicht-Grund (sichtbar) – Alternative: nur Admin |
-| E4 | Termin am Auftrag (optional, verschiebbar mit Grund)? | ja |
-| E5 | Anwesenheit aus der Zeiterfassung (nur Eingestempelte bekommen Aufgaben)? | ja |
-| E6 | Kompetenzen: eine Stufe «kann» jetzt, «lernt» später? | ja |
-| E7 | Eine Kompetenz je Aufgabe (nicht mehrere)? | ja |
-| E8 | «Jetzt» (wer ist woran) für alle sichtbar, nicht nur Admin? | ja – Transparenz statt Kontrolle, ohne Zahlen je Person |
-| E9 | Zuteilung an «wer am wenigsten anderes kann» (Spezialisten schonen)? | ja |
-| E10 | Reihenfolge Stufe A bauen, bevor Kompetenzen und Dran kommen? | ja |
+| Weg | Wie | Stärke | Schwäche |
+|---|---|---|---|
+| **Liste für alle** (klassisch, Jira/Asana) | Jeder sieht alles, nimmt sich etwas | einfach, autonom | Rosinenpicken, Doppelarbeit, Abteilungsdenken |
+| **Persönliche Liste** (Outlook-Aufgaben) | Jemand verteilt von Hand | klar | einer muss planen; Listen wachsen |
+| **Kanban mit Grenze** (Lean) | Spalten, höchstens n in Arbeit | Fluss sichtbar | braucht Pflege und Disziplin; eine zweite Wahrheit neben dem ERP |
+| **Skill-basierte Zuteilung** (Callcenter, Service-Disposition) | System gibt der nächsten freien, passenden Person die nächste Sache | niemand plant, eindeutig | wenig Wahl |
+| **«Dran»** = Skill-basierte Zuteilung mit Grenze 1, abgeleitet aus dem ERP | wie oben, Aufgaben entstehen und verschwinden von selbst | kein Pflegen, kein Planen, kein Abhaken, ein Fokus | wenig Wahl (Ventil: Abgeben, und jeder darf alles tun) |
 
-## 14 · Verweise
+Variante zum Abwägen: **«Dran» + die nächsten zwei zur Wahl** – mehr Selbstbestimmung, aber zurück
+zum Aussuchen. Vorschlag: nicht; erst messen, ob Abgeben oft gebraucht wird.
 
-- Bild (1:1 im ERP, Stufe C fertig, klickbar – Rolle Mitarbeiterin/Admin umschaltbar):
-  https://claude.ai/artifact/4CpZXNTBtdTzuArnDSHY4r
-- Quellen im Code: `backend/app/services/todo.py`, `frontend/src/lib/todo.ts`,
-  `frontend/src/components/erp/feed-panel.tsx`, `detail-frame.tsx` (`RecordIcon`, `TodoChip`),
+## 15 · Verweise
+
+- Bild: https://claude.ai/artifact/4CpZXNTBtdTzuArnDSHY4r (Rolle Mitarbeiterin/Admin umschaltbar).
+- Code: `backend/app/services/todo.py`, `frontend/src/lib/todo.ts`,
+  `frontend/src/components/erp/feed-panel.tsx`, `detail-frame.tsx` (`RecordIcon`),
   `backend/app/domain/policy.py`, `backend/app/services/process.py` (`confirm_step`),
-  `backend/app/services/order_view.py` (`waiting_for`), `services/timekeeping.tasks`.
+  `backend/app/services/order_view.py`, `services/timekeeping.tasks`.
