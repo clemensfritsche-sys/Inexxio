@@ -47,7 +47,7 @@
   Menschen»**; die Schlaufe ist dieser Entscheid, im Voraus.
 - **Die Zahlung kennt die Schlaufe** an einer Stelle: Die Offerte nennt die Wiederholung; in
   einer Wiederholung führt das System Offerte und Zusage mit denselben Verben aus, die sonst ein
-  Mensch auslöst (PROCESS_CORE §13.6 wird angepasst). Dazu, allgemein und nicht nur für die
+  Mensch auslöst (PROCESS_CORE §6.6 wird angepasst). Dazu, allgemein und nicht nur für die
   Schlaufe: **Positionen mit Preis als Vorgabe im Zahlungsmodul.**
 - **Keine neue Tabelle.** Die Schlaufe besteht aus drei Ereignissen im Log (§4b). Es gibt keine
   «Vorlage» und keine Urreferenz: jeder Auftrag trägt seine eigene Schlaufe. Fällig, nächster,
@@ -293,7 +293,7 @@ nachbauen.
     Die Rechnung geht mit «Prüfen und freigeben» (O12).
   - **Wo:** eine Funktion an einer Stelle (Takt, nach dem Anlegen). Der Beleg selbst kennt
     keine Schlaufe, kein `if` in Verben, Stufen oder Papieren.
-  - PROCESS_CORE §13.6 («die Zahlung muss von ihr nichts wissen») wird an dieser einen Stelle
+  - PROCESS_CORE §6.6 («die Zahlung muss von ihr nichts wissen») wird an dieser einen Stelle
     angepasst.
 - **O2 · Ein fremdes Stück aufnehmen** – entschieden 07.11.2026: **nichts Besonderes.** Ein
   fremder Kran wird angelegt wie jeder Artikel (Artikel, Erzeugungsauftrag «Neu»). Bis er eine
