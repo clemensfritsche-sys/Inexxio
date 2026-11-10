@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { useAction } from '@/lib/use-action';
 import { NOTHING, when, whenTitle } from '@/lib/when';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { useCapture, type CaptureActions, type DraftFromHandgriff } from '@/components/erp/capture/capture-context';
+import { draftFrom, useCapture, type CaptureActions } from '@/components/erp/capture/capture-context';
 import type { Handgriff } from '@/types';
 
 /**
@@ -144,24 +144,7 @@ function show(v: unknown): string {
 
 const isNoteBody = (b: unknown) => !!b && typeof b === 'object' && (b as { channel?: string }).channel === 'note';
 
-/**
- * **Wo das ERP einen Entwurf hat** – überall, wo es «Neu anlegen» gibt (Person, Firma, Artikel,
- * Auftrag, Dokument): die Anlage-Route der Handlung ist der Schlüssel (`DRAFTS`). Der Entwurf
- * öffnet ausgefüllt; mit «Freigeben» ist der Vorschlag erledigt.
- */
-const DRAFTS: Record<string, DraftFromHandgriff['kind']> = {
-  '/api/v1/erp/records': 'user',
-  '/api/v1/admin/companies': 'organization',
-  '/api/v1/erp/articles': 'article',
-  '/api/v1/erp/orders': 'order',
-  '/api/v1/erp/documents': 'document',
-};
-
 function draftOf(h: Handgriff, capture: CaptureActions): (() => void) | null {
-  const kind = h.method === 'POST' ? DRAFTS[h.path] : undefined;
-  if (!kind) return null;
-  const body = (h.body && typeof h.body === 'object' ? h.body : {}) as Record<string, unknown>;
-  const values = Object.fromEntries(Object.entries(body).filter(([, v]) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
-    .map(([k, v]) => [k, String(v)]));
-  return () => capture.openDraft({ kind, values, body, handgriff: h.id });
+  const d = draftFrom(h);
+  return d ? () => capture.openDraft(d) : null;
 }

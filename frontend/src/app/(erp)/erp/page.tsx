@@ -23,7 +23,7 @@ import type { CaptureHint } from '@/components/erp/capture/capture-sheet';
 
 // Das «+» (Gespräch, Aufnahme, Kamera) kommt erst beim ersten Öffnen.
 const CaptureSheet = dynamic(() => import('@/components/erp/capture/capture-sheet').then((m) => m.CaptureSheet), { ssr: false });
-import { CaptureContext, type CaptureActions, type DraftFromHandgriff } from '@/components/erp/capture/capture-context';
+import { CaptureContext, CREATABLE_OF, draftFrom, type CaptureActions, type DraftFromHandgriff } from '@/components/erp/capture/capture-context';
 
 // Wie viele Vorschläge der Scanner höchstens anbietet (er zeigt ohnehin nur die ersten).
 const SUGGEST_LIMIT = 8;
@@ -35,10 +35,6 @@ const SUGGEST_LIMIT = 8;
  */
 /** Was ein Entwurf mitbringt (aus «+» oder einem Handgriff). */
 interface Seeds { no: number; draft: DraftSeed | null; record: Record<string, string> | null; handgriff: number | null }
-/** Welcher Entwurf zu welcher Anlage gehört – für «Entwurf öffnen» über die Adresse. */
-const KIND_OF: Record<Creatable, DraftFromHandgriff['kind']> = {
-  person: 'user', company: 'organization', article: 'article', order: 'order', document: 'document',
-};
 
 export default function ErpPage() {
   const [search, setSearch] = useState('');
@@ -79,9 +75,16 @@ export default function ErpPage() {
     setMobileView('detail');
   };
   useUrlParams({ onType: setTypeFilter, onOpen: open,
-    onCreate: (type, camera, values, handgriff) => {
-      if (handgriff && values) { void openDraft({ kind: KIND_OF[type], values, handgriff }); return; }
-      startCreate(type, undefined, { ...(camera ? { draft: { start: 'scan' } } : {}), ...(values ? { record: values } : {}) });
+    onCreate: (type, camera, handgriff) => {
+      // «Entwurf öffnen» vom «+» der Website: der Vorschlag selbst sagt, was vorausgefüllt wird.
+      if (handgriff) {
+        void api.getHandgriff(handgriff).then((h) => {
+          const d = draftFrom(h);
+          if (d) void openDraft(d);
+        }).catch(tell('Vorschlag', 'Nicht geladen'));
+        return;
+      }
+      startCreate(type, undefined, camera ? { draft: { start: 'scan' } } : {});
     } });
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
@@ -191,7 +194,7 @@ export default function ErpPage() {
       return;
     }
     if (d.kind !== 'document') {
-      const type: Creatable = d.kind === 'user' ? 'person' : d.kind === 'organization' ? 'company' : 'article';
+      const type: Creatable = CREATABLE_OF[d.kind];
       startCreate(type, undefined, { record: d.values, handgriff: d.handgriff });
       return;
     }

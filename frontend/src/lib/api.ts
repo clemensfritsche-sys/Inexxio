@@ -663,6 +663,11 @@ class ApiClient {
     return this.request<Blob>(fill(route, { path: { token } }), {}, 'blob');
   }
 
+  /** Ein Vorschlag – für «Entwurf öffnen» über die Adresse (`?neu=…&handgriff=…`). */
+  getHandgriff(id: number) {
+    return this.call('get', '/api/v1/erp/assistant/handgriffe/{handgriff_id}', { path: { handgriff_id: id } });
+  }
+
   /** **Übernehmen** – genau einmal, mit meinen Rechten, durch die echte Route (am Datensatz). */
   runHandgriff(id: number) {
     return this.call('post', '/api/v1/erp/assistant/handgriffe/{handgriff_id}/run', { path: { handgriff_id: id } });

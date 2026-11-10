@@ -16,7 +16,7 @@ import type { ErpRecordType } from '@/types';
  *   dem Server aufgelöst (geht auch, bevor der Feed geladen ist).
  * - `?neu=<person|company|article|order|document>` (das «+» auf der Website: «Neu anlegen»,
  *   📷 und 📄): öffnet denselben Entwurf wie das «+» im ERP; `&quelle=kamera` beginnt ihn mit
- *   der Kamera, `&werte=<JSON>` füllt ihn vor und `&handgriff=<Nr>` nennt den Handgriff, der mit
+ *   der Kamera, `&handgriff=<Nr>` nennt den Vorschlag, aus dem er vorausgefüllt wird und der mit
  *   der Freigabe erledigt ist («Entwurf öffnen»). Danach steht er nicht mehr in der Adresse – ein
  *   Neuladen legt nichts zweimal an.
  */
@@ -25,8 +25,7 @@ const CREATABLE: readonly Creatable[] = ['person', 'company', 'article', 'order'
 export function useUrlParams({ onType, onOpen, onCreate }: {
   onType: (type: ErpRecordType) => void;
   onOpen: (type: ErpRecordType, objectId: number) => void;
-  onCreate: (type: Creatable, camera: boolean, values: Record<string, string> | null,
-    handgriff: number | null) => void;
+  onCreate: (type: Creatable, camera: boolean, handgriff: number | null) => void;
 }): void {
   const handlers = useRef({ onType, onOpen, onCreate });
   handlers.current = { onType, onOpen, onCreate };
@@ -38,11 +37,10 @@ export function useUrlParams({ onType, onOpen, onCreate }: {
     if (create) {
       const hg = Number(params.get('handgriff'));
       handlers.current.onCreate(create, create === 'document' && params.get('quelle') === 'kamera',
-        valuesOf(params.get('werte')), Number.isInteger(hg) && hg > 0 ? hg : null);
+        Number.isInteger(hg) && hg > 0 ? hg : null);
       params.delete('neu');
       params.delete('handgriff');
       params.delete('quelle');
-      params.delete('werte');
       const rest = params.toString();
       window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
     }
@@ -53,18 +51,4 @@ export function useUrlParams({ onType, onOpen, onCreate }: {
       .then((r) => handlers.current.onOpen(r.object_type as ErpRecordType, oid))
       .catch(tell(`Datensatz ${oid}`, 'Nicht geöffnet'));
   }, []);
-}
-
-/** Vorbelegte Werte eines Entwurfs – nur Text zu Text; alles andere fällt weg. */
-function valuesOf(raw: string | null): Record<string, string> | null {
-  if (!raw) return null;
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-    const out = Object.fromEntries(Object.entries(parsed).filter(([, v]) => typeof v === 'string')) as Record<string, string>;
-    return Object.keys(out).length ? out : null;
-  } catch (e) {
-    tell('Entwurf aus der Adresse', 'Nicht gelesen')(e);
-    return null;
-  }
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { CaptureSheet, type PinHost } from '@/components/erp/capture/capture-sheet';
-import { CaptureContext, type CaptureActions } from '@/components/erp/capture/capture-context';
+import { CaptureContext, CREATABLE_OF, type CaptureActions } from '@/components/erp/capture/capture-context';
 
 /** Wer die Seite einbettet (die Website, gleicher Ursprung) – hört auf `ready` und `close`. */
 const SOURCE = 'inexxio-capture';
@@ -40,9 +40,10 @@ export default function EmbeddedCapture() {
     show: () => { window.frameElement?.removeAttribute('style'); },
   };
   const actions: CaptureActions = {
+    // Nur die Nummer reist: die Feed-Seite liest den Vorschlag selbst (`draftFrom`) – dieselben
+    // Werte wie im ERP, auch die Zeilen eines Auftrags.
     openDraft: (d) => go(`/erp?${new URLSearchParams({
-      neu: d.kind === 'user' ? 'person' : d.kind === 'organization' ? 'company' : 'document',
-      werte: JSON.stringify(d.values), handgriff: String(d.handgriff) })}`),
+      neu: CREATABLE_OF[d.kind], handgriff: String(d.handgriff) })}`),
   };
   return (
     <ErpNavContext.Provider value={(objectId) => go(`/erp?open=${objectId}`)}>

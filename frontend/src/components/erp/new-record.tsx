@@ -13,6 +13,8 @@ import { ObjectSelect } from '@/components/erp/object-select';
 import type { CompanySettings, CompanyRef, UserProfile, UserRole } from '@/types';
 import { useAction } from '@/lib/use-action';
 import { NOTHING } from '@/lib/when';
+import { ROLES } from '@/lib/vocab';
+import { isStaff } from '@/lib/record-status';
 
 /**
  * ►►► **Eine Person anlegen – ohne dass sie sich je angemeldet hat** (CRM Schritt 1). ◄◄◄
@@ -31,7 +33,11 @@ export function NewPerson({ isAdmin, initial, onSaved, onBack }: {
   const [first, setFirst] = useState(initial?.first_name ?? '');
   const [last, setLast] = useState(initial?.last_name ?? '');
   const [email, setEmail] = useState(initial?.email ?? '');
-  const [role, setRole] = useState<UserRole>('user');
+  // Rolle und Firma kommen mit, wenn der Vorschlag sie nennt – Personal-Rollen nur für einen Admin.
+  const [role, setRole] = useState<UserRole>(roleOf(initial?.role, isAdmin));
+  const [companyId, setCompanyId] = useState<number | null>(
+    Number(initial?.company_object_id) > 0 ? Number(initial?.company_object_id) : null);
+  // Der Name der gewählten Firma (aus der Suche); vorausgefüllt zeigt das Feld ihre Nummer.
   const [company, setCompany] = useState<CompanyRef | null>(null);
   // Die zuletzt gezeigten Vorschläge – die Wahl gibt nur die Nummer zurück.
   const found = useRef<CompanyRef[]>([]);
@@ -42,7 +48,7 @@ export function NewPerson({ isAdmin, initial, onSaved, onBack }: {
 
   const create = () => run(async () => onSaved(await api.createErpRecord({
     first_name: first, last_name: last, email, role,
-    company_object_id: company?.object_id ?? null,
+    company_object_id: companyId,
   })));
 
   const roles = [{ value: 'user', label: 'Benutzer' },
@@ -70,15 +76,19 @@ export function NewPerson({ isAdmin, initial, onSaved, onBack }: {
               options={roles} />
             <div className="sm:col-span-2">
               <ObjectSelect<{ object_id: number; name: string }>
-                label="Firma" value={company?.object_id ?? null} kind="company" scanLabel="Firma"
+                label="Firma" value={companyId} kind="company" scanLabel="Firma"
                 emptyOption="Keine – Privatperson"
-                selected={company ? { object_id: company.object_id, name: company.legal_name } : null}
+                selected={company && company.object_id === companyId
+                  ? { object_id: company.object_id, name: company.legal_name } : null}
                 find={async (q) => {
                   const rows = await api.searchCompanies(q);
                   found.current = rows;
                   return rows.map((c) => ({ object_id: c.object_id, name: c.legal_name }));
                 }}
-                onChange={(id) => setCompany(id == null ? null : found.current.find((c) => c.object_id === id) ?? null)} />
+                onChange={(id) => {
+                  setCompanyId(id);
+                  setCompany(id == null ? null : found.current.find((c) => c.object_id === id) ?? null);
+                }} />
             </div>
           </div>
           {error && <ErrorText msg={error} />}
@@ -86,6 +96,12 @@ export function NewPerson({ isAdmin, initial, onSaved, onBack }: {
       </DetailBody>
     </div>
   );
+}
+
+/** Die Rolle aus einem Vorschlag – nur eine, die es gibt und die diese Person vergeben darf. */
+function roleOf(raw: string | undefined, isAdmin: boolean): UserRole {
+  const known = ROLES.find((r) => r === raw) ?? 'user';
+  return isStaff(known) && !isAdmin ? 'user' : known;
 }
 
 /**
