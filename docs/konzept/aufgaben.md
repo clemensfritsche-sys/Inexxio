@@ -275,9 +275,9 @@ Kompetenz ohne Person · am längsten fällig zuerst (Matrix mit vorher notierte
 - Ein Datum am Auftrag, «bis» oder «ab», nie beide, nichts zu rechnen; die Zahlung zeigt es (§7).
 - Nur meins; verwaiste Aufgaben (niemand da, der es kann) zeigen «!» für alle (§8).
 
-**Offen (Vorschlag in Klammern)**
-- E26 · Kompetenz folgt dem Ort (§4.1) statt einer Tabelle je Art? (ja)
-- E27 · Beginn (Datum) statt Vorlauf (Arbeitstage) (§7)? (ja)
+- Die Kompetenz folgt dem Ort (§4.1); eine Aufgabe hat keinen Satz; Hover nur «Zu tun».
+
+**Offen:** nichts – bereit für Stufe A.
 
 ## 15 · Andere Wege
 
