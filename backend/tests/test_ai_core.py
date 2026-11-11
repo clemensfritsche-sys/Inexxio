@@ -237,6 +237,22 @@ def test_the_conversation_may_read_a_web_page_mails_may_not(db, monkeypatch):
     assert ai.WEB_FETCH["max_uses"] <= 3
 
 
+def test_a_refused_web_page_stays_visible_in_the_log(db, monkeypatch):
+    """Bug-Form: eine Seite lehnt den Abruf ab (Amazon), und niemand sieht, warum."""
+    from app.services.talk import AUFTRAG
+    staff = new_person(db, "employee")
+    refused = _Block(type="web_fetch_tool_result", tool_use_id="s1",
+                     content=_Block(type="web_fetch_tool_result_error",
+                                    error_code="url_not_accessible"))
+    script = _Script(_answer(parsed=Out(answer="geht nicht"), content=[refused]))
+    _ready(monkeypatch, script)
+    ai.converse(db, task="talk", actor=staff, system="s", schema=Out,
+                content=[{"type": "text", "text": "https://amazon.de/x"}])
+    call = db.query(Log).filter(Log.event == "ai.call", Log.actor_id == staff.object_id).one()
+    assert call.payload["web"] == [{"url": None, "error": "url_not_accessible"}]
+    assert "Bildschirmfoto" in AUFTRAG, "Die KI sagt nicht, was die Person stattdessen tun kann."
+
+
 def test_a_paused_turn_goes_on_without_a_new_message(db, monkeypatch):
     """Bug-Form: bei «pause_turn» (der Anbieter liest noch) endet der Zug ohne Antwort – oder
     eine neue Nachricht lässt ihn von vorn beginnen."""

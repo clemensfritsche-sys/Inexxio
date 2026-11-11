@@ -332,6 +332,19 @@ WEB_FETCH = {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 3,
 WEB_STEP = "liest eine Webseite …"
 
 
+def _web(content: Any) -> list[dict[str, Any]] | None:
+    """**Was beim Lesen einer Seite herauskam** – je Abruf Adresse und Fehlercode (leer = gelesen).
+    Für den ``ai.call``: lehnt eine Seite ab (Amazon sperrt Abrufe), steht der Grund im Log."""
+    out = []
+    for b in content or []:
+        if getattr(b, "type", "") != "web_fetch_tool_result":
+            continue
+        got = getattr(b, "content", None)
+        out.append({"url": getattr(got, "url", None),
+                    "error": getattr(got, "error_code", None)})
+    return out or None
+
+
 def _cached(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """**Das Gespräch bis hierher im Zwischenspeicher** – ein Merkpunkt am letzten Block der
     letzten Nachricht. Jeder weitere Zug liest den ganzen Verlauf (samt Bildern und PDFs) für
@@ -452,6 +465,7 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
             return None
         calls = [b for b in getattr(response, "content", None) or [] if getattr(b, "type", "") == "tool_use"]
         usage["tools"] = [b.name for b in calls] or None
+        usage["web"] = _web(getattr(response, "content", None))
         _record(db, task, spec.model, actor, usage)
         said += [b.text for b in getattr(response, "content", None) or []
                  if getattr(b, "type", "") == "text" and (getattr(b, "text", "") or "").strip()]
