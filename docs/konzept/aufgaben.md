@@ -1,6 +1,6 @@
 # Projektakte «Aufgaben» – wer macht was
 
-> **Kopfstatus:** Konzept fertig, Fassung 12 · **nichts gebaut** · Lead: Claude · Entscheid: Clemens
+> **Kopfstatus:** Konzept fertig, Fassung 13 (nochmals verschlankt, §12.4) · **nichts gebaut** · Lead: Claude · Entscheid: Clemens
 > Fritsche · seit 10.11.2026 · zuletzt 11.11.2026 · Umsetzung in zwei Runden (§12)
 > Bild (das ERP, wie es damit aussieht – 1:1, klickbar): https://claude.ai/artifact/4CpZXNTBtdTzuArnDSHY4r
 > Diese Akte ist die **eine** Quelle für Ziel, Regeln, Entscheide und Plan des Projekts «Aufgaben». Was
@@ -61,8 +61,9 @@ Eine Sache zur Zeit statt einer Liste.
 - Im Prozess-Editor lässt sich die Vorgabe eines Schritts im Feld «Wer kann das?» gegen eine aus derselben
   Liste tauschen (Verbrauch: Bauen oder Schweissen). Der Schritt wählt, er definiert nichts. Eingefroren
   mit der Freigabe. Keine Liste der Personen dabei.
-- Gespeichert wird nur, wer welche hat (`person_competences`), gesetzt vom Admin am Personendatensatz
-  (Karte «Kompetenzen»). Der Admin gibt sie nur Befähigten.
+- Gespeichert wird nur, wer welche hat – **eine Spalte an der Person** (`user_profiles.competences`),
+  gesetzt vom Admin als Feld in den Stammdaten (dasselbe PATCH wie jedes Feld, Recht «person.competences»
+  = Admin). Keine eigene Tabelle, keine eigene Karte, keine eigene Route. Der Admin gibt sie nur Befähigten.
 - **Nie ohne Person:** die letzte Person einer Kompetenz kann sie nicht verlieren
   (`competences.drop_problem` ↔ Tor). Eine neue Kompetenz ist eine Zeile Code.
 
@@ -95,7 +96,8 @@ Alle Quellen gibt es heute schon; zwei kommen dazu.
 | ich | eigene Angaben · «Gehen» nachtragen · Nachweis nachreichen · Dokument unterschreiben | `people.missing_fields`, `timekeeping.tasks`, Dokumente |
 | eigene Gesellschaft | Feiertage · Rechtstexte | `holidays`, `legal` |
 
-**Keine Aufgaben:** Hinweise ohne Handlung (KI-Deckel, Pause zu kurz) – bleiben als Hinweis; offene
+**Keine Aufgaben:** Hinweise ohne Handlung – der KI-Deckel meldet sich künftig über `core/report`
+(Betriebsmeldung, an einer Stelle), die Pause-Hinweise bleiben in der Zeiterfassung; offene
 Gespräche und Aufnahmen – Zahl am «+» wie heute; gesperrte Stücke; alles, worauf wir warten (Kunde,
 Material, Rückführung).
 
@@ -108,7 +110,7 @@ Eine Aufgabe besteht nur aus: **Schlüssel** (stabil, z. B. `step:<Auftrag>:<Sch
 
 | Aufgabe | ihr Datum |
 |---|---|
-| alles ohne Datum (Nachricht, Papier, Angaben, Mahnung, Auftrag ohne Datum) | seit wann es zu tun ist |
+| alles ohne Datum (Nachricht, Papier, Angaben, Mahnung, Auftrag ohne Datum) | seit wann es zu tun ist – jede Quelle nennt ihren Zeitpunkt (Eingang, Erreichen des Schritts, Fälligkeit der Rechnung); kennt sie keinen, das Anlegedatum des Datensatzes |
 | Auftrag «bis» X | X – darf früher getan werden, wenn nichts Früheres ansteht |
 | Auftrag «ab» X | X – und nicht vorher (vorher gibt es die Aufgabe nicht) |
 | Zeiterfassung | der Tag, der fehlt |
@@ -141,7 +143,8 @@ Tage, setzt der Mensch «bis» früher oder wählt «ab». Später kann das Syst
    Kompetenz, oder hat sie eine Absenz → die Aufgabe ist wieder frei.
 2. Die freien Personen, die am längsten frei ist zuerst; jede nimmt die Aufgabe mit dem frühesten Datum,
    die sie darf und kann.
-3. Ins Log: `task.assigned` · `task.done` · `task.returned` · `task.handed`.
+3. Ins Log schreibt die Datenbank selbst (Trigger an `task_focus`) – keine eigenen Ereignisse.
+   Im Verlauf eines Datensatzes erscheint das nicht (`history.HIDDEN`).
 
 Gerechnet beim Lesen der Aufgaben, im Takt (alle 5 Minuten) und nach Stempel, Abgeben, Kompetenz-Änderung.
 
@@ -150,8 +153,8 @@ Gerechnet beim Lesen der Aufgaben, im Takt (alle 5 Minuten) und nach Stempel, Ab
 2. **Was ich dran habe, bleibt bei mir** – auch über «Gehen», bis zum nächsten «Kommen».
 3. **Ausser ich habe eine Absenz** (Ferien, krank): dann geht es an die Nächste, die es kann.
 
-**Abgeben:** ein Klick am roten Zeichen im Datensatz, ohne Grund. Wer abgibt, bekommt dieselbe Aufgabe 30
-Minuten nicht wieder. **Dringendes unterbricht nicht.** **Kein Hebel von Hand** (vorerst).
+**Abgeben:** ein Klick am roten Zeichen im Datensatz, ohne Grund. Wer abgibt, bekommt dieselbe Aufgabe erst
+wieder, nachdem er eine andere hatte (keine Uhr). **Dringendes unterbricht nicht.** **Kein Hebel von Hand** (vorerst).
 
 ## 7 · Was man sieht
 
@@ -161,7 +164,7 @@ Minuten nicht wieder. **Dringendes unterbricht nicht.** **Kein Hebel von Hand** 
 | Feed mit Filter | unverändert |
 | Symbol eines Datensatzes | rotes Zeichen, wenn meine Aufgabe hier ist. **Admin:** rotes Zeichen an jedem Datensatz mit Aufgaben. **Alle:** «!» an einer Aufgabe, die niemand Anwesendes kann. |
 | Im Datensatz | rotes Zeichen an der Stelle (Schritt, Nachricht, Abschnitt). Hover: «Zu tun» bzw. «Niemand da, der das kann»; am Zeichen der Stelle «Abgeben». |
-| Personendatensatz | Karte «Kompetenzen» (Admin klickt) |
+| Personendatensatz | Feld «Kompetenzen» in den Stammdaten (Admin klickt) |
 | Prozess-Editor | «Wer kann das?» |
 | Auftrag | ein Datum: «ab» am Start oder «bis» am Ende |
 
@@ -171,14 +174,14 @@ keiner ist zuständig».
 ## 8 · Datenmodell (neu)
 
 ```
-person_competences  person_object_id, competence, is_active, created_at, updated_at
-                    -- eindeutig je aktivem Paar; die letzte aktive Zeile einer Kompetenz bleibt
-task_focus          person_object_id (eindeutig), task_key (eindeutig, wo nicht leer), since,
-                    handed_key, handed_at, created_at, updated_at
-                    -- eine Zeile je Person: task_key leer = frei, since = seit wann so
-orders.date_on      DATE NULL
-orders.date_kind    TEXT NULL      -- 'until' (bis) | 'from' (ab)
-Schritt-Konfig      competence (Wahl aus der Liste; leer = Vorgabe des Moduls)
+user_profiles.competences  TEXT[]          -- wer was kann (Wörter aus domain/competences)
+task_focus                 person_object_id (Schlüssel), task_key (eindeutig, wo nicht leer),
+                           since, handed_key, created_at, updated_at
+                           -- eine Zeile je Person: task_key leer = frei, since = seit wann so,
+                           -- handed_key = zuletzt abgegeben (gilt bis zur nächsten Aufgabe)
+orders.date_on             DATE NULL
+orders.date_kind           TEXT NULL       -- 'until' (bis) | 'from' (ab)
+Schritt-Konfig             competence (Wahl aus der Liste; leer = Vorgabe des Moduls)
 ```
 
 Was das Log schon festhält – jedes Stück an jedem Schritt mit Zeit und Person (`process_log`), jede
@@ -226,12 +229,12 @@ Aufgabe hat als Datum «seit es zu tun ist» (das Arztpraxis-Modell gilt schon, 
 |---|---|---|
 | 1 | Kompetenzen: Liste, `Module.competence`, `competences.drop_problem` ↔ Tor; ins Vokabular für die Oberfläche | `domain/competences.py`, `domain/modules.py`, `scripts/dump_vocab` |
 | 2 | Wahl am Schritt: `competence` in der Schritt-Konfiguration aller Module (gemeinsam), im JSON-Schema beschrieben | `domain/modules.py` (`clean_config`, `config_schema`) |
-| 3 | Migration 188: `person_competences`, `task_focus` (volle Spalten, Indizes, Log-Trigger) | `alembic/versions/188_…` |
+| 3 | Migration 188: `user_profiles.competences`, Tabelle `task_focus` (volle Spalten, Indizes; Log-Trigger kommt von selbst) | `alembic/versions/188_…` |
 | 4 | **Sammeln:** `services/todo` wird `services/tasks.collect` – dieselben Quellen, dazu Prozessschritt und Zahlung; je Aufgabe Schlüssel, Ort, Kompetenz (§3.1), Datum. Hinweise getrennt. | `services/tasks.py` |
 | 5 | Zahlung: `situation` sagt strukturiert, ob wir dran sind (ein Feld, kein Lesen des Satzes) | `services/voucher_view.py` |
-| 6 | **Zuteilen:** `tasks.dispatch` (§6), Anwesenheit aus `timekeeping`, Abgeben; Log-Ereignisse; im Takt | `services/tasks.py`, `services/tick.TASKS` |
-| 7 | Routen: `GET /erp/tasks` (meine Aufgabe, die Zeichen, die ich sehe), `POST /erp/tasks/{key}/hand`, Kompetenzen am Personendatensatz (Admin) | `routers/…`, `lib/api.ts` |
-| 8 | Oberfläche: Zeile zuoberst im Feed, rotes Zeichen (nur meins · Admin alle · «!»), Zeichen an der Stelle mit «Abgeben», Karte «Kompetenzen», «Wer kann das?» im Editor; die alte Zahl «zu tun» fällt weg | `feed-panel`, `detail-frame` (`RecordIcon`, `TodoChip`), `module-card`, `communication`, `process-designer`, `lib/tasks.ts` |
+| 6 | **Zuteilen:** `tasks.dispatch` (§6), Anwesenheit aus `timekeeping`, Abgeben; im Takt | `services/tasks.py`, `services/tick.TASKS` |
+| 7 | Zwei Routen: `GET /erp/tasks` ersetzt `GET /erp/todo` (meine Aufgabe und die Zeichen, die ich sehe), `POST /erp/tasks/{key}/hand`. Kompetenzen über das bestehende PATCH der Person. | `routers/…`, `lib/api.ts` |
+| 8 | Oberfläche: Zeile zuoberst im Feed, rotes Zeichen (nur meins · Admin alle · «!»), Zeichen an der Stelle mit «Abgeben», Feld «Kompetenzen» in den Stammdaten, «Wer kann das?» im Editor; die alte Zahl «zu tun» fällt weg | `feed-panel`, `detail-frame` (`RecordIcon`, `TodoChip`), `module-card`, `communication`, `process-designer`, `lib/tasks.ts` |
 | 9 | Wächter: nie zwei Personen an einer Aufgabe · nie zwei Aufgaben an einer Person · nie ohne Recht oder Kompetenz · nie eine Kompetenz ohne Person · frühestes Datum zuerst · Schlüssel stabil · jede Quelle liefert einen Ort | `tests/` (Matrix mit vorher notiertem Soll) |
 | 10 | Ist-Stand in CLAUDE.md, Rundenbericht in `docs/history/` | Doku |
 
@@ -250,7 +253,7 @@ Aufgabe hat als Datum «seit es zu tun ist» (das Arztpraxis-Modell gilt schon, 
 
 - **Ein Zeitpunkt «frei seit» ohne Log-Abfrage:** eine Zeile je Person in `task_focus`, die bleibt;
   `task_key` leer heisst frei, `since` sagt seit wann. Kein Suchen im Log für «wer ist am längsten frei».
-- **Abgeben ohne zweite Tabelle:** `handed_key`/`handed_at` in derselben Zeile.
+- **Abgeben ohne zweite Tabelle:** `handed_key` in derselben Zeile.
 - **Zahlung:** «Sie sind dran» steht heute als Satz; die Aufgabe darf keinen Satz lesen. Darum ein Feld in
   `situation` (Punkt 5) – klein, aber nötig.
 - **Gleichzeitigkeit:** zwei Tabs, Takt und Anfrage zugleich – die Sperre um `dispatch` plus die zwei
@@ -263,10 +266,25 @@ Aufgabe hat als Datum «seit es zu tun ist» (das Arztpraxis-Modell gilt schon, 
 - **Runde 1 nicht weiter teilen.** Sammeln allein (ohne Zuteilen) wäre unsichtbar; Kompetenzen allein
   hätten keine Wirkung. Erst zusammen tragen sie – darum eine Runde.
 - **Kein Umbau des «+».** Gespräche und Aufnahmen bleiben, wie sie sind.
-- **Keine neue Seite, keine neue Karte ausser «Kompetenzen».** Alles andere nutzt Bestehendes (Feed-Zeile,
+- **Keine neue Seite, keine neue Karte.** Alles andere nutzt Bestehendes (Feed-Zeile,
   `RecordIcon`, `data-todo`, `Terminal`).
 - **Runde 2 ist klein** und ändert an Runde 1 nur eine Zeile: woher das Datum kommt.
 - Ergebnis: zwei Runden sind das Minimum, das trägt.
+
+### 12.4 · Dritter Durchlauf – nochmals verschlankt (vor dem Start)
+
+| Vorher | Jetzt | Gewinn |
+|---|---|---|
+| Tabelle `person_competences` | Spalte `user_profiles.competences` | eine Tabelle weniger; Änderungen stehen im Verlauf der Person (das Log schreibt sie) |
+| Karte «Kompetenzen» + eigene Route | Feld in den Stammdaten, bestehendes PATCH | keine neue Karte, keine neue Route |
+| eigene Log-Ereignisse `task.*` | Trigger an `task_focus` schreibt selbst | kein Code fürs Protokollieren |
+| Sperre 30 Minuten nach Abgeben (`handed_at`) | gilt bis zur nächsten Aufgabe (`handed_key`) | keine Uhr |
+| KI-Deckel als «zu tun» | Betriebsmeldung über `core/report` | eine Sonderquelle weniger |
+| Kompetenz je Art | eine Funktion mit vier Fällen (§3.1) | nichts zu pflegen |
+
+Neu im Code bleiben damit: **eine Tabelle, eine Spalte, zwei Routen, eine Liste von acht Wörtern, ein
+Dienst** (`services/tasks`: sammeln + zuteilen) und an der Oberfläche **ein Feld, ein Auswahlfeld, eine
+Feed-Zeile** – alles andere nutzt, was da ist.
 
 ## 13 · Verweise
 
