@@ -1,8 +1,8 @@
 # Projektakte «Aufgaben» – wer macht was
 
 > **Kopfstatus:** Konzept, Fassung 6 · **nichts gebaut** · Lead: Claude · Entscheid: Clemens
-> Fritsche · seit 10.11.2026 · zuletzt 11.11.2026 (neu vereinfacht: ein «fällig ab», Termin + Vorlauf,
-> Gesellschaft abgeleitet, acht Kompetenzen)
+> Fritsche · seit 10.11.2026 · zuletzt 11.11.2026 (Gesellschaft weggelassen, Anwesenheit und Vorlauf
+> entschieden)
 > Bild (das ERP, wie es damit aussieht – 1:1, klickbar): https://claude.ai/artifact/4CpZXNTBtdTzuArnDSHY4r
 > Diese Akte ist die **eine** Quelle für Ziel, Regeln und Entscheide des Projekts «Aufgaben». Was hier
 > nicht als **entschieden** steht, ist nicht entschieden. Frühere Fassungen: Git-Geschichte dieser
@@ -12,10 +12,10 @@
 
 1. **Eine Aufgabe ist eine Stelle im ERP, an der jemand etwas tun muss** – abgeleitet, nie angelegt,
    nie abgehakt. Erledigt, wenn die Sache erledigt ist; nicht da, solange man wartet.
-2. **Jede Aufgabe hat drei Angaben, alle abgeleitet:** eine **Kompetenz** (vom Modul oder der Art),
-   eine **Gesellschaft** (wo die Ware liegt, sonst das Gebiet der Partei) und ein **«fällig ab»**.
-3. **Wer frei wird, bekommt die Aufgabe, die am längsten fällig ist und die er kann** – zuerst aus der
-   eigenen Gesellschaft. Eine Person, eine Aufgabe.
+2. **Jede Aufgabe hat zwei Angaben, beide abgeleitet:** eine **Kompetenz** (vom Modul oder der Art)
+   und ein **«fällig ab»**.
+3. **Wer frei wird, bekommt die Aufgabe, die am längsten fällig ist und die er kann.** Eine Person, eine
+   Aufgabe. Neues bekommt nur, wer eingestempelt ist.
 4. **Ich sehe nur meine:** zuoberst im Feed, und im Datensatz das rote Zeichen an der Stelle; dort
    auch «Abgeben». Für alle gleich, auch für den Admin.
 5. **Gespeichert wird nur dreierlei:** wer was kann, wer woran ist, und am Auftrag Termin und Vorlauf.
@@ -120,10 +120,10 @@ von selbst, ohne Einstellung.
 
 - **Termin** – ein Kalendertag oder leer (= so schnell wie möglich). Alles am Auftrag ist bis dahin
   zu erledigen.
-- **Vorlauf** – eine Zahl in Arbeitstagen: wie lange vor dem Termin der Auftrag fällig wird.
-  **Vorgeschlagen** aus dem letzten Auftrag desselben Artikels (Freigabe bis Abschluss, aus dem Log –
-  eine Zahl, keine Rechnung je Schritt); ohne frühere Aufträge leer = sofort fällig. Der Mensch kann
-  ihn ändern. Gerechnet in Arbeitstagen der Gesellschaft (Feiertage gibt es schon).
+- **Vorlauf** – eine Zahl in Arbeitstagen: wie lange vor dem Termin der Auftrag fällig wird. Der
+  Mensch setzt ihn; das System **schlägt ihn nur vor, wenn das letzte Mal zuverlässig erfasst ist**
+  (§7.1), sonst bleibt er leer (= sofort fällig). Gerechnet in Arbeitstagen der Gesellschaft (Feiertage
+  gibt es schon).
 - **Fällig ab** = Termin − Vorlauf, sichtbar am Auftrag.
 - **Die Zahlung zeigt den Termin** auf Offerte und Zusage, als Liefertermin – gespeichert ist er nur am
   Auftrag. Sinnvoll, weil der Termin die ganze Arbeit betrifft, nicht nur das Geld, und weil es Aufträge
@@ -134,6 +134,27 @@ von selbst, ohne Einstellung.
   des Auftrags vor, für den beschafft wird**, als Vorlauf die Lieferzeit vom letzten Mal. Der Mensch
   bestätigt. Keine Verknüpfung; der Service wartet am Verbrauch, bis das Teil da ist.
 - **Verschieben** ist ein Ereignis im Log.
+
+### 7.1 · Wie «das letzte Mal» erfasst wird
+
+Aus dem Prozess-Log (`process_log`), das jedes Stück an jedem Schritt mit Zeitstempel festhält – nichts
+wird dafür zusätzlich eingegeben:
+
+- **Gemessen** wird je früherem Auftrag die **Durchlaufzeit unserer Arbeit:** vom ersten Eintritt eines
+  Stücks (`start`) bis das letzte Stück das Ziel passiert hat (`end`), in Arbeitstagen – **abzüglich**
+  der Zeit, in der eine Zahlung auf die Partei wartete (vom Erreichen bis zur Zusage). Gewartet auf den
+  Kunden ist keine Arbeit und kein Vorlauf.
+- **Gezählt** werden nur Aufträge, die das zuverlässig sagen: **derselbe Artikel** (gleicher Prozess),
+  **regulär** (keine Abweichung – erkennbar am Start-Zustand, `order_state.deviation_flags`),
+  **abgeschlossen** (nicht abgebrochen), **alle Stücke den ganzen Weg** (keines hat den Auftrag
+  verlassen, kein `handover`).
+- **Vorgeschlagen** wird erst ab **drei** solchen Aufträgen, und zwar **der längste der letzten drei**
+  – lieber einen Tag zu früh fällig als zu spät. Weniger als drei: kein Vorschlag.
+- **Sichtbar:** im Hover die drei Aufträge mit Nummer und ihren Arbeitstagen («aus 100'004'301,
+  100'004'377, 100'004'420: 3 · 2 · 3 Arbeitstage»). Wer ihn ändert, ändert ihn; die nächste Messung
+  nimmt den Auftrag wieder auf.
+- **Frei angelegte Aufträge** (ohne Artikel) bekommen keinen Vorschlag. Die **Wiederholung** übernimmt
+  den Vorlauf des Vorgängers.
 
 Warum so und nicht feiner: eine Zahl je Auftrag hält bei frei angelegten Aufträgen, Abweichungen und
 Service, der mal klein und mal gross ist – eine Dauer je Schritt nicht. Wird der Vorschlag oft
@@ -221,10 +242,11 @@ Kompetenz ohne Person · am längsten fällig zuerst (Matrix mit vorher notierte
 - Mehrere frei: wer am längsten frei ist, zuerst.
 - Nur wer da ist, bekommt Aufgaben.
 - Acht Kompetenzen (§4). «Fällig ab» statt Fristen, ohne Termin = sofort (§6).
+- Gesellschaften vorerst weggelassen (§5).
+- Anwesenheit in drei Sätzen (§9).
+- Termin und Vorlauf am Auftrag; die Zahlung zeigt den Termin; Vorschlag nur, wenn zuverlässig (§7, §7.1).
 
 **Offen (Vorschlag in Klammern)**
-- E21 · Gesellschaften vorerst weglassen (§5)? (ja – nachrüsten ist eine Zeile in der Zuteilung, kein neues Datenfeld)
-- E23 · Termin + Vorlauf am Auftrag, Vorlauf vorgeschlagen aus dem letzten Mal; die Zahlung zeigt ihn (§7)? (ja)
 - E24 · Nur meins; verwaiste Aufgaben (niemand da, der es kann) zeigen «!» für alle (§8)? (ja)
 
 ## 15 · Andere Wege
