@@ -26,6 +26,7 @@ from .newsletter import NewsletterConsent
 from .timekeeping import Holiday, TimeContract, TimeEntry
 from .ai_memory import AiMemory
 from .recording_chunk import RecordingChunk
+from .task_focus import TaskFocus
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Address", "Article",
@@ -36,5 +37,5 @@ __all__ = [
     "WebAuthnCredential", "WebAuthnChallenge",
     "Log", "LogSeal", "ObjectRef",
     "Message", "MessageParty", "Mailbox", "NewsletterConsent",
-    "TimeContract", "TimeEntry", "Holiday", "AiMemory", "RecordingChunk",
+    "TimeContract", "TimeEntry", "Holiday", "AiMemory", "RecordingChunk", "TaskFocus",
 ]

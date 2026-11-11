@@ -27,6 +27,7 @@ TALK = 5052             # «die KI antwortet in diesem Gespräch» – Stream un
 # ─── Einzelne Schlüssel (ein Schlüssel; überschneiden sich nie mit den Räumen) ─────────
 STARTUP = 778_899_001   # der Start (``main``): Trigger einer nach dem anderen
 SEAL = 778_899_003      # das Siegel des Logs (im SQL von ``domain/log``)
+TASKS = 778_899_004     # die Zuteilung der Aufgaben (``services/tasks.dispatch``) – eine zur Zeit
 
 
 def key(number: int) -> int:

@@ -25,7 +25,7 @@ from app.core.auth import ACTING, get_current_user
 from app.core.database import AMBIENT, get_db
 from app.main import app
 from app.models import Log, Message, UserProfile
-from app.services import ai, handgriff, log, pins, talk, todo
+from app.services import ai, handgriff, log, pins, talk, tasks
 from tests import factories
 from tests.runner import session
 from tests.test_ai_core import _Block, _Script, _answer, _ready
@@ -259,8 +259,8 @@ def test_a_handgriff_from_a_mail_counts_at_its_record(db, house):
                                  body=_note(firm.object_id), line="Notiz", home=firm.object_id,
                                  mail=msg.id)
     assert hid and out.ok
-    counted = {t.object_id: t for t in todo.todo(db, staff)}
-    assert any(i.section == "handgriffe" for i in counted[firm.object_id].items)
+    found = {(t.object_id, t.part) for t in tasks.collect(db)}
+    assert (firm.object_id, "handgriffe") in found
     assert [h.id for h in pins.pinned(db, firm.object_id, staff).handgriffe] == [hid]
 
 

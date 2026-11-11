@@ -170,6 +170,9 @@ def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int, *,
     Tür ist nicht der einzige Aufrufer, und zwei Oberflächen schreiben denselben
     Datensatz. **Dasselbe gilt für die Firma** (``_company_fields``)."""
     fields = data.model_dump(exclude_unset=True)
+    if "competences" in fields:
+        from . import tasks
+        tasks.set_competences(db, user, fields.pop("competences"))
     _company_fields(db, fields, actor_id, staff=staff)
     assert_employment(db, user, fields)
     if fields.get("phone"):

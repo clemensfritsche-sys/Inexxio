@@ -24,6 +24,19 @@ export const MODULE_TONES = {
 
 export type ModuleTone = (typeof MODULE_TONES)[ModuleKey];
 
+/** Die Kompetenzen – eine Liste (`domain/competences`). */
+export const COMPETENCES = ["Kommunizieren", "Verrechnen", "Bewegen", "Bauen", "Prüfen", "Schweissen", "Elektrik", "Kranprüfung"] as const;
+export type Competence = (typeof COMPETENCES)[number];
+
+/** Die Vorgabe je Modul (`Module.competence`), am Schritt tauschbar. */
+export const MODULE_COMPETENCES = {
+  "datenerfassung": "Prüfen",
+  "aussondern": "Bewegen",
+  "bewegen": "Bewegen",
+  "beleg": "Verrechnen",
+  "verbrauch": "Bauen",
+} as const;
+
 /** Erfassungspunkt-Typen (`domain/capture_types.KEYS`). */
 export const CAPTURE_KEYS = ["text", "bool", "photo", "signature", "measure"] as const;
 export type CaptureKey = (typeof CAPTURE_KEYS)[number];

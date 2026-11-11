@@ -255,20 +255,3 @@ class CompanyTimeView(BaseModel):
     tasks: list[TaskOut]
     can_edit: bool
     vocab: TimeVocab
-
-
-class TodoItem(BaseModel):
-    section: str
-    label: str
-    count: int
-    red: bool = False
-
-
-class TodoOut(BaseModel):
-    """►►► **Was an diesem Datensatz zu tun ist** – die Zahl am Symbol. ◄◄◄ Offene
-    Nachrichten, Aufgaben der Zeiterfassung, fehlende Pflichtangaben; rot, sobald etwas
-    dringend ist."""
-    object_id: int
-    count: int
-    red: bool
-    items: list[TodoItem]

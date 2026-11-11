@@ -6486,25 +6486,21 @@
         }
       }
     },
-    "/api/v1/erp/todo": {
+    "/api/v1/erp/tasks": {
       "get": {
         "tags": [
-          "timekeeping"
+          "tasks"
         ],
-        "summary": "Read Todo",
-        "description": "Je Datensatz, was zu tun ist – die Zahl am Symbol in Feed und Kopf.",
-        "operationId": "read_todo_api_v1_erp_todo_get",
+        "summary": "Read Tasks",
+        "description": "Meine eine Aufgabe und die roten Zeichen, die ich sehe – teilt vorher zu (``tasks.dispatch``).",
+        "operationId": "read_tasks_api_v1_erp_tasks_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TodoOut"
-                  },
-                  "type": "array",
-                  "title": "Response Read Todo Api V1 Erp Todo Get"
+                  "$ref": "#/components/schemas/TasksOut"
                 }
               }
             }
@@ -6515,6 +6511,54 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/v1/erp/tasks/{key}/hand": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Hand Task",
+        "description": "Meine Aufgabe abgeben – ohne Grund; sie geht an die nächste freie Person, die sie kann.",
+        "operationId": "hand_task_api_v1_erp_tasks__key__hand_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TasksOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/erp/assistant/talks": {
@@ -10930,6 +10974,20 @@
               }
             ],
             "title": "Role"
+          },
+          "competences": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competences"
           }
         },
         "type": "object",
@@ -12727,6 +12785,20 @@
                     "description": "Warum ausgesondert wird – Pflicht, beim Modellieren",
                     "maxLength": 200,
                     "type": "string"
+                  },
+                  "competence": {
+                    "description": "Wer kann das? Leer = Vorgabe des Moduls (Bewegen).",
+                    "enum": [
+                      "Kommunizieren",
+                      "Verrechnen",
+                      "Bewegen",
+                      "Bauen",
+                      "Prüfen",
+                      "Schweissen",
+                      "Elektrik",
+                      "Kranprüfung"
+                    ],
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -12870,6 +12942,20 @@
                     },
                     "maxItems": 50,
                     "type": "array"
+                  },
+                  "competence": {
+                    "description": "Wer kann das? Leer = Vorgabe des Moduls (Verrechnen).",
+                    "enum": [
+                      "Kommunizieren",
+                      "Verrechnen",
+                      "Bewegen",
+                      "Bauen",
+                      "Prüfen",
+                      "Schweissen",
+                      "Elektrik",
+                      "Kranprüfung"
+                    ],
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -12892,6 +12978,20 @@
                       "integer",
                       "null"
                     ]
+                  },
+                  "competence": {
+                    "description": "Wer kann das? Leer = Vorgabe des Moduls (Bewegen).",
+                    "enum": [
+                      "Kommunizieren",
+                      "Verrechnen",
+                      "Bewegen",
+                      "Bauen",
+                      "Prüfen",
+                      "Schweissen",
+                      "Elektrik",
+                      "Kranprüfung"
+                    ],
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -12986,6 +13086,20 @@
                       }
                     },
                     "type": "object"
+                  },
+                  "competence": {
+                    "description": "Wer kann das? Leer = Vorgabe des Moduls (Prüfen).",
+                    "enum": [
+                      "Kommunizieren",
+                      "Verrechnen",
+                      "Bewegen",
+                      "Bauen",
+                      "Prüfen",
+                      "Schweissen",
+                      "Elektrik",
+                      "Kranprüfung"
+                    ],
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -13029,6 +13143,20 @@
                     },
                     "minItems": 1,
                     "type": "array"
+                  },
+                  "competence": {
+                    "description": "Wer kann das? Leer = Vorgabe des Moduls (Bauen).",
+                    "enum": [
+                      "Kommunizieren",
+                      "Verrechnen",
+                      "Bewegen",
+                      "Bauen",
+                      "Prüfen",
+                      "Schweissen",
+                      "Elektrik",
+                      "Kranprüfung"
+                    ],
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -15858,6 +15986,40 @@
         "title": "TargetIn",
         "description": "Ein Pflichtfeld, das die Freigabe gleich mitsetzt (``services/fields``)."
       },
+      "TaskMark": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "part": {
+            "type": "string",
+            "title": "Part"
+          },
+          "mine": {
+            "type": "boolean",
+            "title": "Mine",
+            "default": false
+          },
+          "orphan": {
+            "type": "boolean",
+            "title": "Orphan",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "object_id",
+          "part"
+        ],
+        "title": "TaskMark",
+        "description": "►► **Eine Aufgabe, wie man sie sieht** – kein Satz: was zu tun ist, zeigt die Stelle. ◄◄"
+      },
       "TaskOut": {
         "properties": {
           "kind": {
@@ -15886,6 +16048,33 @@
           "age"
         ],
         "title": "TaskOut"
+      },
+      "TasksOut": {
+        "properties": {
+          "mine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskMark"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "visible": {
+            "items": {
+              "$ref": "#/components/schemas/TaskMark"
+            },
+            "type": "array",
+            "title": "Visible"
+          }
+        },
+        "type": "object",
+        "required": [
+          "visible"
+        ],
+        "title": "TasksOut",
+        "description": "►►► **Was eine Person sieht** – ihre eine Aufgabe und die roten Zeichen (die eigene, beim\nAdmin alle, bei allen die verwaisten). ◄◄◄"
       },
       "TemplateIn": {
         "properties": {
@@ -16362,66 +16551,6 @@
         "title": "TimeVocab",
         "description": "Die Wörter der Zeiterfassung – EINE Quelle (``domain/timekeeping``)."
       },
-      "TodoItem": {
-        "properties": {
-          "section": {
-            "type": "string",
-            "title": "Section"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          },
-          "red": {
-            "type": "boolean",
-            "title": "Red",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "section",
-          "label",
-          "count"
-        ],
-        "title": "TodoItem"
-      },
-      "TodoOut": {
-        "properties": {
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          },
-          "red": {
-            "type": "boolean",
-            "title": "Red"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/TodoItem"
-            },
-            "type": "array",
-            "title": "Items"
-          }
-        },
-        "type": "object",
-        "required": [
-          "object_id",
-          "count",
-          "red",
-          "items"
-        ],
-        "title": "TodoOut",
-        "description": "►►► **Was an diesem Datensatz zu tun ist** – die Zahl am Symbol. ◄◄◄ Offene\nNachrichten, Aufgaben der Zeiterfassung, fehlende Pflichtangaben; rot, sobald etwas\ndringend ist."
-      },
       "TransferInfo": {
         "properties": {
           "iban": {
@@ -16812,6 +16941,14 @@
               }
             ],
             "title": "Date Of Birth"
+          },
+          "competences": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Competences",
+            "default": []
           },
           "company_object_id": {
             "anyOf": [
@@ -19204,6 +19341,11 @@
               }
             ],
             "title": "Primary"
+          },
+          "ours": {
+            "type": "boolean",
+            "title": "Ours",
+            "default": false
           }
         },
         "type": "object",

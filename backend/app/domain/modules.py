@@ -9,7 +9,7 @@ gibt es nicht (``Module.exit_status_for`` sagt, was beim Hinausgehen geschieht).
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from . import capture_types, sampling, statuses as st
+from . import capture_types, competences, sampling, statuses as st
 from . import voucher as vo
 from .errors import Invalid
 
@@ -62,9 +62,13 @@ class Module:
     #: Eine Eigenschaft wie ``terminal``: der Kern fragt sie, nie den Modultyp.
     passes_itself: Optional[str] = None
 
-    def __init__(self, key: str, label: str, tone: str):
+    def __init__(self, key: str, label: str, tone: str, competence: Optional[str] = None):
         self.key = key
         self.label = label
+        #: **Welche Kompetenz ein Schritt dieses Moduls braucht** – die Vorgabe; am Schritt
+        #: lässt sie sich gegen eine aus ``domain/competences`` tauschen (``clean_step``).
+        #: Jedes Modul in ``MODULES`` nennt eine (Wächter ``test_tasks``).
+        self.competence = competences.clean(competence)
         #: **Die Farbfamilie dieses Modultyps** – ein Wort, das das Frontend auf Tokens
         #: abbildet (``lib/modules.MODULE_TONE``). Getrennt von der Ampel: ein Modul ist
         #: kein Zustand (PROCESS_CORE.md §5.3).
@@ -73,6 +77,21 @@ class Module:
     def clean_config(self, raw: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
         """Die Konfiguration prüfen und normalisieren. Ohne Konfiguration: ``None``."""
         return None
+
+    def clean_step(self, raw: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        """►► **Die Konfiguration eines Schritts** – die des Moduls (``clean_config``) und, für
+        jedes Modul gleich, die am Schritt gewählte Kompetenz (``competence``; leer oder gleich
+        der Vorgabe = nicht gespeichert). Die eine Stelle, durch die jeder Schritt geht. ◄◄"""
+        rest = dict(raw or {})
+        chosen = competences.clean(rest.pop("competence", None))
+        config = self.clean_config(rest or None)
+        if chosen and chosen != self.competence:
+            config = {**(config or {}), "competence": chosen}
+        return config
+
+    def competence_of(self, config: Optional[dict[str, Any]]) -> Optional[str]:
+        """Welche Kompetenz ein Schritt mit dieser Konfiguration braucht."""
+        return (config or {}).get("competence") or self.competence
 
     def config_schema(self) -> dict[str, Any]:
         """►►► **Die Form der Konfiguration als JSON-Schema** – die andere Form von
@@ -641,16 +660,19 @@ MODULES: dict[str, Module] = {
             key=DATENERFASSUNG,
             label="Datenerfassung",
             tone="slate",
+            competence=competences.PRUEFEN,
         ),
         Aussondern(
             key=AUSSONDERN,
             label="Aussondern",
             tone="clay",
+            competence=competences.BEWEGEN,
         ),
         Bewegen(
             key=BEWEGEN,
             label="Bewegen",
             tone="moss",
+            competence=competences.BEWEGEN,
         ),
         Beleg(
             key=BELEG,
@@ -658,11 +680,13 @@ MODULES: dict[str, Module] = {
             # Gedämpftes Violett – die anderen Familien sind vergeben (Slate · Sand · Moss ·
             # Clay).
             tone="plum",
+            competence=competences.VERRECHNEN,
         ),
         Verbrauch(
             key=VERBRAUCH,
             label="Verbrauch",
             tone="sand",
+            competence=competences.BAUEN,
         ),
     )
 }
@@ -674,7 +698,16 @@ def config_schemas() -> dict[str, dict[str, Any]]:
     """►►► **Die Einstellungen jedes Modultyps als JSON-Schema** – je Schlüssel aus
     ``Module.config_schema``. Ein neues Modul erscheint hier (und damit in jeder Route, die
     Schritte nimmt) von selbst. ◄◄◄"""
-    return {k: {"description": m.label, **m.config_schema()} for k, m in MODULES.items()}
+    return {k: _with_competence(m) for k, m in MODULES.items()}
+
+
+def _with_competence(m: Module) -> dict[str, Any]:
+    """Die Beschreibung eines Moduls, dazu für jedes gleich ``competence`` (``clean_step``)."""
+    schema = m.config_schema()
+    props = {**(schema.get("properties") or {}), "competence": {
+        "type": "string", "enum": list(competences.COMPETENCES),
+        "description": f"Wer kann das? Leer = Vorgabe des Moduls ({m.competence})."}}
+    return {"description": m.label, **schema, "properties": props}
 
 LABELS: dict[str, str] = {k: m.label for k, m in MODULES.items()}
 TONES: dict[str, str] = {k: m.tone for k, m in MODULES.items()}

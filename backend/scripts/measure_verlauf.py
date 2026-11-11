@@ -15,7 +15,7 @@ import time
 from sqlalchemy import text
 
 from app.core.actor import system_session
-from app.services import communication, history, objects, todo
+from app.services import communication, history, objects, tasks
 from app.models import UserProfile
 
 SEED = """
@@ -94,8 +94,8 @@ def main(n: int = ROWS) -> None:
         print(f"offen gezählt: {sum(c.open for c in counts)} Nachrichten bei {len(counts)} Personen")
         print(f"open_counts:                               "
               f"{_time(lambda: communication.open_counts(db)):6.1f} ms")
-        print(f"«zu tun» (todo, Admin):                    "
-              f"{_time(lambda: todo.todo(db, admin)):6.1f} ms")
+        print(f"Aufgaben (tasks.collect):                 "
+              f"{_time(lambda: tasks.collect(db)):6.1f} ms")
     finally:
         db.rollback()
         db.close()

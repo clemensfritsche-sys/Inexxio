@@ -400,6 +400,8 @@ class VoucherState(BaseModel):
     date_word: Optional[str] = None
     #: Das Verb, das jetzt weiterbringt – oder ``None``.
     primary: Optional[str] = None
+    #: **Wir sind dran** – dann ist die Zahlung eine Aufgabe (``services/tasks``).
+    ours: bool = False
 
 
 class VoucherOption(BaseModel):

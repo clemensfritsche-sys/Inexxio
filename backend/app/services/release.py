@@ -135,7 +135,7 @@ def _from_module(data: dict[str, Any]) -> dict[str, Any]:
     """Eine Modul-Definition aus dem Entwurf in ihre gespeicherte Form bringen: Typ und
     geprüfte Konfiguration – mehr hat ein Schritt nicht (``domain/modules``)."""
     module = modules.get(data.get("module_type"))
-    return {"module_type": module.key, "config": module.clean_config(data.get("config"))}
+    return {"module_type": module.key, "config": module.clean_step(data.get("config"))}
 
 
 def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) -> list[dict[str, Any]]:

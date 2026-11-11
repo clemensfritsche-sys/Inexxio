@@ -2470,7 +2470,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/todo": {
+    "/api/v1/erp/tasks": {
         parameters: {
             query?: never;
             header?: never;
@@ -2478,12 +2478,32 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Todo
-         * @description Je Datensatz, was zu tun ist – die Zahl am Symbol in Feed und Kopf.
+         * Read Tasks
+         * @description Meine eine Aufgabe und die roten Zeichen, die ich sehe – teilt vorher zu (``tasks.dispatch``).
          */
-        get: operations["read_todo_api_v1_erp_todo_get"];
+        get: operations["read_tasks_api_v1_erp_tasks_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/tasks/{key}/hand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hand Task
+         * @description Meine Aufgabe abgeben – ohne Grund; sie geht an die nächste freie Person, die sie kann.
+         */
+        post: operations["hand_task_api_v1_erp_tasks__key__hand_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4329,6 +4349,8 @@ export interface components {
             new_company?: components["schemas"]["NewCompany"] | null;
             /** Role */
             role?: ("admin" | "employee" | "user") | null;
+            /** Competences */
+            competences?: string[] | null;
         };
         /**
          * FieldChange
@@ -6619,6 +6641,28 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * TaskMark
+         * @description ►► **Eine Aufgabe, wie man sie sieht** – kein Satz: was zu tun ist, zeigt die Stelle. ◄◄
+         */
+        TaskMark: {
+            /** Key */
+            key: string;
+            /** Object Id */
+            object_id: number;
+            /** Part */
+            part: string;
+            /**
+             * Mine
+             * @default false
+             */
+            mine: boolean;
+            /**
+             * Orphan
+             * @default false
+             */
+            orphan: boolean;
+        };
         /** TaskOut */
         TaskOut: {
             /** Kind */
@@ -6632,6 +6676,16 @@ export interface components {
             label: string;
             /** Age */
             age: number;
+        };
+        /**
+         * TasksOut
+         * @description ►►► **Was eine Person sieht** – ihre eine Aufgabe und die roten Zeichen (die eigene, beim
+         *     Admin alle, bei allen die verwaisten). ◄◄◄
+         */
+        TasksOut: {
+            mine?: components["schemas"]["TaskMark"] | null;
+            /** Visible */
+            visible: components["schemas"]["TaskMark"][];
         };
         /**
          * TemplateIn
@@ -6833,36 +6887,6 @@ export interface components {
             correction_days: number;
             /** Week Max */
             week_max: number;
-        };
-        /** TodoItem */
-        TodoItem: {
-            /** Section */
-            section: string;
-            /** Label */
-            label: string;
-            /** Count */
-            count: number;
-            /**
-             * Red
-             * @default false
-             */
-            red: boolean;
-        };
-        /**
-         * TodoOut
-         * @description ►►► **Was an diesem Datensatz zu tun ist** – die Zahl am Symbol. ◄◄◄ Offene
-         *     Nachrichten, Aufgaben der Zeiterfassung, fehlende Pflichtangaben; rot, sobald etwas
-         *     dringend ist.
-         */
-        TodoOut: {
-            /** Object Id */
-            object_id: number;
-            /** Count */
-            count: number;
-            /** Red */
-            red: boolean;
-            /** Items */
-            items: components["schemas"]["TodoItem"][];
         };
         /**
          * TransferInfo
@@ -7076,6 +7100,11 @@ export interface components {
             addresses: components["schemas"]["AddressOut"][];
             /** Date Of Birth */
             date_of_birth: string | null;
+            /**
+             * Competences
+             * @default []
+             */
+            competences: string[];
             /** Company Object Id */
             company_object_id: number | null;
             company?: components["schemas"]["CompanyRef"] | null;
@@ -8008,6 +8037,11 @@ export interface components {
             date_word?: string | null;
             /** Primary */
             primary?: string | null;
+            /**
+             * Ours
+             * @default false
+             */
+            ours: boolean;
         };
         /**
          * VoucherTerm
@@ -11973,7 +12007,7 @@ export interface operations {
             };
         };
     };
-    read_todo_api_v1_erp_todo_get: {
+    read_tasks_api_v1_erp_tasks_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -11988,7 +12022,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TodoOut"][];
+                    "application/json": components["schemas"]["TasksOut"];
+                };
+            };
+        };
+    };
+    hand_task_api_v1_erp_tasks__key__hand_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TasksOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

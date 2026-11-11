@@ -18,6 +18,7 @@ Spalte da (``messages.topic``, aus dem Betreff, der sich nie ändert) – so ist
 """
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Iterable, Optional
 
@@ -600,6 +601,52 @@ def open_counts(db: Session) -> list[OpenCount]:
             counts[oid][0] += 1
             counts[oid][1] += int(overdue)
     return [OpenCount(object_id=k, open=v[0], overdue=v[1]) for k, v in counts.items()]
+
+
+@dataclass(frozen=True)
+class OpenThread:
+    """Ein offenes Anliegen als Aufgabe (``services/tasks``): wo es steht, seit wann, und – an
+    eine Mitarbeiterin intern – nur für sie."""
+    place: int
+    topic: str
+    at: datetime
+    only: Optional[int]
+
+
+def open_threads(db: Session) -> list[OpenThread]:
+    """►► **Die offenen Anliegen** – dieselbe Regel wie im Verlauf und am Zeichen (``_state``).
+    Von aussen: am Absender (eine fremde Person). Intern an Personal: an jeder Angesprochenen,
+    nur für sie. Je Ort und Anliegen eines, mit der ältesten offenen Nachricht. ◄◄"""
+    params = {**_rule_params(), "quiet": [k for k in dc.CHANNELS if dc.quiet(k)]}
+    msgs = db.execute(_UNANSWERED, params).all()
+    if not msgs:
+        return []
+    ids = [m.id for m in msgs]
+    roles: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+    for mid, oid, role in db.query(MessageParty.message_id, MessageParty.object_id,
+                                   MessageParty.role).filter(
+            MessageParty.message_id.in_(ids)).all():
+        roles[mid][role].append(oid)
+    topics = dict(db.query(Message.id, Message.topic).filter(Message.id.in_(ids)).all())
+    everyone = {m.sender_object_id for m in msgs} | {
+        i for r in roles.values() for v in r.values() for i in v}
+    staff = {oid for (oid,) in db.query(UserProfile.object_id).filter(
+        UserProfile.object_id.in_(everyone), UserProfile.role.in_(STAFF_ROLES)).all()}
+    now = params["now"]
+    found: dict[tuple[int, str], OpenThread] = {}
+    for m in msgs:
+        is_open, _ = _state(m, roles[m.id], False, staff.__contains__, now)
+        if not is_open:
+            continue
+        topic = topics.get(m.id) or ""
+        places = ([(m.sender_object_id, None)] if m.inbound else
+                  [(i, i) for i in roles[m.id].get("to", []) if i in staff])
+        for place, only in places:
+            at = _aware(m.at)
+            old = found.get((place, topic))
+            if old is None or at < old.at:
+                found[(place, topic)] = OpenThread(place=place, topic=topic, at=at, only=only)
+    return list(found.values())
 
 
 # ---------------------------------------------------------------------------

@@ -46,7 +46,7 @@ from ..domain.errors import Invalid, NotFound
 #: ``documents``/``document_refs`` stehen im Log an der Nummer des **Dokuments** (nicht am
 #: Datensatz, an dem es hängt) – dort sind sie seine eigenen Änderungen, keine Doppelung.
 #: Ereignisse (``action = 'event'``) zeigt er – ausser denen der KI (``HIDDEN_EVENTS``).
-HIDDEN = frozenset({"messages", "message_parties", "objects", "webauthn_challenges"})
+HIDDEN = frozenset({"messages", "message_parties", "objects", "webauthn_challenges", "task_focus"})
 #: ►► **Die Ereignisse des Assistenten stehen nicht im Verlauf** – sie haben ihren eigenen Ort:
 #:    ein Gespräch im «+» (privat), ein Handgriff und das Wissen im Angehefteten; was ein
 #:    Handgriff tut, steht danach als gewöhnliche Änderung oder Notiz da. Im Verlauf wären sie

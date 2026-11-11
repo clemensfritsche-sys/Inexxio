@@ -238,6 +238,7 @@ class UserProfileResponse(BaseModel):
 
     # Personal extras
     date_of_birth: Optional[date]
+    competences: list[str] = []
 
     #: ►►► **Die Firma der Person** – eigene (dann arbeitet sie bei uns) oder fremde.
     company_object_id: Optional[int]
@@ -300,6 +301,9 @@ class ErpAdminUpdate(UserProfileUpdate):
     Durch die Vererbung kann die Liste auch nicht mehr auseinanderlaufen."""
     # Dieselbe Literal-Whitelist wie beim Anlegen – Rollen werden exakt verglichen.
     role: Optional[Role] = None
+    #: **Was die Person kann** (Projektakte «Aufgaben») – Wörter aus ``domain/competences``;
+    #: nur am Personal, nur der Admin (Angaben von Mitarbeitenden, ``person.staff``).
+    competences: Optional[list[str]] = None
 
 
 class PersonCreate(BaseModel):

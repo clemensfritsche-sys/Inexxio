@@ -17,7 +17,7 @@ import pytest
 from app.core.actor import act
 from app.core.config import get_settings
 from app.models import Log, RecordingChunk
-from app.services import ai, attachments, history, recordings, talk, tick, todo
+from app.services import ai, attachments, history, recordings, talk, tasks, tick
 from tests.factories import new_firm, new_person
 from tests.test_assistant import api  # noqa: F401 – die Fixture: echte Routen, dieselbe Sitzung
 
@@ -630,8 +630,8 @@ def test_failed_recordings_are_visible_silence_is_not(db, api, gemini):  # noqa:
     assert [(r["id"], r["state"], r["problem"]) for r in shown] == [
         (broken, "failed", recordings.UNREADABLE)]
     # Nicht mehr in «zu tun» an der Person – die Zahl am «+» ist diese Liste.
-    found = {t.object_id: t for t in todo.todo(db, me)}.get(me.object_id)
-    assert not found or not [i for i in found.items if "Aufnahme" in i.label]
+    assert not [t for t in tasks.collect(db) if t.object_id == me.object_id
+                and t.key.startswith("rec")]
     # Verwerfen: weg aus dem «+», das Log behält sie; was nicht gescheitert ist, nicht.
     assert c.post(f"{BASE}/{broken}/dismiss").status_code == 200
     assert c.post(f"{BASE}/{broken}/dismiss").status_code == 200          # zweimal ist einmal

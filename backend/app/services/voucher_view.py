@@ -49,11 +49,12 @@ from ..domain import policy
 
 def _state(key: str, label: str, tone: str, text: str, *,
            when: Optional[date] = None, word: Optional[str] = None,
-           primary: Optional[str] = None) -> dict[str, Any]:
+           primary: Optional[str] = None, ours: bool = False) -> dict[str, Any]:
     """Eine Zeile der Leiste. ``when``/``word`` («fällig» + Datum) setzt die Oberfläche
-    über ``lib/when`` – ein Datum schreibt nur sie."""
+    über ``lib/when`` – ein Datum schreibt nur sie. ``ours``: **wir sind dran** – die Zahlung
+    ist dann eine Aufgabe (``services/tasks``); gesetzt hier, nie aus dem Satz gelesen."""
     return {"key": key, "label": label, "tone": tone, "text": text,
-            "date": when, "date_word": word, "primary": primary}
+            "date": when, "date_word": word, "primary": primary, "ours": ours}
 
 
 def situation(db: Session, row: Voucher, *, order: Order,
@@ -71,25 +72,25 @@ def situation(db: Session, row: Voucher, *, order: Order,
         return _cancelled_state(db, row)
     if problem:
         return _state("locked", "Die Stücke passen nicht mehr", "danger", problem,
-                      primary="revoke")
+                      primary="revoke", ours=True)
     if row.stage == vo.OFFER:
         return _offer_state(db, row, flow)
     if row.stage == vo.AGREED:
         credit = credit_problem(db, row)
         if credit:
             return _state("locked", "Gutschrift geht nicht mehr", "danger", credit,
-                          primary="revoke")
+                          primary="revoke", ours=True)
         if vo.CONFIRM_DOC in papers_due(db, row):
             return _paper_state(vo.CONFIRM_DOC)
         verb = vo.charge_word(collects=flow.collects, minus=minus(row))
         if not flow.collects:
             return _state("agreed", "Bestellt", "pending",
                           "Sie sind dran: Rechnung erfassen, sobald sie da ist",
-                          primary="bill")
+                          primary="bill", ours=True)
         lead = ("Vorauszahlung – die Stücke warten auf das Geld · "
                 if vo.prepaid(due_days_of(db, row)) else "")
         return _state("agreed", "Zugesagt", "pending",
-                      f"{lead}Sie sind dran: {verb}", primary="bill")
+                      f"{lead}Sie sind dran: {verb}", primary="bill", ours=True)
     return _billed_state(db, row, flow, party)
 
 
@@ -98,7 +99,7 @@ def _paper_state(kind: str) -> dict[str, Any]:
     dem Geld. Hinaus geht es mit der Freigabe (``release``)."""
     word = vo.document_word(kind)
     return _state("paper", f"{word} steht an", "pending",
-                  f"Sie sind dran: {word} prüfen und freigeben", primary="release")
+                  f"Sie sind dran: {word} prüfen und freigeben", primary="release", ours=True)
 
 
 def _cancelled_state(db: Session, row: Voucher) -> dict[str, Any]:
@@ -107,7 +108,7 @@ def _cancelled_state(db: Session, row: Voucher) -> dict[str, Any]:
         return _state("cancelled", vo.state_word("void"), "danger",
                       f"{amount_text(-money.open, row.currency)} gehören dem "
                       f"{'Kunden' if vo.of(row.direction).collects else 'Lieferanten'} – "
-                      f"Sie sind dran: erstatten", primary="refund")
+                      f"Sie sind dran: erstatten", primary="refund", ours=True)
     given = credited(db, row)
     if given is not None and vo.of(row.direction).collects and not minus(row):
         text = ("Gutschrift über die ganze Rechnung, von selbst" if given == row.amount
@@ -129,21 +130,22 @@ def _offer_state(db: Session, row: Voucher, flow: vo.Direction) -> dict[str, Any
             target = corrects(db, row)
             text = (f"mindert Rechnung {target.number}" if target is not None
                     else "zuerst die Rechnung wählen, die sie mindert")
-            return _state("draft", "Gutschrift – Entwurf", "pending", text, primary="ask")
-        return _state("draft", "Entwurf", "pending", "Sie sind dran", primary="ask")
+            return _state("draft", "Gutschrift – Entwurf", "pending", text, primary="ask",
+                          ours=True)
+        return _state("draft", "Entwurf", "pending", "Sie sind dran", primary="ask", ours=True)
     if all_declined(db, row):
         return _state("declined", "Alle haben abgesagt", "danger",
                       "Sie sind dran: anderen Partner wählen oder stornieren",
-                      primary="party")
+                      primary="party", ours=True)
     if expired(db, row):
         days = (clock.today() - valid_until(db, row)).days
         return _state("expired", "Offerte abgelaufen", "danger",
                       f"seit {days} {'Tag' if days == 1 else 'Tagen'} – Sie sind dran",
-                      primary="ask")
+                      primary="ask", ours=True)
     if changed_since_offer(db, row):
         return _state("changed", "Geändert", "pending",
                       "die gesendete Offerte ist überholt – Sie sind dran: erneut anbieten",
-                      primary="ask")
+                      primary="ask", ours=True)
     open_rows = [q for q in quotes if q.state != vo.DECLINED]
     many = len(open_rows) > 1
     if flow.collects:
@@ -164,12 +166,13 @@ def _billed_state(db: Session, row: Voucher, flow: vo.Direction,
         sign = "+" if gap > 0 else "−"
         return _state("deviation", "Rechnung weicht ab", "danger",
                       f"{sign}{amount_text(abs(gap), row.currency)} zur Zusage – Sie sind dran",
-                      primary="accept")
+                      primary="accept", ours=True)
     export_open = is_export(db, row) and not row.export_number
     if money.even:
         if export_open:
             return _state("proof", "Bezahlt", "pending",
-                          "Ausfuhrnachweis fehlt – erst damit erledigt", primary="export")
+                          "Ausfuhrnachweis fehlt – erst damit erledigt", primary="export",
+                          ours=True)
         if vo.RECEIPT_DOC in papers_due(db, row):
             return _paper_state(vo.RECEIPT_DOC)
         return _state("done", "Erledigt", "done", _done_text(db, row))
@@ -178,22 +181,23 @@ def _billed_state(db: Session, row: Voucher, flow: vo.Direction,
         verb = "gehören" if whose == "dem Kunden" else "stehen"
         rest = f"{amount_text(-money.open, row.currency)} {verb} {whose}" + (
             "" if whose == "dem Kunden" else " zu")
-        return _state("overpaid", "Zu viel bezahlt", "danger", rest, primary="refund")
+        return _state("overpaid", "Zu viel bezahlt", "danger", rest, primary="refund",
+                      ours=whose == "dem Kunden")
     proof = " · Ausfuhrnachweis fehlt" if export_open else ""
     if overdue(db, row):
         return _overdue_state(db, row, proof)
     if money.paid > 0 and money.open < vo.SMALL_REST:
         return _state("short", "Zu wenig bezahlt", "pending",
                       f"es fehlen {amount_text(money.open, row.currency)} – offen lassen oder "
-                      f"ausbuchen", primary="writeoff")
+                      f"ausbuchen", primary="writeoff", ours=True)
     if minus(row):
         return _state("open", "Gutschrift gestellt", "pending",
                       f"wir erstatten {amount_text(money.open, row.currency)}{proof}",
-                      when=row.due_on, word="bis", primary="pay")
+                      when=row.due_on, word="bis", primary="pay", ours=True)
     if not flow.collects:
         label = vo.state_word("partial") if money.paid > 0 else "Rechnung erfasst"
         return _state("open", label, "pending", f"Sie sind dran: bezahlen{proof}",
-                      when=row.due_on, word="fällig", primary="pay")
+                      when=row.due_on, word="fällig", primary="pay", ours=True)
     label = vo.state_word("partial") if money.paid > 0 else "Rechnung gestellt"
     return _state("open", label, "pending", f"{party} ist dran{proof}",
                   when=row.due_on, word="fällig", primary="pay")
@@ -207,19 +211,20 @@ def _overdue_state(db: Session, row: Voucher, proof: str) -> dict[str, Any]:
     if not remindable(row):
         return _state("overdue", vo.state_word("overdue"), "danger",
                       f"{since} – Sie sind dran: {'erstatten' if minus(row) else 'bezahlen'}"
-                      f"{proof}", primary="pay")
+                      f"{proof}", primary="pay", ours=True)
     nxt = next_reminder(db, row)
     sent = reminders(db, row)
     if nxt is not None and nxt[1] <= clock.today():
         return _state("overdue", vo.state_word("overdue"), "danger",
                       f"{since} – die {vo.remind_word(nxt[0])} ist fällig{proof}",
-                      primary="remind")
+                      primary="remind", ours=True)
     if nxt is not None:
         return _state("overdue", vo.state_word("overdue"), "danger",
                       f"{vo.remind_word(len(sent))} gesendet – nächste Stufe{proof}",
                       when=nxt[1], word="ab", primary="pay")
     return _state("overdue", vo.state_word("overdue"), "danger",
-                  f"{vo.REMIND_LEVELS[-1]} gesendet – Sie sind dran{proof}", primary="pay")
+                  f"{vo.REMIND_LEVELS[-1]} gesendet – Sie sind dran{proof}", primary="pay",
+                  ours=True)
 
 
 def _done_text(db: Session, row: Voucher) -> str:

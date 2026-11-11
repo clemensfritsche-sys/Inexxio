@@ -58,7 +58,7 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
     out: list[ArticleProcessStep] = []
     for position, data in enumerate(raw, start=1):
         module = modules.get(data.get("module_type"))
-        config = module.clean_config(data.get("config"))
+        config = module.clean_step(data.get("config"))
         step = ArticleProcessStep(
             article_id=article.id,
             position=position,
