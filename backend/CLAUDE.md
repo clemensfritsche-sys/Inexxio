@@ -121,7 +121,7 @@ scripts/
 ├── dump_statuses.py  ← domain/statuses.py → frontend/src/lib/status-catalog.ts
 ├── dump_vocab.py     ← Schlüssel und Wörter aus domain/… → frontend/src/lib/vocab.ts
 ├── deadcode.py       ← «was liest eigentlich niemand mehr?» (beide Seiten)
-├── measure_verlauf.py← Messung: Verlauf und «zu tun» bei 50'000 Nachrichten (rollt zurück)
+├── measure_verlauf.py← Messung: Verlauf und Aufgaben bei 50'000 Nachrichten (rollt zurück)
 ├── build_geoip.py    ← DB-IP Lite → IP→Land (im Docker-Build)
 ├── invariant_report.py · scenario_report.py  ← lesen tests/invariants.py · tests/matrix.py
 ```
@@ -136,12 +136,13 @@ scripts/
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
 | Kommunikation | `communication.py` (anlegen, Seiten `page`, «offen» als Abfrage, `move_note`), `mailbox.py` (verbinden, abgleichen, senden) + `mail_parse.py` (eine Gmail-Nachricht lesen: Text, Zitate, Anhänge, Massenpost – rein), `outbox.py` (jede Mail des Hauses: `deliver`, `build`, `firm`, `signer`), `mail_layout.py` (die eine Vorlage, `as_signer`), `portrait.py` (das Bild der Unterschrift als GIF), `inquiry.py`, `newsletter.py` |
 | Verlauf | `history.py` (ein Verlauf je Nummer: Nachrichten, Dokumente, Änderungen aus dem Log; `HIDDEN`), Wörter der Tabellen in `domain/log.TABLE_WORDS` |
-| Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft), `todo.py` (die Zahl am Symbol) |
+| Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `record_labels.py` (Datensätze benennen: Typ aus der Registry, `objects.TYPES`) |
-| Der Takt | `tick.py` (`TASKS`: Siegel, Wiederholungen (`loop`), Mails, Aufnahmen (`voice`), KI – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
+| Der Takt | `tick.py` (`TASKS`: Siegel, Wiederholungen (`loop`), Mails, Aufgaben zuteilen (`tasks`), Aufnahmen (`voice`), KI – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
 | Der Assistent (Phase 5, `docs/konzept/phase5-bauplan.md`) | `handgriff.py` (Handlungen aus den Routen `operations`, das Lesbare `reads` + `look` (jede lesende Route des Personals, als `ai_tools.reader`, verworfen), `incomplete` (fehlen nur Werte → trotzdem ein Vorschlag), `call` über ASGI mit den Rechten der Person – Probelauf oder Übernehmen genau einmal; der Vorschlag im Log: `prepare` mit Probelauf, `run` = Übernehmen (wartet auf), `changes_of` (alt → neu, wie es jetzt ist), `drop`, `settle`, `open_at`, `open_mail_counts`), `talk.py` (das Gespräch: `say` (auch mit dem Text von Aufnahmen, `recordings`), die KI `answer` mit Werkzeugen lesen · abrufen · nachschlagen · vorbereiten · weglegen – sie führt nie aus; eine Sperre je Gespräch, «Stopp» über `talk.stop`; `stream` live in eigenem Faden, Text Wort für Wort, `catch_up` im Takt; `clean` putzt Steuerzeichen), `ai.py` (die Tür: `converse` mit Werkzeugen, Schritten live `on_step`, Text live `on_text`, `stopped`, Zwischenspeicher `cache_control`, Dauer `ms` je `ai.call`, Deckel in Franken), `ai_tools.py` (Lese-Werkzeuge als gemeinsamer Betrachter, dazu `wissen`; `catalog` = die Handlungen als Text für den Auftrag, aus den Routen), `memory.py` (im Wissen suchen: Notizen, Dokumente, entschiedene Handgriffe, pgvector), `pins.py` («Auf einen Blick»: offene Vorschläge + Wissen, neu gewählt nur bei Änderung im Umfeld; `ahead` bereitet es im Takt vor), `surroundings.py` (das Umfeld aus dem Log, die Marke), `follow.py` (Vorschläge aus einer eingehenden Mail, im Takt), `core/outside.py` (nach aussen erst nach dem Speichern; im Probelauf `NeedsHand`) |
 | Sprache (Phase 4, `docs/konzept/phase4-bauplan.md`) | `recordings.py` (EINE Stelle: `start`, `add_chunk`, `stop`, `advance` – Abschnitte der Reihe nach über `ai.transcribe` → `recording.segment`, dann der ganze Text → `recording.done` (er geht in die Eingabe, die Person schickt ihn), Stücke weg; `due`/`sweep` für den Takt, `dismiss` verwirft eine gescheiterte oder abgeschriebene; `context` = die Stecknadel), `ai.py` (`transcribe`, Gemini über `_vertex` – dieselbe Stelle wie `embed`), Stücke in `recording_chunks` (nicht im Log), Bytes über `attachments.put_object` (eigener Bucket `RECORDINGS_BUCKET`, sonst die Zeile) |
 | Claude über MCP | `mcp.py` (Metadaten, Client/Code/Zugang signiert, `token`, `bearer`, `grants`/`revoke` (offen = `_OPEN`: nicht getrennt, zuletzt benutzt ≤ `REFRESH_TTL`), JSON-RPC `handle` mit den Werkzeugen des «+» als die Person), Route `routers/mcp.py` (am Datensatz: `routers/access.py`), Projektakte `docs/konzept/mcp.md` |
+| Aufgaben | `tasks.py` (EINE Stelle: `collect` – Quellen, Kompetenz folgt dem Ort –, `dispatch` – Arztpraxis-Modell, Anwesenheit, `task_focus` –, `hand`, `view`, `set_competences`), Kompetenzen in `domain/competences.py`, Projektakte `docs/konzept/aufgaben.md` |
 | Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
@@ -276,7 +277,8 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `/api/v1/erp/recordings/{id}/advance` | staff (selbst · Admin) | **Weiter abschreiben**, so weit die Zeit reicht (`ai.until(50)`): Abschnitte → Text → `done`; `problem` sagt, warum nicht |
 | GET | `/api/v1/erp/recordings/open` | staff | Meine Aufnahmen, deren Text noch nicht gesendet ist (mit `/assistant/talks/open` die Zahl am «+») |
 | POST | `/api/v1/erp/recordings/{id}/dismiss` | staff (selbst · Admin) | **Verwerfen** einer gescheiterten oder abgeschriebenen Aufnahme → `recording.dismissed`, weg aus dem «+» |
-| GET | `/api/v1/erp/todo` | staff | **Was zu tun ist** je Datensatz – die Zahl am Symbol (offene Nachrichten, Zeiterfassung nur eigene/Admin, Pflichtangaben, Feiertage nur Admin; `services/todo`) |
+| GET | `/api/v1/erp/tasks` | staff | **Aufgaben**: meine eine und die roten Zeichen, die ich sehe (eigene · Admin alle · «!» verwaist); teilt vorher zu (`services/tasks.view`) |
+| POST | `/api/v1/erp/tasks/{key}/hand` | staff | Meine Aufgabe **abgeben** – ohne Grund (`tasks.hand`) |
 | GET | `/api/v1/erp/time/{object_id}?month=` | staff (selbst · Admin) | **Zeiterfassung** einer Person: Konto, Ferien, Verträge, Buchungen, ein Monat (`services/time_view`) |
 | POST | `/api/v1/erp/time/{object_id}/swipe` | staff (selbst · Admin) | Kommen ↔ Gehen, Serverzeit, ein Schlüssel je Wisch (idempotent, 60-s-Sperre) |
 | POST | `/api/v1/erp/time/{object_id}/entries` · `/entries/preview` | staff (selbst · Admin) | **Ein Eintrag** (Stempel nachtragen/korrigieren, Absenz, Nachweis, Buchung = Admin, Rücknahme) / dieselbe Regel als Vorschau, ohne zu schreiben (`timekeeping.record` · `preview`) |
@@ -321,7 +323,7 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
 - Soft-Delete (`is_active=false`), kein hard delete – die Spalte nur, wo gelöscht wird
   (`models/base.SoftDeleteMixin`); `TimestampMixin` trägt nur `created_at`/`updated_at`.
   `is_active` (Soft-Delete) und `status` (fachlich) sind zwei Achsen.
-- **Jede Sperre an einer Stelle** (`core/locks`: die Räume `TICK` · `RECORDING` · `HANDGRIFF` · `TALK`, die Schlüssel `STARTUP` · `SEAL`; `xact` bis zum Ende der Transaktion, `hold`/`let_go` über Commits hinweg auf eigener Verbindung – Takt und Aufnahmen; Wächter `test_locks`).
+- **Jede Sperre an einer Stelle** (`core/locks`: die Räume `TICK` · `RECORDING` · `HANDGRIFF` · `TALK`, die Schlüssel `STARTUP` · `SEAL` · `TASKS`; `xact` bis zum Ende der Transaktion, `hold`/`let_go` über Commits hinweg auf eigener Verbindung – Takt und Aufnahmen; Wächter `test_locks`).
 - UTC-Timestamps; Pydantic v2 (`model_validate`, `model_dump`,
   `ConfigDict(from_attributes=True)`); SQLAlchemy 2.1 (`Mapped[T]`, `mapped_column`).
 - **Fehler**: `raise NotFound("…")`, `Invalid(…)`, `Conflict(…)` … aus `domain/errors` (eigener

@@ -1,11 +1,14 @@
 'use client';
 
 import type { ElementType, ReactNode } from 'react';
-import { ArrowLeft, GitBranch, Home, Sparkles, ExternalLink } from 'lucide-react';
+import { ArrowLeft, GitBranch, Home, Sparkles, ExternalLink, Undo2 } from 'lucide-react';
 import type { StatusTone, StatusCfg } from '@/lib/status-tone';
 import { TYPE_META } from '@/lib/erp-record';
 import type { ErpRecordType, Todo, TodoItem } from '@/types';
-import { jumpToTodo, todoTip } from '@/lib/todo';
+import { jumpToTodo, todoChanged, todoTip, useTodoAt } from '@/lib/todo';
+import { api } from '@/lib/api';
+import { useAction } from '@/lib/use-action';
+import { tell } from '@/lib/notice';
 import { formatObjectId } from '@/lib/utils';
 import { webHref } from '@/lib/web-link';
 import { InfoHint } from '@/components/erp/hints';
@@ -196,21 +199,51 @@ function IconMark({ corner, size, bg, tip, children, list, onClick }: {
   );
 }
 
-/** ►►► **Die kleine Zahl am Abschnitt** – dieselbe Form wie am Symbol, nur inline: an
- *  «Zeiterfassung», «Stammdaten», «Adressen», «Feiertage». Ohne Aufgabe steht nichts da. */
-export function TodoChip({ items }: { items: TodoItem[] }) {
-  const n = items.reduce((a, i) => a + i.count, 0);
+/** ►►► **Das rote Zeichen an der Stelle** – dieselbe Form wie am Symbol, nur inline: am
+ *  Abschnitt, am Prozessschritt. Ohne Aufgabe steht nichts da. Ist es **meine** Aufgabe, ist
+ *  das Zeichen der Knopf «Abgeben» (beim Darüberfahren) – ein Klick, ohne Grund. ◄◄◄ */
+export function TodoChip({ items, size = 16 }: { items: TodoItem[]; size?: number }) {
+  const { busy, run } = useAction();
+  const n = items.length;
   if (!n) return null;
-  const red = items.some((i) => i.red);
+  const mine = items.find((i) => i.mine);
+  const orphan = !mine && items.every((i) => i.orphan);
+  const style: React.CSSProperties = {
+    minWidth: size, height: size, padding: '0 4px', borderRadius: 999, display: 'inline-flex',
+    alignItems: 'center', justifyContent: 'center', color: '#fff', letterSpacing: 0, border: 0,
+    background: 'var(--inexxio-red)', font: `700 ${Math.round(size * 0.66)}px/1 var(--font-body)`,
+  };
+  const text = orphan ? '!' : n > 9 ? '9+' : n;
+  if (!mine) {
+    return <span className="tabular-nums" data-tip={todoTip(items)} aria-label={todoTip(items)} style={style}>{text}</span>;
+  }
+  const give = async () => {
+    if (await run(() => api.handTask(mine.key), tell('Aufgabe', 'Nicht abgegeben'))) todoChanged();
+  };
   return (
-    <span className="tabular-nums" data-tip={todoTip(items)} data-tip-list=""
-      aria-label={todoTip(items)} style={{
-        minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, display: 'inline-flex',
-        alignItems: 'center', justifyContent: 'center', color: '#fff', letterSpacing: 0,
-        background: red ? 'var(--danger)' : 'var(--warning)', font: '700 10.5px/1 var(--font-body)',
-      }}>
-      {n > 9 ? '9+' : n}
-    </span>
+    <button type="button" className="tabular-nums erp-todo-give" data-tip="Abgeben" aria-label="Zu tun – abgeben"
+      disabled={busy} onClick={give} style={{ ...style, cursor: 'pointer' }}>
+      <span className="erp-todo-n">{text}</span>
+      <Undo2 className="erp-todo-u" size={Math.round(size * 0.7)} aria-hidden />
+    </button>
+  );
+}
+
+/** ►► **Eine Stelle mit Sprungziel und rotem Zeichen** – für Bauteile, die selbst keinen Kopf
+ *  dafür haben (Wiederholung, Rechtstexte, Kommunikation). Ohne Aufgabe steht kein Zeichen da. ◄◄ */
+export function TodoAt({ part, objectId, children }: {
+  part: string; objectId: number | null | undefined; children: ReactNode;
+}) {
+  const items = useTodoAt(part, objectId ?? null);
+  return (
+    <div data-todo={part} style={{ position: 'relative', scrollMarginTop: 16 }}>
+      {items.length > 0 && (
+        <span style={{ position: 'absolute', top: -8, right: -8, zIndex: 2 }}>
+          <TodoChip items={items} size={20} />
+        </span>
+      )}
+      {children}
+    </div>
   );
 }
 
@@ -287,9 +320,9 @@ export function RecordIcon({ type, size, photoUrl, initials, deviation, own, tod
         </IconMark>
       )}
       {!!todo?.count && (
-        <IconMark corner="top" size={mark} list onClick={onTodo}
-          bg={todo.red ? 'var(--danger)' : 'var(--warning)'} tip={todoTip(todo.items)}>
-          {todo.count > 9 ? '9+' : todo.count}
+        <IconMark corner="top" size={mark} onClick={onTodo}
+          bg="var(--inexxio-red)" tip={todoTip(todo.items)}>
+          {todo.orphan ? '!' : todo.count > 9 ? '9+' : todo.count}
         </IconMark>
       )}
     </div>

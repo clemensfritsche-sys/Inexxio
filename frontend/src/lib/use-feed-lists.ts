@@ -11,7 +11,7 @@ import { userDisplayName } from '@/lib/utils';
 import type { ScanCandidate } from '@/lib/scan';
 import type { StatusCfg } from '@/lib/status-tone';
 import type {
-  Article, CompanySettings, DocumentSummary, InstanceSummary, OrderSummary, Todo, UserProfile,
+  Article, CompanySettings, DocumentSummary, InstanceSummary, OrderSummary, Tasks, Todo, TodoItem, UserProfile,
 } from '@/types';
 
 /**
@@ -27,7 +27,18 @@ import type {
 const INSTANCE_PAGE = 100;
 
 /** «zu tun» je Objektnummer – die Zahl am Symbol. */
-const todoByObject = (rows: Todo[]) => new Map(rows.map((r) => [r.object_id, r]));
+/** Die Aufgaben, die ich sehe, je Datensatz – und meine eine (zuoberst im Feed). */
+function todoByObject(t: Tasks): { marks: Map<number, Todo>; mine: TodoItem | null } {
+  const marks = new Map<number, Todo>();
+  for (const i of t.visible) {
+    const row = marks.get(i.object_id) ?? { object_id: i.object_id, count: 0, orphan: true, items: [] };
+    row.items.push(i);
+    row.count += 1;
+    row.orphan = row.orphan && !!i.orphan && !i.mine;
+    marks.set(i.object_id, row);
+  }
+  return { marks, mine: t.mine ?? null };
+}
 
 /** Eine Seite kann sich mit der nächsten überschneiden, wenn dazwischen etwas dazukam. */
 function dedupeById(rows: InstanceSummary[]): InstanceSummary[] {
@@ -127,7 +138,7 @@ export function useFeedLists(query: string) {
     queryKey: feedKey('companies'), queryFn: () => api.getCompanies(), enabled: staff, meta: { what: 'Firmen' },
   });
   const todo = useQuery({
-    queryKey: feedKey('todo'), queryFn: () => api.todo(), enabled: staff, meta: { what: 'Zu tun' },
+    queryKey: feedKey('todo'), queryFn: () => api.tasks(), enabled: staff, meta: { what: 'Aufgaben' },
     select: todoByObject,
   });
   // Instanzen (höchste Kardinalität): seitenweise und auf dem Server durchsucht. Die letzte
@@ -158,7 +169,9 @@ export function useFeedLists(query: string) {
       orders: orders.data ?? [], instances: instanceRows, documents: documents.data ?? [],
     }),
     instanceCount: instanceRows.length,
-    todos: todo.data ?? new Map<number, Todo>(),
+    todos: todo.data?.marks ?? new Map<number, Todo>(),
+    /** **Meine eine Aufgabe** – ihr Datensatz steht ohne Filter zuoberst im Feed. */
+    mine: todo.data?.mine ?? null,
     // Die Shell erscheint sofort; «Laden…» steht nur, bis die Kern-Listen geantwortet haben.
     loading: users.isPending || articles.isPending || orders.isPending,
     instancesDone: !instances.hasNextPage,

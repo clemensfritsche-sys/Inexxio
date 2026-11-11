@@ -12,7 +12,7 @@ import { NOTHING, day, when } from '@/lib/when';
 import { ROLE_CFG, isStaff, userStatus } from '@/lib/record-status';
 import { ROLES, lookup } from '@/lib/vocab';
 import { api } from '@/lib/api';
-import { Card, DetailBody, DetailHeader, SectionSep, TodoChip } from '@/components/erp/detail-frame';
+import { Card, DetailBody, DetailHeader, SectionSep, TodoAt, TodoChip } from '@/components/erp/detail-frame';
 import { StatusDot } from '@/components/erp/fields';
 import { DocumentTiles } from '@/components/erp/documents';
 import { TimeCard } from '@/components/erp/time/time-card';
@@ -23,6 +23,7 @@ import { sectionItems, todoChanged } from '@/lib/todo';
 // (Rolle, Anstellung, System).
 import { Field as AField, SelectField } from '@/components/form/field';
 import { AddressBook } from '@/components/erp/address-book';
+import { Competences } from '@/components/erp/competences';
 import { CompanyField } from '@/components/erp/company-field';
 import { useMapsApiKey } from '@/lib/use-maps-key';
 import { useAutosaveValue } from '@/lib/use-autosave';
@@ -186,6 +187,7 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
           <AField name="phone" label="Telefon" value={form.phone} onChange={str('phone')} readOnly={ro} type="tel" placeholder="+41 44 000 00 00" onEnter={saveNow} required={required('phone')} />
           <AField name="date_of_birth" label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} required={required('date_of_birth')} />
         </div>
+        {isStaff(record.role) && <Competences record={record} onSaved={onSaved} />}
 
       </Card>
 
@@ -306,9 +308,11 @@ export function UserDetail({ record, onSave, isAdmin, onBack, me, todo }: {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
         <DetailBody gap={24}>
           {record.object_id != null && (
-            <section aria-label="Kommunikation" data-todo="kommunikation" style={{ scrollMarginTop: 16 }}>
-              <Communication me={me}
-                person={{ object_id: record.object_id, name: hasName ? name : record.email }} />
+            <section aria-label="Kommunikation">
+              <TodoAt part="kommunikation" objectId={record.object_id}>
+                <Communication me={me}
+                  person={{ object_id: record.object_id, name: hasName ? name : record.email }} />
+              </TodoAt>
             </section>
           )}
           {/* ►►► **Zeiterfassung** – eigener Datensatz oder Admin, und nur für Personal. Der

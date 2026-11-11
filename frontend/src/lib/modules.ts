@@ -16,7 +16,7 @@ import {
 import { emptyLine, type DefinitionLine } from '@/components/erp/definition-lines';
 import {
   DISPOSAL_ACTIONS, VOUCHER_DIRECTIONS, VOUCHER_PRESET_LABELS, lookup,
-  type CaptureKey, type DisposalMode, type ModuleKey, type ModuleTone, type VoucherDirectionKey,
+  type CaptureKey, type Competence, type DisposalMode, type ModuleKey, type ModuleTone, type VoucherDirectionKey,
   type VoucherPresetKey,
 } from '@/lib/vocab';
 
@@ -201,6 +201,9 @@ export interface PointDraft {
 export interface ModuleDraft {
   id: number;
   moduleType: string;
+  /** **Wer kann das?** – eine Kompetenz aus `COMPETENCES`; leer = die Vorgabe des Moduls
+   *  (`MODULE_COMPETENCES`, Projektakte «Aufgaben» §3). Für jedes Modul gleich. */
+  competence: string;
   points: PointDraft[];
   /** **Wie viele der wartenden Stücke erfasst werden** – der Anteil an der Gesamtmenge.
    *  Pflichtfeld der Entwurfsform; ihr Vorgabewert ist `SAMPLE_ALL`. */
@@ -387,13 +390,14 @@ function sampleDraft(value: unknown): SampleDraft {
 export function moduleFromConfig(id: number, moduleType: string,
                                  config: Record<string, unknown> | null | undefined): ModuleDraft {
   return { ...blankModule(id, moduleType),
-           ...(lookup(MODULE_FORM, moduleType)?.draft(config ?? {}) ?? {}) };
+           ...(lookup(MODULE_FORM, moduleType)?.draft(config ?? {}) ?? {}),
+           competence: typeof config?.competence === 'string' ? config.competence : '' };
 }
 
 /** Ein frischer Entwurf dieses Modultyps – mit den Vorgaben, die das Backend kennt. */
 export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
-    id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
+    id, moduleType, competence: '', points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
     lines: [], target: '',
     // Die Vorgabe ist die Einnahme; der Server verlangt die Richtung (`Beleg.clean_config`).
     direction: 'in', parties: [], instruction: '', presets: blankPresets(), prices: [],
@@ -404,5 +408,6 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
  *  ein unbekannter weist der Server mit einem Satz ab (`modules.get`), nicht die Oberfläche. */
 export function toModulePayload(m: ModuleDraft) {
   return { module_type: m.moduleType as ModuleKey,
-           config: lookup(MODULE_FORM, m.moduleType)?.config(m) ?? {} };
+           config: { ...(lookup(MODULE_FORM, m.moduleType)?.config(m) ?? {}),
+                     ...(m.competence ? { competence: m.competence as Competence } : {}) } };
 }

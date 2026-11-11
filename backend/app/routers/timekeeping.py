@@ -11,9 +11,9 @@ from ..core.database import DB
 from ..models import UserProfile
 from ..schemas.timekeeping import (
     CompanyTimeView, ContractIn, EntryIn, EntryPreview, HolidayOut, HolidaysIn, SwipeIn, TimeRulesIn,
-    TimeView, TodoOut,
+    TimeView,
 )
-from ..services import holidays, time_view, timekeeping, todo
+from ..services import holidays, time_view, timekeeping
 from ..domain.errors import Forbidden, Invalid, NotFound
 
 router = APIRouter(prefix="/api/v1/erp", tags=["timekeeping"])
@@ -136,7 +136,4 @@ def set_rules(object_id: int, data: TimeRulesIn, year: Optional[int] = Query(Non
     return holidays.view(db, actor, object_id, year)
 
 
-@router.get("/todo", response_model=list[TodoOut])
-def read_todo(db: Session = DB, actor: UserProfile = Depends(require_employee)):
-    """Je Datensatz, was zu tun ist – die Zahl am Symbol in Feed und Kopf."""
-    return todo.todo(db, actor)
+

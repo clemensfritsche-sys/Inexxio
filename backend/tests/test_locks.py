@@ -27,6 +27,6 @@ def test_the_guard_sees_the_bug_form():
 
 def test_every_space_is_its_own():
     spaces = [locks.TICK, locks.RECORDING, locks.HANDGRIFF, locks.TALK]
-    singles = [locks.STARTUP, locks.SEAL]
+    singles = [locks.STARTUP, locks.SEAL, locks.TASKS]
     assert len(set(spaces)) == len(spaces) and len(set(singles)) == len(singles)
     assert all(0 < s < 2**31 for s in spaces) and locks.key(2**40 + 7) == 7

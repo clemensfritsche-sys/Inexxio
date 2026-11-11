@@ -100,7 +100,7 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 |---|---|
 | `skeleton.tsx` | **Laden = die graue Form dessen, was kommt**: `Skeleton` (`lines` · `rows` · `block`) und `DetailSkeleton` (ganzes Fenster) – an jeder Stelle, die auf den Server wartet; kein «Lädt …», kein Kreisel. Der Schimmer ist `.erp-skel` (still bei «weniger Bewegung») |
 | `fields.tsx` | Grundtöne: `MICRO_LABEL`, `StatusDot` (der eine Zustandspunkt, 6 px), `StatusBadge`, `Row` |
-| `detail-frame.tsx` | Anatomie eines Datensatz-Fensters: `DetailHeader`, `RecordIcon` (+ `IconMark`, Zahl «zu tun» aus `lib/todo`), `HeaderAction`, `DetailBody`/`DETAIL_MAXW`, `Card` (`info`, `extra`, `unclipped`, `anchor`), `SPEC`, `SpecHead`, `SpecSection`, `ReadField` (Link nur ins Web, `lib/web-link`), `SectionSep`, `TodoChip` |
+| `detail-frame.tsx` | Anatomie eines Datensatz-Fensters: `DetailHeader`, `RecordIcon` (+ `IconMark`, rotes Zeichen der Aufgaben aus `lib/todo`; «!» = niemand da, der es kann), `TodoChip` (das Zeichen an der Stelle; an meiner Aufgabe «Abgeben»), `TodoAt` (Stelle mit Sprungziel und Zeichen), `HeaderAction`, `DetailBody`/`DETAIL_MAXW`, `Card` (`info`, `extra`, `unclipped`, `anchor`), `SPEC`, `SpecHead`, `SpecSection`, `ReadField` (Link nur ins Web, `lib/web-link`), `SectionSep`, `TodoChip` |
 | `controls.tsx` | Bedienelemente: **die eine Feldform** `inputClass` (normal · warn · read) / `inputCls`, **die eine Beschriftung** `Label` (13 px, `fg-2`, Satzschreibung; Pflicht = `RequiredMark`, ein `*` in `--warning`), `IconSwitch`, `Segmented`, `Dialog` (modal; das Verhalten aus `lib/use-dialog`), `Palette`, `numericOnly`, `FieldAction` |
 | `search-select.tsx`, `hints.tsx` | `SearchSelect`/`OptionRow` (Liste per Portal am `body`) · **die eine Hover-Blase** `TipHost` (Wurzel-Layout) + `Tooltip`, `InfoHint`, `ErrorText` |
 | `feed-panel.tsx`, `detail-pane.tsx` | Die zwei Hälften der Feed-Seite: Liste (Suche, Typ-Filter, Zeilen, «+») · Detail (was angelegt wird oder ausgewählt ist, im `ErrorBoundary`; **jede Ansicht und das «+» laden erst beim Öffnen**, `next/dynamic` mit `DetailSkeleton`) |
@@ -188,7 +188,7 @@ Skill `inexxio-design-system`.
 - **Feed** (`app/(erp)/erp/page.tsx` → `lib/use-feed-lists.ts`): `['feed', 'people' |
   'articles' | 'orders' | 'companies' | 'todo']`, mit der Suche `['feed', 'instances', q]`
   (seitenweise, `useInfiniteQuery`, 100 je Seite) und `['feed', 'documents', q]`; dazu
-  `['me']`. Firmen, Dokumente und «zu tun» fragen erst, wenn die Rolle feststeht. Die Suche ist
+  `['me']`. Firmen, Dokumente und Aufgaben (`GET /erp/tasks`, Schlüssel `todo`; `mine` = meine eine Aufgabe, zuoberst im Feed) fragen erst, wenn die Rolle feststeht. Die Suche ist
   entprellt (300 ms) und Teil des Schlüssels.
 - **Detailansichten**: Schlüssel aus `lib/queries.qk` (`[<Bereich>, …]`, Bereiche in
   `feed.DETAILS`): Auftrag, Instanz, Dokument, Artikel (Umfeld), Erzeugungsprozess, Bestand

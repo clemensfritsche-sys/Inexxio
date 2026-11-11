@@ -143,6 +143,15 @@ def _loop(db, deadline: float) -> dict[str, int]:
     return done
 
 
+def _tasks(db, deadline: float) -> dict[str, int]:
+    """**Aufgaben zuteilen** (``services/tasks.dispatch``) – auch, wenn kein ERP offen ist:
+    wer einstempelt oder frei wird, bekommt die nächste. Nach den Mails, die neue Aufgaben
+    bringen können. Kein eigenes Ereignis: wer etwas bekam, schreibt das Log an ``task_focus``."""
+    from . import tasks
+    tasks.dispatch(db)
+    return {}
+
+
 #: ►► **Die Aufgaben des Takts, in dieser Reihenfolge.** Das Siegel zuerst: es dauert
 #:    Millisekunden und darf nie hinter einem langsamen Postfach warten. Dann die
 #:    Wiederholungen (``loop``): reine Datenbank-Arbeit, ein Nachfolger ist fällig ab
@@ -155,6 +164,7 @@ TASKS: tuple[Task, ...] = (
     Task("seal", _seal),
     Task("loop", _loop),
     Task("mail", _mail),
+    Task("tasks", _tasks),
     Task("voice", _voice),
     Task("ai", _ai),
 )

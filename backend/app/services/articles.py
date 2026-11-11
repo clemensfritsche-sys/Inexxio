@@ -85,7 +85,7 @@ def _clean_steps(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     for data in raw:
         module = modules.get(data.get("module_type"))
-        module.clean_config(data.get("config"))
+        module.clean_step(data.get("config"))
     return raw
 
 

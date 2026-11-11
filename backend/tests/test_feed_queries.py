@@ -10,9 +10,8 @@ from contextlib import contextmanager
 
 from sqlalchemy import event
 
-from app.models import UserProfile
 from app.routers import admin, erp
-from app.services import todo
+from app.services import tasks
 from tests.factories import new_firm, new_person
 
 
@@ -62,13 +61,11 @@ def test_the_people_feed_and_todo_do_not_ask_per_person(db, monkeypatch):
     with _counted(db) as many:
         erp.list_erp_records(db=db, viewer=None)
     assert len(many) == len(few), (len(few), len(many))
-    staff = db.query(UserProfile).filter(UserProfile.role == "admin").first() or UserProfile(
-        role="employee", object_id=None)
     db.expire_all()
     with _counted(db) as before:
-        todo.todo(db, staff)
+        tasks.collect(db)
     _firms(db, 8)
     db.expire_all()
     with _counted(db) as after:
-        todo.todo(db, staff)
+        tasks.collect(db)
     assert len(after) <= len(before) + 2, (len(before), len(after))

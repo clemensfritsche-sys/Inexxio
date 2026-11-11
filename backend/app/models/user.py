@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, String, Text
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, String, Text, text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.database import Base
@@ -53,6 +54,10 @@ class UserProfile(Base, TimestampMixin):
 
     # Personal extras
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    #: ►► **Was diese Person kann** (Projektakte «Aufgaben» §3) – Wörter aus
+    #: ``domain/competences``; gesetzt nur vom Admin, gelesen von der Zuteilung. ◄◄
+    competences: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, default=list, server_default=text("'{}'"))
 
     # ─── Firma ──────────────────────────────────────────────────────────────────
     # ►►► **Die Firma ist ein eigener DATENSATZ, nicht ein Satz Felder an der Person**

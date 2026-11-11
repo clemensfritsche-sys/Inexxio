@@ -21,7 +21,7 @@ from app.core.clock import ZONE
 from app.domain import timekeeping as tk
 from app.models import Holiday, TimeEntry, UserProfile
 from app.schemas.timekeeping import ContractIn, EntryIn
-from app.services import people, time_view, timekeeping as t, todo
+from app.services import people, tasks, time_view, timekeeping as t
 from tests.factories import new_firm, new_person
 
 NOW = datetime(2026, 10, 23, 12, 33, tzinfo=ZONE)
@@ -435,15 +435,15 @@ def test_required_fields_include_birthdate_for_staff_only(world):
     assert [m["key"] for m in people.missing_fields(lena)] == ["addresses"]
 
 
-def test_todo_counts_time_tasks_for_self_and_admin_only(world):
+def test_time_tasks_show_for_the_admin_and_not_for_others(world):
     db, co, admin, lena = world
     other = _person(db, co)
     _contract(db, admin, lena, date(2026, 10, 1))
     _stamp(db, lena, lena, date(2026, 10, 22), "07:45")
-    rows = {r.object_id: r for r in todo.todo(db, admin)}
-    assert any(i.section == "zeiterfassung" for i in rows[lena.object_id].items)
-    rows = {r.object_id: r for r in todo.todo(db, other)}
-    assert not any(i.section == "zeiterfassung" for i in rows[lena.object_id].items)
+    seen = {(m.object_id, m.part) for m in tasks.view(db, admin).visible}
+    assert (lena.object_id, "zeiterfassung") in seen
+    seen = {(m.object_id, m.part) for m in tasks.view(db, other).visible}
+    assert (lena.object_id, "zeiterfassung") not in seen
 
 
 def test_preview_says_what_an_absence_does_before_it_is_saved(world):

@@ -11,9 +11,9 @@ import pytest
 
 from app.domain import voucher as vo
 from app.models import Attachment, Document, DocumentRef
-from app.services import documents, legal, todo, voucher as svc, voucher_docs
+from app.services import documents, legal, tasks, voucher as svc, voucher_docs
 from tests.runner import session
-from tests.test_zahlung_ablauf import _do, _house, _ready, _scene, _staff
+from tests.test_zahlung_ablauf import _do, _house, _ready, _scene
 
 
 @pytest.fixture
@@ -52,9 +52,8 @@ def test_nothing_goes_out_without_release(db):
     _do(db, order, step, "ask")
     _do(db, order, step, "agree", party=who.object_id)
     assert not svc.documents_of(db, row, vo.CONFIRM_DOC)
-    items = {t.object_id: [i.label for i in t.items] for t in todo.todo(db, _staff(db))}
-    assert "Auftragsbestätigung freigeben" in items.get(order.object_id, []), (
-        "Was ansteht, zählt ins «zu tun» des Auftrags.")
+    assert f"pay:{row.id}" in {t.key for t in tasks.collect(db)}, (
+        "Was ansteht, ist eine Aufgabe am Auftrag.")
 
 
 def test_adoption_seeds_the_legal_texts_once(db):
@@ -96,8 +95,7 @@ def test_legal_texts_come_from_the_company_field(db):
                                           DocumentRef.field == "company.privacy").all():
         r.is_active = False
     db.flush()
-    items = {t.object_id: [i.label for i in t.items] for t in todo.todo(db, _staff(db))}
-    assert "Datenschutz fehlt" in items.get(house.object_id, []), "(c)"
+    assert f"legal:{house.object_id}:datenschutz" in {t.key for t in tasks.collect(db)}, "(c)"
 
 
 def test_a_form_photo_opens_as_the_file_it_was(db):

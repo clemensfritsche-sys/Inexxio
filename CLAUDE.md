@@ -491,7 +491,7 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   jede Anfrage über das Hosting unter 60 s). Der Auftrag steht wörtlich in `backend/app/assets/ai/auftrag.md`.
   Fällt die KI aus, bleibt das Gespräch Text; der Takt antwortet nach (`talk.catch_up`).
 - **Deckel in Franken** (`AI_DAILY_CAP_CHF`, 10 je Schweizer Tag, Preise in `ai.PRICES`); ab 80 %
-  ein Hinweis in «zu tun» des Admins (am Betreiber, mit Betrag; am Deckel rot).
+  ein Hinweis für den Admin (rotes Zeichen am Betreiber, `tasks._hints`).
 - **Sprache** (Phase 4, `docs/konzept/phase4-bauplan.md`, `services/recordings.py`,
   `components/erp/capture/recorder.tsx`): «Aufnehmen» im «+» – dezent in der Leiste der Eingabe
   (Punkt, Zeit, Pegel von rechts nach links, ■; Bildschirm bleibt an); **30 s Stille halten von
@@ -539,12 +539,42 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
   die Tage, die sich ändern: eine Absenz über die Grenze bekommt **«Ende ändern»** (Ersatz-Eintrag
   mit gleichem Beginn, `timekeeping.end_from`), ihr abgeschlossener Teil bleibt; ein Feiertag im
   abgeschlossenen Zeitraum wird abgewiesen, nie still übergangen.
-- **«Zu tun»** (`services/todo`, `GET /erp/todo`): EINE Zahl am Symbol jedes Datensatzes –
-  offene Nachrichten + Aufgaben der Zeiterfassung + fehlende Pflichtangaben
-  (`people.missing_fields`, Quelle auch für den Fortschritt im Konto) + fehlende Feiertage +
-  anstehende Papiere und erwartete Dokumente am Auftrag + fehlende Rechtstexte (Admin).
+- Was eine Person zu tun hat (Zeiterfassung, eigene Pflichtangaben), ist eine Aufgabe nur für sie
+  – siehe «Aufgaben».
 - **Nachweis einer Absenz** ist ein Dokument (Feld `time.proof`, «Nachreichen» öffnet den
   Entwurf); eine lose Datei im Korb nimmt `timekeeping.record` nicht an.
+
+## Aufgaben – wer macht was (Projektakte `docs/konzept/aufgaben.md`, Runde 1 gebaut)
+
+- **Eine Aufgabe ist eine Stelle im ERP, an der jemand etwas tun muss** – abgeleitet, nie
+  angelegt, nie abgehakt (`services/tasks.collect`): Stücke warten an einem Schritt (nicht an der
+  Zahlung, nicht bei offener Rückführung, am Verbrauch nur mit Material am Ort) · die Zahlung sagt
+  «wir sind dran» (`voucher_view.situation` → `ours`: Offerte, Rechnung, Papier, Ausfuhrnachweis,
+  Mahnen, Bezahlen, Erstatten) · offene Nachrichten (`communication.open_threads`) · Wiederholung ·
+  Vorschläge aus Mails · eigene Zeiterfassung und Pflichtangaben (nur die Person) · Feiertage und
+  Rechtstexte (Admin). Der KI-Deckel ist ein **Hinweis** (nie zugeteilt, nur der Admin sieht ihn).
+  Eine Aufgabe trägt keinen Satz: Schlüssel, Ort (`object_id` + `part` = `data-todo`), Kompetenz,
+  Datum.
+- **Kompetenz** (`domain/competences`, acht: Kommunizieren · Verrechnen · Bewegen · Bauen ·
+  Prüfen · Schweissen · Elektrik · Kranprüfung). **Sie folgt dem Ort**: am Schritt die des Schritts
+  (`Module.competence`, im Editor tauschbar über `Module.clean_step` – Feld «Wer kann das?»), an
+  einer fremden Person Kommunizieren, an mir nur ich, an der eigenen Gesellschaft das Recht Admin.
+  Wer was kann: `user_profiles.competences`, nur am Personal, gesetzt vom Admin im Feld
+  «Kompetenzen» der Stammdaten (dasselbe PATCH); **die letzte Person einer Kompetenz kann sie nicht
+  verlieren** (`competences.drop_problem` ↔ `assert_drop`).
+- **Zuteilung** (`tasks.dispatch`, unter `locks.TASKS`, beim Lesen und im Takt): wer da und frei
+  ist – wer am längsten frei ist zuerst – bekommt die Aufgabe mit dem **frühesten Datum**, die er
+  darf und kann (Arztpraxis-Modell). **Eine Person, eine Aufgabe; eine Aufgabe, eine Person**
+  (`task_focus`: eine Zeile je Person, `task_key` eindeutig). **Anwesenheit in drei Sätzen**
+  (`tasks.presence`, aus der Zeiterfassung): Neues nur eingestempelt (ohne Vertrag: da); was man
+  hat, bleibt; ausser bei einer Absenz. **Abgeben** (`POST /erp/tasks/{key}/hand`) ohne Grund; die
+  Aufgabe kommt erst nach einer anderen zurück (`handed_key`).
+- **Was man sieht** (`GET /erp/tasks`, `tasks.view`): die eigene Aufgabe zuoberst im Feed (ohne
+  Filter und Suche, `FeedPanel.mine`); das **rote Zeichen** am Symbol und an der Stelle (`TodoChip`,
+  `TodoAt`, am Schritt `useTodoAt`) – Hover nur «Zu tun»; an meiner Aufgabe wird es «Abgeben».
+  Der Admin sieht das Zeichen an jedem Datensatz mit Aufgaben; alle sehen «!», wo niemand
+  Anwesendes es kann. Woran andere arbeiten, steht nirgends (nur im Log).
+- Noch nicht (Runde 2): ein Datum am Auftrag («bis» oder «ab»).
 
 ## Leitbild (VERBINDLICH)
 

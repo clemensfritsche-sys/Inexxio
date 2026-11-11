@@ -21,7 +21,7 @@ from typing import Any
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from app.domain import capture_types, communication, incoterms, loop  # noqa: E402
+from app.domain import capture_types, communication, competences, incoterms, loop  # noqa: E402
 from app.domain import modules, policy, timekeeping, voucher  # noqa: E402
 from app.models.instance import KINDS  # noqa: E402
 from app.schemas.order import DRAFT_OBJECT_ID  # noqa: E402
@@ -82,6 +82,10 @@ def build() -> str:
                    list(modules.KEYS), "ModuleKey")
     lines += _map("MODULE_TONES", "Die Farbfamilie je Modul (`Module.tone`).", modules.TONES)
     lines.append("export type ModuleTone = (typeof MODULE_TONES)[ModuleKey];\n")
+    lines += _list("COMPETENCES", "Die Kompetenzen – eine Liste (`domain/competences`).",
+                   list(competences.COMPETENCES), "Competence")
+    lines += _map("MODULE_COMPETENCES", "Die Vorgabe je Modul (`Module.competence`), am Schritt "
+                  "tauschbar.", {k: m.competence for k, m in modules.MODULES.items()})
     lines += _list("CAPTURE_KEYS", "Erfassungspunkt-Typen (`domain/capture_types.KEYS`).",
                    list(capture_types.KEYS), "CaptureKey")
     lines += _map("DISPOSAL_ACTIONS", "Aussondern: Ausprägung → Verb (`Aussondern.ACTIONS`).",
