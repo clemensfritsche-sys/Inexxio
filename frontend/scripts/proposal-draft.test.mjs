@@ -45,8 +45,10 @@ test('ein Auftrag kommt mit allen Zeilen, allen Schritten und der Wiederholung a
     ],
     steps: STEPS,
     loop: { every: 'week', first: '2026-12-01', count: 4, takes: [null, 'fifo'] },
+    date: { kind: 'until', on: '2026-12-20' },
   });
   assert.deepEqual(got.left, []);
+  assert.deepEqual(got.date, { kind: 'until', on: '2026-12-20' });
   assert.equal(got.lines.length, 2, 'eine Zeile ging verloren');
   assert.deepEqual(got.lines.map((l) => [l.articleObjectId, l.quantity, l.origin]),
     [[100000101, 3, 'neu'], [100000102, 2, 'lager']]);
@@ -69,6 +71,12 @@ test('ein Auftrag kommt mit allen Zeilen, allen Schritten und der Wiederholung a
   assert.equal(got.loop.end, 'count');
   assert.equal(got.loop.count, '4');
   assert.equal(got.loop.takes[got.lines[1].key], 'fifo');
+});
+
+test('ein Datum, das der Entwurf nicht kennt, nennt er oben', () => {
+  const got = orderFromProposal({ date: { kind: 'bald', on: '2026-12-20' } });
+  assert.equal(got.date, null);
+  assert.equal(got.left.length, 1);
 });
 
 test('ein Artikel kommt mit seinen Schritten und seinem Vorgänger an', () => {

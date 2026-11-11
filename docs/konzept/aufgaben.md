@@ -1,7 +1,7 @@
 # Projektakte «Aufgaben» – wer macht was
 
-> **Kopfstatus:** Fassung 13 · **Runde 1 gebaut** (11.11.2026, Branch `claude/aufgaben`, Bericht
-> `docs/history/2026-11-11-aufgaben-runde1.md`) · Runde 2 (Datum) offen · Lead: Claude · Entscheid: Clemens
+> **Kopfstatus:** Fassung 13 · **Runde 1 und 2 gebaut** (11.11.2026, Berichte
+> `docs/history/2026-11-11-aufgaben-runde1.md` · `…-runde2.md`) · Lead: Claude · Entscheid: Clemens
 > Fritsche · seit 10.11.2026 · zuletzt 11.11.2026 · Umsetzung in zwei Runden (§12)
 > Bild (das ERP, wie es damit aussieht – 1:1, klickbar): https://claude.ai/artifact/4CpZXNTBtdTzuArnDSHY4r
 > Diese Akte ist die **eine** Quelle für Ziel, Regeln, Entscheide und Plan des Projekts «Aufgaben». Was

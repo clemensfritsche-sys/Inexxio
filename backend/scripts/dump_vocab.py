@@ -22,7 +22,7 @@ from typing import Any
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from app.domain import capture_types, communication, competences, incoterms, loop  # noqa: E402
-from app.domain import modules, policy, timekeeping, voucher  # noqa: E402
+from app.domain import modules, order_date, policy, timekeeping, voucher  # noqa: E402
 from app.models.instance import KINDS  # noqa: E402
 from app.schemas.order import DRAFT_OBJECT_ID  # noqa: E402
 from app.schemas.process import CapturePoint  # noqa: E402
@@ -128,6 +128,9 @@ def build() -> str:
                   {k: word for k, (word, _months) in loop.EVERY.items()}, "LoopEvery")
     lines += _map("LOOP_TAKES", "Was eine Wiederholung je Zeile nimmt (`loop.TAKES`).",
                   loop.TAKES, "LoopTake")
+    lines += _map("ORDER_DATE_KINDS", "Das eine Datum am Auftrag (`order_date.KINDS`): Wort im "
+                  "Prozessbild.", {k: word for k, (word, _paper) in order_date.KINDS.items()},
+                  "OrderDateKind")
     lines += _list("ROLES", "Die Rollen – die Rolle ist der Zugang (`policy.ROLES`).",
                    list(policy.ROLES), "Role")
     lines += _list("STAFF_ROLES", "Wer ins ERP darf (`policy.STAFF_ROLES`) – gefragt nur über "

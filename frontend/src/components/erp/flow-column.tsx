@@ -70,6 +70,8 @@ export interface ColumnProps {
   tail?: ReactNode;
   /** **Die Wiederholung** – die Karte unter dem Ende (Projektakte Wiederkehr §8). */
   loop?: ReactNode;
+  /** **Das Datum des Auftrags** neben Start («ab») und Ende («bis») – nur in der Mitte. */
+  dates?: { start?: ReactNode; end?: ReactNode };
   onDelete?: (id: number) => void;
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
   onExpand?: (edgeId: string) => Promise<UnitChip[]>;
@@ -115,7 +117,7 @@ interface ReturnTarget {
  */
 export function FlowColumn({
   graph, steps, prefix = '', mode, activeStepId = null, expandedStepId = null, endStatus,
-  head, tail, loop, onDelete,
+  head, tail, loop, dates, onDelete,
   renderStep, onExpand, onReorder, dragging, onDragState,
   journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
   containerStyle, rowStyle, origins = [],
@@ -182,8 +184,18 @@ export function FlowColumn({
         if (n.kind === 'start' || n.kind === 'end') {
           return (
             <FlowNode key={row.key} id={id} style={place(i)}>
-              <Terminal which={n.kind} endStatus={endStatus}
-                history={historyTip(events, n, eventTotal)} />
+              {/* Das Datum sitzt neben dem Kreis, ausserhalb des Flusses – die Linien messen
+                  nur den Kreis. */}
+              <div style={{ position: 'relative' }}>
+                <Terminal which={n.kind} endStatus={endStatus}
+                  history={historyTip(events, n, eventTotal)} />
+                {dates?.[n.kind] && (
+                  <div style={{ position: 'absolute', left: 'calc(100% + 14px)', top: '50%',
+                    transform: 'translateY(-50%)', whiteSpace: 'nowrap' }}>
+                    {dates[n.kind]}
+                  </div>
+                )}
+              </div>
             </FlowNode>
           );
         }

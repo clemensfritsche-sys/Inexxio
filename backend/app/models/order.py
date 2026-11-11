@@ -1,4 +1,7 @@
-from sqlalchemy import BigInteger
+from datetime import date
+from typing import Optional
+
+from sqlalchemy import BigInteger, CheckConstraint, Date, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -28,9 +31,18 @@ class Order(Base, TimestampMixin):
     """
 
     __tablename__ = "orders"
+    __table_args__ = (
+        CheckConstraint("(date_kind IS NULL AND date_on IS NULL) OR "
+                        "(date_kind IN ('until', 'from') AND date_on IS NOT NULL)",
+                        name="ck_orders_date"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
+    #: **Das eine Datum** (``domain/order_date``): «bis» (``until``) oder «ab» (``from``), nie
+    #: beide; leer = so schnell wie möglich. Die Aufgaben lesen es, die Zahlung zeigt es.
+    date_kind: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    date_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     @property
     def name(self) -> str:

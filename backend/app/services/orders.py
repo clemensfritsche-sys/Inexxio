@@ -17,7 +17,9 @@ from ..models.order_line import LAGER
 from .release import (
     _checked, assert_releasable, release, resolve_lines, steps_for, unpickable,
 )
-from ..domain.errors import Invalid, NotFound, Rejected
+from ..core import clock
+from ..domain import order_date
+from ..domain.errors import Conflict, Invalid, NotFound, Rejected
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +66,9 @@ def validate_draft(db: Session | None, draft: dict[str, Any]) -> list[str]:
     if db is not None:
         from . import loop
         missing.extend(loop.draft_problems(db, draft))
+    when = order_date.problem(draft.get("date"), clock.today())
+    if when:
+        missing.append(when)
     if missing:
         return missing
     try:
@@ -88,6 +93,10 @@ def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None,
     Zwischenzustand, keine herrenlose Instanz.
     """
     from . import loop
+    try:
+        kind, on = order_date.clean(draft.get("date"), clock.today())
+    except ValueError as e:
+        raise Invalid(str(e), field="date")
     if draft.get("loop"):
         # Vor der ersten Nummer: eine unmögliche Schlaufe verbrennt keine Objektnummer (§6.3).
         problems = loop.draft_problems(db, draft)
@@ -99,9 +108,25 @@ def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None,
         steps=[dict(s) for s in (draft.get("steps") or [])],
         actor_id=actor_id,
     )
+    order.date_kind, order.date_on = kind, on
     # **Die Schlaufe friert mit der Freigabe ein** – dieselbe Transaktion (Wiederkehr O15).
     loop.freeze(db, order, draft, actor)
     return order
+
+
+def set_date(db: Session, order: Order, raw: Any) -> None:
+    """►► **Das Datum verschieben** – jederzeit, solange der Auftrag im Prozess ist; leer = keins.
+    Ins Log schreibt die Datenbank selbst (Trigger an ``orders``). ◄◄"""
+    from ..domain import statuses as st
+    from . import order_state
+    if order_state.order_status(db, order) != st.IM_PROZESS:
+        raise Conflict(f"Auftrag {order.object_id} ist nicht mehr im Prozess – sein Datum "
+                       f"bleibt, wie es war.")
+    try:
+        order.date_kind, order.date_on = order_date.clean(raw, clock.today())
+    except ValueError as e:
+        raise Invalid(str(e), field="date")
+    db.flush()
 
 
 def get(db: Session, object_id: int) -> Order:

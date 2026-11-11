@@ -269,6 +269,7 @@ def create_next(db: Session, order: Order) -> Optional[Order]:
     if problem(db, order, loop) is not None:
         return None
     draft, _ = _draft(db, order, loop)
+    draft["date"] = _next_date(db, order, date.fromisoformat(str(loop["next"])))
     with _on_behalf(db, loop.get("by_object")):
         new = orders.create_order(db, draft, actor_id=loop.get("by"))
         log_svc.event(db, NEXT, new.object_id, {"from": order.object_id, "on": loop["next"]})
@@ -276,6 +277,24 @@ def create_next(db: Session, order: Order) -> Optional[Order]:
         db.flush()
         _carry_agreement(db, order, new)
     return new
+
+
+def _term(db: Session, order: Order) -> date:
+    """Der Termin, an dem ein Auftrag der Kette entstand: beim Nachfolger der aus ``loop.next``,
+    beim ersten der Tag seiner Freigabe."""
+    row = _event(db, NEXT, order.object_id)
+    if row is not None and row.payload and row.payload.get("on"):
+        return date.fromisoformat(str(row.payload["on"]))
+    return order.created_at.astimezone(clock.ZONE).date()
+
+
+def _next_date(db: Session, order: Order, term: date) -> Optional[dict[str, Any]]:
+    """►► **Das Datum des Nachfolgers** – mit demselben Wort («bis» · «ab») und demselben
+    Abstand zu seinem Termin wie beim Vorgänger; nie vor heute (wartete er, gilt heute). ◄◄"""
+    if order.date_on is None:
+        return None
+    on = term + (order.date_on - _term(db, order))
+    return {"kind": order.date_kind, "on": max(on, clock.today())}
 
 
 def end(db: Session, order: Order) -> None:

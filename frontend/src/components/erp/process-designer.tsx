@@ -50,7 +50,7 @@ import { qk } from '@/lib/queries';
  * heisst löschen und neu anlegen. Nach der Freigabe ist die Struktur eingefroren (`frozen`):
  * keine Palette, kein Mülleimer, kein Ziehen.
  */
-export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head, loop,
+export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head, loop, dates,
   parents, onToggleReturn }: {
   modules: ModuleDraft[];
   onChange: (m: ModuleDraft[]) => void;
@@ -61,6 +61,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   head?: React.ReactNode;
   /** Die Karte «Wiederholen» unter dem Ende – nur im Auftragsentwurf. */
   loop?: React.ReactNode;
+  /** Das Datum neben Start und Ende – nur im Auftragsentwurf. */
+  dates?: { start?: React.ReactNode; end?: React.ReactNode };
   /** Die Quell-Aufträge des Entwurfs (Auftrag §2), vom Server vorausberechnet. */
   parents?: RelatedOrder[];
   /** Ein Klick auf den Quell-Auftrag schaltet seine Rückführung an und aus (§5). */
@@ -123,6 +125,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
         endStatus: END_BEFORE,
         head,
         loop,
+        dates,
         onDelete: frozen ? undefined : (id) => onChange(modules.filter((m) => m.id !== id)),
         onReorder: frozen ? undefined : move,
         dragging: drag,
