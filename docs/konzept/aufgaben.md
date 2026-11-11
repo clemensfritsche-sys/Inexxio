@@ -253,7 +253,7 @@ Aufgaben anlegen · Listen zum Auswählen · Stufen, zweite Farbe, Text am Ort �
 
 | Stufe | Inhalt |
 |---|---|
-| A · Eine Liste | `services/tasks` über alle Quellen (+ Schritt, + Beleg), Ort, Kompetenz, Datum |
+| A · Sammeln | `services/todo` wird `services/tasks`: dieselbe Funktion, die heute schon alle Quellen fragt, bekommt dazu Prozessschritt und Zahlung und liefert je Aufgabe Ort, Kompetenz, Datum. **Keine Tabelle, keine neue Ansicht** – gerechnet bei jeder Frage, wie heute. Nötig, weil die Zuteilung (C) alle Aufgaben gegeneinander vergleichen muss (frühestes Datum über alle Quellen). |
 | B · Kompetenzen | Liste in `domain/competences`, `Module.competence`, Regel «folgt dem Ort» (§4.1), Wahl am Schritt, `person_competences`, Karte, «nie ohne Person» |
 | C · Dran | `task_focus`, Zuteilung, Anwesenheit, Feed-Zeile, rotes Zeichen nur für meins, «!» für Verwaiste, Abgeben |
 | D · Datum | `orders.date_on` + `date_kind`, Zahlung zeigt es, Wiederholung, Beschaffung |
@@ -273,7 +273,8 @@ Kompetenz ohne Person · frühestes Datum zuerst, «ab» nie vorher (Matrix mit 
 - Der Admin sieht alle roten Zeichen im Feed; sonst gleich wie alle. Keine Gamification.
 - Mehrere frei: wer am längsten frei ist, zuerst.
 - Nur wer da ist, bekommt Aufgaben.
-- Acht Kompetenzen (§4). Ein Datum je Aufgabe, das früheste zuerst; ohne Datum: seit es zu tun ist (§6).
+- Acht Kompetenzen (§4). Ein Datum je Aufgabe, das früheste zuerst; ohne Datum: seit es zu tun ist –
+  das Arztpraxis-Modell (§6).
 - Gesellschaften vorerst weggelassen (§5).
 - Anwesenheit in drei Sätzen (§9).
 - Ein Datum am Auftrag, «bis» oder «ab», nie beide, nichts zu rechnen; die Zahlung zeigt es (§7).
