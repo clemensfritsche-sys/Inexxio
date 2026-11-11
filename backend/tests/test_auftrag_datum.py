@@ -18,10 +18,22 @@ from app.core import clock
 from app.domain import order_date
 from app.domain.errors import Conflict, Invalid
 from app.services import loop, orders, tasks
-from tests.test_wiederkehr import _create, _draft, _units, db  # noqa: F401 (Fixture)
+from tests.runner import session
+from tests.scenes.voucher import house
+from tests.test_wiederkehr import _create, _draft, _units
 from tests.test_zahlung_ablauf import _run_capture
 
 TODAY = clock.today()
+
+
+@pytest.fixture
+def db():
+    s = session()
+    house(s)
+    try:
+        yield s
+    finally:
+        s.rollback()
 
 
 def _day(days: int) -> str:
