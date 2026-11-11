@@ -78,7 +78,12 @@ aus derselben Liste tauschen – der Schritt wählt, er definiert nichts. Gespei
 hat (`person_competences`, vom Admin am Personendatensatz). Die letzte Person einer Kompetenz kann sie
 nicht verlieren; der Admin gibt sie nur Befähigten.
 
-## 5 · Gesellschaft – abgeleitet, nicht eingestellt
+## 5 · Gesellschaft – vorerst weggelassen (Vorschlag)
+
+Solange die Mitarbeitenden an einem Ort arbeiten, braucht die Zuteilung keine Gesellschaft. Kommt eine
+zweite Gesellschaft mit eigenen Leuten, wird **eine Regel** in der Zuteilung ergänzt; die Daten dafür
+gibt es schon. Der Entwurf dafür bleibt hier stehen:
+
 
 **Welcher Gesellschaft eine Aufgabe gehört**, folgt aus dem, was das ERP schon weiss – in dieser Folge:
 1. **Wo die Ware liegt** – für Schritte, die Stücke scannen (Bewegen, Verbrauch, Datenerfassung,
@@ -148,14 +153,18 @@ geändert, zeigt das Log es; dann erst lohnt mehr.
 eine Aufgabe, die **niemand Anwesendes** kann (alle mit der Kompetenz abwesend), zeigt ihr rotes
 Zeichen am Datensatz für alle – mit «!» statt Zahl und dem Grund im Hover. Für alle gleich.
 
-## 9 · Zuteilung
+## 9 · Zuteilung und Anwesenheit
 
 `task_focus`: je Person höchstens eine Zeile, je Aufgabe höchstens eine Person (zwei eindeutige
 Schlüssel). Eine Stelle (`services/tasks.dispatch`), beim Lesen, im Takt, nach Stempel, Abgeben und
-Kompetenz-Änderung: aufräumen (erledigt / nicht mehr berechtigt / nicht mehr da) → die Freien, wer am
-längsten frei ist zuerst → jede nimmt die am längsten fällige Aufgabe, die sie darf und kann (§5). Wer
-abgibt, bekommt dieselbe Aufgabe 30 Minuten nicht wieder. Dringendes unterbricht nicht. Wer da ist,
-sagt die Zeiterfassung (eingestempelt, keine Absenz); ohne Zeiterfassung gilt man als da.
+Kompetenz-Änderung: aufräumen → die Freien, wer am längsten frei ist zuerst → jede nimmt die am
+längsten fällige Aufgabe, die sie darf und kann. Wer abgibt, bekommt dieselbe Aufgabe 30 Minuten nicht
+wieder. Dringendes unterbricht nicht.
+
+**Anwesenheit – drei Sätze, gelesen aus der Zeiterfassung (gibt es schon):**
+1. **Neues bekommt nur, wer eingestempelt ist.** Wer keine Zeiterfassung hat, gilt als da.
+2. **Was ich dran habe, bleibt bei mir** – auch über «Gehen» bis zum nächsten «Kommen».
+3. **Ausser ich habe eine Absenz** (Ferien, krank): dann geht es weiter an die Nächste, die es kann.
 
 ## 10 · Datenmodell (neu)
 
@@ -211,11 +220,10 @@ Kompetenz ohne Person · am längsten fällig zuerst (Matrix mit vorher notierte
 - Kein Überblick für den Admin; alle gleich. Keine Gamification.
 - Mehrere frei: wer am längsten frei ist, zuerst.
 - Nur wer da ist, bekommt Aufgaben.
+- Acht Kompetenzen (§4). «Fällig ab» statt Fristen, ohne Termin = sofort (§6).
 
 **Offen (Vorschlag in Klammern)**
-- E20 · Die acht Kompetenzen (§4)? (ja)
-- E21 · Gesellschaft abgeleitet: Ware → Lagerort, sonst Gebiet der Partei, sonst wer freigab (§5)? (ja)
-- E22 · Ein «fällig ab» statt Fristen; ohne Termin = sofort (§6)? (ja)
+- E21 · Gesellschaften vorerst weglassen (§5)? (ja – nachrüsten ist eine Zeile in der Zuteilung, kein neues Datenfeld)
 - E23 · Termin + Vorlauf am Auftrag, Vorlauf vorgeschlagen aus dem letzten Mal; die Zahlung zeigt ihn (§7)? (ja)
 - E24 · Nur meins; verwaiste Aufgaben (niemand da, der es kann) zeigen «!» für alle (§8)? (ja)
 
