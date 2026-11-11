@@ -1,7 +1,7 @@
 # Projektakte «Aufgaben» – wer macht was
 
 > **Kopfstatus:** Konzept, Fassung 6 · **nichts gebaut** · Lead: Claude · Entscheid: Clemens
-> Fritsche · seit 10.11.2026 · zuletzt 11.11.2026 (Kompetenz folgt dem Ort, Beginn statt Vorlauf)
+> Fritsche · seit 10.11.2026 · zuletzt 11.11.2026 (Beginn und Termin an Start und Ende, Aufgabe ohne Satz)
 > Bild (das ERP, wie es damit aussieht – 1:1, klickbar): https://claude.ai/artifact/4CpZXNTBtdTzuArnDSHY4r
 > Diese Akte ist die **eine** Quelle für Ziel, Regeln und Entscheide des Projekts «Aufgaben». Was hier
 > nicht als **entschieden** steht, ist nicht entschieden. Frühere Fassungen: Git-Geschichte dieser
@@ -33,7 +33,9 @@ jeder macht alles, was er kann.
 - **Recht ≠ Kompetenz.** Das Recht (`domain/policy`) ist das Tor, die Kompetenz die Zuteilung.
 - **Ein Fokus.** Eine Aufgabe je Person; die Person tut, was das System ihr gibt.
 - **Nur meins, für alle gleich.** Kein Überblick, wer woran ist – auch nicht für den Admin.
-- **Eine Farbe, kein Text.** Das rote Zeichen sagt «hier weiter»; was zu tun ist, sieht man.
+- **Eine Farbe, kein Text.** Das rote Zeichen sagt «hier weiter»; was zu tun ist, sieht man an der
+  Stelle selbst. **Eine Aufgabe hat darum keinen Satz** – nur Schlüssel, Stelle, Kompetenz und «fällig
+  ab». Kein Code, der Sätze baut.
 - **Nichts blockiert.** Jeder darf weiterhin alles tun, was er darf.
 - **Keine Überwachung, keine Gamification.**
 
@@ -146,7 +148,9 @@ von selbst, ohne Einstellung.
 
 ## 7 · Beginn und Termin – am Auftrag
 
-Zwei Daten, beide von Hand, beide optional:
+Zwei Daten, beide von Hand, beide optional – **ohne neue Karte:** der Beginn steht am **Start**, der
+Termin am **Ende** des Prozessbilds (die runden Symbole, die es dort schon gibt; `flow-column.Terminal`).
+Im Entwurf je ein Datumsfeld daneben, eingefroren wird nichts davon (verschiebbar, im Log).
 - **Beginn** – ab diesem Tag ist alles am Auftrag fällig. Leer = sofort.
 - **Termin** – bis dahin muss alles erledigt sein. Leer = so schnell wie möglich.
 
@@ -176,10 +180,10 @@ auch wenn heute nichts daraus vorgeschlagen wird.
 
 | Stelle | Neu |
 |---|---|
-| Feed ohne Filter | zuoberst **eine** Zeile: der Datensatz meiner Aufgabe, zweite Zeile der Satz. Darunter der Feed wie heute, nach Nummer. |
-| Datensatz | rotes Zeichen am Symbol und an der Stelle; darüber fahren zeigt «Abgeben» (ein Klick, ohne Grund) |
-| Auftrag | Beginn · Termin |
-| Prozess-Editor | «Wer kann das?» |
+| Feed ohne Filter | zuoberst **eine** Zeile: der Datensatz meiner Aufgabe, wie jede andere Zeile, mit rotem Zeichen und Rahmen. Darunter der Feed wie heute, nach Nummer. |
+| Datensatz | rotes Zeichen am Symbol und an der Stelle. Hover: «Zu tun» bzw. «Niemand da, der das kann» – sonst nichts; am Zeichen der Stelle zusätzlich «Abgeben» |
+| Auftrag | Beginn am Start, Termin am Ende des Prozessbilds |
+| Prozess-Editor | «Wer kann das?» – nur die Auswahl, keine Liste der Personen |
 | Personendatensatz | Karte «Kompetenzen» (Admin klickt), Gesellschaft aus dem Personenkreis |
 
 **Nur meins oder überall ein Zeichen?** Entschieden: nur meins. Ausnahme, damit nichts unbemerkt liegt:
@@ -223,6 +227,20 @@ Log: `task.assigned` · `task.done` · `task.returned` · `task.handed`.
 7. **Wiederholung:** Nachfolger mit Beginn und Termin aus dem Takt.
 8. **«Gehen» fehlt:** nur meine, fällig seit dem Tag; ist sie dran, steht mein Datensatz oben.
 
+## 11a · Rundblick – was noch zu bedenken ist
+
+- **Die Zahl «zu tun» an fremden Datensätzen fällt weg.** Heute sieht jeder an einem Kunden, dass eine
+  Nachricht offen ist; künftig nur, wer dran ist (und «!», wenn es niemand kann). Gewollt – sonst wieder
+  «alle sehen es, keiner ist zuständig».
+- **Gesperrte Stücke** (Aussondern «Sperren») warten heute ohne Aufgabe, bis jemand sie greift. Offen:
+  soll ein gesperrtes Stück eine Aufgabe sein («entscheiden»)? Dann am Stück, Kompetenz Bewegen.
+- **Niemand eingestempelt** (Wochenende): Aufgaben warten; Montag früh bekommt die erste Person die am
+  längsten fällige. Gewollt.
+- **Person ohne Kompetenz** bekommt nur ihre eigenen Aufgaben. Gewollt.
+- **Lange Aufgaben** (Montage über Tage) bleiben die eine Aufgabe; Kleines erledigen andere.
+- **Später, ohne Umbau:** Handy-Mitteilung «Du bist dran», Vorschlag für Beginn aus dem Log (KI),
+  Gesellschaften (§5), Hebel von Hand.
+
 ## 12 · Bewusst nicht
 
 Aufgaben anlegen · Listen zum Auswählen · Stufen, zweite Farbe, Text am Ort · Überblick, wer woran ist
@@ -260,6 +278,8 @@ Kompetenz ohne Person · am längsten fällig zuerst (Matrix mit vorher notierte
 - Nur meins; verwaiste Aufgaben (niemand da, der es kann) zeigen «!» für alle (§8).
 
 **Offen (Vorschlag in Klammern)**
+- E28 · Beginn am Start, Termin am Ende des Prozessbilds (§7)? (ja)
+- E29 · Gesperrte Stücke als Aufgabe (§11a)? (ja, am Stück, Bewegen)
 - E26 · Kompetenz folgt dem Ort (§4.1) statt einer Tabelle je Art? (ja)
 - E27 · Beginn (Datum) statt Vorlauf (Arbeitstage) (§7)? (ja)
 
