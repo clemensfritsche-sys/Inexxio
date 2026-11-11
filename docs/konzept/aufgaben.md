@@ -78,6 +78,52 @@ aus derselben Liste tauschen – der Schritt wählt, er definiert nichts. Gespei
 hat (`person_competences`, vom Admin am Personendatensatz). Die letzte Person einer Kompetenz kann sie
 nicht verlieren; der Admin gibt sie nur Befähigten.
 
+### 4.1 · Der Katalog – jede Art Aufgabe, ihre Quelle, ihre Kompetenz
+
+**Eine Tabelle im Code** (`domain/tasks.KINDS`): Art → Kompetenz. Sie ist die einzige Stelle, an der
+steht, wer was können muss; die Kompetenzen selbst (`domain/competences`) sind genau die, die hier
+vorkommen. Die Quelle (wann es die Aufgabe gibt) ist ein Dienst, der heute schon existiert.
+
+| # | Art | Es gibt sie, wenn … (Quelle) | Kompetenz |
+|---|---|---|---|
+| | **Prozess (Auftrag)** | | |
+| 1 | Datenerfassung ausführen | Stücke warten am Schritt (`order_view.waiting`) | Prüfen ¹ |
+| 2 | Verbrauch ausführen | Stücke warten und das Material liegt am Ort (`StepNeed`) | Bauen ¹ |
+| 3 | Bewegen ausführen | Stücke warten am Schritt | Bewegen ¹ |
+| 4 | Aussondern ausführen | Stücke warten am Schritt | Bewegen ¹ |
+| 5 | Zahlung weiterbringen | die Zahlung sagt «Sie sind dran» (`voucher_view.situation`: anbieten, Rechnung stellen oder erfassen, Papier freigeben, bezahlen, erstatten, Partner wählen) | Verrechnen ¹ |
+| 6 | Gehaltene Stücke klären | eine Datenerfassung hat «nicht bestanden» (`held_units`) | Prüfen |
+| 7 | Dokument nachreichen | ein Modul erwartet ein Dokument (`requirements`: Lieferantenrechnung, Ausfuhrnachweis) | Verrechnen |
+| 8 | Mahnen | eine Rechnung ist überfällig (`payment_list.overdue_counts`) | Verrechnen |
+| 9 | Wiederholung klären | sie wartet oder geht nicht mehr (`loop.todo_items`) | Verrechnen |
+| | **Kommunikation** | | |
+| 10 | Nachricht beantworten | offen: an uns, Zeitpunkt erreicht, keine Antwort von uns (`communication`) – auch Erinnerung, Anruf, Kontaktformular | Kommunizieren |
+| 11 | Mail neu senden | dreimal von Gmail abgewiesen (`communication._FAILED`) | Kommunizieren |
+| 12 | Vorschlag aus Mail prüfen | ein Handgriff aus einer Mail ist offen (`handgriff.open_mail_counts`) | Kommunizieren |
+| 13 | Angaben eines Kunden ergänzen | Pflichtangabe fehlt (`people.missing_fields`: Vorname, Nachname, Telefon, Adresse) | Kommunizieren |
+| | **Nur die Person selbst** | | |
+| 14 | Eigene Angaben ergänzen | Pflichtangabe fehlt (dazu Geburtsdatum) | nur ich |
+| 15 | «Gehen» nachtragen | `timekeeping.tasks` («open») | nur ich |
+| 16 | Nachweis nachreichen | `timekeeping.tasks` («proof») | nur ich |
+| 17 | Dokument unterschreiben | ein Dokument ist mir zur Unterschrift gesendet | nur ich |
+| | **Nur der Admin (Recht)** | | |
+| 18 | Feiertage übernehmen | `holidays.holiday_tasks` | Recht Admin |
+| 19 | Rechtstexte hinterlegen | `legal` (AGB, Datenschutz fehlen) | Recht Admin |
+
+¹ am Schritt im Prozess-Editor tauschbar gegen eine Kompetenz aus derselben Liste (z. B. Schweissen,
+Kranprüfung).
+
+**Keine Aufgaben** (bleiben, wie sie sind): Hinweise ohne Handlung (KI-Deckel, Pause zu kurz) als Zahl
+am Datensatz; offene Gespräche und Aufnahmen im «+» als Zahl am «+»; alles, worauf wir warten (Kunde
+antwortet, zahlt, unterschreibt; Material fehlt; Rückführung aussteht).
+
+**Ein Wächter** prüft: jede Art hat eine Kompetenz aus der Liste (oder «nur ich» / ein Recht); jede
+Kompetenz der Liste kommt in mindestens einer Art vor oder ist am Schritt wählbar; jede Quelle liefert
+nur Arten aus der Tabelle.
+
+**Eine neue Funktion im ERP**, die etwas zu tun erzeugt, braucht genau zwei Dinge: eine Zeile in dieser
+Tabelle und ihre Quelle. Sonst nichts.
+
 ## 5 · Gesellschaft – vorerst weggelassen (Vorschlag)
 
 Solange die Mitarbeitenden an einem Ort arbeiten, braucht die Zuteilung keine Gesellschaft. Kommt eine
@@ -120,10 +166,10 @@ von selbst, ohne Einstellung.
 
 - **Termin** – ein Kalendertag oder leer (= so schnell wie möglich). Alles am Auftrag ist bis dahin
   zu erledigen.
-- **Vorlauf** – eine Zahl in Arbeitstagen: wie lange vor dem Termin der Auftrag fällig wird. Der
-  Mensch setzt ihn; das System **schlägt ihn nur vor, wenn das letzte Mal zuverlässig erfasst ist**
-  (§7.1), sonst bleibt er leer (= sofort fällig). Gerechnet in Arbeitstagen der Gesellschaft (Feiertage
-  gibt es schon).
+- **Vorlauf** – eine Zahl in Arbeitstagen, **von Hand gesetzt**: wie lange vor dem Termin der Auftrag
+  fällig wird. Leer = sofort fällig. Gerechnet in Arbeitstagen der Gesellschaft (Feiertage gibt es
+  schon). **Kein automatischer Vorschlag** – zu viele Regeln. Die Daten dafür sammelt das Log ohnehin
+  (§7.1); ein Vorschlag kommt später, eher über die KI.
 - **Fällig ab** = Termin − Vorlauf, sichtbar am Auftrag.
 - **Die Zahlung zeigt den Termin** auf Offerte und Zusage, als Liefertermin – gespeichert ist er nur am
   Auftrag. Sinnvoll, weil der Termin die ganze Arbeit betrifft, nicht nur das Geld, und weil es Aufträge
@@ -135,30 +181,16 @@ von selbst, ohne Einstellung.
   bestätigt. Keine Verknüpfung; der Service wartet am Verbrauch, bis das Teil da ist.
 - **Verschieben** ist ein Ereignis im Log.
 
-### 7.1 · Wie «das letzte Mal» erfasst wird
+### 7.1 · Was das Log dafür schon festhält
 
-Aus dem Prozess-Log (`process_log`), das jedes Stück an jedem Schritt mit Zeitstempel festhält – nichts
-wird dafür zusätzlich eingegeben:
+Jedes Stück an jedem Schritt mit Zeitstempel und handelnder Person (`process_log`: `start`, `step`,
+`end`, `handover`, `return`, `capture`, `sample`), jede Zahlung mit ihren Stufen (`voucher.action`),
+jede Änderung an Termin und Vorlauf (Trigger am Auftrag). Dazu neu: `task.assigned` · `task.done` ·
+`task.returned` · `task.handed`. Damit lässt sich später jede Dauer nachrechnen – nichts geht verloren,
+auch wenn heute nichts daraus vorgeschlagen wird.
 
-- **Gemessen** wird je früherem Auftrag die **Durchlaufzeit unserer Arbeit:** vom ersten Eintritt eines
-  Stücks (`start`) bis das letzte Stück das Ziel passiert hat (`end`), in Arbeitstagen – **abzüglich**
-  der Zeit, in der eine Zahlung auf die Partei wartete (vom Erreichen bis zur Zusage). Gewartet auf den
-  Kunden ist keine Arbeit und kein Vorlauf.
-- **Gezählt** werden nur Aufträge, die das zuverlässig sagen: **derselbe Artikel** (gleicher Prozess),
-  **regulär** (keine Abweichung – erkennbar am Start-Zustand, `order_state.deviation_flags`),
-  **abgeschlossen** (nicht abgebrochen), **alle Stücke den ganzen Weg** (keines hat den Auftrag
-  verlassen, kein `handover`).
-- **Vorgeschlagen** wird erst ab **drei** solchen Aufträgen, und zwar **der längste der letzten drei**
-  – lieber einen Tag zu früh fällig als zu spät. Weniger als drei: kein Vorschlag.
-- **Sichtbar:** im Hover die drei Aufträge mit Nummer und ihren Arbeitstagen («aus 100'004'301,
-  100'004'377, 100'004'420: 3 · 2 · 3 Arbeitstage»). Wer ihn ändert, ändert ihn; die nächste Messung
-  nimmt den Auftrag wieder auf.
-- **Frei angelegte Aufträge** (ohne Artikel) bekommen keinen Vorschlag. Die **Wiederholung** übernimmt
-  den Vorlauf des Vorgängers.
-
-Warum so und nicht feiner: eine Zahl je Auftrag hält bei frei angelegten Aufträgen, Abweichungen und
-Service, der mal klein und mal gross ist – eine Dauer je Schritt nicht. Wird der Vorschlag oft
-geändert, zeigt das Log es; dann erst lohnt mehr.
+Warum so: eine Zahl je Auftrag, von einem Menschen gesetzt, hält bei frei angelegten Aufträgen,
+Abweichungen und Service, der mal klein und mal gross ist.
 
 ## 8 · Was man sieht
 
@@ -170,7 +202,7 @@ geändert, zeigt das Log es; dann erst lohnt mehr.
 | Prozess-Editor | «Wer kann das?» |
 | Personendatensatz | Karte «Kompetenzen» (Admin klickt), Gesellschaft aus dem Personenkreis |
 
-**Nur meins oder überall ein Zeichen?** Vorschlag: nur meins. Ausnahme, damit nichts unbemerkt liegt:
+**Nur meins oder überall ein Zeichen?** Entschieden: nur meins. Ausnahme, damit nichts unbemerkt liegt:
 eine Aufgabe, die **niemand Anwesendes** kann (alle mit der Kompetenz abwesend), zeigt ihr rotes
 Zeichen am Datensatz für alle – mit «!» statt Zahl und dem Grund im Hover. Für alle gleich.
 
@@ -244,10 +276,11 @@ Kompetenz ohne Person · am längsten fällig zuerst (Matrix mit vorher notierte
 - Acht Kompetenzen (§4). «Fällig ab» statt Fristen, ohne Termin = sofort (§6).
 - Gesellschaften vorerst weggelassen (§5).
 - Anwesenheit in drei Sätzen (§9).
-- Termin und Vorlauf am Auftrag; die Zahlung zeigt den Termin; Vorschlag nur, wenn zuverlässig (§7, §7.1).
+- Termin und Vorlauf am Auftrag, beide von Hand; die Zahlung zeigt den Termin; kein automatischer Vorschlag (§7).
+- Nur meins; verwaiste Aufgaben (niemand da, der es kann) zeigen «!» für alle (§8).
 
 **Offen (Vorschlag in Klammern)**
-- E24 · Nur meins; verwaiste Aufgaben (niemand da, der es kann) zeigen «!» für alle (§8)? (ja)
+- E25 · Der Katalog der Aufgaben-Arten mit ihren Kompetenzen (§4.1)? (ja)
 
 ## 15 · Andere Wege
 
