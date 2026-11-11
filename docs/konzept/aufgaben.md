@@ -273,7 +273,7 @@ keine KI in der Reihenfolge.
 | Stufe | Inhalt |
 |---|---|
 | **A · Eine Liste** | `services/tasks` über alle Quellen (+ Schritt, + Beleg), Frist je Aufgabe, Aufgabe ↔ Hinweis getrennt |
-| **B · Kompetenzen** | `domain/tasks.KINDS`, `person_competences`, Karte am Personendatensatz, Regel «nie ohne Person» |
+| **B · Kompetenzen** | `domain/competences` (Liste, Werk/Büro, Vorgabe je Modul), Wahl am Schritt, `person_competences`, Karte am Personendatensatz, Regel «nie ohne Person» |
 | **C · Dran** | `task_focus`, Zuteilung, Anwesenheit, Dran-Zeile im Feed, rotes Zeichen nur für meins, Abgeben |
 | **D · Termin und Plan** | Frühestens/Spätestens am Auftrag, Zahlung liest sie, Wiederholung setzt sie; Dauern aus dem Log, Fristen rückwärts (§5.6) |
 | **E · Gesellschaften** | Werk-Kompetenzen am Ort (§5.7) |
