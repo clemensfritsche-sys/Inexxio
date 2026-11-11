@@ -11,9 +11,9 @@
 
 1. **Eine Aufgabe ist eine Stelle im ERP, an der jemand etwas tun muss** – abgeleitet, nie angelegt,
    nie abgehakt. Erledigt, wenn die Sache erledigt ist; nicht da, solange man wartet.
-2. **Jede Aufgabe hat zwei Angaben, beide abgeleitet:** eine **Kompetenz** (vom Modul oder der Art)
-   und ein **«fällig ab»**.
-3. **Wer frei wird, bekommt die Aufgabe, die am längsten fällig ist und die er kann.** Eine Person, eine
+2. **Jede Aufgabe hat zwei Angaben, beide abgeleitet:** eine **Kompetenz** (folgt dem Ort) und ein
+   **Datum** (das des Auftrags, sonst seit wann es zu tun ist).
+3. **Wer frei wird, bekommt die Aufgabe mit dem frühesten Datum, die er kann.** Eine Person, eine
    Aufgabe. Neues bekommt nur, wer eingestempelt ist.
 4. **Ich sehe nur meine:** zuoberst im Feed, und im Datensatz das rote Zeichen an der Stelle; dort
    auch «Abgeben». Der Admin sieht zusätzlich das rote Zeichen überall, wo es etwas zu tun gibt.
@@ -35,8 +35,7 @@ jeder macht alles, was er kann.
 - **Nur meins** – ausser der Admin: er sieht im Feed das rote Zeichen an jedem Datensatz, an dem es
   etwas zu tun gibt (ohne wer, ohne Was). Zuoberst steht auch bei ihm nur seine eigene Aufgabe.
 - **Eine Farbe, kein Text.** Das rote Zeichen sagt «hier weiter»; was zu tun ist, sieht man an der
-  Stelle selbst. **Eine Aufgabe hat darum keinen Satz** – nur Schlüssel, Stelle, Kompetenz und «fällig
-  ab». Kein Code, der Sätze baut.
+  Stelle selbst. **Eine Aufgabe hat darum keinen Satz** – nur Schlüssel, Stelle, Kompetenz und Datum. Kein Code, der Sätze baut.
 - **Nichts blockiert.** Jeder darf weiterhin alles tun, was er darf.
 - **Keine Überwachung, keine Gamification.**
 
@@ -132,29 +131,34 @@ kann, alle anderen, die es können – **ausser die Aufgabe braucht Ware** (Fall
 den Leuten, wo die Ware liegt, und wartet. So bleibt die Arbeit am Ort am Ort, und Büroarbeit teilt sich
 von selbst, ohne Einstellung.
 
-## 6 · «Fällig ab» – eine Zahl ordnet alles
+## 6 · Ein Datum je Aufgabe – das früheste zuerst
 
-**Jede Aufgabe hat ein «fällig ab». Wer frei wird, bekommt die, die am längsten fällig ist.**
+**Jede Aufgabe hat genau ein Datum. Wer frei wird, bekommt die mit dem frühesten Datum, die er kann.**
 
-| Aufgabe | fällig ab |
+| Aufgabe | ihr Datum |
 |---|---|
-| alles ohne Termin (Nachricht, Papier, Angaben, Mahnung, Schritt ohne Termin) | seit es zu tun ist |
-| Schritt eines Auftrags mit «ab» X | **X** – oder seit es zu tun ist, falls später |
+| ohne Datum am Auftrag (und alles ausserhalb von Aufträgen: Nachricht, Papier, Angaben, Mahnung) | **seit wann es zu tun ist** |
+| Auftrag mit «bis» X | **X** – kann vorher getan werden, wenn nichts Früheres ansteht |
+| Auftrag mit «ab» X | **X** – und **nicht vorher** |
 | Zeiterfassung | der Tag, der fehlt |
 
-- Keine erfundenen Fristen (kein «5 Tage», kein «1 Tag»). Ohne Termin heisst «jetzt».
-- Was noch nicht fällig ist, kommt erst, wenn nichts Fälliges da ist (man arbeitet vor, statt zu warten).
-- Eine Regel, eine Sortierung; ein Auftrag mit Termin rückt von selbst nach vorne, sobald sein
-  «fällig ab» erreicht ist.
+Wie in der Arztpraxis: wer ohne Termin kommt, hat als Datum seine Ankunft; wer einen Termin hat, dessen
+Termin. Aufgerufen wird immer das früheste Datum. «ab» heisst zusätzlich: vorher nicht aufrufen.
+
+**Grenze, ehrlich:** «bis» sagt, wann es fertig sein muss, nicht, wie lange es dauert. Eine Aufgabe «bis
+Freitag» kommt spätestens dann ganz nach vorne, wenn Freitag das früheste Datum ist – braucht sie drei Tage,
+muss der Mensch «bis» früher setzen oder «ab» wählen. Den Schritt darüber hinaus (das System kennt die
+Dauer und zieht sie selbst ab) gibt es später, wenn das Log genug weiss (§7.1); die Regel bleibt dieselbe,
+nur das Datum wird «bis minus Dauer».
 
 ## 7 · Ein Datum am Auftrag – «bis» oder «ab»
 
 **Genau ein Datum, nie zwei, nichts zu rechnen.** Der Mensch wählt, was er weiss:
-- **«bis» X** – fertig bis X (Liefertermin). Der Auftrag ist **sofort fällig** und reiht sich nach Alter ein.
-  Steht am **Ende** des Prozessbilds.
-- **«ab» X** – nicht vor X (Service beim Kunden, Inspektion). Der Auftrag wird **ab X fällig**. Steht am
-  **Start** des Prozessbilds.
-- **Kein Datum** – so schnell wie möglich, sofort fällig.
+- **«bis» X** – fertig bis X (Liefertermin). Das Datum der Aufgaben ist X (§6); vorher getan werden darf
+  es. Steht am **Ende** des Prozessbilds.
+- **«ab» X** – nicht vor X (Service beim Kunden, Inspektion). Das Datum der Aufgaben ist X, und vorher
+  gibt es sie nicht. Steht am **Start** des Prozessbilds.
+- **Kein Datum** – so schnell wie möglich: das Datum ist, seit es zu tun ist.
 
 Beide Plätze sind die runden Symbole, die das Prozessbild schon hat (`flow-column.Terminal`); keine neue
 Karte. Im Entwurf je ein Datumsfeld – wer das eine füllt, leert das andere.
@@ -233,7 +237,7 @@ Log: `task.assigned` · `task.done` · `task.returned` · `task.handed`.
   «alle sehen es, keiner ist zuständig».
 - **Gesperrte Stücke** bleiben ohne Aufgabe (entschieden 11.11.2026).
 - **Niemand eingestempelt** (Wochenende): wer am Freitag etwas dran hatte, hat es am Montag noch (§9,
-  Satz 2); der Rest wartet, Montag früh bekommt die erste freie Person die am längsten fällige.
+  Satz 2); der Rest wartet, Montag früh bekommt die erste freie Person die mit dem frühesten Datum.
 - **Person ohne Kompetenz** bekommt nur ihre eigenen Aufgaben. Gewollt.
 - **Lange Aufgaben** (Montage über Tage) bleiben die eine Aufgabe; Kleines erledigen andere.
 - **Später, ohne Umbau:** Handy-Mitteilung «Du bist dran», Vorschlag für Beginn aus dem Log (KI),
@@ -249,14 +253,14 @@ Aufgaben anlegen · Listen zum Auswählen · Stufen, zweite Farbe, Text am Ort �
 
 | Stufe | Inhalt |
 |---|---|
-| A · Eine Liste | `services/tasks` über alle Quellen (+ Schritt, + Beleg), Kompetenz, Gesellschaft, «fällig ab» |
+| A · Eine Liste | `services/tasks` über alle Quellen (+ Schritt, + Beleg), Ort, Kompetenz, Datum |
 | B · Kompetenzen | Liste in `domain/competences`, `Module.competence`, Regel «folgt dem Ort» (§4.1), Wahl am Schritt, `person_competences`, Karte, «nie ohne Person» |
 | C · Dran | `task_focus`, Zuteilung, Anwesenheit, Feed-Zeile, rotes Zeichen nur für meins, «!» für Verwaiste, Abgeben |
 | D · Datum | `orders.date_on` + `date_kind`, Zahlung zeigt es, Wiederholung, Beschaffung |
 
 Wächter (je gegen seine Bug-Form): nie zwei Personen an einer Aufgabe · nie zwei Aufgaben an einer
 Person · nie ohne Recht oder Kompetenz · Ware-Aufgaben nie an eine andere Gesellschaft · nie eine
-Kompetenz ohne Person · am längsten fällig zuerst (Matrix mit vorher notiertem Soll).
+Kompetenz ohne Person · frühestes Datum zuerst, «ab» nie vorher (Matrix mit vorher notiertem Soll).
 
 ## 14 · Entscheide
 
@@ -269,7 +273,7 @@ Kompetenz ohne Person · am längsten fällig zuerst (Matrix mit vorher notierte
 - Der Admin sieht alle roten Zeichen im Feed; sonst gleich wie alle. Keine Gamification.
 - Mehrere frei: wer am längsten frei ist, zuerst.
 - Nur wer da ist, bekommt Aufgaben.
-- Acht Kompetenzen (§4). «Fällig ab» statt Fristen, ohne Termin = sofort (§6).
+- Acht Kompetenzen (§4). Ein Datum je Aufgabe, das früheste zuerst; ohne Datum: seit es zu tun ist (§6).
 - Gesellschaften vorerst weggelassen (§5).
 - Anwesenheit in drei Sätzen (§9).
 - Ein Datum am Auftrag, «bis» oder «ab», nie beide, nichts zu rechnen; die Zahlung zeigt es (§7).
@@ -283,5 +287,5 @@ Kompetenz ohne Person · am längsten fällig zuerst (Matrix mit vorher notierte
 
 Liste für alle (Jira, Asana): Rosinenpicken, Doppelarbeit · Liste von Hand verteilt: einer plant ·
 Kanban: Pflege, zweite Wahrheit · ERP-Feinplanung mit Vorgabezeiten je Schritt: veraltet, pflegeintensiv
-· **Zuteilung nach Kompetenz, eine Sache je Person, ein «fällig ab»** (wie Service-Disposition, aber
+· **Zuteilung nach Kompetenz, eine Sache je Person, ein Datum** (wie Service-Disposition, aber
 abgeleitet aus dem ERP): niemand plant, nichts zu pflegen.
