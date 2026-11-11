@@ -1,7 +1,7 @@
 # Projektakte «Aufgaben» – wer macht was
 
-> **Kopfstatus:** Konzept, Fassung 3 · **nichts gebaut** · Lead: Claude · Entscheid: Clemens
-> Fritsche · seit 10.11.2026 · zuletzt 10.11.2026 (zweite Rückmeldung eingearbeitet)
+> **Kopfstatus:** Konzept, Fassung 4 · **nichts gebaut** · Lead: Claude · Entscheid: Clemens
+> Fritsche · seit 10.11.2026 · zuletzt 11.11.2026 (Gesellschaften, Termine und Planung, Kompetenzliste)
 > Bild (das ERP, wie es damit aussieht – 1:1, klickbar): https://claude.ai/artifact/4CpZXNTBtdTzuArnDSHY4r
 > Diese Akte ist die **eine** Quelle für Ziel, Regeln, Modell, Plan und Entscheide des Projekts
 > «Aufgaben». Was hier nicht als **entschieden** steht, ist nicht entschieden. Frühere Fassungen
@@ -85,29 +85,34 @@ je Beleg und Papier eine.
 
 ### 5.2 · Kompetenz – an einer Stelle
 
-`domain/tasks.KINDS`: jede Art Aufgabe nennt **ihre** Kompetenz. Die Kompetenzen sind die Menge, die
-dort vorkommt – keine Tabelle, kein Katalog, keine Pflegemaske:
+**Die Liste steht einmal im Code** (`domain/competences.py`), mit einer Eigenschaft je Kompetenz:
+**Werk** (an den Ort gebunden, §5.7) oder **Büro** (für alle Gesellschaften). Gespeichert wird nur,
+wer welche hat (`person_competences`, vom Admin am Personendatensatz). Eine neue Kompetenz ist eine
+Zeile Code.
 
-| Kompetenz | Arten |
-|---|---|
-| Kundendienst | Nachricht beantworten · Angaben eines Kunden ergänzen · Vorschlag aus Mail prüfen |
-| Verkauf | Schritt Zahlung (Einnahme) · Papier freigeben · Mahnen · Wiederholung klären |
-| Einkauf | Schritt Zahlung (Ausgabe) |
-| Logistik | Schritt Bewegen |
-| Montage | Schritt Verbrauch |
-| Prüfen | Schritt Datenerfassung |
-| Qualität | Schritt Aussondern |
-| – (nur ich) | eigene Zeiterfassung, eigene Angaben |
-| – (Recht Admin) | Gesellschaft pflegen |
+| Kompetenz | Art | Vorgabe für |
+|---|---|---|
+| Kundendienst | Büro | Nachricht beantworten · Angaben eines Kunden ergänzen · Vorschlag aus Mail prüfen |
+| Verkauf | Büro | Zahlung als Einnahme (Offerte, Zusage, Rechnung) · Papier freigeben · Wiederholung klären |
+| Einkauf | Büro | Zahlung als Ausgabe (Bestellung, Lieferantenrechnung) |
+| Finanzen | Büro | Geld erfassen · Mahnen · Ausbuchen |
+| Logistik | Werk | Bewegen |
+| Montage | Werk | Verbrauch |
+| Schweissen | Werk | – (am Schritt gewählt) |
+| Elektrik | Werk | – (am Schritt gewählt: Steuerung, Funk) |
+| Prüfen | Werk | Datenerfassung |
+| Kranprüfung | Werk | – (am Schritt gewählt; nur Befähigte) |
+| Qualität | Werk | Aussondern |
+| – nur ich | – | eigene Zeiterfassung, eigene Angaben |
+| – Recht Admin | – | Gesellschaft pflegen (Feiertage, Rechtstexte) |
 
-Ein neues Modul bringt seine Art mit. Gespeichert wird nur die Zuordnung **Person ↔ Kompetenz**
-(`person_competences`), gesetzt vom Admin am Personendatensatz. **Die letzte Person einer Kompetenz
-kann sie nicht verlieren** (Regel `competences.drop_problem` ↔ Tor); weil die Menge aus dem Code kommt,
-prüft ein Wächter beim Start, dass jede Kompetenz mindestens eine Person hat (sonst Meldung über
-`core/report`).
+**Am Schritt wählbar:** jedes Modul bringt seine Vorgabe mit; im Prozess-Editor lässt sie sich im
+Feld «Wer kann das?» gegen eine andere **aus derselben Liste** tauschen (Verbrauch: Montage oder
+Schweissen). Der Schritt definiert nichts, er wählt – es bleibt eine Stelle. Darunter steht, wer es
+heute kann. Eingefroren mit der Freigabe.
 
-**Offen: Befähigung** (E3). «Prüfen» deckt die Wareneingangskontrolle wie die Kranprüfung. Darf nicht
-jeder die Kranprüfung, braucht es eine zweite Angabe – siehe §8.
+**Nie ohne Person:** die letzte Person einer Kompetenz kann sie nicht verlieren; ein Wächter meldet
+beim Start (über `core/report`), wenn eine Kompetenz der Liste niemand hat.
 
 ### 5.3 · Zuteilung
 
@@ -116,8 +121,9 @@ eindeutige Schlüssel). Gerechnet an einer Stelle (`services/tasks.dispatch`), b
 nach Stempel, Abgeben, Kompetenz-Änderung:
 1. Aufräumen: gibt es die Aufgabe nicht mehr → erledigt; fehlt Recht oder Kompetenz, oder ist die
    Person nicht mehr da → frei.
-2. Die Freien in der Reihenfolge, wie lange sie frei sind; **jede nimmt die Aufgabe mit der
-   frühesten Frist, die sie kann**.
+2. Die Freien in der Reihenfolge, wie lange sie frei sind (wer am längsten frei ist, zuerst); **jede
+   nimmt die Aufgabe mit der frühesten Frist, die sie darf und kann**. Das ist die ganze Zuteilung –
+   eine Schleife, eine Sortierung.
 3. Ins Log: `task.assigned` · `task.done` · `task.returned` · `task.handed`.
 
 **Abgeben:** ein Klick an der Dran-Zeile. Wer abgibt, bekommt dieselbe Aufgabe 30 Minuten nicht wieder.
@@ -125,22 +131,20 @@ nach Stempel, Abgeben, Kompetenz-Änderung:
 
 ### 5.4 · Reihenfolge: früheste Frist zuerst
 
-**Jede Aufgabe hat eine Frist, und die früheste kommt zuerst.** Das ist die ganze Regel.
+**Jede Aufgabe hat eine Frist, die früheste kommt zuerst.** Das ist die ganze Regel (Earliest
+Deadline First, Jackson 1955: hält Verspätungen am kleinsten; keine Gewichte, kein Lernen in der
+Regel selbst, unabhängig von der Grösse).
 
 | Aufgabe | Frist |
 |---|---|
-| Schritt eines Auftrags | Termin des Auftrags (§5.6); ohne Termin: Entstehen + 5 Arbeitstage |
+| Schritt eines Auftrags | aus dem Plan des Auftrags (§5.6) |
 | Nachricht | Eingang + 2 h (wie heute «überfällig») |
 | Mahnen | Fälligkeit der Rechnung |
-| Papier, Dokument, Angaben, Vorschlag | Entstehen + 5 Arbeitstage |
-| Zeiterfassung | der Tag, der fehlt |
+| Zeiterfassung, eigene Angaben | sofort (der Tag, der fehlt) – schnell gemacht |
+| Papier, Dokument, Angaben eines Kunden, Vorschlag | Entstehen + 1 Arbeitstag |
 
-Warum das trägt: «Früheste Frist zuerst» ist die bekannte Regel, die verspätete Aufgaben am kleinsten
-hält (Earliest Deadline First, Jackson 1955). Sie hat einen Parameter (die Standardfrist), keine
-Gewichte und kein Lernen. Sie ist unabhängig von der Grösse der Firma, und eine Aufgabe ohne Termin
-wird mit der Zeit von selbst dringend – nichts bleibt liegen. **Schwäche:** sie ist so gut wie die
-Termine. Wer Termine zu früh setzt, drängelt vor. Darum hat nur der Auftrag einen Termin, und er ist
-die Abmachung mit der Partei.
+Schwäche: die Regel ist so gut wie die Fristen. Darum rechnet das System die Fristen der Aufträge
+selbst (§5.6) – von Hand gesetzt wird nur der Termin, den der Markt vorgibt.
 
 ### 5.5 · Wer ist da
 
@@ -148,16 +152,62 @@ Mit Zeiterfassung: wer eingestempelt ist, ohne Absenz heute. Ohne Zeiterfassung:
 «Gehen» bleibt die Aufgabe bis zum nächsten «Kommen», ausser ihre Frist ist verpasst oder die Person
 hat am nächsten Arbeitstag eine Absenz.
 
-### 5.6 · Der Termin (Vorschlag, eigenes Thema)
+### 5.6 · Termin und Plan eines Auftrags
 
-- **Ein Termin gehört dem Auftrag**, eine Spalte, ein Kalendertag (Europe/Zurich, wie die Wiederkehr).
-- **Woher:** hat der Auftrag eine Zahlung als Einnahme, ist der Termin der Liefertermin, den die
-  Offerte nennt und die Zusage festhält – eingetragen im Auftrag, gelesen vom Papier. Ohne Partei
-  setzt ihn, wer den Auftrag freigibt; leer = Standardfrist. Die Wiederholung setzt ihn je
-  Nachfolger aus ihrem Takt.
-- **Verschieben** ist ein Ereignis im Log (alt → neu). Ist er schon zugesagt, sagt die Zahlung, dass
-  er sich vom Papier unterscheidet – wie heute bei einer geänderten Offerte.
-- **Jeder Schritt erbt ihn.** Untereinander gleiche Frist → wer länger wartet.
+**Der Termin – zwei Felder am Auftrag, vier Fälle.** `frühestens` und `spätestens` (Kalendertage):
+
+| frühestens | spätestens | Fall | Beispiel |
+|---|---|---|---|
+| – | – | **so schnell wie möglich** | Ersatzteil aus dem Shop |
+| – | X | **bis Tag X** | Trommeltausch, Liefertermin |
+| X | X | **am Tag X** | Kranprüfung beim Kunden, Monteure vor Ort |
+| A | B | **Zeitfenster** | Jahresinspektion (nicht zu früh, nicht zu spät) |
+
+**Eine Stelle:** der Termin steht nur am Auftrag; die Zahlung liest ihn als Liefertermin (Offerte,
+Zusage, Papier) – kein Feld im Beleg. Die Wiederholung setzt beide Felder je Nachfolger aus ihrem
+Takt (zyklische Wartung = Zeitfenster). Verschieben ist ein Ereignis im Log; ist er zugesagt, sagt die
+Zahlung, dass er sich vom Papier unterscheidet.
+
+**Worauf der Termin zielt:** auf den **letzten Schritt, der an der Ware etwas tut** (Bewegen,
+Verbrauch, Datenerfassung, Aussondern) – die Lieferung, die Prüfung vor Ort. Zahlungen danach (die
+Rechnung) folgen dem Termin. Das System erkennt diesen Schritt selbst; nichts zu markieren.
+
+**Der Plan – rückwärts gerechnet, Dauern gelernt.** Für jeden Schritt kennt das System eine
+**Dauer** – nicht geschätzt, sondern **aus dem Log**: wie lange dieser Schritt dieses Artikels früher
+gedauert hat (vom Erreichen bis zum Bestätigen, also inklusive Warten), und zwar die Dauer, die
+**8 von 10** Malen gereicht hat. Gibt es keine 5 früheren Male: dieselbe Zahl über alle Artikel für
+dieses Modul; gibt es auch das nicht: 1 Arbeitstag. Gerechnet in Arbeitstagen der Gesellschaft
+(Feiertage gibt es schon).
+
+- **Frist eines Schritts** = Termin minus die Dauern aller Schritte, die danach bis zum Termin noch
+  kommen. Der Ziel-Schritt hat den Termin selbst.
+- **«Am Tag» / Zeitfenster:** der Ziel-Schritt wird erst am Tag `frühestens` zur Aufgabe; alles davor
+  (Teile bereitstellen) läuft nach Plan früher.
+- **So schnell wie möglich:** der Termin ist **heute + Summe der Dauern** – derselbe Plan, nur
+  vorwärts. Darum steht so ein Auftrag nicht hinter allem anderen und nicht vor allem anderen.
+- **Gefährdet** heisst: die Frist eines Schritts ist vorbei. Das braucht keine eigene Anzeige – die
+  Aufgabe steht dann bei der nächsten freien Person ganz vorne.
+- Abweichungen sind gewöhnliche Aufträge: gleicher Plan. Ein grosser Austausch bei einer Wartung ist
+  ein eigener Auftrag mit eigenem Termin.
+
+Am Auftrag steht je Schritt leise die Frist («bis Mi 12.11.»), im Hover die Herkunft der Dauer.
+
+**Später, und dann sehr wertvoll – Liefertermin vorschlagen:** beim Anbieten rechnet die Zahlung den
+frühesten Termin, der hält (heute + Summe der Dauern + was gerade vor diesen Kompetenzen wartet). Der
+Verkauf sagt dem Kunden nur noch, was das Werk halten kann.
+
+### 5.7 · Mehrere eigene Gesellschaften
+
+- **Zu welcher Gesellschaft eine Person gehört, sagt ihr Vertrag** (Zeiterfassung, gibt es schon) –
+  kein neues Feld. Ohne Vertrag (Admin): alle.
+- **Büro-Kompetenzen gelten überall** – eine Rechnung der deutschen Gesellschaft kann jemand in der
+  Schweiz stellen.
+- **Werk-Kompetenzen nur am Ort:** die Aufgabe geht nur an Leute der Gesellschaft, **bei der die Ware
+  ist** – abgeleitet aus dem Ort der Stücke (die Halter-Kette endet an einer eigenen Gesellschaft).
+  Ist die Ware beim Kunden (Service vor Ort), gilt die Gesellschaft, die den Auftrag fakturiert
+  (`sites.company_for_country`, gibt es schon); ohne Zahlung die Gesellschaft der Person, die ihn
+  freigab.
+- Keine Einstellung, keine Zuordnung von Hand.
 
 ## 6 · Oberfläche (nur Bestehendes)
 
@@ -168,28 +218,26 @@ hat am nächsten Arbeitstag eine Absenz.
 | Datensatz | rotes Zeichen am Symbol, wenn meine Aufgabe hier ist; im Inhalt das rote Zeichen an der Stelle (am Schritt, an der Nachricht, am Abschnitt) |
 | Andere Personen | nichts – woran andere arbeiten, steht nirgends (nur im Log) |
 | Personendatensatz | Karte «Kompetenzen»: die abgeleitete Liste, der Admin klickt |
-| Auftrag | Feld «Termin» (§5.6) |
+| Auftrag | Felder «Frühestens» · «Spätestens» (§5.6); je Schritt leise die Frist |
+| Prozess-Editor | Feld «Wer kann das?» – Vorgabe des Moduls, tauschbar gegen eine aus der Liste |
 
 ## 7 · Datenmodell (neu)
 
 ```
-person_competences  person_object_id, competence (Wort aus domain/tasks.KINDS), is_active, …
+person_competences  person_object_id, competence (Wort aus domain/competences), is_active, …
 task_focus          person_object_id (eindeutig), task_key (eindeutig), since
-orders.due_on       DATE NULL
+orders.earliest_on  DATE NULL
+orders.latest_on    DATE NULL
+Schritt-Konfig      competence (Wahl aus domain/competences, sonst Vorgabe des Moduls)
 ```
+Die Dauern sind eine Ableitung aus `process_log` (keine Spalte); berechnet im Takt, gehalten im
+Speicher wie das übrige Abgeleitete.
 
-## 8 · Befähigung (offen, E3)
+## 8 · Befähigung
 
-Problem: eine Kompetenz je Art reicht, solange jeder, der «Prüfen» kann, auch alles prüfen darf.
-Bei einer Kranprüfung stimmt das nicht.
-
-| Weg | Wie | Eine Stelle? |
-|---|---|---|
-| **A · Nichts** | Der Admin gibt «Prüfen» nur Befähigten | ja – aber dann prüft niemand sonst den Wareneingang |
-| **B · Befähigung am Artikel** | Ein Artikel kann sagen «nur befähigte Personen» (ein Häkchen). Dann ist der Artikel selbst die Kompetenz («Kranprüfung (Dienstleistung)»), die Liste je Person kommt daraus | ja – die Befähigung steht am Artikel, sonst nirgends |
-| C · Fach am Schritt (Fassung 2) | Ein Name am Schritt im Prozess-Editor | nein – derselbe Name an vielen Schritten |
-
-Vorschlag: **A zum Start, B sobald es gebraucht wird.** C nicht.
+Entschieden: **A** – der Admin gibt eine Kompetenz nur Befähigten. Für die Kranprüfung gibt es eine
+eigene Kompetenz in der Liste (§5.2), am Schritt gewählt; damit prüft weiterhin jeder mit «Prüfen» den
+Wareneingang.
 
 ## 9 · Szenarien
 
@@ -227,8 +275,9 @@ keine KI in der Reihenfolge.
 | **A · Eine Liste** | `services/tasks` über alle Quellen (+ Schritt, + Beleg), Frist je Aufgabe, Aufgabe ↔ Hinweis getrennt |
 | **B · Kompetenzen** | `domain/tasks.KINDS`, `person_competences`, Karte am Personendatensatz, Regel «nie ohne Person» |
 | **C · Dran** | `task_focus`, Zuteilung, Anwesenheit, Dran-Zeile im Feed, rotes Zeichen nur für meins, Abgeben |
-| **D · Termin** | `orders.due_on`, aus der Zahlung, Wiederholung (§5.6) |
-| später | Befähigung am Artikel (§8), Kompetenz «lernt», Handy-Push, Hebel von Hand |
+| **D · Termin und Plan** | Frühestens/Spätestens am Auftrag, Zahlung liest sie, Wiederholung setzt sie; Dauern aus dem Log, Fristen rückwärts (§5.6) |
+| **E · Gesellschaften** | Werk-Kompetenzen am Ort (§5.7) |
+| später | Liefertermin vorschlagen (§5.6), Kompetenz «lernt», Handy-Push, Hebel von Hand |
 
 Wächter (je gegen seine Bug-Form): nie zwei Personen an einer Aufgabe · nie zwei Aufgaben an einer
 Person · nie zugeteilt ohne Recht oder Kompetenz · nie eine nicht machbare Aufgabe · nie eine
@@ -247,13 +296,19 @@ Kompetenz ohne Person · früheste Frist zuerst (Matrix mit vorher notiertem Sol
 - Nur wer da ist (eingestempelt), bekommt Aufgaben. ✔
 - Kein Hebel von Hand – vorerst. ✔
 
-**Offen**
-- E3 · Befähigung: A zum Start, B bei Bedarf? (§8)
-- E4 · Termin wie §5.6? (ja)
-- E9 · Woran andere arbeiten, sieht niemand – auch der Admin nicht? (ja; das Log hält es fest)
-- E10 · Reihenfolge «früheste Frist zuerst» mit Standardfrist 5 Arbeitstage? (ja)
+- Befähigung: Weg A; Kranprüfung als eigene Kompetenz. ✔
+- Termin steht am Auftrag; die Zahlung liest ihn. ✔
+- Sind mehrere frei: wer am längsten frei ist, zuerst. ✔
 
-## 14 · Andere Wege
+**Offen (Vorschlag in Klammern)**
+- E11 · Kompetenzliste wie §5.2 (11 Stück)? (ja – ergänzen, was fehlt)
+- E12 · Termin als zwei Felder «frühestens / spätestens» (vier Fälle)? (ja)
+- E13 · Plan rückwärts mit Dauern aus dem Log, «8 von 10» (§5.6)? (ja)
+- E14 · Gesellschaften: Werk am Ort der Ware, Büro überall, Zugehörigkeit aus dem Vertrag (§5.7)? (ja)
+- E15 · Standardfrist für Kleines (Papier, Angaben, Vorschlag): 1 Arbeitstag? (ja)
+- E9 · Woran andere arbeiten, sieht niemand – auch der Admin nicht? (ja)
+
+## 14 · Andere Wege – und wohin es geht
 
 | Weg | Schwäche |
 |---|---|
@@ -261,6 +316,18 @@ Kompetenz ohne Person · früheste Frist zuerst (Matrix mit vorher notiertem Sol
 | Liste von Hand verteilt | einer plant, Listen wachsen |
 | Kanban | Pflege, zweite Wahrheit neben dem ERP |
 | **Zuteilung nach Kompetenz, eine Sache je Person** (wie Disposition im Service) | wenig Wahl – Ventil: Abgeben, und jeder darf alles tun |
+
+Was gute Systeme heute tun, und was wir davon nehmen:
+- **ERP mit Rückwärtsterminierung** (Abacus, proALPHA, SAP): Fristen rückwärts vom Liefertermin – aber
+  mit **von Hand gepflegten** Vorgabezeiten, die veralten. Wir nehmen die Rechnung, nicht die Pflege:
+  die Dauern kommen aus dem Log.
+- **Feinplanung (APS)** mit begrenzter Kapazität: genau, aber schwer und pflegeintensiv. Wir brauchen
+  sie nicht: die Zuteilung beim Freiwerden ist die Kapazität – wer nicht frei ist, bekommt nichts.
+- **Service-Disposition** (Salesforce Field Service, ServiceTitan): Kompetenz + Gebiet + Zeitfenster.
+  Das ist §5.3 + §5.7 + §5.6.
+- **Wohin es geht:** Systeme, die aus eigener Geschichte lernen (Dauern, Liefertermine, die halten),
+  und Menschen, die nicht planen, sondern ihre eine Sache tun. Genau dahin zielt diese Akte – ohne KI
+  in der Regel, mit Zahlen aus dem eigenen Log.
 
 ## 15 · Verweise
 
