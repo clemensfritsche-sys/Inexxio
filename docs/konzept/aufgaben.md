@@ -1,7 +1,7 @@
 # Projektakte «Aufgaben» – wer macht was
 
 > **Kopfstatus:** Konzept, Fassung 6 · **nichts gebaut** · Lead: Claude · Entscheid: Clemens
-> Fritsche · seit 10.11.2026 · zuletzt 11.11.2026 (Beginn und Termin an Start und Ende, Aufgabe ohne Satz)
+> Fritsche · seit 10.11.2026 · zuletzt 11.11.2026 (ein Datum «bis» oder «ab», Admin sieht alle Zeichen)
 > Bild (das ERP, wie es damit aussieht – 1:1, klickbar): https://claude.ai/artifact/4CpZXNTBtdTzuArnDSHY4r
 > Diese Akte ist die **eine** Quelle für Ziel, Regeln und Entscheide des Projekts «Aufgaben». Was hier
 > nicht als **entschieden** steht, ist nicht entschieden. Frühere Fassungen: Git-Geschichte dieser
@@ -16,8 +16,8 @@
 3. **Wer frei wird, bekommt die Aufgabe, die am längsten fällig ist und die er kann.** Eine Person, eine
    Aufgabe. Neues bekommt nur, wer eingestempelt ist.
 4. **Ich sehe nur meine:** zuoberst im Feed, und im Datensatz das rote Zeichen an der Stelle; dort
-   auch «Abgeben». Für alle gleich, auch für den Admin.
-5. **Gespeichert wird nur dreierlei:** wer was kann, wer woran ist, und am Auftrag Beginn und Termin.
+   auch «Abgeben». Der Admin sieht zusätzlich das rote Zeichen überall, wo es etwas zu tun gibt.
+5. **Gespeichert wird nur dreierlei:** wer was kann, wer woran ist, und am Auftrag ein Datum («bis» oder «ab»).
 
 ## 1 · Problem und Ziel
 
@@ -32,7 +32,8 @@ jeder macht alles, was er kann.
 - **Eine Sache, eine Stelle.** Kompetenzen stehen einmal im Code; der Termin nur am Auftrag.
 - **Recht ≠ Kompetenz.** Das Recht (`domain/policy`) ist das Tor, die Kompetenz die Zuteilung.
 - **Ein Fokus.** Eine Aufgabe je Person; die Person tut, was das System ihr gibt.
-- **Nur meins, für alle gleich.** Kein Überblick, wer woran ist – auch nicht für den Admin.
+- **Nur meins** – ausser der Admin: er sieht im Feed das rote Zeichen an jedem Datensatz, an dem es
+  etwas zu tun gibt (ohne wer, ohne Was). Zuoberst steht auch bei ihm nur seine eigene Aufgabe.
 - **Eine Farbe, kein Text.** Das rote Zeichen sagt «hier weiter»; was zu tun ist, sieht man an der
   Stelle selbst. **Eine Aufgabe hat darum keinen Satz** – nur Schlüssel, Stelle, Kompetenz und «fällig
   ab». Kein Code, der Sätze baut.
@@ -138,7 +139,7 @@ von selbst, ohne Einstellung.
 | Aufgabe | fällig ab |
 |---|---|
 | alles ohne Termin (Nachricht, Papier, Angaben, Mahnung, Schritt ohne Termin) | seit es zu tun ist |
-| Schritt eines Auftrags mit Beginn | **der Beginn** – oder seit es zu tun ist, falls später |
+| Schritt eines Auftrags mit «ab» X | **X** – oder seit es zu tun ist, falls später |
 | Zeiterfassung | der Tag, der fehlt |
 
 - Keine erfundenen Fristen (kein «5 Tage», kein «1 Tag»). Ohne Termin heisst «jetzt».
@@ -146,31 +147,29 @@ von selbst, ohne Einstellung.
 - Eine Regel, eine Sortierung; ein Auftrag mit Termin rückt von selbst nach vorne, sobald sein
   «fällig ab» erreicht ist.
 
-## 7 · Beginn und Termin – am Auftrag
+## 7 · Ein Datum am Auftrag – «bis» oder «ab»
 
-Zwei Daten, beide von Hand, beide optional – **ohne neue Karte:** der Beginn steht am **Start**, der
-Termin am **Ende** des Prozessbilds (die runden Symbole, die es dort schon gibt; `flow-column.Terminal`).
-Im Entwurf je ein Datumsfeld daneben, eingefroren wird nichts davon (verschiebbar, im Log).
-- **Beginn** – ab diesem Tag ist alles am Auftrag fällig. Leer = sofort.
-- **Termin** – bis dahin muss alles erledigt sein. Leer = so schnell wie möglich.
+**Genau ein Datum, nie zwei, nichts zu rechnen.** Der Mensch wählt, was er weiss:
+- **«bis» X** – fertig bis X (Liefertermin). Der Auftrag ist **sofort fällig** und reiht sich nach Alter ein.
+  Steht am **Ende** des Prozessbilds.
+- **«ab» X** – nicht vor X (Service beim Kunden, Inspektion). Der Auftrag wird **ab X fällig**. Steht am
+  **Start** des Prozessbilds.
+- **Kein Datum** – so schnell wie möglich, sofort fällig.
 
-Kein Rechnen mit Arbeitstagen, kein Vorschlag. Der Mensch weiss, wann er anfangen muss; das System
-ordnet danach.
-- **Die Zahlung zeigt den Termin** auf Offerte und Zusage als Liefertermin – gespeichert ist er nur am
-  Auftrag (es gibt Aufträge ohne Zahlung, und der Termin betrifft die ganze Arbeit). Wer ihn an der
-  Zahlung ändert, ändert den des Auftrags.
-- **Wiederholung:** der Nachfolger bekommt Termin und Beginn aus ihrem Takt, im selben Abstand wie beim
-  Vorgänger.
-- **Beschaffen für einen Auftrag:** bietet das System den Beschaffungsauftrag an (weil am Verbrauch
-  etwas fehlt), schlägt der Entwurf als Termin den **Beginn** des Auftrags vor, für den beschafft wird.
-  Keine Verknüpfung; der Service wartet am Verbrauch, bis das Teil da ist.
+Beide Plätze sind die runden Symbole, die das Prozessbild schon hat (`flow-column.Terminal`); keine neue
+Karte. Im Entwurf je ein Datumsfeld – wer das eine füllt, leert das andere.
+- **Die Zahlung zeigt das Datum** auf Offerte und Zusage, mit seinem Wort («Liefertermin» bzw.
+  «Ausführung ab») – gespeichert ist es nur am Auftrag.
+- **Wiederholung:** der Nachfolger bekommt das Datum aus ihrem Takt, mit demselben Wort.
+- **Beschaffen für einen Auftrag:** der Entwurf schlägt «bis» = das Datum des Auftrags vor, für den
+  beschafft wird. Keine Verknüpfung; der Service wartet am Verbrauch, bis das Teil da ist.
 - **Verschieben** ist ein Ereignis im Log.
 
 ### 7.1 · Was das Log dafür schon festhält
 
 Jedes Stück an jedem Schritt mit Zeitstempel und handelnder Person (`process_log`: `start`, `step`,
 `end`, `handover`, `return`, `capture`, `sample`), jede Zahlung mit ihren Stufen (`voucher.action`),
-jede Änderung an Beginn und Termin (Trigger am Auftrag). Dazu neu: `task.assigned` · `task.done` ·
+jede Änderung am Datum (Trigger am Auftrag). Dazu neu: `task.assigned` · `task.done` ·
 `task.returned` · `task.handed`. Damit lässt sich später jede Dauer nachrechnen – nichts geht verloren,
 auch wenn heute nichts daraus vorgeschlagen wird.
 
@@ -182,7 +181,7 @@ auch wenn heute nichts daraus vorgeschlagen wird.
 |---|---|
 | Feed ohne Filter | zuoberst **eine** Zeile: der Datensatz meiner Aufgabe, wie jede andere Zeile, mit rotem Zeichen und Rahmen. Darunter der Feed wie heute, nach Nummer. |
 | Datensatz | rotes Zeichen am Symbol und an der Stelle. Hover: «Zu tun» bzw. «Niemand da, der das kann» – sonst nichts; am Zeichen der Stelle zusätzlich «Abgeben» |
-| Auftrag | Beginn am Start, Termin am Ende des Prozessbilds |
+| Auftrag | ein Datum: «ab» am Start oder «bis» am Ende des Prozessbilds |
 | Prozess-Editor | «Wer kann das?» – nur die Auswahl, keine Liste der Personen |
 | Personendatensatz | Karte «Kompetenzen» (Admin klickt), Gesellschaft aus dem Personenkreis |
 
@@ -208,8 +207,8 @@ wieder. Dringendes unterbricht nicht.
 ```
 person_competences  person_object_id, competence (Wort aus domain/competences), is_active, …
 task_focus          person_object_id (eindeutig), task_key (eindeutig), since
-orders.due_on       DATE NULL      -- Termin
-orders.starts_on    DATE NULL      -- Beginn
+orders.date_on      DATE NULL      -- das eine Datum
+orders.date_kind    TEXT NULL      -- 'until' (bis) | 'from' (ab)
 Schritt-Konfig      competence (Wahl aus der Liste, sonst Vorgabe des Moduls)
 ```
 Log: `task.assigned` · `task.done` · `task.returned` · `task.handed`.
@@ -232,10 +231,9 @@ Log: `task.assigned` · `task.done` · `task.returned` · `task.handed`.
 - **Die Zahl «zu tun» an fremden Datensätzen fällt weg.** Heute sieht jeder an einem Kunden, dass eine
   Nachricht offen ist; künftig nur, wer dran ist (und «!», wenn es niemand kann). Gewollt – sonst wieder
   «alle sehen es, keiner ist zuständig».
-- **Gesperrte Stücke** (Aussondern «Sperren») warten heute ohne Aufgabe, bis jemand sie greift. Offen:
-  soll ein gesperrtes Stück eine Aufgabe sein («entscheiden»)? Dann am Stück, Kompetenz Bewegen.
-- **Niemand eingestempelt** (Wochenende): Aufgaben warten; Montag früh bekommt die erste Person die am
-  längsten fällige. Gewollt.
+- **Gesperrte Stücke** bleiben ohne Aufgabe (entschieden 11.11.2026).
+- **Niemand eingestempelt** (Wochenende): wer am Freitag etwas dran hatte, hat es am Montag noch (§9,
+  Satz 2); der Rest wartet, Montag früh bekommt die erste freie Person die am längsten fällige.
 - **Person ohne Kompetenz** bekommt nur ihre eigenen Aufgaben. Gewollt.
 - **Lange Aufgaben** (Montage über Tage) bleiben die eine Aufgabe; Kleines erledigen andere.
 - **Später, ohne Umbau:** Handy-Mitteilung «Du bist dran», Vorschlag für Beginn aus dem Log (KI),
@@ -254,7 +252,7 @@ Aufgaben anlegen · Listen zum Auswählen · Stufen, zweite Farbe, Text am Ort �
 | A · Eine Liste | `services/tasks` über alle Quellen (+ Schritt, + Beleg), Kompetenz, Gesellschaft, «fällig ab» |
 | B · Kompetenzen | Liste in `domain/competences`, `Module.competence`, Regel «folgt dem Ort» (§4.1), Wahl am Schritt, `person_competences`, Karte, «nie ohne Person» |
 | C · Dran | `task_focus`, Zuteilung, Anwesenheit, Feed-Zeile, rotes Zeichen nur für meins, «!» für Verwaiste, Abgeben |
-| D · Beginn und Termin | `orders.starts_on`, `orders.due_on`, Zahlung zeigt den Termin, Wiederholung, Beschaffung |
+| D · Datum | `orders.date_on` + `date_kind`, Zahlung zeigt es, Wiederholung, Beschaffung |
 
 Wächter (je gegen seine Bug-Form): nie zwei Personen an einer Aufgabe · nie zwei Aufgaben an einer
 Person · nie ohne Recht oder Kompetenz · Ware-Aufgaben nie an eine andere Gesellschaft · nie eine
@@ -268,18 +266,16 @@ Kompetenz ohne Person · am längsten fällig zuerst (Matrix mit vorher notierte
 - Abgeben am roten Zeichen, ohne Grund. Dringendes unterbricht nicht. Kein Hebel von Hand (vorerst).
 - Kompetenzen einmal im Code, am Schritt wählbar; der Admin gibt sie nur Befähigten; nie ohne Person.
 - Aussondern gehört zu Bewegen.
-- Kein Überblick für den Admin; alle gleich. Keine Gamification.
+- Der Admin sieht alle roten Zeichen im Feed; sonst gleich wie alle. Keine Gamification.
 - Mehrere frei: wer am längsten frei ist, zuerst.
 - Nur wer da ist, bekommt Aufgaben.
 - Acht Kompetenzen (§4). «Fällig ab» statt Fristen, ohne Termin = sofort (§6).
 - Gesellschaften vorerst weggelassen (§5).
 - Anwesenheit in drei Sätzen (§9).
-- Beginn und Termin am Auftrag, beide von Hand, kein Rechnen, kein Vorschlag; die Zahlung zeigt den Termin (§7).
+- Ein Datum am Auftrag, «bis» oder «ab», nie beide, nichts zu rechnen; die Zahlung zeigt es (§7).
 - Nur meins; verwaiste Aufgaben (niemand da, der es kann) zeigen «!» für alle (§8).
 
 **Offen (Vorschlag in Klammern)**
-- E28 · Beginn am Start, Termin am Ende des Prozessbilds (§7)? (ja)
-- E29 · Gesperrte Stücke als Aufgabe (§11a)? (ja, am Stück, Bewegen)
 - E26 · Kompetenz folgt dem Ort (§4.1) statt einer Tabelle je Art? (ja)
 - E27 · Beginn (Datum) statt Vorlauf (Arbeitstage) (§7)? (ja)
 
