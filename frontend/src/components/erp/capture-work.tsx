@@ -30,7 +30,7 @@ import type { OrderSeed } from '@/components/erp/order-detail';
  * System legt nichts an.
  */
 export function CaptureWork({ orderObjectId, stepId, points, action, work, needs = [],
-                              target = null, moves = false,
+                              target = null, moves = false, due = null,
                               busy, onConfirm, onDeviate, onDirty }: {
   orderObjectId: number;
   stepId: number;
@@ -50,6 +50,9 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    * anderen Modultyp: die Liste ist zugleich das Bit, ob dieses Modul bewegt.
    */
   moves?: boolean;
+  /** **Das Datum dieses Auftrags** («JJJJ-MM-TT») – wer Material beschafft, bekommt es als
+   *  «bis» vorgeschlagen (Aufgaben §5); keine Verknüpfung. */
+  due?: string | null;
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
@@ -167,13 +170,15 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
           needs={needs}
           boxes={boxes}
           onChoose={(article, ids) => setBoxes((s) => ({ ...s, [article]: ids }))}
-          onSupply={onDeviate && ((article: number) => onDeviate({ articleObjectId: article }))}
+          onSupply={onDeviate && ((article: number) => onDeviate({ articleObjectId: article,
+            date: due ? { kind: 'until', on: due } : undefined }))}
           // «Holen lassen» ist kein zweiter Anlagepfad – derselbe Entwurf wie «Nachschub», mit
           // Menge und einem Bewegen-Modul auf den Arbeitsort.
           onHaul={onDeviate && ((need, quantity) => onDeviate({
             articleObjectId: need.article_object_id,
             quantity,
             steps: [{ moduleType: MOVE_MODULE, target: need.place?.object_id }],
+            date: due ? { kind: 'until', on: due } : undefined,
           }))}
           busy={busy}
           first={i === 0}

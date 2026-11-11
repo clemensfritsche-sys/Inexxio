@@ -12,6 +12,7 @@
 
 import { LAGER, NEU, emptyLine, type DefinitionLine } from '@/components/erp/definition-lines';
 import type { LoopDraft } from '@/components/erp/loop-card';
+import type { OrderDate } from '@/components/erp/order-date';
 import { moduleFromConfig, toModulePayload, type ModuleDraft } from '@/lib/modules';
 import { MODULE_KEYS, type LoopTake } from '@/lib/vocab';
 import { everyOf, takeOf } from '@/lib/loop';
@@ -23,6 +24,8 @@ export interface OrderProposal {
   lines: DefinitionLine[];
   steps: ModuleDraft[];
   loop: LoopDraft | null;
+  /** Das eine Datum – «bis» oder «ab». */
+  date: OrderDate | null;
   /** Was der Entwurf nicht darstellen kann – er nennt es, statt es zu verlieren. */
   left: string[];
 }
@@ -132,14 +135,26 @@ function loopOf(raw: unknown, lines: DefinitionLine[], left: string[]): LoopDraf
   };
 }
 
+/** Das Datum (`OrderDate`) als Entwurf – sonst nennt der Entwurf es oben. */
+function dateOf(raw: unknown, left: string[]): OrderDate | null {
+  if (empty(raw)) return null;
+  if (isObj(raw) && (raw.kind === 'from' || raw.kind === 'until') && typeof raw.on === 'string'
+      && /^\d{4}-\d{2}-\d{2}$/.test(raw.on)) {
+    return { kind: raw.kind, on: raw.on };
+  }
+  left.push(`Datum: ${show(raw)}`);
+  return null;
+}
+
 /** ►► **Ein vorbereiteter Auftrag als Entwurf** – jede Zeile, jeder Schritt, die Wiederholung. ◄◄ */
 export function orderFromProposal(body: Body): OrderProposal {
   const left: string[] = [];
   const b = isObj(body) ? body : {};
-  left.push(...unknownKeys(b, ['lines', 'steps', 'loop'], ''));
+  left.push(...unknownKeys(b, ['lines', 'steps', 'loop', 'date'], ''));
   const found = rows(b.lines).map((l, i) => lineOf(l, i + 1, left));
   const lines = found.length ? found : [emptyLine(1)];
-  return { lines, steps: stepsOf(b.steps, left), loop: loopOf(b.loop, lines, left), left };
+  return { lines, steps: stepsOf(b.steps, left), loop: loopOf(b.loop, lines, left),
+           date: dateOf(b.date, left), left };
 }
 
 /**

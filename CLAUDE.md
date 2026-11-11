@@ -544,7 +544,7 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
 - **Nachweis einer Absenz** ist ein Dokument (Feld `time.proof`, «Nachreichen» öffnet den
   Entwurf); eine lose Datei im Korb nimmt `timekeeping.record` nicht an.
 
-## Aufgaben – wer macht was (Projektakte `docs/konzept/aufgaben.md`, Runde 1 gebaut)
+## Aufgaben – wer macht was (Projektakte `docs/konzept/aufgaben.md`, gebaut)
 
 - **Eine Aufgabe ist eine Stelle im ERP, an der jemand etwas tun muss** – abgeleitet, nie
   angelegt, nie abgehakt (`services/tasks.collect`): Stücke warten an einem Schritt (nicht an der
@@ -574,7 +574,15 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
   `TodoAt`, am Schritt `useTodoAt`) – Hover nur «Zu tun»; an meiner Aufgabe wird es «Abgeben».
   Der Admin sieht das Zeichen an jedem Datensatz mit Aufgaben; alle sehen «!», wo niemand
   Anwesendes es kann. Woran andere arbeiten, steht nirgends (nur im Log).
-- Noch nicht (Runde 2): ein Datum am Auftrag («bis» oder «ab»).
+- **Das eine Datum am Auftrag** (`domain/order_date.py`, `orders.date_kind` · `date_on`): «bis» X
+  (fertig bis, am Ende des Prozessbilds) oder «ab» X (nicht vor, am Start) – nie beide, leer = so
+  schnell wie möglich. Gesetzt im Entwurf, verschoben mit `POST /erp/orders/{nr}/date` (solange im
+  Prozess, nie in die Vergangenheit). **Arztpraxis-Modell**: eine Aufgabe am Auftrag (Schritt,
+  Zahlung) hat als Datum X statt «seit wann»; bei «ab» gibt es sie vorher nicht
+  (`tasks._dated`). Offerte und AB nennen es («Liefertermin» · «Ausführung ab»), verschoben ist
+  eine gesendete Offerte überholt (`voucher.fingerprint`). Die Wiederholung gibt dem Nachfolger
+  dasselbe Wort und denselben Abstand zu seinem Termin (nie vor heute, `loop._next_date`);
+  «Nachschub» und «Holen lassen» am Verbrauch schlagen das Datum als «bis» vor.
 
 ## Leitbild (VERBINDLICH)
 

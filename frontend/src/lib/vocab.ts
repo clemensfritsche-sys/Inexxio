@@ -139,6 +139,13 @@ export const LOOP_TAKES = {
 } as const;
 export type LoopTake = keyof typeof LOOP_TAKES;
 
+/** Das eine Datum am Auftrag (`order_date.KINDS`): Wort im Prozessbild. */
+export const ORDER_DATE_KINDS = {
+  "until": "bis",
+  "from": "ab",
+} as const;
+export type OrderDateKind = keyof typeof ORDER_DATE_KINDS;
+
 /** Die Rollen – die Rolle ist der Zugang (`policy.ROLES`). */
 export const ROLES = ["admin", "employee", "user"] as const;
 export type Role = (typeof ROLES)[number];

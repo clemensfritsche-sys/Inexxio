@@ -1002,6 +1002,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/date": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Order Date
+         * @description **Das Datum des Auftrags setzen oder verschieben** – «bis» oder «ab», leer = keins;
+         *     nur solange er im Prozess ist.
+         */
+        post: operations["set_order_date_api_v1_erp_orders__object_id__date_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}": {
         parameters: {
             query?: never;
@@ -5374,6 +5395,31 @@ export interface components {
             /** Steps */
             steps?: components["schemas"]["ModuleInput"][];
             loop?: components["schemas"]["LoopIn"] | null;
+            date?: components["schemas"]["OrderDate"] | null;
+        };
+        /**
+         * OrderDate
+         * @description Das eine Datum am Auftrag (``domain/order_date``).
+         */
+        OrderDate: {
+            /**
+             * Kind
+             * @description «bis» (fertig bis) oder «ab» (nicht vor).
+             * @enum {string}
+             */
+            kind: "until" | "from";
+            /**
+             * On
+             * Format: date
+             */
+            on: string;
+        };
+        /**
+         * OrderDateIn
+         * @description Das Datum verschieben – ``date`` leer heisst: keins mehr.
+         */
+        OrderDateIn: {
+            date?: components["schemas"]["OrderDate"] | null;
         };
         /**
          * OrderLineResponse
@@ -5413,6 +5459,10 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Date Kind */
+            date_kind?: ("until" | "from") | null;
+            /** Date On */
+            date_on?: string | null;
             /** Lines */
             lines?: components["schemas"]["OrderLineResponse"][];
             /** Steps */
@@ -9748,6 +9798,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_order_date_api_v1_erp_orders__object_id__date_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderDateIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

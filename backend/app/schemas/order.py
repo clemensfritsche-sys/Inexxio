@@ -6,8 +6,8 @@ entsteht erst bei der Freigabe, und die ist eine Transaktion. Zwei Aufrufe hiess
 Transaktionen und damit die Möglichkeit eines halben Auftrags.
 """
 
-from datetime import datetime
-from typing import Optional
+from datetime import date, datetime
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
@@ -95,6 +95,21 @@ class OrderCreate(BaseModel):
     steps: list[ModuleInput] = Field(default_factory=list)
     #: **Die Schlaufe** – nur im Entwurf; mit der Freigabe eingefroren (Wiederkehr).
     loop: Optional[LoopIn] = None
+    #: **Das eine Datum** – «bis» oder «ab», nie beide; leer = so schnell wie möglich.
+    date: Optional["OrderDate"] = None
+
+
+class OrderDate(BaseModel):
+    """Das eine Datum am Auftrag (``domain/order_date``)."""
+
+    kind: Literal["until", "from"] = Field(description="«bis» (fertig bis) oder «ab» (nicht vor).")
+    on: date
+
+
+class OrderDateIn(BaseModel):
+    """Das Datum verschieben – ``date`` leer heisst: keins mehr."""
+
+    date: Optional[OrderDate] = None
 
 
 #: Die Marke, unter der ein Entwurf im Bild seines künftigen Nachbarn steht – er hat noch
@@ -527,6 +542,9 @@ class OrderResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    #: **Das eine Datum** (``domain/order_date``): ``until`` «bis» · ``from`` «ab» · leer.
+    date_kind: Optional[Literal["until", "from"]] = None
+    date_on: Optional[date] = None
 
     lines: list[OrderLineResponse] = Field(default_factory=list)
     steps: list[ProcessStepResponse] = Field(default_factory=list)

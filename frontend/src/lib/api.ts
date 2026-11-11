@@ -1029,6 +1029,12 @@ class ApiClient {
     return this.call('post', '/api/v1/erp/orders', { body });
   }
 
+  /** **Das Datum des Auftrags** setzen oder verschieben – «bis» oder «ab», `null` = keins. */
+  setOrderDate(objectId: number, date: In<'post', '/api/v1/erp/orders/{object_id}/date'>['date']) {
+    return this.call('post', '/api/v1/erp/orders/{object_id}/date',
+      { path: { object_id: objectId }, body: { date } });
+  }
+
   /** **Die Wiederholung beenden** – nur am neuesten Auftrag der Kette (`services/loop.end`). */
   endLoop(objectId: number) {
     return this.call('post', '/api/v1/erp/orders/{object_id}/loop/end', { path: { object_id: objectId } });

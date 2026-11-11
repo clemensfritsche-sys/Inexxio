@@ -504,7 +504,8 @@ def expired(db: Session, row: Voucher) -> bool:
 
 def fingerprint(db: Session, row: Voucher) -> str:
     """**Was eine Offerte ausmacht, als eine Zahl** – Positionen, Preise, Sätze, Leistung,
-    Teilbeträge, Fristen, Gültigkeit, Lieferbedingung, Währung und Anschriften."""
+    Teilbeträge, Fristen, Gültigkeit, Lieferbedingung, Währung, Anschriften und das Datum
+    des Auftrags."""
     import hashlib
     import json
     data = {
@@ -515,6 +516,11 @@ def fingerprint(db: Session, row: Voucher) -> str:
         "to": [row.bill_to_company, row.billing_address_id, row.delivery_address_id,
                row.ownership],
     }
+    # **Das Datum des Auftrags** steht auf der Offerte – verschoben, ist sie überholt. Nur wenn
+    # gesetzt: so bleibt der Fingerabdruck jeder Offerte ohne Datum, wie er war.
+    order = db.get(Order, row.order_id)
+    if order is not None and order.date_on is not None:
+        data["date"] = [order.date_kind, order.date_on.isoformat()]
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 

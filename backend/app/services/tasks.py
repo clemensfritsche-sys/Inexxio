@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from ..core import clock, locks
 from ..domain import competences as comp
-from ..domain import modules, policy
+from ..domain import modules, order_date, policy
 from ..domain.errors import Conflict, Invalid
 from ..models import (CompanySettings, ObjectRef, Order, OrderUnit, ProcessStep, TaskFocus,
                       TimeContract, UserProfile, Voucher)
@@ -64,6 +64,16 @@ def _at(d: date) -> datetime:
     """Ein Tag als Zeitpunkt (Beginn, Europe/Zurich) – für das Datum einer Aufgabe."""
     from . import timekeeping
     return timekeeping.instant(d, 0)
+
+
+def _dated(order: Order, since: datetime) -> Optional[datetime]:
+    """►► **Das Datum einer Aufgabe am Auftrag** (§5, Arztpraxis-Modell): ohne Datum seit wann
+    es zu tun ist; «bis» X → X; «ab» X → X, und vorher gibt es sie nicht (``None``). ◄◄"""
+    if order.date_on is None:
+        return since
+    if order.date_kind == order_date.FROM and order.date_on > clock.today():
+        return None
+    return _at(order.date_on)
 
 
 def _hash(value: str) -> str:
@@ -109,14 +119,15 @@ def _steps(db: Session) -> list[Task]:
         module = modules.get(step.module_type)
         if module.passes_itself:
             continue
-        if order_state.pending_returns(db, order).get(step.id):
+        when = _dated(order, since)
+        if when is None or order_state.pending_returns(db, order).get(step.id):
             continue
         if modules.lines_of(step.config):
             products = order_state.units_before(db, order, step)
             if any(n.here < n.required for n in consumption.needs(db, step, products=products)):
                 continue
         out.append(Task(key=f"step:{order.object_id}:{step.id}", object_id=order.object_id,
-                        part=f"step:{step.id}", since=since,
+                        part=f"step:{step.id}", since=when,
                         competence=module.competence_of(step.config)))
     return out
 
@@ -156,7 +167,10 @@ def _payments(db: Session) -> list[Task]:
                 continue
             if not situation(db, row, order=order, step=step).get("ours"):
                 continue
-            since = _at(row.due_on) if row.stage == "billed" and row.due_on else row.updated_at
+            since = _dated(order, _at(row.due_on) if row.stage == "billed" and row.due_on
+                           else row.updated_at)
+            if since is None:
+                continue
             out.append(Task(key=f"pay:{row.id}", object_id=order.object_id,
                             part=f"step:{step.id}", since=since,
                             competence=modules.get(step.module_type).competence_of(step.config)))

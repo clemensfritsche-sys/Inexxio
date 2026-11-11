@@ -141,7 +141,7 @@ def build(db: Session, *, row: Voucher, kind: str, party: int,
         _reminder(db, row, doc, level or 1)
     else:
         _lines(db, row, kind, doc)
-        doc.terms = _terms(db, row, theirs)
+        doc.terms = _terms(db, row, theirs, kind)
         doc.after = _after(db, row, kind, party)
     if kind in (vo.INVOICE_DOC, vo.REMINDER_DOC):
         doc.payslip = _payslip(db, row, theirs)
@@ -229,13 +229,18 @@ def _lines(db: Session, row: Voucher, kind: str, doc: a4.Doc) -> None:
     doc.total = _money(Decimal(totals["gross"]), code)
 
 
-def _terms(db: Session, row: Voucher, theirs: dict[str, Any]) -> list[tuple[str, str]]:
+def _terms(db: Session, row: Voucher, theirs: dict[str, Any],
+           kind: str) -> list[tuple[str, str]]:
     from ..domain import loop as dl
+    from ..domain import order_date
     from . import loop
     out = [("Zahlungsfrist", _days_word(vs.due_days_of(db, row), lead=False)),
            ("Lieferfrist", _days_word(vs.lead_days_of(db, row), lead=True))]
-    # **Die Offerte nennt die Wiederholung** – wer zusagt, sagt zur Schlaufe zu (Wiederkehr O16).
     order = db.query(Order).filter(Order.id == row.order_id).first()
+    # **Das Datum des Auftrags** auf Offerte und Zusage – gespeichert ist es nur am Auftrag.
+    if order is not None and order.date_on and kind in (vo.OFFER_DOC, vo.CONFIRM_DOC):
+        out.append((order_date.paper(order.date_kind), _day(order.date_on)))
+    # **Die Offerte nennt die Wiederholung** – wer zusagt, sagt zur Schlaufe zu (Wiederkehr O16).
     repeat = loop.settings(db, order) if order is not None else None
     if repeat is not None:
         out.append(("Wiederholung", escape(dl.sentence(repeat))))

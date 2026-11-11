@@ -92,6 +92,7 @@ app/
 │   ├── capture_types/← Erfassungspunkt-Typen (text · yes_no · photo · signature · measure)
 │   ├── sampling.py   ← die Stichprobe als EINE Zahl
 │   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)
+│   ├── order_date.py ← das eine Datum am Auftrag: «bis» · «ab», `problem` ↔ `clean`
 │   ├── loop.py       ← die Wiederholung: Takte, Kalender (wie ein Dauerauftrag), Wahl je Zeile,
 │   │                   Prüfung der Einstellung (`problems` ↔ `clean`), Zustände (`STATES`)
 │   ├── log.py        ← das Log: Funktionen und Trigger (wer handelt, Zeilen, Ereignisse,
@@ -168,7 +169,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **164 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **165 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -212,6 +213,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | POST | `/api/v1/erp/orders/validate` | staff | Entwurf prüfen inkl. Vorschau des Prozessbildes |
 | GET | `/api/v1/erp/orders/{object_id}` | user | Auftrag lesen; ein Partner sieht nur sein Modul, ein Unbeteiligter 404 |
 | GET | `/api/v1/erp/orders/{object_id}/units?edge=` | staff | Stücke einer Kante des Prozessbildes |
+| POST | `/api/v1/erp/orders/{object_id}/date` | staff | **Das Datum** setzen oder verschieben – «bis» oder «ab», `null` = keins; nur im Prozess, nie in die Vergangenheit (`orders.set_date`, `domain/order_date`) |
 | POST | `/api/v1/erp/orders/{object_id}/loop/end` | staff | **Wiederholung beenden** – nur am neuesten Auftrag der Kette, auch wenn er abgeschlossen ist (`loop.end` → `loop.ended`; sonst 409) |
 | POST | `/api/v1/erp/orders/{object_id}/steps/{step_id}/confirm` | staff | **Ein Modul bestätigen** – für EINE Instanz (`instance_object_id`, `verification`) |
 | GET | `…/steps/{step_id}/hold?instance=&group=` | staff | Nummern einer Gruppe (`sample` · `failed` · `rest`), erst auf Klick |
@@ -290,7 +292,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 ## Befehle statt Feld-Updates
 - **Ein Auftrag entsteht als GANZES** (ein `POST`); es gibt kein `PATCH /orders/{id}`.
 - **Bewegt wird er über zwei Befehle**: `confirm` (ein Modul bestätigen) und `voucher` (eine
-  Handlung am Beleg). Beide sind POST; ein Wächter verbietet `PATCH` und `DELETE` im
+  Handlung am Beleg); dazu `date` (das eine Datum verschieben) und `loop/end`. Alle sind POST; ein Wächter verbietet `PATCH` und `DELETE` im
   Auftrags-Router (`test_pieces_and_log.test_orders_and_instances_have_no_path_to_change_or_delete`),
   damit jede Zustandsänderung durch die Stelle geht, die den Log schreibt.
 - **Der Beleg** (`services/voucher.py`): jedes Verb steht EINMAL in `VERBS` – Stufen

@@ -2601,6 +2601,64 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/date": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Set Order Date",
+        "description": "**Das Datum des Auftrags setzen oder verschieben** – «bis» oder «ab», leer = keins;\nnur solange er im Prozess ist.",
+        "operationId": "set_order_date_api_v1_erp_orders__object_id__date_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderDateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}": {
       "get": {
         "tags": [
@@ -13407,11 +13465,63 @@
                 "type": "null"
               }
             ]
+          },
+          "date": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "title": "OrderCreate",
         "description": "Der Entwurf, so wie ihn die Oberfläche schickt."
+      },
+      "OrderDate": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "until",
+              "from"
+            ],
+            "title": "Kind",
+            "description": "«bis» (fertig bis) oder «ab» (nicht vor)."
+          },
+          "on": {
+            "type": "string",
+            "format": "date",
+            "title": "On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "on"
+        ],
+        "title": "OrderDate",
+        "description": "Das eine Datum am Auftrag (``domain/order_date``)."
+      },
+      "OrderDateIn": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "OrderDateIn",
+        "description": "Das Datum verschieben – ``date`` leer heisst: keins mehr."
       },
       "OrderLineResponse": {
         "properties": {
@@ -13491,6 +13601,33 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "date_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "until",
+                  "from"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Kind"
+          },
+          "date_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date On"
           },
           "lines": {
             "items": {

@@ -23,7 +23,7 @@ import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
 } from '@/components/erp/definition-lines';
-import { END_BEFORE, FREIGEGEBEN } from '@/lib/process-status';
+import { END_BEFORE, FREIGEGEBEN, IM_PROZESS } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { BelegWork } from '@/components/erp/beleg-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
@@ -32,6 +32,7 @@ import { moduleIcon } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
 import { LoopDraftCard, LoopRunCard, loopPayload, type LoopDraft } from '@/components/erp/loop-card';
+import { OrderDateField, type OrderDate } from '@/components/erp/order-date';
 import { Skeleton } from '@/components/erp/skeleton';
 import { useAction } from '@/lib/use-action';
 import { NOTHING } from '@/lib/when';
@@ -68,6 +69,8 @@ export interface OrderSeed {
   /** **Ein Vorschlag der KI, ganz** – jede Zeile, jeder Schritt, die Wiederholung
    *  (`lib/proposal-draft.orderFromProposal`); was nicht passte, nennt der Entwurf. */
   proposal?: OrderProposal;
+  /** **Das Datum vorgeschlagen** – beim Beschaffen für einen Auftrag dessen Datum als «bis». */
+  date?: OrderDate;
 }
 
 export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
@@ -107,6 +110,9 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     })));
   // **Die Wiederholung lebt im Entwurf** – eingefroren wird sie mit der Freigabe.
   const [loop, setLoop] = useState<LoopDraft | null>(seed?.proposal?.loop ?? null);
+  // **Das eine Datum** – im Entwurf ein Wert, eingefroren nicht: verschoben wird es jederzeit.
+  const [date, setDate] = useState<OrderDate | null>(
+    seed?.proposal?.date ?? seed?.date ?? null);
   const { busy, error, run } = useAction();
   // Zählt hoch, wenn die Freigabe an einer veralteten Auswahl scheitert – der Picker holt
   // die Stückliste dann neu und zeigt, wo die Stücke jetzt liegen.
@@ -134,7 +140,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     lines: toPayload(lines),
     steps: steps.map(toModulePayload),
     loop: loopPayload(loop, lines),
-  }), [lines, steps, loop]);
+    date,
+  }), [lines, steps, loop, date]);
 
   // Freigebbarkeit beim Server erfragen. Die Vorschau der Quell-Aufträge (Auftrag §2) kommt
   // aus derselben Antwort.
@@ -178,6 +185,10 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   ) => {
     await act((id) => api.updateVoucher(id, stepId, body));
   }, [act]);
+
+  /** **Das Datum verschieben** – ein Befehl, die Antwort ist der Auftrag. */
+  const moveDate = useCallback((next: OrderDate | null) =>
+    act((id) => api.setOrderDate(id, next)), [act]);
 
   /** **Die Wiederholung beenden** – derselbe Weg: ein Befehl, die Antwort ist der Auftrag. */
   const endLoop = useCallback(() => act((id) => api.endLoop(id)), [act]);
@@ -230,11 +241,12 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
         {isDraft ? (
           <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}
             refreshKey={refreshKey} parents={preview}
-            loop={<LoopDraftCard loop={loop} onChange={setLoop} lines={lines} />} />
+            loop={<LoopDraftCard loop={loop} onChange={setLoop} lines={lines} />}
+            dates={datesAt(date, setDate)} />
         ) : live ? (
           <RunView order={live} busy={busy} onConfirm={confirmStep}
             onVoucher={runVoucher} onReload={reload}
-            onDeviate={onDeviate} onEndLoop={endLoop} />
+            onDeviate={onDeviate} onEndLoop={endLoop} onDate={moveDate} />
         ) : (
           loadError ? null : <div style={{ maxWidth: 880, margin: '0 auto' }}><Skeleton block={140} lines={5} label="Auftrag wird geladen" /></div>
         )}
@@ -260,7 +272,16 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
  * Artikels – hier nur zu sehen, geändert wird am Artikel. Ein reiner «Lager»-Auftrag wird
  * hier frei modelliert.
  */
-function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop }: {
+/** **Das Datum neben Start («ab») und Ende («bis»)** – dieselben zwei Felder in Entwurf und Lauf. */
+function datesAt(value: OrderDate | null, onChange: (next: OrderDate | null) => void,
+                 readOnly = false) {
+  return {
+    start: <OrderDateField which="start" value={value} onChange={onChange} readOnly={readOnly} />,
+    end: <OrderDateField which="end" value={value} onChange={onChange} readOnly={readOnly} />,
+  };
+}
+
+function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop, dates }: {
   lines: DefinitionLine[]; setLines: (l: DefinitionLine[]) => void;
   steps: ModuleDraft[]; setSteps: (s: ModuleDraft[]) => void;
   /** Hochgezählt, wenn die Freigabe an einer veralteten Auswahl scheitert. */
@@ -269,6 +290,8 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop
   parents: RelatedOrder[];
   /** Die Karte «Wiederholen» – unter dem Ende, im Editor wie bei einer Vorlage. */
   loop: React.ReactNode;
+  /** Das Datum neben Start und Ende. */
+  dates: { start?: React.ReactNode; end?: React.ReactNode };
 }) {
   // Welcher Artikel bringt den Prozess mit? Der erste mit Herkunft «Neu».
   const sourceArticle = useMemo(
@@ -323,6 +346,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop
             endStatus: END_BEFORE,
             head,
             loop,
+            dates,
           }}
           parents={parents}
           onToggleReturn={toggleReturn}
@@ -335,6 +359,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop
           onToggleReturn={toggleReturn}
           head={head}
           loop={loop}
+          dates={dates}
         />
       )}
     </>
@@ -346,7 +371,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents, loop
 // ─────────────────────────────────────────────────────────────────────────────
 
 function RunView({ order, busy, onConfirm, onVoucher, onReload,
-                   onDeviate, onEndLoop }: {
+                   onDeviate, onEndLoop, onDate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number | null, verification: string,
               values: Record<string, Record<string, unknown>>,
@@ -358,6 +383,8 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
   onReload: () => void;
   onDeviate?: (seed: OrderSeed) => void;
   onEndLoop: () => void;
+  /** Das Datum verschieben (`api.setOrderDate`). */
+  onDate: (next: OrderDate | null) => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
   // Die einzelnen Nummern kommen erst beim Aufklappen.
@@ -423,6 +450,7 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
         onDeviate={onDeviate}
         onConfirm={(instanceObjectId, verification, values, sources, place) =>
           onConfirm(step.id, instanceObjectId, verification, values, sources, place)}
+        due={order.date_on ?? null}
       />
     ) : paper ? (
       // Ein Modul, das seine Sache selbst zeigt (Beleg), braucht keine `PointList` daneben.
@@ -487,6 +515,10 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           eventTotal: order.event_count ?? undefined,
           // Ein Modul zeigt seine Sache in jedem Zustand; `isActive` entscheidet nur übers Handeln.
           renderStep: (step, isActive) => stepBody(step, isActive, true),
+          // Verschieben geht, solange er im Prozess ist; danach steht es nur noch da.
+          dates: datesAt(order.date_kind && order.date_on
+            ? { kind: order.date_kind, on: order.date_on } : null, onDate,
+          order.status !== IM_PROZESS),
           loop: order.loop
             ? <TodoAt part="wiederholung" objectId={order.object_id}>
                 <LoopRunCard loop={order.loop} busy={busy} onEnd={onEndLoop} />

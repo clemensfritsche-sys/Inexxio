@@ -22,7 +22,7 @@ from ..schemas.voucher import (
 )
 from ..schemas.instance import stock_states
 from ..schemas.order import (
-    ArticleOption, OrderCreate, OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
+    ArticleOption, OrderCreate, OrderDateIn, OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     UnitChoices,
 )
 from ..schemas.process import (
@@ -268,6 +268,20 @@ def end_loop(
     order = orders_svc.get(db, object_id)
     loop_svc.end(db, order)
     db.flush()
+    return view.response(db, order)
+
+
+@router.post("/{object_id}/date", response_model=OrderResponse)
+def set_order_date(
+    object_id: int,
+    data: OrderDateIn,
+    db: Session = DB,
+    _: UserProfile = Depends(require_employee),
+):
+    """**Das Datum des Auftrags setzen oder verschieben** – «bis» oder «ab», leer = keins;
+    nur solange er im Prozess ist."""
+    order = orders_svc.get(db, object_id)
+    orders_svc.set_date(db, order, data.date.model_dump() if data.date else None)
     return view.response(db, order)
 
 
