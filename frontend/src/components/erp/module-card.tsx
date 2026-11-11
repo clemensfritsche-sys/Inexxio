@@ -6,6 +6,8 @@ import { moduleIcon, moduleTone } from '@/lib/modules';
 import { MODULE_CARD, MODULE_TITLE } from './module-ui';
 import { formatObjectId } from '@/lib/utils';
 import { DiagramStep } from '@/lib/process-graph';
+import { useTodoAt } from '@/lib/todo';
+import { TodoChip } from './detail-frame';
 
 /**
  * **Ein Prozessobjekt = eine Komponente.** Der Modultyp ist Konfiguration (Name, Übergang,
@@ -120,11 +122,14 @@ export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, hi
   const Icon = moduleIcon(step.moduleType);
   // Die Farbe kommt vom Schritt; `moduleTone` meldet eine unbekannte Familie sichtbar.
   const c = moduleTone(step.tone);
+  // **Das rote Zeichen an der Stelle** – nur, wenn hier eine Aufgabe ist, die ich sehe.
+  const todo = useTodoAt(drag || onDelete ? "" : `step:${step.id}`);
   return (
     // Die Hülle ist `ModuleShell`; Eigenes hängt in `lead`/`trail`.
     <ModuleShell
       tone={c} icon={Icon} label={step.label} active={active}
       body={{
+        ...({ 'data-todo': `step:${step.id}` } as React.HTMLAttributes<HTMLDivElement>),
         // Gezogen wird am Griff, nicht an der Karte – sonst liesse sich in den Feldern kein
         // Text markieren.
         onDragEnd: drag ? drag.onEnd : undefined,
@@ -173,6 +178,11 @@ export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, hi
       ) : undefined}
       trail={(
         <>
+          {todo.length > 0 && (
+            <span className="flex-none inline-flex" onClick={(e) => e.stopPropagation()}>
+              <TodoChip items={todo} size={20} />
+            </span>
+          )}
           {locked && (
             <Lock size={13} className="flex-none" style={{ color: 'var(--warning)' }}
               data-tip={lockReason(waiting)} />

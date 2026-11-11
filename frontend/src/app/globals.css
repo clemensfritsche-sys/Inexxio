@@ -724,6 +724,10 @@ fieldset:disabled .ix-editable.is-missing {
 }
 @keyframes erp-skel { to { background-position: -200% 0; } }
 /* Die Zahl am «+»: was nicht abgelegt ist (wie «zu tun» am Symbol). */
+/* Das rote Zeichen meiner Aufgabe: beim Darüberfahren wird es «Abgeben» (`TodoChip`). */
+.erp-todo-give .erp-todo-u { display: none; }
+.erp-todo-give:hover .erp-todo-n, .erp-todo-give:focus-visible .erp-todo-n { display: none; }
+.erp-todo-give:hover .erp-todo-u, .erp-todo-give:focus-visible .erp-todo-u { display: block; }
 .erp-fab-count {
   position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
   display: flex; align-items: center; justify-content: center; color: #fff; font: 700 11px/1 var(--font-body);

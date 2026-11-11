@@ -17,7 +17,7 @@ import {
   type SampleMode,
 } from '@/lib/modules';
 import {
-  DRAFT_OBJECT_ID, INCOTERMS, VOUCHER_OWNERSHIP, VOUCHER_PARTY, lookup,
+  COMPETENCES, DRAFT_OBJECT_ID, INCOTERMS, MODULE_COMPETENCES, VOUCHER_OWNERSHIP, VOUCHER_PARTY, lookup,
   type DisposalMode, type ModuleKey, type VoucherPresetKey,
 } from '@/lib/vocab';
 
@@ -149,6 +149,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
                   <Fields module={m} types={catalog?.capture_types ?? []}
                     onChange={(next) => patch(m.id, next)} />
                 )}
+                <WhoCan module={m} onChange={(competence) => patch(m.id, { competence })} />
               </div>
             </fieldset>
           );
@@ -633,6 +634,26 @@ function ModuleFields({ module: m, types, onChange }: {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * ►►► **Wer kann das?** – die Kompetenz des Schritts (Projektakte «Aufgaben» §3). ◄◄◄ Vorgabe
+ * des Moduls (`MODULE_COMPETENCES`), tauschbar gegen eine aus derselben Liste (`COMPETENCES`).
+ * Der Schritt wählt nur – die Liste steht einmal im Code. Keine Liste der Personen.
+ */
+function WhoCan({ module: m, onChange }: { module: ModuleDraft; onChange: (c: string) => void }) {
+  const preset = lookup(MODULE_COMPETENCES, m.moduleType);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label>Wer kann das?</Label>
+      <Select name="competence" className={inputCls} value={m.competence} aria-label="Wer kann das?"
+        onChange={onChange}>
+        <option value="">{preset ? `${preset} (Vorgabe)` : 'Vorgabe des Moduls'}</option>
+        {COMPETENCES.filter((c) => c !== preset).map((c) => <option key={c} value={c}>{c}</option>)}
+      </Select>
     </div>
   );
 }

@@ -20,10 +20,12 @@ const CHUNK = 50;
 
 // ─── Feed item ───────────────────────────────────────────────────────────────
 
-function FeedItem({ row, sel, onClick, todo }: {
+function FeedItem({ row, sel, onClick, todo, mine }: {
   row: Row; sel: boolean; onClick: () => void;
-  /** Was zu tun ist – die Zahl am Symbol (`lib/todo`). */
+  /** Was zu tun ist – das rote Zeichen am Symbol (`lib/todo`). */
   todo?: Todo | null;
+  /** **Meine eine Aufgabe** – die Zeile steht zuoberst, mit Rahmen. */
+  mine?: boolean;
 }) {
   const title = rowTitle(row);
   const badge = rowStatus(row);
@@ -36,6 +38,7 @@ function FeedItem({ row, sel, onClick, todo }: {
         // Ausrichtung, nicht Fläche.
         'w-full flex items-center gap-3 px-3 py-3 mb-1 rounded-ds-md text-left transition-colors',
         sel ? 'bg-accent-soft' : 'hover:bg-bg-2',
+        mine && 'border border-border-2',
       )}
     >
       {/* **Dieselbe Komponente wie im Detail-Kopf** – Symbol, Farbfamilie, Form und das
@@ -173,7 +176,7 @@ function CaptureButton({ onCapture }: { onCapture: () => void }) {
  * Instanzen dazugehören – die nächste Seite vom Server (`onMore`).
  */
 export function FeedPanel({ show, search, onSearch, typeFilter, onTypeFilter, rows, count, loading,
-  more, onMore, isSelected, onSelect, todos, staff, onScan, onCapture }: {
+  more, onMore, isSelected, onSelect, todos, mine, staff, onScan, onCapture }: {
   /** Schmal ist entweder die Liste oder das Detail zu sehen. */
   show: boolean;
   search: string; onSearch: (q: string) => void;
@@ -187,12 +190,17 @@ export function FeedPanel({ show, search, onSearch, typeFilter, onTypeFilter, ro
   isSelected: (row: Row) => boolean;
   onSelect: (row: Row) => void;
   todos: Map<number, Todo>;
+  /** Der Datensatz meiner einen Aufgabe – ohne Filter und Suche zuoberst (`services/tasks`). */
+  mine: number | null;
   staff: boolean;
   onScan: () => void;
   /** «+» – das Blatt «Erfassen». */
   onCapture: () => void;
 }) {
   const [visible, setVisible] = useState(CHUNK);
+  // **Meine Aufgabe zuoberst** – nur ohne Filter und Suche; darunter der Feed wie immer.
+  const top = !typeFilter && !search && mine != null ? rows.find((r) => r.objectId === mine) ?? null : null;
+  const rest = top ? rows.filter((r) => r !== top) : rows;
   // Wechselt die Suche oder der Filter, beginnt die Liste wieder oben.
   useEffect(() => { setVisible(CHUNK); }, [typeFilter, search]);
   const next = useRef(() => {});
@@ -225,11 +233,15 @@ export function FeedPanel({ show, search, onSearch, typeFilter, onTypeFilter, ro
             {search || typeFilter ? 'Keine Treffer' : 'Keine Datensätze'}
           </div>
         )}
-        {rows.slice(0, visible).map((r) => (
+        {top && (
+          <FeedItem key={`mine-${top.key}`} row={top} sel={isSelected(top)} onClick={() => onSelect(top)}
+            todo={todos.get(top.objectId!)} mine />
+        )}
+        {rest.slice(0, visible).map((r) => (
           <FeedItem key={r.key} row={r} sel={isSelected(r)} onClick={() => onSelect(r)}
             todo={r.objectId != null ? todos.get(r.objectId) : null} />
         ))}
-        {(visible < rows.length || more) && (
+        {(visible < rest.length || more) && (
           <div ref={sentinel} className="flex items-center justify-center gap-2 p-3.5 text-fg-4 text-xs">
             <Loader2 size={15} className="animate-spin" />
             <span>Weitere werden geladen…</span>

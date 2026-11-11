@@ -10,7 +10,7 @@ import type {
   RelatedOrder, StepWork,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
-import { DetailBody, DetailHeader, HeaderAction, SectionSep } from '@/components/erp/detail-frame';
+import { DetailBody, DetailHeader, HeaderAction, SectionSep, TodoAt } from '@/components/erp/detail-frame';
 import { History } from '@/components/erp/history';
 import { DocumentTiles } from '@/components/erp/documents';
 import { LabelButton } from '@/components/scan/object-label';
@@ -488,7 +488,9 @@ function RunView({ order, busy, onConfirm, onVoucher, onReload,
           // Ein Modul zeigt seine Sache in jedem Zustand; `isActive` entscheidet nur übers Handeln.
           renderStep: (step, isActive) => stepBody(step, isActive, true),
           loop: order.loop
-            ? <LoopRunCard loop={order.loop} busy={busy} onEnd={onEndLoop} />
+            ? <TodoAt part="wiederholung" objectId={order.object_id}>
+                <LoopRunCard loop={order.loop} busy={busy} onEnd={onEndLoop} />
+              </TodoAt>
             : undefined,
         }}
         loopWalked={order.loop?.successor != null}

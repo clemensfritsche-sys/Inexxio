@@ -87,6 +87,7 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   // Ein unbekannter Absender wird Person; eine Nachricht von uns schliesst Offenes.
   ['erp/messages', ['people', 'todo', ...LOGGED]],
   ['erp/time', ['todo', 'time', ...LOGGED]],
+  ['erp/tasks', ['todo']],
   ['admin', ['companies', 'todo', 'company', 'documentsOf', ...LOGGED]],
   // Phase 5 · Der Assistent: ein Handgriff kann ALLES ändern, was das ERP kann – er lädt
   // alles nach (wie ein unbekannter Pfad). Sagen, Weglegen, eine Datei ändern nur Gespräche,

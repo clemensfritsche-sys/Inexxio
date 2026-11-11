@@ -14,6 +14,7 @@ import { qk } from '@/lib/queries';
 import { tell } from '@/lib/notice';
 import { type Row, feedMatch, rowTitle, toCandidate, useFeedLists } from '@/lib/use-feed-lists';
 import { useMailSync } from '@/lib/use-mail-sync';
+import { TodoContext } from '@/lib/todo';
 import { useUrlParams } from '@/lib/use-url-params';
 import { type Creatable, FeedPanel } from '@/components/erp/feed-panel';
 import { DetailPane, type DetailHandlers } from '@/components/erp/detail-pane';
@@ -54,7 +55,7 @@ export default function ErpPage() {
   }, [search]);
   const current = query === search.trim();
   const feed = useFeedLists(query);
-  const { rows, staff, isAdmin, me, todos, patchList } = feed;
+  const { rows, staff, isAdmin, me, todos, mine, patchList } = feed;
 
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
@@ -274,6 +275,7 @@ export default function ErpPage() {
 
   return (
     <ErpNavContext.Provider value={openByObjectId}>
+     <TodoContext.Provider value={todos}>
       <CaptureContext.Provider value={captureActions}>
         {/* 100dvh statt 100vh: auf Mobile zählt die Browser-Leiste mit – sonst rutscht «+»
             unter die Adressleiste. */}
@@ -284,7 +286,8 @@ export default function ErpPage() {
               loading={feed.loading} more={more} onMore={loadMore}
               isSelected={(r) => !creating && !!sel && sel.type === r.type && sel.objectId === r.objectId}
               onSelect={(r) => { if (r.objectId != null) open(r.type, r.objectId); }}
-              todos={todos} staff={staff} onScan={openScanner} onCapture={() => setCapture(true)} />
+              todos={todos} mine={mine?.object_id ?? null} staff={staff} onScan={openScanner}
+              onCapture={() => setCapture(true)} />
             <DetailPane show={mobileView !== 'list'} creating={creating} sel={sel} activeRow={activeRow}
               orderSeed={orderSeed} seeds={seeds} isAdmin={isAdmin} me={me} todos={todos} h={handlers} />
           </div>
@@ -293,6 +296,7 @@ export default function ErpPage() {
           <CaptureSheet hint={hint} onClose={() => setCapture(false)} onCreate={(t) => startCreate(t)} />
         )}
       </CaptureContext.Provider>
+     </TodoContext.Provider>
     </ErpNavContext.Provider>
   );
 }

@@ -587,8 +587,12 @@ class ApiClient {
   }
 
   /** Je Datensatz, was zu tun ist – die Zahl am Symbol in Feed und Kopf. */
-  todo() {
-    return this.call('get', '/api/v1/erp/todo');
+  tasks() {
+    return this.call('get', '/api/v1/erp/tasks');
+  }
+
+  handTask(key: string) {
+    return this.call('post', '/api/v1/erp/tasks/{key}/hand', { path: { key } });
   }
 
   // ─── Phase 5 · Der Assistent: Gespräch, Handgriff, Angeheftet (docs/konzept/phase5-bauplan.md) ──

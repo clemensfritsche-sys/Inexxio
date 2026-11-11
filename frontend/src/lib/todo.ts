@@ -1,54 +1,46 @@
 /**
- * ►►► **Was zu tun ist – die EINE Zahl am Symbol** (Backend `services/todo`). ◄◄◄
+ * ►►► **Aufgaben – das rote Zeichen** (Backend `services/tasks`, Projektakte
+ * `docs/konzept/aufgaben.md`). ◄◄◄
  *
- * Offene Nachrichten, Aufgaben der Zeiterfassung, überfällige Rechnungen, fehlende
- * Pflichtangaben, fehlende Feiertage – der Server zählt, hier steht nur, wie es sich zeigt: die Blase am Symbol (Feed und Kopf),
- * die kleine Zahl am Abschnitt und der Sprung dorthin.
+ * Der Server teilt zu und sagt, was ich sehe: meine eine Aufgabe, beim Admin jede, bei allen die
+ * verwaisten («!»). Hier steht nur, wie es sich zeigt: das rote Zeichen am Symbol (Feed und
+ * Kopf), an der Stelle (`data-todo` = `part`) und der Sprung dorthin. Kein Satz – was zu tun
+ * ist, sieht man an der Stelle.
  */
+import { createContext, useContext } from 'react';
 import type { Todo, TodoItem } from '@/types';
 
-/** Etwas, das die Zahl ändern kann, ist geschehen – der Feed lädt sie neu. */
+/** Etwas, das die Aufgaben ändern kann, ist geschehen – der Feed lädt sie neu. */
 export const TODO_CHANGED = 'erp:todo-changed';
 
 export function todoChanged(): void {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(TODO_CHANGED));
 }
 
-/** Die Abschnitte, in der Reihenfolge der Seite – und ihr Wort im Hover. */
-const SECTION: Record<string, string> = {
-  kommunikation: 'Kommunikation',
-  // Offene Handgriffe aus Mails – sie stehen im Angehefteten unten im Verlauf
-  // (`components/erp/pinned.tsx`, `data-todo="handgriffe"`).
-  handgriffe: 'Handgriffe',
-  zeiterfassung: 'Zeiterfassung',
-  // Überfällige Rechnungen – keine eigene Mahnliste, sie zählen an der Person.
-  zahlungen: 'Zahlungen',
-  person: 'Stammdaten',
-  adressen: 'Adressen',
-  feiertage: 'Feiertage',
-  // Der Deckel der KI (nur Admin, am Betreiber): ab 80 % mit dem Betrag, am Deckel rot.
-  ki: 'KI',
-};
-const ORDER = Object.keys(SECTION);
+/** Die Zeichen je Datensatz – gehalten von der Feed-Seite, gelesen an der Stelle (Schritt). */
+export const TodoContext = createContext<Map<number, Todo>>(new Map());
+
+/** Die Aufgaben an einer Stelle – mit Datensatz (ein Abschnitt wie «wiederholung») oder ohne
+ *  (`step:<id>` ist im ganzen ERP eindeutig). */
+export function useTodoAt(part: string, objectId?: number | null): TodoItem[] {
+  const all = useContext(TodoContext);
+  const rows = objectId != null ? [all.get(objectId)].filter((r): r is Todo => !!r) : [...all.values()];
+  return rows.flatMap((r) => r.items.filter((i) => i.part === part));
+}
 
 export function sectionItems(todo: Todo | null | undefined, ...sections: string[]): TodoItem[] {
-  return (todo?.items ?? []).filter((i) => sections.includes(i.section));
+  return (todo?.items ?? []).filter((i) => sections.includes(i.part));
 }
 
-/** Der Hover: «Zu tun» und darunter je Abschnitt, was fehlt. */
+/** Der Hover: «Zu tun» – oder, wenn niemand da ist, der es kann, das. Sonst nichts. */
 export function todoTip(items: TodoItem[]): string {
-  const sorted = [...items].sort((a, b) => ORDER.indexOf(a.section) - ORDER.indexOf(b.section));
-  const groups = new Map<string, string[]>();
-  for (const i of sorted) groups.set(i.section, [...(groups.get(i.section) ?? []), i.label]);
-  return ['Zu tun', ...Array.from(groups, ([s, labels]) => `${SECTION[s] ?? s}: ${labels.join(' · ')}`)]
-    .join('\n');
+  return items.length && items.every((i) => i.orphan && !i.mine)
+    ? 'Niemand da, der das kann' : 'Zu tun';
 }
 
-/** Zum ersten Abschnitt springen, der etwas zu tun hat (`data-todo` an der Stelle) – steht
- *  einer nicht auf der Seite, zum nächsten. */
+/** Zur Stelle springen – zuerst meine Aufgabe; steht eine nicht auf der Seite, die nächste. */
 export function jumpToTodo(items: TodoItem[]): void {
-  const rank = (s: string) => (ORDER.includes(s) ? ORDER.indexOf(s) : ORDER.length);
-  const sorted = [...items].sort((a, b) => rank(a.section) - rank(b.section));
-  const el = sorted.map((i) => document.querySelector(`[data-todo="${i.section}"]`)).find(Boolean);
+  const sorted = [...items].sort((a, b) => Number(!!b.mine) - Number(!!a.mine));
+  const el = sorted.map((i) => document.querySelector(`[data-todo="${i.part}"]`)).find(Boolean);
   el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
