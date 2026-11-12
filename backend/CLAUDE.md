@@ -330,7 +330,12 @@ Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox
   `ConfigDict(from_attributes=True)`); SQLAlchemy 2.1 (`Mapped[T]`, `mapped_column`).
 - **Fehler**: `raise NotFound("…")`, `Invalid(…)`, `Conflict(…)` … aus `domain/errors` (eigener
   Code: `Conflict("…", code="pick_stale")`); EIN Übersetzer `main.rejected_handler` →
-  `{detail, code, field?}`. Kein `HTTPException` ausserhalb von `main.py` (`tests/test_errors.py`).
+  `{detail, code, field?}`; eine 422 (Schema) trägt `field` und `fields` (je Feld der Satz).
+  Kein `HTTPException` ausserhalb von `main.py` (`tests/test_errors.py`).
+- **Jedes Feld einer Handlung erklärt sich** (`Field(description=…)`, Grenzen als `max_length`,
+  `pattern`, `json_schema_extra`; Listen aus der Fachschicht erzeugt) – die KI liest genau das
+  (`handgriff.operations` → `handlung`). Nie still kürzen oder umdeuten: abweisen mit Satz
+  (`tests/test_felder_erklaert.py`).
 - **Betriebsmeldungen** nur über `core/report` (`info` · `warn` · `error`, eine JSON-Zeile mit Stufe; kein
   `print` daneben, Wächter `tests/test_report.py`); ERROR per Mail: einmal `infra/setup-meldungen.sh`.
 - **Rechte**: die Türen der Routen `require_employee` · `require_admin` lesen die Regeln `erp` · `admin`; `policy.require(actor, "time.contract")` (Tor) · `policy.may(…)` (Auskunft) –

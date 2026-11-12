@@ -14,6 +14,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from ..domain import voucher as _vo
+
 
 class VoucherStage(BaseModel):
     """Eine der **zwei** Stufen – mit ihrem Wort, ihrem Verb und ihrem Zustand."""
@@ -173,17 +175,17 @@ class VoucherPrice(BaseModel):
     bewusst nicht – eine getippte wäre die zweite Aussage über dieselbe Sache.
     """
 
-    id: int
+    id: int = Field(description="Id der Position (aus den Positionen des Belegs).")
     #: Als **String**, weil es ein Eingabefeld ist: ein halb getipptes Feld hat keine Zahl,
     #: und ein Komma ist ein Dezimaltrennzeichen, kein Fehler.
-    price: Optional[str] = None
-    vat: Optional[str] = None
-    hs_code: Optional[str] = None
-    origin_country: Optional[str] = None
-    text: Optional[str] = None
+    price: Optional[str] = Field(None, description="Einzelpreis netto in der Währung des Belegs, z. B. «46.50».")
+    vat: Optional[str] = Field(None, description="Steuersatz-Schlüssel – nur einer aus vat_choices der Position.")
+    hs_code: Optional[str] = Field(None, description="Zolltarifnummer (HS), 6 bis 8 Ziffern.")
+    origin_country: Optional[str] = Field(None, description="Ursprungsland, ISO-Code mit 2 Buchstaben.")
+    text: Optional[str] = Field(None, description="Zusatztext zur Position auf dem Papier.")
     #: ``null`` (gesendet) heisst «Vollbetrag».
-    part: Optional[str] = None
-    weight_kg: Optional[str] = None
+    part: Optional[str] = Field(None, description="Teilbetrag netto dieser Position; null = Vollbetrag.")
+    weight_kg: Optional[str] = Field(None, description="Gewicht je Stück in kg (für Zoll und Versand).")
 
 
 class VoucherInvoice(BaseModel):
@@ -608,60 +610,60 @@ class VoucherUpdate(BaseModel):
     bleibt, wie es war.
     """
 
-    action: str
+    action: str = Field(description="Die Handlung (siehe oben): price, party, ask, unask, quote, decline, agree, revoke, correct, bill, accept, pay, refund, writeoff, tip, reverse, remind, export, release, ownership, terms, address, currency, issuer, incoterm. Was gerade geht, sagt «can» des Belegs.")
     #: ``release``: welches anstehende Papier (``confirmation`` · ``receipt``).
-    kind: Optional[str] = None
+    kind: Optional[str] = Field(None, description="release: welches Papier – 'confirmation' (AB) oder 'receipt' (Quittung).")
     #: Die Objektnummer der Gegenpartei, deren Zeile gemeint ist.
-    party: Optional[int] = None
+    party: Optional[int] = Field(None, description="Objektnummer des Partners – immer eine Person, nie eine Firma (die Firma steht an der Person).")
     #: Wen anfragen (``ask``). Leer heisst: **alle zugelassenen**.
-    parties: list[int] = Field(default_factory=list)
-    lead_days: Optional[int] = None
-    payment_days: Optional[int] = None
+    parties: list[int] = Field(default_factory=list, description="ask: wen anfragen (Objektnummern von Personen); leer = alle zugelassenen.")
+    lead_days: Optional[int] = Field(None, description="terms: Lieferfrist in Tagen.")
+    payment_days: Optional[int] = Field(None, description="terms: Zahlungsfrist in Tagen.")
     #: Als **String**, weil es ein Eingabefeld ist.
-    amount: Optional[str] = None
-    reference: Optional[str] = None
-    note: Optional[str] = None
-    booked_on: Optional[date] = None
+    amount: Optional[str] = Field(None, description="Betrag in der Währung des Belegs, z. B. «46.50» (quote, pay, refund, writeoff, tip, bill).")
+    reference: Optional[str] = Field(None, description="Referenz einer Zahlung (Bank, Quittung) – eine Referenz gehört zu genau einer Zahlung; bill: die Rechnungsnummer des Lieferanten.")
+    note: Optional[str] = Field(None, description="Vermerk (einer Zahlung, einer angenommenen Abweichung).")
+    booked_on: Optional[date] = Field(None, description="pay: Tag der Zahlung, JJJJ-MM-TT (leer = heute).")
     #: Welche **Karten-Zahlung** erstattet wird (``refund_online``).
-    entry: Optional[int] = None
+    entry: Optional[int] = Field(None, description="Id der Geld-Zeile, die gegengebucht (reverse) bzw. auf die Karte erstattet wird.")
     #: Das **Rechnungsdatum** (``bill``) – vorbelegt mit heute.
-    billed_on: Optional[date] = None
+    billed_on: Optional[date] = Field(None, description="bill: Rechnungsdatum, JJJJ-MM-TT – bei einer Lieferantenrechnung das Datum auf ihrem Papier (leer = heute).")
     #: ►►► **Welchen Beleg dieser hier mindert** (``correct``). ◄◄◄ Die **Id** eines
     #: Belegs, und er darf in einem **anderen Auftrag** stehen: die Gutschrift gehört
     #: dorthin, wo die Ware zurückkommt. ``null`` nimmt den Verweis zurück.
-    corrects: Optional[int] = None
+    corrects: Optional[int] = Field(None, description="correct: Id des Belegs, den dieser mindert (auch in einem anderen Auftrag); null nimmt es zurück.")
     #: **Die Positionen** (``price``) – je Zeile ihre Id und was sich ändert.
-    lines: Optional[list[VoucherPrice]] = None
+    lines: Optional[list[VoucherPrice]] = Field(None, description="price: je Position ihre Id und was sich ändert.")
     #: **Der Steuersatz einer Forderung**, wo es keine bepreisten Positionen gibt (eine
     #: *Ausgabe*: die Steuer steht auf **seiner** Rechnung, und wir schreiben sie ab).
-    vat: Optional[str] = None
-    currency: Optional[str] = None
-    method: Optional[str] = None
+    vat: Optional[str] = Field(None, description="bill bei einer Ausgabe: Steuersatz-Schlüssel der Lieferantenrechnung.")
+    currency: Optional[str] = Field(None, description="currency: Währung als ISO-Code (z. B. CHF, EUR) – eine je Vorgang, nur vor der Zusage.")
+    method: Optional[str] = Field(None, description="pay: Weg des Geldes – " + ", ".join(f"'{k}' ({w})" for k, w in _vo.METHODS if k in _vo.MANUAL_METHODS) + "; eine Karte bucht nur der Zahlungsdienst.")
     #: Die Klausel der Lieferbedingung – der Ort folgt aus ihr und den Anschriften.
-    incoterm: Optional[str] = None
-    issuer: Optional[int] = None
+    incoterm: Optional[str] = Field(None, description="incoterm: Klausel der Incoterms 2020 (z. B. EXW, DAP) – der Ort folgt aus den Anschriften.")
+    issuer: Optional[int] = Field(None, description="issuer: Objektnummer der eigenen Gesellschaft, die den Beleg stellt.")
     #: **An wen und wohin** (``address``) – nur Gesendetes wirkt; ``null`` heisst «der
     #: Standard» bzw. «die Vorgabe».
-    bill_to_company: Optional[bool] = None
-    billing_address: Optional[int] = None
-    delivery_address: Optional[int] = None
+    bill_to_company: Optional[bool] = Field(None, description="address: Rechnung an die Firma der Person («z. H.»)?")
+    billing_address: Optional[int] = Field(None, description="address: Id der Rechnungsadresse aus dem Adressbuch der Person; null = Standard.")
+    delivery_address: Optional[int] = Field(None, description="address: Id der Lieferadresse aus dem Adressbuch der Person; null = Standard.")
     #: **Gültigkeit der Offerte** in Tagen (``terms``).
-    valid_days: Optional[int] = None
+    valid_days: Optional[int] = Field(None, description="terms: Gültigkeit der Offerte in Tagen.")
     #: **Eigentum danach** (``ownership``): ``party`` · ``us``.
-    ownership: Optional[str] = None
+    ownership: Optional[str] = Field(None, description="ownership: wem die Stücke danach gehören – " + ", ".join(f"'{k}' ({w})" for k, w in _vo.OWNERSHIP) + " (Verkauf: Partei, Einkauf: uns). Pflicht vor dem Anbieten.")
     #: Grund eines Stornos, einer angenommenen Abweichung (``revoke`` · ``accept``).
     #: (``note`` steht oben und trägt auch den Vermerk einer Zahlung.)
     #: Grund einer Ausbuchung (``writeoff``).
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(None, description="Grund – Pflicht bei revoke, accept und writeoff.")
     #: Die Geld-Zeile, die gegengebucht wird (``reverse``) – wie ``entry``.
-    iban: Optional[str] = None
+    iban: Optional[str] = Field(None, description="refund per Überweisung: IBAN, auf die erstattet wird.")
     #: **Das Dokument** (Dokumentnummer) – Lieferantenrechnung (``bill``) bzw.
     #: Ausfuhrnachweis (``export``).
-    original: Optional[int] = None
+    original: Optional[int] = Field(None, description="Objektnummer des Dokuments: die Lieferantenrechnung (bill) bzw. der Ausfuhrnachweis (export).")
     #: Ausgabe: die MWST-Nummer auf der Lieferantenrechnung (``bill``).
-    party_uid: Optional[str] = None
+    party_uid: Optional[str] = Field(None, description="bill bei einer Ausgabe: MWST-Nummer auf der Lieferantenrechnung.")
     #: Der Link zur Bestellung (``quote``).
-    link: Optional[str] = None
+    link: Optional[str] = Field(None, description="quote: Link zu genau dieser Offerte bzw. Bestellung beim Partner (z. B. Warenkorb im Shop).")
 
     def changes(self) -> dict[str, Any]:
         """Was tatsächlich gesendet wurde – ohne ``action``."""

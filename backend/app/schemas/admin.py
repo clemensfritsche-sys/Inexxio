@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class CompanySettingsUpdate(BaseModel):
@@ -14,29 +14,29 @@ class CompanySettingsUpdate(BaseModel):
 
     ``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**
     (``sites.website_url`` = die Deployment-Adresse), keine Eingabe."""
-    company_name: Optional[str] = None
-    legal_form: Optional[str] = None
-    street: Optional[str] = None
-    street_nr: Optional[str] = None
-    zip_code: Optional[str] = None
-    city: Optional[str] = None
-    country: Optional[str] = None
-    currency: Optional[str] = None
-    uid_number: Optional[str] = None
-    vat_number: Optional[str] = None
-    iban: Optional[str] = None
-    phone: Optional[str] = None
+    company_name: Optional[str] = Field(None, description="Name der Firma ohne Rechtsform, z. B. «Digitec Galaxus».")
+    legal_form: Optional[str] = Field(None, description="Rechtsform, z. B. «AG», «GmbH».")
+    street: Optional[str] = Field(None, description="Strasse – nur eine eigene Gesellschaft trägt eine Anschrift; eine fremde Firma ist Name, Rechtsform und UID (ihre Anschrift steht im Adressbuch ihrer Personen).")
+    street_nr: Optional[str] = Field(None, description="Hausnummer – nur eigene Gesellschaft.")
+    zip_code: Optional[str] = Field(None, description="Postleitzahl – nur eigene Gesellschaft.")
+    city: Optional[str] = Field(None, description="Ort – nur eigene Gesellschaft.")
+    country: Optional[str] = Field(None, description="Land als ISO-Code mit 2 Buchstaben (z. B. CH) – nur eigene Gesellschaft.")
+    currency: Optional[str] = Field(None, description="Hauswährung als ISO-Code (z. B. CHF) – nur eigene Gesellschaft.")
+    uid_number: Optional[str] = Field(None, description="Unternehmens-Identifikationsnummer, z. B. CHE-123.456.789 (Prüfziffer wird geprüft).", examples=["CHE-123.456.789"])
+    vat_number: Optional[str] = Field(None, description="MWST-Nummer – nur eigene Gesellschaft.")
+    iban: Optional[str] = Field(None, description="IBAN für Zahlungen an uns – nur eigene Gesellschaft.")
+    phone: Optional[str] = Field(None, description="Telefon der eigenen Gesellschaft.")
     #: «Eigenes Unternehmen» – setzt nur ein Admin (``sites.apply_update``).
-    is_own: Optional[bool] = None
+    is_own: Optional[bool] = Field(None, description="Eine unserer Gesellschaften? Nur ein Admin setzt das.")
 
 
 class CompanyCreate(BaseModel):
     """Neue **Firma** anlegen: Name und Rechtsform (die Rechtsperson), die UID freiwillig.
     Alles Weitere wird danach am Datensatz gepflegt. ``is_own`` setzt nur ein Admin."""
-    company_name: str
-    legal_form: str = ""
-    uid_number: Optional[str] = None
-    is_own: bool = False
+    company_name: str = Field(description="Name der Firma ohne Rechtsform, z. B. «Digitec Galaxus».")
+    legal_form: str = Field("", description="Rechtsform, z. B. «AG», «GmbH».")
+    uid_number: Optional[str] = Field(None, description="UID (z. B. CHE-123.456.789) – erkennt eine bekannte Firma; Prüfziffer wird geprüft.")
+    is_own: bool = Field(False, description="Eine unserer Gesellschaften? Nur ein Admin.")
 
 
 class EmailCheck(BaseModel):
@@ -51,16 +51,16 @@ class AddressIn(BaseModel):
     Standard nimmt man nicht weg, man gibt ihn einer anderen. ``account`` (``private`` ·
     ``business``) gilt nur beim Anlegen – das Konto einer Anschrift ändert sich nie; die
     ``email`` nur im Geschäftskonto."""
-    account: Optional[str] = None
-    street1: Optional[str] = None
-    street2: Optional[str] = None
-    zip: Optional[str] = None
-    city: Optional[str] = None
-    region: Optional[str] = None
-    country: Optional[str] = None
-    email: Optional[str] = None
-    is_default_delivery: Optional[bool] = None
-    is_default_billing: Optional[bool] = None
+    account: Optional[str] = Field(None, description="Konto der Anschrift: 'private' oder 'business' (nur mit Firma); nur beim Anlegen.")
+    street1: Optional[str] = Field(None, description="Strasse und Hausnummer.")
+    street2: Optional[str] = Field(None, description="Zusatz (Postfach, Abteilung, z. H.).")
+    zip: Optional[str] = Field(None, description="Postleitzahl.")
+    city: Optional[str] = Field(None, description="Ort.")
+    region: Optional[str] = Field(None, description="Kanton, Bundesland, Region (wo üblich).")
+    country: Optional[str] = Field(None, description="Land als ISO-Code mit 2 Buchstaben (z. B. CH).")
+    email: Optional[str] = Field(None, description="E-Mail für Rechnungen an diese Anschrift – nur im Geschäftskonto.")
+    is_default_delivery: Optional[bool] = Field(None, description="true = Standard-Lieferadresse dieses Kontos (false bewirkt nichts).")
+    is_default_billing: Optional[bool] = Field(None, description="true = Standard-Rechnungsadresse dieses Kontos (false bewirkt nichts).")
 
 
 class AddressOut(BaseModel):
@@ -114,9 +114,9 @@ class NewCompany(BaseModel):
     Der Server erkennt sie (gleiche UID · ohne UID gleicher Name **und** gleiche
     Rechtsform) oder legt sie an (``sites.resolve``). Bei einer bekannten UID zählt der
     getippte Name nicht – die Firma heisst, wie sie heisst."""
-    company_name: str = ""
-    legal_form: str = ""
-    uid_number: Optional[str] = None
+    company_name: str = Field("", description="Name der Firma ohne Rechtsform.")
+    legal_form: str = Field("", description="Rechtsform, z. B. «AG».")
+    uid_number: Optional[str] = Field(None, description="UID – mit ihr wird eine bekannte Firma erkannt statt neu angelegt.")
 
 
 class CompanySettingsResponse(BaseModel):
@@ -200,7 +200,7 @@ class TerritoryMapResponse(BaseModel):
 class TerritoryAssign(BaseModel):
     """Ein Gebiet (Region ODER einzelnes Land) einer Gesellschaft zuweisen. ``None`` (oder die
     Gesellschaft, der es ohnehin zufiele) = Standard wiederherstellen."""
-    company_object_id: Optional[int] = None
+    company_object_id: Optional[int] = Field(None, description="Objektnummer der eigenen Gesellschaft, der das Gebiet gehört; leer = Standard.")
 
 
 class MissingField(BaseModel):
@@ -267,17 +267,17 @@ class UserProfileResponse(BaseModel):
 class UserProfileUpdate(BaseModel):
     """Self-service update — only fields a user may edit themselves.
     Employment/role fields are intentionally excluded; use ErpAdminUpdate for those."""
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    date_of_birth: Optional[date] = None
-    phone: Optional[str] = None
+    first_name: Optional[str] = Field(None, description="Vorname. Hat ein Partner keinen Menschen (ein Shop), nennt er die Rolle, z. B. «Bestellung».")
+    last_name: Optional[str] = Field(None, description="Nachname. Bei einem Shop ohne Menschen der Shop, z. B. «Galaxus».")
+    date_of_birth: Optional[date] = Field(None, description="Geburtsdatum (Personal: Pflicht für die Zeiterfassung).")
+    phone: Optional[str] = Field(None, description="Telefon, international lesbar (z. B. +41 44 123 45 67).")
 
     # ─── Firma ─────────────────────────────────────────────────────────────────
     #: ►►► **Die Firma ist ein Datensatz.** ◄◄◄ Gewählt (``company_object_id``, ``None`` =
     #: Privatperson) oder genannt (``new_company`` → ``sites.resolve``). Ihre Angaben ändert
     #: man an ihrem Datensatz, nicht hier.
-    company_object_id: Optional[int] = None
-    new_company: Optional[NewCompany] = None
+    company_object_id: Optional[int] = Field(None, description="Objektnummer der Firma, zu der die Person gehört; leer = Privatperson.")
+    new_company: Optional[NewCompany] = Field(None, description="Statt einer Nummer: die Firma nennen – sie wird erkannt oder angelegt.")
     # ``notification_email``/``notification_inapp`` nimmt keine Seite mehr an: keine Oberfläche
     # zeigt sie, nichts liest sie – ein Wert, den nur das Konto schreiben konnte und das ERP nie sah
     # (``docs/history/2026-11-11-erp-master-pruefung.md``). Die Spalten bleiben (Backlog).
@@ -300,19 +300,19 @@ class ErpAdminUpdate(UserProfileUpdate):
     Konto. Damit lag die Wahrheit ausserhalb des ERP, also genau verkehrt herum.
     Durch die Vererbung kann die Liste auch nicht mehr auseinanderlaufen."""
     # Dieselbe Literal-Whitelist wie beim Anlegen – Rollen werden exakt verglichen.
-    role: Optional[Role] = None
+    role: Optional[Role] = Field(None, description="Zugang: 'admin', 'employee' (Personal) oder 'user' (Kunde, Lieferant). Nur der Admin.")
     #: **Was die Person kann** (Projektakte «Aufgaben») – Wörter aus ``domain/competences``;
     #: nur am Personal, nur der Admin (Angaben von Mitarbeitenden, ``person.staff``).
-    competences: Optional[list[str]] = None
+    competences: Optional[list[str]] = Field(None, description="Was die Person kann (nur Personal, nur der Admin): Wörter aus der Liste der Kompetenzen.")
 
 
 class PersonCreate(BaseModel):
     """►►► **Eine Person anlegen** – das Minimum ist Vorname, Nachname, E-Mail und Rolle.
     ◄◄◄ Sie bekommt sofort eine Objektnummer und ein Firebase-Konto; meldet sie sich
     später mit dieser E-Mail an, ist sie **dieser** Datensatz, samt Historie."""
-    first_name: str
-    last_name: str
-    email: str
-    role: Role = "user"
-    company_object_id: Optional[int] = None
-    new_company: Optional[NewCompany] = None
+    first_name: str = Field(description="Vorname. Ein Shop ohne Menschen heisst nach der Rolle, z. B. «Bestellung».")
+    last_name: str = Field(description="Nachname. Bei einem Shop der Shop, z. B. «Galaxus».")
+    email: str = Field(description="E-Mail – mit ihr meldet sie sich an und bekommt Belege.")
+    role: Role = Field("user", description="'user' für Kunden und Lieferanten; Personal ('employee', 'admin') legt nur der Admin an.")
+    company_object_id: Optional[int] = Field(None, description="Objektnummer der Firma, zu der sie gehört; leer = Privatperson.")
+    new_company: Optional[NewCompany] = Field(None, description="Statt einer Nummer: die Firma nennen – sie wird erkannt oder angelegt.")

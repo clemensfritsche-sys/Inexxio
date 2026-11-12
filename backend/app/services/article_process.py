@@ -55,6 +55,10 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
     if not raw:
         raise Invalid("Ohne Prozessschrittmodul kann dieser Artikel nichts erzeugen. "
                     "Mindestens eines ist Pflicht.")
+    from .voucher_input import step_party_problems
+    wrong = step_party_problems(db, list(raw))
+    if wrong:
+        raise Invalid(wrong[0])
     out: list[ArticleProcessStep] = []
     for position, data in enumerate(raw, start=1):
         module = modules.get(data.get("module_type"))

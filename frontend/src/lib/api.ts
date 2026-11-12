@@ -16,12 +16,16 @@ export class ApiError extends Error {
   status: number;
   code: string;
   field?: string;
-  constructor(message: string, status: number, code = '', field?: string) {
+  /** **Je Feld der Satz des Servers** (`{feld: satz}`) – das Formular schreibt ihn ans Feld. */
+  fields?: Record<string, string>;
+  constructor(message: string, status: number, code = '', field?: string,
+              fields?: Record<string, string>) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.field = field;
+    this.fields = fields;
   }
 }
 
@@ -226,10 +230,14 @@ class ApiClient {
   /** Die Abweisung des Servers: `{detail, code, field?}` – sonst der HTTP-Status als Satz. */
   private async apiError(response: Response): Promise<ApiError> {
     const body = (await response.clone().json().catch(() => null)) as
-      { detail?: unknown; code?: unknown; field?: unknown } | null;
+      { detail?: unknown; code?: unknown; field?: unknown; fields?: unknown } | null;
+    const fields = body?.fields && typeof body.fields === 'object'
+      ? Object.fromEntries(Object.entries(body.fields as Record<string, unknown>)
+        .filter((e): e is [string, string] => typeof e[1] === 'string'))
+      : undefined;
     return new ApiError(await this.errorMessage(response), response.status,
       typeof body?.code === 'string' ? body.code : '',
-      typeof body?.field === 'string' ? body.field : undefined);
+      typeof body?.field === 'string' ? body.field : undefined, fields);
   }
 
   private backoff(attempt: number): Promise<void> {

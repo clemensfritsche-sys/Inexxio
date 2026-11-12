@@ -14,17 +14,17 @@ class RecordingIn(BaseModel):
     """**Eine Aufnahme beginnen** – der Datensatz, der offen war (Hinweis), und die Sorte, die
     der Browser aufnimmt (``audio/webm;codecs=opus``, Safari ``audio/mp4``)."""
 
-    hint_object_id: Optional[int] = None
-    mime: str = Field(max_length=100)
+    hint_object_id: Optional[int] = Field(None, description="Objektnummer des Datensatzes, der offen war.")
+    mime: str = Field(max_length=100, description="Tonformat des Browsers, z. B. audio/webm;codecs=opus.")
     #: Die Stecknadel: Seite und Element, an dem die Aufnahme ansetzt («Stelle: …»).
-    context: Optional[str] = Field(default=None, max_length=600)
+    context: Optional[str] = Field(default=None, max_length=600, description="Die Stecknadel: Stelle, an der die Aufnahme ansetzt.")
     #: Das offene Gespräch – der Text geht dorthin, wie getippt.
-    talk: Optional[int] = None
+    talk: Optional[int] = Field(None, description="Das offene Gespräch, in das der Text gehört.")
 
 class StopIn(BaseModel):
     """**Stopp** – wie viele Abschnitte (je 5 Minuten, ab 0 gezählt) es gab."""
 
-    segments: int = Field(ge=0)
+    segments: int = Field(ge=0, description="Wie viele Abschnitte (je 5 Minuten, ab 0 gezählt) es gab.")
 
 RecordingState = Literal["recording", "transcribing", "filing", "done", "failed"]
 

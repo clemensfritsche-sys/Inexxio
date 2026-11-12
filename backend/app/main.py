@@ -245,7 +245,12 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     Endpunkt. Ins Log kommen nur Ort und Art der Fehler, nie die Eingabe selbst (sie kann
     Personendaten tragen)."""
     seen: list[str] = []
+    # **Jede Abweisung nennt ihr Feld** – je Feld der erste Satz, damit die Oberfläche ihn an
+    # das Feld schreibt und die KI weiss, welchen Wert sie korrigieren muss.
+    fields: dict[str, str] = {}
     for err in exc.errors():
+        key = next((str(x) for x in (err.get("loc") or ()) if x not in ("body", "query", "path")
+                    and not isinstance(x, int)), "")
         where = _field_path(tuple(err.get("loc") or ()))
         # ``Value error, …`` ist Pydantic-Rahmen um eine **selbst geschriebene** Meldung
         # aus einem Feld-Validator. Die ist bereits Klartext – sie braucht die Übersetzung
@@ -259,12 +264,15 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
             f"{where}: {what}" if where else what)
         if line not in seen:
             seen.append(line)
+        if key and key not in fields:
+            fields[key] = what
     shape = [(list(e.get("loc") or ()), e.get("type")) for e in exc.errors()]
     report.warn(f"422 on {request.method} {request.url.path} – {shape}")
     return JSONResponse(
         status_code=422,
         content={"detail": " · ".join(seen) or "Die Eingaben sind unvollständig.",
-                 "code": "invalid"},
+                 "code": "invalid", **({"field": next(iter(fields)), "fields": fields}
+                                       if fields else {})},
     )
 
 

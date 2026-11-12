@@ -235,6 +235,18 @@ def test_the_conversation_may_read_a_web_page_mails_may_not(db, monkeypatch):
     assert ai.WEB_FETCH["type"] in talk_tools, "Das Gespräch kann keine Webseite lesen."
     assert ai.WEB_FETCH["type"] not in follow_tools, "Eine fremde Mail liesse Webseiten lesen."
     assert ai.WEB_FETCH["max_uses"] <= 3
+    assert ai.WEB_SEARCH["type"] in talk_tools, "Das Gespräch kann nicht im Web suchen."
+    assert ai.WEB_SEARCH["type"] not in follow_tools, "Eine fremde Mail liesse im Web suchen."
+    assert ai.WEB_SEARCH["max_uses"] <= 3
+
+
+def test_a_web_search_costs_under_the_cap(db):
+    """Bug-Form: eine Suche kostet je Abfrage, nicht je Token – ohne sie läge der Deckel daneben."""
+    from app.models import Log
+    staff = new_person(db, "employee")
+    ai._record(db, "talk", "claude-sonnet-5-5", staff, {"in": 0, "out": 0, "searches": 3})
+    row = db.query(Log).filter(Log.event == "ai.call").order_by(Log.id.desc()).first()
+    assert row.payload["chf"] == round(3 * ai.SEARCH_USD * ai.CHF_PER_USD, 6)
 
 
 def test_a_refused_web_page_stays_visible_in_the_log(db, monkeypatch):

@@ -122,7 +122,7 @@ def list_articles(
 @router.post("/validate", response_model=ArticleValidation)
 def validate_article(
     data: ArticleCreate,
-    _db: Session = DB,
+    db: Session = DB,
     _: UserProfile = Depends(require_employee),
 ):
     """Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.
@@ -130,7 +130,7 @@ def validate_article(
     Die Oberfläche fragt hier, statt die Regel nachzuformulieren: sonst gäbe es zwei
     Massstäbe für dieselbe Frage, und der schwächere entschiede, ob der Knopf leuchtet.
     """
-    missing = articles_svc.validate_draft(data.model_dump())
+    missing = articles_svc.validate_draft(db, data.model_dump())
     return ArticleValidation(missing=missing)
 
 

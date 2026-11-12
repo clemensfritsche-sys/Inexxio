@@ -249,7 +249,10 @@ prüfen die Anmeldung in ihren Layouts über **ein** Bauteil, `components/auth/a
 Backend prüft jede Anfrage. Personal ist **nur** `isStaff(role)`, Admin nur `isAdmin(role)`
 (`lib/record-status.ts`, liest `STAFF_ROLES` aus `lib/vocab`, generiert aus `domain/policy`; ESLint verbietet Rollenvergleiche daneben) –
 ob man etwas **darf**, sagt der Server (`can`, `may_edit`). Ein Fehler ist ein `ApiError`
-(`message` = Satz des Servers, `code` = Art oder eigener Code wie `pick_stale`, `field`).
+(`message` = Satz des Servers, `code` = Art oder eigener Code wie `pick_stale`, `field`, bei 422
+`fields` = je Feld der Satz). **Feldregeln baut die Oberfläche nicht nach**: der Artikel-Entwurf
+zeigt am Feld, was `…/validate` je Feld abweist; eine abgewiesene Prüfung (`['check', …]`, 422) ist
+eine Antwort, keine Meldung «Nicht geladen» (`lib/use-feed`).
 
 ## Regeln, die jede Oberfläche erbt
 - **Ein Dialog verhält sich überall gleich** (`lib/use-dialog.ts`, `useDialog(onClose, {focus})`):

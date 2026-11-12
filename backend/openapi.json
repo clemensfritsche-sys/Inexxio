@@ -7808,7 +7808,8 @@
                 "type": "null"
               }
             ],
-            "title": "Account"
+            "title": "Account",
+            "description": "Konto der Anschrift: 'private' oder 'business' (nur mit Firma); nur beim Anlegen."
           },
           "street1": {
             "anyOf": [
@@ -7819,7 +7820,8 @@
                 "type": "null"
               }
             ],
-            "title": "Street1"
+            "title": "Street1",
+            "description": "Strasse und Hausnummer."
           },
           "street2": {
             "anyOf": [
@@ -7830,7 +7832,8 @@
                 "type": "null"
               }
             ],
-            "title": "Street2"
+            "title": "Street2",
+            "description": "Zusatz (Postfach, Abteilung, z. H.)."
           },
           "zip": {
             "anyOf": [
@@ -7841,7 +7844,8 @@
                 "type": "null"
               }
             ],
-            "title": "Zip"
+            "title": "Zip",
+            "description": "Postleitzahl."
           },
           "city": {
             "anyOf": [
@@ -7852,7 +7856,8 @@
                 "type": "null"
               }
             ],
-            "title": "City"
+            "title": "City",
+            "description": "Ort."
           },
           "region": {
             "anyOf": [
@@ -7863,7 +7868,8 @@
                 "type": "null"
               }
             ],
-            "title": "Region"
+            "title": "Region",
+            "description": "Kanton, Bundesland, Region (wo üblich)."
           },
           "country": {
             "anyOf": [
@@ -7874,7 +7880,8 @@
                 "type": "null"
               }
             ],
-            "title": "Country"
+            "title": "Country",
+            "description": "Land als ISO-Code mit 2 Buchstaben (z. B. CH)."
           },
           "email": {
             "anyOf": [
@@ -7885,7 +7892,8 @@
                 "type": "null"
               }
             ],
-            "title": "Email"
+            "title": "Email",
+            "description": "E-Mail für Rechnungen an diese Anschrift – nur im Geschäftskonto."
           },
           "is_default_delivery": {
             "anyOf": [
@@ -7896,7 +7904,8 @@
                 "type": "null"
               }
             ],
-            "title": "Is Default Delivery"
+            "title": "Is Default Delivery",
+            "description": "true = Standard-Lieferadresse dieses Kontos (false bewirkt nichts)."
           },
           "is_default_billing": {
             "anyOf": [
@@ -7907,7 +7916,8 @@
                 "type": "null"
               }
             ],
-            "title": "Is Default Billing"
+            "title": "Is Default Billing",
+            "description": "true = Standard-Rechnungsadresse dieses Kontos (false bewirkt nichts)."
           }
         },
         "type": "object",
@@ -8131,7 +8141,12 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "maxLength": 32,
+            "title": "Name",
+            "description": "Kurzer Name für Feed, Etikett und Listen – höchstens 32 Zeichen.",
+            "examples": [
+              "Welle Ø20 x 300"
+            ]
           },
           "unit": {
             "anyOf": [
@@ -8142,7 +8157,8 @@
                 "type": "null"
               }
             ],
-            "title": "Unit"
+            "title": "Unit",
+            "description": "Mengeneinheit: Stk, mm, m2, m3, kg, l (leer = Stk)."
           },
           "serialization": {
             "anyOf": [
@@ -8153,7 +8169,8 @@
                 "type": "null"
               }
             ],
-            "title": "Serialization"
+            "title": "Serialization",
+            "description": "Wie Stücke gezählt werden: 'unit' = jedes Stück einzeln (Einzelteil), 'batch' = eine Charge (leer = unit)."
           },
           "size": {
             "anyOf": [
@@ -8164,7 +8181,12 @@
                 "type": "null"
               }
             ],
-            "title": "Size"
+            "pattern": "^\\d+(\\.\\d+)?x\\d+(\\.\\d+)?x\\d+(\\.\\d+)?$",
+            "title": "Size",
+            "description": "Abmessungen in mm: genau drei Masse, aufsteigend (klein x mittel x gross), getrennt durch 'x', ohne Einheit. Pflicht zur Freigabe.",
+            "examples": [
+              "3x40x600"
+            ]
           },
           "weight_kg": {
             "anyOf": [
@@ -8178,7 +8200,11 @@
                 "type": "null"
               }
             ],
-            "title": "Weight Kg"
+            "title": "Weight Kg",
+            "description": "Gewicht eines Stücks in kg, grösser als 0, höchstens 3 Nachkommastellen. Pflicht zur Freigabe.",
+            "examples": [
+              "2.5"
+            ]
           },
           "material": {
             "anyOf": [
@@ -8189,7 +8215,8 @@
                 "type": "null"
               }
             ],
-            "title": "Material"
+            "title": "Material",
+            "description": "Werkstoff, z. B. «S235» oder «PA6»."
           },
           "cad_url": {
             "anyOf": [
@@ -8200,7 +8227,8 @@
                 "type": "null"
               }
             ],
-            "title": "Cad Url"
+            "title": "Cad Url",
+            "description": "Link zur CAD-Zeichnung im Web – beginnt mit http:// oder https://."
           },
           "surface": {
             "anyOf": [
@@ -8211,18 +8239,8 @@
                 "type": "null"
               }
             ],
-            "title": "Surface"
-          },
-          "supplier_article_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Supplier Article Number"
+            "title": "Surface",
+            "description": "Oberfläche, z. B. «verzinkt»."
           },
           "min_order_qty": {
             "anyOf": [
@@ -8236,7 +8254,8 @@
                 "type": "null"
               }
             ],
-            "title": "Min Order Qty"
+            "title": "Min Order Qty",
+            "description": "Mindestbestellmenge in der Mengeneinheit, ≥ 0, höchstens 3 Nachkommastellen."
           },
           "safety_stock": {
             "anyOf": [
@@ -8250,7 +8269,8 @@
                 "type": "null"
               }
             ],
-            "title": "Safety Stock"
+            "title": "Safety Stock",
+            "description": "Sicherheitsbestand in der Mengeneinheit, ≥ 0, höchstens 3 Nachkommastellen."
           },
           "is_hazmat": {
             "anyOf": [
@@ -8261,7 +8281,8 @@
                 "type": "null"
               }
             ],
-            "title": "Is Hazmat"
+            "title": "Is Hazmat",
+            "description": "Gefahrgut?"
           },
           "is_service": {
             "anyOf": [
@@ -8272,7 +8293,8 @@
                 "type": "null"
               }
             ],
-            "title": "Is Service"
+            "title": "Is Service",
+            "description": "Dienstleistung statt Ware? Bestimmt im Zahlungsmodul Steuersatz und Lieferbedingung."
           },
           "hs_code": {
             "anyOf": [
@@ -8283,7 +8305,8 @@
                 "type": "null"
               }
             ],
-            "title": "Hs Code"
+            "title": "Hs Code",
+            "description": "Zolltarifnummer (HS), 6 bis 8 Ziffern."
           },
           "origin_country": {
             "anyOf": [
@@ -8294,14 +8317,16 @@
                 "type": "null"
               }
             ],
-            "title": "Origin Country"
+            "title": "Origin Country",
+            "description": "Ursprungsland als ISO-Code mit 2 Buchstaben (z. B. CH) – nicht das Versandland."
           },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/ModuleInput"
             },
             "type": "array",
-            "title": "Steps"
+            "title": "Steps",
+            "description": "Der Erzeugungsprozess: die Schritte, die jedes neue Stück durchläuft. Mindestens einer. Ein gekauftes Teil: Zahlung (Ausgabe) mit dem Lieferanten, dann Bewegen ins Lager."
           },
           "replaces_object_id": {
             "anyOf": [
@@ -8312,7 +8337,8 @@
                 "type": "null"
               }
             ],
-            "title": "Replaces Object Id"
+            "title": "Replaces Object Id",
+            "description": "Objektnummer des Artikels, den dieser ablöst (der alte geht ausser Betrieb). Leer = neu."
           }
         },
         "type": "object",
@@ -8593,17 +8619,6 @@
               }
             ],
             "title": "Surface"
-          },
-          "supplier_article_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Supplier Article Number"
           },
           "min_order_qty": {
             "anyOf": [
@@ -9187,11 +9202,13 @@
         "properties": {
           "company_name": {
             "type": "string",
-            "title": "Company Name"
+            "title": "Company Name",
+            "description": "Name der Firma ohne Rechtsform, z. B. «Digitec Galaxus»."
           },
           "legal_form": {
             "type": "string",
             "title": "Legal Form",
+            "description": "Rechtsform, z. B. «AG», «GmbH».",
             "default": ""
           },
           "uid_number": {
@@ -9203,11 +9220,13 @@
                 "type": "null"
               }
             ],
-            "title": "Uid Number"
+            "title": "Uid Number",
+            "description": "UID (z. B. CHE-123.456.789) – erkennt eine bekannte Firma; Prüfziffer wird geprüft."
           },
           "is_own": {
             "type": "boolean",
             "title": "Is Own",
+            "description": "Eine unserer Gesellschaften? Nur ein Admin.",
             "default": false
           }
         },
@@ -9486,7 +9505,8 @@
                 "type": "null"
               }
             ],
-            "title": "Company Name"
+            "title": "Company Name",
+            "description": "Name der Firma ohne Rechtsform, z. B. «Digitec Galaxus»."
           },
           "legal_form": {
             "anyOf": [
@@ -9497,7 +9517,8 @@
                 "type": "null"
               }
             ],
-            "title": "Legal Form"
+            "title": "Legal Form",
+            "description": "Rechtsform, z. B. «AG», «GmbH»."
           },
           "street": {
             "anyOf": [
@@ -9508,7 +9529,8 @@
                 "type": "null"
               }
             ],
-            "title": "Street"
+            "title": "Street",
+            "description": "Strasse – nur eine eigene Gesellschaft trägt eine Anschrift; eine fremde Firma ist Name, Rechtsform und UID (ihre Anschrift steht im Adressbuch ihrer Personen)."
           },
           "street_nr": {
             "anyOf": [
@@ -9519,7 +9541,8 @@
                 "type": "null"
               }
             ],
-            "title": "Street Nr"
+            "title": "Street Nr",
+            "description": "Hausnummer – nur eigene Gesellschaft."
           },
           "zip_code": {
             "anyOf": [
@@ -9530,7 +9553,8 @@
                 "type": "null"
               }
             ],
-            "title": "Zip Code"
+            "title": "Zip Code",
+            "description": "Postleitzahl – nur eigene Gesellschaft."
           },
           "city": {
             "anyOf": [
@@ -9541,7 +9565,8 @@
                 "type": "null"
               }
             ],
-            "title": "City"
+            "title": "City",
+            "description": "Ort – nur eigene Gesellschaft."
           },
           "country": {
             "anyOf": [
@@ -9552,7 +9577,8 @@
                 "type": "null"
               }
             ],
-            "title": "Country"
+            "title": "Country",
+            "description": "Land als ISO-Code mit 2 Buchstaben (z. B. CH) – nur eigene Gesellschaft."
           },
           "currency": {
             "anyOf": [
@@ -9563,7 +9589,8 @@
                 "type": "null"
               }
             ],
-            "title": "Currency"
+            "title": "Currency",
+            "description": "Hauswährung als ISO-Code (z. B. CHF) – nur eigene Gesellschaft."
           },
           "uid_number": {
             "anyOf": [
@@ -9574,7 +9601,11 @@
                 "type": "null"
               }
             ],
-            "title": "Uid Number"
+            "title": "Uid Number",
+            "description": "Unternehmens-Identifikationsnummer, z. B. CHE-123.456.789 (Prüfziffer wird geprüft).",
+            "examples": [
+              "CHE-123.456.789"
+            ]
           },
           "vat_number": {
             "anyOf": [
@@ -9585,7 +9616,8 @@
                 "type": "null"
               }
             ],
-            "title": "Vat Number"
+            "title": "Vat Number",
+            "description": "MWST-Nummer – nur eigene Gesellschaft."
           },
           "iban": {
             "anyOf": [
@@ -9596,7 +9628,8 @@
                 "type": "null"
               }
             ],
-            "title": "Iban"
+            "title": "Iban",
+            "description": "IBAN für Zahlungen an uns – nur eigene Gesellschaft."
           },
           "phone": {
             "anyOf": [
@@ -9607,7 +9640,8 @@
                 "type": "null"
               }
             ],
-            "title": "Phone"
+            "title": "Phone",
+            "description": "Telefon der eigenen Gesellschaft."
           },
           "is_own": {
             "anyOf": [
@@ -9618,7 +9652,8 @@
                 "type": "null"
               }
             ],
-            "title": "Is Own"
+            "title": "Is Own",
+            "description": "Eine unserer Gesellschaften? Nur ein Admin setzt das."
           }
         },
         "type": "object",
@@ -9740,7 +9775,8 @@
             "type": "array",
             "maxItems": 40,
             "minItems": 1,
-            "title": "Turns"
+            "title": "Turns",
+            "description": "Das Gespräch bisher, älteste zuerst."
           },
           "current": {
             "anyOf": [
@@ -9752,7 +9788,8 @@
                 "type": "null"
               }
             ],
-            "title": "Current"
+            "title": "Current",
+            "description": "Der letzte Stand des Papiers (wie die vorige Runde ihn lieferte), leer beim ersten Mal."
           }
         },
         "type": "object",
@@ -9861,12 +9898,14 @@
           "valid_from": {
             "type": "string",
             "format": "date",
-            "title": "Valid From"
+            "title": "Valid From",
+            "description": "Gilt ab diesem Tag (JJJJ-MM-TT), höchstens 7 Tage zurück."
           },
           "weekly_minutes": {
             "type": "integer",
             "minimum": 0.0,
-            "title": "Weekly Minutes"
+            "title": "Weekly Minutes",
+            "description": "Sollzeit je Woche in Minuten (42 h = 2520); 0 = Austritt."
           },
           "workdays": {
             "items": {
@@ -9874,6 +9913,7 @@
             },
             "type": "array",
             "title": "Workdays",
+            "description": "Arbeitstage: 0 = Montag … 6 = Sonntag.",
             "default": []
           },
           "vacation_weeks": {
@@ -9888,7 +9928,8 @@
                 "type": "null"
               }
             ],
-            "title": "Vacation Weeks"
+            "title": "Vacation Weeks",
+            "description": "Ferienwochen je Jahr (z. B. 5)."
           },
           "company_object_id": {
             "anyOf": [
@@ -9899,7 +9940,8 @@
                 "type": "null"
               }
             ],
-            "title": "Company Object Id"
+            "title": "Company Object Id",
+            "description": "Objektnummer der eigenen Gesellschaft, bei der die Person angestellt ist."
           }
         },
         "type": "object",
@@ -10262,12 +10304,14 @@
         "properties": {
           "article_object_id": {
             "type": "integer",
-            "title": "Article Object Id"
+            "title": "Article Object Id",
+            "description": "Objektnummer des Artikels."
           },
           "quantity": {
             "type": "integer",
             "minimum": 1.0,
-            "title": "Quantity"
+            "title": "Quantity",
+            "description": "Wie viele Einzelinstanzen (Stücke)."
           },
           "origin": {
             "type": "string",
@@ -10275,18 +10319,21 @@
               "neu",
               "lager"
             ],
-            "title": "Origin"
+            "title": "Origin",
+            "description": "Woher die Stücke kommen: 'neu' (werden mit dem Prozess des Artikels erzeugt) oder 'lager' (bestehende, in units)."
           },
           "units": {
             "items": {
               "$ref": "#/components/schemas/UnitPick"
             },
             "type": "array",
-            "title": "Units"
+            "title": "Units",
+            "description": "Nur bei 'lager': genau quantity Stücke; welche frei sind, nennt GET /erp/orders/unit-options."
           },
           "returns": {
             "type": "boolean",
             "title": "Returns",
+            "description": "Kehren Stücke aus einem anderen Auftrag dorthin zurück? Für freie Stücke bedeutungslos.",
             "default": true
           }
         },
@@ -10305,7 +10352,8 @@
             "type": "string",
             "maxLength": 300,
             "minLength": 1,
-            "title": "Reason"
+            "title": "Reason",
+            "description": "Warum gelöscht wird – Pflicht, steht im Log."
           }
         },
         "type": "object",
@@ -10763,7 +10811,8 @@
               "booking",
               "void"
             ],
-            "title": "Kind"
+            "title": "Kind",
+            "description": "'in'/'out' = Stempel Kommen/Gehen, 'absence' = Absenz, 'proof' = Nachweis zu einer Absenz, 'booking' = Buchung (nur Admin), 'void' = Eintrag zurücknehmen."
           },
           "day": {
             "anyOf": [
@@ -10775,7 +10824,8 @@
                 "type": "null"
               }
             ],
-            "title": "Day"
+            "title": "Day",
+            "description": "Der Tag (JJJJ-MM-TT), höchstens 7 Tage zurück; bei einer Absenz der erste Tag."
           },
           "time": {
             "anyOf": [
@@ -10787,7 +10837,8 @@
                 "type": "null"
               }
             ],
-            "title": "Time"
+            "title": "Time",
+            "description": "Uhrzeit eines Stempels, HH:MM."
           },
           "until": {
             "anyOf": [
@@ -10799,7 +10850,8 @@
                 "type": "null"
               }
             ],
-            "title": "Until"
+            "title": "Until",
+            "description": "Absenz: letzter Tag (leer = nur day)."
           },
           "art": {
             "anyOf": [
@@ -10810,7 +10862,8 @@
                 "type": "null"
               }
             ],
-            "title": "Art"
+            "title": "Art",
+            "description": "Absenz: 'ferien' (Ferien), 'krank' (Krankheit), 'unfall' (Unfall), 'militaer' (Militär/Zivildienst), 'eltern' (Mutter-/Vaterschaft), 'bezahlt' (Bezahlte Absenz), 'unbezahlt' (Unbezahlter Urlaub)."
           },
           "minutes": {
             "anyOf": [
@@ -10821,7 +10874,8 @@
                 "type": "null"
               }
             ],
-            "title": "Minutes"
+            "title": "Minutes",
+            "description": "Absenz: Minuten je Tag (leer = ganzer Tag); Buchung: Minuten ins Stundenkonto (±)."
           },
           "vacation_minutes": {
             "anyOf": [
@@ -10832,7 +10886,8 @@
                 "type": "null"
               }
             ],
-            "title": "Vacation Minutes"
+            "title": "Vacation Minutes",
+            "description": "Buchung: Minuten ins Ferienkonto (±)."
           },
           "note": {
             "anyOf": [
@@ -10844,7 +10899,8 @@
                 "type": "null"
               }
             ],
-            "title": "Note"
+            "title": "Note",
+            "description": "Bemerkung (bei einer Buchung der Grund)."
           },
           "proof_url": {
             "anyOf": [
@@ -10856,7 +10912,8 @@
                 "type": "null"
               }
             ],
-            "title": "Proof Url"
+            "title": "Proof Url",
+            "description": "Nachweis: Link des Dokuments (wird über das Pflichtfeld time.proof gesetzt)."
           },
           "replaces_id": {
             "anyOf": [
@@ -10867,7 +10924,8 @@
                 "type": "null"
               }
             ],
-            "title": "Replaces Id"
+            "title": "Replaces Id",
+            "description": "Id des Eintrags, den dieser ersetzt, zurücknimmt oder belegt."
           }
         },
         "type": "object",
@@ -10960,7 +11018,8 @@
                 "type": "null"
               }
             ],
-            "title": "First Name"
+            "title": "First Name",
+            "description": "Vorname. Hat ein Partner keinen Menschen (ein Shop), nennt er die Rolle, z. B. «Bestellung»."
           },
           "last_name": {
             "anyOf": [
@@ -10971,7 +11030,8 @@
                 "type": "null"
               }
             ],
-            "title": "Last Name"
+            "title": "Last Name",
+            "description": "Nachname. Bei einem Shop ohne Menschen der Shop, z. B. «Galaxus»."
           },
           "date_of_birth": {
             "anyOf": [
@@ -10983,7 +11043,8 @@
                 "type": "null"
               }
             ],
-            "title": "Date Of Birth"
+            "title": "Date Of Birth",
+            "description": "Geburtsdatum (Personal: Pflicht für die Zeiterfassung)."
           },
           "phone": {
             "anyOf": [
@@ -10994,7 +11055,8 @@
                 "type": "null"
               }
             ],
-            "title": "Phone"
+            "title": "Phone",
+            "description": "Telefon, international lesbar (z. B. +41 44 123 45 67)."
           },
           "company_object_id": {
             "anyOf": [
@@ -11005,7 +11067,8 @@
                 "type": "null"
               }
             ],
-            "title": "Company Object Id"
+            "title": "Company Object Id",
+            "description": "Objektnummer der Firma, zu der die Person gehört; leer = Privatperson."
           },
           "new_company": {
             "anyOf": [
@@ -11015,7 +11078,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Statt einer Nummer: die Firma nennen – sie wird erkannt oder angelegt."
           },
           "role": {
             "anyOf": [
@@ -11031,7 +11095,8 @@
                 "type": "null"
               }
             ],
-            "title": "Role"
+            "title": "Role",
+            "description": "Zugang: 'admin', 'employee' (Personal) oder 'user' (Kunde, Lieferant). Nur der Admin."
           },
           "competences": {
             "anyOf": [
@@ -11045,7 +11110,8 @@
                 "type": "null"
               }
             ],
-            "title": "Competences"
+            "title": "Competences",
+            "description": "Was die Person kann (nur Personal, nur der Admin): Wörter aus der Liste der Kompetenzen."
           }
         },
         "type": "object",
@@ -11661,13 +11727,15 @@
           "day": {
             "type": "string",
             "format": "date",
-            "title": "Day"
+            "title": "Day",
+            "description": "Der Feiertag, JJJJ-MM-TT."
           },
           "name": {
             "type": "string",
             "maxLength": 120,
             "minLength": 1,
-            "title": "Name"
+            "title": "Name",
+            "description": "Name, z. B. «Auffahrt»."
           }
         },
         "type": "object",
@@ -11735,7 +11803,8 @@
               "$ref": "#/components/schemas/HolidayIn"
             },
             "type": "array",
-            "title": "Holidays"
+            "title": "Holidays",
+            "description": "Die Feiertage, die übernommen werden."
           }
         },
         "type": "object",
@@ -12210,7 +12279,8 @@
               "year",
               null
             ],
-            "title": "Every"
+            "title": "Every",
+            "description": "Takt: 'week' (wöchentlich), 'month' (monatlich), 'quarter' (vierteljährlich), 'half' (halbjährlich), 'year' (jährlich)."
           },
           "first": {
             "anyOf": [
@@ -12221,7 +12291,8 @@
                 "type": "null"
               }
             ],
-            "title": "First"
+            "title": "First",
+            "description": "Tag der ersten Wiederholung, JJJJ-MM-TT, heute oder später."
           },
           "until": {
             "anyOf": [
@@ -12232,7 +12303,8 @@
                 "type": "null"
               }
             ],
-            "title": "Until"
+            "title": "Until",
+            "description": "Letzter Tag (JJJJ-MM-TT) – oder count, nie beides; beides leer = unbefristet."
           },
           "count": {
             "anyOf": [
@@ -12243,7 +12315,8 @@
                 "type": "null"
               }
             ],
-            "title": "Count"
+            "title": "Count",
+            "description": "Anzahl Wiederholungen (1–1000) – oder until, nie beides."
           },
           "takes": {
             "items": {
@@ -12255,7 +12328,8 @@
               ]
             },
             "type": "array",
-            "title": "Takes"
+            "title": "Takes",
+            "description": "Je Zeile (gleiche Reihenfolge), was die Wiederholung nimmt: 'same' (gleiche Einzelinstanzen) oder 'fifo'; bei 'neu' null. Ohne Vorbelegung – bei 'lager' Pflicht."
           }
         },
         "type": "object",
@@ -12503,35 +12577,40 @@
         "properties": {
           "channel": {
             "type": "string",
-            "title": "Channel"
+            "title": "Channel",
+            "description": "Der Kanal: 'phone' (Telefon), 'intern' (Intern), 'note' (Notiz) oder für eine E-Mail das Postfach 'c<Objektnummer der eigenen Gesellschaft>' – welche es gibt, nennt GET /erp/messages/channels."
           },
           "to": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "To"
+            "title": "To",
+            "description": "Empfänger: Objektnummern von Personen (nie Firmen)."
           },
           "cc": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Cc"
+            "title": "Cc",
+            "description": "In Kopie: Objektnummern von Personen."
           },
           "bcc": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Bcc"
+            "title": "Bcc",
+            "description": "Blindkopie: Objektnummern von Personen."
           },
           "about": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "About"
+            "title": "About",
+            "description": "«Betrifft»: Objektnummern beliebiger Datensätze (Auftrag, Artikel, Firma …) – dort steht die Nachricht im Verlauf."
           },
           "subject": {
             "anyOf": [
@@ -12543,12 +12622,14 @@
                 "type": "null"
               }
             ],
-            "title": "Subject"
+            "title": "Subject",
+            "description": "Betreff = das Anliegen (ohne «Re:»). Ohne Text Pflicht."
           },
           "body": {
             "type": "string",
             "maxLength": 20000,
             "title": "Body",
+            "description": "Der Text.",
             "default": ""
           },
           "at": {
@@ -12561,11 +12642,13 @@
                 "type": "null"
               }
             ],
-            "title": "At"
+            "title": "At",
+            "description": "Zeitpunkt; leer = jetzt, in der Zukunft = Erinnerung bzw. später senden."
           },
           "incoming": {
             "type": "boolean",
             "title": "Incoming",
+            "description": "Nur bei einem Anruf: true = wir wurden angerufen.",
             "default": false
           },
           "delivery": {
@@ -12576,6 +12659,7 @@
               "newsletter"
             ],
             "title": "Delivery",
+            "description": "Nur E-Mail: 'mail' (alle sehen einander), 'circular' (jede Person einzeln mit Anrede), 'newsletter' (einzeln, nur Angemeldete).",
             "default": "mail"
           }
         },
@@ -12911,7 +12995,7 @@
                     "items": {
                       "properties": {
                         "party": {
-                          "description": "Gegenpartei (Person) (Objektnummer)",
+                          "description": "Partner: eine Person, nie eine Firma (die Firma steht an der Person) (Objektnummer)",
                           "type": "integer"
                         },
                         "ref": {
@@ -13300,11 +13384,13 @@
           "company_name": {
             "type": "string",
             "title": "Company Name",
+            "description": "Name der Firma ohne Rechtsform.",
             "default": ""
           },
           "legal_form": {
             "type": "string",
             "title": "Legal Form",
+            "description": "Rechtsform, z. B. «AG».",
             "default": ""
           },
           "uid_number": {
@@ -13316,7 +13402,8 @@
                 "type": "null"
               }
             ],
-            "title": "Uid Number"
+            "title": "Uid Number",
+            "description": "UID – mit ihr wird eine bekannte Firma erkannt statt neu angelegt."
           }
         },
         "type": "object",
@@ -13447,14 +13534,16 @@
               "$ref": "#/components/schemas/DefinitionLine"
             },
             "type": "array",
-            "title": "Lines"
+            "title": "Lines",
+            "description": "Was der Auftrag bearbeitet: je Artikel eine Zeile mit Menge und Herkunft."
           },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/ModuleInput"
             },
             "type": "array",
-            "title": "Steps"
+            "title": "Steps",
+            "description": "Die Schritte, die die Stücke der Reihe nach durchlaufen. Bei einer Zeile 'neu' gilt der Prozess des Artikels und diese Liste bleibt leer."
           },
           "loop": {
             "anyOf": [
@@ -13464,7 +13553,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Wiederholung wie ein Dauerauftrag – nur an einem regulären Auftrag; leer = einmalig."
           },
           "date": {
             "anyOf": [
@@ -13474,7 +13564,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Das eine Datum: «bis» (fertig bis) oder «ab» (nicht vor); leer = so schnell wie möglich."
           }
         },
         "type": "object",
@@ -13495,7 +13586,8 @@
           "on": {
             "type": "string",
             "format": "date",
-            "title": "On"
+            "title": "On",
+            "description": "Der Tag, JJJJ-MM-TT – heute oder später."
           }
         },
         "type": "object",
@@ -13516,7 +13608,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Das neue Datum; leer = keins mehr."
           }
         },
         "type": "object",
@@ -14231,15 +14324,18 @@
         "properties": {
           "first_name": {
             "type": "string",
-            "title": "First Name"
+            "title": "First Name",
+            "description": "Vorname. Ein Shop ohne Menschen heisst nach der Rolle, z. B. «Bestellung»."
           },
           "last_name": {
             "type": "string",
-            "title": "Last Name"
+            "title": "Last Name",
+            "description": "Nachname. Bei einem Shop der Shop, z. B. «Galaxus»."
           },
           "email": {
             "type": "string",
-            "title": "Email"
+            "title": "Email",
+            "description": "E-Mail – mit ihr meldet sie sich an und bekommt Belege."
           },
           "role": {
             "type": "string",
@@ -14249,6 +14345,7 @@
               "user"
             ],
             "title": "Role",
+            "description": "'user' für Kunden und Lieferanten; Personal ('employee', 'admin') legt nur der Admin an.",
             "default": "user"
           },
           "company_object_id": {
@@ -14260,7 +14357,8 @@
                 "type": "null"
               }
             ],
-            "title": "Company Object Id"
+            "title": "Company Object Id",
+            "description": "Objektnummer der Firma, zu der sie gehört; leer = Privatperson."
           },
           "new_company": {
             "anyOf": [
@@ -14270,7 +14368,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Statt einer Nummer: die Firma nennen – sie wird erkannt oder angelegt."
           }
         },
         "type": "object",
@@ -15243,12 +15342,14 @@
                 "type": "null"
               }
             ],
-            "title": "Hint Object Id"
+            "title": "Hint Object Id",
+            "description": "Objektnummer des Datensatzes, der offen war."
           },
           "mime": {
             "type": "string",
             "maxLength": 100,
-            "title": "Mime"
+            "title": "Mime",
+            "description": "Tonformat des Browsers, z. B. audio/webm;codecs=opus."
           },
           "context": {
             "anyOf": [
@@ -15260,7 +15361,8 @@
                 "type": "null"
               }
             ],
-            "title": "Context"
+            "title": "Context",
+            "description": "Die Stecknadel: Stelle, an der die Aufnahme ansetzt."
           },
           "talk": {
             "anyOf": [
@@ -15271,7 +15373,8 @@
                 "type": "null"
               }
             ],
-            "title": "Talk"
+            "title": "Talk",
+            "description": "Das offene Gespräch, in das der Text gehört."
           }
         },
         "type": "object",
@@ -15285,7 +15388,8 @@
         "properties": {
           "object_id": {
             "type": "integer",
-            "title": "Object Id"
+            "title": "Object Id",
+            "description": "Objektnummer des Datensatzes, an dem das Dokument erscheinen soll."
           }
         },
         "type": "object",
@@ -15455,17 +15559,20 @@
             "type": "array",
             "maxItems": 20,
             "minItems": 1,
-            "title": "To"
+            "title": "To",
+            "description": "Empfänger: Objektnummern von Personen; jede bekommt ihren Link."
           },
           "sign": {
             "type": "boolean",
             "title": "Sign",
+            "description": "Sollen sie unterschreiben?",
             "default": false
           },
           "note": {
             "type": "string",
             "maxLength": 1000,
             "title": "Note",
+            "description": "Ein Satz zur Mail.",
             "default": ""
           }
         },
@@ -15650,7 +15757,8 @@
               "type": "object"
             },
             "type": "object",
-            "title": "Values"
+            "title": "Values",
+            "description": "Je gezogener Einzelinstanz (Nummer) die Werte der Erfassungspunkte (Schlüssel → Wert); ohne Erfassungspunkte leer."
           },
           "instance_object_id": {
             "anyOf": [
@@ -15661,7 +15769,8 @@
                 "type": "null"
               }
             ],
-            "title": "Instance Object Id"
+            "title": "Instance Object Id",
+            "description": "Objektnummer der verifizierten Instanz – das Etikett, das gescannt wurde."
           },
           "verification": {
             "anyOf": [
@@ -15672,14 +15781,16 @@
                 "type": "null"
               }
             ],
-            "title": "Verification"
+            "title": "Verification",
+            "description": "Wie verifiziert wurde: 'scan' oder 'manual' (Nummer von Hand eingegeben)."
           },
           "sources": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Sources"
+            "title": "Sources",
+            "description": "Nur Verbrauch: Objektnummern der Instanzen (Kisten), aus denen genommen wird; leer = ältester freier Bestand zuerst."
           },
           "place": {
             "anyOf": [
@@ -15690,7 +15801,8 @@
                 "type": "null"
               }
             ],
-            "title": "Place"
+            "title": "Place",
+            "description": "Nur Bewegen: Objektnummer des gescannten Zielorts (Halter) – Pflicht, wenn das Modul kein Ziel vorgibt."
           }
         },
         "type": "object",
@@ -15870,7 +15982,8 @@
           "segments": {
             "type": "integer",
             "minimum": 0.0,
-            "title": "Segments"
+            "title": "Segments",
+            "description": "Wie viele Abschnitte (je 5 Minuten, ab 0 gezählt) es gab."
           }
         },
         "type": "object",
@@ -15888,13 +16001,15 @@
               "in",
               "out"
             ],
-            "title": "Direction"
+            "title": "Direction",
+            "description": "Was der Knopf zeigte: 'in' (Kommen) oder 'out' (Gehen)."
           },
           "key": {
             "type": "string",
             "maxLength": 64,
             "minLength": 8,
-            "title": "Key"
+            "title": "Key",
+            "description": "Ein zufälliger Schlüssel je Wisch – zweimal derselbe schreibt nur einmal."
           }
         },
         "type": "object",
@@ -16091,7 +16206,8 @@
         "properties": {
           "object_id": {
             "type": "integer",
-            "title": "Object Id"
+            "title": "Object Id",
+            "description": "Objektnummer des Datensatzes mit dem Pflichtfeld."
           },
           "part": {
             "anyOf": [
@@ -16102,16 +16218,19 @@
                 "type": "null"
               }
             ],
-            "title": "Part"
+            "title": "Part",
+            "description": "Teil des Datensatzes, z. B. der Schritt (step:<id>) – wo das Feld sitzt."
           },
           "field": {
             "type": "string",
-            "title": "Field"
+            "title": "Field",
+            "description": "Schlüssel des Pflichtfelds (z. B. voucher.original, time.proof) – welche es gibt, nennt GET /erp/documents/of/{nummer}."
           },
           "extra": {
             "additionalProperties": true,
             "type": "object",
             "title": "Extra",
+            "description": "Was das Feld zusätzlich braucht, z. B. {\"note\": …} beim Annehmen einer Abweichung.",
             "default": {}
           }
         },
@@ -16217,11 +16336,13 @@
         "properties": {
           "company": {
             "type": "integer",
-            "title": "Company"
+            "title": "Company",
+            "description": "Objektnummer der eigenen Gesellschaft."
           },
           "kind": {
             "type": "string",
-            "title": "Kind"
+            "title": "Kind",
+            "description": "Welcher Rechtstext: 'agb' oder 'datenschutz'."
           }
         },
         "type": "object",
@@ -16243,7 +16364,8 @@
                 "type": "null"
               }
             ],
-            "title": "Company Object Id"
+            "title": "Company Object Id",
+            "description": "Objektnummer der eigenen Gesellschaft, der das Gebiet gehört; leer = Standard."
           }
         },
         "type": "object",
@@ -16456,7 +16578,8 @@
                 "type": "null"
               }
             ],
-            "title": "Canton"
+            "title": "Canton",
+            "description": "Kanton als Kürzel (z. B. ZH) – für den Vorschlag der Feiertage."
           },
           "proof": {
             "anyOf": [
@@ -16477,7 +16600,8 @@
                 "type": "null"
               }
             ],
-            "title": "Proof"
+            "title": "Proof",
+            "description": "Je Absenzart, ab welchem Arbeitstag ein Nachweis nötig ist (leer/0 = nie)."
           }
         },
         "type": "object",
@@ -16760,12 +16884,14 @@
           "who": {
             "type": "string",
             "pattern": "^(user|ai)$",
-            "title": "Who"
+            "title": "Who",
+            "description": "Wer spricht: 'user' oder 'ai'."
           },
           "text": {
             "type": "string",
             "maxLength": 4000,
-            "title": "Text"
+            "title": "Text",
+            "description": "Was gesagt wurde."
           }
         },
         "type": "object",
@@ -16896,7 +17022,11 @@
         "properties": {
           "number": {
             "type": "string",
-            "title": "Number"
+            "title": "Number",
+            "description": "Nummer der Einzelinstanz, «<Instanznummer>-<Suffix>».",
+            "examples": [
+              "100000300-1"
+            ]
           },
           "from_order": {
             "anyOf": [
@@ -16907,7 +17037,8 @@
                 "type": "null"
               }
             ],
-            "title": "From Order"
+            "title": "From Order",
+            "description": "Objektnummer des Auftrags, in dem das Stück bei der Wahl lief (dann eine Abweichung); leer = frei aus dem Bestand."
           }
         },
         "type": "object",
@@ -17192,7 +17323,8 @@
                 "type": "null"
               }
             ],
-            "title": "First Name"
+            "title": "First Name",
+            "description": "Vorname. Hat ein Partner keinen Menschen (ein Shop), nennt er die Rolle, z. B. «Bestellung»."
           },
           "last_name": {
             "anyOf": [
@@ -17203,7 +17335,8 @@
                 "type": "null"
               }
             ],
-            "title": "Last Name"
+            "title": "Last Name",
+            "description": "Nachname. Bei einem Shop ohne Menschen der Shop, z. B. «Galaxus»."
           },
           "date_of_birth": {
             "anyOf": [
@@ -17215,7 +17348,8 @@
                 "type": "null"
               }
             ],
-            "title": "Date Of Birth"
+            "title": "Date Of Birth",
+            "description": "Geburtsdatum (Personal: Pflicht für die Zeiterfassung)."
           },
           "phone": {
             "anyOf": [
@@ -17226,7 +17360,8 @@
                 "type": "null"
               }
             ],
-            "title": "Phone"
+            "title": "Phone",
+            "description": "Telefon, international lesbar (z. B. +41 44 123 45 67)."
           },
           "company_object_id": {
             "anyOf": [
@@ -17237,7 +17372,8 @@
                 "type": "null"
               }
             ],
-            "title": "Company Object Id"
+            "title": "Company Object Id",
+            "description": "Objektnummer der Firma, zu der die Person gehört; leer = Privatperson."
           },
           "new_company": {
             "anyOf": [
@@ -17247,7 +17383,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Statt einer Nummer: die Firma nennen – sie wird erkannt oder angelegt."
           }
         },
         "type": "object",
@@ -19035,7 +19172,8 @@
         "properties": {
           "id": {
             "type": "integer",
-            "title": "Id"
+            "title": "Id",
+            "description": "Id der Position (aus den Positionen des Belegs)."
           },
           "price": {
             "anyOf": [
@@ -19046,7 +19184,8 @@
                 "type": "null"
               }
             ],
-            "title": "Price"
+            "title": "Price",
+            "description": "Einzelpreis netto in der Währung des Belegs, z. B. «46.50»."
           },
           "vat": {
             "anyOf": [
@@ -19057,7 +19196,8 @@
                 "type": "null"
               }
             ],
-            "title": "Vat"
+            "title": "Vat",
+            "description": "Steuersatz-Schlüssel – nur einer aus vat_choices der Position."
           },
           "hs_code": {
             "anyOf": [
@@ -19068,7 +19208,8 @@
                 "type": "null"
               }
             ],
-            "title": "Hs Code"
+            "title": "Hs Code",
+            "description": "Zolltarifnummer (HS), 6 bis 8 Ziffern."
           },
           "origin_country": {
             "anyOf": [
@@ -19079,7 +19220,8 @@
                 "type": "null"
               }
             ],
-            "title": "Origin Country"
+            "title": "Origin Country",
+            "description": "Ursprungsland, ISO-Code mit 2 Buchstaben."
           },
           "text": {
             "anyOf": [
@@ -19090,7 +19232,8 @@
                 "type": "null"
               }
             ],
-            "title": "Text"
+            "title": "Text",
+            "description": "Zusatztext zur Position auf dem Papier."
           },
           "part": {
             "anyOf": [
@@ -19101,7 +19244,8 @@
                 "type": "null"
               }
             ],
-            "title": "Part"
+            "title": "Part",
+            "description": "Teilbetrag netto dieser Position; null = Vollbetrag."
           },
           "weight_kg": {
             "anyOf": [
@@ -19112,7 +19256,8 @@
                 "type": "null"
               }
             ],
-            "title": "Weight Kg"
+            "title": "Weight Kg",
+            "description": "Gewicht je Stück in kg (für Zoll und Versand)."
           }
         },
         "type": "object",
@@ -19517,7 +19662,8 @@
         "properties": {
           "action": {
             "type": "string",
-            "title": "Action"
+            "title": "Action",
+            "description": "Die Handlung (siehe oben): price, party, ask, unask, quote, decline, agree, revoke, correct, bill, accept, pay, refund, writeoff, tip, reverse, remind, export, release, ownership, terms, address, currency, issuer, incoterm. Was gerade geht, sagt «can» des Belegs."
           },
           "kind": {
             "anyOf": [
@@ -19528,7 +19674,8 @@
                 "type": "null"
               }
             ],
-            "title": "Kind"
+            "title": "Kind",
+            "description": "release: welches Papier – 'confirmation' (AB) oder 'receipt' (Quittung)."
           },
           "party": {
             "anyOf": [
@@ -19539,14 +19686,16 @@
                 "type": "null"
               }
             ],
-            "title": "Party"
+            "title": "Party",
+            "description": "Objektnummer des Partners – immer eine Person, nie eine Firma (die Firma steht an der Person)."
           },
           "parties": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Parties"
+            "title": "Parties",
+            "description": "ask: wen anfragen (Objektnummern von Personen); leer = alle zugelassenen."
           },
           "lead_days": {
             "anyOf": [
@@ -19557,7 +19706,8 @@
                 "type": "null"
               }
             ],
-            "title": "Lead Days"
+            "title": "Lead Days",
+            "description": "terms: Lieferfrist in Tagen."
           },
           "payment_days": {
             "anyOf": [
@@ -19568,7 +19718,8 @@
                 "type": "null"
               }
             ],
-            "title": "Payment Days"
+            "title": "Payment Days",
+            "description": "terms: Zahlungsfrist in Tagen."
           },
           "amount": {
             "anyOf": [
@@ -19579,7 +19730,8 @@
                 "type": "null"
               }
             ],
-            "title": "Amount"
+            "title": "Amount",
+            "description": "Betrag in der Währung des Belegs, z. B. «46.50» (quote, pay, refund, writeoff, tip, bill)."
           },
           "reference": {
             "anyOf": [
@@ -19590,7 +19742,8 @@
                 "type": "null"
               }
             ],
-            "title": "Reference"
+            "title": "Reference",
+            "description": "Referenz einer Zahlung (Bank, Quittung) – eine Referenz gehört zu genau einer Zahlung; bill: die Rechnungsnummer des Lieferanten."
           },
           "note": {
             "anyOf": [
@@ -19601,7 +19754,8 @@
                 "type": "null"
               }
             ],
-            "title": "Note"
+            "title": "Note",
+            "description": "Vermerk (einer Zahlung, einer angenommenen Abweichung)."
           },
           "booked_on": {
             "anyOf": [
@@ -19613,7 +19767,8 @@
                 "type": "null"
               }
             ],
-            "title": "Booked On"
+            "title": "Booked On",
+            "description": "pay: Tag der Zahlung, JJJJ-MM-TT (leer = heute)."
           },
           "entry": {
             "anyOf": [
@@ -19624,7 +19779,8 @@
                 "type": "null"
               }
             ],
-            "title": "Entry"
+            "title": "Entry",
+            "description": "Id der Geld-Zeile, die gegengebucht (reverse) bzw. auf die Karte erstattet wird."
           },
           "billed_on": {
             "anyOf": [
@@ -19636,7 +19792,8 @@
                 "type": "null"
               }
             ],
-            "title": "Billed On"
+            "title": "Billed On",
+            "description": "bill: Rechnungsdatum, JJJJ-MM-TT – bei einer Lieferantenrechnung das Datum auf ihrem Papier (leer = heute)."
           },
           "corrects": {
             "anyOf": [
@@ -19647,7 +19804,8 @@
                 "type": "null"
               }
             ],
-            "title": "Corrects"
+            "title": "Corrects",
+            "description": "correct: Id des Belegs, den dieser mindert (auch in einem anderen Auftrag); null nimmt es zurück."
           },
           "lines": {
             "anyOf": [
@@ -19661,7 +19819,8 @@
                 "type": "null"
               }
             ],
-            "title": "Lines"
+            "title": "Lines",
+            "description": "price: je Position ihre Id und was sich ändert."
           },
           "vat": {
             "anyOf": [
@@ -19672,7 +19831,8 @@
                 "type": "null"
               }
             ],
-            "title": "Vat"
+            "title": "Vat",
+            "description": "bill bei einer Ausgabe: Steuersatz-Schlüssel der Lieferantenrechnung."
           },
           "currency": {
             "anyOf": [
@@ -19683,7 +19843,8 @@
                 "type": "null"
               }
             ],
-            "title": "Currency"
+            "title": "Currency",
+            "description": "currency: Währung als ISO-Code (z. B. CHF, EUR) – eine je Vorgang, nur vor der Zusage."
           },
           "method": {
             "anyOf": [
@@ -19694,7 +19855,8 @@
                 "type": "null"
               }
             ],
-            "title": "Method"
+            "title": "Method",
+            "description": "pay: Weg des Geldes – 'cash' (Bar), 'transfer' (Überweisung); eine Karte bucht nur der Zahlungsdienst."
           },
           "incoterm": {
             "anyOf": [
@@ -19705,7 +19867,8 @@
                 "type": "null"
               }
             ],
-            "title": "Incoterm"
+            "title": "Incoterm",
+            "description": "incoterm: Klausel der Incoterms 2020 (z. B. EXW, DAP) – der Ort folgt aus den Anschriften."
           },
           "issuer": {
             "anyOf": [
@@ -19716,7 +19879,8 @@
                 "type": "null"
               }
             ],
-            "title": "Issuer"
+            "title": "Issuer",
+            "description": "issuer: Objektnummer der eigenen Gesellschaft, die den Beleg stellt."
           },
           "bill_to_company": {
             "anyOf": [
@@ -19727,7 +19891,8 @@
                 "type": "null"
               }
             ],
-            "title": "Bill To Company"
+            "title": "Bill To Company",
+            "description": "address: Rechnung an die Firma der Person («z. H.»)?"
           },
           "billing_address": {
             "anyOf": [
@@ -19738,7 +19903,8 @@
                 "type": "null"
               }
             ],
-            "title": "Billing Address"
+            "title": "Billing Address",
+            "description": "address: Id der Rechnungsadresse aus dem Adressbuch der Person; null = Standard."
           },
           "delivery_address": {
             "anyOf": [
@@ -19749,7 +19915,8 @@
                 "type": "null"
               }
             ],
-            "title": "Delivery Address"
+            "title": "Delivery Address",
+            "description": "address: Id der Lieferadresse aus dem Adressbuch der Person; null = Standard."
           },
           "valid_days": {
             "anyOf": [
@@ -19760,7 +19927,8 @@
                 "type": "null"
               }
             ],
-            "title": "Valid Days"
+            "title": "Valid Days",
+            "description": "terms: Gültigkeit der Offerte in Tagen."
           },
           "ownership": {
             "anyOf": [
@@ -19771,7 +19939,8 @@
                 "type": "null"
               }
             ],
-            "title": "Ownership"
+            "title": "Ownership",
+            "description": "ownership: wem die Stücke danach gehören – 'party' (geht an die Partei), 'us' (geht an uns) (Verkauf: Partei, Einkauf: uns). Pflicht vor dem Anbieten."
           },
           "reason": {
             "anyOf": [
@@ -19782,7 +19951,8 @@
                 "type": "null"
               }
             ],
-            "title": "Reason"
+            "title": "Reason",
+            "description": "Grund – Pflicht bei revoke, accept und writeoff."
           },
           "iban": {
             "anyOf": [
@@ -19793,7 +19963,8 @@
                 "type": "null"
               }
             ],
-            "title": "Iban"
+            "title": "Iban",
+            "description": "refund per Überweisung: IBAN, auf die erstattet wird."
           },
           "original": {
             "anyOf": [
@@ -19804,7 +19975,8 @@
                 "type": "null"
               }
             ],
-            "title": "Original"
+            "title": "Original",
+            "description": "Objektnummer des Dokuments: die Lieferantenrechnung (bill) bzw. der Ausfuhrnachweis (export)."
           },
           "party_uid": {
             "anyOf": [
@@ -19815,7 +19987,8 @@
                 "type": "null"
               }
             ],
-            "title": "Party Uid"
+            "title": "Party Uid",
+            "description": "bill bei einer Ausgabe: MWST-Nummer auf der Lieferantenrechnung."
           },
           "link": {
             "anyOf": [
@@ -19826,7 +19999,8 @@
                 "type": "null"
               }
             ],
-            "title": "Link"
+            "title": "Link",
+            "description": "quote: Link zu genau dieser Offerte bzw. Bestellung beim Partner (z. B. Warenkorb im Shop)."
           }
         },
         "type": "object",

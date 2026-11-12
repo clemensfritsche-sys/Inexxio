@@ -278,14 +278,14 @@ class StepConfirm(BaseModel):
     wäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst».
     """
 
-    values: dict[str, dict[str, Any]] = Field(default_factory=dict)
-    instance_object_id: Optional[int] = None
-    verification: Optional[str] = None
-    sources: list[int] = Field(default_factory=list)
+    values: dict[str, dict[str, Any]] = Field(default_factory=dict, description="Je gezogener Einzelinstanz (Nummer) die Werte der Erfassungspunkte (Schlüssel → Wert); ohne Erfassungspunkte leer.")
+    instance_object_id: Optional[int] = Field(None, description="Objektnummer der verifizierten Instanz – das Etikett, das gescannt wurde.")
+    verification: Optional[str] = Field(None, description="Wie verifiziert wurde: 'scan' oder 'manual' (Nummer von Hand eingegeben).")
+    sources: list[int] = Field(default_factory=list, description="Nur Verbrauch: Objektnummern der Instanzen (Kisten), aus denen genommen wird; leer = ältester freier Bestand zuerst.")
     #: **Der gescannte Zielort** eines Bewegungsmoduls – die Objektnummer des Halters.
     #: Mit Ziel in der Definition die **Verifikation** (``Bewegen.movement_for``), sonst die
     #: **Wahl** – dann Pflicht.
-    place: Optional[int] = None
+    place: Optional[int] = Field(None, description="Nur Bewegen: Objektnummer des gescannten Zielorts (Halter) – Pflicht, wenn das Modul kein Ziel vorgibt.")
     # **Kein «womit».** Eine Spedition zu beauftragen ist ein eigener Geldvorgang
     # (Modul «Zahlung»); dieses Feld sagt allein, wohin.
 

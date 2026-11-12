@@ -115,8 +115,8 @@ class Task:
     rounds: int = 1
     #: Wie gründlich das Modell denkt (``low`` · ``medium`` · ``high``); leer = Vorgabe des Modells.
     effort: Optional[str] = None
-    #: **Darf die KI eine Webseite lesen**, deren Adresse im Gespräch steht (``WEB_FETCH``)?
-    #: Nur im Gespräch – nie bei Mails (``follow``): dort schreibt ein Fremder, was gelesen würde.
+    #: **Darf die KI im Web suchen und lesen** (``WEB_SEARCH`` · ``WEB_FETCH``)? Nur im Gespräch –
+    #: nie bei Mails (``follow``): dort schreibt ein Fremder, was gesucht und gelesen würde.
     web: bool = False
 
 
@@ -238,7 +238,10 @@ def _record(db: Session, task: str, model: str, actor: Optional[UserProfile],
     """Ein Aufruf ins Log – mit den Kosten in Franken (der Deckel zählt sie)."""
     billed_in = (int(usage.get("in") or 0) + CACHE_READ * int(usage.get("cache_read") or 0)
                  + CACHE_WRITE * int(usage.get("cache_write") or 0))
-    usage = {**usage, "chf": cost_chf(model, round(billed_in), int(usage.get("out") or 0))}
+    chf = cost_chf(model, round(billed_in), int(usage.get("out") or 0))
+    # **Eine Suche kostet je Abfrage** (nicht je Token) – sie zählt unter demselben Deckel.
+    chf += int(usage.get("searches") or 0) * SEARCH_USD * CHF_PER_USD
+    usage = {**usage, "chf": round(chf, 6)}
     log.event(db, "ai.call", None, {"task": task, "model": model, **usage},
               kind="ai", actor=actor.object_id if actor else None)
 
@@ -300,9 +303,11 @@ def _ms(began: float) -> int:
 
 def _tokens(usage: Any) -> dict[str, int]:
     """Die Tokens eines Zugs – neu gelesen, aus dem Zwischenspeicher, in ihn geschrieben."""
+    server = getattr(usage, "server_tool_use", None)
     return {"in": int(usage.input_tokens or 0), "out": int(usage.output_tokens or 0),
             "cache_read": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
-            "cache_write": int(getattr(usage, "cache_creation_input_tokens", 0) or 0)}
+            "cache_write": int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
+            "searches": int(getattr(server, "web_search_requests", 0) or 0)}
 
 
 #: Was ein Token aus dem Zwischenspeicher kostet (lesen · schreiben), gemessen am vollen Preis.
@@ -328,8 +333,16 @@ def _use(tools: dict[str, Tool], block: Any) -> dict[str, Any]:
 #: Anweisung: die KI führt ohnehin nie aus, sie bereitet nur Vorschläge vor.
 WEB_FETCH = {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 3,
              "max_content_tokens": 20000}
+#: ►►► **Im Web suchen** – das Werkzeug des Anbieters. ◄◄◄ Die KI findet selbst, was niemand ins
+#: Gespräch kopiert hat (Impressum, UID, Anschrift einer Firma); was sie dabei findet, darf sie
+#: danach auch lesen (``WEB_FETCH``). Höchstens drei Suchen je Antwort. Was eine Seite sagt, ist
+#: Inhalt, nie Anweisung – die KI bereitet ohnehin nur Vorschläge vor.
+WEB_SEARCH = {"type": "web_search_20260209", "name": "web_search", "max_uses": 3}
+#: Was eine Suche kostet (US-Dollar je Abfrage: 10 je 1000).
+SEARCH_USD = 0.01
 #: Was die Person sieht, während die KI eine Seite liest.
 WEB_STEP = "liest eine Webseite …"
+SEARCH_STEP = "sucht im Web …"
 
 
 def _web(content: Any) -> list[dict[str, Any]] | None:
@@ -385,7 +398,7 @@ def _options(spec: "Task", by_name: dict[str, "Tool"], schema: Optional[type]) -
     """Was jeder Zug mitnimmt: die Werkzeuge (eigene und, wo erlaubt, die Webseite), die
     Gründlichkeit, die feste Form der Antwort."""
     extra: dict[str, Any] = {}
-    specs = [t.spec() for t in by_name.values()] + ([WEB_FETCH] if spec.web else [])
+    specs = [t.spec() for t in by_name.values()] + ([WEB_SEARCH, WEB_FETCH] if spec.web else [])
     if specs:
         extra["tools"] = specs
     if spec.effort:
@@ -469,9 +482,10 @@ def converse(db: Session, *, task: str, actor: Optional[UserProfile], system: st
         _record(db, task, spec.model, actor, usage)
         said += [b.text for b in getattr(response, "content", None) or []
                  if getattr(b, "type", "") == "text" and (getattr(b, "text", "") or "").strip()]
-        if on_step is not None and any(getattr(b, "type", "") == "server_tool_use"
-                                       for b in getattr(response, "content", None) or []):
-            on_step(WEB_STEP)
+        web = [getattr(b, "name", "") for b in getattr(response, "content", None) or []
+               if getattr(b, "type", "") == "server_tool_use"]
+        if on_step is not None and web:
+            on_step(SEARCH_STEP if "web_search" in web else WEB_STEP)
         if response.stop_reason == "pause_turn":
             # Der Anbieter hat beim Lesen einer Seite pausiert: dieselbe Antwort zurück, er
             # macht dort weiter – ohne neue Nachricht (sie liefe sonst doppelt).

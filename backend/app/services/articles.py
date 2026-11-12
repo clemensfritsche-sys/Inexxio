@@ -65,17 +65,18 @@ def missing_for_release(draft: dict[str, Any]) -> list[str]:
     return missing
 
 
-def validate_draft(draft: dict[str, Any]) -> list[str]:
+def validate_draft(db: Session, draft: dict[str, Any]) -> list[str]:
     """Wäre dieser Entwurf freigebbar? Prüft **dieselben** Bedingungen wie die Anlage, dazu
     die Modul-Definitionen durch ihre echte Prüfung – Fehler fallen vor «Freigeben» auf."""
+    from .voucher_input import step_party_problems
     missing = missing_for_release(draft)
     if missing:
         return missing
     try:
-        _clean_steps(list(draft.get("steps") or []))
+        steps = _clean_steps(list(draft.get("steps") or []))
     except Rejected as e:
         return [str(e.detail)]
-    return []
+    return step_party_problems(db, steps)
 
 
 def _clean_steps(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:

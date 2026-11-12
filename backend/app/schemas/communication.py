@@ -5,6 +5,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from ..domain import communication as _domain
+
 
 class PersonRef(BaseModel):
     """Eine beteiligte Person – Nummer, Name und ob sie zu **uns** gehört."""
@@ -66,26 +68,29 @@ class MessageIn(BaseModel):
     Angaben. Ohne Text braucht sie einen Betreff – das ist «erledigt ohne Antwort» für
     dieses Anliegen."""
 
-    channel: str
+    channel: str = Field(description="Der Kanal: " + ", ".join(
+        f"'{k}' ({c.label})" for k, c in _domain.CHANNELS.items())
+        + f" oder für eine E-Mail das Postfach '{_domain.COMPANY_PREFIX}<Objektnummer der eigenen "
+          "Gesellschaft>' – welche es gibt, nennt GET /erp/messages/channels.")
     #: Kein ``sender``: geschrieben wird **immer im eigenen Namen** – der Absender ist, wer
     #: angemeldet ist. Ein trotzdem gesendeter Wert wird verworfen.
-    to: list[int] = Field(default_factory=list)
-    cc: list[int] = Field(default_factory=list)
-    bcc: list[int] = Field(default_factory=list)
-    about: list[int] = Field(default_factory=list)
-    subject: Optional[str] = Field(None, max_length=255)
-    body: str = Field("", max_length=20000)
+    to: list[int] = Field(default_factory=list, description="Empfänger: Objektnummern von Personen (nie Firmen).")
+    cc: list[int] = Field(default_factory=list, description="In Kopie: Objektnummern von Personen.")
+    bcc: list[int] = Field(default_factory=list, description="Blindkopie: Objektnummern von Personen.")
+    about: list[int] = Field(default_factory=list, description="«Betrifft»: Objektnummern beliebiger Datensätze (Auftrag, Artikel, Firma …) – dort steht die Nachricht im Verlauf.")
+    subject: Optional[str] = Field(None, max_length=255, description="Betreff = das Anliegen (ohne «Re:»). Ohne Text Pflicht.")
+    body: str = Field("", max_length=20000, description="Der Text.")
     #: Leer heisst «jetzt»; in der Zukunft ist es eine Erinnerung bzw. später gesendet.
-    at: Optional[datetime] = None
+    at: Optional[datetime] = Field(None, description="Zeitpunkt; leer = jetzt, in der Zukunft = Erinnerung bzw. später senden.")
     #: **Nur bei einem Gespräch** (``live``): «wurde angerufen» – dann ist der Kontakt im
     #: «An» der Absender und ich der Empfänger. Ein Anruf hält fest, was passiert ist; wer
     #: ihn erfasst hat, steht weiterhin in ``created_by``. Bei jedem anderen Kanal 400.
-    incoming: bool = False
+    incoming: bool = Field(False, description="Nur bei einem Anruf: true = wir wurden angerufen.")
     #: ►►► **Die Versandart** (``domain.DELIVERIES``) – nur bei einer E-Mail. ◄◄◄ ``mail``:
     #: wie gewohnt (An/Cc sehen einander, Bcc bleibt Bcc). ``circular`` (Rundschreiben):
     #: jede Person im «An» bekommt ihre eigene Mail mit Anrede, niemand sieht die anderen.
     #: ``newsletter``: ebenso, aber nur an Angemeldete und mit Abmeldelink.
-    delivery: Literal["mail", "circular", "newsletter"] = "mail"
+    delivery: Literal["mail", "circular", "newsletter"] = Field("mail", description="Nur E-Mail: 'mail' (alle sehen einander), 'circular' (jede Person einzeln mit Anrede), 'newsletter' (einzeln, nur Angemeldete).")
 
 
 class MessageOut(BaseModel):

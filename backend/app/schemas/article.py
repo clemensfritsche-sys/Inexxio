@@ -18,7 +18,10 @@ ALLOWED_SERIALIZATION = ("unit", "batch")
 # Artikelnamen bewusst KURZ (Feed, Etiketten, Listen); gekappt hier, das Frontend zusätzlich.
 NAME_MAX_LENGTH = 32
 
-_SIZE_RE = re.compile(r"^\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?)+$")
+#: ►►► **Abmessungen: genau drei Masse in mm, aufsteigend** («klein x mittel x gross»). ◄◄◄
+#: Eine Regel – der Prüfer (``normalize_size``) und die Beschreibung des Feldes lesen sie hier.
+SIZE_PATTERN = r"^\d+(\.\d+)?x\d+(\.\d+)?x\d+(\.\d+)?$"
+_SIZE_RE = re.compile(SIZE_PATTERN)
 
 
 def clean_article_name(v: Optional[str], *, required: bool = True) -> Optional[str]:
@@ -31,7 +34,11 @@ def clean_article_name(v: Optional[str], *, required: bool = True) -> Optional[s
     v = v.strip()
     if not v:
         raise ValueError("Name ist ein Pflichtfeld" if required else "Name darf nicht leer sein")
-    return v[:NAME_MAX_LENGTH].rstrip()
+    # **Nie still kürzen** – der Probelauf soll merken, dass der Name zu lang ist.
+    if len(v) > NAME_MAX_LENGTH:
+        raise ValueError(f"Name ist zu lang – höchstens {NAME_MAX_LENGTH} Zeichen "
+                         f"(jetzt {len(v)})")
+    return v
 
 
 # ─── Wiederverwendbare Validatoren ───────────────────────────────────────────
@@ -39,13 +46,13 @@ def clean_article_name(v: Optional[str], *, required: bool = True) -> Optional[s
 def normalize_size(raw: str) -> str:
     """Validiere & normalisiere eine Grössenangabe.
 
-    Regeln: Zahlen getrennt durch 'x', jeweils > 0, aufsteigend (klein → gross),
-    z. B. ``3x40x600``. ``×`` und ``X`` werden zu ``x`` normalisiert.
+    Regeln: genau drei Masse in mm, getrennt durch 'x', jeweils > 0, aufsteigend
+    (klein → gross), z. B. ``3x40x600``. ``×`` und ``X`` werden zu ``x`` normalisiert.
     """
     s = raw.strip().lower().replace("×", "x").replace(" ", "")
     if not _SIZE_RE.match(s):
         raise ValueError(
-            "Grösse muss aus Zahlen bestehen, getrennt durch 'x' (z. B. 3x40x600)"
+            "Abmessungen sind drei Masse in mm, getrennt durch 'x' (z. B. 3x40x600)"
         )
     parts = [float(p) for p in s.split("x")]
     if any(p <= 0 for p in parts):
@@ -91,8 +98,7 @@ def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
 
 
 # Optionale Stammdatenfelder (dynamische Feldliste): Validatoren je Feld.
-_OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "supplier_article_number",
-                         "hs_code", "origin_country")
+_OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "hs_code", "origin_country")
 _OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
 #: Ein Link ins Web: Schema ``http``/``https`` und ein Host danach.
 _WEB_LINK = re.compile(r"^https?://[^\s/]", re.IGNORECASE)
@@ -114,34 +120,58 @@ class ArticleCreate(BaseModel):
     ``services/articles.missing_for_release`` – der einen Stelle, die auch ``/validate``
     beantwortet."""
 
-    name: str
-    unit: Optional[str] = None            # Default 'Stk' (siehe ``_defaults``)
-    serialization: Optional[str] = None   # Default 'unit'
-    size: Optional[str] = None            # optional
-    weight_kg: Optional[Decimal] = None   # optional
-    # Optionale Stammdaten (nur bei Bedarf gepflegt)
-    material: Optional[str] = None
-    cad_url: Optional[str] = None
-    surface: Optional[str] = None
-    supplier_article_number: Optional[str] = None
-    min_order_qty: Optional[Decimal] = None
-    safety_stock: Optional[Decimal] = None
-    is_hazmat: Optional[bool] = None            # Gefahrgut
+    name: str = Field(
+        description=f"Kurzer Name für Feed, Etikett und Listen – höchstens {NAME_MAX_LENGTH} "
+                    "Zeichen.", json_schema_extra={"maxLength": NAME_MAX_LENGTH},
+        examples=["Welle Ø20 x 300"])
+    unit: Optional[str] = Field(
+        None, description="Mengeneinheit: " + ", ".join(ALLOWED_UNITS) + " (leer = Stk).")
+    serialization: Optional[str] = Field(
+        None, description="Wie Stücke gezählt werden: 'unit' = jedes Stück einzeln (Einzelteil), "
+                          "'batch' = eine Charge (leer = unit).")
+    size: Optional[str] = Field(
+        None, description="Abmessungen in mm: genau drei Masse, aufsteigend (klein x mittel x "
+                          "gross), getrennt durch 'x', ohne Einheit. Pflicht zur Freigabe.",
+        json_schema_extra={"pattern": SIZE_PATTERN}, examples=["3x40x600"])
+    weight_kg: Optional[Decimal] = Field(
+        None, description="Gewicht eines Stücks in kg, grösser als 0, höchstens 3 "
+                          "Nachkommastellen. Pflicht zur Freigabe.", examples=["2.5"])
+    material: Optional[str] = Field(None, description="Werkstoff, z. B. «S235» oder «PA6».")
+    cad_url: Optional[str] = Field(
+        None, description="Link zur CAD-Zeichnung im Web – beginnt mit http:// oder https://.")
+    surface: Optional[str] = Field(None, description="Oberfläche, z. B. «verzinkt».")
+    min_order_qty: Optional[Decimal] = Field(
+        None, description="Mindestbestellmenge in der Mengeneinheit, ≥ 0, höchstens 3 "
+                          "Nachkommastellen.")
+    safety_stock: Optional[Decimal] = Field(
+        None, description="Sicherheitsbestand in der Mengeneinheit, ≥ 0, höchstens 3 "
+                          "Nachkommastellen.")
+    is_hazmat: Optional[bool] = Field(None, description="Gefahrgut?")
     #: **Ware oder Dienstleistung** – daraus folgen Steuersatz und Lieferbedingung im
     #: Zahlungsmodul (Ware: Lieferadresse; Dienstleistung: Sitz des Empfängers).
-    is_service: Optional[bool] = None
+    is_service: Optional[bool] = Field(
+        None, description="Dienstleistung statt Ware? Bestimmt im Zahlungsmodul Steuersatz und "
+                          "Lieferbedingung.")
     #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind weltweit
     #: identisch, der Rest national.
-    hs_code: Optional[str] = None
+    hs_code: Optional[str] = Field(None, description="Zolltarifnummer (HS), 6 bis 8 Ziffern.")
     #: **Ursprungsland** (ISO-2) – eine eigene Angabe, nicht das Versandland.
-    origin_country: Optional[str] = None
+    origin_country: Optional[str] = Field(
+        None, description="Ursprungsland als ISO-Code mit 2 Buchstaben (z. B. CH) – nicht das "
+                          "Versandland.")
     #: Der Erzeugungsprozess. **Pflicht** – ein Artikel ohne ihn kann nichts erzeugen.
-    steps: list[ModuleInput] = Field(default_factory=list)
+    steps: list[ModuleInput] = Field(
+        default_factory=list,
+        description="Der Erzeugungsprozess: die Schritte, die jedes neue Stück durchläuft. "
+                    "Mindestens einer. Ein gekauftes Teil: Zahlung (Ausgabe) mit dem Lieferanten, "
+                    "dann Bewegen ins Lager.")
     #: **Welchen Artikel löst dieser hier ab?** (Objektnummer, optional.)
     #:
     #: Steht am **Nachfolger** (einziger Moment: die Anlage). Wirkung:
     #: ``predecessor.replaced_by_id`` zeigt hierher, der Vorgänger geht ausser Betrieb.
-    replaces_object_id: Optional[int] = None
+    replaces_object_id: Optional[int] = Field(
+        None, description="Objektnummer des Artikels, den dieser ablöst (der alte geht ausser "
+                          "Betrieb). Leer = neu.")
 
     @field_validator(*_OPTIONAL_TEXT_FIELDS)
     @classmethod
@@ -198,12 +228,13 @@ class ArticleCreate(BaseModel):
             return v
         return normalize_size(v)
 
-    @field_validator("weight_kg")
+    @field_validator("weight_kg", mode="before")
     @classmethod
-    def _weight_valid(cls, v: Optional[Decimal]) -> Optional[Decimal]:
-        if v is None:
-            return v
-        return validate_weight(v)
+    def _weight_valid(cls, v: object) -> Optional[Decimal]:
+        """Wie Menschen Zahlen schreiben («2,5») – gelesen an der einen Stelle (``domain/number``)."""
+        from ..domain import number
+        d = number.decimal(v)
+        return None if d is None else validate_weight(d)
 
     @model_validator(mode="after")
     def _defaults(self) -> "ArticleCreate":
@@ -270,7 +301,6 @@ class ArticleResponse(BaseModel):
     material: Optional[str] = None
     cad_url: Optional[str] = None
     surface: Optional[str] = None
-    supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: bool = False                     # Gefahrgut
