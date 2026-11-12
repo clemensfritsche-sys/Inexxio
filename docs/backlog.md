@@ -47,6 +47,8 @@ Aus dem Audit vom August 2026 (`docs/history/2026-08-findings.md`, dort mit Ursa
 
 ## Shop
 
+> **In Arbeit als Projekt «Sortiment»:** `docs/konzept/sortiment.md` (Konzept, nichts entschieden).
+
 **Offen.** Das Zahlungsmodul trägt einen Shop (ein Aufruf legt den Auftrag samt Beleg an,
 `can` ist Auskunft und Tor auch für einen Shop-Server, Karte und QR-Rechnung sind da). Was
 fehlt, liegt **vor** dem Beleg:
