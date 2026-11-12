@@ -43,7 +43,8 @@ E-Mail:    Gmail API – je eigener Gesellschaft ein Postfach, Abgleich + Versan
            OPTIONAL: ohne OAuth-Client wird eine Mail nur erfasst (docs/gmail-setup.md)
 KI:        Claude API (Anthropic SDK) – EINE Tür services/ai.py: Lesen (Haiku 5.5),
            Verfassen, Gespräch, Folgen (Sonnet 5.5, mit Werkzeugen), «Auf einen Blick» (Haiku 5.5), Deckel
-           10 CHF je Tag, jeder Aufruf im Log (Kosten, Dauer). Abschreiben: Gemini über
+           10 CHF je Tag, jeder Aufruf im Log (Kosten, Dauer); im Gespräch Websuche und Lesen
+           von Seiten (Werkzeuge des Anbieters, je Suche 1 Rappen unter dem Deckel). Abschreiben: Gemini über
            Vertex AI; Bedeutungs-Zahlen: Vertex AI + pgvector. OPTIONAL: ohne ANTHROPIC_API_KEY
            bleibt das Gespräch Text; ohne Vertex fehlen Abschreiben und Suche nach Bedeutung
            («Der Assistent» unten)
@@ -416,7 +417,8 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   (`handgriff.operations`: schreibt, verlangt Personal, nimmt JSON; mit Datei → nur von Hand; nichts
   aus `routers/assistant`) – **keine Liste, keine Regel, nur Rechte**. Die KI bekommt sie als
   **Katalog** (`ai_tools.catalog`, aus den Routen erzeugt, nie gepflegt) im zwischengespeicherten
-  Auftrag, die Felder einer Handlung schlägt sie nach (`handlung`). **Lesen** ebenso: `abrufen` ruft
+  Auftrag, die Felder einer Handlung schlägt sie nach (`handlung`) – **jedes Feld sagt dort selbst,
+  was es braucht** (siehe Leitbild «Das Feld erklärt sich»), keine Regel nur für die KI. **Lesen** ebenso: `abrufen` ruft
   jede lesende Route des Personals (`handgriff.reads` · `look`), als `ai_tools.reader`, in eigener
   Sitzung, verworfen; den offenen Datensatz bekommt sie gleich mit der Nachricht.
 - **Vorbereiten = Probelauf** in eigener Sitzung, dann verworfen (Regel 1: nach aussen erst nach
@@ -614,6 +616,16 @@ KI-Aufruf) · `components/erp/document-draft.tsx` (jeder Entwurf) ·
 `lib/when.ts` (die einzige Datums-Ausgabe) · `lib/use-autosave.ts`. Zwei Wege für dieselbe
 Sache sind ein Bug, auch wenn beide funktionieren.
 
+### Das Feld erklärt sich – für Mensch und KI
+Eine Regel steht **am Feld** (Länge, Muster, Einheit, Bereich, Beispiel, worauf eine Nummer zeigt –
+`Field(description=…)`, Beschreibungen aus der Fachschicht erzeugt, wo es Listen sind) und gelangt
+von dort ins JSON-Schema, das die KI über `handlung` liest; was sich nicht am Feld sagen lässt,
+lehrt die Route im Probelauf mit einem Satz. **Nie still korrigieren** (zu lang wird abgewiesen,
+nicht gekürzt), **jede Abweisung nennt ihr Feld** (422: `field` und `fields` = je Feld der Satz –
+die Oberfläche schreibt ihn ans Feld, statt die Regel nachzubauen). Wächter
+`tests/test_felder_erklaert.py`: jedes Feld einer Handlung beschrieben · kein Feld kürzt still ·
+Abweisung mit Feld · Partner ist eine Person.
+
 ### Zwei Formen einer Regel – nie zwei Regeln
 Braucht eine Regel eine Form, die den **Grund** nennt, und eine, die **prüft/abweist**,
 stehen beide in EINEM Modul mit demselben Namensstamm (`release.pick_problem` ↔
@@ -653,7 +665,8 @@ Oberfläche und Dienst garantiert dasselbe.
   (fachlich) sind zwei Achsen – nicht verwechseln.
 - **Fehler**: eine Art aus `domain/errors` mit einem Satz, der die Sache **nennt** (Nummer oder
   Name in «»); Dienste und Fachschicht kennen kein HTTP (Wächter `test_errors`). Die Antwort ist
-  überall `{detail, code, field?}`; die Oberfläche liest sie als `ApiError` (`message`, `code`).
+  überall `{detail, code, field?}` (bei 422 dazu `fields`); die Oberfläche liest sie als `ApiError`
+  (`message`, `code`, `field`, `fields`).
 - Max. Funktionslänge 80 Zeilen · TypeScript strict, kein `any` · ESLint `no-unused-vars`.
 - **Autosave** überall (`lib/use-autosave.ts`, debounced 3 s, Enter sofort, Rückmeldung im
   Karten-Kopf). Kein Speichern-Knopf – Ausnahme: das Anlegen eines Prozessschritts.

@@ -8,7 +8,7 @@ steht nicht hier, sondern in `docs/history/` (zuletzt `2026-10-backlog-erledigt.
 
 ## Zwei-Deploy-Regel: vorgemerkte Drops
 
-Heute keiner. Zuletzt gefallen (Aufräumen A1, Migration 182): `captures.note`, `process_steps.source_article_id`, `webauthn_credentials.transports` · `device_type`, `attachments.width` · `height`; davor die Tabelle `voucher_documents` (Migration 178, die Papiere
+`articles.supplier_article_number` (entmappt 12.11.2026: «Wie bestellen?» je Partner am Zahlungsmodul ersetzt sie; Drop im nächsten Deploy). Zuletzt gefallen (Aufräumen A1, Migration 182): `captures.note`, `process_steps.source_article_id`, `webauthn_credentials.transports` · `device_type`, `attachments.width` · `height`; davor die Tabelle `voucher_documents` (Migration 178, die Papiere
 sind gewöhnliche Dokumente mit `document_links`); davor (Aufräumen 1, Migration 176): `is_active` an 23 Tabellen, an
 denen nie gelöscht wird; `created_by` an `attachments`, `document_refs`, `document_links`,
 `holidays`; `captures.captured_by`; `articles.process_version`, `process_steps.source_version`;
@@ -20,7 +20,7 @@ Wer eine Spalte entmappt, trägt sie in `PENDING_DROP`
 (`backend/tests/test_schema_is_built_by_the_migrations.py`) **und** hier ein; der Eintrag geht mit
 dem Drop.
 Bewusst gemappt geblieben (Entscheid E7): `articles.safety_stock`, `min_order_qty`,
-`supplier_article_number`, `user_profiles.language`, `notification_email`,
+`user_profiles.language`, `notification_email`,
 `notification_inapp`. Die beiden `notification_*` nimmt seit November 2026 keine Route mehr an
 (`docs/history/2026-11-11-erp-master-pruefung.md`) – Kandidaten für die Zwei-Deploy-Regel.
 

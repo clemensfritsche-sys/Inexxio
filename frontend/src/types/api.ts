@@ -3080,25 +3080,55 @@ export interface components {
          *     ``email`` nur im Geschäftskonto.
          */
         AddressIn: {
-            /** Account */
+            /**
+             * Account
+             * @description Konto der Anschrift: 'private' oder 'business' (nur mit Firma); nur beim Anlegen.
+             */
             account?: string | null;
-            /** Street1 */
+            /**
+             * Street1
+             * @description Strasse und Hausnummer.
+             */
             street1?: string | null;
-            /** Street2 */
+            /**
+             * Street2
+             * @description Zusatz (Postfach, Abteilung, z. H.).
+             */
             street2?: string | null;
-            /** Zip */
+            /**
+             * Zip
+             * @description Postleitzahl.
+             */
             zip?: string | null;
-            /** City */
+            /**
+             * City
+             * @description Ort.
+             */
             city?: string | null;
-            /** Region */
+            /**
+             * Region
+             * @description Kanton, Bundesland, Region (wo üblich).
+             */
             region?: string | null;
-            /** Country */
+            /**
+             * Country
+             * @description Land als ISO-Code mit 2 Buchstaben (z. B. CH).
+             */
             country?: string | null;
-            /** Email */
+            /**
+             * Email
+             * @description E-Mail für Rechnungen an diese Anschrift – nur im Geschäftskonto.
+             */
             email?: string | null;
-            /** Is Default Delivery */
+            /**
+             * Is Default Delivery
+             * @description true = Standard-Lieferadresse dieses Kontos (false bewirkt nichts).
+             */
             is_default_delivery?: boolean | null;
-            /** Is Default Billing */
+            /**
+             * Is Default Billing
+             * @description true = Standard-Rechnungsadresse dieses Kontos (false bewirkt nichts).
+             */
             is_default_billing?: boolean | null;
         };
         /**
@@ -3201,39 +3231,88 @@ export interface components {
          *     beantwortet.
          */
         ArticleCreate: {
-            /** Name */
+            /**
+             * Name
+             * @description Kurzer Name für Feed, Etikett und Listen – höchstens 32 Zeichen.
+             * @example Welle Ø20 x 300
+             */
             name: string;
-            /** Unit */
+            /**
+             * Unit
+             * @description Mengeneinheit: Stk, mm, m2, m3, kg, l (leer = Stk).
+             */
             unit?: string | null;
-            /** Serialization */
+            /**
+             * Serialization
+             * @description Wie Stücke gezählt werden: 'unit' = jedes Stück einzeln (Einzelteil), 'batch' = eine Charge (leer = unit).
+             */
             serialization?: string | null;
-            /** Size */
+            /**
+             * Size
+             * @description Abmessungen in mm: genau drei Masse, aufsteigend (klein x mittel x gross), getrennt durch 'x', ohne Einheit. Pflicht zur Freigabe.
+             * @example 3x40x600
+             */
             size?: string | null;
-            /** Weight Kg */
+            /**
+             * Weight Kg
+             * @description Gewicht eines Stücks in kg, grösser als 0, höchstens 3 Nachkommastellen. Pflicht zur Freigabe.
+             * @example 2.5
+             */
             weight_kg?: number | string | null;
-            /** Material */
+            /**
+             * Material
+             * @description Werkstoff, z. B. «S235» oder «PA6».
+             */
             material?: string | null;
-            /** Cad Url */
+            /**
+             * Cad Url
+             * @description Link zur CAD-Zeichnung im Web – beginnt mit http:// oder https://.
+             */
             cad_url?: string | null;
-            /** Surface */
+            /**
+             * Surface
+             * @description Oberfläche, z. B. «verzinkt».
+             */
             surface?: string | null;
-            /** Supplier Article Number */
-            supplier_article_number?: string | null;
-            /** Min Order Qty */
+            /**
+             * Min Order Qty
+             * @description Mindestbestellmenge in der Mengeneinheit, ≥ 0, höchstens 3 Nachkommastellen.
+             */
             min_order_qty?: number | string | null;
-            /** Safety Stock */
+            /**
+             * Safety Stock
+             * @description Sicherheitsbestand in der Mengeneinheit, ≥ 0, höchstens 3 Nachkommastellen.
+             */
             safety_stock?: number | string | null;
-            /** Is Hazmat */
+            /**
+             * Is Hazmat
+             * @description Gefahrgut?
+             */
             is_hazmat?: boolean | null;
-            /** Is Service */
+            /**
+             * Is Service
+             * @description Dienstleistung statt Ware? Bestimmt im Zahlungsmodul Steuersatz und Lieferbedingung.
+             */
             is_service?: boolean | null;
-            /** Hs Code */
+            /**
+             * Hs Code
+             * @description Zolltarifnummer (HS), 6 bis 8 Ziffern.
+             */
             hs_code?: string | null;
-            /** Origin Country */
+            /**
+             * Origin Country
+             * @description Ursprungsland als ISO-Code mit 2 Buchstaben (z. B. CH) – nicht das Versandland.
+             */
             origin_country?: string | null;
-            /** Steps */
+            /**
+             * Steps
+             * @description Der Erzeugungsprozess: die Schritte, die jedes neue Stück durchläuft. Mindestens einer. Ein gekauftes Teil: Zahlung (Ausgabe) mit dem Lieferanten, dann Bewegen ins Lager.
+             */
             steps?: components["schemas"]["ModuleInput"][];
-            /** Replaces Object Id */
+            /**
+             * Replaces Object Id
+             * @description Objektnummer des Artikels, den dieser ablöst (der alte geht ausser Betrieb). Leer = neu.
+             */
             replaces_object_id?: number | null;
         };
         /**
@@ -3385,8 +3464,6 @@ export interface components {
             cad_url?: string | null;
             /** Surface */
             surface?: string | null;
-            /** Supplier Article Number */
-            supplier_article_number?: string | null;
             /** Min Order Qty */
             min_order_qty?: string | null;
             /** Safety Stock */
@@ -3655,17 +3732,25 @@ export interface components {
          *     Alles Weitere wird danach am Datensatz gepflegt. ``is_own`` setzt nur ein Admin.
          */
         CompanyCreate: {
-            /** Company Name */
+            /**
+             * Company Name
+             * @description Name der Firma ohne Rechtsform, z. B. «Digitec Galaxus».
+             */
             company_name: string;
             /**
              * Legal Form
+             * @description Rechtsform, z. B. «AG», «GmbH».
              * @default
              */
             legal_form: string;
-            /** Uid Number */
+            /**
+             * Uid Number
+             * @description UID (z. B. CHE-123.456.789) – erkennt eine bekannte Firma; Prüfziffer wird geprüft.
+             */
             uid_number?: string | null;
             /**
              * Is Own
+             * @description Eine unserer Gesellschaften? Nur ein Admin.
              * @default false
              */
             is_own: boolean;
@@ -3793,31 +3878,71 @@ export interface components {
          *     (``sites.website_url`` = die Deployment-Adresse), keine Eingabe.
          */
         CompanySettingsUpdate: {
-            /** Company Name */
+            /**
+             * Company Name
+             * @description Name der Firma ohne Rechtsform, z. B. «Digitec Galaxus».
+             */
             company_name?: string | null;
-            /** Legal Form */
+            /**
+             * Legal Form
+             * @description Rechtsform, z. B. «AG», «GmbH».
+             */
             legal_form?: string | null;
-            /** Street */
+            /**
+             * Street
+             * @description Strasse – nur eine eigene Gesellschaft trägt eine Anschrift; eine fremde Firma ist Name, Rechtsform und UID (ihre Anschrift steht im Adressbuch ihrer Personen).
+             */
             street?: string | null;
-            /** Street Nr */
+            /**
+             * Street Nr
+             * @description Hausnummer – nur eigene Gesellschaft.
+             */
             street_nr?: string | null;
-            /** Zip Code */
+            /**
+             * Zip Code
+             * @description Postleitzahl – nur eigene Gesellschaft.
+             */
             zip_code?: string | null;
-            /** City */
+            /**
+             * City
+             * @description Ort – nur eigene Gesellschaft.
+             */
             city?: string | null;
-            /** Country */
+            /**
+             * Country
+             * @description Land als ISO-Code mit 2 Buchstaben (z. B. CH) – nur eigene Gesellschaft.
+             */
             country?: string | null;
-            /** Currency */
+            /**
+             * Currency
+             * @description Hauswährung als ISO-Code (z. B. CHF) – nur eigene Gesellschaft.
+             */
             currency?: string | null;
-            /** Uid Number */
+            /**
+             * Uid Number
+             * @description Unternehmens-Identifikationsnummer, z. B. CHE-123.456.789 (Prüfziffer wird geprüft).
+             * @example CHE-123.456.789
+             */
             uid_number?: string | null;
-            /** Vat Number */
+            /**
+             * Vat Number
+             * @description MWST-Nummer – nur eigene Gesellschaft.
+             */
             vat_number?: string | null;
-            /** Iban */
+            /**
+             * Iban
+             * @description IBAN für Zahlungen an uns – nur eigene Gesellschaft.
+             */
             iban?: string | null;
-            /** Phone */
+            /**
+             * Phone
+             * @description Telefon der eigenen Gesellschaft.
+             */
             phone?: string | null;
-            /** Is Own */
+            /**
+             * Is Own
+             * @description Eine unserer Gesellschaften? Nur ein Admin setzt das.
+             */
             is_own?: boolean | null;
         };
         /** CompanyTimeView */
@@ -3855,9 +3980,15 @@ export interface components {
          * @description Eine Runde Verfassen: das Gespräch und der letzte Stand (lebt im Browser).
          */
         ComposeIn: {
-            /** Turns */
+            /**
+             * Turns
+             * @description Das Gespräch bisher, älteste zuerst.
+             */
             turns: components["schemas"]["TurnIn"][];
-            /** Current */
+            /**
+             * Current
+             * @description Der letzte Stand des Papiers (wie die vorige Runde ihn lieferte), leer beim ersten Mal.
+             */
             current?: {
                 [key: string]: unknown;
             } | null;
@@ -3921,18 +4052,29 @@ export interface components {
             /**
              * Valid From
              * Format: date
+             * @description Gilt ab diesem Tag (JJJJ-MM-TT), höchstens 7 Tage zurück.
              */
             valid_from: string;
-            /** Weekly Minutes */
+            /**
+             * Weekly Minutes
+             * @description Sollzeit je Woche in Minuten (42 h = 2520); 0 = Austritt.
+             */
             weekly_minutes: number;
             /**
              * Workdays
+             * @description Arbeitstage: 0 = Montag … 6 = Sonntag.
              * @default []
              */
             workdays: number[];
-            /** Vacation Weeks */
+            /**
+             * Vacation Weeks
+             * @description Ferienwochen je Jahr (z. B. 5).
+             */
             vacation_weeks?: number | string | null;
-            /** Company Object Id */
+            /**
+             * Company Object Id
+             * @description Objektnummer der eigenen Gesellschaft, bei der die Person angestellt ist.
+             */
             company_object_id?: number | null;
         };
         /** ContractOut */
@@ -4095,26 +4237,40 @@ export interface components {
          *     Freigabe entstehen.
          */
         DefinitionLine: {
-            /** Article Object Id */
+            /**
+             * Article Object Id
+             * @description Objektnummer des Artikels.
+             */
             article_object_id: number;
-            /** Quantity */
+            /**
+             * Quantity
+             * @description Wie viele Einzelinstanzen (Stücke).
+             */
             quantity: number;
             /**
              * Origin
+             * @description Woher die Stücke kommen: 'neu' (werden mit dem Prozess des Artikels erzeugt) oder 'lager' (bestehende, in units).
              * @enum {string}
              */
             origin: "neu" | "lager";
-            /** Units */
+            /**
+             * Units
+             * @description Nur bei 'lager': genau quantity Stücke; welche frei sind, nennt GET /erp/orders/unit-options.
+             */
             units?: components["schemas"]["UnitPick"][];
             /**
              * Returns
+             * @description Kehren Stücke aus einem anderen Auftrag dorthin zurück? Für freie Stücke bedeutungslos.
              * @default true
              */
             returns: boolean;
         };
         /** DeleteIn */
         DeleteIn: {
-            /** Reason */
+            /**
+             * Reason
+             * @description Warum gelöscht wird – Pflicht, steht im Log.
+             */
             reason: string;
         };
         /** DocumentDetail */
@@ -4296,26 +4452,54 @@ export interface components {
         EntryIn: {
             /**
              * Kind
+             * @description 'in'/'out' = Stempel Kommen/Gehen, 'absence' = Absenz, 'proof' = Nachweis zu einer Absenz, 'booking' = Buchung (nur Admin), 'void' = Eintrag zurücknehmen.
              * @enum {string}
              */
             kind: "in" | "out" | "absence" | "proof" | "booking" | "void";
-            /** Day */
+            /**
+             * Day
+             * @description Der Tag (JJJJ-MM-TT), höchstens 7 Tage zurück; bei einer Absenz der erste Tag.
+             */
             day?: string | null;
-            /** Time */
+            /**
+             * Time
+             * @description Uhrzeit eines Stempels, HH:MM.
+             */
             time?: string | null;
-            /** Until */
+            /**
+             * Until
+             * @description Absenz: letzter Tag (leer = nur day).
+             */
             until?: string | null;
-            /** Art */
+            /**
+             * Art
+             * @description Absenz: 'ferien' (Ferien), 'krank' (Krankheit), 'unfall' (Unfall), 'militaer' (Militär/Zivildienst), 'eltern' (Mutter-/Vaterschaft), 'bezahlt' (Bezahlte Absenz), 'unbezahlt' (Unbezahlter Urlaub).
+             */
             art?: string | null;
-            /** Minutes */
+            /**
+             * Minutes
+             * @description Absenz: Minuten je Tag (leer = ganzer Tag); Buchung: Minuten ins Stundenkonto (±).
+             */
             minutes?: number | null;
-            /** Vacation Minutes */
+            /**
+             * Vacation Minutes
+             * @description Buchung: Minuten ins Ferienkonto (±).
+             */
             vacation_minutes?: number | null;
-            /** Note */
+            /**
+             * Note
+             * @description Bemerkung (bei einer Buchung der Grund).
+             */
             note?: string | null;
-            /** Proof Url */
+            /**
+             * Proof Url
+             * @description Nachweis: Link des Dokuments (wird über das Pflichtfeld time.proof gesetzt).
+             */
             proof_url?: string | null;
-            /** Replaces Id */
+            /**
+             * Replaces Id
+             * @description Id des Eintrags, den dieser ersetzt, zurücknimmt oder belegt.
+             */
             replaces_id?: number | null;
         };
         /**
@@ -4357,20 +4541,42 @@ export interface components {
          *     Durch die Vererbung kann die Liste auch nicht mehr auseinanderlaufen.
          */
         ErpAdminUpdate: {
-            /** First Name */
+            /**
+             * First Name
+             * @description Vorname. Hat ein Partner keinen Menschen (ein Shop), nennt er die Rolle, z. B. «Bestellung».
+             */
             first_name?: string | null;
-            /** Last Name */
+            /**
+             * Last Name
+             * @description Nachname. Bei einem Shop ohne Menschen der Shop, z. B. «Galaxus».
+             */
             last_name?: string | null;
-            /** Date Of Birth */
+            /**
+             * Date Of Birth
+             * @description Geburtsdatum (Personal: Pflicht für die Zeiterfassung).
+             */
             date_of_birth?: string | null;
-            /** Phone */
+            /**
+             * Phone
+             * @description Telefon, international lesbar (z. B. +41 44 123 45 67).
+             */
             phone?: string | null;
-            /** Company Object Id */
+            /**
+             * Company Object Id
+             * @description Objektnummer der Firma, zu der die Person gehört; leer = Privatperson.
+             */
             company_object_id?: number | null;
+            /** @description Statt einer Nummer: die Firma nennen – sie wird erkannt oder angelegt. */
             new_company?: components["schemas"]["NewCompany"] | null;
-            /** Role */
+            /**
+             * Role
+             * @description Zugang: 'admin', 'employee' (Personal) oder 'user' (Kunde, Lieferant). Nur der Admin.
+             */
             role?: ("admin" | "employee" | "user") | null;
-            /** Competences */
+            /**
+             * Competences
+             * @description Was die Person kann (nur Personal, nur der Admin): Wörter aus der Liste der Kompetenzen.
+             */
             competences?: string[] | null;
         };
         /**
@@ -4691,9 +4897,13 @@ export interface components {
             /**
              * Day
              * Format: date
+             * @description Der Feiertag, JJJJ-MM-TT.
              */
             day: string;
-            /** Name */
+            /**
+             * Name
+             * @description Name, z. B. «Auffahrt».
+             */
             name: string;
         };
         /** HolidayOut */
@@ -4725,7 +4935,10 @@ export interface components {
          * @description Mehrere Feiertage auf einmal übernehmen (der bestätigte Vorschlag).
          */
         HolidaysIn: {
-            /** Holidays */
+            /**
+             * Holidays
+             * @description Die Feiertage, die übernommen werden.
+             */
             holidays: components["schemas"]["HolidayIn"][];
         };
         /**
@@ -4958,16 +5171,29 @@ export interface components {
         LoopIn: {
             /**
              * Every
+             * @description Takt: 'week' (wöchentlich), 'month' (monatlich), 'quarter' (vierteljährlich), 'half' (halbjährlich), 'year' (jährlich).
              * @enum {unknown}
              */
             every?: "week" | "month" | "quarter" | "half" | "year" | null;
-            /** First */
+            /**
+             * First
+             * @description Tag der ersten Wiederholung, JJJJ-MM-TT, heute oder später.
+             */
             first?: string | null;
-            /** Until */
+            /**
+             * Until
+             * @description Letzter Tag (JJJJ-MM-TT) – oder count, nie beides; beides leer = unbefristet.
+             */
             until?: string | null;
-            /** Count */
+            /**
+             * Count
+             * @description Anzahl Wiederholungen (1–1000) – oder until, nie beides.
+             */
             count?: number | null;
-            /** Takes */
+            /**
+             * Takes
+             * @description Je Zeile (gleiche Reihenfolge), was die Wiederholung nimmt: 'same' (gleiche Einzelinstanzen) oder 'fifo'; bei 'neu' null. Ohne Vorbelegung – bei 'lager' Pflicht.
+             */
             takes?: ("same" | "fifo" | "new" | null)[];
         };
         /**
@@ -5076,32 +5302,56 @@ export interface components {
          *     dieses Anliegen.
          */
         MessageIn: {
-            /** Channel */
+            /**
+             * Channel
+             * @description Der Kanal: 'phone' (Telefon), 'intern' (Intern), 'note' (Notiz) oder für eine E-Mail das Postfach 'c<Objektnummer der eigenen Gesellschaft>' – welche es gibt, nennt GET /erp/messages/channels.
+             */
             channel: string;
-            /** To */
+            /**
+             * To
+             * @description Empfänger: Objektnummern von Personen (nie Firmen).
+             */
             to?: number[];
-            /** Cc */
+            /**
+             * Cc
+             * @description In Kopie: Objektnummern von Personen.
+             */
             cc?: number[];
-            /** Bcc */
+            /**
+             * Bcc
+             * @description Blindkopie: Objektnummern von Personen.
+             */
             bcc?: number[];
-            /** About */
+            /**
+             * About
+             * @description «Betrifft»: Objektnummern beliebiger Datensätze (Auftrag, Artikel, Firma …) – dort steht die Nachricht im Verlauf.
+             */
             about?: number[];
-            /** Subject */
+            /**
+             * Subject
+             * @description Betreff = das Anliegen (ohne «Re:»). Ohne Text Pflicht.
+             */
             subject?: string | null;
             /**
              * Body
+             * @description Der Text.
              * @default
              */
             body: string;
-            /** At */
+            /**
+             * At
+             * @description Zeitpunkt; leer = jetzt, in der Zukunft = Erinnerung bzw. später senden.
+             */
             at?: string | null;
             /**
              * Incoming
+             * @description Nur bei einem Anruf: true = wir wurden angerufen.
              * @default false
              */
             incoming: boolean;
             /**
              * Delivery
+             * @description Nur E-Mail: 'mail' (alle sehen einander), 'circular' (jede Person einzeln mit Anrede), 'newsletter' (einzeln, nur Angemeldete).
              * @default mail
              * @enum {string}
              */
@@ -5326,15 +5576,20 @@ export interface components {
         NewCompany: {
             /**
              * Company Name
+             * @description Name der Firma ohne Rechtsform.
              * @default
              */
             company_name: string;
             /**
              * Legal Form
+             * @description Rechtsform, z. B. «AG».
              * @default
              */
             legal_form: string;
-            /** Uid Number */
+            /**
+             * Uid Number
+             * @description UID – mit ihr wird eine bekannte Firma erkannt statt neu angelegt.
+             */
             uid_number?: string | null;
         };
         /** NewsletterIn */
@@ -5390,11 +5645,19 @@ export interface components {
          * @description Der Entwurf, so wie ihn die Oberfläche schickt.
          */
         OrderCreate: {
-            /** Lines */
+            /**
+             * Lines
+             * @description Was der Auftrag bearbeitet: je Artikel eine Zeile mit Menge und Herkunft.
+             */
             lines?: components["schemas"]["DefinitionLine"][];
-            /** Steps */
+            /**
+             * Steps
+             * @description Die Schritte, die die Stücke der Reihe nach durchlaufen. Bei einer Zeile 'neu' gilt der Prozess des Artikels und diese Liste bleibt leer.
+             */
             steps?: components["schemas"]["ModuleInput"][];
+            /** @description Wiederholung wie ein Dauerauftrag – nur an einem regulären Auftrag; leer = einmalig. */
             loop?: components["schemas"]["LoopIn"] | null;
+            /** @description Das eine Datum: «bis» (fertig bis) oder «ab» (nicht vor); leer = so schnell wie möglich. */
             date?: components["schemas"]["OrderDate"] | null;
         };
         /**
@@ -5411,6 +5674,7 @@ export interface components {
             /**
              * On
              * Format: date
+             * @description Der Tag, JJJJ-MM-TT – heute oder später.
              */
             on: string;
         };
@@ -5419,6 +5683,7 @@ export interface components {
          * @description Das Datum verschieben – ``date`` leer heisst: keins mehr.
          */
         OrderDateIn: {
+            /** @description Das neue Datum; leer = keins mehr. */
             date?: components["schemas"]["OrderDate"] | null;
         };
         /**
@@ -5756,20 +6021,34 @@ export interface components {
          *     später mit dieser E-Mail an, ist sie **dieser** Datensatz, samt Historie.
          */
         PersonCreate: {
-            /** First Name */
+            /**
+             * First Name
+             * @description Vorname. Ein Shop ohne Menschen heisst nach der Rolle, z. B. «Bestellung».
+             */
             first_name: string;
-            /** Last Name */
+            /**
+             * Last Name
+             * @description Nachname. Bei einem Shop der Shop, z. B. «Galaxus».
+             */
             last_name: string;
-            /** Email */
+            /**
+             * Email
+             * @description E-Mail – mit ihr meldet sie sich an und bekommt Belege.
+             */
             email: string;
             /**
              * Role
+             * @description 'user' für Kunden und Lieferanten; Personal ('employee', 'admin') legt nur der Admin an.
              * @default user
              * @enum {string}
              */
             role: "admin" | "employee" | "user";
-            /** Company Object Id */
+            /**
+             * Company Object Id
+             * @description Objektnummer der Firma, zu der sie gehört; leer = Privatperson.
+             */
             company_object_id?: number | null;
+            /** @description Statt einer Nummer: die Firma nennen – sie wird erkannt oder angelegt. */
             new_company?: components["schemas"]["NewCompany"] | null;
         };
         /**
@@ -6253,18 +6532,33 @@ export interface components {
          *     der Browser aufnimmt (``audio/webm;codecs=opus``, Safari ``audio/mp4``).
          */
         RecordingIn: {
-            /** Hint Object Id */
+            /**
+             * Hint Object Id
+             * @description Objektnummer des Datensatzes, der offen war.
+             */
             hint_object_id?: number | null;
-            /** Mime */
+            /**
+             * Mime
+             * @description Tonformat des Browsers, z. B. audio/webm;codecs=opus.
+             */
             mime: string;
-            /** Context */
+            /**
+             * Context
+             * @description Die Stecknadel: Stelle, an der die Aufnahme ansetzt.
+             */
             context?: string | null;
-            /** Talk */
+            /**
+             * Talk
+             * @description Das offene Gespräch, in das der Text gehört.
+             */
             talk?: number | null;
         };
         /** RefIn */
         RefIn: {
-            /** Object Id */
+            /**
+             * Object Id
+             * @description Objektnummer des Datensatzes, an dem das Dokument erscheinen soll.
+             */
             object_id: number;
         };
         /**
@@ -6337,15 +6631,20 @@ export interface components {
          * @description Senden: an wen, ob sie unterschreiben sollen, und ein Satz dazu.
          */
         SendIn: {
-            /** To */
+            /**
+             * To
+             * @description Empfänger: Objektnummern von Personen; jede bekommt ihren Link.
+             */
             to: number[];
             /**
              * Sign
+             * @description Sollen sie unterschreiben?
              * @default false
              */
             sign: boolean;
             /**
              * Note
+             * @description Ein Satz zur Mail.
              * @default
              */
             note: string;
@@ -6439,19 +6738,34 @@ export interface components {
          *     wäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst».
          */
         StepConfirm: {
-            /** Values */
+            /**
+             * Values
+             * @description Je gezogener Einzelinstanz (Nummer) die Werte der Erfassungspunkte (Schlüssel → Wert); ohne Erfassungspunkte leer.
+             */
             values?: {
                 [key: string]: {
                     [key: string]: unknown;
                 };
             };
-            /** Instance Object Id */
+            /**
+             * Instance Object Id
+             * @description Objektnummer der verifizierten Instanz – das Etikett, das gescannt wurde.
+             */
             instance_object_id?: number | null;
-            /** Verification */
+            /**
+             * Verification
+             * @description Wie verifiziert wurde: 'scan' oder 'manual' (Nummer von Hand eingegeben).
+             */
             verification?: string | null;
-            /** Sources */
+            /**
+             * Sources
+             * @description Nur Verbrauch: Objektnummern der Instanzen (Kisten), aus denen genommen wird; leer = ältester freier Bestand zuerst.
+             */
             sources?: number[];
-            /** Place */
+            /**
+             * Place
+             * @description Nur Bewegen: Objektnummer des gescannten Zielorts (Halter) – Pflicht, wenn das Modul kein Ziel vorgibt.
+             */
             place?: number | null;
         };
         /**
@@ -6573,7 +6887,10 @@ export interface components {
          * @description **Stopp** – wie viele Abschnitte (je 5 Minuten, ab 0 gezählt) es gab.
          */
         StopIn: {
-            /** Segments */
+            /**
+             * Segments
+             * @description Wie viele Abschnitte (je 5 Minuten, ab 0 gezählt) es gab.
+             */
             segments: number;
         };
         /**
@@ -6584,10 +6901,14 @@ export interface components {
         SwipeIn: {
             /**
              * Direction
+             * @description Was der Knopf zeigte: 'in' (Kommen) oder 'out' (Gehen).
              * @enum {string}
              */
             direction: "in" | "out";
-            /** Key */
+            /**
+             * Key
+             * @description Ein zufälliger Schlüssel je Wisch – zweimal derselbe schreibt nur einmal.
+             */
             key: string;
         };
         /** SyncOut */
@@ -6677,14 +6998,24 @@ export interface components {
          * @description Ein Pflichtfeld, das die Freigabe gleich mitsetzt (``services/fields``).
          */
         TargetIn: {
-            /** Object Id */
+            /**
+             * Object Id
+             * @description Objektnummer des Datensatzes mit dem Pflichtfeld.
+             */
             object_id: number;
-            /** Part */
+            /**
+             * Part
+             * @description Teil des Datensatzes, z. B. der Schritt (step:<id>) – wo das Feld sitzt.
+             */
             part?: string | null;
-            /** Field */
+            /**
+             * Field
+             * @description Schlüssel des Pflichtfelds (z. B. voucher.original, time.proof) – welche es gibt, nennt GET /erp/documents/of/{nummer}.
+             */
             field: string;
             /**
              * Extra
+             * @description Was das Feld zusätzlich braucht, z. B. {"note": …} beim Annehmen einer Abweichung.
              * @default {}
              */
             extra: {
@@ -6742,9 +7073,15 @@ export interface components {
          * @description «Aus Vorlage»: welche Gesellschaft, welcher Rechtstext (``agb`` · ``datenschutz``).
          */
         TemplateIn: {
-            /** Company */
+            /**
+             * Company
+             * @description Objektnummer der eigenen Gesellschaft.
+             */
             company: number;
-            /** Kind */
+            /**
+             * Kind
+             * @description Welcher Rechtstext: 'agb' oder 'datenschutz'.
+             */
             kind: string;
         };
         /**
@@ -6753,7 +7090,10 @@ export interface components {
          *     Gesellschaft, der es ohnehin zufiele) = Standard wiederherstellen.
          */
         TerritoryAssign: {
-            /** Company Object Id */
+            /**
+             * Company Object Id
+             * @description Objektnummer der eigenen Gesellschaft, der das Gebiet gehört; leer = Standard.
+             */
             company_object_id?: number | null;
         };
         /**
@@ -6856,9 +7196,15 @@ export interface components {
          *     nötig ist (je Absenzart; ``None``/0 = nie).
          */
         TimeRulesIn: {
-            /** Canton */
+            /**
+             * Canton
+             * @description Kanton als Kürzel (z. B. ZH) – für den Vorschlag der Feiertage.
+             */
             canton?: string | null;
-            /** Proof */
+            /**
+             * Proof
+             * @description Je Absenzart, ab welchem Arbeitstag ein Nachweis nötig ist (leer/0 = nie).
+             */
             proof?: {
                 [key: string]: number | null;
             } | null;
@@ -6970,9 +7316,15 @@ export interface components {
         };
         /** TurnIn */
         TurnIn: {
-            /** Who */
+            /**
+             * Who
+             * @description Wer spricht: 'user' oder 'ai'.
+             */
             who: string;
-            /** Text */
+            /**
+             * Text
+             * @description Was gesagt wurde.
+             */
             text: string;
         };
         /**
@@ -7075,9 +7427,16 @@ export interface components {
          *     mit der Absicht, in der sie gewählt wurden. Kein zweiter Weg «nur nach Kriterium».
          */
         UnitPick: {
-            /** Number */
+            /**
+             * Number
+             * @description Nummer der Einzelinstanz, «<Instanznummer>-<Suffix>».
+             * @example 100000300-1
+             */
             number: string;
-            /** From Order */
+            /**
+             * From Order
+             * @description Objektnummer des Auftrags, in dem das Stück bei der Wahl lief (dann eine Abweichung); leer = frei aus dem Bestand.
+             */
             from_order?: number | null;
         };
         /**
@@ -7193,16 +7552,32 @@ export interface components {
          *     Employment/role fields are intentionally excluded; use ErpAdminUpdate for those.
          */
         UserProfileUpdate: {
-            /** First Name */
+            /**
+             * First Name
+             * @description Vorname. Hat ein Partner keinen Menschen (ein Shop), nennt er die Rolle, z. B. «Bestellung».
+             */
             first_name?: string | null;
-            /** Last Name */
+            /**
+             * Last Name
+             * @description Nachname. Bei einem Shop ohne Menschen der Shop, z. B. «Galaxus».
+             */
             last_name?: string | null;
-            /** Date Of Birth */
+            /**
+             * Date Of Birth
+             * @description Geburtsdatum (Personal: Pflicht für die Zeiterfassung).
+             */
             date_of_birth?: string | null;
-            /** Phone */
+            /**
+             * Phone
+             * @description Telefon, international lesbar (z. B. +41 44 123 45 67).
+             */
             phone?: string | null;
-            /** Company Object Id */
+            /**
+             * Company Object Id
+             * @description Objektnummer der Firma, zu der die Person gehört; leer = Privatperson.
+             */
             company_object_id?: number | null;
+            /** @description Statt einer Nummer: die Firma nennen – sie wird erkannt oder angelegt. */
             new_company?: components["schemas"]["NewCompany"] | null;
         };
         /** ValidationError */
@@ -7928,21 +8303,45 @@ export interface components {
          *     bewusst nicht – eine getippte wäre die zweite Aussage über dieselbe Sache.
          */
         VoucherPrice: {
-            /** Id */
+            /**
+             * Id
+             * @description Id der Position (aus den Positionen des Belegs).
+             */
             id: number;
-            /** Price */
+            /**
+             * Price
+             * @description Einzelpreis netto in der Währung des Belegs, z. B. «46.50».
+             */
             price?: string | null;
-            /** Vat */
+            /**
+             * Vat
+             * @description Steuersatz-Schlüssel – nur einer aus vat_choices der Position.
+             */
             vat?: string | null;
-            /** Hs Code */
+            /**
+             * Hs Code
+             * @description Zolltarifnummer (HS), 6 bis 8 Ziffern.
+             */
             hs_code?: string | null;
-            /** Origin Country */
+            /**
+             * Origin Country
+             * @description Ursprungsland, ISO-Code mit 2 Buchstaben.
+             */
             origin_country?: string | null;
-            /** Text */
+            /**
+             * Text
+             * @description Zusatztext zur Position auf dem Papier.
+             */
             text?: string | null;
-            /** Part */
+            /**
+             * Part
+             * @description Teilbetrag netto dieser Position; null = Vollbetrag.
+             */
             part?: string | null;
-            /** Weight Kg */
+            /**
+             * Weight Kg
+             * @description Gewicht je Stück in kg (für Zoll und Versand).
+             */
             weight_kg?: string | null;
         };
         /**
@@ -8134,63 +8533,150 @@ export interface components {
          *     bleibt, wie es war.
          */
         VoucherUpdate: {
-            /** Action */
+            /**
+             * Action
+             * @description Die Handlung (siehe oben): price, party, ask, unask, quote, decline, agree, revoke, correct, bill, accept, pay, refund, writeoff, tip, reverse, remind, export, release, ownership, terms, address, currency, issuer, incoterm. Was gerade geht, sagt «can» des Belegs.
+             */
             action: string;
-            /** Kind */
+            /**
+             * Kind
+             * @description release: welches Papier – 'confirmation' (AB) oder 'receipt' (Quittung).
+             */
             kind?: string | null;
-            /** Party */
+            /**
+             * Party
+             * @description Objektnummer des Partners – immer eine Person, nie eine Firma (die Firma steht an der Person).
+             */
             party?: number | null;
-            /** Parties */
+            /**
+             * Parties
+             * @description ask: wen anfragen (Objektnummern von Personen); leer = alle zugelassenen.
+             */
             parties?: number[];
-            /** Lead Days */
+            /**
+             * Lead Days
+             * @description terms: Lieferfrist in Tagen.
+             */
             lead_days?: number | null;
-            /** Payment Days */
+            /**
+             * Payment Days
+             * @description terms: Zahlungsfrist in Tagen.
+             */
             payment_days?: number | null;
-            /** Amount */
+            /**
+             * Amount
+             * @description Betrag in der Währung des Belegs, z. B. «46.50» (quote, pay, refund, writeoff, tip, bill).
+             */
             amount?: string | null;
-            /** Reference */
+            /**
+             * Reference
+             * @description Referenz einer Zahlung (Bank, Quittung) – eine Referenz gehört zu genau einer Zahlung; bill: die Rechnungsnummer des Lieferanten.
+             */
             reference?: string | null;
-            /** Note */
+            /**
+             * Note
+             * @description Vermerk (einer Zahlung, einer angenommenen Abweichung).
+             */
             note?: string | null;
-            /** Booked On */
+            /**
+             * Booked On
+             * @description pay: Tag der Zahlung, JJJJ-MM-TT (leer = heute).
+             */
             booked_on?: string | null;
-            /** Entry */
+            /**
+             * Entry
+             * @description Id der Geld-Zeile, die gegengebucht (reverse) bzw. auf die Karte erstattet wird.
+             */
             entry?: number | null;
-            /** Billed On */
+            /**
+             * Billed On
+             * @description bill: Rechnungsdatum, JJJJ-MM-TT – bei einer Lieferantenrechnung das Datum auf ihrem Papier (leer = heute).
+             */
             billed_on?: string | null;
-            /** Corrects */
+            /**
+             * Corrects
+             * @description correct: Id des Belegs, den dieser mindert (auch in einem anderen Auftrag); null nimmt es zurück.
+             */
             corrects?: number | null;
-            /** Lines */
+            /**
+             * Lines
+             * @description price: je Position ihre Id und was sich ändert.
+             */
             lines?: components["schemas"]["VoucherPrice"][] | null;
-            /** Vat */
+            /**
+             * Vat
+             * @description bill bei einer Ausgabe: Steuersatz-Schlüssel der Lieferantenrechnung.
+             */
             vat?: string | null;
-            /** Currency */
+            /**
+             * Currency
+             * @description currency: Währung als ISO-Code (z. B. CHF, EUR) – eine je Vorgang, nur vor der Zusage.
+             */
             currency?: string | null;
-            /** Method */
+            /**
+             * Method
+             * @description pay: Weg des Geldes – 'cash' (Bar), 'transfer' (Überweisung); eine Karte bucht nur der Zahlungsdienst.
+             */
             method?: string | null;
-            /** Incoterm */
+            /**
+             * Incoterm
+             * @description incoterm: Klausel der Incoterms 2020 (z. B. EXW, DAP) – der Ort folgt aus den Anschriften.
+             */
             incoterm?: string | null;
-            /** Issuer */
+            /**
+             * Issuer
+             * @description issuer: Objektnummer der eigenen Gesellschaft, die den Beleg stellt.
+             */
             issuer?: number | null;
-            /** Bill To Company */
+            /**
+             * Bill To Company
+             * @description address: Rechnung an die Firma der Person («z. H.»)?
+             */
             bill_to_company?: boolean | null;
-            /** Billing Address */
+            /**
+             * Billing Address
+             * @description address: Id der Rechnungsadresse aus dem Adressbuch der Person; null = Standard.
+             */
             billing_address?: number | null;
-            /** Delivery Address */
+            /**
+             * Delivery Address
+             * @description address: Id der Lieferadresse aus dem Adressbuch der Person; null = Standard.
+             */
             delivery_address?: number | null;
-            /** Valid Days */
+            /**
+             * Valid Days
+             * @description terms: Gültigkeit der Offerte in Tagen.
+             */
             valid_days?: number | null;
-            /** Ownership */
+            /**
+             * Ownership
+             * @description ownership: wem die Stücke danach gehören – 'party' (geht an die Partei), 'us' (geht an uns) (Verkauf: Partei, Einkauf: uns). Pflicht vor dem Anbieten.
+             */
             ownership?: string | null;
-            /** Reason */
+            /**
+             * Reason
+             * @description Grund – Pflicht bei revoke, accept und writeoff.
+             */
             reason?: string | null;
-            /** Iban */
+            /**
+             * Iban
+             * @description refund per Überweisung: IBAN, auf die erstattet wird.
+             */
             iban?: string | null;
-            /** Original */
+            /**
+             * Original
+             * @description Objektnummer des Dokuments: die Lieferantenrechnung (bill) bzw. der Ausfuhrnachweis (export).
+             */
             original?: number | null;
-            /** Party Uid */
+            /**
+             * Party Uid
+             * @description bill bei einer Ausgabe: MWST-Nummer auf der Lieferantenrechnung.
+             */
             party_uid?: string | null;
-            /** Link */
+            /**
+             * Link
+             * @description quote: Link zu genau dieser Offerte bzw. Bestellung beim Partner (z. B. Warenkorb im Shop).
+             */
             link?: string | null;
         };
         /**

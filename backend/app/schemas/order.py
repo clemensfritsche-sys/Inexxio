@@ -39,9 +39,9 @@ class UnitPick(BaseModel):
     mit der Absicht, in der sie gewählt wurden. Kein zweiter Weg «nur nach Kriterium».
     """
 
-    number: str
+    number: str = Field(description="Nummer der Einzelinstanz, «<Instanznummer>-<Suffix>».", examples=["100000300-1"])
     #: Objektnummer des Auftrags, in dem das Stück bei der Auswahl lief. ``None`` = frei.
-    from_order: Optional[int] = None
+    from_order: Optional[int] = Field(None, description="Objektnummer des Auftrags, in dem das Stück bei der Wahl lief (dann eine Abweichung); leer = frei aus dem Bestand.")
 
 
 class DefinitionLine(BaseModel):
@@ -53,17 +53,18 @@ class DefinitionLine(BaseModel):
     Freigabe entstehen.
     """
 
-    article_object_id: int
-    quantity: int = Field(ge=1)
+    article_object_id: int = Field(description="Objektnummer des Artikels.")
+    quantity: int = Field(ge=1, description="Wie viele Einzelinstanzen (Stücke).")
     #: Woher die Stücke kommen: ``neu`` (werden erzeugt) oder ``lager`` (bestehende, in ``units``).
     #: Die erlaubten Werte stehen im Schema (``enum`` aus ``order_line.ORIGINS``); geprüft wird im
     #: Dienst, mit einem Satz.
-    origin: str = Field(json_schema_extra={"enum": list(ORIGINS)})
-    units: list[UnitPick] = Field(default_factory=list)
+    origin: str = Field(json_schema_extra={"enum": list(ORIGINS)},
+                        description="Woher die Stücke kommen: 'neu' (werden mit dem Prozess des Artikels erzeugt) oder 'lager' (bestehende, in units).")
+    units: list[UnitPick] = Field(default_factory=list, description="Nur bei 'lager': genau quantity Stücke; welche frei sind, nennt GET /erp/orders/unit-options.")
     #: **Die Rückführung** – kehren übernommene Stücke in ihren Auftrag zurück (§3.3/§3.4)?
     #: Gespeichert an der Verbindung (``order_units.return_to_order_id``); für freie Stücke
     #: bedeutungslos.
-    returns: bool = True
+    returns: bool = Field(True, description="Kehren Stücke aus einem anderen Auftrag dorthin zurück? Für freie Stücke bedeutungslos.")
 
 
 class LoopIn(BaseModel):
@@ -73,43 +74,45 @@ class LoopIn(BaseModel):
     Entwurfs jeden fehlenden Teil als Satz, statt mit 422 abzubrechen."""
 
     #: Der Takt (``domain/loop.EVERY``) – im Schema als ``enum``, geprüft im Dienst.
-    every: Optional[str] = Field(None, json_schema_extra={"enum": [*loop_rules.EVERY, None]})
+    every: Optional[str] = Field(None, json_schema_extra={"enum": [*loop_rules.EVERY, None]},
+                                 description="Takt: " + ", ".join(f"'{k}' ({w})" for k, (w, _m) in loop_rules.EVERY.items()) + ".")
     #: Die erste Wiederholung (Kalendertag, heute oder später).
-    first: Optional[str] = None
+    first: Optional[str] = Field(None, description="Tag der ersten Wiederholung, JJJJ-MM-TT, heute oder später.")
     #: Ende: ein Datum **oder** eine Anzahl Wiederholungen – beides leer heisst unbefristet.
-    until: Optional[str] = None
-    count: Optional[int] = None
+    until: Optional[str] = Field(None, description="Letzter Tag (JJJJ-MM-TT) – oder count, nie beides; beides leer = unbefristet.")
+    count: Optional[int] = Field(None, description=f"Anzahl Wiederholungen (1–{loop_rules.MAX_COUNT}) – oder until, nie beides.")
     #: Je Zeile des Entwurfs (gleiche Reihenfolge): ``same`` (gleiche Einzelinstanzen) oder
     #: ``fifo``; bei einer Zeile «Neu» bedeutungslos. **Ohne Vorbelegung**.
     takes: list[Optional[str]] = Field(
         default_factory=list,
-        json_schema_extra={"items": {"enum": [*loop_rules.TAKES, None]}})
+        json_schema_extra={"items": {"enum": [*loop_rules.TAKES, None]}},
+        description="Je Zeile (gleiche Reihenfolge), was die Wiederholung nimmt: 'same' (gleiche Einzelinstanzen) oder 'fifo'; bei 'neu' null. Ohne Vorbelegung – bei 'lager' Pflicht.")
 
 
 class OrderCreate(BaseModel):
     """Der Entwurf, so wie ihn die Oberfläche schickt."""
 
-    lines: list[DefinitionLine] = Field(default_factory=list)
+    lines: list[DefinitionLine] = Field(default_factory=list, description="Was der Auftrag bearbeitet: je Artikel eine Zeile mit Menge und Herkunft.")
     #: Der modellierte Prozess; ein Auftrag mit einer ``Neu``-Zeile ignoriert ihn (sein
     #: Prozess ist die Vorlage des Artikels, als Kopie).
-    steps: list[ModuleInput] = Field(default_factory=list)
+    steps: list[ModuleInput] = Field(default_factory=list, description="Die Schritte, die die Stücke der Reihe nach durchlaufen. Bei einer Zeile 'neu' gilt der Prozess des Artikels und diese Liste bleibt leer.")
     #: **Die Schlaufe** – nur im Entwurf; mit der Freigabe eingefroren (Wiederkehr).
-    loop: Optional[LoopIn] = None
+    loop: Optional[LoopIn] = Field(None, description="Wiederholung wie ein Dauerauftrag – nur an einem regulären Auftrag; leer = einmalig.")
     #: **Das eine Datum** – «bis» oder «ab», nie beide; leer = so schnell wie möglich.
-    date: Optional["OrderDate"] = None
+    date: Optional["OrderDate"] = Field(None, description="Das eine Datum: «bis» (fertig bis) oder «ab» (nicht vor); leer = so schnell wie möglich.")
 
 
 class OrderDate(BaseModel):
     """Das eine Datum am Auftrag (``domain/order_date``)."""
 
     kind: Literal["until", "from"] = Field(description="«bis» (fertig bis) oder «ab» (nicht vor).")
-    on: date
+    on: date = Field(description="Der Tag, JJJJ-MM-TT – heute oder später.")
 
 
 class OrderDateIn(BaseModel):
     """Das Datum verschieben – ``date`` leer heisst: keins mehr."""
 
-    date: Optional[OrderDate] = None
+    date: Optional[OrderDate] = Field(None, description="Das neue Datum; leer = keins mehr.")
 
 
 #: Die Marke, unter der ein Entwurf im Bild seines künftigen Nachbarn steht – er hat noch

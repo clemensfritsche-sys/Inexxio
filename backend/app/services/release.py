@@ -340,6 +340,11 @@ def _checked(db: Session, lines: list[dict[str, Any]], steps: list[dict[str, Any
                    + ", ".join(missing) + ".")
     chain.assert_closes(effective)
     _assert_no_self_consumption(resolved, effective)
+    # **Ein Partner ist eine Person** – geprüft beim Modellieren, nicht erst beim Handeln.
+    from .voucher_input import step_party_problems
+    wrong = step_party_problems(db, effective)
+    if wrong:
+        raise Invalid(wrong[0])
     _take_picks(db, resolved, lock=lock)
 
     # Der Plan muss aufgehen, bevor er etwas kostet (§2); bei «Neu» rein arithmetisch.

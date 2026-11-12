@@ -438,11 +438,15 @@ function TalkView({ talk, phase, onBack, onLeave, onChanged }: {
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }); },
     [talk.messages.length, talk.handgriffe.length, steps?.length, said?.length]);
+  // **Erst die Antwort, dann ihre Vorschläge**: die KI bereitet einen Vorschlag vor, bevor ihr
+  // Text gespeichert ist – darum steht er hinter der nächsten Antwort der KI, nicht davor.
+  const answers = talk.messages.filter((m) => m.by === 'ai').map((m) => m.id);
+  const after = (id: number) => (answers.find((a) => a > id) ?? id) + 0.5;
   const items = [
-    ...talk.messages.map((m) => ({ at: m.at, id: m.id, el: <Bubble key={`m${m.id}`} m={m} /> })),
-    ...talk.handgriffe.map((h) => ({ at: h.at, id: h.id,
+    ...talk.messages.map((m) => ({ order: m.id, el: <Bubble key={`m${m.id}`} m={m} /> })),
+    ...talk.handgriffe.map((h) => ({ order: after(h.id),
       el: <HandgriffCard key={`h${h.id}`} h={h} onChanged={onChanged} onLeave={onLeave} /> })),
-  ].sort((a, b) => a.id - b.id);
+  ].sort((a, b) => a.order - b.order);
   return (
     <div className="erp-talk">
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

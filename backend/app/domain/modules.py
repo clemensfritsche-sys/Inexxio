@@ -541,7 +541,8 @@ class Beleg(Module):
             self.PARTIES: {"type": "array", "maxItems": self.MAX_PARTIES, "description":
                            "Die zugelassenen Gegenparteien; leer = frei",
                            "items": {"type": "object", "required": [self.PARTY], "properties": {
-                               self.PARTY: _object_id("Gegenpartei (Person)"),
+                               self.PARTY: _object_id(f"{vo.PARTY}: eine Person, nie eine Firma (die Firma "
+                                                      "steht an der Person)"),
                                self.REF: {"type": "string", "maxLength": self.MAX_REF,
                                           "description": f"{vo.ORDER_REF} ({vo.ORDER_REF_HINT}) "
                                           f"– Pflicht und nur bei {vo.OUT}"}}}},

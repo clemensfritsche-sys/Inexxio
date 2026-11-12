@@ -71,11 +71,11 @@ class FiledOut(BaseModel):
 
 
 class RefIn(BaseModel):
-    object_id: int
+    object_id: int = Field(description="Objektnummer des Datensatzes, an dem das Dokument erscheinen soll.")
 
 
 class DeleteIn(BaseModel):
-    reason: str = Field(min_length=1, max_length=300)
+    reason: str = Field(min_length=1, max_length=300, description="Warum gelöscht wird – Pflicht, steht im Log.")
 
 
 class RecordOut(BaseModel):
@@ -87,11 +87,11 @@ class RecordOut(BaseModel):
 
 class TargetIn(BaseModel):
     """Ein Pflichtfeld, das die Freigabe gleich mitsetzt (``services/fields``)."""
-    object_id: int
-    part: Optional[str] = None
-    field: str
+    object_id: int = Field(description="Objektnummer des Datensatzes mit dem Pflichtfeld.")
+    part: Optional[str] = Field(None, description="Teil des Datensatzes, z. B. der Schritt (step:<id>) – wo das Feld sitzt.")
+    field: str = Field(description="Schlüssel des Pflichtfelds (z. B. voucher.original, time.proof) – welche es gibt, nennt GET /erp/documents/of/{nummer}.")
     #: Was das Feld zusätzlich braucht (z. B. ``note`` beim Annehmen einer Abweichung).
-    extra: dict = {}
+    extra: dict = Field({}, description="Was das Feld zusätzlich braucht, z. B. {\"note\": …} beim Annehmen einer Abweichung.")
 
 
 class ProposedRef(BaseModel):
@@ -133,19 +133,19 @@ class RequirementOut(BaseModel):
 
 class TemplateIn(BaseModel):
     """«Aus Vorlage»: welche Gesellschaft, welcher Rechtstext (``agb`` · ``datenschutz``)."""
-    company: int
-    kind: str
+    company: int = Field(description="Objektnummer der eigenen Gesellschaft.")
+    kind: str = Field(description="Welcher Rechtstext: 'agb' oder 'datenschutz'.")
 
 
 class TurnIn(BaseModel):
-    who: str = Field(pattern="^(user|ai)$")
-    text: str = Field(max_length=4000)
+    who: str = Field(pattern="^(user|ai)$", description="Wer spricht: 'user' oder 'ai'.")
+    text: str = Field(max_length=4000, description="Was gesagt wurde.")
 
 
 class ComposeIn(BaseModel):
     """Eine Runde Verfassen: das Gespräch und der letzte Stand (lebt im Browser)."""
-    turns: list[TurnIn] = Field(min_length=1, max_length=40)
-    current: Optional[dict] = None
+    turns: list[TurnIn] = Field(min_length=1, max_length=40, description="Das Gespräch bisher, älteste zuerst.")
+    current: Optional[dict] = Field(None, description="Der letzte Stand des Papiers (wie die vorige Runde ihn lieferte), leer beim ersten Mal.")
 
 
 class SignerOut(BaseModel):
@@ -166,9 +166,9 @@ class ComposeOut(BaseModel):
 
 class SendIn(BaseModel):
     """Senden: an wen, ob sie unterschreiben sollen, und ein Satz dazu."""
-    to: list[int] = Field(min_length=1, max_length=20)
-    sign: bool = False
-    note: str = Field(default="", max_length=1000)
+    to: list[int] = Field(min_length=1, max_length=20, description="Empfänger: Objektnummern von Personen; jede bekommt ihren Link.")
+    sign: bool = Field(False, description="Sollen sie unterschreiben?")
+    note: str = Field(default="", max_length=1000, description="Ein Satz zur Mail.")
 
 
 class PublicSigner(BaseModel):

@@ -6,14 +6,16 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from ..domain import timekeeping as _tk
+
 
 # ─── Eingaben ───────────────────────────────────────────────────────────────────────
 
 class SwipeIn(BaseModel):
     """Ein Wisch: die Richtung, die der Knopf zeigte, und ein Schlüssel je Wisch – derselbe
     Schlüssel zweimal (Netz wackelt) schreibt nur einmal."""
-    direction: Literal["in", "out"]
-    key: str = Field(min_length=8, max_length=64)
+    direction: Literal["in", "out"] = Field(description="Was der Knopf zeigte: 'in' (Kommen) oder 'out' (Gehen).")
+    key: str = Field(min_length=8, max_length=64, description="Ein zufälliger Schlüssel je Wisch – zweimal derselbe schreibt nur einmal.")
 
 
 class EntryIn(BaseModel):
@@ -27,41 +29,42 @@ class EntryIn(BaseModel):
     * ``booking`` – nur Admin: ``minutes`` (Stundenkonto ±), ``vacation_minutes``, ``note``.
     * ``void`` – nimmt den Eintrag ``replaces_id`` zurück (festgehalten, nicht gelöscht).
     """
-    kind: Literal["in", "out", "absence", "proof", "booking", "void"]
-    day: Optional[date] = None
-    time: Optional[str] = Field(None, pattern=r"^\d{1,2}:\d{2}$")
-    until: Optional[date] = None
-    art: Optional[str] = None
-    minutes: Optional[int] = None
-    vacation_minutes: Optional[int] = None
-    note: Optional[str] = Field(None, max_length=500)
-    proof_url: Optional[str] = Field(None, max_length=200)
-    replaces_id: Optional[int] = None
+    kind: Literal["in", "out", "absence", "proof", "booking", "void"] = Field(
+        description="'in'/'out' = Stempel Kommen/Gehen, 'absence' = Absenz, 'proof' = Nachweis zu einer Absenz, 'booking' = Buchung (nur Admin), 'void' = Eintrag zurücknehmen.")
+    day: Optional[date] = Field(None, description="Der Tag (JJJJ-MM-TT), höchstens 7 Tage zurück; bei einer Absenz der erste Tag.")
+    time: Optional[str] = Field(None, pattern=r"^\d{1,2}:\d{2}$", description="Uhrzeit eines Stempels, HH:MM.")
+    until: Optional[date] = Field(None, description="Absenz: letzter Tag (leer = nur day).")
+    art: Optional[str] = Field(None, description="Absenz: " + ", ".join(f"'{a.key}' ({a.label})" for a in _tk.ARTS) + ".")
+    minutes: Optional[int] = Field(None, description="Absenz: Minuten je Tag (leer = ganzer Tag); Buchung: Minuten ins Stundenkonto (±).")
+    vacation_minutes: Optional[int] = Field(None, description="Buchung: Minuten ins Ferienkonto (±).")
+    note: Optional[str] = Field(None, max_length=500, description="Bemerkung (bei einer Buchung der Grund).")
+    proof_url: Optional[str] = Field(None, max_length=200, description="Nachweis: Link des Dokuments (wird über das Pflichtfeld time.proof gesetzt).")
+    replaces_id: Optional[int] = Field(None, description="Id des Eintrags, den dieser ersetzt, zurücknimmt oder belegt.")
 
 
 class ContractIn(BaseModel):
-    valid_from: date
-    weekly_minutes: int = Field(ge=0)
-    workdays: list[int] = []
-    vacation_weeks: Optional[Decimal] = None
-    company_object_id: Optional[int] = None
+    valid_from: date = Field(description="Gilt ab diesem Tag (JJJJ-MM-TT), höchstens 7 Tage zurück.")
+    weekly_minutes: int = Field(ge=0, description="Sollzeit je Woche in Minuten (42 h = 2520); 0 = Austritt.")
+    workdays: list[int] = Field([], description="Arbeitstage: 0 = Montag … 6 = Sonntag.")
+    vacation_weeks: Optional[Decimal] = Field(None, description="Ferienwochen je Jahr (z. B. 5).")
+    company_object_id: Optional[int] = Field(None, description="Objektnummer der eigenen Gesellschaft, bei der die Person angestellt ist.")
 
 
 class HolidayIn(BaseModel):
-    day: date
-    name: str = Field(min_length=1, max_length=120)
+    day: date = Field(description="Der Feiertag, JJJJ-MM-TT.")
+    name: str = Field(min_length=1, max_length=120, description="Name, z. B. «Auffahrt».")
 
 
 class HolidaysIn(BaseModel):
     """Mehrere Feiertage auf einmal übernehmen (der bestätigte Vorschlag)."""
-    holidays: list[HolidayIn]
+    holidays: list[HolidayIn] = Field(description="Die Feiertage, die übernommen werden.")
 
 
 class TimeRulesIn(BaseModel):
     """Was die Gesellschaft festlegt: der Kanton und ab welchem Arbeitstag ein Nachweis
     nötig ist (je Absenzart; ``None``/0 = nie)."""
-    canton: Optional[str] = None
-    proof: Optional[dict[str, Optional[int]]] = None
+    canton: Optional[str] = Field(None, description="Kanton als Kürzel (z. B. ZH) – für den Vorschlag der Feiertage.")
+    proof: Optional[dict[str, Optional[int]]] = Field(None, description="Je Absenzart, ab welchem Arbeitstag ein Nachweis nötig ist (leer/0 = nie).")
 
 
 # ─── Ausgaben ───────────────────────────────────────────────────────────────────────

@@ -85,15 +85,45 @@ def checked_party(db: Session, *, step: ProcessStep, value: Any,
     allowed = modules.Beleg.parties_allowed(step.config)
     if allowed and number not in allowed:
         raise Invalid(f"{vo.PARTY} {number} ist an diesem Modul nicht zugelassen. Erlaubt: "
-                    + ", ".join(str(n) for n in allowed) + ".")
-    found = (
-        db.query(UserProfile)
-        .filter(UserProfile.object_id == number)
-        .first()
-    )
-    if found is None:
-        raise Invalid(f"{number} ist kein Datensatz, mit dem man handeln kann.")
+                    + ", ".join(str(n) for n in allowed) + ".", field="party")
+    assert_party(db, number)
     return number
+
+
+def party_problem(db: Session, party: int) -> Optional[str]:
+    """►►► **Ein Partner ist immer eine Person** – sonst der Satz, warum nicht. ◄◄◄ Eine Firma
+    ist ihre Identität (Name, Rechtsform, UID); handeln tut eine Person, die zu ihr gehört –
+    bei einem Shop ohne Menschen eine Person, die nach ihrer Rolle heisst. Zwei Formen einer
+    Regel mit ``assert_party``."""
+    from . import sites
+    if db.query(UserProfile.id).filter(UserProfile.object_id == party).first():
+        return None
+    firm = sites.by_object_id(db, party)
+    if firm is not None:
+        return (f"«{sites.legal_name(firm)}» ({party}) ist eine Firma – {vo.PARTY} ist immer "
+                f"eine Person (die Firma steht an ihr; ein Shop ohne Menschen bekommt eine "
+                f"Person nach ihrer Rolle, z. B. «Bestellung»).")
+    return f"{party} ist keine Person – {vo.PARTY} ist immer eine Person."
+
+
+def assert_party(db: Session, party: int) -> None:
+    why = party_problem(db, party)
+    if why:
+        raise Invalid(why, field="party")
+
+
+def step_party_problems(db: Session, steps: list[dict[str, Any]]) -> list[str]:
+    """Die zugelassenen Partner eines Zahlungsmoduls (Artikel-Vorlage, Auftrag) – je falschem
+    ein Satz. Dieselbe Regel wie ``party_problem``, geprüft schon beim Modellieren."""
+    out: list[str] = []
+    for step in steps:
+        if step.get("module_type") != modules.BELEG:
+            continue
+        for party in modules.Beleg.parties_allowed(step.get("config")):
+            why = party_problem(db, party)
+            if why:
+                out.append(why)
+    return out
 
 
 def int_of(value: Any) -> Optional[int]:

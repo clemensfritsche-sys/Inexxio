@@ -195,7 +195,7 @@ def test_two_confirms_on_one_order_draw_the_next_sample_once():
         a.close()
 
 
-def test_the_release_conditions_are_named_by_the_service():
+def test_the_release_conditions_are_named_by_the_service(db):
     """**Was zur Freigabe fehlt, sagt der Dienst – in Sätzen, an einer Stelle.**
 
     Auftrag: mindestens ein Stück und ein Modul. Artikel: die Pflichtangaben und ein Modul;
@@ -211,13 +211,13 @@ def test_the_release_conditions_are_named_by_the_service():
 
     spec = {"name": "X", "size": "1x1", "weight_kg": 0}
     capture = {"module_type": "datenerfassung", "config": {"points": [{"label": "OK", "type": "bool"}]}}
-    assert articles.validate_draft({**spec, "steps": []}) == ["mindestens ein Prozessschrittmodul"]
-    assert articles.validate_draft({"steps": [capture]}) == ["Artikelname", "Abmessungen", "Gewicht"]
-    assert articles.validate_draft({**spec, "steps": [capture]}) == [], "ein Gewicht von 0 ist ein Wert"
+    assert articles.validate_draft(db, {**spec, "steps": []}) == ["mindestens ein Prozessschrittmodul"]
+    assert articles.validate_draft(db, {"steps": [capture]}) == ["Artikelname", "Abmessungen", "Gewicht"]
+    assert articles.validate_draft(db, {**spec, "steps": [capture]}) == [], "ein Gewicht von 0 ist ein Wert"
 
     unfinished = {"module_type": "datenerfassung", "config": {"points": [{"label": "", "type": "bool"}]}}
     ModuleInput.model_validate(unfinished)     # das Schema lässt den halben Entwurf durch …
-    [problem] = articles.validate_draft({**spec, "steps": [unfinished]})
+    [problem] = articles.validate_draft(db, {**spec, "steps": [unfinished]})
     assert "Erfassungspunkt 1 braucht noch eine Bezeichnung" in problem   # … die Freigabe nennt ihn
 
 

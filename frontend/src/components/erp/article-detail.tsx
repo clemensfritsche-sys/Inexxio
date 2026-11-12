@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Package, FileText, Trash2, AlertTriangle,
   Ruler, Box, Square, Scale, Droplet, Fingerprint, Layers,
-  Scaling, Hash, Link2, Weight, Sparkles, Plus, Shield,
+  Scaling, Link2, Weight, Sparkles, Plus, Shield,
   ClipboardPlus, ArrowRight, Blocks, Wrench, Tag,
 } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
@@ -18,10 +18,7 @@ import type { Article, ArticleBom, ArticleInput, ArticleLink, ArticleUnit, Artic
 import type { ModuleDraft } from '@/lib/modules';
 import { moduleFromConfig, toModulePayload } from '@/lib/modules';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
-import {
-  unitLabel, serializationLabel, normalizeSize, normalizeWeight,
-  validateName, validateSize, validateWeight,
-} from '@/lib/article';
+import { unitLabel, serializationLabel } from '@/lib/article';
 import { articleStatus } from '@/lib/record-status';
 import type { DiagramStep } from '@/lib/process-graph';
 import { ProcessDesigner } from '@/components/erp/process-designer';
@@ -48,7 +45,7 @@ import { ProposalLeft } from '@/components/erp/capture/proposal-left';
 // Spezifikation UND mindestens ein Modul) und ist danach eingefroren. Ausser Betrieb geht er,
 // wenn ein Nachfolger ihn ablöst. Keine Reiter: der Bestand steht in derselben Ansicht.
 
-type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'is_hazmat'
+type OptKey = 'material' | 'cad_url' | 'surface' | 'min_order_qty' | 'safety_stock' | 'is_hazmat'
   | 'hs_code' | 'origin_country';
 // Kein Ort am Artikel: ein Artikel ist eine Gattung – einen Ort hat die Einzelinstanz.
 type AddKey = OptKey;
@@ -57,7 +54,7 @@ type Form = {
   /** **Ware oder Dienstleistung** (`goods` · `service`) – daraus folgen im Zahlungsmodul
    *  Steuersatz und Lieferbedingung. */
   kind: string;
-  material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
+  material: string; cad_url: string; surface: string; min_order_qty: string; safety_stock: string;
   is_hazmat: string; hs_code: string; origin_country: string;
 };
 
@@ -67,7 +64,6 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?
   { key: 'material', label: 'Material', placeholder: 'z. B. Stahl 1.4301' },
   { key: 'cad_url', label: 'CAD-Link', placeholder: 'Link zur CAD-Datei/Zeichnung – https://…' },
   { key: 'surface', label: 'Oberfläche', placeholder: 'z. B. verzinkt, eloxiert' },
-  { key: 'supplier_article_number', label: 'Lief.-Artikelnummer', placeholder: 'Artikelnummer des Lieferanten' },
   { key: 'min_order_qty', label: 'Mindestbestellmenge', numeric: true, placeholder: 'z. B. 50' },
   { key: 'safety_stock', label: 'Sicherheitsbestand', numeric: true, placeholder: 'darunter wird automatisch nachbestellt – z. B. 20' },
   { key: 'is_hazmat', label: 'Gefahrgut', boolean: true, placeholder: '' },
@@ -79,7 +75,7 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?
 ];
 
 const BLANK: Form = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '', kind: 'goods',
-  material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
+  material: '', cad_url: '', surface: '', min_order_qty: '', safety_stock: '',
   is_hazmat: '', hs_code: '', origin_country: '' };
 /** Die Felder der Route, die die Maske führt (`fromValues`): `kind` heisst dort `is_service`. */
 const PROPOSAL_FIELDS = [...Object.keys(BLANK).filter((k) => k !== 'kind'), 'is_service'];
@@ -93,7 +89,6 @@ function seedFrom(record: Article | null, initial?: Record<string, string> | nul
     size: record.size ?? '', weight_kg: record.weight_kg != null ? String(record.weight_kg) : '',
     kind: record.is_service ? 'service' : 'goods',
     material: record.material ?? '', cad_url: record.cad_url ?? '', surface: record.surface ?? '',
-    supplier_article_number: record.supplier_article_number ?? '',
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
     is_hazmat: record.is_hazmat ? 'ja' : '',
@@ -169,25 +164,18 @@ export function ArticleDetail({ record, initial, proposal, onSaved, onBack, onRe
   // Jeder gespeicherte Artikel ist freigegeben und schreibgeschützt (Änderung = neuer Artikel).
   const locked = !isCreate;
 
-  // Pflichtfelder: Name, Mengeneinheit, Serialisierung, Grösse, Gewicht. Format-Fehler nur,
-  // wenn befüllt; die «leer»-Pflicht steuert das `valid`-Gate.
-  const errs = {
-    name: validateName(form.name),
-    size: form.size.trim() ? validateSize(form.size) : null,
-    weight: form.weight_kg.trim() ? validateWeight(form.weight_kg) : null,
-  };
   // Der Entwurf, wie ihn die Freigabe schickt. Was fehlt, sagt der Server
   // (``POST /erp/articles/validate``) – ein Massstab, nicht zwei.
   const payload: ArticleInput & { steps: ReturnType<typeof toModulePayload>[] } = useMemo(() => ({
     name: form.name.trim(),
     unit: form.unit as ArticleUnit,
     serialization: form.serialization as ArticleSerialization,
-    size: form.size.trim() ? normalizeSize(form.size) : null,
-    weight_kg: form.weight_kg.trim() ? normalizeWeight(form.weight_kg) : null,
+    // **Roh an den Server** – er liest die Zahl und prüft die Regel (eine Stelle).
+    size: form.size.trim() || null,
+    weight_kg: form.weight_kg.trim() || null,
     material: form.material.trim() || null,
     cad_url: form.cad_url.trim() || null,
     surface: form.surface.trim() || null,
-    supplier_article_number: form.supplier_article_number.trim() || null,
     min_order_qty: form.min_order_qty.trim() || null,
     safety_stock: form.safety_stock.trim() || null,
     is_hazmat: form.is_hazmat === 'ja',
@@ -208,9 +196,15 @@ export function ArticleDetail({ record, initial, proposal, onSaved, onBack, onRe
     name: 'article', input: isCreate ? payload : null, ask: api.validateArticle,
     what: 'Prüfung des Artikels',
   });
+  // **Die Regeln stehen am Feld des Servers** – was er an einem Feld abweist, steht an diesem
+  // Feld; die Oberfläche prüft nicht daneben (eine Regel, nicht zwei).
+  const rejected = check.error instanceof ApiError && check.error.fields ? check.error.fields : null;
+  const errs = { name: rejected?.name ?? null, size: rejected?.size ?? null,
+                 weight: rejected?.weight_kg ?? null };
   const missing: string[] | null = !isCreate ? null
     : check.data ? (check.data.missing ?? [])
-      : check.error ? [`Prüfung nicht möglich – ${check.error.message}`] : null;
+      : rejected ? Object.values(rejected)
+        : check.error ? [`Prüfung nicht möglich – ${check.error.message}`] : null;
 
   /** **Freigeben = Anlegen**: ein Aufruf, eine Transaktion; erst hier entstehen Datensatz und Nummer. */
   async function release() {
@@ -536,7 +530,6 @@ function SpecRead({ record, form }: { record: Article; form: Form }) {
           <ReadField icon={Tag} label="Art" value={record.is_service ? 'Dienstleistung' : 'Ware'} />
           {has('surface') && <ReadField icon={Sparkles} label="Oberfläche" value={form.surface} />}
           {has('material') && <ReadField icon={Layers} label="Material" value={form.material} />}
-          {has('supplier_article_number') && <ReadField icon={Hash} label="Bestellnummer" value={form.supplier_article_number} />}
           {has('min_order_qty') && <ReadField icon={Package} label="Mindestbestellmenge" value={form.min_order_qty} mono />}
           {has('safety_stock') && <ReadField icon={Shield} label="Sicherheitsbestand" value={form.safety_stock} mono />}
           {has('cad_url') && <ReadField icon={Link2} label="CAD-Link" link={form.cad_url} full />}
