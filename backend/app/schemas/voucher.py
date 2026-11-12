@@ -55,9 +55,8 @@ class VoucherQuoteOut(BaseModel):
     lead_days: Optional[int] = None
     payment_days: Optional[int] = None
     state: str = "angefragt"
-    #: **Seine Referenz** (bei einem Online-Kauf die Bestellnummer) und der Link dazu.
+    #: **Seine Referenz** (bei einem Online-Kauf die Bestellnummer).
     reference: Optional[str] = None
-    link: Optional[str] = None
     #: Der Tag auf dem Papier, an dem sie hinausging.
     sent_on: Optional[date] = None
     #: ►►► **Wann die Zeile hinausging** – der **Moment**, nicht der Tag.
@@ -662,8 +661,6 @@ class VoucherUpdate(BaseModel):
     original: Optional[int] = Field(None, description="Objektnummer des Dokuments: die Lieferantenrechnung (bill) bzw. der Ausfuhrnachweis (export).")
     #: Ausgabe: die MWST-Nummer auf der Lieferantenrechnung (``bill``).
     party_uid: Optional[str] = Field(None, description="bill bei einer Ausgabe: MWST-Nummer auf der Lieferantenrechnung.")
-    #: Der Link zur Bestellung (``quote``).
-    link: Optional[str] = Field(None, description="quote: Link zu genau dieser Offerte bzw. Bestellung beim Partner (z. B. Warenkorb im Shop).")
 
     def changes(self) -> dict[str, Any]:
         """Was tatsächlich gesendet wurde – ohne ``action``."""

@@ -74,8 +74,8 @@ export const VOUCHER_ORDER_REF = 'Wie bestellen?';
 export const VOUCHER_ORDER_REF_HINT = 'Seine Artikelnummer oder der Link zu seinem Shop';
 /** Wofür «Wie bestellen?» da ist – im Unterschied zum Link an der einzelnen Offerte. */
 export const VOUCHER_ORDER_REF_TIP = 'Wie bestellen? – gilt für jede Bestellung bei diesem Partner: '
-  + 'seine Artikelnummer oder der Link zum Artikel in seinem Shop. Den Link zu einer einzelnen '
-  + 'Bestellung trägt man an der Offerte ein («Link zur Bestellung»).';
+  + 'seine Artikelnummer oder der Link zum Artikel in seinem Shop. Die Nummer einer einzelnen '
+  + 'Bestellung steht an der Offerte («Bestellnummer»).';
 
 /**
  * ►►► **Was das Modul dem Beleg vorgeben DARF** (`Beleg.PRESETS` / `PRESET_LABELS`, generiert). ◄◄◄

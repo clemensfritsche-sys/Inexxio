@@ -19347,17 +19347,6 @@
             ],
             "title": "Reference"
           },
-          "link": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Link"
-          },
           "sent_on": {
             "anyOf": [
               {
@@ -19989,18 +19978,6 @@
             ],
             "title": "Party Uid",
             "description": "bill bei einer Ausgabe: MWST-Nummer auf der Lieferantenrechnung."
-          },
-          "link": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Link",
-            "description": "quote: Link zu genau dieser Offerte bzw. Bestellung beim Partner (z. B. Warenkorb im Shop)."
           }
         },
         "type": "object",
