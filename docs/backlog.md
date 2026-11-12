@@ -8,7 +8,7 @@ steht nicht hier, sondern in `docs/history/` (zuletzt `2026-10-backlog-erledigt.
 
 ## Zwei-Deploy-Regel: vorgemerkte Drops
 
-`articles.supplier_article_number` (entmappt 12.11.2026: «Wie bestellen?» je Partner am Zahlungsmodul ersetzt sie; Drop im nächsten Deploy). Zuletzt gefallen (Aufräumen A1, Migration 182): `captures.note`, `process_steps.source_article_id`, `webauthn_credentials.transports` · `device_type`, `attachments.width` · `height`; davor die Tabelle `voucher_documents` (Migration 178, die Papiere
+`voucher_quotes.link` (entmappt 12.11.2026: «Wie bestellen?» am Modul und die Bestellnummer an der Offerte genügen) und `articles.supplier_article_number` (entmappt 12.11.2026: «Wie bestellen?» je Partner am Zahlungsmodul ersetzt sie; Drop im nächsten Deploy). Zuletzt gefallen (Aufräumen A1, Migration 182): `captures.note`, `process_steps.source_article_id`, `webauthn_credentials.transports` · `device_type`, `attachments.width` · `height`; davor die Tabelle `voucher_documents` (Migration 178, die Papiere
 sind gewöhnliche Dokumente mit `document_links`); davor (Aufräumen 1, Migration 176): `is_active` an 23 Tabellen, an
 denen nie gelöscht wird; `created_by` an `attachments`, `document_refs`, `document_links`,
 `holidays`; `captures.captured_by`; `articles.process_version`, `process_steps.source_version`;

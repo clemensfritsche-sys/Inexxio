@@ -291,10 +291,9 @@ class VoucherQuote(Base, TimestampMixin, SoftDeleteMixin):
     #: Wann die Zeile hinausging – das Datum auf dem Papier.
     sent_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     #: **Seine Nummer für diesen Vorgang** («Ihre Referenz», bei einem Online-Kauf die
-    #: Bestellnummer) und der **Link** zur Bestellung – nur, wo die Gegenpartei den Preis
-    #: nennt.
+    #: Bestellnummer) – nur, wo die Gegenpartei den Preis nennt. Wo man kauft, steht am Modul
+    #: («Wie bestellen?»); einen zweiten Link je Bestellung gibt es nicht (entmappt 12.11.2026).
     reference: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
-    link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
 
 class VoucherLine(Base, TimestampMixin, SoftDeleteMixin):

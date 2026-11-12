@@ -8381,8 +8381,6 @@ export interface components {
             state: string;
             /** Reference */
             reference?: string | null;
-            /** Link */
-            link?: string | null;
             /** Sent On */
             sent_on?: string | null;
             /** Sent At */
@@ -8673,11 +8671,6 @@ export interface components {
              * @description bill bei einer Ausgabe: MWST-Nummer auf der Lieferantenrechnung.
              */
             party_uid?: string | null;
-            /**
-             * Link
-             * @description quote: Link zu genau dieser Offerte bzw. Bestellung beim Partner (z. B. Warenkorb im Shop).
-             */
-            link?: string | null;
         };
         /**
          * VoucherWay

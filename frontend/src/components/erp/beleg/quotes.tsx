@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, CircleSlash, ClipboardList, ExternalLink, Send as SendIcon, X } from 'lucide-react';
+import { Check, CircleSlash, ClipboardList, Send as SendIcon, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { NOTHING, happened } from '@/lib/when';
 import { QUOTE_STATE, VOUCHER_STAGE } from '@/lib/vocab';
@@ -196,33 +196,20 @@ function QuoteRow({ q, d, busy, onAction }: {
 
 /**
  * **Wie man bei ihm bestellt und was er uns nannte** – die Bestellangabe aus der Definition
- * (`ref`), seine Referenz bzw. Bestellnummer und der Link zur Bestellung.
+ * (`ref`) und seine Referenz bzw. Bestellnummer.
  */
 function Reference({ q }: { q: VoucherQuoteOut }) {
-  if (!q.ref && !q.reference && !q.link) return null;
+  if (!q.ref && !q.reference) return null;
   return (
     <div className="flex flex-wrap items-baseline" style={{ gap: '2px 12px', minWidth: 0 }}>
       {q.ref && (
-        <Note tip="Wie man bei ihm bestellt – aus der Definition">
+        <Note tip="Wie man bei ihm bestellt – gilt für jede Bestellung, aus dem Modul («Wie bestellen?»)">
           <ClipboardList size={11} style={{ flex: 'none' }} /> Ihre Referenz: {q.ref}
         </Note>
       )}
       {q.reference && <Note tip="Seine Bestellnummer bzw. Auftragsnummer">Bestellung {q.reference}</Note>}
-      {q.link && (
-        <a href={q.link} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center" style={{
-            gap: 4, fontSize: 11.5, color: 'var(--accent-ink)', textDecoration: 'none',
-            borderBottom: '1px solid var(--accent)',
-          }}>
-          {hostOf(q.link)} · Bestelldetails <ExternalLink size={10} />
-        </a>
-      )}
     </div>
   );
-}
-
-function hostOf(link: string): string {
-  try { return new URL(link).host.replace(/^www\./, ''); } catch { return 'Link'; }
 }
 
 /**
@@ -248,7 +235,7 @@ function QuoteWork({ q, d, busy, onAction }: {
     action: 'quote', party: q.party_object_id, amount: f.amount,
     payment_days: f.pay === '' ? null : Number(f.pay),
     lead_days: f.lead === '' ? null : Number(f.lead),
-    reference: f.reference.trim() || null, link: f.link.trim() || null,
+    reference: f.reference.trim() || null,
   });
   if (!canQuote && !showAgree && !canDecline) return null;
   return (
@@ -292,13 +279,13 @@ function agreeProblem(d: Filled): string | null {
   return null;
 }
 
-type QuoteDraft = { amount: string; pay: string; lead: string; reference: string; link: string };
+type QuoteDraft = { amount: string; pay: string; lead: string; reference: string };
 
 function quoteDraft(q: VoucherQuoteOut): QuoteDraft {
   return {
     amount: q.amount ?? '', pay: q.payment_days == null ? '' : String(q.payment_days),
     lead: q.lead_days == null ? '' : String(q.lead_days),
-    reference: q.reference ?? '', link: q.link ?? '',
+    reference: q.reference ?? '',
   };
 }
 
@@ -333,13 +320,6 @@ function QuoteForm({ d, f, setF }: {
             <Input name="reference" value={f.reference} aria-label="Bestellnummer" placeholder={NOTHING}
               onChange={(reference) => set({ reference })}
               style={{ ...DOC_FIELD, width: 150, fontSize: 13 }} />
-          </Editable>
-        </Stacked>
-        <Stacked label="Link zur Bestellung">
-          <Editable title="Bei einem Online-Kauf: der Link zur Bestellung">
-            <Input name="link" value={f.link} aria-label="Link zur Bestellung" placeholder={NOTHING}
-              onChange={(link) => set({ link })}
-              style={{ ...DOC_FIELD, width: 190, fontSize: 13 }} />
           </Editable>
         </Stacked>
       </div>

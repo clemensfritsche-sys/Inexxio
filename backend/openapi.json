@@ -12999,7 +12999,7 @@
                           "type": "integer"
                         },
                         "ref": {
-                          "description": "Wie bestellen? (Seine Artikelnummer oder der Link zu seinem Shop) – Pflicht und nur bei out",
+                          "description": "Wie bestellen? (Seine Artikelnummer oder der Link zu seinem Shop) – gilt für jede Bestellung bei diesem Partner; Pflicht und nur bei out",
                           "maxLength": 200,
                           "type": "string"
                         }
@@ -19347,17 +19347,6 @@
             ],
             "title": "Reference"
           },
-          "link": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Link"
-          },
           "sent_on": {
             "anyOf": [
               {
@@ -19989,18 +19978,6 @@
             ],
             "title": "Party Uid",
             "description": "bill bei einer Ausgabe: MWST-Nummer auf der Lieferantenrechnung."
-          },
-          "link": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Link",
-            "description": "quote: Link zu genau dieser Offerte bzw. Bestellung beim Partner (z. B. Warenkorb im Shop)."
           }
         },
         "type": "object",

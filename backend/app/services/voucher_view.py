@@ -654,7 +654,6 @@ def _quotes(db: Session, row: Voucher, step: ProcessStep, *,
             "payment_days": q.payment_days,
             "state": q.state,
             "reference": q.reference,
-            "link": q.link,
             "sent_on": q.sent_on,
             "sent_at": q.created_at,
             # **Nur an der gewählten Zeile** – an jeder anderen wäre ``updated_at`` der

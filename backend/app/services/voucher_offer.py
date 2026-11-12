@@ -275,8 +275,6 @@ def quote(db: Session, *, order: Order, step: ProcessStep, row: Voucher,
         line.payment_days = days_of("payment_days", data.get("payment_days"))
     if "reference" in data:
         line.reference = text_of(data.get("reference"), 120)
-    if "link" in data:
-        line.link = text_of(data.get("link"), 500)
     if line.amount is None:
         raise Invalid("Ohne Betrag ist es keine Offerte.")
     assert_terms(line.lead_days, line.payment_days)
