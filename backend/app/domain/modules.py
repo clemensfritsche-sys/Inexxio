@@ -545,7 +545,8 @@ class Beleg(Module):
                                                       "steht an der Person)"),
                                self.REF: {"type": "string", "maxLength": self.MAX_REF,
                                           "description": f"{vo.ORDER_REF} ({vo.ORDER_REF_HINT}) "
-                                          f"– Pflicht und nur bei {vo.OUT}"}}}},
+                                          f"– gilt für jede Bestellung bei diesem Partner; "
+                                          f"Pflicht und nur bei {vo.OUT}"}}}},
             self.INSTRUCTION: {"type": "string", "maxLength": vo.MAX_TASK,
                                "description": f"{vo.TASK} – freiwillig; leer = gemäss Spezifikation"},
             "payment_days": {**days, "description": f"Vorgabe {vo.PAYMENT_TERM_LABEL} in Tagen "

@@ -8,7 +8,7 @@ import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleOption, ModuleCatalog, VoucherParty } from '@/types';
 import {
-  CAPTURE_ICON, VOUCHER_DIRECTION, VOUCHER_ORDER_REF, VOUCHER_ORDER_REF_HINT,
+  CAPTURE_ICON, VOUCHER_DIRECTION, VOUCHER_ORDER_REF, VOUCHER_ORDER_REF_HINT, VOUCHER_ORDER_REF_TIP,
   VOUCHER_TASK, VOUCHER_TASK_HINT, voucherDirection,
   VOUCHER_PRESETS, VOUCHER_PRESET_OPEN, VOUCHER_PRESETS_HINT,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
@@ -383,6 +383,7 @@ function MoneyFields({ module: m, onChange, search = api.searchPeople }: {
             {voucherDirection(m.direction).partyRef && (
               <Input name="parties.ref" className={inputCls} value={row.ref} maxLength={200} required
                 aria-label={VOUCHER_ORDER_REF} placeholder={VOUCHER_ORDER_REF_HINT}
+                data-tip={VOUCHER_ORDER_REF_TIP}
                 style={{ flex: '1 1 160px', minWidth: 0 }}
                 onChange={(ref) => onChange({
                   parties: m.parties.map((x) => (x.party === row.party

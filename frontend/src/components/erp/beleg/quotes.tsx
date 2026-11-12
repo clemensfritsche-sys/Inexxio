@@ -203,7 +203,7 @@ function Reference({ q }: { q: VoucherQuoteOut }) {
   return (
     <div className="flex flex-wrap items-baseline" style={{ gap: '2px 12px', minWidth: 0 }}>
       {q.ref && (
-        <Note tip="Wie man bei ihm bestellt – aus der Definition">
+        <Note tip="Wie man bei ihm bestellt – gilt für jede Bestellung, aus dem Modul («Wie bestellen?»)">
           <ClipboardList size={11} style={{ flex: 'none' }} /> Ihre Referenz: {q.ref}
         </Note>
       )}
@@ -336,7 +336,7 @@ function QuoteForm({ d, f, setF }: {
           </Editable>
         </Stacked>
         <Stacked label="Link zur Bestellung">
-          <Editable title="Bei einem Online-Kauf: der Link zur Bestellung">
+          <Editable title="Link zu genau dieser Bestellung (z. B. Bestellbestätigung oder Warenkorb im Shop) – gilt nur für diesen Vorgang. Wie man bei ihm grundsätzlich bestellt, steht am Modul («Wie bestellen?»).">
             <Input name="link" value={f.link} aria-label="Link zur Bestellung" placeholder={NOTHING}
               onChange={(link) => set({ link })}
               style={{ ...DOC_FIELD, width: 190, fontSize: 13 }} />
