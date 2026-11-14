@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 9 · **Konzept, Runde 1 – Weitergabe** (36 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 10 · **Konzept, Runde 1 – Verkauf und Ausführung** (42 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -26,10 +26,12 @@ einen Kunden (das Projekt). Der Korb ist der Entwurf; «Bestellen» gibt frei un
    trifft der Kunde nie auf eine Lücke (F29).
 5. **Regeln hängen am Artikel, nie im Code** (E24): Transportgrösse, Lieferzeit, Anzahlung.
 6. **Anzahlung = ein zweites Zahlungsmodul** vor dem Rest – wie im Kern schon entschieden (E22).
-7. **Auf Bestellung = Weitergabe** (F25 Fassung 9, deine Idee): der Bauauftrag legt die Stücke mit Nummer an,
-   der Verkaufsauftrag nennt sie mit der Absicht «nach Auftrag X» – er wartet, greift nicht; am Ende des
-   Bauauftrags gehen sie weiter. Der Spiegel der Rückführung.
+7. **Auf Bestellung = Weitergabe** (F25 Fassung 10): der Verkaufsauftrag wartet auf genau diese Stücke; sobald
+   eines regulär frei wird (auf welchem Weg auch immer), tritt es ein. Der Spiegel der Rückführung.
 8. **Etikett:** QR mit Adresse `https://id.inexxio.com/<Nummer>` (F15, E32).
+9. **Verkauf und Ausführung getrennt** (F37): der Verkaufsauftrag (Stücke + Zahlung) entsteht immer
+   automatisch; die Lieferung ist ein eigener Auftrag aus der Vorlage der Lieferart – einfache von selbst,
+   anspruchsvolle als Vorschlag, den ein Mensch plant und freigibt.
 
 ## 1 · Problem und Ziel
 
@@ -228,10 +230,89 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 9 – nach der achten Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 10 – nach der neunten Rückmeldung vom 14.11.2026)
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
-> Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → derselbe Auftrag im ERP.
+> Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Verkaufs- und Lieferauftrag im ERP.
+
+### F25 Fassung 10 – Die Weitergabe löst am Stück aus, nicht am Ende des Auftrags
+
+Dein Einwand stimmt: ein Stück kann auch anders frei werden – eine Abweichung kann es auf Freigegeben
+setzen. Darum hängt die Weitergabe **am Stück**, nicht am Bauauftrag:
+
+> **Sobald ein erwartetes Stück regulär frei wird, geht es dorthin weiter, wo es erwartet wird.**
+
+- «Regulär frei» = einer der Zustände, mit denen ein Auftrag regulär starten darf
+  (`statuses.REGULAR_STARTS`: Freigegeben, Verkauft) – egal, auf welchem Weg das Stück dahin kam.
+- **Eine Stelle:** jeder Zustandswechsel eines Stücks läuft durch `process._pass`. Dort, im selben
+  Schritt: «wird dieses Stück erwartet? → seine Verbindung im erwartenden Auftrag öffnet sich».
+- Die Absicht «nach Auftrag X» heisst damit genauer **«wartet auf dieses Stück»**; der Bauauftrag ist
+  nur der übliche Weg, auf dem es frei wird.
+
+### F37 neu – Der Knackpunkt: Verkauf und Ausführung trennen
+
+**Warum es klemmt:** wir wollten, dass **ein** Auftrag beim Klick alles enthält – Geld, Versand,
+Spedition, Prüfung, Montage. Beim Klick weiss aber niemand, welcher Spediteur, ob der Kran mit anderen
+Lieferungen zusammen fährt, ob eine Prüfung dazukommt. Ein eingefrorener Auftrag kann das nicht mehr
+lernen – also bliebe nur die Abweichung.
+
+**Die Lösung – zwei Dinge, die sich verschieden verhalten, getrennt:**
+
+| | **Der Verkauf** (das Geschäft) | **Die Ausführung** (Lieferung, Montage) |
+|---|---|---|
+| Was | Zusage, Geld, Rechnung, Eigentum | Transport, Spediteur, Prüfung, Montage |
+| Wann bekannt | beim Klick – vollständig | oft erst später |
+| Auftrag | **Verkaufsauftrag**: Stücke + **Zahlungsmodul**, sonst nichts | **Lieferauftrag**: Bewegen, ggf. Zahlung (Ausgabe Spediteur), Datenerfassung … |
+| Entsteht | **immer automatisch** beim «Bestellen» | aus der **Vorlage der Lieferart**: einfache (Paket, Abholen) **von selbst**; anspruchsvolle (Spedition, Montage) als **Vorschlag**, den ein Mensch öffnet, anpasst und freigibt |
+| Nummer | = Bestellnummer | eigene, steht auf «Ihre Bestellung» |
+
+**Warum das sauber ins System passt – alles Bestehendes:**
+1. Am Ende des Verkaufsauftrags sind die Stücke **Verkauft** (Eigentum «geht an die Partei»).
+   **Verkauft ist ein regulärer Start** (`REGULAR_STARTS`) – der Lieferauftrag greift sie **ohne
+   Abweichung**.
+2. Der Lieferauftrag **wartet auf die Stücke** (Weitergabe, F25 Fassung 10): sobald sie Verkauft sind,
+   treten sie ein.
+3. **Vorschlag** heisst: genau dein Gedanke «als Entwurf anlegen» – aber nur für die Ausführung. Das gibt
+   es schon: ein Vorschlag (Handgriff) mit dem **ganzen** Entwurf, «Öffnen» → anpassen → «Freigeben»
+   (`lib/proposal-draft`). Der Verkauf dagegen braucht keinen Entwurf: er ist vollständig.
+4. **Vorauszahlung** fällt von selbst richtig: Frist 0 → die Stücke passieren die Zahlung erst mit dem
+   Geld → erst dann Verkauft → erst dann die Lieferung.
+5. **Gewinn obendrauf:** ein Lieferauftrag darf Stücke **mehrerer** Bestellungen fahren – die Sammeltour
+   mit dem Lastwagen ist einfach ein Lieferauftrag mit mehr Zeilen.
+
+**Was die Lieferart entscheidet** (Daten an der Gesellschaft, E24): ihre Modul-Folge **und** «von selbst»
+oder «planen». Paket: Bewegen, von selbst. Abholen: Bewegen (Übergabe-Scan), von selbst. Spedition:
+Zahlung (Ausgabe, Spediteur) → Bewegen, planen. Montage: Bewegen → Datenerfassung (Prüfung), planen.
+
+**Alle Fälle:**
+
+| Fall | Verkauf | Ausführung |
+|---|---|---|
+| Teile ab Lager, Paket | 1 Auftrag, Karte bezahlt | Lieferung von selbst |
+| Funk-Set mit Einbau | 1 Auftrag, Rechnung 30 Tage | Montage als Vorschlag → Termin, Freigabe |
+| Teil nicht an Lager | 1 Auftrag, Stück «wartet» auf den Bauauftrag | Lieferung von selbst, sobald Verkauft |
+| Kran (Projekt), Anzahlung | 1 Auftrag, **zwei** Zahlungsmodule (E22) | Montage als Vorschlag |
+| Kran + Teile zusammen | 1 Auftrag | **ein** Lieferauftrag (Lastwagen), alles drauf |
+| Drei Kunden, eine Tour | 3 Aufträge | **ein** Lieferauftrag |
+| Miete | 1 Auftrag, Eigentum «an uns», Schlaufe monatlich | Lieferung hin; am Ende eine Rückholung |
+| Transportschaden | – | Abweichung – das einzig Unvorhergesehene |
+
+### F38 neu – Miete gleich von Anfang an (dein Entscheid)
+
+- **Verkauf** mit Eigentum «geht an uns» und Schlaufe (monatlich) – jede Periode eine Rechnung, wie heute
+  die Wiederholung.
+- **Ausführung**: eine Lieferung hin; am Mietende eine **Rückholung** (Lieferauftrag zurück zu uns).
+  Das Stück bleibt die ganze Zeit **Freigegeben** und gehört uns – sein **Ort** ist der Kunde.
+- **Nötig dafür:** die **gespeicherte Karte** (Stripe), damit die Monatsrate von selbst geht. Heute
+  bewusst nicht gebaut (`services/stripe_pay.py`) – kommt mit dem Sortiment. Alternativ monatliche
+  QR-Rechnung.
+
+### F39 Fassung 10 – Preis: Vorgabe aus dem Artikel, im Modul überschreibbar
+
+Das Zahlungsmodul **übernimmt** den Preis aus der Karte «Verkauf» als Vorgabe; im Modul bleibt er ein
+**überschreibbarer Wert** (dein Entscheid). Heute gibt es dort schon «Preise als Vorgabe»
+(`Beleg.PRICES`, `voucher_head.preset_prices`) – neu kommt die Vorgabe aus dem Artikel statt aus der
+Modul-Einstellung. Im Shop gilt der Preis der Karte unverändert.
 
 ### F25 Fassung 9 – Deine Idee, sauber eingepasst: die «Weitergabe» (Spiegel der Rückführung)
 
@@ -990,6 +1071,12 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E32 | **Etikett `https://id.inexxio.com/<Nummer>`, in Kleinbuchstaben** (F15). | 14.11.2026 |
 | E33 | **«Als PDF» auf der Produktseite** – ja (F30). | 14.11.2026 |
 | E34 | **Keine Kern-Änderung:** jeder Auftrag startet mit definierten Einzelinstanzen, gewählt wird nur Regulär-Startendes; nichts aus einem laufenden Auftrag greifen. | 14.11.2026 |
+| E37 | **Rückführung und Weitergabe sind eine Idee** (die Verbindung kennt ein Woher und ein Wohin). | 14.11.2026 |
+| E38 | **Der Shop benutzt dieselbe Route wie das ERP** – keine eigene Anlage (F35). | 14.11.2026 |
+| E39 | **«Ihre Bestellung» entsteht aus der Seite `/dokument`** – kein zweiter Ort. | 14.11.2026 |
+| E40 | **Preis: das Zahlungsmodul übernimmt ihn aus dem Artikel als Vorgabe, im Modul überschreibbar** (F39). | 14.11.2026 |
+| E41 | **«Nachschub» heisst überall gleich.** | 14.11.2026 |
+| E42 | **Miete kommt von Anfang an mit** (F38). | 14.11.2026 |
 | E36 | **Detailseite statt Pop-up** – jedes Produkt hat seine eigene Seite. | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
@@ -1014,11 +1101,10 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber (Runde 1, Schluss)
 
-- **N23** Weitergabe als dritte Absicht «nach Auftrag X» (F25 Fassung 9) – der Spiegel der Rückführung?
-- **N24** Die drei Arten von Unterschied (F33): Wahl der Vorlage · im Modul · Abweichung nur für das
-  Unvorhergesehene?
-- **N25** Verkaufswege als Vorlagen im bestehenden Prozess-Designer an der Gesellschaft (F34)?
-- **N26** Der Shop benutzt dieselbe Route wie das ERP (F35)?
-- **N21** Doppelklick-Schutz (F31)?
+- **N27** Verkauf und Ausführung trennen (F37): Verkaufsauftrag immer automatisch, Lieferauftrag aus der
+  Vorlage – von selbst oder als Vorschlag zum Planen?
+- **N23** Weitergabe am Stück, «sobald regulär frei» (F25 Fassung 10)?
+- **N24** Die drei Arten von Unterschied (F33) – mit F37 wird Art 2 zur Planung des Lieferauftrags.
+- **N25** Lieferarten als Vorlagen im Prozess-Designer, mit «von selbst» oder «planen» (F34, F37)?
 
 Danach: **Runde 2 – Preise, Märkte, Währung.**
