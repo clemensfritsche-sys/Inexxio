@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 13 · **Konzept, Runde 1 – die Kette mit Herkunft** (45 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 14 · **Konzept, Runde 1 – bereinigt nach Prüfung** (45 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -11,28 +11,48 @@
 > `docs/konzept/wiederkehr.md` (Abo) · `website/WEBSITE_PLAN.md` Entscheid 127 (Symbol rechts im Kopf,
 > «Meine Produkte» im Konto).
 
-## 0 · Das grosse Bild (Fassung 5)
+## 0 · Das bereinigte Modell (Fassung 14, nach der Prüfung vom 14.11.2026)
 
-**Ein Weg für alles.** Was verkauft wird, ist ein Artikel mit Karte «Verkauf» – für alle oder nur für
-einen Kunden (das Projekt). Der Korb ist der Entwurf; «Bestellen» gibt frei und sagt zu.
+> Eine unabhängige Prüfung gegen den Code (Bericht: `docs/history/2026-11-14-sortiment-pruefung.md`) hat
+> fünf Denkfehler gefunden. Zwei Aussagen früherer Fassungen waren **falsch**: «keine Kern-Änderung» (E34)
+> und «der Beleg bleibt, wie er ist» (F25 F9). Dieses Kapitel ist das Modell, das danach gilt – einfacher
+> als vorher.
 
-1. **Korb = Entwurf, im Browser.** Am Server gibt es vorher nichts.
-2. **«Bestellen» = ein Klick.** Daraus entsteht **je Rhythmus ein Auftrag**: der Kauf einer, ein Abo oder
-   eine Miete im selben Korb je ein eigener (mit Schlaufe). Jeder Auftrag hat seine Nummer = seine
-   Bestellnummer; die Bestätigung nennt alle (wie Apple: Kauf-Nummer + AppleCare-Vertrag).
-3. **Der Kunde tippt nur, was nur er weiss:** E-Mail, Name, Lieferadresse (Firma/UID freiwillig).
-   Alles andere im Auftrag und im Zahlungsmodul kommt aus dem ERP (§5 F24).
-4. **Eine Karte «Verkauf» geht erst auf «für alle», wenn sie vollständig ist** (Preis, Lieferart …). So
-   trifft der Kunde nie auf eine Lücke (F29).
-5. **Regeln hängen am Artikel, nie im Code** (E24): Transportgrösse, Lieferzeit, Anzahlung.
-6. **Anzahlung = ein zweites Zahlungsmodul** vor dem Rest – wie im Kern schon entschieden (E22).
-7. **Die Kette der Weitergabe** (F25 Fassung 11): Bau → Verkauf → Lieferung entstehen im selben Klick;
-   jeder wartet auf die Stücke des vorherigen und bekommt sie, sobald sie regulär frei sind **und aus dem
-   Vorgänger kommen**. Jede Ausnahme meldet sich als Unterdeckung mit Grund; der Mensch entscheidet (F25 F. 12).
-8. **Etikett:** QR mit Adresse `https://id.inexxio.com/<Nummer>` (F15, E32).
-9. **Verkauf und Ausführung getrennt** (F37): der Verkaufsauftrag (Stücke + Zahlung) entsteht immer
-   automatisch; die Lieferung ist ein eigener Auftrag aus der Vorlage der Lieferart – einfache von selbst,
-   anspruchsvolle als Vorschlag, den ein Mensch plant und freigibt.
+**Zwölf Sätze:**
+1. **Verkauft wird der Artikel** mit seiner Karte «Verkauf» (für alle oder nur für einen Kunden).
+2. **Der Korb ist der Entwurf.** Am Server gibt es vorher nichts.
+3. **Wer im Voraus mit Karte zahlt, zahlt zuerst** (Stripe); die Aufträge legt **die bestätigte Zahlung**
+   an (Webhook). Ein abgebrochener Kauf hinterlässt nichts. Wer auf Rechnung kauft (Kondition, bestätigte
+   Adresse), bestellt sofort. Die Zahlung ist zugleich der Schutz vor Doppelklick (eine Zahlung = eine Bestellung).
+4. **Verkauf** = Stücke + **genau ein** Zahlungsmodul. **Lieferung** = ein eigener Auftrag aus der Vorlage
+   der Lieferart, **immer automatisch**, ohne Kundengeld darin. Spediteur, Ziel, Termin entscheidet man **im
+   Modul**, wenn es dran ist.
+5. **Auf Bestellung:** der Bauauftrag bleibt unverändert. Der Verkauf hat eine Zeile **«folgt aus
+   Bauauftrag X»** (Artikel × Menge, die Nummern als Auskunft). Sie zählt als «unterwegs». Die Stücke treten
+   ein, sobald sie frei sind **und aus X kommen**.
+6. **Jede Ausnahme ist eine Unterdeckung** in der Form, die es schon gibt (`StepNeed`: gebraucht ·
+   verfügbar · Grund · Angebote). Nichts ändert sich still.
+7. **Der Beleg spricht über Artikel × Menge;** die Seriennummer steht auf dem Papier, wenn es ausgestellt
+   wird. So darf ein Stück ersetzt werden, ohne dass die Zusage bricht.
+8. **Projekt (Kran):** die **Anzahlung steht am Anfang des Bauauftrags** (im Erzeugungsprozess des
+   Projekt-Artikels) – so wird wirklich erst nach dem Geld gebaut. Der Verkauf hat nur den Rest.
+9. **Eigentum hat einen dritten Wert «bleibt»** – für Zahlungen, die nichts am Eigentum ändern (Spediteur,
+   Service). Nur «an die Partei» und «an uns» entscheiden am Ziel.
+10. **«Frei» heisst an einer Stelle:** regulärer Zustand · in keinem Auftrag · **Ort bei uns**. Ein
+    vermieteter Kran beim Kunden ist damit nicht frei – weder für FIFO noch für den Shop.
+11. **Abo und Service sind ein Leistungsartikel** («Neu» je Periode, in der Schlaufe); das Gerät steht nur
+    als «Betrifft» daneben.
+12. **Konditionen gelten nur mit bestätigter Adresse.** Ein Gast zahlt den Listenpreis im Voraus.
+
+**Was am Kern dafür geändert wird – ehrlich, je an einer Stelle** (vor dem Bau in PROCESS_CORE):
+
+| Stelle | Änderung |
+|---|---|
+| Auftragsstatus (`order_state._derive`) | eine vierte Zahl «erwartet» – zählt als unterwegs (sonst wäre ein wartender Auftrag sofort «Abgebrochen») |
+| Auswahl (`UnitPick`, §12.6a) | dritte Absicht «folgt aus X» als Zeile der Definition, nicht als Zugehörigkeit |
+| Beleg (`process_lines`, `serials_of`, `units_problem`) | liest «offen ∪ erwartet», vergleicht Artikel × Menge |
+| Eigentum (`voucher.sold_units`) | dritter Wert «bleibt» wird übersprungen |
+| Frei (`consumption._free`) | zusätzlich «Ort in unserer Halter-Kette» |
 
 ## 1 · Problem und Ziel
 
@@ -231,10 +251,35 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 13 – nach der zwölften Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 14 – nach der Prüfung vom 14.11.2026)
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Die Prüfung vom 14.11.2026 – was gefunden wurde, was daraus folgt
+
+| # | Fund (Schwere) | Folge im Modell |
+|---|---|---|
+| A1 | Ein Auftrag, der nur wartet, gilt sofort als «Abgebrochen» (`order_state.py:436`) – **Blocker** | Satz 5: «erwartet» zählt als unterwegs |
+| A2 | Der Beleg sieht erwartete Stücke nicht (`voucher.py:393,410`, `voucher_offer.py:254`) – **Blocker** | Satz 7 |
+| A3 | Ein Stück tauschen bricht jede Zusage (`unit_ids` eingefroren, `units_problem`) – **Blocker** | Satz 7: Artikel × Menge |
+| A4 | Das Spediteur-Modul in der Lieferung kippt das Eigentum (`sold_units` nimmt das jüngste Zahlungsmodul) – **Blocker** | Satz 9: dritter Wert «bleibt» |
+| A5 | Ein vermietetes Stück gilt als Lagerbestand (`consumption._free` prüft den Ort nicht) – **Blocker** | Satz 10 |
+| B1 | Anzahlung im Verkauf hält den Bau nicht auf | Satz 8: Anzahlung in den Bauauftrag |
+| B2 | Storno des Verkaufs, während gebaut wird: das Stück bliebe im stornierten Verkauf stehen | ein Verkauf mit storniertem Zahlungsmodul wartet nicht mehr; das gebaute Stück wird Freigegeben. **Offen:** Stücke, die schon im Verkauf stehen (§8 N32) |
+| B3 | Abgebrochene Kartenzahlung hinterliesse Auftrag, Rechnungsnummer, Gutschrift | Satz 3: erst zahlen, dann Aufträge |
+| B4 | Ein Klick, mehrere Belege, eine Kartenbelastung | Satz 3 + **offen** §8 N33 (Abo im selben Korb) |
+| B5 | Die Anlage nimmt einen Auftrag, die Bestellung braucht mehrere | ein Dienst «Bestellung» legt alle in **einer** Anfrage an (ganz oder gar nicht); dieselbe Prüfung |
+| B6 | Eine nie freigegebene «planen»-Lieferung ist eine Sackgasse | Satz 4: Lieferung immer automatisch (Sammeltour später) |
+| B7 | Ein Gast mit fremder E-Mail bekäme fremde Konditionen | Satz 12 |
+| B8 | Stille Zusage im Abo mit geändertem Preis | still nur bei gleichem Preis, sonst geht die Offerte hinaus |
+| B9 | Abo hält das Gerät exklusiv | Satz 11 |
+| B10 | Miete mit Vorauszahlung: Rückholung blockiert | Miete mit Zahlungsfrist |
+| B11 | E34 und PROCESS_CORE §3 («keine Vormerkung») stimmen so nicht mehr | ehrlich als Kern-Änderung geführt (Tabelle oben) |
+| C | Kleineres: «der Reihe nach» unnötig (Herkunft ist eindeutig) · Vorlagen ohne Kundengeld · Teillieferung entsteht von selbst (Stücke treten einzeln ein) · ein Datum, am Ende der Kette · Sperren sortiert nehmen · Aufgabe «Unterdeckung am Start» bekommt die Kompetenz Verrechnen · AB im Shop (§8 N34) | übernommen bzw. offen |
+
+Grösse und Gewicht sind beim Artikel **heute schon Pflicht** bei der Freigabe (`services/articles.py:24-25`)
+– F28 braucht darum keinen Ersatz bestehender Artikel.
 
 ### F41 Fassung 13 – Man legt den Nachfolger an; der Vorgänger ergibt sich (dein Satz)
 
@@ -1158,7 +1203,7 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E31 | **Karte «Verkauf» erst «für alle», wenn das ERP sie als vollständig prüft** (F29). | 14.11.2026 |
 | E32 | **Etikett `https://id.inexxio.com/<Nummer>`, in Kleinbuchstaben** (F15). | 14.11.2026 |
 | E33 | **«Als PDF» auf der Produktseite** – ja (F30). | 14.11.2026 |
-| E34 | **Keine Kern-Änderung:** jeder Auftrag startet mit definierten Einzelinstanzen, gewählt wird nur Regulär-Startendes; nichts aus einem laufenden Auftrag greifen. | 14.11.2026 |
+| E34 | ~~Keine Kern-Änderung~~ **– korrigiert 14.11. (Prüfung):** fünf kleine Kern-Änderungen, je an einer Stelle (§0). Bleibt: jeder Auftrag startet mit definierten Zeilen; jeder Auftrag startet mit definierten Einzelinstanzen, gewählt wird nur Regulär-Startendes; nichts aus einem laufenden Auftrag greifen. | 14.11.2026 |
 | E37 | **Rückführung und Weitergabe sind eine Idee** (die Verbindung kennt ein Woher und ein Wohin). | 14.11.2026 |
 | E38 | **Der Shop benutzt dieselbe Route wie das ERP** – keine eigene Anlage (F35). | 14.11.2026 |
 | E39 | **«Ihre Bestellung» entsteht aus der Seite `/dokument`** – kein zweiter Ort. | 14.11.2026 |
@@ -1190,9 +1235,14 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 (Preis je Markt, Lieferarten, Neu + Lieferart, Vorauszahlung als Zahl, Seite «Ihre Bestellung») ·
 3 Gerät (Etiketten-Adresse, Geräteseite, Teilebaum) · 4 Miete und Abo · 5 3D und Zwilling · 6 Kanäle.
 
-## 8 · Offene Fragen an den Inhaber (Runde 1, Schluss)
+## 8 · Offene Fragen an den Inhaber (nach der Prüfung)
 
-- **N28** Warten mit Herkunft; jede Ausnahme ist eine Unterdeckung mit Grund und Angeboten (F25 Fassung 12)?
-- **N25** Lieferarten als Vorlagen im Prozess-Designer, je mit «von selbst» oder «planen» (F34, F37)?
-
-Danach: **Runde 2 – Preise, Märkte, Währung.**
+- **N30** Das bereinigte Modell (§0, zwölf Sätze) samt den fünf Kern-Änderungen – einverstanden?
+- **N31** Mit Karte im Voraus: **erst zahlen, dann entstehen die Aufträge** (Satz 3)?
+- **N32** Storno, wenn ein Stück schon im Verkauf steht: soll «Stornieren» es **von selbst ins Lager**
+  zurückgeben (heute braucht das eine Abweichung von Hand)?
+- **N33** Abo im selben Korb wie ein Kauf: zwei Kartenbelastungen – oder die erste Abo-Periode als Position
+  im Kaufbeleg?
+- **N34** Die Auftragsbestätigung im Shop: **von selbst** hinaus (heute gibt jedes Papier ein Mensch frei)?
+- **N35** Lieferung immer automatisch, Sammeltour später (Satz 4)?
+- **N25** Lieferarten als Vorlagen im Prozess-Designer?
