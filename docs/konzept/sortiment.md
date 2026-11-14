@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 10 · **Konzept, Runde 1 – Verkauf und Ausführung** (42 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 11 · **Konzept, Runde 1 – die Kette** (44 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -26,8 +26,9 @@ einen Kunden (das Projekt). Der Korb ist der Entwurf; «Bestellen» gibt frei un
    trifft der Kunde nie auf eine Lücke (F29).
 5. **Regeln hängen am Artikel, nie im Code** (E24): Transportgrösse, Lieferzeit, Anzahlung.
 6. **Anzahlung = ein zweites Zahlungsmodul** vor dem Rest – wie im Kern schon entschieden (E22).
-7. **Auf Bestellung = Weitergabe** (F25 Fassung 10): der Verkaufsauftrag wartet auf genau diese Stücke; sobald
-   eines regulär frei wird (auf welchem Weg auch immer), tritt es ein. Der Spiegel der Rückführung.
+7. **Die Kette der Weitergabe** (F25 Fassung 11): Bau → Verkauf → Lieferung entstehen im selben Klick;
+   jeder wartet auf die Stücke des vorherigen und bekommt sie, sobald sie regulär frei sind – eine Regel,
+   der Reihe nach; fällt ein Glied, fallen die dahinter mit.
 8. **Etikett:** QR mit Adresse `https://id.inexxio.com/<Nummer>` (F15, E32).
 9. **Verkauf und Ausführung getrennt** (F37): der Verkaufsauftrag (Stücke + Zahlung) entsteht immer
    automatisch; die Lieferung ist ein eigener Auftrag aus der Vorlage der Lieferart – einfache von selbst,
@@ -230,10 +231,45 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 10 – nach der neunten Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 11 – nach der zehnten Rückmeldung vom 14.11.2026)
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
-> Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Verkaufs- und Lieferauftrag im ERP.
+> Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### F25 Fassung 11 – Eine Regel, beliebig oft: die Kette der Weitergabe
+
+Deine Frage: Bau → Verkauf → Lieferung – wartet dann jeder auf den vorherigen, und geht das zusammen?
+**Ja – es ist dieselbe Regel, zweimal angewendet:**
+
+```
+ Bauauftrag B  ──(Stück wird Freigegeben)──►  Verkauf V  ──(Stück wird Verkauft)──►  Lieferung L
+ legt das Stück        wartet auf das Stück        wartet auf das Stück
+ mit Nummer an
+```
+
+Alle drei entstehen **im selben Klick** und nennen von Anfang an **dieselbe Seriennummer**. Jeder
+Schritt der Kette ist die eine Regel: *sobald das Stück regulär frei wird (Freigegeben oder Verkauft),
+tritt es in den Auftrag ein, der darauf wartet.*
+
+**Zwei Sätze machen die Kette eindeutig:**
+1. **Der Reihe nach.** Warten mehrere Aufträge auf dasselbe Stück, bekommt es der, der **zuerst**
+   wartet (V vor L – sie entstehen in dieser Reihenfolge). Verlässt es V, ist L dran.
+2. **Fällt ein Glied, fallen die dahinter mit.** Wird V storniert, wartet auch L nicht mehr – sonst würde
+   ein nicht verkauftes Stück ausgeliefert. B läuft fertig, das Stück wird Freigegeben (Lager).
+
+**Was das allgemein heisst:** jede Kette von Aufträgen, durch die ein Stück nacheinander muss, ist mit
+derselben Regel abgebildet – Bau → Verkauf → Lieferung, aber auch Einkauf → Verkauf → Lieferung (Ware vom
+Lieferanten) oder Verkauf → Lieferung → Montage. Ohne Abweichung, ohne Sonderfall, ohne zweite Regel.
+
+| Lage | Kette beim Klick |
+|---|---|
+| An Lager | Verkauf → Lieferung |
+| Auf Bestellung | **Bau** → Verkauf → Lieferung |
+| Projekt (Kran) | **Bau** → Verkauf (zwei Zahlungsmodule) → Lieferung mit Montage (Vorschlag) |
+| Vom Lieferanten | **Einkauf** → Verkauf → Lieferung |
+
+Die Stücke laufen einzeln (wie heute jedes Stück einzeln ein Modul passiert): im Lieferauftrag zeigt
+«Bewegen», welche schon da sind – verladen wird, wenn alle da sind.
 
 ### F25 Fassung 10 – Die Weitergabe löst am Stück aus, nicht am Ende des Auftrags
 
@@ -1077,6 +1113,8 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E40 | **Preis: das Zahlungsmodul übernimmt ihn aus dem Artikel als Vorgabe, im Modul überschreibbar** (F39). | 14.11.2026 |
 | E41 | **«Nachschub» heisst überall gleich.** | 14.11.2026 |
 | E42 | **Miete kommt von Anfang an mit** (F38). | 14.11.2026 |
+| E43 | **Verkauf und Ausführung sind zwei Aufträge** (F37): Verkauf immer automatisch, Lieferung aus der Vorlage der Lieferart. | 14.11.2026 |
+| E44 | **Weitergabe am Stück, als Kette:** jeder Auftrag wartet auf die Stücke des vorherigen; sie treten ein, sobald sie regulär frei sind (F25 Fassung 11). | 14.11.2026 |
 | E36 | **Detailseite statt Pop-up** – jedes Produkt hat seine eigene Seite. | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
@@ -1101,10 +1139,8 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber (Runde 1, Schluss)
 
-- **N27** Verkauf und Ausführung trennen (F37): Verkaufsauftrag immer automatisch, Lieferauftrag aus der
-  Vorlage – von selbst oder als Vorschlag zum Planen?
-- **N23** Weitergabe am Stück, «sobald regulär frei» (F25 Fassung 10)?
-- **N24** Die drei Arten von Unterschied (F33) – mit F37 wird Art 2 zur Planung des Lieferauftrags.
-- **N25** Lieferarten als Vorlagen im Prozess-Designer, mit «von selbst» oder «planen» (F34, F37)?
+- **N28** Die zwei Sätze der Kette (F25 Fassung 11): «der Reihe nach» und «fällt ein Glied, fallen die
+  dahinter mit»?
+- **N25** Lieferarten als Vorlagen im Prozess-Designer, je mit «von selbst» oder «planen» (F34, F37)?
 
 Danach: **Runde 2 – Preise, Märkte, Währung.**
