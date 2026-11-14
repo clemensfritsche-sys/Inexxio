@@ -12,7 +12,8 @@
  * der Kopf. Ein Browser, der `media` an `<source>` nicht kennt, bekommt das Video von
  * scripts/media.ts wieder abgenommen. Anhalten: der Knopf der Bühne (WCAG 2.2.2).
  */
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { photo } from '../config/photos.mjs';
 import Photo from './Photo.astro';
@@ -32,11 +33,13 @@ const poster = video?.replace(/\.mp4$/, '.webp');
 for (const f of video ? [video, poster] : []) {
   if (!existsSync(resolve(process.cwd(), 'public/video', f!))) throw new Error(`Video «${video}» (Foto «${id}»): «${f}» fehlt in public/video/.`);
 }
+/** Adresse mit Fingerabdruck der Datei: eine neue Fassung ist eine neue Adresse – kein Browser zeigt eine alte. */
+const url = (f: string) => `/video/${f}?v=${createHash('sha256').update(readFileSync(resolve(process.cwd(), 'public/video', f))).digest('hex').slice(0, 10)}`;
 ---
 <span class:list={['fill-media', cls]}>
   {video ? (
-    <video autoplay muted loop playsinline disablepictureinpicture preload="metadata" poster={`/video/${poster}`} aria-hidden="true" data-media-video>
-      <source src={`/video/${video}`} type="video/mp4" media={VIDEO_MEDIA} />
+    <video autoplay muted loop playsinline disablepictureinpicture preload="metadata" poster={url(poster!)} aria-hidden="true" data-media-video>
+      <source src={url(video)} type="video/mp4" media={VIDEO_MEDIA} />
     </video>
   ) : (
     <Photo id={id} sizes={sizes} priority={priority} />

@@ -528,7 +528,7 @@ function videoWeight(html) {
   for (const [video] of html.matchAll(/<video\b[\s\S]*?<\/video>/g)) {
     const urls = [video.match(/\sposter="([^"]+)"/)?.[1], ...[...video.matchAll(/<source\b[^>]*\ssrc="([^"]+)"/g)].map((m) => m[1])];
     for (const url of urls.filter(Boolean).map(decode)) {
-      const file = url.startsWith('/') ? fileFor(url) : null;
+      const file = url.startsWith('/') ? fileFor(url.split('?')[0]) : null;
       if (!file) fail('Budget', `Video-Datei «${url}» fehlt in dist/`);
       else sum += statSync(file).size;
     }
