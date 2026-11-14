@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 3 · **Konzept, Runde 1c – das grosse Bild** (15 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 4 · **Konzept, Runde 1d – ein Weg für alles** (20 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -11,40 +11,37 @@
 > `docs/konzept/wiederkehr.md` (Abo) · `website/WEBSITE_PLAN.md` Entscheid 127 (Symbol rechts im Kopf,
 > «Meine Produkte» im Konto).
 
-## 0 · Das grosse Bild (Fassung 3)
+## 0 · Das grosse Bild (Fassung 4)
 
-**Eine Bestellung ist ein Auftrag. Der Korb ist sein Entwurf.** Mehr Neues braucht es nicht – alles
-Weitere kann das ERP schon.
+**Ein Weg für alles: Teil, Maschine, Projekt.** Was verkauft wird, ist ein Artikel mit Karte «Verkauf».
+Der Korb ist der Entwurf eines Auftrags. «Bestellen» gibt ihn frei.
 
 ```
- Kunde (Website)                         ERP                                  Kunde (Website)
- ───────────────                         ───                                  ───────────────
- Korb  = Entwurf des Auftrags   ──►  Auftrag (je Rhythmus einer)       ──►   «Ihre Bestellung»
- (nur im Browser, wie heute           Zeilen: Lager (FIFO) oder Neu            eine Seite für alles:
-  jeder Entwurf im ERP)               Ablauf: Ware + Lieferart                 Stand · Bezahlen ·
-                                      Zahlungsmodul: Preis aus der Karte       Papiere · Seriennummer
- «Bestellen» = Freigabe + Zusage      «Verkauf», Vorauszahlung als Zahl
- (ein Klick, der Kunde ist der Mensch)
+ Artikel mit Karte «Verkauf»        Korb (Browser)          ERP                       Website
+ ─────────────────────────────      ──────────────          ───                       ───────
+ für alle  ·  oder nur für     ──►  Entwurf des      ──►    Verkaufs-Auftrag    ──►   «Ihre Bestellung»
+ Hof Brunner (das Projekt)          Auftrags                Nr. = Bestellnummer        Stand · Bezahlen ·
+                                    «Bestellen» =           Zahlung zugesagt           Papiere · Seriennummer
+                                    Freigabe + Zusage       Ware: Lager  oder
+                                                            «aus Auftrag X» ◄── Erzeugungs-Auftrag
+                                                                                 (unverändert, übergibt
+                                                                                  an seinem Ende)
 ```
 
-1. **Der Korb ist der Entwurf.** Solange der Kunde wählt, gibt es am Server nichts – keine Zeile, keine
-   Nummer, kein reserviertes Stück (genau die Regel «Artikel und Auftrag entstehen erst mit ihrer
-   Freigabe»). Ein verlassener Korb kostet nichts.
-2. **«Bestellen» gibt den Auftrag frei und sagt im Zahlungsmodul zu** – in einem Klick. Die Stücke
-   wählt das System nach FIFO (Lager) oder legt sie neu an (Neu).
-3. **Je Rhythmus ein Auftrag.** Fast immer ist es **einer**. Nur wenn im Korb auch etwas Wiederkehrendes
-   liegt (Abo, Miete, Wartung), entsteht dafür ein **zweiter Auftrag mit Schlaufe** – weil eine Schlaufe
-   immer den ganzen Auftrag wiederholt. Alle Aufträge einer Bestellung tragen **dieselbe
-   Bestellnummer** (die Herkunft) und stehen für den Kunden auf **einer** Seite.
-4. **Jeder Auftrag hat ein Zahlungsmodul** (Einnahme). Preis aus der Karte «Verkauf», **Vorauszahlung
-   als eine Zahl** (0 % Rechnung · 30 % Anzahlung · 100 % voraus). Der Ablauf entsteht aus **Ware +
-   Lieferart** (§5 F20).
-5. **Projekt (Kran) = derselbe Auftrag, nur gibt ihn ein Mensch frei.** Das Zahlungsmodul steht dann auf
-   «Offerte»; der Kunde sieht sie auf derselben Seite «Ihre Bestellung» und sagt dort zu. Shop und
-   Projekt unterscheiden sich nur darin, **wer freigibt** und **wann zugesagt wird** – sonst in nichts.
-6. **Verkauf als Karte am Artikel** (entschieden, E10); Optionen zeigen auf andere Artikel.
-7. **Die Seriennummer ist eine Tür** (QR mit Adresse und Nummer, §5 F15); **Ersatzteile** kommen aus dem,
-   was verbaut ist.
+1. **Projekt = Artikel «nur für».** Der Kran ist ein eigener Artikel; seine Karte «Verkauf» gilt nur für
+   Hof Brunner. Der Kunde bestellt ihn wie jedes Teil. Es gibt **keinen zweiten Weg** (E18).
+2. **Der Korb ist der Entwurf**, am Server gibt es vorher nichts. **«Bestellen» = Freigabe + Zusage.**
+3. **Bestellnummer = Auftragsnummer** (E19). Eine Bestellung ist genau ein Auftrag.
+4. **Wiederkehrendes kommt nicht in den Korb.** Abo und Miete bestellt man direkt auf der Produktseite
+   («Abonnieren», «Mieten») – das ist ein eigener Auftrag mit Schlaufe, eine eigene Bestellung.
+5. **Jedes Feld des Zahlungsmoduls hat eine Quelle** (§5 F24) – nichts wird bei der Bestellung erfunden
+   oder von Hand nachgetragen.
+6. **Ware, die es noch nicht gibt, kommt aus einem anderen Auftrag** (E20): der Erzeugungs-Auftrag
+   bleibt, wie er ist, und **übergibt** seine fertigen Stücke an den Verkaufs-Auftrag (§5 F25). Dasselbe
+   gilt später für Ware, die wir einkaufen.
+7. **Keine Ausnahmen im Code:** jeder Artikel nennt seine Eigenschaften (Lieferarten, Lieferzeit), der
+   Korb wendet **eine** Regel an (§5 F27).
+8. **Die Seriennummer ist eine Tür:** QR mit Adresse auf unserer Domain, selbst gebaut (E16, §5 F15).
 
 ## 1 · Problem und Ziel
 
@@ -243,7 +240,134 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 3 – nach der zweiten Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 4 – nach der dritten Rückmeldung vom 14.11.2026)
+
+> Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
+
+### F18 Fassung 4 – Projekt = Artikel «nur für» (dein Einwand, übernommen)
+
+Fassung 3 hatte für das Projekt einen zweiten Weg (ein Mensch gibt frei, der Kunde sagt später zu). Dein
+Einwand ist einfacher und richtig: **ein Projekt ist ein Artikel, der nur für einen Kunden freigegeben
+ist.** Der Kunde sieht ihn auf der Produktseite, bestellt ihn mit «Bestellen» – genau wie ein Teil.
+- Die **Offerte als Papier** (PDF mit AGB) ist dann eine Ansicht dieser Seite – «Als Offerte
+  herunterladen» –, kein eigener Vorgang.
+- **Gültigkeit**: die Karte «Verkauf» hat ein «sichtbar bis» (z. B. 30 Tage).
+- Verhandelt der Kunde etwas um, ändert man die Karte (Preis) oder macht einen neuen Kran-Artikel, der
+  den alten ersetzt (E8 gilt).
+- Folge: im Shop durchläuft das Zahlungsmodul die Stufe «Offerte» nicht mehr sichtbar – die Zusage
+  geschieht mit der Freigabe (wie heute schon die stille Zusage der Wiederholung, `loop.agreed`).
+
+### F22 Fassung 4 – Abo und Miete: eigener Auftrag, nicht im Korb
+
+Deine Frage: «Muss ich einmal für den Kauf und einmal für das Abo abschliessen?» – **Ja, und so machen
+es die anderen auch:** Apple (iPhone + AppleCare monatlich), Amazon («Spar-Abo»), Tesla
+(Fahrzeug + Software-Abo): der Kauf ist **eine** Bestellung, das Abo ein **eigener Vertrag** mit eigenen
+Rechnungen. Oft im selben Zug angeboten («AppleCare dazu?»), aber getrennt abgeschlossen.
+
+Bei uns: «Abonnieren» und «Mieten» sind eigene Knöpfe auf der Produktseite, sie gehen **nicht in den
+Korb**. Jeder Knopf legt einen Auftrag mit Schlaufe an – eine eigene Bestellung mit eigener Nummer.
+Damit gilt ohne Ausnahme: **eine Bestellung = ein Auftrag = Bestellnummer = Auftragsnummer.** Nach dem
+Kauf eines Krans darf die Seite fragen: «Wartungsvertrag dazu?» – ein Klick, zweite Bestellung.
+
+### F24 neu – Jedes Feld des Zahlungsmoduls hat eine Quelle
+
+Was das Zahlungsmodul braucht (`domain/modules.py` `Beleg`, `services/voucher_rules.py`), und woher
+es bei einer Bestellung kommt:
+
+| Feld | Quelle |
+|---|---|
+| Richtung | immer **Einnahme** |
+| Partei | die bestellende **Person** (aus der E-Mail, `people.ensure`); Firma «z. H.» aus der UID |
+| Anschrift | Eingabe beim Bestellen (Google Places), landet im Adressbuch der Person |
+| Gesellschaft (stellt den Beleg) | aus dem Land der Lieferadresse (`sites.company_for_country`) |
+| Positionen und Preise | Karte «Verkauf» + gewählte Optionen, Preis des Marktes (F23, F26) |
+| Währung | Markt der Lieferadresse (F26) |
+| Eigentum | «Kaufen» → geht an die Partei · «Mieten» → geht an uns |
+| Zahlungsfrist / Vorauszahlung | Kaskade Gesellschaft → Partner → Karte «Verkauf» (F19) |
+| Lieferfrist | abgeleitet: Lager → Versandtage; aus Auftrag → dessen Datum «bis» |
+| Lieferbedingung (Incoterm) | aus der Lieferart (Abholen → EXW, Paket/Spedition → DAP Kunde) |
+| Steuersatz | wie heute: entscheidet die Anschrift |
+
+Fehlt eine Quelle, kann die Seite nicht «Bestellen» anbieten, sondern nur «Offerte anfordern» – nie
+eine halbe Bestellung.
+
+### F19 Fassung 4 – Vorauszahlung: wie heute, Anzahlung später
+
+**Heute definiert** (`domain/voucher.py:191`): **«Vorauszahlung IST der Wert 0»** der Zahlungsfrist – kein
+Schalter daneben. Ist die Frist 0, laufen die Stücke erst weiter, wenn **voll** bezahlt ist
+(`PROCESS_CORE` §9.15); sonst mit der Zusage. Das genügt für den Shop vollständig:
+- Neukunde: Frist 0 → Karte/TWINT/QR, Ware nach Zahlung.
+- Bekannte Firma: Frist 30 Tage (Kondition am Partner) → Ware sofort, Rechnung.
+
+**Anzahlung** (30 % beim Kran) kann das Modul heute **nicht** (entweder alles vorab oder nichts). Das
+kommt erst, wenn die Maschinen in den Shop gehen – Vorschlag dann: eine zweite Zahl neben der Frist
+(«davon vorab in %»). Bis dahin: Kran mit Frist 0 oder mit Frist und Vertrauen.
+
+### F25 neu – Übergabe: der Erzeugungs-Auftrag gibt seine Stücke weiter
+
+Dein Entscheid (E20): bei «auf Bestellung» gibt es **zwei Aufträge**; der Erzeugungs-Auftrag bleibt
+unverändert. Die offene Frage war: der Verkaufs-Auftrag braucht bei der Freigabe Stücke – die gibt es
+aber erst nach der Erzeugung. Die Lösung:
+
+1. **Beim Bestellen** entstehen beide in einem Zug: zuerst der Erzeugungs-Auftrag (er legt die Stücke
+   **sofort** an, mit Nummer – das tut «Neu» heute schon), dann der Verkaufs-Auftrag mit genau diesen
+   Stücken als Zeile **«aus Auftrag X»**.
+2. **Solange X läuft**, stehen die Stücke im Verkaufs-Auftrag als «kommt aus Auftrag X» – sie sind dort
+   **vorgemerkt, nicht aktiv** (die Exklusivität bleibt: ein Stück ist in genau einem Auftrag aktiv).
+3. **Am Ende von X** werden sie Freigegeben und treten im selben Zug in den Verkaufs-Auftrag ein. Die
+   **Übergabe ist ein Ereignis im Log**, keine Spalte (wie `loop.next`).
+4. Zahlung und Zusage gelten ab dem ersten Tag; der Kunde sieht sogar seine **Seriennummer von Anfang an**.
+
+Allgemein: eine Zeile im Verkaufs-Auftrag ist **«Lager»** oder **«aus Auftrag X»**. X kann eine Erzeugung
+sein – oder später ein Einkauf (Ware vom Lieferanten). Eine Regel für beides.
+
+### F26 neu – Währung: ein Kurs je Markt, vom Menschen gesetzt
+
+**Heute** (`domain/currency.py`): ein Beleg hat **eine** Währung; Fremdwährung nur für Lieferungen ins
+Ausland; **es rechnet nicht um** – mit Absicht: «wer umrechnet, ohne zu sagen *wann* und *woher*,
+erfindet Zahlen». Der alte Shop scheiterte genau daran (zwei Kurse für einen Kauf, `docs/attic.md`).
+
+**Vorschlag – sagt «wann» und «woher»:**
+- Ein **Markt** (F23) hat eine Währung und **einen Kurs mit Datum**, vom Menschen gesetzt
+  («1 CHF = 1.04 EUR, gilt ab 01.01.2027») – kein Tageskurs, der Preise täglich springen lässt.
+- Der **Preis in EUR ist eine Ableitung**: Hauspreis × Kurs × Kaufkraft-Faktor des Marktes, **auf eine
+  feste Stufe gerundet** (z. B. ganze Euro). Wo das nicht passt, setzt man am Artikel einen festen
+  EUR-Preis – Ausnahme, nicht Regel.
+- **Anzeige:** Besucher aus Deutschland sieht Euro (Land aus der Anfrage); verbindlich wird die Währung
+  mit der **Lieferadresse** – genau die heutige Regel «Fremdwährung nur ins Ausland».
+- **Stripe** belastet genau diesen Betrag in dieser Währung (der Checkout gibt Betrag **und** Währung
+  vor – Lehre aus dem alten Anlauf). Ein Kurs, eine Quelle: unsere.
+
+### F27 neu – Ausnahmen ohne if-else: Eigenschaften + eine Regel
+
+Statt Sonderfälle im Code: **jeder Artikel nennt in seiner Karte «Verkauf» Eigenschaften**, und der Korb
+kennt **eine** Regel.
+
+| Eigenschaft am Artikel | Regel im Korb |
+|---|---|
+| erlaubte Lieferarten | angeboten wird die **Schnittmenge** aller Positionen |
+| Lieferzeit (Lager / aus Auftrag) | der Liefertermin ist der **späteste** aller Positionen |
+| lieferbar in (Markt) | nur, was ins Land der Lieferadresse darf |
+| Rhythmus (einmal / wiederkehrend) | Wiederkehrendes kommt nie in den Korb (F22) |
+
+Ist die Schnittmenge leer (Kran nur Spedition, Paket-Teil nur Paket), zeigt der Korb **an der Zeile**,
+was nicht zusammenpasst, und bietet an: «separat bestellen». **Eine neue Ausnahme ist eine neue
+Eigenschaft am Artikel – keine neue Zeile Code.**
+
+### F15 Fassung 4 – das Etikett, selbst gebaut, auf unserer Domain
+
+Dein Entscheid (E16): QR mit Link, selbst gebaut. **Domain:** unsere eigene, mit einem festen kurzen
+Pfad – **`inexxio.ch/i/<Nummer>`**. Eine zweite Domain bringt nichts, solange wir `inexxio.ch` nie
+aufgeben (Verlängern kostet wenig; zieht die Website um, bleibt die Domain und leitet weiter).
+
+Sauber aufgebaut heisst:
+- **Eine Regel im Hosting** (`firebase.json`): `/i/<Nummer>` → Dienst → leitet auf die Geräteseite in der
+  Sprache des Besuchers. Die Etikett-Adresse ist **nie** selbst eine Seite – so kann sich die Seite
+  ändern, das Etikett nie.
+- **`/i/` ist reserviert**: keine Website-Seite darf je so beginnen (`check-site` prüft es).
+- Der ERP-Scanner liest weiter nur die Nummer (`scan.ts`) – Etiketten mit und ohne Adresse gehen.
+- Unbekannte Nummer → freundliche Seite «Gerät nicht gefunden – Nummer eingeben / anfragen».
+
 
 > Was entschieden ist, steht in §6. Hier steht, was offen ist, mit Begründung und Alternative.
 
@@ -481,6 +605,12 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E13 | **Jeder Text der Website in jeder angebotenen Sprache** – harte Regel mit Wächter; übersetzt einmal beim Speichern durch die KI, nicht live (F21). | 14.11.2026 |
 | E14 | **Die Bestellung ist ein Auftrag** (nicht ein eigenes Ding «Offerte»); das Zahlungsmodul trägt Offerte, Zusage, Rechnung, Zahlung (F18 Fassung 3). | 14.11.2026 |
 | E15 | **ERP ist Master bleibt** – nichts der Bestellung wird ausserhalb gepflegt. | 14.11.2026 |
+| E16 | **QR mit Link, selbst gebaut** (nach dem Muster GS1 Digital Link, ohne GS1-Dienst). | 14.11.2026 |
+| E17 | **Märkte nur als Ausnahme** – ohne Eintrag gilt die ganze Welt (wie die Gebiete der Gesellschaften); Währung siehe F26. | 14.11.2026 |
+| E18 | **Projekt = Artikel «nur für» einen Kunden**, sonst derselbe Weg wie jedes Produkt. | 14.11.2026 |
+| E19 | **Bestellnummer = Auftragsnummer.** | 14.11.2026 |
+| E20 | **«Auf Bestellung» = zwei Aufträge:** der Erzeugungs-Auftrag bleibt unverändert, der Verkaufs-Auftrag ist der Auftrag der Bestellung (Mechanik F25). | 14.11.2026 |
+| E21 | **Die Seite «Ihre Bestellung»** ist gewünscht – robust gebaut. | 14.11.2026 |
 
 ## 7 · Vorgehen – wie wir es definieren
 
@@ -489,7 +619,7 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 | Runde | Block | Stand |
 |---|---|---|
-| 1 | Grundmodell (A) und Bestellweg (F) | **1c läuft** – das grosse Bild, Fragen §8 |
+| 1 | Grundmodell (A) und Bestellweg (F) | **1d läuft** – ein Weg für alles, Fragen §8 |
 | 2 | Preise und Märkte (C) | offen |
 | 3 | Auftrag im ERP (G), Angebotsformen (D) | vorgezogen in F18–F20 |
 | 4 | Seriennummer, QR, Ersatzteile, 3D (I) | F15 vorgezogen |
@@ -501,12 +631,13 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 (Preis je Markt, Lieferarten, Neu + Lieferart, Vorauszahlung als Zahl, Seite «Ihre Bestellung») ·
 3 Gerät (Etiketten-Adresse, Geräteseite, Teilebaum) · 4 Miete und Abo · 5 3D und Zwilling · 6 Kanäle.
 
-## 8 · Offene Fragen an den Inhaber (Runde 1c)
+## 8 · Offene Fragen an den Inhaber (Runde 1d)
 
-- **N2/N3** Das grosse Bild (§0): Korb = Entwurf, «Bestellen» = Freigabe + Zusage, je Rhythmus ein
-  Auftrag, Vorauszahlung als Zahl, Projekt = derselbe Auftrag mit Freigabe durch einen Menschen –
-  einverstanden?
-- **N5** QR nach dem Muster GS1 Digital Link mit eigener Etiketten-Domain (F15 Fassung 3)?
-- **N8** Märkte: ohne Eintrag gilt die ganze Welt zum Hauspreis, gepflegt werden nur Ausnahmen (F23)?
-- **N9** Ein Auftrag mit «Neu» = Erzeugungsprozess + Lieferart, Lagerstücke treten bei der Lieferart ein
-  (F20) – die einzige Änderung am Kern des Prozesses, die das Sortiment braucht. Einverstanden?
+- **N2** Das grosse Bild Fassung 4 (§0): ein Weg für alles, Korb = Entwurf, Abo/Miete nicht im Korb,
+  Bestellnummer = Auftragsnummer – einverstanden?
+- **N10** Jedes Feld des Zahlungsmoduls hat eine Quelle (F24); fehlt eine, gibt es nur «Offerte anfordern»?
+- **N11** Übergabe «aus Auftrag X» (F25) als Mechanik für E20?
+- **N12** Währung: Kurs je Markt mit Datum, vom Menschen gesetzt, Preis abgeleitet und gerundet (F26)?
+- **N13** Ausnahmen als Eigenschaften am Artikel + eine Regel im Korb (F27)?
+- **N14** Etikett-Adresse `inexxio.ch/i/<Nummer>`, reservierter Pfad, nur Weiterleitung (F15 Fassung 4)?
+- **N15** Anzahlung erst, wenn Maschinen in den Shop gehen (F19 Fassung 4)?
