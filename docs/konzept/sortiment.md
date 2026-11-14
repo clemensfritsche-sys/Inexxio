@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 19 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 20 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -255,6 +255,44 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Fassung 20 – Antworten zu N31–N38, Abo mit Karte, Lieferschein am Bewegen
+
+**N32 – Storno:** «Stornieren» gibt es im Zahlungsmodul – aber es regelt **nur das Geld** (Stornierung,
+Gutschrift). Die **Stücke** bleiben im stornierten Auftrag stehen (`voucher.pass_problem`: sie dürfen nicht
+weiter). Heute holt sie ein Mensch mit einer Abweichung heraus (erlaubt, `release._assert_may_leave` –
+die Zahlung hält kein Stück fest). **Vorschlag ohne neue Automatik:** nach einem Storno **bietet das System
+an**: «Stücke stehen in einem stornierten Verkauf – zurück ins Lager?» mit vorbelegtem Entwurf (wie
+«Nachschub» und «Holen lassen»). Der Mensch entscheidet – das Leitbild, nichts Neues im Kern.
+
+**N33 – Abo mit Karte, ohne Stripes Abo-System:**
+- Stripe hat ein eigenes Abo-Produkt (Billing) – das brauchen wir **nicht**, und es kostet zusätzlich.
+  Den Rhythmus haben wir schon: **unsere Schlaufe** legt je Periode einen Auftrag an.
+- Was wir von Stripe brauchen, ist nur **«Karte merken»**: beim ersten Kauf speichert der Kunde seine Karte
+  (Stripe Customer + gespeicherte Zahlungsart); je Periode belastet **unser Takt** sie ohne den Kunden
+  («off-session» – gewöhnliche Kartenzahlung, kein Zusatzprodukt). Gebucht wird wie heute nur vom Webhook.
+- **Kauf + Abo im selben Korb:** ein Klick, **zwei Belastungen** auf dieselbe Karte – eine je Auftrag. Das
+  bleibt sauber (jeder Auftrag hat seinen Beleg); die erste Abo-Periode **nicht** in den Kaufbeleg mischen.
+  (Ersetzt den Vorschlag aus Fassung 14.)
+- Ohne gespeicherte Karte: je Periode eine **QR-Rechnung** – wie heute.
+- Heute bewusst nicht gebaut (`services/stripe_pay.py`); kommt mit dem Sortiment.
+
+**N34 – Auftragsbestätigung:** sie kommt **aus dem Zahlungsmodul**, wie heute. Heute geht sie aber nur mit
+«Prüfen und freigeben» durch einen Menschen hinaus (`voucher.papers_due`). **Offene Frage:** im Shop jede
+Bestellung von Hand freigeben – oder dort von selbst?
+
+**Lieferschein – wo er entsteht (ersetzt E51 im Ort):** **nicht im Zahlungsmodul** – das ist komplex genug
+und weiss nichts von der Lieferung. Er gehört zum Modul **«Bewegen»** im Lieferauftrag:
+- «Bewegen» kennt genau die Stücke, die verladen werden: **Ware zuerst** (Scan der Stücke) → der Lieferschein
+  entsteht; **Ziel zuletzt** (Scan beim Kunden) = die Quittung des Empfangs.
+- Eine Einstellung am Modul: «Lieferschein: ja / nein» (die Vorlage der Lieferart setzt sie).
+- Das Papier kommt aus derselben A4-Vorlage (`services/a4.py`) und wird ein Dokument wie jedes andere –
+  die Papier-Maschine wird **mitbenutzt**, das Zahlungsmodul nicht angefasst.
+
+**N25 – Lieferarten als Vorlagen, einfach gesagt:** Paket, Abholen, Spedition, Montage sind je eine kurze
+Abfolge von Modulen (z. B. Spedition: Zahlung an den Spediteur → Bewegen). Diese Abfolgen zeichnet man
+**einmal** mit dem Werkzeug, mit dem man heute schon den Erzeugungsprozess eines Artikels zeichnet, und legt
+sie an der Gesellschaft ab. Bei jeder Bestellung kopiert das System die passende in den Lieferauftrag.
 
 ### Fassung 18 – Welches Stück gehört zu welcher Rechnung: die Wahrheit im ERP, die Papiere als Momentaufnahme
 
@@ -1331,7 +1369,11 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E48 | **Eigentum bleibt bei zwei Werten** («uns» · «jemand anderem»); das Spediteur-Modul wird von der Vorlage passend vorbelegt (Prüfung A4, Fassung 15). | 14.11.2026 |
 | E49 | **«Frei mit Ort» (Miete) zurückgestellt** – kommt mit der Miete (Prüfung A5). | 14.11.2026 |
 | E50 | **Papiere als Momentaufnahme:** «Seriennummer … (vorgesehen)», solange das Stück im Bau ist; die genaue Verbindung immer im ERP (Fassung 18). | 14.11.2026 |
-| E51 | **Lieferschein als neues Papier des Lieferauftrags** (A4-Vorlage, ohne Preise), mit Bezug auf Bestellung und Rechnung und ausdrücklichem Vermerk, wenn ein Stück das vorgesehene ersetzt (Fassung 19). | 14.11.2026 |
+| E51 | **Lieferschein als neues Papier des Lieferauftrags – am Modul «Bewegen», nicht am Zahlungsmodul** (Fassung 20) (A4-Vorlage, ohne Preise), mit Bezug auf Bestellung und Rechnung und ausdrücklichem Vermerk, wenn ein Stück das vorgesehene ersetzt (Fassung 19). | 14.11.2026 |
+| E52 | **Eine bezahlte Bestellung wird nie abgewiesen** – fehlt das Stück, entsteht sie mit Nachschub und neuem Termin; der Kunde darf stornieren (S3). | 14.11.2026 |
+| E53 | **Ein anderer Artikel (auch der Nachfolger) nur mit neuer Zusage des Kunden** (S2). | 14.11.2026 |
+| E54 | **Mit Karte im Voraus: erst zahlen, dann entstehen die Aufträge** (Satz 3). | 14.11.2026 |
+| E55 | **Lieferung immer automatisch, Sammeltour später** (Satz 4). | 14.11.2026 |
 | E36 | **Eine Seite je Produkt: die Produktseite** – kein Pop-up, keine zweite «Detailseite». Teil, Funk-Set, Kran: dieselbe Seite, gefüllt aus der Karte «Verkauf». | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
@@ -1354,16 +1396,11 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 (Preis je Markt, Lieferarten, Neu + Lieferart, Vorauszahlung als Zahl, Seite «Ihre Bestellung») ·
 3 Gerät (Etiketten-Adresse, Geräteseite, Teilebaum) · 4 Miete und Abo · 5 3D und Zwilling · 6 Kanäle.
 
-## 8 · Offene Fragen an den Inhaber (nach der Prüfung)
+## 8 · Offene Fragen an den Inhaber
 
-- **N37** Eine bezahlte Bestellung wird nie abgewiesen – fehlt das Stück, entsteht sie mit Nachschub und
-  neuem Termin, der Kunde darf stornieren (S3)?
-- **N38** Ersatz durch den Nachfolger-Artikel nur mit neuer Zusage des Kunden (S2)?
-- **N31** Mit Karte im Voraus: **erst zahlen, dann entstehen die Aufträge** (Satz 3)?
-- **N32** Storno, wenn ein Stück schon im Verkauf steht: soll «Stornieren» es **von selbst ins Lager**
-  zurückgeben (heute braucht das eine Abweichung von Hand)?
-- **N33** Abo im selben Korb wie ein Kauf: zwei Kartenbelastungen – oder die erste Abo-Periode als Position
-  im Kaufbeleg?
-- **N34** Die Auftragsbestätigung im Shop: **von selbst** hinaus (heute gibt jedes Papier ein Mensch frei)?
-- **N35** Lieferung immer automatisch, Sammeltour später (Satz 4)?
-- **N25** Lieferarten als Vorlagen im Prozess-Designer?
+- **N32** Nach einem Storno bietet das System an, die Stücke zurück ins Lager zu holen (vorbelegter Entwurf)
+  – statt einer neuen Automatik?
+- **N33** Abo mit Karte: Karte merken, unser Takt belastet je Periode; Kauf + Abo = ein Klick, zwei
+  Belastungen?
+- **N34** Auftragsbestätigung im Shop: jede von Hand freigeben – oder dort von selbst?
+- **N25** Lieferarten als Vorlagen, gezeichnet mit dem bestehenden Prozess-Werkzeug, an der Gesellschaft?
