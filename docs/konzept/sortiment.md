@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 20 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 21 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -255,6 +255,35 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Fassung 21 – Lieferung ohne Vorlagen, Lieferschein: beide Seiten
+
+**N25 vereinfacht – keine Vorlagen mehr.** Der Lieferauftrag hat immer dieselbe einfache Form, gewählt aus der
+Transportgrösse (E30):
+
+| Transport | Lieferauftrag |
+|---|---|
+| Paket · Abholen | **Bewegen** (zum Kunden) |
+| Palette · Lastwagen | **Zahlung an den Spediteur → Bewegen** |
+
+Mehr nicht. **Montage** ist dann kein Teil der Lieferung, sondern ein eigener, gewöhnlicher Auftrag (Prüfung,
+Protokoll), den man mit «Nachfolger anlegen» an die Lieferung hängt (E45). Damit entfällt das Zeichnen und
+Pflegen von Vorlagen ganz. *(Ersetzt F34 und den Vorlagen-Teil von F37.)*
+
+**Lieferschein – am Zahlungsmodul oder am Bewegen?**
+
+| | Am Zahlungsmodul (Verkauf) | Am Bewegen (Lieferung) |
+|---|---|---|
+| Alles an einem Ort | ja | über die Kette – und die Papiere stehen trotzdem zusammen (siehe unten) |
+| Weiss, **wann** die Ware das Haus verlässt | **nein** – die Zahlung lässt die Stücke schon bei der Zusage weiter, Tage vor der Lieferung | **ja** – der Scan der Ware ist genau dieser Moment |
+| Weiss, **welche** Stücke wirklich geladen werden | nur, was verkauft ist | **genau**, was gescannt wird |
+| Lieferung ohne Rechnung (Miete, Garantie-Ersatz, Leihgerät, Retoure) | geht nicht | geht |
+| Zahlungsmodul noch komplexer | ja | nein |
+
+**Empfehlung: am Bewegen – und trotzdem «alles an einem Ort» für den Blick:** der Lieferschein bekommt eine
+**Referenz auf den Verkauf** (wie jedes Dokument eine Referenz hat). Dadurch steht er **bei den anderen
+Papieren der Bestellung** – Offerte, AB, Rechnung, Lieferschein nebeneinander, im ERP am Verkauf und auf
+«Ihre Bestellung». Gebaut wird er dort, wo man weiss, was geliefert wird; gezeigt wird er dort, wo man sucht.
 
 ### Fassung 20 – Antworten zu N31–N38, Abo mit Karte, Lieferschein am Bewegen
 
@@ -1374,6 +1403,8 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E53 | **Ein anderer Artikel (auch der Nachfolger) nur mit neuer Zusage des Kunden** (S2). | 14.11.2026 |
 | E54 | **Mit Karte im Voraus: erst zahlen, dann entstehen die Aufträge** (Satz 3). | 14.11.2026 |
 | E55 | **Lieferung immer automatisch, Sammeltour später** (Satz 4). | 14.11.2026 |
+| E56 | **Storno bleibt, wie er heute ist** (N32): er regelt das Geld; die Stücke holt ein Mensch bei Bedarf mit einer Abweichung – keine neue Automatik, kein Angebot. | 14.11.2026 |
+| E57 | **Abo mit Karte** (N33): Karte merken bei Stripe (kein Abo-Produkt von Stripe), unser Takt belastet je Periode; Kauf + Abo = ein Klick, zwei Belastungen; ohne Karte QR-Rechnung. | 14.11.2026 |
 | E36 | **Eine Seite je Produkt: die Produktseite** – kein Pop-up, keine zweite «Detailseite». Teil, Funk-Set, Kran: dieselbe Seite, gefüllt aus der Karte «Verkauf». | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
@@ -1398,9 +1429,8 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber
 
-- **N32** Nach einem Storno bietet das System an, die Stücke zurück ins Lager zu holen (vorbelegter Entwurf)
-  – statt einer neuen Automatik?
-- **N33** Abo mit Karte: Karte merken, unser Takt belastet je Periode; Kauf + Abo = ein Klick, zwei
-  Belastungen?
 - **N34** Auftragsbestätigung im Shop: jede von Hand freigeben – oder dort von selbst?
-- **N25** Lieferarten als Vorlagen, gezeichnet mit dem bestehenden Prozess-Werkzeug, an der Gesellschaft?
+- **N40** Lieferung ohne Vorlagen: Paket/Abholen = Bewegen; Palette/Lastwagen = Spediteur + Bewegen; Montage als
+  eigener Nachfolger-Auftrag (Fassung 21)?
+- **N41** Lieferschein am Bewegen, mit Referenz auf den Verkauf – damit er bei den anderen Papieren steht
+  (Fassung 21)? Oder doch am Zahlungsmodul?
