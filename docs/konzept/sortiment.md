@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 8 · **Konzept, Runde 1 – Unterdeckung beim Start** (35 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 9 · **Konzept, Runde 1 – Weitergabe** (36 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -26,9 +26,9 @@ einen Kunden (das Projekt). Der Korb ist der Entwurf; «Bestellen» gibt frei un
    trifft der Kunde nie auf eine Lücke (F29).
 5. **Regeln hängen am Artikel, nie im Code** (E24): Transportgrösse, Lieferzeit, Anzahlung.
 6. **Anzahlung = ein zweites Zahlungsmodul** vor dem Rest – wie im Kern schon entschieden (E22).
-7. **Auf Bestellung = Unterdeckung beim Start** (F25 Fassung 8, deine Idee): der Verkaufs-Auftrag entsteht
-   sofort mit seiner Menge; was fehlt, ist Unterdeckung wie beim Verbrauch, der Bauauftrag ist ein
-   gewöhnlicher Nachschub, das Stück tritt ein, sobald es Freigegeben ist.
+7. **Auf Bestellung = Weitergabe** (F25 Fassung 9, deine Idee): der Bauauftrag legt die Stücke mit Nummer an,
+   der Verkaufsauftrag nennt sie mit der Absicht «nach Auftrag X» – er wartet, greift nicht; am Ende des
+   Bauauftrags gehen sie weiter. Der Spiegel der Rückführung.
 8. **Etikett:** QR mit Adresse `https://id.inexxio.com/<Nummer>` (F15, E32).
 
 ## 1 · Problem und Ziel
@@ -228,10 +228,107 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 8 – nach der siebten Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 9 – nach der achten Rückmeldung vom 14.11.2026)
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
-> Im Bild: ein echter Durchlauf Katalog → Korb → Bestellen → derselbe Auftrag im ERP.
+> Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → derselbe Auftrag im ERP.
+
+### F25 Fassung 9 – Deine Idee, sauber eingepasst: die «Weitergabe» (Spiegel der Rückführung)
+
+**Die Idee:** zuerst den Bauauftrag (er legt die Stücke mit Nummer an), dann den Verkaufsauftrag, der
+**genau diese Stücke** nennt – aber nicht als Abweichung, sondern als Auftrag, der **darauf wartet**.
+
+**Warum das ins System passt** – es gibt die Bausteine schon, nur in die andere Richtung:
+- **Die Rückführung** (PROCESS_CORE §12.3): eine Eigenschaft der **Verbindung** (`order_units.
+  return_to_order_id`) – «nach diesem Auftrag kehrt das Stück dorthin **zurück**, woher es kam».
+- **Die Absicht jeder Auswahl** (§12.6a, `UnitPick.from_order`): `null` = «ein freies Stück»,
+  Nummer = «aus genau diesem Auftrag **greifen**» (= Abweichung). «Ein Auftrag ändert nie unbemerkt
+  seine Art.»
+
+**Die Weitergabe ist der Spiegel:** «nach seinem Ende geht das Stück dorthin **weiter**, wo es erwartet
+wird». Eine **dritte Absicht** in derselben Auswahl:
+
+| Absicht | Bedeutung | Art des Auftrags |
+|---|---|---|
+| frei (`null`) | ein freies Stück aus dem Lager | gewöhnlich |
+| aus Auftrag X | das Stück wird X **entzogen** | Abweichung (X wartet auf Rückführung) |
+| **nach Auftrag X** | das Stück **kommt**, wenn X es an seinem Ende abgibt | **gewöhnlich, wartend** |
+
+**So läuft es:**
+1. «Bestellen» legt den **Bauauftrag E** an (unverändert, «Neu»): die Stücke entstehen sofort mit Nummer.
+2. Im selben Klick der **Verkaufsauftrag V**, Zeile «nach Auftrag E» mit genau diesen Nummern. Die
+   Verbindung in V ist **geplant, noch nicht offen** – die Exklusivität (zählt nur offene) bleibt
+   unberührt: das Stück ist nur in E aktiv.
+3. E läuft ganz normal. **An seinem Ende** (`process._finish`, dieselbe Stelle, dieselbe Transaktion)
+   öffnet sich die Verbindung in V: das Stück tritt dort am Start ein. Ins Log: «weitergegeben an V».
+4. V hat von Anfang an: Bestellnummer, Zahlungsmodul mit den **bekannten Stücken** (der Beleg bleibt,
+   wie er ist – `unit_ids`), Auftragsbestätigung **mit Seriennummer**.
+
+**Was das gegenüber Fassung 8 (Unterdeckung) besser macht:** die Regel «bei der Freigabe sind die
+Stücke bestimmt» (§6.2) **bleibt unverändert** – sie sind bestimmt, nur noch unterwegs. Der Beleg
+braucht keine Änderung. Kein «wer bekommt das nächste Stück», denn jedes Stück hat sein Ziel.
+**Fassung 8 ist damit verworfen.**
+
+**Jeder Fall endet in Bestehendem:**
+
+| Was passiert | Folge |
+|---|---|
+| E läuft normal | am Ende tritt das Stück in V ein |
+| E verzögert sich | V wartet; V's Termin folgt dem Datum von E |
+| Stück wird in E verschrottet / ausgesondert | V: `units_problem` → «nur Stornieren» (gibt es) oder ein neuer Nachschub |
+| Eine Abweichung greift das Stück aus E | es kehrt zu E zurück (Rückführung), dann geht es weiter an V |
+| Kunde storniert V | die geplante Verbindung fällt weg; E endet → Stück **Freigegeben** (Lager) |
+
+**Neu zu bauen** (klein, aber Kern – darum mit Wächtern): die dritte Absicht in `UnitPick`, die
+Verbindung «geplant», das Öffnen in `_finish`, im Prozessbild die Linie «von E nach V». Wächter: kein
+Stück ist in zwei Aufträgen offen; keine geplante Verbindung zeigt auf einen beendeten Auftrag.
+
+### F33 neu – Was alles am Auftrag hängt: drei Arten von Unterschied
+
+Deine Sorge: hinter jeder Bestellung stecken Warenausgangsprüfung, Spediteur, Organisation – muss
+alles am Auftrag hängen, oder läuft alles über Abweichungen? **Die Logik des Systems trennt drei Arten:**
+
+| Art | Wann weiss man es? | Wo es hingehört | Beispiele |
+|---|---|---|---|
+| **1 · Bekannt beim Bestellen** | beim Klick | **Wahl des Ablaufs** (Lieferart → Vorlage) | Paket · Abholen · Spedition · Montage; Prüfung nach Einbau |
+| **2 · Bekannt erst beim Ausführen** | wenn der Schritt dran ist | **im Modul**, nicht in seiner Struktur | welcher Spediteur (Partei im Zahlungsmodul «Ausgabe»), welches Ziel (Bewegen: der Scan wählt), wer es tut (Aufgaben, Kompetenz) |
+| **3 · Unvorhergesehen** | wenn es passiert | **Abweichung** – genau dafür ist sie da, dokumentiert | Transportschaden, Nacharbeit, Kunde will umändern |
+
+Abweichungen sind damit **die Ausnahme für das Unvorhergesehene**, nie der Normalweg. Und eine
+**Warenausgangsprüfung**, die jedes Mal nötig ist, ist keine Abweichung, sondern Art 1: sie steht
+in der Vorlage (oder gehört als Schlussprüfung in den Erzeugungsprozess des Artikels – dann ist jedes
+Stück im Lager schon geprüft).
+
+### F34 neu – Verkaufswege: Vorlagen im bestehenden Prozess-Designer
+
+Jede Lieferart ist eine **Vorlage**, gezeichnet im **selben Prozess-Designer** wie ein
+Erzeugungsprozess (kein zweites Werkzeug), gepflegt an der **Gesellschaft**:
+- «Paket»: Zahlung → Bewegen · «Abholen»: Zahlung → Bewegen (Übergabe-Scan) ·
+  «Spedition»: Zahlung → Zahlung (Ausgabe, Spediteur) → Bewegen ·
+  «Montage»: Zahlung → Bewegen → Datenerfassung (Prüfung).
+- Braucht ein Artikel mehr (Abnahme mit Kunde, WA-Prüfung), wählt seine Karte «Verkauf» eine **eigene
+  Vorlage** – Daten, keine Regel im Code (E24).
+- Beim Bestellen wird die Vorlage **kopiert und eingefroren** – genau wie heute der Erzeugungsprozess bei
+  «Neu» (`article_process.mirror`).
+
+### F35 neu – Der Shop benutzt dieselbe Route
+
+Kein Shop-Endpunkt: die Bestellung geht über **dieselbe** Anlage wie im ERP (`POST /erp/orders`,
+`orders.create_order`, dieselbe Prüfung `_checked`) – mit einer Regel in `domain/policy` «ein Kunde
+darf für sich selbst bestellen, mit Preisen aus der Karte». Wie die KI: **die echte Route, mit den
+Rechten der Person** (`handgriff`). Eine Sache, eine Stelle.
+
+### F36 neu – Was sich vereinfachen und vereinheitlichen lässt
+
+1. **Rückführung + Weitergabe = eine Idee:** die Verbindung kennt ein Woher und ein Wohin.
+2. **Verkaufswege = Prozess-Vorlagen** im bestehenden Designer (F34) – kein eigenes Modell.
+3. **Der Shop = dieselbe Route** (F35) – keine zweite Anlage.
+4. **«Ihre Bestellung» = die heutige Seite `/dokument`** mit ihren Stationen – keine zweite Kundenseite.
+5. **Eine Preisquelle:** die Preise der Karte «Verkauf» ersetzen die Preisvorgabe im Zahlungsmodul
+   (`Beleg.PRICES`) – heute stünde derselbe Preis sonst an zwei Stellen.
+6. **Nachschub** heisst im Verbrauch und im Shop dasselbe und legt denselben Entwurf an.
+7. **Miete später:** sie braucht die gespeicherte Karte und die Rückgabe – erst in Bau-Etappe 4; bis
+   dahin weniger Knöpfe auf der Seite.
 
 ### F25 Fassung 8 – Deine Idee: Unterdeckung schon beim Start (kritisch geprüft)
 
@@ -893,6 +990,7 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E32 | **Etikett `https://id.inexxio.com/<Nummer>`, in Kleinbuchstaben** (F15). | 14.11.2026 |
 | E33 | **«Als PDF» auf der Produktseite** – ja (F30). | 14.11.2026 |
 | E34 | **Keine Kern-Änderung:** jeder Auftrag startet mit definierten Einzelinstanzen, gewählt wird nur Regulär-Startendes; nichts aus einem laufenden Auftrag greifen. | 14.11.2026 |
+| E36 | **Detailseite statt Pop-up** – jedes Produkt hat seine eigene Seite. | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
 ## 7 · Vorgehen – wie wir es definieren
@@ -916,10 +1014,11 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber (Runde 1, Schluss)
 
-- **N20** Unterdeckung beim Start (F25 Fassung 8) – damit ist die eingefrorene Bestellung aus Fassung 7
-  vom Tisch. Einverstanden, dass dafür §6.2 («Stücke bei der Freigabe») zu «Menge bei der Freigabe,
-  Stücke sofort oder sobald frei» erweitert wird?
+- **N23** Weitergabe als dritte Absicht «nach Auftrag X» (F25 Fassung 9) – der Spiegel der Rückführung?
+- **N24** Die drei Arten von Unterschied (F33): Wahl der Vorlage · im Modul · Abweichung nur für das
+  Unvorhergesehene?
+- **N25** Verkaufswege als Vorlagen im bestehenden Prozess-Designer an der Gesellschaft (F34)?
+- **N26** Der Shop benutzt dieselbe Route wie das ERP (F35)?
 - **N21** Doppelklick-Schutz (F31)?
-- **N22** Pop-up mit eigener Adresse (F32 Fassung 8) – im Bild: Katalog, auf ein Produkt klicken.
 
 Danach: **Runde 2 – Preise, Märkte, Währung.**
