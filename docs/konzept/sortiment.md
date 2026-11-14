@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 6 · **Konzept, Runde 1 fast abgeschlossen** (33 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 7 · **Konzept, Runde 1 – Abläufe** (35 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -26,8 +26,9 @@ einen Kunden (das Projekt). Der Korb ist der Entwurf; «Bestellen» gibt frei un
    trifft der Kunde nie auf eine Lücke (F29).
 5. **Regeln hängen am Artikel, nie im Code** (E24): Transportgrösse, Lieferzeit, Anzahlung.
 6. **Anzahlung = ein zweites Zahlungsmodul** vor dem Rest – wie im Kern schon entschieden (E22).
-7. **Auf Bestellung = zwei Aufträge**: der Bauauftrag bleibt unverändert; die Ware tritt im Verkauf ein,
-   sobald sie frei ist – dieselbe Logik wie beim Verbrauch (Unterdeckung, Nachschub; F25 Fassung 6).
+7. **Auf Bestellung – ohne Kern-Änderung** (F25 Fassung 7): Standard-Artikel → Nachschub + die Bestellung
+   wartet eingefroren wie eine Wiederholung; Projekt-Artikel → ein Auftrag, dessen Erzeugungsprozess den
+   Verkauf selbst enthält.
 8. **Etikett:** QR mit Adresse `https://id.inexxio.com/<Nummer>` (F15, E32).
 
 ## 1 · Problem und Ziel
@@ -227,9 +228,59 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 6 – nach der fünften Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 7 – nach der sechsten Rückmeldung vom 14.11.2026)
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
+> Die Abläufe zum Durchklicken: Bild, Ansicht «Abläufe».
+
+### F25 Fassung 7 – «Auf Bestellung» ohne jede Kern-Änderung
+
+Dein Einwand stimmt: ein Auftrag startet mit definierten Einzelinstanzen, gewählt wird nur Freigegebenes,
+und ein Stück aus einem laufenden Auftrag zu greifen wäre eine Abweichung. Die Regel «mindestens ein
+Stück am Start» bleibt (E34). Fassungen 5 und 6 sind verworfen.
+
+**Die Lösung unterscheidet drei Lagen – jede nur mit Bestehendem:**
+
+| Lage | Was beim «Bestellen» entsteht | Bestehende Logik |
+|---|---|---|
+| **An Lager** | der Verkaufs-Auftrag, sofort, Zeile «Lager» (FIFO) | Freigabe wie heute |
+| **Standard-Artikel, nicht an Lager** | der **Nachschub** (Bauauftrag mit «Neu», unverändert) + die Bestellung als **eingefrorener Entwurf**; der Verkaufs-Auftrag entsteht **von selbst**, sobald die Ware frei ist | wie die Wiederholung: Entscheid im Voraus eingefroren, der Takt legt an, solange etwas fehlt, **wartet** er (`loop`); Zusage still wie `loop.agreed` |
+| **Projekt-Artikel (nur für einen Kunden)** | **ein** Auftrag mit «Neu» – sein **Erzeugungsprozess enthält selbst** Anzahlung, Bau, Prüfung, Rest-Zahlung, Lieferung | «Neu» übernimmt den Prozess des Artikels (`release.steps_for`) – der Kran-Artikel ist ja nur für diesen einen Kunden, sein Prozess darf den Verkauf enthalten |
+
+**Warum das sauber ist:**
+- Kein Stück wird je «vorgemerkt», keines aus einem laufenden Auftrag gegriffen, keine Kern-Regel geändert.
+- **Geld ohne Ware gibt es nicht** (E10): wer vorab zahlen soll (Anzahlung), hat ein Projekt – dort
+  steht die Zahlung im Prozess vor dem Bau. Ein Standard-Artikel auf Bestellung wird bezahlt, wenn er da
+  ist (Vorauszahlung vor dem Versand oder Rechnung).
+- **Damit niemand dem Wartenden das Stück wegschnappt:** «verfügbar» ist für den Shop eine Ableitung –
+  *frei minus, was wartenden Bestellungen versprochen ist*. Keine Reservierung, keine Spalte.
+- Mehrere Positionen, eine davon nicht an Lager: die Bestellung wartet, bis **alle** frei sind
+  (eine Lieferung, E11; Termin = späteste Position).
+
+**Bestellnummer** (E19): beim Warten gibt es den Verkaufs-Auftrag noch nicht. Die Seite «Ihre Bestellung»
+zeigt dann «in Herstellung» und den Bauauftrag; die Bestellnummer ist die Nummer des Verkaufs-Auftrags,
+sobald er entsteht. *(Zu prüfen in Runde 3: ob der Kunde schon vorher eine Nummer braucht.)*
+
+### F31 neu – Doppelklick und Netzabbruch: nie zwei Bestellungen
+
+Gebaut wie der Wisch der Zeiterfassung (`timekeeping.swipe`: Idempotenz-Schlüssel) und die Mails
+(`Message-ID` vor dem Senden):
+1. Öffnet der Kunde «Bestellen», erzeugt der **Browser einen Schlüssel** für genau diesen Versuch.
+2. Der Server legt den Auftrag **mit diesem Schlüssel** an – ein **eindeutiger Index** in der Datenbank.
+3. Kommt derselbe Schlüssel nochmals (Doppelklick, Neuladen, Netz riss nach dem Speichern), legt der
+   Server **nichts** an, sondern antwortet mit der schon bestehenden Bestellung.
+4. **Stripe** bekommt denselben Schlüssel als `Idempotency-Key` – auch die Karte wird nie doppelt belastet;
+   gebucht wird wie heute nur vom Webhook.
+5. Ein Wächter-Test spielt es durch: zweimal derselbe Aufruf → ein Auftrag, eine Belastung.
+
+### F32 neu – Produkt im Overlay, aber mit eigener Adresse
+
+Deine Idee (Klick im Katalog öffnet ein leichtes Fenster statt einer neuen Seite) und die Adresse für
+Google schliessen sich nicht aus – so machen es Airbnb und Instagram:
+- Jedes Produkt hat **seine Seite** (`/produkte/funk-set-heukran`) – für Google, zum Teilen, zum direkten Öffnen.
+- **Aus dem Katalog** öffnet sich dieselbe Seite als **Overlay** über dem Katalog; die Adresse oben
+  wechselt mit. Schliessen = zurück zum Katalog, genau an dieselbe Stelle.
+- Ein Inhalt, zwei Darstellungen – keine zweite Pflege.
 
 ### F25 Fassung 6 – «Auf Bestellung» mit der Logik, die es schon gibt
 
@@ -793,6 +844,8 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E31 | **Karte «Verkauf» erst «für alle», wenn das ERP sie als vollständig prüft** (F29). | 14.11.2026 |
 | E32 | **Etikett `https://id.inexxio.com/<Nummer>`, in Kleinbuchstaben** (F15). | 14.11.2026 |
 | E33 | **«Als PDF» auf der Produktseite** – ja (F30). | 14.11.2026 |
+| E34 | **Keine Kern-Änderung:** jeder Auftrag startet mit definierten Einzelinstanzen, gewählt wird nur Regulär-Startendes; nichts aus einem laufenden Auftrag greifen. | 14.11.2026 |
+| E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
 ## 7 · Vorgehen – wie wir es definieren
 
@@ -801,7 +854,7 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 | Runde | Block | Stand |
 |---|---|---|
-| 1 | Grundmodell (A) und Bestellweg (F) | **fast fertig** – zwei Fragen §8 |
+| 1 | Grundmodell (A) und Bestellweg (F) | **Abläufe** – Fragen §8, im Bild durchklickbar |
 | 2 | Preise und Märkte (C) | offen |
 | 3 | Auftrag im ERP (G), Angebotsformen (D) | vorgezogen in F18–F20 |
 | 4 | Seriennummer, QR, Ersatzteile, 3D (I) | F15 vorgezogen |
@@ -813,11 +866,10 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 (Preis je Markt, Lieferarten, Neu + Lieferart, Vorauszahlung als Zahl, Seite «Ihre Bestellung») ·
 3 Gerät (Etiketten-Adresse, Geräteseite, Teilebaum) · 4 Miete und Abo · 5 3D und Zwilling · 6 Kanäle.
 
-## 8 · Offene Fragen an den Inhaber (Runde 1, Schluss)
+## 8 · Offene Fragen an den Inhaber (Runde 1, Abläufe)
 
-- **N11** «Auf Bestellung» mit der Verbrauchs-Logik (F25 Fassung 6): Ware tritt im Verkauf ein, sobald sie
-  frei ist; der Bauauftrag ist ein «Nachschub». Kern-Änderung: «mindestens ein Stück am Start **oder** an
-  einem Modul». Einverstanden?
-- **N19** Die Grenzen Paket / Palette / Lastwagen (F28) – passen die Zahlen?
+- **N20** «Auf Bestellung» in drei Lagen (F25 Fassung 7) – im Bild unter «Abläufe» durchklicken.
+- **N21** Doppelklick-Schutz wie beschrieben (F31)?
+- **N22** Produkt als Overlay aus dem Katalog, mit eigener Adresse (F32)?
 
-Danach: **Runde 2 – Preise, Märkte, Währung** (C, F10, F23, F26).
+Danach: **Runde 2 – Preise, Märkte, Währung.**
