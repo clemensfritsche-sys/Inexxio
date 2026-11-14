@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 18 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 19 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -277,6 +277,16 @@ welcher Rechnung gehört.
 
 Damit braucht es **keine** neue AB bei einem Tausch (Fassung 17, Möglichkeit A, entfällt): die AB sagte
 «vorgesehen», der Lieferschein sagt «geliefert», das ERP weiss es immer genau.
+
+**Ergänzung (Fassung 19): der Lieferschein schliesst die Kette der Papiere.**
+- Er nennt die **Bestellung und die Rechnung**, zu der er gehört (Nummer und Datum).
+- Weicht ein geliefertes Stück vom «vorgesehenen» ab, steht es **ausdrücklich** darauf:
+  «Geliefert 100512400-**2** – ersetzt das in der Auftragsbestätigung vom 14.11. vorgesehene Stück
+  100512400-1».
+- Damit erzählen die unveränderlichen Dokumente zusammen die ganze Geschichte – Offerte/AB «vorgesehen»,
+  Lieferschein «geliefert, ersetzt …» – und niemand muss im ERP nachschauen, um sie zu verstehen.
+- Die Rechnung kommt im Normalfall **nach** der Lieferung (dann steht die gelieferte Nummer darauf); nur bei
+  Vorauszahlung und Anzahlung liegt sie davor und sagt «vorgesehen».
 
 **Lieferschein – gibt es ihn? Braucht es ihn?**
 - **Heute gibt es keinen.** Die Papiere sind Offerte, AB, Rechnung, Quittung, Stornierung, Gutschrift,
@@ -1320,6 +1330,8 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E47 | **Der Beleg kennt die erwarteten Stücke mit Nummer** (Prüfung A2) – auf jedem Papier. | 14.11.2026 |
 | E48 | **Eigentum bleibt bei zwei Werten** («uns» · «jemand anderem»); das Spediteur-Modul wird von der Vorlage passend vorbelegt (Prüfung A4, Fassung 15). | 14.11.2026 |
 | E49 | **«Frei mit Ort» (Miete) zurückgestellt** – kommt mit der Miete (Prüfung A5). | 14.11.2026 |
+| E50 | **Papiere als Momentaufnahme:** «Seriennummer … (vorgesehen)», solange das Stück im Bau ist; die genaue Verbindung immer im ERP (Fassung 18). | 14.11.2026 |
+| E51 | **Lieferschein als neues Papier des Lieferauftrags** (A4-Vorlage, ohne Preise), mit Bezug auf Bestellung und Rechnung und ausdrücklichem Vermerk, wenn ein Stück das vorgesehene ersetzt (Fassung 19). | 14.11.2026 |
 | E36 | **Eine Seite je Produkt: die Produktseite** – kein Pop-up, keine zweite «Detailseite». Teil, Funk-Set, Kran: dieselbe Seite, gefüllt aus der Karte «Verkauf». | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
@@ -1344,9 +1356,6 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber (nach der Prüfung)
 
-- **N36** «Vorgesehen» auf Offerte, AB, Rechnung, solange das Stück im Bau ist; die gelieferte Nummer auf dem
-  Lieferschein; die genaue Verbindung immer im ERP (Fassung 18)?
-- **N39** Lieferschein als neues Papier des Lieferauftrags (aus der A4-Vorlage, ohne Preise)?
 - **N37** Eine bezahlte Bestellung wird nie abgewiesen – fehlt das Stück, entsteht sie mit Nachschub und
   neuem Termin, der Kunde darf stornieren (S3)?
 - **N38** Ersatz durch den Nachfolger-Artikel nur mit neuer Zusage des Kunden (S2)?
