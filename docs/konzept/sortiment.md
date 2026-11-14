@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 11 · **Konzept, Runde 1 – die Kette** (44 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 12 · **Konzept, Runde 1 – die Kette mit Herkunft** (44 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -27,8 +27,8 @@ einen Kunden (das Projekt). Der Korb ist der Entwurf; «Bestellen» gibt frei un
 5. **Regeln hängen am Artikel, nie im Code** (E24): Transportgrösse, Lieferzeit, Anzahlung.
 6. **Anzahlung = ein zweites Zahlungsmodul** vor dem Rest – wie im Kern schon entschieden (E22).
 7. **Die Kette der Weitergabe** (F25 Fassung 11): Bau → Verkauf → Lieferung entstehen im selben Klick;
-   jeder wartet auf die Stücke des vorherigen und bekommt sie, sobald sie regulär frei sind – eine Regel,
-   der Reihe nach; fällt ein Glied, fallen die dahinter mit.
+   jeder wartet auf die Stücke des vorherigen und bekommt sie, sobald sie regulär frei sind **und aus dem
+   Vorgänger kommen**. Jede Ausnahme meldet sich als Unterdeckung mit Grund; der Mensch entscheidet (F25 F. 12).
 8. **Etikett:** QR mit Adresse `https://id.inexxio.com/<Nummer>` (F15, E32).
 9. **Verkauf und Ausführung getrennt** (F37): der Verkaufsauftrag (Stücke + Zahlung) entsteht immer
    automatisch; die Lieferung ist ein eigener Auftrag aus der Vorlage der Lieferart – einfache von selbst,
@@ -231,10 +231,50 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 11 – nach der zehnten Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 12 – nach der elften Rückmeldung vom 14.11.2026)
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### F40 neu – Geld folgt dem Beleg, Ware folgt dem Modul
+
+Deine Frage: «Bei ‹auf Bestellung› verkaufe ich monetär, bevor das Stück durchs Zahlungsmodul ging?»
+**Ja – und das ist im Zahlungsmodul schon genau so gebaut:**
+- **Der Beleg entsteht bei der Freigabe des Auftrags, nicht wenn ein Stück das Modul erreicht**
+  (`voucher.instantiate_for_order`: «ein Angebot einzuholen dauert»). Zusage, Anzahlung, Rechnung,
+  Zahlung laufen am Beleg – ab Tag 1, auch wenn noch kein Stück da ist.
+- **Das Stück passiert das Modul**, wenn es ankommt **und** der Beleg es erlaubt (`voucher.passable`: ab
+  der Zusage, bei Vorauszahlung erst mit dem Geld).
+- Darum: der Kunde sagt zu und zahlt (an), **danach** wird gebaut, und das fertige Stück zieht durch die
+  Zahlung weiter. Kein Widerspruch – zwei Achsen, die schon getrennt sind.
+
+### F25 Fassung 12 – Warten mit Herkunft; die Ausnahme meldet sich (deine Kritik übernommen)
+
+**Automatisch mitfallen ist gestrichen.** Nichts am Auftrag ändert sich still. Stattdessen – wie du
+sagst – **die Logik der Unterdeckung**:
+
+1. **Der Normalfall läuft von selbst:** ein wartender Auftrag bekommt das Stück, sobald es regulär frei
+   wird **und dabei aus seinem Vorgänger kommt** (Bau → Verkauf, Verkauf → Lieferung).
+2. **Jede Ausnahme ist eine Unterdeckung mit Grund – keine stille Folge:** kommt das Stück anders frei
+   (eine Abweichung setzt es frei) oder fällt der Vorgänger weg (Verkauf storniert), wartet der Auftrag
+   **weiter** und zeigt «gebraucht 1 · verfügbar 0 · *Grund*». Das ist eine **Aufgabe**, und das System
+   **bietet an**:
+   - «dieses Stück übernehmen» (es ist frei – regulär, keine Abweichung),
+   - «ein anderes freies Stück nehmen» (FIFO schlägt vor),
+   - «Nachschub» (ein neuer Bauauftrag),
+   - «nicht mehr warten».
+   Der Mensch entscheidet – genau das Leitbild «das System bietet an, der Mensch entscheidet».
+3. **Damit ist unmöglich**, dass ein nicht verkauftes Stück ausgeliefert wird: die Lieferung nimmt nur,
+   was **aus dem Verkauf** kommt; alles andere wartet auf einen Menschen.
+
+### F41 neu – Die Kette ist am Auftrag sichtbar und änderbar
+
+Das Prozessbild zeigt **heute schon** die Nachbarn eines Auftrags (`order_view.related`: Vorgänger,
+Nachfolger, Abweichungen – blass daneben). Dazu kommt:
+- An einer wartenden Zeile steht **«wartet auf … aus Auftrag X»** mit Link.
+- **Änderbar – solange das Stück noch nicht eingetreten ist** – über die Angebote aus F25 Fassung 12. Es
+  sind **Befehle** (POST, mit Eintrag im Log), kein Bearbeiten der Zeile – wie «Datum verschieben» heute.
+  Ist ein Stück einmal eingetreten, gilt wie immer: nur noch über eine Abweichung.
 
 ### F25 Fassung 11 – Eine Regel, beliebig oft: die Kette der Weitergabe
 
@@ -254,8 +294,8 @@ tritt es in den Auftrag ein, der darauf wartet.*
 **Zwei Sätze machen die Kette eindeutig:**
 1. **Der Reihe nach.** Warten mehrere Aufträge auf dasselbe Stück, bekommt es der, der **zuerst**
    wartet (V vor L – sie entstehen in dieser Reihenfolge). Verlässt es V, ist L dran.
-2. **Fällt ein Glied, fallen die dahinter mit.** Wird V storniert, wartet auch L nicht mehr – sonst würde
-   ein nicht verkauftes Stück ausgeliefert. B läuft fertig, das Stück wird Freigegeben (Lager).
+2. ~~Fällt ein Glied, fallen die dahinter mit.~~ **Ersetzt durch F25 Fassung 12:** fällt ein Glied, wartet
+   der Nachfolger weiter und meldet sich als Unterdeckung mit Grund – der Mensch entscheidet.
 
 **Was das allgemein heisst:** jede Kette von Aufträgen, durch die ein Stück nacheinander muss, ist mit
 derselben Regel abgebildet – Bau → Verkauf → Lieferung, aber auch Einkauf → Verkauf → Lieferung (Ware vom
@@ -1114,7 +1154,7 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E41 | **«Nachschub» heisst überall gleich.** | 14.11.2026 |
 | E42 | **Miete kommt von Anfang an mit** (F38). | 14.11.2026 |
 | E43 | **Verkauf und Ausführung sind zwei Aufträge** (F37): Verkauf immer automatisch, Lieferung aus der Vorlage der Lieferart. | 14.11.2026 |
-| E44 | **Weitergabe am Stück, als Kette:** jeder Auftrag wartet auf die Stücke des vorherigen; sie treten ein, sobald sie regulär frei sind (F25 Fassung 11). | 14.11.2026 |
+| E44 | **Weitergabe am Stück, als Kette:** jeder Auftrag wartet auf die Stücke des vorherigen; sie treten ein, sobald sie regulär frei sind. **Kein automatisches Mitfallen** – eine Ausnahme meldet sich (F25 Fassung 12). | 14.11.2026 |
 | E36 | **Detailseite statt Pop-up** – jedes Produkt hat seine eigene Seite. | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
@@ -1139,8 +1179,8 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber (Runde 1, Schluss)
 
-- **N28** Die zwei Sätze der Kette (F25 Fassung 11): «der Reihe nach» und «fällt ein Glied, fallen die
-  dahinter mit»?
+- **N28** Warten mit Herkunft; jede Ausnahme ist eine Unterdeckung mit Grund und Angeboten (F25 Fassung 12)?
+- **N29** Die Kette am Auftrag sichtbar und – solange nichts eingetreten ist – mit Befehlen änderbar (F41)?
 - **N25** Lieferarten als Vorlagen im Prozess-Designer, je mit «von selbst» oder «planen» (F34, F37)?
 
 Danach: **Runde 2 – Preise, Märkte, Währung.**
