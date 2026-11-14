@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 21 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 22 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -255,6 +255,43 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Fassung 22 – Wie es die Grossen machen (SAP, Amazon, Shopify) – und was wir daraus lernen
+
+**Das Grundmuster heisst «Order-to-Cash» und ist überall gleich: eine Kette von Belegen, jeder mit einer
+Aufgabe, jeder verweist auf den vorigen** (SAP nennt es «Belegfluss»):
+
+```
+ Angebot → Kundenauftrag → Lieferung (Lieferschein) → Faktura (Rechnung) → Zahlungseingang
+```
+
+| Baustein bei den Grossen | Was er tut | Bei uns |
+|---|---|---|
+| **Kundenauftrag** | das Geschäft: was, wie viel, Preis, Termin | **Verkaufsauftrag** (E43) ✔ |
+| **Verfügbarkeitsprüfung (ATP)** | sagt beim Bestellen einen Termin zu – ohne Ware physisch zu reservieren | «frei minus versprochen», Termin = späteste Position ✔ |
+| **Kundenauftragsbestand** (Fertigung auf Bestellung) | das gebaute Stück ist **von Anfang an** diesem Kunden zugeordnet | **«erwartet» / Weitergabe** (E44, E46) ✔ |
+| **Lieferung** | eigener Beleg, wenn die Ware geht; Teillieferungen = mehrere Lieferungen | **Lieferauftrag + Lieferschein** (E43, E51) ✔ |
+| **Faktura aus der Lieferung** | die Rechnung entsteht **aus dem Lieferschein** – darum stimmen die Seriennummern immer | Rechnung im Normalfall **nach** der Lieferung (Fassung 19) ✔ |
+| **Anzahlungsanforderung** | Vorauszahlung ist **keine** Rechnung, sondern eine Anforderung; die Schlussrechnung zieht sie ab | Anzahlung = zweites Zahlungsmodul (E22) ✔ |
+| **Nachrichtenfindung** | Regeln entscheiden, welches Papier **von selbst** hinausgeht (AB, Lieferavis, Rechnung) | heute geht jedes Papier durch einen Menschen → **N34** |
+| **Autorisieren, später abbuchen** (Amazon, Shopify) | die Karte wird beim Bestellen nur **reserviert** und erst beim **Versand** belastet | wir: erst zahlen, dann Aufträge (E54) – für Ware ab Lager wäre «beim Versand abbuchen» noch sauberer → **N42** |
+| **Karte hinterlegt** (Abos) | die Firma belastet je Periode selbst | **E57** ✔ |
+| **Ausnahmen in eine Liste** | nur, was nicht nach Regel läuft, landet bei einem Menschen | Unterdeckung als Aufgabe (Satz 6) ✔ |
+
+**Was die Grossen anders machen – und warum wir es nicht übernehmen:**
+- Dort ist die Zahlung **kein Schritt im Ablauf**, sondern ein Konto daneben (Debitor); eine **Kreditprüfung**
+  hält die Lieferung an, wenn der Kunde zu viel offen hat. Bei uns ist die Zahlung ein Modul im Ablauf –
+  das ist einfacher und für ein KMU richtig; die Kreditprüfung ersetzt bei uns die Zahlungsfrist am Partner.
+- Sie haben dafür Hunderte Einstellungen (Belegarten, Kopiersteuerung, Konditionstechnik). Wir nehmen nur
+  das Muster, nicht die Maschinerie.
+
+**Das Ergebnis des Vergleichs:** unser Modell ist **dasselbe Muster** wie bei SAP und Amazon – nur mit
+unseren Wörtern und viel weniger Einstellungen. Zwei Dinge können wir noch übernehmen:
+1. **Papiere nach Regel von selbst** (N34): AB, Lieferschein, Rechnung gehen hinaus, wenn ihre Regel erfüllt
+   ist; ein Mensch nur bei Ausnahmen.
+2. **Ab Lager: Karte reservieren, beim Versand abbuchen** (N42): kein Geld fliesst für etwas, das nicht
+   geht; fehlt das Stück, wird die Reservierung einfach freigegeben statt erstattet. Für Fertigung auf
+   Bestellung bleibt «erst zahlen» (eine Reservierung hält nur rund 7 Tage).
 
 ### Fassung 21 – Lieferung ohne Vorlagen, Lieferschein: beide Seiten
 
@@ -1434,3 +1471,5 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
   eigener Nachfolger-Auftrag (Fassung 21)?
 - **N41** Lieferschein am Bewegen, mit Referenz auf den Verkauf – damit er bei den anderen Papieren steht
   (Fassung 21)? Oder doch am Zahlungsmodul?
+- **N42** Ab Lager: Karte beim Bestellen nur reservieren, beim Versand abbuchen (wie Amazon)? Für Fertigung
+  auf Bestellung bleibt «erst zahlen» (Fassung 22).
