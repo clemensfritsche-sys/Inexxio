@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 5 · **Konzept, Runde 1e** (27 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 6 · **Konzept, Runde 1 fast abgeschlossen** (33 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -26,9 +26,9 @@ einen Kunden (das Projekt). Der Korb ist der Entwurf; «Bestellen» gibt frei un
    trifft der Kunde nie auf eine Lücke (F29).
 5. **Regeln hängen am Artikel, nie im Code** (E24): Transportgrösse, Lieferzeit, Anzahlung.
 6. **Anzahlung = ein zweites Zahlungsmodul** vor dem Rest – wie im Kern schon entschieden (E22).
-7. **Auf Bestellung = zwei Aufträge**: der Erzeugungs-Auftrag bleibt unverändert und **übergibt** seine
-   fertigen Stücke an den Verkaufs-Auftrag (F25 – mit allen Fällen).
-8. **Etikett:** QR mit Adresse auf `id.inexxio.com/<Nummer>` (F15).
+7. **Auf Bestellung = zwei Aufträge**: der Bauauftrag bleibt unverändert; die Ware tritt im Verkauf ein,
+   sobald sie frei ist – dieselbe Logik wie beim Verbrauch (Unterdeckung, Nachschub; F25 Fassung 6).
+8. **Etikett:** QR mit Adresse `https://id.inexxio.com/<Nummer>` (F15, E32).
 
 ## 1 · Problem und Ziel
 
@@ -227,9 +227,74 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 5 – nach der vierten Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 6 – nach der fünften Rückmeldung vom 14.11.2026)
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
+
+### F25 Fassung 6 – «Auf Bestellung» mit der Logik, die es schon gibt
+
+Deine Frage: «Ist ‹wartet auf den Bauauftrag› neu? Gibt es nicht schon eine Logik für Unterdeckung?»
+**Ja, es gibt sie – beim Verbrauch.** Das «vorgemerkt»-Stück aus Fassung 5 wäre **neu** gewesen; das
+Bestehende ist besser:
+
+**Was heute schon da ist** (PROCESS_CORE §9.6, `services/consumption.py`, `process._enter_at_step`):
+- Komponenten werden **nicht** bei der Freigabe gewählt. Sie **treten erst am Modul ein**, wenn es dran
+  ist – aus dem freien Bestand, älteste zuerst (`StepNeed.plan`).
+- **Nichtverfügbarkeit ist kein Zustand:** fehlt etwas, zeigt der Schritt «gebraucht 1 · verfügbar 0»
+  und wartet; keine Aufgabe, solange nichts da ist.
+- Das System **bietet an**: «Nachschub» (ein Auftrag, der es herstellt oder einkauft) oder «Holen lassen».
+  Der Termin wird als «bis» vorgeschlagen.
+
+**Dieselbe Logik für den Verkauf:**
+1. Die Ware einer Bestellung tritt **am ersten Modul des Verkaufs-Auftrags** ein (dem
+   Zahlungsmodul) – ab Lager sofort, sonst, **sobald sie frei ist**.
+2. Fehlt sie: das Modul zeigt «gebraucht 1 · verfügbar 0» – und beim Bestellen wird der **Nachschub**
+   gleich mit angelegt (der Bauauftrag, unverändert, wie heute aus «Nachschub»). Der Klick des Kunden ist
+   der Entscheid dafür.
+3. Ist der Kran gebaut, wird er Freigegeben (Lager) und **tritt von selbst ein** – wie eine Komponente.
+
+**Eine Logik für alle Unterdeckungen** – Material in der Produktion wie Ware im Verkauf.
+
+| Fall | Folge (alles bestehendes Verhalten) |
+|---|---|
+| Bau verzögert | Schritt wartet, Termin folgt dem Datum des Bauauftrags |
+| Kran verschrottet | wieder «verfügbar 0» → Nachschub wird angeboten |
+| Kunde storniert | der Kran bleibt nach dem Bau im Lager |
+| Gleicher Artikel, zwei Kunden | älteste Bestellung zuerst (beim «nur für»-Kran gibt es keinen zweiten Kunden) |
+
+**Die eine Änderung am Kern:** heute braucht jeder Auftrag bei der Freigabe **mindestens ein Stück**
+(§6.2). Neu: «mindestens ein Stück am Start **oder** an einem Modul». Plus: der Eintritt am Modul, heute
+nur am Verbrauch, gilt auch am ersten Modul eines Verkaufs.
+
+**Offen (für den Bau):** «älteste Bestellung zuerst» heisst, der Eintritt fragt die Aufträge in der
+Reihenfolge ihrer Freigabe – heute fragt jeder Schritt nur für sich.
+
+### F15 Fassung 6 – Etikett in Kleinbuchstaben
+
+`https://id.inexxio.com/100482117` – wie man es schreibt. Die Grossbuchstaben (etwas kleinerer QR)
+lassen wir; der Unterschied ist nur auf sehr kleinen Etiketten spürbar.
+
+### F28 Fassung 6 – Transport aus Grösse und Gewicht (dein Vorschlag)
+
+Kein neues Feld: der Artikel hat **Grösse** (`L×B×H` mm, Pflicht bei der Freigabe) und **Gewicht**.
+Die Transportart ist eine **Ableitung**:
+
+| Transport | Grenze (Vorschlag, als Werte im ERP an der Gesellschaft) |
+|---|---|
+| Paket | bis 100 × 60 × 60 cm und 30 kg (Grenze der Post) |
+| Palette | bis 120 × 80 × 180 cm und 1'000 kg |
+| Lastwagen | alles darüber |
+
+Die Bestellung nimmt die grösste nötige Art; Kleines fährt mit. Die Grenzen sind Daten, keine Regel im
+Code – ändert die Post ihre Masse, ändert man eine Zahl.
+
+### F30 Fassung 6 – Papiere aus dem, was es schon gibt
+
+Ja: jedes Papier (Offerte, AB, Rechnung …) entsteht heute schon aus **einer** A4-Vorlage und wird als
+Dokument abgelegt (`services/a4.py`, `voucher_docs`). «Als PDF» auf der Produktseite nutzt die
+**Vorschau**, die es auch schon gibt (`voucher_docs.preview`: dieselbe Handlung im Probelauf, Papier
+lesen, zurückrollen). Kein zweites Papier, keine zweite Vorlage. Abgelegt wird erst, was wirklich
+bestellt wird.
 
 ### F19 Fassung 5 – Anzahlung ist ein zweites Zahlungsmodul (wie entschieden)
 
@@ -722,6 +787,12 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E25 | **Domain inexxio.com**, nicht .ch. | 14.11.2026 |
 | E26 | **Währung gehört zu «Preise je Markt» (Runde 2); CHF ist die Leitwährung.** | 14.11.2026 |
 | E27 | **Kein «Offerte anfordern» als Ausweg** – der Kunde füllt nur das Nötigste, alles andere kommt aus dem ERP. | 14.11.2026 |
+| E28 | **Papiere aus dem Bestehenden:** jedes Papier aus der einen A4-Vorlage, als Dokument abgelegt; «Als PDF» = die bestehende Vorschau (F30). | 14.11.2026 |
+| E29 | **Kauf + Abo = zwei Aufträge, zwei Bestellnummern**; die Produktseite zeigt beide. | 14.11.2026 |
+| E30 | **Transport aus Grösse und Gewicht des Artikels** (Ableitung, kein neues Feld; Grenzen als Daten, F28). | 14.11.2026 |
+| E31 | **Karte «Verkauf» erst «für alle», wenn das ERP sie als vollständig prüft** (F29). | 14.11.2026 |
+| E32 | **Etikett `https://id.inexxio.com/<Nummer>`, in Kleinbuchstaben** (F15). | 14.11.2026 |
+| E33 | **«Als PDF» auf der Produktseite** – ja (F30). | 14.11.2026 |
 
 ## 7 · Vorgehen – wie wir es definieren
 
@@ -730,7 +801,7 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 | Runde | Block | Stand |
 |---|---|---|
-| 1 | Grundmodell (A) und Bestellweg (F) | **1e läuft** – letzte Fragen §8 |
+| 1 | Grundmodell (A) und Bestellweg (F) | **fast fertig** – zwei Fragen §8 |
 | 2 | Preise und Märkte (C) | offen |
 | 3 | Auftrag im ERP (G), Angebotsformen (D) | vorgezogen in F18–F20 |
 | 4 | Seriennummer, QR, Ersatzteile, 3D (I) | F15 vorgezogen |
@@ -742,11 +813,11 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 (Preis je Markt, Lieferarten, Neu + Lieferart, Vorauszahlung als Zahl, Seite «Ihre Bestellung») ·
 3 Gerät (Etiketten-Adresse, Geräteseite, Teilebaum) · 4 Miete und Abo · 5 3D und Zwilling · 6 Kanäle.
 
-## 8 · Offene Fragen an den Inhaber (Runde 1e)
+## 8 · Offene Fragen an den Inhaber (Runde 1, Schluss)
 
-- **N11** Übergabe (F25 Fassung 5): zwei Aufträge, das Stück «wartet auf E», alle Fälle in der Tabelle –
-  überzeugt das, oder lieber die einfachere Alternative (ein Auftrag)?
-- **N14** Etikett `id.inexxio.com` statt Pfad (F15 Fassung 5)?
-- **N16** Transportgrösse am Artikel, «Kleines fährt beim Grossen mit» (F28)?
-- **N17** Karte «Verkauf» erst «für alle», wenn vollständig (F29)?
-- **N18** «Als PDF» auf der Produktseite – brauchst du das (F30)?
+- **N11** «Auf Bestellung» mit der Verbrauchs-Logik (F25 Fassung 6): Ware tritt im Verkauf ein, sobald sie
+  frei ist; der Bauauftrag ist ein «Nachschub». Kern-Änderung: «mindestens ein Stück am Start **oder** an
+  einem Modul». Einverstanden?
+- **N19** Die Grenzen Paket / Palette / Lastwagen (F28) – passen die Zahlen?
+
+Danach: **Runde 2 – Preise, Märkte, Währung** (C, F10, F23, F26).
