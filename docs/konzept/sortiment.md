@@ -1,7 +1,7 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 1 · **Konzept, nichts entschieden** · Lead: Claude · Entscheid: Clemens
-> Fritsche · seit 12.11.2026 · zuletzt 12.11.2026
+> **Kopfstatus:** Fassung 2 · **Konzept, Runde 1b** (9 Entscheide, §6) · Lead: Claude · Entscheid:
+> Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
 > Diese Akte ist die **eine** Quelle für Ziel, Themen, Vorschläge, Entscheide und Plan des Projekts.
@@ -11,29 +11,31 @@
 > `docs/konzept/wiederkehr.md` (Abo) · `website/WEBSITE_PLAN.md` Entscheid 127 (Symbol rechts im Kopf,
 > «Meine Produkte» im Konto).
 
-## 0 · Die ganze Idee in sieben Sätzen (Vorschlag)
+## 0 · Die ganze Idee in acht Sätzen (Fassung 2)
 
-1. **Ein Produkt ist das Gesicht eines Artikels nach aussen.** Der Artikel bleibt, wie er ist
-   (technisch, unveränderlich); das Produkt trägt, was der Kunde sieht – Name, Texte, Bilder, Video,
-   3D, Dokumente, Preis, Sichtbarkeit – und ist jederzeit änderbar. Wird der Artikel ersetzt, zeigt
-   das Produkt **von selbst** auf den neuen. Adresse, Bilder und Google-Platz bleiben.
-2. **Bestellen ist ein Klick auf einer Seite** (Muster Tesla): wählen, Preis und Liefertermin sehen,
-   bestellen. Kein Warenkorb für ein einzelnes Produkt, kein Konto vorher, keine zehn Schritte.
-3. **Jede Bestellung ist ein ganz gewöhnlicher Auftrag** mit einem Zahlungsmodul. Den Ablauf legt
-   nicht der Kunde fest und nicht jedes Mal ein Mensch, sondern ein **Verkaufsweg**, einmal im ERP
-   modelliert (z. B. «Paket», «Abholung», «Lieferung mit Montage»).
-4. **Ein Preis gilt je Markt.** Ein Markt ist ein Land (oder eine Gruppe von Ländern) mit Währung und
-   Preisliste; Kaufkraft heisst: jeder Markt hat seinen Preis, vom ERP vorgeschlagen, vom Menschen
-   gesetzt. Darunter gelten Kunden- und Firmenkonditionen (Kaskade Markt → Partner → Vorgang).
-5. **Die Seriennummer ist eine Tür.** Auf jeder Maschine ein QR-Code mit einer Adresse
-   (`inexxio.ch/s/<Nummer>`): Scannen zeigt das Gerät – Anleitung, Konformität, Zertifikate, Service,
-   Ersatzteile. Der Besitzer sieht dazu seine Geschichte.
-6. **Ersatzteile kommen aus dem, was wirklich verbaut ist.** Das ERP weiss je Stück, welche
-   Komponente in welches Produkt ging (`services/genealogy`). Daraus wird der Teilebaum des Geräts –
-   als Liste und, wo ein 3D-Modell da ist, als anklickbares Modell (der digitale Zwilling).
-   Bestellbar ist, was ein Produkt hat; alles andere ist mit einem Klick angefragt.
-7. **Alles nach aussen ist ein Spiegel des ERP.** Website, Google, später Amazon oder ein
-   Händlerportal lesen dieselbe eine Quelle (ein Katalog-Feed). Keine Angabe wird ausserhalb gepflegt.
+1. **Verkauft wird der Artikel – mit einer Karte «Verkauf».** Kein neuer Objekttyp. Der Artikel bleibt
+   in dem, was er *ist* (Spezifikation, Prozess), unveränderlich; die Karte «Verkauf» sagt, wie wir ihn
+   *anbieten* (Texte, Bilder, Optionen, Preise, Wege, für wen), und ist jederzeit änderbar – wie
+   Dokumente und Notizen heute schon am Artikel hängen, ohne ihn zu ändern. **Die Karte gehört der
+   Artikel-Kette:** ersetzt ein neuer Artikel den alten, trägt er dieselbe Karte, von selbst.
+2. **Eine Bestellung ist eine Offerte, die der Kunde annimmt.** Im Shop macht das System die Offerte
+   aus der Wahl des Kunden, und «Bestellen» ist die Zusage. Beim Kran macht ein Mensch die Offerte –
+   als Artikel mit Karte «Verkauf» **nur für diese Firma** –, und der Kunde bestellt ihn auf derselben
+   Seite. Ein Ort für jede Bestellung: Shop und Projekt sehen gleich aus.
+3. **Jede Bestellung ist ein Auftrag mit einem Zahlungsmodul und einer Lieferung.** Den Ablauf baut
+   das System aus einer kleinen Regel: Ware (ab Lager oder neu erzeugt) + Lieferart (Paket, Abholen,
+   Spedition, Montage) → Modul-Liste. Keine Vorlage je Produkt, keine Handarbeit.
+4. **Vorauszahlung ist EINE Zahl** (0 % = Rechnung, 30 % = Anzahlung, 100 % = Vorauszahlung) am einen
+   Zahlungsmodul – nie zwei Einnahme-Module. Standard der Gesellschaft, bekannte Kunden haben ihre
+   eigene Zahl (Kondition am Partner).
+5. **Was zusammen bestellt wird, geht zusammen.** Ein Korb für alles; angeboten werden nur Lieferarten,
+   die jede Position erlaubt (Funk zum Kran fährt auf dem Tieflader mit).
+6. **Ein Preis gilt je Markt**, vom ERP vorgeschlagen, vom Menschen gesetzt; darunter Kunden- und
+   Firmenpreise (Kaskade Markt → Partner → Vorgang).
+7. **Die Seriennummer ist eine Tür** – für jede Instanz, nicht nur die Maschine: Kran, Motor, Schlauch.
+   Der QR trägt eine Adresse mit der Nummer; die Nummer ist das Wesentliche, die Adresse nur der Weg.
+8. **Ersatzteile kommen aus dem, was wirklich verbaut ist**, in allen Stufen. Bestellbar ist, was eine
+   Karte «Verkauf» hat; alles andere ist mit einem Klick angefragt.
 
 ## 1 · Problem und Ziel
 
@@ -101,14 +103,14 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 ### A · Grundmodell
 | Nr. | Thema | Status |
 |---|---|---|
-| A1 | Name des Projekts und der Dinge (Sortiment, Produkt, Shop?) | Vorschlag (§5 F1) |
-| A2 | Produkt ↔ Artikel: eigenes Objekt oder Felder am Artikel | Vorschlag (§5 F2) |
+| A1 | Name des Projekts und der Dinge | **entschieden** E1 |
+| A2 | Produkt ↔ Artikel: eigenes Objekt oder Karte am Artikel | Vorschlag neu (§5 F2): Karte «Verkauf» |
 | A3 | Ein Produkt = ein Artikel, oder Varianten/Optionen (Konfigurator) | Vorschlag (§5 F3) |
 | A4 | Zubehör, Sets, «passt zu», «oft zusammen» | offen |
-| A5 | Kategorien und Navigation (wo ein Produkt erscheint – mehrfach!) | Vorschlag (§5 F4) |
-| A6 | Sichtbarkeit: öffentlich · nur angemeldet · nur Firma X · nur Person Y · intern | Vorschlag (§5 F5) |
+| A5 | Kategorien und Navigation | **entschieden** E2 (Stichworte) |
+| A6 | Sichtbarkeit | E7 + Vorschlag neu (§5 F5): aus · für alle · nur für |
 | A7 | Lebenszyklus: Entwurf · veröffentlicht · auslaufend · ersetzt · zurückgezogen | Vorschlag (§5 F6) |
-| A8 | Ersatzartikel / Nachfolger (kleine Änderung = neuer Artikel) | Vorschlag (§5 F6) |
+| A8 | Ersatzartikel / Nachfolger | **entschieden** E8 |
 | A9 | Produkte ohne Ware: Dienstleistung, Service-Abo, Prüfung, Software (INEXXIO 365) | offen – berührt Entscheid E10 |
 
 ### B · Inhalt und Darstellung
@@ -120,7 +122,7 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | B4 | Video (wie heute: MP4 + Standbild) | Vorschlag: wie Website |
 | B5 | 3D-Ansicht: Onshape live oder Export (glTF) und selbst zeigen | Vorschlag (§5 F8) |
 | B6 | Dokumente: Anleitung, Konformitätserklärung, Zertifikate, Datenblatt, Prüfberichte | Vorschlag (§5 F9) |
-| B7 | Sprachen: DE · FR · IT · EN (Schweiz!), Übersetzung durch die KI, Freigabe Mensch | offen |
+| B7 | Sprachen | **entschieden** E3; Weg: §5 F21 |
 | B8 | Bewertungen, Referenzen, «im Einsatz bei» | später |
 
 ### C · Preise und Märkte
@@ -156,17 +158,17 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | Nr. | Thema | Status |
 |---|---|---|
 | F1 | Klicks: Produkt → Wählen → Bestellen → Kontakt/Adresse → Bezahlen → fertig | Vorschlag (Bild) |
-| F2 | Ohne Konto bestellen (Konto entsteht mit der E-Mail, Magic Link) | Vorschlag |
+| F2 | Ohne Konto bestellen | **entschieden** E5 |
 | F3 | Firma oder privat (UID erkennt die Firma) | Vorschlag |
-| F4 | Zahlungsarten: Karte · TWINT · Rechnung (QR) · Vorauszahlung; wer darf auf Rechnung? | offen |
-| F5 | Warenkorb: nur für Teile (mehrere Positionen), nie für Anlagen | Vorschlag (§5 F13) |
+| F4 | Zahlungsarten; wer darf auf Rechnung? | Vorschlag (§5 F19) |
+| F5 | Warenkorb | Vorschlag neu (§5 F13): ein Korb, eine Lieferung |
 | F6 | Doppelklick, Netzabbruch → nie zwei Aufträge (`source_reference`) | Vorschlag |
 | F7 | Bestätigung: Seite + Mail + Auftragsbestätigung (Papier, wie heute «Prüfen und freigeben»?) | offen |
 
 ### G · Der Auftrag im ERP
 | Nr. | Thema | Status |
 |---|---|---|
-| G1 | Wer legt den Ablauf fest? → Verkaufsweg (Vorlage) | Vorschlag (§5 F14) |
+| G1 | Wer legt den Ablauf fest? | Vorschlag (§5 F20): Ware + Lieferart |
 | G2 | Versand: Paket, Spedition (Ausgabe als zweites Zahlungsmodul), Abholung, Montage | Vorschlag |
 | G3 | Versandkosten als Position auf der Rechnung | offen – Code-Frage (Positionen ohne Stück) |
 | G4 | Liefertermin = Datum «bis» am Auftrag (gibt es) | Vorschlag |
@@ -232,141 +234,200 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge zu den grossen Fragen (zum Entscheiden)
+## 5 · Vorschläge (Fassung 2 – nach der Rückmeldung vom 14.11.2026)
 
-> Jede Frage: was ich vorschlage, warum, was die Alternative kostet. Antwort genügt mit «ja» oder
-> der Nummer der Alternative.
+> Was entschieden ist, steht in §6. Hier steht, was offen ist, mit Begründung und Alternative.
 
-**F1 – Namen.** Projekt «Sortiment»; das Ding heisst **Produkt** (Artikel bleibt das technische Ding);
-auf der Website der Bereich «Produkte»; der Kauf heisst **Bestellung** (im ERP: ein Auftrag). Kein
-Wort «Shop» in der Oberfläche. *Alternative:* «Shop» überall – kürzer, aber klingt nach Ramsch und
-passt nicht zu Kran und Miete.
+### F2 neu – Verkauf am Artikel, nicht als eigenes Produkt
 
-**F2 – Produkt als eigenes Objekt, nicht am Artikel.** Der Artikel ist nach der Freigabe
-unveränderlich (`routers/articles.py:163`, «es gibt kein Ändern»). Ein Tippfehler im Text dürfte
-sonst keinen neuen Artikel erzwingen. Das Produkt hat eine Objektnummer, einen Verlauf, Autosave und
-zeigt auf **eine Artikel-Kette**: es verkauft immer das neueste freigegebene Glied (`replaced_by_id`).
-*Alternative:* Felder am Artikel (der alte Anlauf, `docs/attic.md`) – jede Textänderung wäre ein neuer
-Artikel, und beim Ersetzen müsste alles kopiert werden.
+**Vorher** (Fassung 1): eigenes Objekt «Produkt». **Jetzt:** eine Karte **«Verkauf»** am Artikel.
 
-**F3 – Varianten als Optionen aus Artikeln.** Ein Produkt hat einen Grundartikel und optional
-Gruppen von Optionen; **jede Option ist ein Artikel** (Zeile im Auftrag) mit eigenem Preis, z. B.
-«Funk: ohne · Standard · Proportional». Die Wahl des Kunden ergibt genau die **Zeilen des Auftrags**.
-Abhängigkeiten («Greifer B nur mit Spannweite ≥ 12 m») als einfache Regel je Option. Für eine
-Anlage nach Mass: Konfigurieren, dann «Offerte anfordern» statt «Bestellen» (C7).
-*Alternative:* jede Kombination ein eigener Artikel – bei 3 × 4 × 3 Optionen 36 Artikel.
+Warum der Wechsel:
+- **Ersatzteile:** jedes der rund 1'000 Teile wird mit einem Schalter verkäuflich, ohne 1'000 zweite
+  Datensätze.
+- **Nachfolger von selbst:** die Artikel-Kette (`replaces_object_id` → `replaced_by_id`) gibt es schon.
+  Die Karte gehört der **Kette**, nicht dem einzelnen Glied: der neue Artikel zeigt sofort dieselbe
+  Karte, Adresse und Google-Platz bleiben.
+- **Optionen gehen trotzdem:** eine Option ist ein Verweis auf einen anderen Artikel (siehe F3) – dafür
+  braucht es kein eigenes Objekt.
+- **Kein Widerspruch zu «ein Artikel wird nicht geändert»:** unveränderlich ist, was der Artikel *ist*
+  (Spezifikation, Erzeugungsprozess). Was wir mit ihm *tun* (lagern, dokumentieren, verkaufen), hängt
+  an ihm und ändert sich – Bestand, Dokumente und Notizen tun das heute schon.
 
-**F4 – Kategorien als Stichworte, nicht als Baum.** Ein Produkt trägt Stichworte («Krantechnik»,
-«Heukran», «Fahrmischer», «Verschleissteil»); jede Seite der Website zeigt die Produkte zu ihrem
-Stichwort. So erscheint ein Produkt an mehreren Stellen, ohne Kopie. Die Bereichsseiten bleiben, wie
-sie sind, und bekommen einen Block «Produkte».
+Was es kostet: der Satz in CLAUDE.md wird genauer («Spezifikation und Prozess eines Artikels werden
+nicht mehr geändert; seine Karte «Verkauf» schon»). Ein Produkt ohne eigenen Artikel (z. B. ein Set)
+ist ein Artikel, der seine Teile verbraucht – wie heute jede Baugruppe.
 
-**F5 – Sichtbarkeit in vier Stufen:** öffentlich · für angemeldete Kunden · nur für bestimmte
-Firmen/Personen («Für Sie», gleiche Seite, mit Hinweis «Ihr Produkt») · intern. Persönliche Produkte
-werden nie von Google gefunden und nie im Feed ausgeliefert.
+*Alternative:* eigenes Objekt «Produkt» (Fassung 1) – nur nötig, wenn ein Angebot mehrere *gleichrangige*
+Artikel bündeln müsste. Das haben wir nicht gefunden.
 
-**F6 – Lebenszyklus abgeleitet.** Gespeichert ist nur «veröffentlicht ab» und «zurückgezogen ab».
-Daraus und aus der Artikel-Kette folgt: Entwurf · neu (30 Tage) · im Sortiment · Nachfolger
-verfügbar · ausverkauft (zurückgezogen, Rest ab Lager) · nicht mehr erhältlich. Wird der Artikel
-ersetzt (z. B. eine Prüfung mehr im Erzeugungsprozess), verkauft das Produkt **ab sofort den
-neuen** – offene Aufträge behalten ihren (sie sind eingefroren). Restbestand des alten kann
-«ab Lager» weiter verkauft werden, bis er weg ist.
+### F3 – Optionen sind Artikel (bestätigt die Richtung)
 
-**F7 – Bilder: Original bleibt, die KI macht eine Fassung.** Hochladen → die KI (Gemini Bild, über
-Vertex wie heute) erstellt eine Fassung im Hausstil (Licht, Hintergrund, Schnitt) → am Produkt
-stehen Original und Fassung nebeneinander → ein Mensch wählt. Nie ein Teil erfinden: die KI darf
-Licht und Umfeld ändern, nie die Maschine. Kosten grob wenige Rappen je Bild (zu messen, M3).
+Die Karte «Verkauf» eines Artikels hat Gruppen von Optionen; jede Option zeigt auf einen Artikel mit
+Preis (Fangbremse, Speziallackierung, 2. Akku). Zwei Arten, die das System am Artikel erkennt:
+- **Beilage** (der Artikel ist ein eigenes Stück, z. B. Funk-Sender): wird eine eigene Zeile des Auftrags.
+- **Einbau** (geht in die Maschine, z. B. Fangbremse): verlangt, dass die Maschine erst gebaut wird –
+  das ist ein **Projekt**: ein eigener Artikel je Kran (wie heute), mit der Option in seiner Stückliste.
+  Der Kunde wählt die Optionen, ein Mensch macht daraus den Kran-Artikel und gibt ihn «nur für» den
+  Kunden frei (F18).
 
-**F8 – 3D: Export statt Onshape live.** Aus Onshape einmal je Artikel ein glTF/GLB exportieren
-(Onshape kann das), als Datei am Artikel ablegen, auf der Website mit einem freien Betrachter
-(`<model-viewer>`, Google, frei) zeigen. Onshape live hiesse: Anmeldung, Kosten, Abhängigkeit,
-langsam – und Kunden würden die Konstruktion sehen. **Der Trick für den Zwilling:** die Teile im
-Onshape-Modell tragen als Namen ihre Artikelnummer; dann weiss die Seite, welches Teil im Modell zu
-welchem Artikel gehört, und kann das Teil des konkreten Geräts markieren.
+### F5 neu – Sichtbarkeit in drei Zuständen
 
-**F9 – Dokumente: ein Feld «öffentlich» am Dokument-Link.** Anleitung und Datenblatt hängen am
-**Artikel** (gelten für alle Stücke), Konformitätserklärung und Prüfbericht an der **Instanz** (gelten
-für genau dieses Gerät). Öffentlich ist nur, was ausdrücklich so markiert ist; Gerätedokumente sieht
-nur der Besitzer. Mit der Maschinenverordnung 2027 darf die Anleitung digital sein – der QR-Code
-ist dann der gesetzliche Weg zur Anleitung (Papier auf Wunsch).
+**Aus** (nicht verkauft) · **Für alle** · **Nur für …** (eine Liste aus Personen und Firmen). Eine Firma
+in der Liste → alle ihre Personen sehen es; eine Person → nur sie. Kein «nur angemeldet», kein «intern»
+(deine Rückmeldung). «Nur für» ist nie bei Google und nie im Feed.
 
-**F10 – Preise: eine Preisliste je Markt, mit «gültig ab».** Ein Markt = Länder + Gesellschaft +
-Währung. Je Produkt (bzw. je Option) und Markt ein Preis mit Datum; eine Erhöhung ist eine neue Zeile
-ab Datum, nie ein Überschreiben. Für einen neuen Markt schlägt das ERP Preise vor (Hauspreis × Faktor
-des Marktes × Kurs, gerundet), der Mensch übernimmt. Darunter die Kaskade Markt → Partner →
-Vorgang. Die Preisvorgabe im Zahlungsmodul (`Beleg.PRICES`) liest künftig diese Liste.
+**Besserer Preis für einen Kunden auf einem öffentlichen Produkt:** kein Code, sondern eine **Kondition
+am Partner** (Kaskade): «Hof Brunner: 10 % auf alles» oder «Hof Brunner: Funk-Set 2'200». Ist der Kunde
+angemeldet, sieht er seinen Preis; bestellt er als Gast mit derselben E-Mail, gilt er auch. Rabattcodes
+(Marketing) bleiben später (C5).
 
-**F11 – Miete ist Kauf mit «geht an uns».** Das Zahlungsmodul kennt die Wahl schon. Miete =
-Auftrag mit Bewegen zum Kunden, Wiederholung je Monat (Rechnung), am Ende Bewegen zurück. Der
-Kunde sieht dasselbe Interface mit dem Umschalter **Kaufen · Mieten · Abo** – wie Tesla «Kauf ·
-Leasing». Dafür fehlt: Karte speichern (Stripe), damit die Monatsrate von selbst geht.
+### F13 neu – ein Korb, eine Lieferung
 
-**F12 – Letztes Stück.** Keine Reservierung (bleibt). Wer bestellt, bekommt beim Anlegen des
-Auftrags das älteste freie Stück (FIFO). Ist es im selben Moment weg, wird die Zeile «auf
-Bestellung» und die Bestätigung nennt den neuen Termin – der Kunde kann dann stornieren.
+- **Ein Korb für alles** (Maschine, Funk, Schrauben). Er lebt im Browser, bis «Bestellen» ihn zu
+  **einem** Auftrag macht.
+- **Was zusammen bestellt wird, geht zusammen.** Jede Position sagt in ihrer Karte, welche Lieferarten
+  sie erlaubt (Schraube: Paket, Abholen; Kran: Spedition, Abholen, Montage). Angeboten wird die
+  **Schnittmenge**. Ist sie leer, schlägt die Seite vor: «Teile vorab separat senden?» → zwei Aufträge.
+- Damit gilt immer: **eine Bestellung = ein Auftrag = ein Beleg = eine Rechnung.**
 
-**F13 – Warenkorb nur, wo er hilft.** Eine Maschine bestellt man einzeln (direkt «Bestellen»,
-wie Tesla). Teile bestellt man oft zu mehreren – dort ein Korb, der **im Browser** lebt (wie der
-Entwurf), bis «Bestellen» ihn zu **einem** Auftrag macht.
+### F18 neu – Eine Bestellung ist eine angenommene Offerte (der Kern)
 
-**F14 – Verkaufsweg als Vorlage.** Einmal im ERP modelliert, wie ein Erzeugungsprozess: eine
-Modul-Liste (z. B. Zahlung → Bewegen [Versand] → Ende, oder Zahlung → Verbrauch [Montage] →
-Bewegen → Ende), dazu die Lieferart, ihr Preis und die Zahlungsbedingungen. Das Produkt sagt, welche
-Verkaufswege es erlaubt; der Kunde wählt die Lieferart, das System baut daraus den Auftrag.
-*Offen dabei:* wo die Vorlage wohnt (an der Gesellschaft oder als eigener Datensatz).
+Der Kunde sieht **nie einen Prozess**, nur sein Geschäft: Offerte → Zusage → (Anzahlung) → Lieferung →
+Rechnung → bezahlt. Genau das kann das Zahlungsmodul heute schon (`offer → agreed → billed`).
 
-**F15 – QR-Adresse und Geräteseite.** Neue Etiketten tragen `https://inexxio.ch/s/<Instanznummer>`
-(der Scanner im ERP liest die Nummer heraus, `scan.ts` – alte Etiketten gehen weiter). Jeder sieht:
-Produkt, Bild, öffentliche Dokumente, «Teil finden», «Service anfragen». Der Besitzer (angemeldet)
-sieht zusätzlich: seine Papiere, Prüfberichte, Servicegeschichte. Gegen Durchprobieren der Nummern:
-öffentlich steht nichts, was einem Fremden etwas über den Besitzer verrät. *Alternative:* ein
-unerratbarer Zusatz im QR (sicherer, aber nicht mehr von Hand abtippbar).
+| | Shop (Teile, Funk) | Projekt (Kran) |
+|---|---|---|
+| Wer macht die Offerte? | das System, aus Wahl + Preisliste | ein Mensch: Kran-Artikel + Karte «Verkauf» **nur für** Hof Brunner |
+| Wo sieht es der Kunde? | Produktseite | **dieselbe** Produktseite, «Für Sie» |
+| Was ist «Bestellen»? | Zusage (Verb `agree`) | Zusage (Verb `agree`) |
+| Danach | Seite «Ihre Bestellung» | Seite «Ihre Bestellung» |
 
-**F16 – Teilebaum in allen Stufen, beides wählbar.** Der Baum folgt dem, was verbaut ist (Gerät →
-Baugruppe → Teil). Der Kunde kann **jede Ebene** wählen: das ganze Fahrwerk oder nur die Rolle.
-Bestellbar ist eine Ebene, wenn sie ein Produkt mit Preis hat; sonst «anfragen» mit Gerät und Teil
-vorausgefüllt – nie eine Sackgasse. Mehrere Teile → Korb (F13).
+**Eine Seite je Bestellung** («Ihre Bestellung»): Stand, Papiere (AB, Rechnung), Bezahlen,
+Seriennummern, später «Meine Geräte». Sie ist die Weiterentwicklung der heutigen Seite `/dokument` mit
+ihren Stationen (`components/beleg/stations.tsx`) – **kein zweiter Ort**: der Link in der Mail
+(ohne Anmeldung) und das Konto zeigen dieselbe Seite. Damit gibt es **einen Ort der Interaktion**.
 
-**F17 – Website: Seite statisch, Preis live.** Die Produktseiten werden wie heute gebaut (schnell,
-für Google lesbar). Preis, Verfügbarkeit und Lieferzeit holt die Seite beim Öffnen frisch aus dem
-ERP (ein öffentlicher Katalog-Feed). «Veröffentlichen» im ERP stösst einen neuen Bau der Website an
-(GitHub Actions, gratis). Derselbe Feed beliefert Google Shopping und später Amazon.
-*Alternative:* jede Seite vom Server gerechnet – immer aktuell, aber zweite Darstellung neben Astro.
+### F19 neu – Vorauszahlung ist EINE Zahl
+
+Heute: Vorauszahlung = Zahlungsfrist 0 Tage (`PREPAID_DAYS`), die Stücke laufen erst bei Saldo 0.
+**Neu:** eine Zahl «Vorauszahlung in %» am Zahlungsmodul. Die Stücke passieren die Zahlung, wenn
+zugesagt **und** dieser Anteil bezahlt ist (`process.carry_on` – die eine Stelle). 0 % = auf Rechnung,
+30 % = Anzahlung, 100 % = Vorauszahlung. Den Rest zeigt die Rechnung wie heute (Teilbetrag gibt es).
+
+Woher die Zahl kommt (Kaskade): **Gesellschaft** (Standard, Vorschlag 100 % für Neukunden) →
+**Partner** (bekannte Firma: 0 %, 30 Tage) → **Karte «Verkauf»** (Maschine: mindestens 30 %). Das
+beantwortet O4 ohne Sonderregel: *neu zahlt voraus, bekannt per Rechnung* – entschieden wird es am
+Partner, nicht «ab der zweiten Bestellung».
+
+### F20 neu – Wie der Ablauf entsteht (die kleine Regel)
+
+Das System baut die Modul-Liste aus zwei Dingen:
+
+1. **Woher kommt die Ware?** ab Lager → sie steht am Anfang. **Neu erzeugt** → zuerst der
+   Erzeugungsprozess des Artikels, dann der Rest.
+2. **Welche Lieferart?** Jede Lieferart ist eine kurze Modul-Folge, **einmal im ERP gepflegt** (an der
+   Gesellschaft):
+
+| Lieferart | Modul-Folge nach der Ware |
+|---|---|
+| Paket | Zahlung (Einnahme) → Bewegen (Ziel: Kunde) |
+| Abholen | Zahlung (Einnahme) → Bewegen (Ziel: Kunde, Scan bei der Übergabe) |
+| Spedition | Zahlung (Einnahme) → Zahlung (Ausgabe, Spediteur) → Bewegen |
+| Montage | Zahlung (Einnahme) → Bewegen → Datenerfassung (Prüfung, Protokoll) |
+
+**Befund im Code (muss gebaut werden):** ein Auftrag mit «Neu»-Zeile übernimmt heute den
+Erzeugungsprozess des Artikels **unverändert** (`services/release.py:141`, `steps_for`) – eine Lieferung
+lässt sich nicht anhängen. Vorschlag: **Neu = Erzeugungsprozess + Lieferart**; Stücke ab Lager in
+derselben Bestellung **treten bei der Lieferart ein** (wie Komponenten heute am Verbrauch eintreten,
+`process._enter_at_step`). Der Beleg entsteht wie heute bei der Freigabe – die Zusage (und Anzahlung)
+gilt also ab dem ersten Tag, die Stücke passieren die Zahlung, wenn sie gebaut sind.
+
+Spediteur: dessen Preis kennt bei der Bestellung niemand – das zweite Zahlungsmodul wartet als Aufgabe
+«Spedition einkaufen» (Kompetenz Verrechnen). Der Kunde merkt davon nichts.
+
+### F15 neu – QR: Adresse mit Nummer, eigene Etiketten-Adresse
+
+Deine Sorge (Domain ändert sich – es ist ja schon einmal passiert: HS Steiner → INEXXIO) ist berechtigt.
+Die robuste Lösung, wie sie Liebherr, Caterpillar und der Standard «GS1 Digital Link» machen:
+
+- Der QR trägt **eine Adresse, in der die Nummer steht** (z. B. `https://<etikett>/100482117`).
+- **Intern hängt nichts an der Adresse:** der ERP-Scanner liest jede 9-stellige Nummer aus jedem Text
+  heraus (`frontend/src/lib/scan.ts` – heute schon so). Fällt die Adresse weg, funktioniert der Scan im
+  ERP weiter.
+- **Für Kunden** braucht es die Adresse: eine nackte Nummer öffnet mit der Handy-Kamera **nichts**.
+- **Eine eigene, kurze Etiketten-Adresse**, die nur dafür da ist und nie aufgegeben wird (eine Domain
+  kostet rund 20 CHF im Jahr) – unabhängig vom Firmennamen. Wechselt einmal die Website, leitet sie
+  weiter.
+- Unter dem QR steht die **Nummer als Text** – lesbar, abtippbar, auch in 30 Jahren.
+
+**Jede Instanz kann ein Etikett tragen** (Kran, Motor, Steuerung, Schlauch-Charge) – das Modell kann es
+schon: jede Instanz hat eine Objektnummer. Die Geräteseite eines Motors zeigt «verbaut in Kran 100 482
+117» (`genealogy.built_into`), die des Krans seine Teile.
+
+### F6 bestätigt mit deiner Ergänzung
+
+Standard: der neue Artikel wird verkauft, der Rest des alten läuft **zuerst** aus (FIFO über die Kette
+nimmt das älteste Stück). Soll sofort umgestellt werden: den Restbestand **sperren** (Aussondern
+«Sperren» gibt es). Keine neue Funktion.
+
+### F21 neu – Übersetzung ist eine Ableitung
+
+Jedes Produkt in jeder Sprache der Website, ohne Sprachfeld in der Oberfläche (dein Entscheid). Gepflegt
+wird **Deutsch**; die anderen Sprachen schreibt die KI beim Speichern und hält sie, bis sich der deutsche
+Text ändert (Ableitung, gemerkt am Text). **Offen:** ohne Freigabe durch einen Menschen? Das wäre die
+erste KI-Ausgabe, die ungeprüft hinausgeht – Vorschlag: ja, weil es nur übersetzt, nie erfindet; Fachwörter
+hält eine kleine Wortliste je Sprache fest.
+
+### Weiter gültig aus Fassung 1
+
+F7 (Bilder: Original + KI-Fassung) · F8 (3D als Export aus Onshape) · F9 (Dokumente: am Artikel
+öffentlich, an der Instanz für den Besitzer) · F10 (Preis je Markt mit «gültig ab») · F11 (Miete =
+Eigentum «geht an uns» + Wiederholung) · F12 (letztes Stück ohne Reservierung) · F14 → aufgegangen in
+F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein Feed).
 
 ## 6 · Entschieden
 
-*(noch nichts)*
+| Nr. | Entscheid | Datum |
+|---|---|---|
+| E1 | **Namen (F1):** Projekt «Sortiment», das Ding «Produkt», der Kauf «Bestellung», auf der Website «Produkte», kein «Shop» in der Oberfläche. | 14.11.2026 |
+| E2 | **Kategorien als Stichworte (F4).** | 14.11.2026 |
+| E3 | **Jedes Produkt in allen Sprachen der Website** – kein Sprachfeld in der Oberfläche. | 14.11.2026 |
+| E4 | **Firmen und Private gleich** – keine Unterscheidung im Ablauf. | 14.11.2026 |
+| E5 | **Bestellen ohne Anmeldung** (wie Coop Vitality); das Konto ist freiwillig. | 14.11.2026 |
+| E6 | **Keine Priorisierung von Produkten (O1)** – es muss für alles gehen: Teile, Zubehör, Maschinen, Projekte. | 14.11.2026 |
+| E7 | **Sichtbarkeit:** kein Unterschied zwischen öffentlich und angemeldet, kein «intern». | 14.11.2026 |
+| E8 | **Nachfolger (F6):** neuer Artikel wird verkauft, offene Aufträge behalten ihren, Rest läuft aus; sofort umstellen = Rest sperren. | 14.11.2026 |
+| E9 | **Eine Stelle der Interaktion:** Shop und Projekt (Offerte, Bestätigung, Rechnung) laufen für den Kunden über denselben Produktebereich – nicht über verschiedene Stellen. | 14.11.2026 |
 
 ## 7 · Vorgehen – wie wir es definieren
 
-**Arbeitsweise:** je Runde ein Block der Themenkarte. Ich zeige ihn im **Bild** (Nachbau von Website
-und ERP, klickbar), du schaust, sagst was gefällt und was nicht, und entscheidest die Fragen. Ich
-trage Entscheide in §6 ein und ziehe Akte und Bild nach. Erst wenn alle Blöcke einer Bau-Etappe
-entschieden sind, wird gebaut.
+Je Runde ein Block der Themenkarte: ich zeige ihn im **Bild**, du sagst, was gefällt, und entscheidest;
+ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden ist.
 
-| Runde | Block | Im Bild |
+| Runde | Block | Stand |
 |---|---|---|
-| 1 | **Grundmodell** (A, F1–F6) und **Bestellweg** (F, F13) | Produktseite, Konfigurator, Bestellen, Produkt im ERP |
-| 2 | **Preise und Märkte** (C, F10) | Preisliste im ERP, Seite im Markt DE/EUR |
-| 3 | **Auftrag im ERP** (G, F14) und **Angebotsformen** (D, F11) | entstandener Auftrag, Verkaufsweg, Miete |
-| 4 | **Seriennummer, QR, Ersatzteile, 3D** (I, F15, F16, F8) | Geräteseite, Teilebaum, Modell |
-| 5 | **Inhalte und Bilder** (B, F7, F9) | Bild-Aufbereitung, Dokumente |
-| 6 | **Nach dem Kauf** (H) und **Recht** (J) | Konto «Meine Bestellungen», «Meine Geräte» |
-| 7 | **Gefunden werden, Kanäle** (K, L) und **Betrieb** (M) | Feed, Google-Vorschau |
+| 1 | Grundmodell (A) und Bestellweg (F) | **1b läuft** – Fragen §8 |
+| 2 | Preise und Märkte (C) | offen |
+| 3 | Auftrag im ERP (G), Angebotsformen (D) | vorgezogen in F18–F20 |
+| 4 | Seriennummer, QR, Ersatzteile, 3D (I) | F15 vorgezogen |
+| 5 | Inhalte und Bilder (B) | offen |
+| 6 | Nach dem Kauf (H), Recht (J) | offen |
+| 7 | Gefunden werden, Kanäle (K, L), Betrieb (M) | offen |
 
-**Bau-Etappen (Vorschlag, nach den Entscheiden zu bestätigen):**
-1. **Katalog** – Produkt im ERP, öffentliche Produktseiten, Teile-Katalog aus dem ERP, Anfragen. Kein Preis nötig.
-2. **Bestellen** – Preis je Markt, Verkaufsweg, Bestellen ohne Konto, Karte/QR, Konto «Meine Bestellungen».
-3. **Gerät** – QR-Adresse, Geräteseite, Dokumente öffentlich, «Meine Geräte», Teilebaum, Teile bestellen.
-4. **Miete und Abo** – Karte speichern, Wiederholung aus dem Shop.
-5. **3D und Zwilling** – Modelle, anklickbare Teile.
-6. **Kanäle** – Google Shopping, später weitere.
+**Bau-Etappen (Vorschlag):** 1 Katalog (Karte «Verkauf», Produktseiten, Anfragen) · 2 Bestellen
+(Preis je Markt, Lieferarten, Neu + Lieferart, Vorauszahlung als Zahl, Seite «Ihre Bestellung») ·
+3 Gerät (Etiketten-Adresse, Geräteseite, Teilebaum) · 4 Miete und Abo · 5 3D und Zwilling · 6 Kanäle.
 
-## 8 · Offene Fragen an den Inhaber (Runde 1)
+## 8 · Offene Fragen an den Inhaber (Runde 1b)
 
-Siehe §5 F1–F6 und F13. Dazu:
-- **O1** Welche Produkte zuerst? (Vorschlag: die Verschleissteile Fahrmischer – sie sind schon
-  vorbereitet, klein, oft gebraucht; dann Funk für Heukrane; Anlagen nach Mass nur «Offerte anfordern».)
-- **O2** Verkaufen wir an Private oder nur an Firmen? (ändert Preisanzeige, Widerruf, AGB)
-- **O3** In welche Länder liefern wir zuerst? (CH, LI, DE, AT?)
-- **O4** Darf ein Neukunde auf Rechnung kaufen, oder nur Karte/Vorauszahlung?
+- **N1** Verkauf als Karte am Artikel statt eigenem Produkt (F2 neu) – einverstanden?
+- **N2** Eine Bestellung ist eine angenommene Offerte; eine Seite «Ihre Bestellung» für Shop und Projekt,
+  aus der heutigen `/dokument`-Seite (F18) – einverstanden?
+- **N3** Vorauszahlung als EINE Zahl, Standard 100 % für Neue, am Partner überschreibbar (F19)?
+- **N4** Ein Korb, eine Lieferung, Schnittmenge der Lieferarten (F13 neu)?
+- **N5** QR mit eigener kurzer Etiketten-Adresse + Nummer als Text (F15 neu)?
+- **N6** Übersetzungen durch die KI ohne Freigabe (F21)?
+- **N7** Sichtbarkeit «nur für»: Personen **und** Firmen wählbar (Firma = alle ihre Personen)?
+- **O3** In welche Länder liefern wir? Wichtig für Markt, Währung, Recht. Vorschlag: wo kein Markt
+  gepflegt ist, zeigt die Seite «Offerte anfordern» statt «Bestellen» – so geht es überall, ohne Risiko.
