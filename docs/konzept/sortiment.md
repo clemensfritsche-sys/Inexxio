@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 15 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 16 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -32,8 +32,8 @@
    ein, sobald sie frei sind **und aus X kommen**.
 6. **Jede Ausnahme ist eine Unterdeckung** in der Form, die es schon gibt (`StepNeed`: gebraucht ·
    verfügbar · Grund · Angebote). Nichts ändert sich still.
-7. **Der Beleg kennt, was da ist, mit Seriennummer (wie heute) – was noch kommt, als «1 × Rinne,
-   Seriennummer folgt».** Die Nummer kommt dazu, wenn das Stück eintritt (Fassung 15).
+7. **Der Beleg kennt auch die erwarteten Stücke mit Nummer – auf jedem Papier.** Wird eines vor dem
+   Ankommen gegen ein gleiches getauscht, steht eine neue Auftragsbestätigung an (Fassung 16).
 8. **Projekt (Kran):** die **Anzahlung steht am Anfang des Bauauftrags** (im Erzeugungsprozess des
    Projekt-Artikels) – so wird wirklich erst nach dem Geld gebaut. Der Verkauf hat nur den Rest.
 9. **Eigentum bleibt bei zwei Werten** («uns» · «jemand anderem»): die Vorlage der Lieferart belegt das
@@ -50,7 +50,7 @@
 |---|---|
 | Auftragsstatus (`order_state._derive`) | eine vierte Zahl «erwartet» – zählt als unterwegs (sonst wäre ein wartender Auftrag sofort «Abgebrochen») |
 | Auswahl (`UnitPick`, §12.6a) | dritte Absicht «folgt aus X» als Zeile der Definition, nicht als Zugehörigkeit |
-| Beleg (`process_lines`, `serials_of`, `_freeze_units`) | erwartete Zeilen als «Seriennummer folgt»; ein Stück wird beim **Eintritt** eingefroren |
+| Beleg (`process_lines`, `serials_of`, `units_problem`) | liest auch die erwarteten Stücke (mit Nummer); Tausch eines noch nicht angekommenen Stücks gegen denselben Artikel → neue AB steht an |
 | Frei (`consumption._free`) | zusätzlich «Ort in unserer Halter-Kette» – **zurückgestellt, kommt mit der Miete** |
 
 ## 1 · Problem und Ziel
@@ -259,15 +259,17 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 **Punkt 1 – «erwartet» als vierte Zahl im Auftragsstatus:** angenommen (E46). Eine Logik mehr, aber nötig.
 
-**Punkte 2 und 3 – der Beleg, schöner gelöst (ersetzt Satz 7 «Artikel × Menge»):**
-Statt den ganzen Beleg auf «Artikel × Menge» umzustellen, bleibt er, **wie er heute ist**, für alles,
-was schon da ist – und kennt nur das Erwartete ohne Nummer:
-- **Was im Auftrag schon da ist**, kennt der Beleg **mit Seriennummer** – genau wie heute.
-- **Was noch kommt**, steht als **«1 × Rinne, Seriennummer folgt»**. Die Nummer kommt dazu, **wenn das
-  Stück eintritt**.
-- Ein Tausch vor dem Eintritt (eine Ausnahme aus Satz 6) berührt den Beleg darum nicht. Nach dem Eintritt
-  gilt die heutige Regel (passt das Stück nicht mehr: nur «Stornieren») – das ist selten und bleibt so.
-- Dafür ändert sich nur, **wann** der Beleg ein Stück einfriert: beim Eintritt statt beim ersten Papier.
+**Punkte 2 und 3 – der Beleg (Fassung 16, nach deinem Einwand):**
+Die Nummer muss auf **jedem** Papier stehen – Offerte, Auftragsbestätigung, Rechnung. Sie ist auch von
+Anfang an bekannt: der Bauauftrag legt das Stück **sofort mit Nummer** an. Darum:
+- **Der Beleg kennt die erwarteten Stücke mit Nummer von Anfang an** – auf jedem Papier, wie heute.
+- **Wird ein erwartetes Stück getauscht** (Ausnahme: kaputt im Bau, ein anderes kommt), bricht der Beleg
+  **nicht** («nur Stornieren» gilt nicht, solange das Stück noch nicht angekommen ist und der Ersatz
+  **derselbe Artikel** ist). Stattdessen steht eine **neue Auftragsbestätigung** an («Prüfen und
+  freigeben», wie heute jedes Papier) – genau so, wie man es im Geschäft macht: Änderung → neue AB.
+- Die **Rechnung** entsteht erst später – dann steht die endgültige Nummer darauf.
+- Am Kern ändert sich nur: `units_problem` erlaubt den Tausch eines **noch nicht angekommenen** Stücks
+  gegen eines **desselben Artikels**; der Tausch lässt eine neue AB anstehen (`papers_due`).
 
 **Punkt 4 – Eigentum mit zwei Werten genügt (dein Einwand – richtig; ersetzt Satz 9):**
 Das Eigentum heisst bewusst nur **«uns» oder «jemand anderem»** – nicht «welcher Partei». Damit braucht es
@@ -1240,7 +1242,7 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E44 | **Weitergabe am Stück, als Kette:** jeder Auftrag wartet auf die Stücke des vorherigen; sie treten ein, sobald sie regulär frei sind. **Kein automatisches Mitfallen** – eine Ausnahme meldet sich (F25 Fassung 12). | 14.11.2026 |
 | E45 | **Angelegt wird der Nachfolger; der Vorgänger ergibt sich.** Die Verbindung steht einmal, in der wartenden Zeile des Nachfolgers; angepasst wird nur am Nachfolger, solange nichts eingetreten ist (F41 Fassung 13). | 14.11.2026 |
 | E46 | **«Erwartet» zählt im Auftragsstatus als unterwegs** – eine Logik mehr (Prüfung A1). | 14.11.2026 |
-| E47 | **Der Beleg erhält die erwarteten Stücke** (Prüfung A2) – als «Seriennummer folgt», die Nummer kommt beim Eintritt (Fassung 15). | 14.11.2026 |
+| E47 | **Der Beleg kennt die erwarteten Stücke mit Nummer** (Prüfung A2) – auf jedem Papier. | 14.11.2026 |
 | E48 | **Eigentum bleibt bei zwei Werten** («uns» · «jemand anderem»); das Spediteur-Modul wird von der Vorlage passend vorbelegt (Prüfung A4, Fassung 15). | 14.11.2026 |
 | E49 | **«Frei mit Ort» (Miete) zurückgestellt** – kommt mit der Miete (Prüfung A5). | 14.11.2026 |
 | E36 | **Eine Seite je Produkt: die Produktseite** – kein Pop-up, keine zweite «Detailseite». Teil, Funk-Set, Kran: dieselbe Seite, gefüllt aus der Karte «Verkauf». | 14.11.2026 |
@@ -1267,8 +1269,8 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber (nach der Prüfung)
 
-- **N36** Der Beleg: was da ist mit Nummer (wie heute), was noch kommt als «Seriennummer folgt» –
-  statt «Artikel × Menge» (Fassung 15, Punkte 2 und 3)?
+- **N36** Tausch eines erwarteten Stücks (vor dem Ankommen, gleicher Artikel) bricht den Beleg nicht –
+  es steht eine neue Auftragsbestätigung an (Fassung 16)?
 - **N31** Mit Karte im Voraus: **erst zahlen, dann entstehen die Aufträge** (Satz 3)?
 - **N32** Storno, wenn ein Stück schon im Verkauf steht: soll «Stornieren» es **von selbst ins Lager**
   zurückgeben (heute braucht das eine Abweichung von Hand)?
