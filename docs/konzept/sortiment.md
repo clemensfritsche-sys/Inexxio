@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 14 · **Konzept, Runde 1 – bereinigt nach Prüfung** (45 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 15 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -32,27 +32,26 @@
    ein, sobald sie frei sind **und aus X kommen**.
 6. **Jede Ausnahme ist eine Unterdeckung** in der Form, die es schon gibt (`StepNeed`: gebraucht ·
    verfügbar · Grund · Angebote). Nichts ändert sich still.
-7. **Der Beleg spricht über Artikel × Menge;** die Seriennummer steht auf dem Papier, wenn es ausgestellt
-   wird. So darf ein Stück ersetzt werden, ohne dass die Zusage bricht.
+7. **Der Beleg kennt, was da ist, mit Seriennummer (wie heute) – was noch kommt, als «1 × Rinne,
+   Seriennummer folgt».** Die Nummer kommt dazu, wenn das Stück eintritt (Fassung 15).
 8. **Projekt (Kran):** die **Anzahlung steht am Anfang des Bauauftrags** (im Erzeugungsprozess des
    Projekt-Artikels) – so wird wirklich erst nach dem Geld gebaut. Der Verkauf hat nur den Rest.
-9. **Eigentum hat einen dritten Wert «bleibt»** – für Zahlungen, die nichts am Eigentum ändern (Spediteur,
-   Service). Nur «an die Partei» und «an uns» entscheiden am Ziel.
+9. **Eigentum bleibt bei zwei Werten** («uns» · «jemand anderem»): die Vorlage der Lieferart belegt das
+   Spediteur-Modul so vor, wie die Ware schon ist (Fassung 15).
 10. **«Frei» heisst an einer Stelle:** regulärer Zustand · in keinem Auftrag · **Ort bei uns**. Ein
     vermieteter Kran beim Kunden ist damit nicht frei – weder für FIFO noch für den Shop.
 11. **Abo und Service sind ein Leistungsartikel** («Neu» je Periode, in der Schlaufe); das Gerät steht nur
     als «Betrifft» daneben.
 12. **Konditionen gelten nur mit bestätigter Adresse.** Ein Gast zahlt den Listenpreis im Voraus.
 
-**Was am Kern dafür geändert wird – ehrlich, je an einer Stelle** (vor dem Bau in PROCESS_CORE):
+**Was am Kern dafür geändert wird – ehrlich, je an einer Stelle** (vor dem Bau in PROCESS_CORE; Stand Fassung 15):
 
 | Stelle | Änderung |
 |---|---|
 | Auftragsstatus (`order_state._derive`) | eine vierte Zahl «erwartet» – zählt als unterwegs (sonst wäre ein wartender Auftrag sofort «Abgebrochen») |
 | Auswahl (`UnitPick`, §12.6a) | dritte Absicht «folgt aus X» als Zeile der Definition, nicht als Zugehörigkeit |
-| Beleg (`process_lines`, `serials_of`, `units_problem`) | liest «offen ∪ erwartet», vergleicht Artikel × Menge |
-| Eigentum (`voucher.sold_units`) | dritter Wert «bleibt» wird übersprungen |
-| Frei (`consumption._free`) | zusätzlich «Ort in unserer Halter-Kette» |
+| Beleg (`process_lines`, `serials_of`, `_freeze_units`) | erwartete Zeilen als «Seriennummer folgt»; ein Stück wird beim **Eintritt** eingefroren |
+| Frei (`consumption._free`) | zusätzlich «Ort in unserer Halter-Kette» – **zurückgestellt, kommt mit der Miete** |
 
 ## 1 · Problem und Ziel
 
@@ -255,6 +254,33 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Fassung 15 – deine Antworten zur Prüfung (14.11.2026)
+
+**Punkt 1 – «erwartet» als vierte Zahl im Auftragsstatus:** angenommen (E46). Eine Logik mehr, aber nötig.
+
+**Punkte 2 und 3 – der Beleg, schöner gelöst (ersetzt Satz 7 «Artikel × Menge»):**
+Statt den ganzen Beleg auf «Artikel × Menge» umzustellen, bleibt er, **wie er heute ist**, für alles,
+was schon da ist – und kennt nur das Erwartete ohne Nummer:
+- **Was im Auftrag schon da ist**, kennt der Beleg **mit Seriennummer** – genau wie heute.
+- **Was noch kommt**, steht als **«1 × Rinne, Seriennummer folgt»**. Die Nummer kommt dazu, **wenn das
+  Stück eintritt**.
+- Ein Tausch vor dem Eintritt (eine Ausnahme aus Satz 6) berührt den Beleg darum nicht. Nach dem Eintritt
+  gilt die heutige Regel (passt das Stück nicht mehr: nur «Stornieren») – das ist selten und bleibt so.
+- Dafür ändert sich nur, **wann** der Beleg ein Stück einfriert: beim Eintritt statt beim ersten Papier.
+
+**Punkt 4 – Eigentum mit zwei Werten genügt (dein Einwand – richtig; ersetzt Satz 9):**
+Das Eigentum heisst bewusst nur **«uns» oder «jemand anderem»** – nicht «welcher Partei». Damit braucht es
+keinen dritten Wert:
+- Die **Vorlage der Lieferart** belegt das Spediteur-Modul so vor, wie die Ware **schon ist**:
+  verkaufte Ware → «geht an die Partei» (gehört nicht uns – bleibt Verkauft), Mietgerät → «geht an uns»
+  (bleibt Freigegeben). Die Vorgabe der Eigentumswahl im Modul gibt es heute schon (`Beleg.PRESETS`,
+  `domain/modules.py:422`).
+- Am Ziel ergibt sich derselbe Zustand wie vorher – nichts kippt.
+- **Für später notiert:** «wem» ein verkauftes Gerät gehört (für «Meine Geräte»), liest man aus dem
+  **Verkauf** (der Einnahme), nicht aus dem jüngsten Zahlungsmodul.
+
+**Punkt 5 – «frei mit Ort» (Miete):** zurückgestellt (E49), kommt mit der Miete.
 
 ### Die Prüfung vom 14.11.2026 – was gefunden wurde, was daraus folgt
 
@@ -1213,6 +1239,10 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E43 | **Verkauf und Ausführung sind zwei Aufträge** (F37): Verkauf immer automatisch, Lieferung aus der Vorlage der Lieferart. | 14.11.2026 |
 | E44 | **Weitergabe am Stück, als Kette:** jeder Auftrag wartet auf die Stücke des vorherigen; sie treten ein, sobald sie regulär frei sind. **Kein automatisches Mitfallen** – eine Ausnahme meldet sich (F25 Fassung 12). | 14.11.2026 |
 | E45 | **Angelegt wird der Nachfolger; der Vorgänger ergibt sich.** Die Verbindung steht einmal, in der wartenden Zeile des Nachfolgers; angepasst wird nur am Nachfolger, solange nichts eingetreten ist (F41 Fassung 13). | 14.11.2026 |
+| E46 | **«Erwartet» zählt im Auftragsstatus als unterwegs** – eine Logik mehr (Prüfung A1). | 14.11.2026 |
+| E47 | **Der Beleg erhält die erwarteten Stücke** (Prüfung A2) – als «Seriennummer folgt», die Nummer kommt beim Eintritt (Fassung 15). | 14.11.2026 |
+| E48 | **Eigentum bleibt bei zwei Werten** («uns» · «jemand anderem»); das Spediteur-Modul wird von der Vorlage passend vorbelegt (Prüfung A4, Fassung 15). | 14.11.2026 |
+| E49 | **«Frei mit Ort» (Miete) zurückgestellt** – kommt mit der Miete (Prüfung A5). | 14.11.2026 |
 | E36 | **Eine Seite je Produkt: die Produktseite** – kein Pop-up, keine zweite «Detailseite». Teil, Funk-Set, Kran: dieselbe Seite, gefüllt aus der Karte «Verkauf». | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
@@ -1237,7 +1267,8 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber (nach der Prüfung)
 
-- **N30** Das bereinigte Modell (§0, zwölf Sätze) samt den fünf Kern-Änderungen – einverstanden?
+- **N36** Der Beleg: was da ist mit Nummer (wie heute), was noch kommt als «Seriennummer folgt» –
+  statt «Artikel × Menge» (Fassung 15, Punkte 2 und 3)?
 - **N31** Mit Karte im Voraus: **erst zahlen, dann entstehen die Aufträge** (Satz 3)?
 - **N32** Storno, wenn ein Stück schon im Verkauf steht: soll «Stornieren» es **von selbst ins Lager**
   zurückgeben (heute braucht das eine Abweichung von Hand)?
