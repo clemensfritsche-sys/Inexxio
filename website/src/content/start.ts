@@ -8,14 +8,14 @@ import { handoverLead } from './uebergabe';
 import { promiseFaq } from './promises';
 
 export const start = {
-  title: '{{brand.name}}: Krane, Fahrmischer, Spezialmaschinen',
+  title: '{{brand.name}}: Fahrmischer, Krane, Spezialmaschinen',
   description:
     'Krane nach Mass und INEXXIO 365, Trommeltausch für Fahrmischer, Spezialmaschinen für den Bau – mit Zufriedenheitsgarantie. Aus {{address.home}}.',
 
   /** Bühne: Video (oder Foto), wenig Text. */
   hero: {
     eyebrow: 'Seit {{history.founded}} · {{address.town}}',
-    h1: 'Krane, Fahrmischer und Spezialmaschinen.',
+    h1: 'Fahrmischer, Krane und Spezialmaschinen.',
     sub: 'Mit Zufriedenheitsgarantie.',
     photo: 'heukran-einsatz',
   },
@@ -29,8 +29,8 @@ export const start = {
 
   areas: {
     h2: 'Drei Bereiche. Ein Ansprechpartner.',
-    /** Reihenfolge der Karten (die Navigation beginnt mit Speziallösungen). */
-    order: ['krantechnik', 'fahrzeugtechnik', 'spezialloesungen'],
+    /** Reihenfolge der Karten – dieselbe wie in der Navigation (site.areas). */
+    order: ['fahrzeugtechnik', 'krantechnik', 'spezialloesungen'],
     /** Knopf in der Karte (schmal). */
     go: {
       krantechnik: 'Zur Krantechnik',
@@ -47,7 +47,7 @@ export const start = {
   },
 
   summary:
-    '{{brand.name}} arbeitet in drei Bereichen. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles: Die Zufriedenheitsgarantie – nicht zufrieden, übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis. Der Standort ist in {{address.home}}.',
+    '{{brand.name}} arbeitet in drei Bereichen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles: Die Zufriedenheitsgarantie – nicht zufrieden, übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis. Der Standort ist in {{address.home}}.',
 
   why: {
     h2: 'Entwicklung, Produktion und Service aus einer Hand.',
@@ -55,7 +55,7 @@ export const start = {
     figures: [
       { pre: 'Seit', figure: '{{history.founded}}', text: 'In {{address.town}} gegründet.' },
       { pre: 'Seit', figure: '{{history.cranesSince}}', text: 'bauen wir Krane selbst. Darum kennen wir jedes Bauteil.' },
-      { figure: '1', unit: 'Ansprechpartner', text: 'für Krane, Fahrmischer und Spezialmaschinen.' },
+      { figure: '1', unit: 'Ansprechpartner', text: 'für Fahrmischer, Krane und Spezialmaschinen.' },
       { figure: '50', unit: '%', text: 'übernehmen wir, wenn Sie mit dem Ergebnis nicht zufrieden sind – die Zufriedenheitsgarantie.' },
     ] as { pre?: string; figure: string; unit?: string; text: string }[],
     quote: 'Ich führe weiter, was Heiri Steiner in {{history.experienceDative}} aufgebaut hat – und ergänze es dort, wo es Ihnen nützt.',

@@ -794,7 +794,7 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   steckt im Dokument (kein Abruf bei Google). Seite `components/beleg/legal-page.tsx`.
 - **Keine Beispielbilder, kein Bildnachweis**: ein fehlendes Foto ist der graue Rahmen «Foto
   fehlt» (`Photo.astro`).
-- **Kopf-Menü = Mobil-Menü**: Hauptzeile Speziallösungen · Krantechnik · Fahrzeugtechnik · Service ·
+- **Kopf-Menü = Mobil-Menü**: Hauptzeile Fahrzeugtechnik · Krantechnik · Speziallösungen · Service ·
   Unternehmen (Über uns · Ratgeber · Kontakt · Karriere); Kontakt ist kein eigener Punkt – Telefon und
   «Anfrage stellen» rechts sind der Weg zu uns. Ein Punkt mit Unterseiten beginnt mit seiner Übersicht
   («Alles zu …», dunkel, Stapel der Bilder; bei «Unternehmen» die Kachel «Über uns»), dann die Unterseiten – EINE

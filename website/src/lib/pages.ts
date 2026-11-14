@@ -57,10 +57,10 @@ const subEntry = (p: SubPage, section: Section): PageEntry => ({
 function build(): PageEntry[] {
   const list: PageEntry[] = [
     { path: '/', name: 'Startseite', description: start.description, updated: day, section: 'Start', summary: start.summary, faq: start.faq },
-    areaEntry(krantechnik, 'Krantechnik'),
-    ...krantechnikPages.map((p) => subEntry(p, 'Krantechnik')),
     areaEntry(fahrzeugtechnik, 'Fahrzeugtechnik'),
     ...fahrzeugtechnikPages.map((p) => subEntry(p, 'Fahrzeugtechnik')),
+    areaEntry(krantechnik, 'Krantechnik'),
+    ...krantechnikPages.map((p) => subEntry(p, 'Krantechnik')),
     subEntry(spezialloesungen, 'Speziallösungen'),
     { path: service.path, name: service.title, description: service.description, updated: day, section: 'Service', summary: service.summary, faq: service.faq },
     { path: '/ueber-uns', name: ueberUns.title, description: ueberUns.description, updated: day, section: 'Unternehmen', summary: ueberUns.summary, faq: [...handover.faq, ...ueberUns.areaFaq] },

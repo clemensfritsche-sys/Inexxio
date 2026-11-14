@@ -71,17 +71,21 @@ const kraneNachMass = 'Krane nach Mass';
 
 const areas = [
   {
-    id: 'spezialloesungen',
-    label: 'Speziallösungen',
-    href: '/spezialloesungen',
-    overview: 'Speziallösungen',
-    text: 'Spezialmaschinen, Anbauten und Vorrichtungen nach Mass – für Krane, Fahrzeuge und Baumaschinen.',
-    photo: 'arbeit-werkstatt',
-    dd: 'Was kein Hersteller liefert, bauen wir – für Krane, Fahrzeuge und Baumaschinen.',
-    illo: 'spezial-baumaschinen',
-    ogTitle: 'Ihre Aufgabe. Unsere Lösung.',
-    industries: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle, deren Aufgabe kein Hersteller löst.',
-    children: [],
+    id: 'fahrzeugtechnik',
+    label: 'Fahrzeugtechnik',
+    href: '/fahrzeugtechnik',
+    overview: 'Alle Leistungen Fahrzeugtechnik',
+    ddText: 'Übersicht des Bereichs',
+    text: 'Trommeltausch und Verschleissteile für Fahrmischer.',
+    photo: 'fahrmischer-werkstatt',
+    dd: 'Trommeltausch und Verschleissteile für Fahrmischer.',
+    illo: 'menu/trommeltausch',
+    ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
+    industries: 'Betonwerke, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
+    children: [
+      { label: 'Trommeltausch', href: '/fahrzeugtechnik/trommeltausch', text: 'Neue Trommel auf das bestehende Fahrgestell', photo: 'fahrmischer-werkstatt', dd: 'Neue Trommel statt neuer Fahrmischer.', illo: 'menu/trommeltausch' },
+      { label: 'Verschleissteile', href: '/fahrzeugtechnik/verschleissteile', text: 'Auf Bestellung, schnell beschafft', photo: 'teil-auslaufrinne', dd: 'Rinne, Schurre, Trichter und Mischspiralen.', illo: 'menu/verschleissteile' },
+    ],
   },
   {
     id: 'krantechnik',
@@ -102,21 +106,17 @@ const areas = [
     ],
   },
   {
-    id: 'fahrzeugtechnik',
-    label: 'Fahrzeugtechnik',
-    href: '/fahrzeugtechnik',
-    overview: 'Alle Leistungen Fahrzeugtechnik',
-    ddText: 'Übersicht des Bereichs',
-    text: 'Trommeltausch und Verschleissteile für Fahrmischer.',
-    photo: 'fahrmischer-werkstatt',
-    dd: 'Trommeltausch und Verschleissteile für Fahrmischer.',
-    illo: 'menu/trommeltausch',
-    ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
-    industries: 'Betonwerke, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
-    children: [
-      { label: 'Trommeltausch', href: '/fahrzeugtechnik/trommeltausch', text: 'Neue Trommel auf das bestehende Fahrgestell', photo: 'fahrmischer-werkstatt', dd: 'Neue Trommel statt neuer Fahrmischer.', illo: 'menu/trommeltausch' },
-      { label: 'Verschleissteile', href: '/fahrzeugtechnik/verschleissteile', text: 'Auf Bestellung, schnell beschafft', photo: 'teil-auslaufrinne', dd: 'Rinne, Schurre, Trichter und Mischspiralen.', illo: 'menu/verschleissteile' },
-    ],
+    id: 'spezialloesungen',
+    label: 'Speziallösungen',
+    href: '/spezialloesungen',
+    overview: 'Speziallösungen',
+    text: 'Spezialmaschinen, Anbauten und Vorrichtungen nach Mass – für Krane, Fahrzeuge und Baumaschinen.',
+    photo: 'arbeit-werkstatt',
+    dd: 'Was kein Hersteller liefert, bauen wir – für Krane, Fahrzeuge und Baumaschinen.',
+    illo: 'spezial-baumaschinen',
+    ogTitle: 'Ihre Aufgabe. Unsere Lösung.',
+    industries: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle, deren Aufgabe kein Hersteller löst.',
+    children: [],
   },
 ];
 
@@ -135,9 +135,9 @@ export const site = {
     notToConfuse: 'Nicht zu verwechseln mit inexio (Telekommunikation, Deutschland).',
     /** Wer wir sind, in einem Satz – JSON-LD (description) und llms.txt lesen ihn. */
     summary:
-      'Krantechnik, Fahrzeugtechnik und Speziallösungen aus Tuttwil-Wängi TG: Krane nach Mass, Kranservice mit INEXXIO 365 und Heukrananlagen, Trommeltausch und Verschleissteile für Fahrmischer, Spezialmaschinen nach Mass für die Baustelle. Seit {{history.founded}}.',
+      'Fahrzeugtechnik, Krantechnik und Speziallösungen aus Tuttwil-Wängi TG: Krane nach Mass, Kranservice mit INEXXIO 365 und Heukrananlagen, Trommeltausch und Verschleissteile für Fahrmischer, Spezialmaschinen nach Mass für die Baustelle. Seit {{history.founded}}.',
     /** Claim – OG-Bild und llms.txt. */
-    claim: 'Krane, Fahrmischer und Spezialmaschinen mit Zufriedenheitsgarantie. Ihr Problem. Unsere Lösung.',
+    claim: 'Fahrmischer, Krane und Spezialmaschinen mit Zufriedenheitsgarantie. Ihr Problem. Unsere Lösung.',
   },
 
   history: {
@@ -295,7 +295,7 @@ export const site = {
 
   footer: {
     claim:
-      '{{brand.legalName}} (ehemals {{brand.formerLegalName}}) – Krantechnik, Fahrzeugtechnik und Speziallösungen aus Tuttwil-Wängi TG. Seit {{history.founded}}.',
+      '{{brand.legalName}} (ehemals {{brand.formerLegalName}}) – Fahrzeugtechnik, Krantechnik und Speziallösungen aus Tuttwil-Wängi TG. Seit {{history.founded}}.',
   },
 
   /**

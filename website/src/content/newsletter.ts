@@ -3,7 +3,7 @@
  * Einwilligung und die Mail-Texte stehen in `config/newsletter.mjs` – sie reisen ins ERP.
  */
 export const newsletterPages = {
-  description: 'Post von INEXXIO – der Newsletter von INEXXIO: Neues aus Krantechnik, Fahrzeugtechnik und Speziallösungen, nur wenn es etwas zu erzählen gibt.',
+  description: 'Post von INEXXIO – der Newsletter von INEXXIO: Neues aus Fahrzeugtechnik, Krantechnik und Speziallösungen, nur wenn es etwas zu erzählen gibt.',
   signup: {
     eyebrow: 'Newsletter',
     title: 'Post von ==INEXXIO==',

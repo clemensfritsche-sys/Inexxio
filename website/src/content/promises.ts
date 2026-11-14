@@ -30,7 +30,7 @@ export interface PromiseItem {
 
 export const promises = {
   title: 'Einsatzbereit und zufrieden mit Garantie.',
-  lead: 'Zwei Garantien für alles, was wir bauen, warten und reparieren – Krane, Fahrmischer und Spezialmaschinen.',
+  lead: 'Zwei Garantien für alles, was wir bauen, warten und reparieren – Fahrmischer, Krane und Spezialmaschinen.',
   items: {
     garantie: {
       figure: '50',
@@ -53,7 +53,7 @@ export const promises = {
       figure: '0.–',
       label: 'Lernen Sie uns kennen',
       title: 'Die erste Inspektion ist gratis.',
-      text: 'Wir prüfen Ihre Maschine einmal kostenlos – Krane, Fahrmischer und Spezialmaschinen.',
+      text: 'Wir prüfen Ihre Maschine einmal kostenlos – Fahrmischer, Krane und Spezialmaschinen.',
       link: { href: '#anfrage', label: 'Termin vereinbaren' },
     },
   } satisfies Record<PromiseKey, PromiseItem>,
@@ -63,7 +63,7 @@ export const promises = {
 export const promiseFaq = {
   erstservice: {
     q: 'Was ist in der Gratis-Inspektion enthalten?',
-    a: 'Wir prüfen Ihre Maschine einmal kostenlos – Krane, Fahrmischer und Spezialmaschinen, einmal pro Kunde. Rufen Sie an oder schreiben Sie uns – wir vereinbaren den Termin.',
+    a: 'Wir prüfen Ihre Maschine einmal kostenlos – Fahrmischer, Krane und Spezialmaschinen, einmal pro Kunde. Rufen Sie an oder schreiben Sie uns – wir vereinbaren den Termin.',
   },
   garantie: {
     q: 'Wie funktioniert die Zufriedenheitsgarantie?',

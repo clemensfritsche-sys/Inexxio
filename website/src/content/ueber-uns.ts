@@ -22,7 +22,7 @@ export const ueberUns = {
     figures: [
       { figure: '{{history.founded}}', text: 'Gegründet von Heiri Steiner in {{address.town}}' },
       { figure: '{{history.cranesSince}}', text: 'Die erste eigene Krananlage' },
-      { figure: '3', text: 'Bereiche: Krantechnik, Fahrzeugtechnik, Speziallösungen' },
+      { figure: '3', text: 'Bereiche: Fahrzeugtechnik, Krantechnik, Speziallösungen' },
       { figure: '1', text: 'Ansprechpartner – vom ersten Gespräch bis zum Service' },
     ],
   },
@@ -56,7 +56,7 @@ export const ueberUns = {
     ],
   },
   summary:
-    '{{brand.name}} arbeitet in drei Bereichen: Krantechnik, Fahrzeugtechnik und Speziallösungen. Wir bauen und betreuen Krane, tauschen Trommeln von Fahrmischern und bauen Spezialmaschinen für den Bau. Der Standort ist in {{erp.city}}. Mit der Übergabe von Heiri Steiner an Clemens Fritsche wird aus der {{brand.formerLegalName}} die {{brand.legalName}} – derselbe Standort, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen.',
+    '{{brand.name}} arbeitet in drei Bereichen: Fahrzeugtechnik, Krantechnik und Speziallösungen. Wir tauschen Trommeln von Fahrmischern, bauen und betreuen Krane und bauen Spezialmaschinen für den Bau. Der Standort ist in {{erp.city}}. Mit der Übergabe von Heiri Steiner an Clemens Fritsche wird aus der {{brand.formerLegalName}} die {{brand.legalName}} – derselbe Standort, dieselbe Telefonnummer, derselbe Service für alle bestehenden Anlagen.',
   /** Die Werte der Firma (#1182) – wofür wir stehen; die Zusagen darunter machen sie prüfbar. */
   values: {
     title: 'Wofür wir stehen.',

@@ -131,13 +131,17 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   zeigt das Titelbild ihrer Seite; hat eine Seite (noch) keines, steht ihre Zeichnung. Eine Liste
   `src/lib/titles.ts` für Seitenkopf und Menü. Menübilder laden erst beim Berühren des Kopfs.
 - **127 · Kopf mit Platz** (Entscheid 23.10.2026): Hauptzeile = was man bei uns bekommt
-  (Speziallösungen · Krantechnik · Fahrzeugtechnik · Service) plus **Unternehmen** (Über uns ·
+  (Fahrzeugtechnik · Krantechnik · Speziallösungen · Service, Reihenfolge nach Entscheid 131) plus **Unternehmen** (Über uns ·
   Ratgeber · Kontakt · Karriere). «Kontakt» ist kein eigener Punkt mehr – Telefon und «Anfrage
   stellen» stehen rechts. Service bleibt allein (wer einen Ausfall hat, sucht dieses Wort). Die
   Sprachwahl bleibt im Kopf. Ein späterer Shop kommt rechts als Symbol, «Meine Produkte» ins Konto.
 - **128 · Reihenfolge unter «Unternehmen»** (Entscheid 24.10.2026): Über uns · Ratgeber · Kontakt ·
   Karriere – erst Vertrauen (wer wir sind, was wir wissen), dann der Weg zu uns; Karriere spricht
   Bewerbende an, nicht Kunden, und steht zuletzt.
+- **131 · Reihenfolge der Bereiche** (Entscheid 14.11.2026): Fahrzeugtechnik · Krantechnik ·
+  Speziallösungen – vom Bestehenden zum Neuen: zuerst das konkreteste Angebot, zuletzt das offenste.
+  Steht EINMAL in `site.areas` (Kopf, Mobil-Menü, Fuss, JSON-LD, llms.txt) und gleich in
+  `start.areas.order` (Karten der Startseite, schmal beginnt das Karussell links) und `lib/pages.ts`.
 - **129 · Service, Karriere, Ratgeber im Layout v4** (Entscheid 24.10.2026): Kopf wie Porsche mit
   Titelbild; Service: Notfall als dunkle Karte mit der Nummer gross, dann drei Anliegen-Karten,
   Garantien, Fragen; Karriere: Warum hier arbeiten, Wer zu uns passt (keine ausgeschriebenen Stellen),

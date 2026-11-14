@@ -19,7 +19,7 @@ export const service = {
     lead: 'Im Notfall rufen Sie direkt an. Für alles andere wählen Sie Ihr Anliegen – wir führen Sie zur richtigen Stelle.',
   },
   summary:
-    '{{brand.name}} prüft, wartet und repariert Krane, Fahrmischer und Spezialmaschinen: Die erste Inspektion ist gratis, und mit INEXXIO 365 ist Ihre Maschine einsatzbereit – Ausfälle übernehmen wir. Für Fahrmischer tauschen wir die Trommel und beschaffen Verschleissteile – von unserem Standort in {{address.home}} aus. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
+    '{{brand.name}} prüft, wartet und repariert Fahrmischer, Krane und Spezialmaschinen: Die erste Inspektion ist gratis, und mit INEXXIO 365 ist Ihre Maschine einsatzbereit – Ausfälle übernehmen wir. Für Fahrmischer tauschen wir die Trommel und beschaffen Verschleissteile – von unserem Standort in {{address.home}} aus. Steht etwas still, rufen Sie direkt an: {{phone.display}}.',
   /** Notfall (Anker #notfall) – components/CallPanel. */
   emergency: {
     label: 'Notfall',
