@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 16 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 17 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -254,6 +254,46 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Fassung 17 – Seriennummer auf den Papieren: die Möglichkeiten und die Sonderfälle
+
+**Drei Möglichkeiten, verglichen:**
+
+| | Was auf Offerte / AB steht | Tausch im Bau | Aufwand |
+|---|---|---|---|
+| **A · Nummer von Anfang an, Tausch → neue AB** (Fassung 16) | die Nummer, sobald bekannt | neue AB steht an | eine kleine Regel |
+| B · Nummer erst ab Lieferschein/Rechnung (übliche Praxis vieler Firmen) | «Seriennummer folgt» | berührt nichts | keine Regel |
+| C · Beleg ohne Nummern («Artikel × Menge») | keine Nummer | berührt nichts | Umbau des Belegs – verworfen |
+
+**Empfehlung: A** – du willst die Nummer auf der AB, sie ist bekannt, und die Ausnahme (Tausch) nutzt, was es
+gibt (eine neue AB «Prüfen und freigeben»). B ist einfacher und im Geschäft üblich – falls dir die Nummer auf
+Offerte und AB doch nicht wichtig ist.
+
+**Die Verallgemeinerung von A (eine Regel statt einer Sonderregel):**
+> **Ändert sich nach der Auftragsbestätigung etwas, das auf ihr steht, steht eine neue AB an.**
+Das gilt für den **Tausch eines Stücks** genauso wie für einen **neuen Liefertermin** (der Bau dauert länger).
+Heute macht ein verschobenes Datum schon eine gesendete Offerte überholt (`voucher.fingerprint`) – dieselbe
+Idee, eine Stufe weiter.
+
+**Was ein Tausch darf – und was nicht:**
+- **Gleicher Artikel, Stück noch nicht angekommen** → neue AB, sonst nichts.
+- **Anderer Artikel** (z. B. der Bau liefert den **Nachfolger**, weil der Artikel inzwischen ersetzt wurde)
+  → das ist eine **Vertragsänderung**: der Kunde muss neu **zusagen** (neue Offerte). Nie still.
+- **Stück schon angekommen oder geliefert** → kein Tausch, sondern Garantie/Retoure (Runde 6).
+
+**Sonderfälle, durchgedacht:**
+
+| # | Fall | Was passiert | Stand |
+|---|---|---|---|
+| S1 | Bau dauert länger | neuer Termin → neue AB steht an (Regel oben) | Vorschlag |
+| S2 | Artikel wird während des Baus ersetzt | Nachfolger nur mit neuer Zusage des Kunden | Vorschlag |
+| S3 | **Bezahlt, aber das letzte Stück ist inzwischen weg** (zwei kaufen gleichzeitig) | eine bezahlte Bestellung wird **nie abgewiesen**: sie entsteht trotzdem, die Zeile «folgt aus Nachschub», neue AB mit neuem Termin; der Kunde darf stornieren (Geld zurück) | Vorschlag |
+| S4 | Kunde storniert, Stück schon im Verkauf | zurück ins Lager (N32), Gutschrift/Erstattung gibt es | offen N32 |
+| S5 | Transportschaden, Stück defekt beim Kunden | Abweichung + Ersatzlieferung (Garantie) | Runde 6 |
+| S6 | Ein Teil an Lager, eines im Bau, Kunde will das erste sofort | zwei Bestellungen (der Kunde teilt) – sonst wartet die Lieferung auf alles | entschieden (E11) |
+| S7 | Preis ändert sich zwischen Bestellung und Rechnung | gilt der Preis der Zusage (der Beleg friert ihn ein – wie heute) | gebaut |
+| S8 | Zahlung abgebrochen | es entsteht nichts («erst zahlen, dann Aufträge») | Vorschlag N31 |
+| S9 | Kunde bestellt zweimal dasselbe (gewollt) | zwei Zahlungen = zwei Bestellungen – nur ein **gleicher** Versuch ist ein Doppelklick | Vorschlag |
 
 ### Fassung 15 – deine Antworten zur Prüfung (14.11.2026)
 
@@ -1269,8 +1309,12 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber (nach der Prüfung)
 
-- **N36** Tausch eines erwarteten Stücks (vor dem Ankommen, gleicher Artikel) bricht den Beleg nicht –
-  es steht eine neue Auftragsbestätigung an (Fassung 16)?
+- **N36** Seriennummer auf den Papieren: **A** (von Anfang an, Tausch → neue AB) oder **B** (erst ab
+  Lieferschein/Rechnung)? Empfehlung A, mit der Regel «Ändert sich nach der AB etwas, das auf ihr steht,
+  steht eine neue AB an» (Fassung 17).
+- **N37** Eine bezahlte Bestellung wird nie abgewiesen – fehlt das Stück, entsteht sie mit Nachschub und
+  neuem Termin, der Kunde darf stornieren (S3)?
+- **N38** Ersatz durch den Nachfolger-Artikel nur mit neuer Zusage des Kunden (S2)?
 - **N31** Mit Karte im Voraus: **erst zahlen, dann entstehen die Aufträge** (Satz 3)?
 - **N32** Storno, wenn ein Stück schon im Verkauf steht: soll «Stornieren» es **von selbst ins Lager**
   zurückgeben (heute braucht das eine Abweichung von Hand)?
