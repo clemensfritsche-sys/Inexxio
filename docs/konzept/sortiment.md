@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 22 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 23 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -1442,6 +1442,9 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E55 | **Lieferung immer automatisch, Sammeltour später** (Satz 4). | 14.11.2026 |
 | E56 | **Storno bleibt, wie er heute ist** (N32): er regelt das Geld; die Stücke holt ein Mensch bei Bedarf mit einer Abweichung – keine neue Automatik, kein Angebot. | 14.11.2026 |
 | E57 | **Abo mit Karte** (N33): Karte merken bei Stripe (kein Abo-Produkt von Stripe), unser Takt belastet je Periode; Kauf + Abo = ein Klick, zwei Belastungen; ohne Karte QR-Rechnung. | 14.11.2026 |
+| E58 | **Auftragsbestätigung bleibt, wie heute** (N34): jedes Papier geht mit «Prüfen und freigeben» durch einen Menschen – auch im Shop. | 14.11.2026 |
+| E59 | **Lieferschein am Bewegen, mit Referenz auf den Verkauf** – er steht bei den anderen Papieren der Bestellung (N41). | 14.11.2026 |
+| E60 | **Karte: erst zahlen, dann Aufträge – auch ab Lager** (N42 abgelehnt): keine Reservierung mit späterem Abbuchen. | 14.11.2026 |
 | E36 | **Eine Seite je Produkt: die Produktseite** – kein Pop-up, keine zweite «Detailseite». Teil, Funk-Set, Kran: dieselbe Seite, gefüllt aus der Karte «Verkauf». | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
@@ -1466,10 +1469,5 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber
 
-- **N34** Auftragsbestätigung im Shop: jede von Hand freigeben – oder dort von selbst?
 - **N40** Lieferung ohne Vorlagen: Paket/Abholen = Bewegen; Palette/Lastwagen = Spediteur + Bewegen; Montage als
   eigener Nachfolger-Auftrag (Fassung 21)?
-- **N41** Lieferschein am Bewegen, mit Referenz auf den Verkauf – damit er bei den anderen Papieren steht
-  (Fassung 21)? Oder doch am Zahlungsmodul?
-- **N42** Ab Lager: Karte beim Bestellen nur reservieren, beim Versand abbuchen (wie Amazon)? Für Fertigung
-  auf Bestellung bleibt «erst zahlen» (Fassung 22).
