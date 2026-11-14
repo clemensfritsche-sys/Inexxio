@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 17 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 18 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -32,8 +32,9 @@
    ein, sobald sie frei sind **und aus X kommen**.
 6. **Jede Ausnahme ist eine Unterdeckung** in der Form, die es schon gibt (`StepNeed`: gebraucht ·
    verfügbar · Grund · Angebote). Nichts ändert sich still.
-7. **Der Beleg kennt auch die erwarteten Stücke mit Nummer – auf jedem Papier.** Wird eines vor dem
-   Ankommen gegen ein gleiches getauscht, steht eine neue Auftragsbestätigung an (Fassung 16).
+7. **Welches Stück zu welcher Rechnung gehört, weiss das ERP immer genau.** Ein Papier ist eine
+   Momentaufnahme: «Seriennummer … (vorgesehen)», solange das Stück im Bau ist; der **Lieferschein** (neu, am
+   Lieferauftrag) nennt die gelieferte Nummer (Fassung 18).
 8. **Projekt (Kran):** die **Anzahlung steht am Anfang des Bauauftrags** (im Erzeugungsprozess des
    Projekt-Artikels) – so wird wirklich erst nach dem Geld gebaut. Der Verkauf hat nur den Rest.
 9. **Eigentum bleibt bei zwei Werten** («uns» · «jemand anderem»): die Vorlage der Lieferart belegt das
@@ -254,6 +255,40 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Fassung 18 – Welches Stück gehört zu welcher Rechnung: die Wahrheit im ERP, die Papiere als Momentaufnahme
+
+**Dein Punkt:** bei Fertigung auf Bestellung gibt es die Rechnung (Anzahlung, Vorauszahlung) **vor** dem
+fertigen Stück. Eine Nummer auf dem Papier kann darum veralten. Trotzdem soll man wissen, welches Stück zu
+welcher Rechnung gehört.
+
+**Die Lösung trennt zwei Dinge:**
+
+1. **Die Verbindung Stück ↔ Bestellung ↔ Rechnung steht im ERP – immer genau.** Der Beleg kennt seine Stücke
+   (heute: `unit_ids`, Log); wird eines getauscht, steht der Tausch im Log, und die Verbindung zeigt das neue.
+   Gelesen wird sie überall dort, wo man fragt: «Ihre Bestellung», «Meine Geräte», die Geräteseite (QR),
+   die Rechnung im ERP. **Das ist die Wahrheit.**
+2. **Ein Papier ist eine Momentaufnahme** – es druckt, was in diesem Moment wahr ist, und sagt ehrlich, wie
+   sicher es ist:
+   - Stück schon da → **«Seriennummer 100377004-7»**
+   - Stück noch im Bau → **«Seriennummer 100512400-1 (vorgesehen)»**
+   - Auf dem **Lieferschein** steht immer die **gelieferte** Nummer – er entsteht, wenn die Ware das Haus
+     verlässt.
+
+Damit braucht es **keine** neue AB bei einem Tausch (Fassung 17, Möglichkeit A, entfällt): die AB sagte
+«vorgesehen», der Lieferschein sagt «geliefert», das ERP weiss es immer genau.
+
+**Lieferschein – gibt es ihn? Braucht es ihn?**
+- **Heute gibt es keinen.** Die Papiere sind Offerte, AB, Rechnung, Quittung, Stornierung, Gutschrift,
+  Mahnung (`domain/voucher.DOCUMENTS`) – alle am Zahlungsmodul.
+- **Gesetzlich Pflicht ist er in der Schweiz nicht.** Gebraucht wird er praktisch: der Kunde sieht, was in
+  der Kiste ist, und quittiert den Empfang; der Fahrer hat ein Papier; bei Spedition ins Ausland ist ein
+  Begleitpapier üblich.
+- **Er gehört an den Lieferauftrag**, nicht an die Zahlung – das passt genau zur Trennung Verkauf/Lieferung
+  (F37): er listet die Stücke, die **wirklich** im Lieferauftrag sind, mit Nummer, ohne Preise.
+- **Aus der einen A4-Vorlage** (`services/a4.py`), wie jedes Papier; ein Dokument wie jedes andere. Die
+  Quittung des Empfangs ist der Ziel-Scan von «Bewegen» (gibt es) – auf Wunsch mit Unterschrift
+  (Erfassungspunkt «Signatur», gibt es).
 
 ### Fassung 17 – Seriennummer auf den Papieren: die Möglichkeiten und die Sonderfälle
 
@@ -1309,9 +1344,9 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber (nach der Prüfung)
 
-- **N36** Seriennummer auf den Papieren: **A** (von Anfang an, Tausch → neue AB) oder **B** (erst ab
-  Lieferschein/Rechnung)? Empfehlung A, mit der Regel «Ändert sich nach der AB etwas, das auf ihr steht,
-  steht eine neue AB an» (Fassung 17).
+- **N36** «Vorgesehen» auf Offerte, AB, Rechnung, solange das Stück im Bau ist; die gelieferte Nummer auf dem
+  Lieferschein; die genaue Verbindung immer im ERP (Fassung 18)?
+- **N39** Lieferschein als neues Papier des Lieferauftrags (aus der A4-Vorlage, ohne Preise)?
 - **N37** Eine bezahlte Bestellung wird nie abgewiesen – fehlt das Stück, entsteht sie mit Nachschub und
   neuem Termin, der Kunde darf stornieren (S3)?
 - **N38** Ersatz durch den Nachfolger-Artikel nur mit neuer Zusage des Kunden (S2)?
