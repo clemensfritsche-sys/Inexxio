@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 12 · **Konzept, Runde 1 – die Kette mit Herkunft** (44 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 13 · **Konzept, Runde 1 – die Kette mit Herkunft** (45 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -231,10 +231,22 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 12 – nach der elften Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 13 – nach der zwölften Rückmeldung vom 14.11.2026)
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### F41 Fassung 13 – Man legt den Nachfolger an; der Vorgänger ergibt sich (dein Satz)
+
+- **Angelegt wird immer der Nachfolger** – «aus diesem Auftrag weiter». Im ERP ein Knopf **«Nachfolger
+  anlegen»** am Auftrag: er öffnet einen Entwurf mit den Stücken dieses Auftrags als Zeile «wartet auf
+  … aus Auftrag X» – dasselbe Muster wie heute «Nachschub» und «Holen lassen» (ein vorbelegter Entwurf).
+  Im Shop legt der Klick die Nachfolger gleich mit an (Verkauf → Lieferung, bei Bedarf Bau → Verkauf).
+- **Die Verbindung steht an einer Stelle:** in der wartenden Zeile des Nachfolgers («Woher»). Der
+  Vorgänger **zeigt** seinen Nachfolger nur – abgeleitet, keine zweite Angabe (Eine Sache, eine Stelle;
+  wie heute `loop.next` und die Nachbarn im Prozessbild).
+- **Angepasst wird der Nachfolger:** solange das Stück noch nicht eingetreten ist, mit Befehlen am
+  Nachfolger (anderes Stück, anderer Vorgänger, nicht mehr warten). Den Vorgänger ändert man nie.
 
 ### F40 neu – Geld folgt dem Beleg, Ware folgt dem Modul
 
@@ -1155,6 +1167,7 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E42 | **Miete kommt von Anfang an mit** (F38). | 14.11.2026 |
 | E43 | **Verkauf und Ausführung sind zwei Aufträge** (F37): Verkauf immer automatisch, Lieferung aus der Vorlage der Lieferart. | 14.11.2026 |
 | E44 | **Weitergabe am Stück, als Kette:** jeder Auftrag wartet auf die Stücke des vorherigen; sie treten ein, sobald sie regulär frei sind. **Kein automatisches Mitfallen** – eine Ausnahme meldet sich (F25 Fassung 12). | 14.11.2026 |
+| E45 | **Angelegt wird der Nachfolger; der Vorgänger ergibt sich.** Die Verbindung steht einmal, in der wartenden Zeile des Nachfolgers; angepasst wird nur am Nachfolger, solange nichts eingetreten ist (F41 Fassung 13). | 14.11.2026 |
 | E36 | **Detailseite statt Pop-up** – jedes Produkt hat seine eigene Seite. | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
 
@@ -1180,7 +1193,6 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 ## 8 · Offene Fragen an den Inhaber (Runde 1, Schluss)
 
 - **N28** Warten mit Herkunft; jede Ausnahme ist eine Unterdeckung mit Grund und Angeboten (F25 Fassung 12)?
-- **N29** Die Kette am Auftrag sichtbar und – solange nichts eingetreten ist – mit Befehlen änderbar (F41)?
 - **N25** Lieferarten als Vorlagen im Prozess-Designer, je mit «von selbst» oder «planen» (F34, F37)?
 
 Danach: **Runde 2 – Preise, Märkte, Währung.**
