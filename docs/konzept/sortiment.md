@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 7 · **Konzept, Runde 1 – Abläufe** (35 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 8 · **Konzept, Runde 1 – Unterdeckung beim Start** (35 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -26,9 +26,9 @@ einen Kunden (das Projekt). Der Korb ist der Entwurf; «Bestellen» gibt frei un
    trifft der Kunde nie auf eine Lücke (F29).
 5. **Regeln hängen am Artikel, nie im Code** (E24): Transportgrösse, Lieferzeit, Anzahlung.
 6. **Anzahlung = ein zweites Zahlungsmodul** vor dem Rest – wie im Kern schon entschieden (E22).
-7. **Auf Bestellung – ohne Kern-Änderung** (F25 Fassung 7): Standard-Artikel → Nachschub + die Bestellung
-   wartet eingefroren wie eine Wiederholung; Projekt-Artikel → ein Auftrag, dessen Erzeugungsprozess den
-   Verkauf selbst enthält.
+7. **Auf Bestellung = Unterdeckung beim Start** (F25 Fassung 8, deine Idee): der Verkaufs-Auftrag entsteht
+   sofort mit seiner Menge; was fehlt, ist Unterdeckung wie beim Verbrauch, der Bauauftrag ist ein
+   gewöhnlicher Nachschub, das Stück tritt ein, sobald es Freigegeben ist.
 8. **Etikett:** QR mit Adresse `https://id.inexxio.com/<Nummer>` (F15, E32).
 
 ## 1 · Problem und Ziel
@@ -228,10 +228,58 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 | M3 | Kosten: Bilder-KI je Bild, Feed, Speicher | offen – messen |
 | M4 | Aufgaben: «Produkt ohne Bild», «Preis fehlt im Markt», «Dokument fehlt» | Vorschlag |
 
-## 5 · Vorschläge (Fassung 7 – nach der sechsten Rückmeldung vom 14.11.2026)
+## 5 · Vorschläge (Fassung 8 – nach der siebten Rückmeldung vom 14.11.2026)
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
-> Die Abläufe zum Durchklicken: Bild, Ansicht «Abläufe».
+> Im Bild: ein echter Durchlauf Katalog → Korb → Bestellen → derselbe Auftrag im ERP.
+
+### F25 Fassung 8 – Deine Idee: Unterdeckung schon beim Start (kritisch geprüft)
+
+**Die Idee:** man legt den Verkaufs-Auftrag mit einer **Menge** an, auch wenn die Stücke noch nicht da
+sind. Was fehlt, ist **Unterdeckung** – genau die Logik, die der Verbrauch schon kennt: «gebraucht 1 ·
+verfügbar 0», das System bietet «Nachschub» an, und sobald ein Stück frei ist, tritt es ein.
+
+**Die Prüfung – was dafür spricht:**
+- **Eine Logik für jede Unterdeckung.** Material im Bau und Ware im Verkauf verhalten sich gleich. Kein
+  eingefrorener Entwurf, keine «wartende Bestellung» neben den Aufträgen, keine Takt-Sonderregel.
+- **Der Auftrag existiert ab dem Klick.** Bestellnummer, Zahlungsmodul, Auftragsbestätigung, Anzahlung –
+  alles ab Tag 1. Damit fällt die Einschränkung aus Fassung 7 weg («ein Standard-Artikel auf Bestellung wird
+  erst bezahlt, wenn er da ist»).
+- **Nichts wird gegriffen, was nicht frei ist.** Ein Stück tritt erst ein, wenn es **Freigegeben** ist –
+  regulär, nie aus einem laufenden Auftrag, also nie eine Abweichung (dein Einwand bleibt erfüllt).
+- **Der Bauauftrag bleibt unverändert** (E20): er ist ein gewöhnlicher «Nachschub», wie heute am Verbrauch.
+
+**Was sich ändert – ehrlich benannt:**
+- Heute: bei der Freigabe sind die **Stücke** bestimmt (eine Lager-Zeile verlangt genau so viele Stücke
+  wie ihre Menge). Neu: bei der Freigabe ist die **Menge** bestimmt; die Stücke kommen sofort oder später.
+  Die Regel «ohne Menge kein Auftrag» bleibt – ein Auftrag mit Menge 0 gibt es weiterhin nicht.
+- Das ist **die Logik des Verbrauchs, auf den Start übertragen** – keine neue Logik, aber ein neuer Ort für
+  sie. Darum gehört es als Entscheid in PROCESS_CORE (§6.2) und wird mit Wächtern gebaut.
+
+**Was im Bau zu prüfen ist (keine Hindernisse gefunden, aber nicht nachgewiesen):**
+- Das Zahlungsmodul spricht über die Stücke «beim ersten Hinausgehen» (`voucher.units_problem`,
+  `unit_ids`). Mit Unterdeckung muss der Beleg über **Artikel × Menge** sprechen, die Seriennummer folgt,
+  wenn das Stück eintritt.
+- Der Auftragsstatus (`order_state._derive`) bei einem Auftrag, in dem noch kein Stück ist: «Im Prozess».
+- **Reihenfolge:** zwei Aufträge warten auf denselben Artikel → der ältere bekommt das Stück zuerst.
+- Das Prozessbild zeigt am Start «1 von 1 fehlt · Nachschub 100 512 401».
+
+**Verdikt: besser als Fassung 7.** Einfacher (eine Logik statt zwei), robuster (der Auftrag ist von Anfang
+an da) und es erlaubt Vorauszahlung auch für Standard-Artikel auf Bestellung. Der Preis ist eine bewusst
+erweiterte Regel am Start – dieselbe, die am Verbrauch schon gilt und sich bewährt hat.
+
+### F32 Fassung 8 – Pop-up oder Detailseite: geprüft
+
+| | Nur Pop-up | Nur Detailseite | **Pop-up mit eigener Adresse** |
+|---|---|---|---|
+| Wirkt leicht, man bleibt im Katalog | ja | nein | **ja** |
+| Google findet jedes Produkt | **nein** – ohne eigene Seite kein Treffer | ja | **ja** |
+| Link teilen, QR, Mail, Google Shopping | nein | ja | **ja** |
+| Zurück-Knopf des Handys | schliesst oft die ganze Seite | ja | **ja** (schliesst das Pop-up) |
+| Viel Inhalt (3D, Dokumente, Ersatzteile) | eng | ja | Pop-up zeigt das Wichtigste, «Alles ansehen» öffnet die Seite |
+
+**Ein reines Pop-up verbaut uns Google, Teilen und das Etikett** (die Geräteseite braucht eine Adresse).
+Darum: **beides, ein Inhalt** – aus dem Katalog als Pop-up, direkt aufgerufen als Seite (wie Airbnb).
 
 ### F25 Fassung 7 – «Auf Bestellung» ohne jede Kern-Änderung
 
@@ -854,7 +902,7 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 | Runde | Block | Stand |
 |---|---|---|
-| 1 | Grundmodell (A) und Bestellweg (F) | **Abläufe** – Fragen §8, im Bild durchklickbar |
+| 1 | Grundmodell (A) und Bestellweg (F) | **Schluss** – Fragen §8, im Bild als echter Durchlauf |
 | 2 | Preise und Märkte (C) | offen |
 | 3 | Auftrag im ERP (G), Angebotsformen (D) | vorgezogen in F18–F20 |
 | 4 | Seriennummer, QR, Ersatzteile, 3D (I) | F15 vorgezogen |
@@ -866,10 +914,12 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 (Preis je Markt, Lieferarten, Neu + Lieferart, Vorauszahlung als Zahl, Seite «Ihre Bestellung») ·
 3 Gerät (Etiketten-Adresse, Geräteseite, Teilebaum) · 4 Miete und Abo · 5 3D und Zwilling · 6 Kanäle.
 
-## 8 · Offene Fragen an den Inhaber (Runde 1, Abläufe)
+## 8 · Offene Fragen an den Inhaber (Runde 1, Schluss)
 
-- **N20** «Auf Bestellung» in drei Lagen (F25 Fassung 7) – im Bild unter «Abläufe» durchklicken.
-- **N21** Doppelklick-Schutz wie beschrieben (F31)?
-- **N22** Produkt als Overlay aus dem Katalog, mit eigener Adresse (F32)?
+- **N20** Unterdeckung beim Start (F25 Fassung 8) – damit ist die eingefrorene Bestellung aus Fassung 7
+  vom Tisch. Einverstanden, dass dafür §6.2 («Stücke bei der Freigabe») zu «Menge bei der Freigabe,
+  Stücke sofort oder sobald frei» erweitert wird?
+- **N21** Doppelklick-Schutz (F31)?
+- **N22** Pop-up mit eigener Adresse (F32 Fassung 8) – im Bild: Katalog, auf ein Produkt klicken.
 
 Danach: **Runde 2 – Preise, Märkte, Währung.**
