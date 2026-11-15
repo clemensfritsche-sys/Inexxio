@@ -75,9 +75,23 @@ function getActionCodeSettings() {
   };
 }
 
+/** Der Anmeldelink kommt im Kleid des Hauses (`POST /api/v1/auth/link`, aus dem Postfach der
+ *  Gesellschaft). Geht er dort nicht hinaus – kein Postfach, Begrenzung, kein Netz zum Dienst –,
+ *  schickt ihn Firebase wie bisher: angemeldet wird in jedem Fall. */
+async function sentByUs(email: string): Promise<boolean> {
+  try {
+    return (await api.sendLoginLink(email)).sent;
+  } catch {
+    // Ausnahme notice: der Rückweg über Firebase IST die Antwort, keine Meldung nötig.
+    return false;
+  }
+}
+
 export async function sendMagicLink(email: string): Promise<void> {
   if (!auth) throw new Error('Firebase not initialized');
-  await sendSignInLinkToEmail(auth, email, getActionCodeSettings());
+  if (!(await sentByUs(email))) {
+    await sendSignInLinkToEmail(auth, email, getActionCodeSettings());
+  }
   localStorage.setItem('emailForSignIn', email);
 }
 

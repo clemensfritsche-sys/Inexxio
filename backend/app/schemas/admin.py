@@ -44,6 +44,16 @@ class EmailCheck(BaseModel):
     email: str
 
 
+class LoginLinkIn(BaseModel):
+    """Die Adresse, an die der Anmeldelink geht."""
+    email: str = Field(max_length=254, description="E-Mail-Adresse, mit der sich die Person anmeldet.")
+
+
+class LoginLinkResult(BaseModel):
+    """Ging der Anmeldelink im Kleid des Hauses hinaus? Sonst schickt ihn die Oberfläche über Firebase."""
+    sent: bool = Field(description="True = die Mail ist hinausgegangen; False = über Firebase schicken.")
+
+
 class AddressIn(BaseModel):
     """**Eine Anschrift im Adressbuch** – anlegen oder ändern (nur Gesendetes wirkt).
 

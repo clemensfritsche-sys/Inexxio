@@ -24,6 +24,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Login Link
+         * @description Den Anmeldelink im Kleid des Hauses schicken (``services/login_link``); ``sent=false``
+         *     = nicht hinausgegangen, die Oberfläche schickt ihn über Firebase.
+         */
+        post: operations["send_login_link_api_v1_auth_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/me": {
         parameters: {
             query?: never;
@@ -5162,6 +5183,28 @@ export interface components {
             };
         };
         /**
+         * LoginLinkIn
+         * @description Die Adresse, an die der Anmeldelink geht.
+         */
+        LoginLinkIn: {
+            /**
+             * Email
+             * @description E-Mail-Adresse, mit der sich die Person anmeldet.
+             */
+            email: string;
+        };
+        /**
+         * LoginLinkResult
+         * @description Ging der Anmeldelink im Kleid des Hauses hinaus? Sonst schickt ihn die Oberfläche über Firebase.
+         */
+        LoginLinkResult: {
+            /**
+             * Sent
+             * @description True = die Mail ist hinausgegangen; False = über Firebase schicken.
+             */
+            sent: boolean;
+        };
+        /**
          * LoopIn
          * @description ►► **Die Schlaufe im Entwurf** – eingestellt wie ein Dauerauftrag (``domain/loop``). ◄◄
          *
@@ -8729,6 +8772,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    send_login_link_api_v1_auth_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginLinkIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginLinkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

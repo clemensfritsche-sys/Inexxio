@@ -1,14 +1,29 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
+from ..core.actor import public
 from ..core.auth import get_current_user
 from ..core.database import DB
 from ..models import UserProfile
-from ..schemas.admin import AddressIn, EmailCheck, UserProfileResponse, UserProfileUpdate
-from ..services import address_book, people
+from ..schemas.admin import (AddressIn, EmailCheck, LoginLinkIn, LoginLinkResult,
+                             UserProfileResponse, UserProfileUpdate)
+from ..services import address_book, login_link, people, visitor
 from ..domain.errors import Conflict
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+#: Anmeldelinks je Absender und Stunde – darüber nimmt die Oberfläche den Weg über Firebase.
+LINK_LIMIT = 5
+
+
+@router.post("/link", response_model=LoginLinkResult, dependencies=[public("login")])
+def send_login_link(data: LoginLinkIn, request: Request, db: Session = DB) -> LoginLinkResult:
+    """Den Anmeldelink im Kleid des Hauses schicken (``services/login_link``); ``sent=false``
+    = nicht hinausgegangen, die Oberfläche schickt ihn über Firebase."""
+    email = people.normalize_email(data.email.strip())
+    if not people.is_email(email) or not visitor.allow_send("login", request, LINK_LIMIT):
+        return LoginLinkResult(sent=False)
+    return LoginLinkResult(sent=login_link.send(db, email, visitor.country(request)))
 
 
 @router.get("/me", response_model=UserProfileResponse)

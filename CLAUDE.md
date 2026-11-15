@@ -895,7 +895,9 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
 - **Website** INEXXIO (ehemals HS Steiner) in Gestaltung v4 (Glas-Kopf, Bühne mit Video), Modus
   `preview` bis `website/START.md` erledigt ist.
 - **Anmeldung** (Magic Link · Google · Passkeys) als Pop-up bzw. `/login?from=…` – danach nie
-  auf «/», sondern `?from=` oder der Startplatz der Rolle; das Pop-up ist Glas. **Konto**: EINE Seite
+  auf «/», sondern `?from=` oder der Startplatz der Rolle; das Pop-up ist Glas. **Der Anmeldelink
+  kommt im Kleid des Hauses** (`services/login_link`, `POST /api/v1/auth/link`: Link von Firebase,
+  Mail aus dem Postfach der Gesellschaft in der einen Vorlage); ohne Postfach schickt ihn Firebase. **Konto**: EINE Seite
   im Stil der Website (der Name als grosses Wort im Kopf, Sprungleiste, Person · Adressen · Firma ·
   Newsletter · Sicherheit; Auto-Save, Adressen, Firma und Passkeys als Karten). **Anmelde-E-Mail
   ändern**: Server prüft (`people.email_problem`), Firebase schickt den Link an die neue Adresse

@@ -25,6 +25,48 @@
         }
       }
     },
+    "/api/v1/auth/link": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Send Login Link",
+        "description": "Den Anmeldelink im Kleid des Hauses schicken (``services/login_link``); ``sent=false``\n= nicht hinausgegangen, die Oberfläche schickt ihn über Firebase.",
+        "operationId": "send_login_link_api_v1_auth_link_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginLinkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginLinkResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
         "tags": [
@@ -12259,6 +12301,37 @@
         ],
         "title": "LogRow",
         "description": "Eine Zeile des Logs: eine geänderte Tabellenzeile oder ein Ereignis."
+      },
+      "LoginLinkIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "title": "Email",
+            "description": "E-Mail-Adresse, mit der sich die Person anmeldet."
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "LoginLinkIn",
+        "description": "Die Adresse, an die der Anmeldelink geht."
+      },
+      "LoginLinkResult": {
+        "properties": {
+          "sent": {
+            "type": "boolean",
+            "title": "Sent",
+            "description": "True = die Mail ist hinausgegangen; False = über Firebase schicken."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sent"
+        ],
+        "title": "LoginLinkResult",
+        "description": "Ging der Anmeldelink im Kleid des Hauses hinaus? Sonst schickt ihn die Oberfläche über Firebase."
       },
       "LoopIn": {
         "properties": {
