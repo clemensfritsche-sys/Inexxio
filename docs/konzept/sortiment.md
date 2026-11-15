@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 24 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 25 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -313,6 +313,46 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Fassung 25 – Korb, Seriennummer, «Ihre Bestellung», Weitergabe vereinfacht (15.11.2026, zum Entscheid)
+
+**Korb.** Amazon, Galaxus, Shopify speichern den Korb am Server (Gast: Cookie mit Kennung, beim Anmelden
+zusammengeführt) – wegen Geräte-Wechsel und Erinnerungs-Mails. Wir: **Korb im Browser, dauerhaft**
+(`localStorage`, kein Cookie, kein Server, nichts aufzuräumen). Wer geht und wiederkommt, findet ihn am
+selben Gerät wieder. Der Korb hält nur Artikelnummer, Optionen, Menge – **nie Preise**; gezeigt und
+verrechnet wird der Preis beim «Bestellen». Ersetzter Artikel → «ersetzt durch …». Angemeldet oder nicht
+ändert am Korb nichts; **«Abmelden» leert ihn** (geteilter Rechner, persönliche Produkte). Geräte-übergreifend
+erst, wenn Kunden danach fragen.
+
+**Seriennummer nur, wo sie stimmt.** Offerte, AB, Rechnung, Gutschrift, Mahnung nennen **keine**
+Seriennummer mehr; der **Lieferschein** nennt sie (gelieferte Stücke, nie Prognose), mit Bestellnummer und
+Rechnungsnummer. Die lebendige Wahrheit ist die Geräteseite (`id.inexxio.com/<Nummer>`). Damit entfällt
+«vorgesehen», und `voucher.serials_of` auf den Geld-Papieren fällt weg (heute steht die Nummer auf jedem
+Papier). Geprüfte Fälle: Garantie (Geräteseite) · Leasing (Lieferschein = Übernahmebestätigung) ·
+Teillieferung (je Lieferschein seine Nummern) · Retoure (Lieferschein zurück, gleiches Papier) · Export
+(Lieferschein reist mit der Ware). Offen: Service am Kundengerät ohne Bewegen (Runde Miete/Service).
+
+**«Ihre Bestellung» als eigene kleine Seite.** `/dokument?t=…` zeigt **ein** Papier (heute: Offerte,
+Rechnung … mit Annehmen/Bezahlen). Eine Bestellung hat mehrere Papiere und einen Stand – also
+`/bestellung?t=…`: Stand (bezahlt · in Arbeit · unterwegs · geliefert), Papiere (jedes öffnet `/dokument`),
+Bezahlen, nach der Lieferung die Seriennummer mit Link zur Geräteseite. Eine Ableitung, derselbe signierte
+Link (`core/signed`); Einstieg aus der Bestätigungs-Mail, angemeldet zusätzlich aus dem Konto.
+
+**Weitergabe = Rückführung nach vorn.** Heute trägt die Verbindung `order_units.return_to_order_id`
+«danach zurück in Auftrag A»; am Ende (`process._finish` → `_return_home`) wird die alte Zeile in A wieder
+geöffnet, die Kette liest `order_state._loans_toward`. Weitergabe ist dasselbe, nur war das Stück **noch nie**
+im Ziel → es tritt **am Start** ein. Also:
+1. Die Verbindung heisst «danach in Auftrag X» (Spalte umbenannt); Rückführung = zurück an die Stelle, wo es
+   ausscherte; Weitergabe = noch nie dort → an den Start. **Eine** Stelle in `_finish`.
+2. «Erwartet» liest dieselbe Kette (`_loans_toward`) – auch die Verbindungen nach vorn; gesperrt wird nichts
+   (kein Ausscher-Punkt).
+3. Das Soll steht in der Definition des Nachfolgers («n × Artikel aus Auftrag X»); Soll − da − erwartet > 0 ist
+   eine Unterdeckung mit Grund (verschrottet, ohne Rückführung genommen).
+4. Der Beleg zählt erwartete Stücke als Positionen (nur Menge, keine Nummer).
+Gewinne: kein freier Moment zwischen den Aufträgen (niemand kann das Stück wegnehmen), eine Verbindung je
+Stück (nie zwei Nachfolger), Kette und Abweichung schon gebaut, Eigentum unverändert (`sold_units`).
+Entfällt: dritte Absicht in `UnitPick` als Mechanik, Sonderregel in `_pass`, «vorgesehen».
+«Nachfolger anlegen» an einem Stück, das den Vorgänger schon verlassen hat, ist ein gewöhnliches Greifen.
 
 ### Fassung 14 – das bereinigte Modell (bisheriges Kapitel 0, ersetzt durch die Übersicht in Fassung 24)
 
@@ -1573,4 +1613,7 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber
 
-*(Runde 1 abgeschlossen – nächste: Runde 2, Preise, Märkte, Währung.)*
+- **N43** Korb im Browser, dauerhaft, «Abmelden» leert ihn – einverstanden?
+- **N44** Seriennummer nur auf dem Lieferschein (nie auf Geld-Papieren) – einverstanden?
+- **N45** «Ihre Bestellung» als eigene Seite `/bestellung?t=…` – einverstanden?
+- **N46** Weitergabe = die bestehende Verbindung der Rückführung, nach vorn – einverstanden?
