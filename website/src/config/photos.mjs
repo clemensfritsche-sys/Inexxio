@@ -86,8 +86,8 @@ export const photos = {
   },
   'fahrmischer-werkstatt': {
     file: 'fahrmischer-werkstatt.jpg',
-    alt: 'Techniker steht auf einer Leiter am Heck eines Fahrmischers in einer hellen Halle, die Trommelluke ist offen',
-    brief: 'Fahrmischer in der Halle, Trommel offen bzw. Einstiegsluke geöffnet, Techniker im Bild, quer',
+    alt: 'Zwei Mechaniker setzen in der Halle eine neue weisse Trommel auf das gebrauchte Fahrgestell eines Fahrmischers, die Trommel hängt an Hebebändern am Kran',
+    brief: 'Trommeltausch in der Halle: neue, saubere Trommel wird am Kran auf das gebrauchte, verschmutzte Fahrgestell gesetzt, zwei Mechaniker führen sie, quer',
     ratio: '4/3',
   },
   'teil-auslaufrinne': {
