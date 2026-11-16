@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 26 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 27 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -313,6 +313,54 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Fassung 27 – Lieferschein gegengeprüft, Eingangsbestätigung, Kasse wie Stripe es lehrt (16.11.2026, zum Entscheid)
+
+**Lieferschein – die Regel nach der Prüfung (ein Satz):** *Verlässt ein Stück mit Bewegen unseren Besitz,
+entsteht je Bewegen ein Lieferschein.* «Unser Besitz» = der Ort endet (Halter-Kette, `places.chains_for`)
+bei einer eigenen Gesellschaft oder bei Personal, oder das Stück hat keinen Ort. Empfänger, Lieferadresse und
+Bezug kommen aus dem **Zahlungsmodul des Vorgangs** – in diesem Auftrag oder in dem, aus dem das Stück kam
+(Weitergabe) –, nie aus dem jüngsten Zahlungsmodul überhaupt; ohne ein solches: Empfänger = Ziel, «ohne
+Berechnung». Herein entsteht nichts; das Papier des Lieferanten ist ein Dokument am Bewegen (freiwillig).
+
+| Fall | Ergebnis |
+|---|---|
+| Teillieferung | je Bewegen ein Lieferschein ✓ |
+| Stücke aus zwei Bestellungen in einer Sendung | je Position ihr Bezug ✓ |
+| Lieferadresse ≠ Sitz | aus dem Zahlungsmodul ✓ |
+| Spediteur holt ab (Ziel = Spediteur) | Lieferschein an den **Kunden**, «über Spediteur X»; Spediteur → Kunde kreuzt unsere Grenze nicht → kein zweites ✓ |
+| Monteur nimmt Teil in den Bus (Personal) | bleibt bei uns → keiner ✓ |
+| Reparatur beim Lieferanten (Stück bleibt unseres) | Lieferschein «ohne Berechnung»; **nicht** die alte Einkaufsrechnung als Bezug (deshalb «Vorgang», nicht «jüngstes») ✓ |
+| Leihgerät, Garantie-Ersatz | «ohne Berechnung» ✓ |
+| Charge | Instanznummer + Menge ✓ |
+| Storno nach Lieferung | Lieferschein bleibt (Tatsache) ✓ |
+| falsch gescannt | Lieferschein bleibt, Korrektur = Bewegen zurück ✓ |
+| Teil beim Kunden **eingebaut** (Verbrauch, nicht Bewegen) | kein Lieferschein – Grenze bewusst: Runde Service |
+| zwischen zwei eigenen Gesellschaften | gilt als «bei uns» – Grenze bewusst: später |
+
+Verglichen mit «Einstellung am Bewegen»: gleich viel Code (eine Prüfung «verlässt unseren Besitz» an der einen
+Stelle), aber nichts zu vergessen. Verglichen mit «im Zahlungsmodul»: die falschen Fälle (Reparatur, Leihgerät,
+Teillieferung) fallen von selbst richtig.
+
+**Bestellbestätigung = Eingangsbestätigung.** Es gibt nur **ein** Papier: die AB aus dem Zahlungsmodul, wie
+heute, von einem Menschen freigegeben. Was der Kunde sofort braucht, ist der **Link** zu «Ihre Bestellung» –
+das ist eine **Eingangsbestätigung** wie beim Kontaktformular (gibt es schon, `outbox.deliver`), kein Papier,
+abgeleitet aus dem Auftrag, steht im Verlauf. Später möglich: die AB eines Shop-Klicks geht von selbst (sie
+wiederholt nur, was der Kunde selbst bestätigt hat).
+
+**Kasse – Stand der Technik.** Stripe lehrt: (1) vor der Zahlung serverseitig festhalten, *was* gekauft wird;
+(2) die Zahlungsabsicht trägt den Verweis darauf (Metadaten); (3) **eine** Funktion «erfüllen», idempotent,
+aufgerufen vom Webhook **und** von der Rückkehr-Seite (wer zuerst kommt); (4) ein Abgleich holt Verpasstes
+nach. Shopify macht es so (Checkout → Bestellung nach der Zahlung); Amazon legt die Bestellung zuerst an und
+zieht das Geld später ein (dafür braucht es das Stornieren unbezahlter Bestellungen).
+Bei uns, fast alles bestehend:
+1. `order.checkout` im Log (Korb, Preise, Käufer) – der «Checkout» ohne Tabelle.
+2. Zahlungsabsicht mit Metadaten `checkout` (heute schon: Metadaten führen den Webhook zum Beleg).
+3. «Erfüllen» legt die Aufträge an und bucht die Zahlung an den Verkaufsbeleg **mit der `pi_…` als
+   Referenz**. Der bestehende eindeutige Index «eine Referenz = eine Zahlung» **ist** der Schutz gegen doppelt:
+   gibt es die Zahlung schon, ist nichts mehr zu tun.
+4. Der Takt fragt Stripe nach bezahlten Absichten mit `checkout` ohne gebuchte Referenz → erfüllt, sonst Meldung.
+Kein neuer Index, keine neue Tabelle; neu sind das Ereignis und «erfüllen».
 
 ### Fassung 26 – Lieferschein als Übergabe, Bestellbestätigung, Robustheit (16.11.2026, zum Entscheid)
 
@@ -1655,7 +1703,7 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber
 
-- **N45** «Ihre Bestellung» als eigene Seite `/bestellung?t=…` (Stand + alle Papiere; jedes Papier öffnet `/dokument`)?
-- **N47** Im Shop: ersetzt die Bestellbestätigung die AB?
-- **N48** Lieferschein = Folge des Bewegens über die Firmengrenze (ohne Einstellung), Bezug über das Zahlungsmodul?
-- **N49** Kasse schreibt `order.checkout` ins Log; eine Zahlungsabsicht = eine Bestellung; Takt prüft nach?
+- **N45** «Ihre Bestellung» als eigene Seite `/bestellung?t=…` (Stand + alle Papiere)?
+- **N47** Eingangsbestätigung (Mail mit Link, sofort) + AB wie heute – einverstanden?
+- **N48** Lieferschein: «verlässt unseren Besitz mit Bewegen» (Fassung 27) – einverstanden?
+- **N49** Kasse nach Stripe (Fassung 27) – einverstanden?
