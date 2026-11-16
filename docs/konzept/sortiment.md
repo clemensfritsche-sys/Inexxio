@@ -1,6 +1,6 @@
 # Projektakte «Sortiment» – Produkte, Shop, Seriennummer, Ersatzteile
 
-> **Kopfstatus:** Fassung 25 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
+> **Kopfstatus:** Fassung 26 · **Konzept, Runde 1 – bereinigt nach Prüfung** (49 Entscheide, §6) · Lead: Claude ·
 > Entscheid: Clemens Fritsche · seit 12.11.2026 · zuletzt 14.11.2026
 > Bild (Website und ERP, wie es damit aussieht – Nachbau aus dem echten CSS, klickbar):
 > https://claude.ai/artifact/MHpch5gZnxsAGKWLoVHFLA
@@ -313,6 +313,45 @@ Jedes Thema bekommt eine Nummer, die bleibt. Status: **offen** · **Vorschlag** 
 
 > Neueste Fassung zuerst. Wo eine ältere Fassung derselben Nummer folgt, gilt die neuere.
 > Im Bild: ein echter Durchlauf Katalog → Detailseite → Korb → Bestellen → Bau-, Verkaufs- und Lieferauftrag im ERP.
+
+### Fassung 26 – Lieferschein als Übergabe, Bestellbestätigung, Robustheit (16.11.2026, zum Entscheid)
+
+**Lieferschein – wohin gehört er?** Er sagt: *diese Ware ging an diese Partei* (oder kam von ihr). Geprüfte
+Orte:
+
+| Ort | dafür | dagegen |
+|---|---|---|
+| Zahlungsmodul | alle Papiere an einer Stelle | Geld und Ware sind zeitlich getrennt (Vorauszahlung, Teillieferung, Rechnung vor dem Bau); es gibt Ware ohne Geld (Garantie, Leihgerät, Beistellung, Rücknahme Miete); das Modul ist schon das schwerste; es weiss nicht, wann die Ware geht |
+| eigenes Modul «Versand» | klar benannt | ein sechstes Modul für das, was Bewegen schon tut |
+| Bewegen mit Einstellung «Lieferschein» (Fassung 24) | bei der Ware | eine Einstellung, die man vergessen kann |
+| **Bewegen über die Grenze – ohne Einstellung** | **folgt aus dem Ziel**: geht Ware an eine fremde Partei (oder kommt von ihr), *ist* das eine Übergabe → Papier | – |
+
+**Vorschlag:** Der Lieferschein ist eine **Folge des Bewegens über die Firmengrenze**, keine Einstellung.
+- Hinaus (Ziel = Kunde): wir stellen den Lieferschein, mit den Seriennummern.
+- Herein (Ware vom Lieferanten): sein Lieferschein ist ein **Dokument** am Bewegen (wie die Lieferantenrechnung).
+- **Zusammengehören** heisst **Referenz**, nicht derselbe Ort: Bestellnummer und Rechnungsnummer liest der
+  Lieferschein aus dem jüngsten Zahlungsmodul, das das Stück passiert hat – **dieselbe Ableitung wie das
+  Eigentum** (`voucher.sold_units`). Ohne Zahlungsmodul: «ohne Berechnung».
+- Gezeigt wird er mit den anderen Papieren (Dokument mit Referenz auf den Verkaufsauftrag → erscheint dort
+  und bei der Partei, bestehende Regel), auf «Ihre Bestellung» und unterschreibbar auf `/dokument`
+  (Übernahmebestätigung, z. B. für Leasing).
+So machen es auch SAP und Amazon: Lieferung und Rechnung sind zwei Belege, verbunden über den Belegfluss.
+
+**Bestellbestätigung ≠ Auftragsbestätigung.** Die *Bestellbestätigung* ist die Mail sofort nach dem Klick
+(«Ihre Bestellung 123 456 789 ist eingegangen», Inhalt, Link auf «Ihre Bestellung»), automatisch, über
+`outbox.deliver`. Die *AB* ist ein Papier des Zahlungsmoduls, von einem Menschen freigegeben (E58). Amazon
+kennt im Shop keine AB. Frage N47: braucht es im Shop die AB, da der Klick schon die Zusage ist?
+
+**Robustheit – die Kasse.** «Erst zahlen, dann Aufträge» hat eine Lücke: wo steht der Korb zwischen Zahlung
+und Webhook? Vorschlag: die Kasse schreibt **ein Ereignis** `order.checkout` (Korb, Preise, Zahlungsabsicht)
+ins Log, bevor Stripe belastet; der Webhook liest es und legt die Aufträge an. **Eine Zahlungsabsicht = eine
+Bestellung** (eindeutiger Index); auf Rechnung ein Schlüssel aus dem Browser. Der Takt prüft: bezahlt, aber
+nach 10 Minuten ohne Auftrag → noch einmal, sonst Meldung (`core/report`). Der Preis: der Browser schickt den
+gezeigten Preis mit; weicht er ab, gibt es keine Bestellung, sondern den neuen Preis (nie still).
+
+**Robustheit – Weitergabe.** Eine Invariante (`tests/invariants.py`): je Nachfolger Soll = da + erwartet +
+Unterdeckung. Storno des Verkaufs, während gebaut wird: das Stück tritt trotzdem ein, wartet am Zahlungsmodul,
+der Mensch greift es (E56) – nichts verschwindet.
 
 ### Fassung 25 – Korb, Seriennummer, «Ihre Bestellung», Weitergabe vereinfacht (15.11.2026, zum Entscheid)
 
@@ -1588,6 +1627,9 @@ F20 · F16 (Teilebaum in allen Stufen) · F17 (Seite statisch, Preis live, ein F
 | E58 | **Auftragsbestätigung bleibt, wie heute** (N34): jedes Papier geht mit «Prüfen und freigeben» durch einen Menschen – auch im Shop. | 14.11.2026 |
 | E59 | **Lieferschein am Bewegen, mit Referenz auf den Verkauf** – er steht bei den anderen Papieren der Bestellung (N41). | 14.11.2026 |
 | E60 | **Karte: erst zahlen, dann Aufträge – auch ab Lager** (N42 abgelehnt): keine Reservierung mit späterem Abbuchen. | 14.11.2026 |
+| E62 | **Korb im Browser, dauerhaft** (`localStorage`), nur Artikel/Optionen/Menge, nie Preise; «Abmelden» leert ihn. Ein Korb am Server (geräteübergreifend) ist **für bald vorgemerkt**. (N43) | 16.11.2026 |
+| E63 | **Seriennummer nur auf dem Lieferschein**, nie auf Geld-Papieren; «vorgesehen» entfällt; lebendige Wahrheit ist die Geräteseite. (N44) | 16.11.2026 |
+| E64 | **Weitergabe = Rückführung nach vorn**: dieselbe Verbindung am Stück («danach in Auftrag X»); war es nie dort, tritt es am Start ein. (N46) | 16.11.2026 |
 | E61 | **Keine Transportarten vorerst** (N40): Paket/Palette/Lastwagen werden nicht vorgesehen; der Lieferauftrag ist Bewegen, alles Weitere (Spediteur, Montage) wird im Einzelfall entschieden, als eigene Aufträge. E30/E35 zurückgestellt. | 15.11.2026 |
 | E36 | **Eine Seite je Produkt: die Produktseite** – kein Pop-up, keine zweite «Detailseite». Teil, Funk-Set, Kran: dieselbe Seite, gefüllt aus der Karte «Verkauf». | 14.11.2026 |
 | E35 | **Transportgrenzen** Paket ≤ 100 × 60 × 60 cm / 30 kg · Palette ≤ 120 × 80 × 180 cm / 1'000 kg · sonst Lastwagen – als Werte im ERP. | 14.11.2026 |
@@ -1613,7 +1655,7 @@ ich trage es in §6 ein. Gebaut wird erst, wenn eine Bau-Etappe ganz entschieden
 
 ## 8 · Offene Fragen an den Inhaber
 
-- **N43** Korb im Browser, dauerhaft, «Abmelden» leert ihn – einverstanden?
-- **N44** Seriennummer nur auf dem Lieferschein (nie auf Geld-Papieren) – einverstanden?
-- **N45** «Ihre Bestellung» als eigene Seite `/bestellung?t=…` – einverstanden?
-- **N46** Weitergabe = die bestehende Verbindung der Rückführung, nach vorn – einverstanden?
+- **N45** «Ihre Bestellung» als eigene Seite `/bestellung?t=…` (Stand + alle Papiere; jedes Papier öffnet `/dokument`)?
+- **N47** Im Shop: ersetzt die Bestellbestätigung die AB?
+- **N48** Lieferschein = Folge des Bewegens über die Firmengrenze (ohne Einstellung), Bezug über das Zahlungsmodul?
+- **N49** Kasse schreibt `order.checkout` ins Log; eine Zahlungsabsicht = eine Bestellung; Takt prüft nach?
