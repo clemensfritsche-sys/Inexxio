@@ -12,6 +12,9 @@
  *     automatische Abspielen (Stromsparmodus, Datensparen), steht ▶ da und spielt auf Druck.
  *  3. **Abspielen auf Abruf** auch bei «reduzierter Bewegung»: dann setzt der Knopf die passende
  *     Quelle erst beim Drücken (`data-src-*`) – vorher wird nichts geladen.
+ *  4. **Jede Einstellung fährt langsam heran** (`data-cuts`): gerechnet aus der Spielzeit des
+ *     Videos, gezeichnet im Takt des Bildschirms (60/120 Hz) – im Video eingerechnet ruckelte es
+ *     (ganze Pixel, 24 Bilder je Sekunde). Läuft nur, solange das Video spielt.
  */
 
 /** Wann das Bühnenvideo von selbst spielt – EINE Stelle für HTML und Skript. */
@@ -66,10 +69,30 @@ function bindToggle(btn: HTMLButtonElement, scope: HTMLElement, video: HTMLVideo
   });
 }
 
+/** Wie weit eine Einstellung heranfährt (1.06 = 6 %). */
+const ZOOM = 0.06;
+
+/** Langsames Heranfahren je Einstellung, an der Spielzeit des Videos ausgerichtet. */
+function pushIn(video: HTMLVideoElement): void {
+  const cuts = (video.dataset.cuts ?? '').split(' ').filter(Boolean).map(Number);
+  if (!cuts.length) return;
+  let frame = 0;
+  const draw = (): void => {
+    const t = video.currentTime, end = video.duration || t;
+    const start = [0, ...cuts].filter((c) => c <= t).pop() ?? 0;
+    const next = [...cuts, end].find((c) => c > t) ?? end;
+    const p = next > start ? (t - start) / (next - start) : 0;
+    video.style.transform = `scale(${(1 + ZOOM * p).toFixed(4)})`;
+    frame = video.paused ? 0 : requestAnimationFrame(draw);
+  };
+  video.addEventListener('playing', () => { if (!frame) frame = requestAnimationFrame(draw); });
+}
+
 export function initMedia(): void {
   const videos = document.querySelectorAll<HTMLVideoElement>('video[data-media-video]');
   videos.forEach(dropUnfit);
   const reduced = !window.matchMedia(VIDEO_MOTION).matches;
+  if (!reduced) videos.forEach(pushIn);
   document.querySelectorAll<HTMLButtonElement>('button[data-motion-toggle]').forEach((btn) => {
     const scope = btn.closest<HTMLElement>('[data-motion]');
     if (!scope) return;
