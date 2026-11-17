@@ -19,10 +19,8 @@
  * ihr erstes Bild als Standbild mit gleichem Namen (.webp, z. B.
  * `ffmpeg -i buehne.mp4 -frames:v 1 -vf scale=1280:-2 buehne.webp`), und hier bei `video`
  * eintragen. In Bühne und Seitenkopf steht dann das Video statt des Fotos (components/Media.astro).
- * `cuts` = Sekunden, an denen ein Schnitt ist: jede Einstellung fährt dann im Browser langsam heran
- * (scripts/media.ts) – flüssig im Takt des Bildschirms, nicht ins Video eingerechnet.
  *
- * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/2' | '1/1' | '16/9', file?: string, video?: string, cuts?: number[] }} Photo
+ * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/2' | '1/1' | '16/9', file?: string, video?: string }} Photo
  */
 
 /** @type {Record<string, Photo>} */
@@ -47,7 +45,6 @@ export const photos = {
   'heukran-einsatz': {
     file: 'heukran-einsatz.webp',
     video: 'buehne.mp4',
-    cuts: [1.625, 2.667, 4.167, 5.167, 6.375],
     alt: 'Heukrananlage mit vollem Greifer im Einsatz in einer Scheune',
     brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
     ratio: '4/3',

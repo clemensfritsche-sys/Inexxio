@@ -30,7 +30,6 @@ interface Props {
 }
 const { id, sizes = '100vw', priority = false, class: cls, motion = false } = Astro.props;
 const video = motion ? photo(id).video : undefined;
-const cuts = motion ? photo(id).cuts : undefined;
 const poster = video?.replace(/\.mp4$/, '.webp');
 /** Hochkant-Fassung für schmale Bildschirme, falls vorhanden. */
 const narrow = video && existsSync(resolve(process.cwd(), 'public/video', video.replace(/\.mp4$/, '-schmal.mp4'))) ? video.replace(/\.mp4$/, '-schmal.mp4') : undefined;
@@ -42,7 +41,7 @@ const url = (f: string) => `/video/${f}?v=${createHash('sha256').update(readFile
 ---
 <span class:list={['fill-media', cls]}>
   {video ? (
-    <video autoplay muted loop playsinline disablepictureinpicture preload="metadata" poster={url(poster!)} aria-hidden="true" data-media-video data-src-wide={url(video)} data-src-narrow={narrow ? url(narrow) : undefined} data-cuts={cuts?.join(' ')}>
+    <video autoplay muted loop playsinline disablepictureinpicture preload="metadata" poster={url(poster!)} aria-hidden="true" data-media-video data-src-wide={url(video)} data-src-narrow={narrow ? url(narrow) : undefined}>
       {narrow && <source src={url(narrow)} type="video/mp4" media={`${VIDEO_NARROW} and ${VIDEO_MOTION}`} />}
       <source src={url(video)} type="video/mp4" media={VIDEO_MOTION} />
     </video>
