@@ -518,20 +518,22 @@ function imageWeight(html, local) {
 }
 
 /**
- * Videogewicht wie im Browser auf dem Desktop: das Standbild (`poster`) und jede Quelle – das
- * Bühnenvideo spielt dort von selbst und lädt darum ganz (Media.astro). Auf schmalen
- * Bildschirmen und bei «reduzierter Bewegung» lädt nur das Standbild; gezählt wird der
- * grössere Fall.
+ * Videogewicht wie im Browser: das Standbild (`poster`) und die Quelle, die das Gerät wählt – das
+ * Bühnenvideo spielt von selbst und lädt darum ganz (Media.astro). Je Gerät passt EINE Quelle
+ * (breit oder hochkant); gezählt wird die grösste.
  */
 function videoWeight(html) {
   let sum = 0;
   for (const [video] of html.matchAll(/<video\b[\s\S]*?<\/video>/g)) {
-    const urls = [video.match(/\sposter="([^"]+)"/)?.[1], ...[...video.matchAll(/<source\b[^>]*\ssrc="([^"]+)"/g)].map((m) => m[1])];
-    for (const url of urls.filter(Boolean).map(decode)) {
-      const file = url.startsWith('/') ? fileFor(url.split('?')[0]) : null;
+    const size = (url) => {
+      const file = url.startsWith('/') ? fileFor(decode(url).split('?')[0]) : null;
       if (!file) fail('Budget', `Video-Datei «${url}» fehlt in dist/`);
-      else sum += statSync(file).size;
-    }
+      return file ? statSync(file).size : 0;
+    };
+    const poster = video.match(/\sposter="([^"]+)"/)?.[1];
+    // Je Gerät lädt nur EINE Quelle (breit oder hochkant): gezählt wird die grösste.
+    const sources = [...video.matchAll(/<source\b[^>]*\ssrc="([^"]+)"/g)].map((m) => size(m[1]));
+    sum += (poster ? size(poster) : 0) + Math.max(0, ...sources);
   }
   return sum;
 }

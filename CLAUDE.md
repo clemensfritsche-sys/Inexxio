@@ -775,8 +775,11 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   `file` eintragen; Video (MP4) und sein erstes Bild als Standbild (gleicher Name, `.webp`) nach
   `website/public/video/`, beim Foto `video` eintragen – in Bühne und Seitenkopf steht dann ein
   gewöhnliches `<video autoplay muted loop playsinline poster>` statt des Fotos
-  (`components/Media.astro`) – geladen nur ab 768 px und ohne «reduzierte Bewegung»
-  (`VIDEO_MEDIA`), sonst das Standbild; ein Knopf auf der Bühne hält jede Bewegung an. Der
+  (`components/Media.astro`) – schmale Bildschirme bekommen die Hochkant-Fassung
+  `<name>-schmal.mp4` (`VIDEO_NARROW`), bei «reduzierter Bewegung» bleibt das Standbild
+  (`VIDEO_MOTION`); der Knopf der Bühne folgt dem echten Zustand des Videos (▶ auch, wenn der
+  Browser das Abspielen verweigert, und auf Abruf). Schemata (Garantie, 365, Weg, Puls) spielen
+  erst, wenn sie im Bild sind (`[data-play]`, `scripts/play.ts`). Der
   Bildrückfall ist WebP. Das Logo steht je Seite einmal als `<symbol id="ix-logo">`
   (`<use>` in Kopf, Menü, Fuss). Wörter «Fixpreis» und «Werkstatt» bricht `check-site` ab;
   das Budget zählt das Video mit.

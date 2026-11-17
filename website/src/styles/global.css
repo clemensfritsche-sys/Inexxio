@@ -257,7 +257,8 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 
 /* Die Schemata bewegen sich ruhig: die Hälfte geht zurück; INEXXIO 365 zeigt erst die Kosten
    ohne (unregelmässig, Ausfall rot), dann gleichen sich die Balken an (mit) und der Ausfall ist
-   «zahlen wir». Jede Bewegung läuft zweimal und hält dann an (WCAG 2.2.2, keine Endlosschleife);
+   «zahlen wir». Jede Bewegung beginnt, wenn das Schema ins Bild kommt (scripts/play.ts), läuft
+   zweimal und hält dann an (WCAG 2.2.2, keine Endlosschleife);
    danach und ohne Bewegung steht der Endzustand («mit») – er trägt die Aussage allein. */
   .gv-half { transform-box: fill-box; transform-origin: 0 50%; animation: gv-half 5s cubic-bezier(0.45, 0, 0.2, 1) 2; }
   @keyframes gv-half { 0%, 30% { transform: none; } 55%, 85% { transform: translate(22px, 8px) rotate(3deg); } 100% { transform: none; } }
@@ -271,6 +272,9 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
   @keyframes ix365-a { 0%, 3% { opacity: 0; } 9%, 40% { opacity: 1; } 46%, 100% { opacity: 0; } }
   @keyframes ix365-b { 0%, 46% { opacity: 0; } 54%, 92% { opacity: 1; } 98%, 100% { opacity: 0; } }
   @keyframes ix365-chip { 0%, 56% { opacity: 0; transform: translateY(4px); } 62%, 92% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; } }
+
+/* Schemata spielen erst, wenn man sie sieht (scripts/play.ts): vorher steht der Endzustand. */
+[data-play]:not(.is-playing) * { animation-name: none !important; }
 
 /* Ziehbare Spur (scripts/carousel.ts): Hand als Zeiger, beim Ziehen ohne Einrasten. */
 @media (hover: hover) and (pointer: fine) { [data-rail] { cursor: grab; } }

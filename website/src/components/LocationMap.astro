@@ -30,7 +30,7 @@ const desc = 'Schematische Karte: Tuttwil zwischen Winterthur, Frauenfeld, Wil u
 /** Als Grund: Ausschnitt so, dass Tuttwil rechts der Mitte steht (links liegt der Text). */
 const view = fill ? (compact ? '-30 -26 60 46' : '-112 -44 150 88') : '-56 -48 120 98';
 ---
-<figure class:list={['amap', fill && 'amap--fill', compact && 'amap--compact', cls]}>
+<figure class:list={['amap', fill && 'amap--fill', compact && 'amap--compact', cls]} data-play>
   <svg viewBox={view} preserveAspectRatio={fill ? 'xMidYMid slice' : 'xMidYMid meet'} role="img" aria-label={`Standort Tuttwil. ${desc}`} class="amap__svg">
     <polygon points={lake} class="amap__water" />
     <polygon points={untersee} class="amap__water" />

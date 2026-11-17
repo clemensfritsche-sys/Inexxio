@@ -16,7 +16,7 @@ const { title, start, end, items, id = 'ablauf' } = Astro.props;
 <section class="v4-section" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap">
     <header class="v4-head--center"><h2 class="v4-h2" id={`${id}-title`}>{title}</h2></header>
-    <div class="sp">
+    <div class="sp" data-play>
       <span class="sp__line" aria-hidden="true"></span>
       <span class="sp__dot" aria-hidden="true"></span>
       <p class="sp__end"><span class="sp__tag glass-light"><i></i>{start}</span></p>

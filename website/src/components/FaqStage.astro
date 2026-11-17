@@ -51,7 +51,7 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
       {lead && <Rich as="p" class="v4-sub" text={lead} />}
     </header>
     <div class="fq" data-faq-stage>
-      <div class="fq__art" aria-hidden="true">
+      <div class="fq__art" aria-hidden="true" data-play>
         <div class="fq__v fq__v--base"><div class="fq__vin" set:html={base} /></div>
         {visuals.map((v, i) => (
           <div class:list={['fq__v', v === 'inexxio365' && 'fq__v--dark']} data-i={i}>
@@ -85,6 +85,7 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
 </section>
 
 <script>
+  import { replay } from '../scripts/play';
   // Das Bild folgt der offenen Frage; ältere Browser ohne <details name> schliessen hier.
   // Schmal rückt das Bild über die offene Frage (CSS order). Damit es gleitet statt springt:
   // vor dem Wechsel die Lagen merken, danach von dort an den neuen Platz bewegen (FLIP).
@@ -103,8 +104,12 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
       }
       before = null;
     };
+    let shown = -2;
     const show = () => {
       const open = items.findIndex((d) => d.open);
+      // Eine andere Frage zeigt ihr Bild: seine Bewegung beginnt von vorn (scripts/play.ts).
+      if (art && shown !== -2 && open !== shown) replay(art);
+      shown = open;
       root.dataset.open = String(open);
       root.style.setProperty('--art-o', String(open < 0 ? 1 : 2 * open + 1));
       glide();
