@@ -12,9 +12,9 @@
  *     automatische Abspielen (Stromsparmodus, Datensparen), steht ▶ da und spielt auf Druck.
  *  3. **Abspielen auf Abruf** auch bei «reduzierter Bewegung»: dann setzt der Knopf die passende
  *     Quelle erst beim Drücken (`data-src-*`) – vorher wird nichts geladen.
- *  4. **Jede Einstellung fährt langsam heran** (`data-cuts`): gerechnet aus der Spielzeit des
- *     Videos, gezeichnet im Takt des Bildschirms (60/120 Hz) – im Video eingerechnet ruckelte es
- *     (ganze Pixel, 24 Bilder je Sekunde). Läuft nur, solange das Video spielt.
+ *  4. **Die Bühne fährt langsam heran und zurück** (`data-cuts`, `pushIn`): im Takt des
+ *     Bildschirms (60/120 Hz), ohne Sprung am Schnitt – im Video eingerechnet ruckelte es (ganze
+ *     Pixel, 24 Bilder je Sekunde). Läuft nur, solange das Video spielt.
  */
 
 /** Wann das Bühnenvideo von selbst spielt – EINE Stelle für HTML und Skript. */
@@ -72,20 +72,39 @@ function bindToggle(btn: HTMLButtonElement, scope: HTMLElement, video: HTMLVideo
 /** Wie weit eine Einstellung heranfährt (1.06 = 6 %). */
 const ZOOM = 0.06;
 
-/** Langsames Heranfahren je Einstellung, an der Spielzeit des Videos ausgerichtet. */
+/**
+ * Langsames Heranfahren und Zurückfahren je Einstellung, ohne Sprung: an jedem Schnitt (der
+ * Mitte einer Überblendung, `data-cuts`) wechselt die Richtung, die Bewegung läuft weich aus
+ * und wieder an. Bei gerader Zahl Einstellungen beginnt und endet die Schleife bei 100 %.
+ *
+ * Die Zeit kommt aus einer eigenen Uhr (performance.now), die nur bei Sprüngen (Schleife,
+ * Anhalten, Abweichung > 0.15 s) an `currentTime` neu ausgerichtet wird – manche Browser melden
+ * `currentTime` nur 24-mal je Sekunde, der Zoom liefe sonst wieder in Stufen.
+ */
 function pushIn(video: HTMLVideoElement): void {
   const cuts = (video.dataset.cuts ?? '').split(' ').filter(Boolean).map(Number);
   if (!cuts.length) return;
-  let frame = 0;
-  const draw = (): void => {
-    const t = video.currentTime, end = video.duration || t;
-    const start = [0, ...cuts].filter((c) => c <= t).pop() ?? 0;
-    const next = [...cuts, end].find((c) => c > t) ?? end;
-    const p = next > start ? (t - start) / (next - start) : 0;
-    video.style.transform = `scale(${(1 + ZOOM * p).toFixed(4)})`;
+  let frame = 0, media = 0, wall = 0;
+  const scale = (t: number, end: number): number => {
+    const bounds = [0, ...cuts, end];
+    const i = Math.max(0, bounds.findIndex((c, k) => k < bounds.length - 1 && t >= c && t < bounds[k + 1]));
+    const p = Math.min(1, Math.max(0, (t - bounds[i]) / (bounds[i + 1] - bounds[i] || 1)));
+    const s = 0.5 - 0.5 * Math.cos(Math.PI * p);
+    return 1 + ZOOM * (i % 2 === 0 ? s : 1 - s);
+  };
+  const draw = (now: number): void => {
+    const end = video.duration || 0;
+    let t = media + ((now - wall) / 1000) * video.playbackRate;
+    if (end) t %= end;
+    if (!end || Math.abs(t - video.currentTime) > 0.15 && Math.abs(t - video.currentTime) < end - 0.15) {
+      media = t = video.currentTime; wall = now;
+    }
+    video.style.transform = `scale(${scale(t, end).toFixed(5)})`;
     frame = video.paused ? 0 : requestAnimationFrame(draw);
   };
-  video.addEventListener('playing', () => { if (!frame) frame = requestAnimationFrame(draw); });
+  const sync = (): void => { media = video.currentTime; wall = performance.now(); };
+  video.addEventListener('playing', () => { sync(); if (!frame) frame = requestAnimationFrame(draw); });
+  video.addEventListener('seeked', sync);
 }
 
 export function initMedia(): void {
