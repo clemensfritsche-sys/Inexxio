@@ -2,16 +2,20 @@
 /**
  * Vom Problem zur Lösung (v4): ein senkrechter Weg. Oben «Ihr Problem», unten der rote Punkt
  * «Ihre Lösung», dazwischen fünf Stationen abwechselnd links und rechts – grosse Nummer
- * gegenüber, Symbol im Knoten, graue Karte mit «wer». Ein roter Punkt wandert den Weg hinunter
+ * gegenüber, Symbol im Knoten, graue Karte mit «wer». Jede Station endet gleich: Haarlinie, roter
+ * Haken, das Ergebnis (`result`) – oder, als Zeitleiste, keine (Typ und Regel: content/types.Station).
+ * Ein roter Punkt wandert den Weg hinunter
  * (nicht bei reduzierter Bewegung). Schmal: die Linie links, die Karten rechts.
  */
-import Icon, { type IconName } from '../Icon.astro';
+import Icon from '../Icon.astro';
 import Rich from '../Rich.astro';
+import type { Station } from '../../content/types';
 
-/** `no`: was gross neben der Station steht (sonst die laufende Nummer) – auf «Über uns» das Jahr. */
-interface Station { icon: IconName; who: string; title: string; text: string; tags?: string[]; check?: string; no?: string }
 interface Props { title: string; start: string; end: string; items: Station[]; id?: string }
 const { title, start, end, items, id = 'ablauf' } = Astro.props;
+/** Ein Weg sieht überall gleich aus: ein Ergebnis an jeder Station oder an keiner. */
+const withResult = items.filter((s) => s.result).length;
+if (withResult !== 0 && withResult !== items.length) throw new Error(`Weg «${title}»: ${withResult} von ${items.length} Stationen haben ein Ergebnis – alle oder keine.`);
 ---
 <section class="v4-section" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap">
@@ -29,8 +33,7 @@ const { title, start, end, items, id = 'ablauf' } = Astro.props;
               <span class="sp__who">{s.who}</span>
               <h3 class="sp__title">{s.title}</h3>
               <Rich as="p" class="sp__text" text={s.text} />
-              {s.tags && <p class="sp__tags">{s.tags.map((t) => <span>{t}</span>)}</p>}
-              {s.check && <p class="sp__check"><Icon name="check" size={18} />{s.check}</p>}
+              {s.result && <p class="sp__result"><Icon name="check" size={16} /><span>{s.result}</span></p>}
             </div>
           </li>
         ))}
@@ -60,9 +63,8 @@ const { title, start, end, items, id = 'ablauf' } = Astro.props;
   .sp__who { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); }
   .sp__title { margin-top: 6px; font-family: var(--font-display); font-weight: 600; font-size: 1.625rem; letter-spacing: -0.02em; }
   .sp__card :global(.sp__text) { margin-top: 8px; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-2); }
-  .sp__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
-  .sp__tags span { padding: 4px 10px; border-radius: 6px; background: var(--white); font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); }
-  .sp__check { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 0.875rem; font-weight: 500; color: var(--ink); }
+  .sp__result { display: flex; align-items: center; gap: 8px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line-2); font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+  .sp__result :global(svg) { flex: none; color: var(--red); }
   @media (min-width: 960px) {
     .sp { margin-top: 56px; }
     .sp__line, .sp__dot { left: 50%; }

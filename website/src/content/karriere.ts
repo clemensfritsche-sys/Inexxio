@@ -43,9 +43,9 @@ export const karriere = {
     start: 'Ihre Bewerbung',
     end: 'Willkommen im Team',
     items: [
-      { icon: 'mail' as IconName, who: 'Sie', title: 'E-Mail oder Anruf', text: 'Lebenslauf und ein paar Sätze zu Ihnen – oder rufen Sie einfach an.' },
-      { icon: 'phone' as IconName, who: 'Wir', title: 'Wir melden uns', text: 'Wir lesen jede Bewerbung und melden uns persönlich bei Ihnen.' },
-      { icon: 'handshake' as IconName, who: 'Gemeinsam', title: 'Kennenlernen', text: 'Im Betrieb in {{address.city}} – Sie sehen, woran wir gerade arbeiten.' },
+      { icon: 'mail' as IconName, who: 'Sie', title: 'E-Mail oder Anruf', text: 'Lebenslauf und ein paar Sätze zu Ihnen – oder rufen Sie einfach an.', result: 'Ihre Bewerbung ist bei uns' },
+      { icon: 'phone' as IconName, who: 'Wir', title: 'Wir melden uns', text: 'Wir lesen jede Bewerbung und melden uns persönlich bei Ihnen.', result: 'Antwort von einem Menschen' },
+      { icon: 'handshake' as IconName, who: 'Gemeinsam', title: 'Kennenlernen', text: 'Im Betrieb in {{address.city}} – Sie sehen, woran wir gerade arbeiten.', result: 'Sie wissen, wie wir arbeiten' },
     ],
   },
   /** Bewerbung (Anker #bewerbung) – components/CallPanel. */

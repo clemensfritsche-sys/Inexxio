@@ -12,7 +12,7 @@
  * Bildsprache: Grau ist das Fahrzeug, Rot ist, was wir tun.
  */
 import type { IconName } from '../components/Icon.astro';
-import type { AreaPage, Faq, SubPage } from './types';
+import type { AreaPage, Faq, Station, SubPage } from './types';
 import { promiseFaq } from './promises';
 
 const anfrage = (label: string) => ({ label, href: '#anfrage' });
@@ -27,8 +27,6 @@ const faqSpeed: Faq = {
 };
 const ratgeberTeile = { href: '/ratgeber/verschleissteile-fahrmischer', label: 'Verschleissteile am Fahrmischer', text: 'Wann Rinne, Schurre und Spiralschutz ersetzen?', kind: 'ratgeber' as const };
 
-/** Eine Station auf dem Weg (components/spezial/SolutionPath.astro). */
-interface Station { icon: IconName; who: string; title: string; text: string; tags?: string[]; check?: string }
 const facts = (items: Station[]) => items.map(({ title, text }) => ({ title, text }));
 
 /* ------------------------------------------------------------------ Bereich */
@@ -38,10 +36,10 @@ export const vehiclePath = {
   start: 'Ihr Fahrmischer',
   end: 'Wieder im Einsatz',
   items: [
-    { icon: 'phone', who: 'Sie', title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon.', tags: ['Foto', 'Marke', 'Typ'] },
-    { icon: 'search', who: 'Gemeinsam', title: 'Kontrolle', text: 'Wir prüfen Trommel und Fahrgestell und sagen offen, was sich lohnt.', check: 'Verbindliche Offerte' },
-    { icon: 'wrench', who: 'Wir', title: 'Umsetzung', text: 'Neue Trommel, Teile oder Reparatur – bei uns in {{address.city}}.', tags: ['Trommel', 'Teile', 'Hydraulik'] },
-    { icon: 'truck', who: 'Gemeinsam', title: 'Übergabe', text: 'Probelauf bestanden – Ihr Fahrmischer fährt wieder.', check: 'Jede Arbeit dokumentiert' },
+    { icon: 'phone', who: 'Sie', title: 'Anfrage', text: 'Sie nennen Marke, Typ und Anliegen – per Formular oder am Telefon. Ein Foto hilft.', result: 'Wir kennen Ihren Fahrmischer' },
+    { icon: 'search', who: 'Gemeinsam', title: 'Kontrolle', text: 'Wir prüfen Trommel und Fahrgestell und sagen offen, was sich lohnt.', result: 'Verbindliche Offerte' },
+    { icon: 'wrench', who: 'Wir', title: 'Umsetzung', text: 'Neue Trommel, Teile, Hydraulik oder Reparatur – bei uns in {{address.city}}.', result: 'Im eigenen Betrieb gemacht' },
+    { icon: 'truck', who: 'Gemeinsam', title: 'Übergabe', text: 'Probelauf bestanden – Ihr Fahrmischer fährt wieder.', result: 'Jede Arbeit dokumentiert' },
   ] satisfies Station[],
 };
 
@@ -118,11 +116,11 @@ export const drumPath = {
   start: 'Trommel am Ende',
   end: 'Wieder im Einsatz',
   items: [
-    { icon: 'search', who: 'Gemeinsam', title: 'Kontrolle vorab', text: 'Trommel, Fahrgestell, Antrieb und Aufbau – Sie erfahren offen, ob sich der Tausch lohnt.', check: 'Verbindliche Offerte' },
-    { icon: 'truck', who: 'Wir', title: 'Neue Trommel', text: 'Passend zu Fahrgestell und Einsatz, aufgesetzt bei uns in {{address.city}}.' },
-    { icon: 'wrench', who: 'Wir', title: 'Antrieb und Hydraulik', text: 'Anschliessen, prüfen und, wo nötig, ersetzen.', tags: ['Getriebe', 'Hydraulikmotor', 'Pumpe', 'Ölkühler'] },
-    { icon: 'drafting-compass', who: 'Wir', title: 'Aufbau', text: 'Rahmen und Befestigung, dazu alles, was an der Trommel hängt.', tags: ['Wassersystem', 'Leiter', 'Beleuchtung'] },
-    { icon: 'flag', who: 'Wir', title: 'Inbetriebnahme', text: 'Probelauf und Protokoll – dann fährt der Fahrmischer wieder.', tags: ['Probelauf', 'Protokoll'] },
+    { icon: 'search', who: 'Gemeinsam', title: 'Kontrolle vorab', text: 'Trommel, Fahrgestell, Antrieb und Aufbau – Sie erfahren offen, ob sich der Tausch lohnt.', result: 'Verbindliche Offerte' },
+    { icon: 'truck', who: 'Wir', title: 'Neue Trommel', text: 'Passend zu Fahrgestell und Einsatz, aufgesetzt bei uns in {{address.city}}.', result: 'Neue Trommel sitzt' },
+    { icon: 'wrench', who: 'Wir', title: 'Antrieb und Hydraulik', text: 'Getriebe, Hydraulikmotor, Pumpe und Ölkühler: anschliessen, prüfen und, wo nötig, ersetzen.', result: 'Antrieb geprüft' },
+    { icon: 'drafting-compass', who: 'Wir', title: 'Aufbau', text: 'Rahmen und Befestigung, dazu Wassersystem, Leiter und Beleuchtung.', result: 'Alles an der Trommel montiert' },
+    { icon: 'flag', who: 'Wir', title: 'Inbetriebnahme', text: 'Ein Probelauf mit allem, was dazugehört – dann fährt der Fahrmischer wieder.', result: 'Probelauf mit Protokoll' },
   ] satisfies Station[],
 };
 
@@ -271,9 +269,9 @@ export const partsOrder = {
   start: 'Ihr Teil fehlt',
   end: 'Wieder im Einsatz',
   items: [
-    { icon: 'camera', who: 'Sie', title: 'Foto schicken', text: 'Vom Teil, dazu Marke und Typ. Mehr braucht es nicht.', tags: ['Foto', 'Marke', 'Typ'] },
-    { icon: 'search', who: 'Wir', title: 'Preis erhalten', text: 'Wir beschaffen das Teil und nennen vorher den Preis.', check: 'Preis vorab' },
-    { icon: 'package', who: 'Wir', title: 'Holen oder einbauen', text: 'Abholen in {{address.city}} – oder wir bauen es gleich ein.', tags: ['Abholen', 'Einbau'] },
+    { icon: 'camera', who: 'Sie', title: 'Foto schicken', text: 'Ein Foto vom Teil, dazu Marke und Typ. Mehr braucht es nicht.', result: 'Wir wissen, welches Teil' },
+    { icon: 'search', who: 'Wir', title: 'Preis erhalten', text: 'Wir beschaffen das Teil und nennen vorher den Preis.', result: 'Preis vorab' },
+    { icon: 'package', who: 'Wir', title: 'Holen oder einbauen', text: 'Abholen in {{address.city}} – oder wir bauen es gleich ein.', result: 'Sie wählen: abholen oder Einbau' },
   ] satisfies Station[],
 };
 

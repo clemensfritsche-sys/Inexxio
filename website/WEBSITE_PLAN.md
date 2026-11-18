@@ -148,6 +148,13 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   `.plate`); Überschriften immer links, im Seitenkopf bleibt das grosse graue Wort; Fragen als Liste
   mit Linien neben dem Bild; Dropdown mit Spalten bis an den Rand, «Alles zu …» hellgrau. Der Ablauf
   «So läuft es ab» bleibt (nur Rundungen und Schatten angepasst). Regeln: `docs/design-system/README.md`.
+- **135 · Jede Station endet gleich** (Entscheid 18.11.2026): auf jedem Weg «So läuft es ab» (Bereiche,
+  Trommeltausch, Verschleissteile, Krane nach Mass, Heukrananlagen, Speziallösungen, Karriere) endet jede
+  Station mit Haarlinie, rotem Haken und dem **Ergebnis** – was der Kunde danach in der Hand hat
+  (`Station.result`, `content/types.ts`); keine Etiketten mehr, was darin stand, steht im Satz. «Wer»
+  ist eine Partei (Sie · Gemeinsam · Wir, auch «Wir, bei Ihnen»), kein Ort. Ein Weg hat das Ergebnis an
+  jeder Station oder an keiner (die Zeitleiste auf «Über uns»), sonst bricht der Bau ab. Der
+  Wandkalender (Winter-Tausch, Saison-Check) steht ohne grauen Kasten: jedes Blatt mit Haarlinie.
 - **129 · Service, Karriere, Ratgeber im Layout v4** (Entscheid 24.10.2026): Kopf wie Porsche mit
   Titelbild; Service: Notfall als dunkle Karte mit der Nummer gross, dann drei Anliegen-Karten,
   Garantien, Fragen; Karriere: Warum hier arbeiten, Wer zu uns passt (keine ausgeschriebenen Stellen),

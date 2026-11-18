@@ -3,7 +3,8 @@
  * Der Wandkalender (v4): links Titel, Satz und die rote Anfrage, rechts Januar bis Dezember – je Monat
  * ein Kalenderblatt mit Symbol und Wort. Welcher Monat welche Art ist, sagt `plan` (Index in `kinds`);
  * eine Art ist dunkel (`dark`) – der Zeitpunkt, um den es geht. Darüber die Legende in Worten, darunter
- * auf Wunsch Marken (`items`). Breit 6 × 2 Blätter, schmal 4 × 3.
+ * auf Wunsch Marken (`items`). Breit 6 × 2 Blätter, schmal 4 × 3. Kein Kasten um die Blätter: jedes
+ * Blatt steht für sich, mit Haarlinie.
  * Gebraucht für den Winter auf dem Trommeltausch und den Saison-Check der Heukrananlagen.
  */
 import Icon, { type IconName } from './Icon.astro';
@@ -46,25 +47,23 @@ if (plan.length !== 12) throw new Error(`Kalender «${id}»: der Plan braucht 12
   .wb { display: grid; gap: 40px; }
   .wb__text { display: grid; justify-items: start; }
   .wb__text .btn { --btn-h: 52px; margin-top: 28px; padding: 0 24px; font-size: 1rem; }
-  .wb__cal { padding: 20px; border-radius: var(--r-xl); background: var(--gray-100); }
   .wb__legend { display: flex; flex-wrap: wrap; gap: 6px 20px; max-width: none; margin-bottom: 16px; font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); }
   .wb__legend span { display: inline-flex; align-items: center; gap: 8px; }
   .wb__sw { width: 12px; height: 12px; border-radius: 3px; background: var(--white); border: 1px solid var(--line-2); }
   .wb__sw--dark { background: var(--ink); border-color: var(--ink); }
   /* Ein Kalenderblatt: Kopf mit dem Monat, darunter Symbol und Wort. */
   .wb__months { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-  .wb__m { display: grid; grid-template-rows: auto 1fr; overflow: hidden; border-radius: var(--r-md); background: var(--white); box-shadow: 0 1px 0 var(--line-2); }
-  .wb__head { padding: 6px 0; text-align: center; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.02em; background: var(--gray-200); color: var(--ink); }
+  .wb__m { display: grid; grid-template-rows: auto 1fr; overflow: hidden; border-radius: var(--r-md); background: var(--white); border: 1px solid var(--line-2); }
+  .wb__head { padding: 6px 0; text-align: center; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.02em; background: var(--paper); border-bottom: 1px solid var(--line); color: var(--ink); }
   .wb__body { display: grid; justify-items: center; align-content: center; gap: 6px; min-height: 76px; padding: 10px 4px; color: var(--gray-500); }
   .wb__word { font-size: 0.75rem; font-weight: 600; color: var(--ink-3); }
-  .wb__m--dark { background: var(--dark-2); box-shadow: none; }
-  .wb__m--dark .wb__head { background: var(--ink); color: var(--white); }
+  .wb__m--dark { background: var(--dark-2); border-color: var(--dark-2); }
+  .wb__m--dark .wb__head { background: var(--ink); border-bottom-color: var(--ink); color: var(--white); }
   .wb__m--dark .wb__body, .wb__m--dark .wb__word { color: var(--white); }
   .wb__items { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
-  .wb__items li { padding: 4px 10px; border-radius: 6px; background: var(--white); font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); }
+  .wb__items li { padding: 4px 10px; border-radius: var(--r-md); background: var(--gray-100); font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); }
   @media (min-width: 960px) {
     .wb { grid-template-columns: 5fr 7fr; gap: 64px; align-items: center; }
-    .wb__cal { padding: 28px; }
     .wb__legend { margin-bottom: 20px; font-size: 0.875rem; }
     .wb__months { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
     .wb__head { padding: 8px 0; font-size: 0.875rem; }

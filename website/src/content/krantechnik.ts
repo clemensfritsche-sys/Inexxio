@@ -14,7 +14,7 @@ import { inquiry } from '../config/inquiry.mjs';
 import { site } from '../config/site.mjs';
 import { sharedFaq } from './uebergabe';
 import { promiseFaq } from './promises';
-import type { AreaPage, Faq, Step, SubPage } from './types';
+import type { AreaPage, Faq, Station, Step, SubPage } from './types';
 
 const anfrage = (label: string) => ({ label, href: '#anfrage' });
 const KNM = site.labels.kraneNachMass;
@@ -25,8 +25,6 @@ const ratgeberPruefung = { href: '/ratgeber/kranpruefung-schweiz', label: 'Kranp
 const ratgeberHeukran = { href: '/ratgeber/heukrananlage-planen', label: 'Neue Heukrananlage planen', text: 'Bauformen, Platzbedarf, Ablauf.', kind: 'ratgeber' as const };
 const relatedNachMass = { href: '/krantechnik/krane-nach-mass', label: KNM, text: 'Auch für schwierige Gebäude.' };
 
-/** Eine Station auf dem Weg (components/spezial/SolutionPath.astro). */
-interface Station { icon: IconName; who: string; title: string; text: string; tags?: string[]; check?: string }
 const facts = (items: Station[]): Step[] => items.map(({ title, text }) => ({ title, text }));
 
 /* ------------------------------------------------------------------ Bereich */
@@ -36,10 +34,10 @@ export const cranePath = {
   start: 'Ihr Anliegen',
   end: 'Ihr Kran läuft',
   items: [
-    { icon: 'phone', who: 'Sie', title: 'Anfrage', text: 'Sie schildern Ihr Anliegen – per Formular oder am Telefon. Ein Foto hilft.', tags: ['Foto', 'Typenschild'] },
-    { icon: 'search', who: 'Gemeinsam', title: 'Abklärung', text: 'Wir klären vor Ort oder am Telefon, was es braucht.', check: 'Verbindliche Offerte' },
-    { icon: 'wrench', who: 'Wir', title: 'Umsetzung', text: 'Wir bauen, montieren, prüfen oder reparieren – die nötigen Teile sind dabei.' },
-    { icon: 'clipboard-check', who: 'Wir', title: 'Protokoll', text: 'Zu jeder Arbeit ein Protokoll – der Eintrag gehört ins Kranbuch.', check: 'Kranbuch nachgeführt' },
+    { icon: 'phone', who: 'Sie', title: 'Anfrage', text: 'Sie schildern Ihr Anliegen – per Formular oder am Telefon. Ein Foto vom Typenschild hilft.', result: 'Wir kennen Ihren Kran' },
+    { icon: 'search', who: 'Gemeinsam', title: 'Abklärung', text: 'Wir klären vor Ort oder am Telefon, was es braucht.', result: 'Verbindliche Offerte' },
+    { icon: 'wrench', who: 'Wir', title: 'Umsetzung', text: 'Wir bauen, montieren, prüfen oder reparieren.', result: 'Die nötigen Teile sind dabei' },
+    { icon: 'clipboard-check', who: 'Wir', title: 'Protokoll', text: 'Zu jeder Arbeit ein Protokoll – der Eintrag gehört ins Kranbuch.', result: 'Kranbuch nachgeführt' },
   ] satisfies Station[],
 };
 
@@ -171,11 +169,11 @@ export const nachMassPath = {
   start: 'Ihr Gebäude',
   end: 'Ihr Kran läuft',
   items: [
-    { icon: 'camera', who: 'Sie', title: 'Fotos schicken', text: 'Ein paar Handyfotos genügen für eine erste Einschätzung.' },
-    { icon: 'search', who: 'Gemeinsam', title: 'Aufmass vor Ort', text: 'Wir messen Gebäude und Last auf, klären die Tragfähigkeit und hören zu, wie Sie arbeiten.' },
-    { icon: 'drafting-compass', who: 'Wir', title: 'Konstruktion und Offerte', text: 'Tragwerk, Kranbahn und Anbindung – berechnet und dokumentiert.', check: 'Verbindliche Offerte' },
-    { icon: 'wrench', who: 'Wir', title: 'Fertigung und Montage', text: 'Stahlbau im eigenen Betrieb, Montage und Abnahme bei Ihnen, mit Einweisung.', check: 'Kranbuch angelegt' },
-    { icon: 'calendar-check', who: 'Wir', title: 'Service', text: 'Prüfung, Wartung und Ersatzteile. Wächst Ihr Betrieb, bauen wir den Kran aus.' },
+    { icon: 'camera', who: 'Sie', title: 'Fotos schicken', text: 'Ein paar Handyfotos genügen für den Anfang.', result: 'Erste Einschätzung' },
+    { icon: 'search', who: 'Gemeinsam', title: 'Aufmass vor Ort', text: 'Wir messen Gebäude und Last auf, klären die Tragfähigkeit und hören zu, wie Sie arbeiten.', result: 'Tragfähigkeit geklärt' },
+    { icon: 'drafting-compass', who: 'Wir', title: 'Konstruktion und Offerte', text: 'Tragwerk, Kranbahn und Anbindung – berechnet und dokumentiert.', result: 'Verbindliche Offerte' },
+    { icon: 'wrench', who: 'Wir', title: 'Fertigung und Montage', text: 'Stahlbau im eigenen Betrieb, Montage und Abnahme bei Ihnen, mit Einweisung.', result: 'Kranbuch angelegt' },
+    { icon: 'calendar-check', who: 'Wir', title: 'Service', text: 'Prüfung, Wartung und Ersatzteile. Wächst Ihr Betrieb, bauen wir den Kran aus.', result: 'Ihr Kran bleibt geprüft' },
   ] satisfies Station[],
 };
 
@@ -410,11 +408,11 @@ export const heukranModules = {
     start: 'Ihre Scheune',
     end: 'Die Anlage läuft',
     items: [
-      { icon: 'search', who: 'Gemeinsam', title: 'Besichtigung', text: 'Wir schauen Scheune, Heustock und Abladeplatz an und hören zu, wie Sie arbeiten.' },
-      { icon: 'drafting-compass', who: 'Wir', title: 'Konzept und Offerte', text: 'Ein Vorschlag zu Bauform, Spannweite und Hubhöhe.', check: 'Verbindliche Offerte' },
-      { icon: 'wrench', who: 'Wir', title: 'Fertigung', text: 'Wir fertigen die Anlage bei uns in {{address.city}}.' },
-      { icon: 'flag', who: 'Bei Ihnen', title: 'Montage und Inbetriebnahme', text: 'Wir montieren vor Ort, nehmen in Betrieb und zeigen Ihnen die Bedienung per Funk.' },
-      { icon: 'calendar-check', who: 'Wir', title: 'Service', text: 'Saison-Check und Wartung – solange die Anlage läuft.' },
+      { icon: 'search', who: 'Gemeinsam', title: 'Besichtigung', text: 'Wir schauen Scheune, Heustock und Abladeplatz an und hören zu, wie Sie arbeiten.', result: 'Platz und Arbeitsweise geklärt' },
+      { icon: 'drafting-compass', who: 'Wir', title: 'Konzept und Offerte', text: 'Ein Vorschlag zu Bauform, Spannweite und Hubhöhe.', result: 'Verbindliche Offerte' },
+      { icon: 'wrench', who: 'Wir', title: 'Fertigung', text: 'Wir fertigen die Anlage bei uns in {{address.city}}.', result: 'Im eigenen Betrieb gefertigt' },
+      { icon: 'flag', who: 'Wir, bei Ihnen', title: 'Montage und Inbetriebnahme', text: 'Wir montieren vor Ort, nehmen in Betrieb und zeigen Ihnen die Bedienung per Funk.', result: 'Die Anlage läuft per Funk' },
+      { icon: 'calendar-check', who: 'Wir', title: 'Service', text: 'Saison-Check und Wartung – solange die Anlage läuft.', result: 'Zweimal im Jahr geprüft' },
     ] satisfies Station[],
   },
   owners: {

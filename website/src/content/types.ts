@@ -11,6 +11,14 @@ export interface Faq { q: string; a: string }
 export interface LinkItem { href: string; label: string; text?: string; kind?: 'leistung' | 'ratgeber' }
 export interface Action { label: string; href: string }
 export interface Step { title: string; text: string }
+/**
+ * Eine Station auf dem Weg (components/spezial/SolutionPath.astro). Jede Station eines Ablaufs endet
+ * gleich: `result` = was der Kunde danach in der Hand hat (eine Zeile mit Haken). Keine Etiketten –
+ * was dazugehört, steht im Satz. `who` nennt eine Partei (Sie · Gemeinsam · Wir), keinen Ort.
+ * Eine Zeitleiste (Über uns) hat statt `result` ein `no` (das Jahr) – ein Weg hat entweder bei
+ * jeder Station ein Ergebnis oder bei keiner.
+ */
+export interface Station { icon: IconName; who: string; title: string; text: string; result?: string; no?: string }
 
 /** Bereichsseite (Krantechnik, Fahrzeugtechnik, Speziallösungen). */
 export interface AreaPage {

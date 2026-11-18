@@ -122,11 +122,11 @@ export const specialSteps = {
   start: 'Ihr Problem',
   end: 'Ihre Lösung',
   items: [
-    { icon: 'pen-line' as const, who: 'Sie', title: 'Aufgabe', text: 'Sie zeigen uns, wo es klemmt.', tags: ['Skizze', 'Foto', 'Video'] },
-    { icon: 'search' as const, who: 'Gemeinsam', title: 'Lösungsweg', text: 'Wir schauen uns den Einsatz an und zeigen Ihnen, wie die Lösung aussieht.', check: 'Klar, bevor gebaut wird' },
-    { icon: 'drafting-compass' as const, who: 'Wir', title: 'Konstruktion', text: 'Wir konstruieren und rechnen die Lösung durch – bis sie hält, was sie soll.', check: 'Abgestimmt mit Ihnen' },
-    { icon: 'wrench' as const, who: 'Wir', title: 'Bau', text: 'Wir bauen Ihre Lösung – Stahlbau, Hydraulik und Steuerung aus einer Hand.', tags: ['Stahlbau', 'Hydraulik', 'Steuerung'] },
-    { icon: 'flag' as const, who: 'Bei Ihnen', title: 'Inbetriebnahme', text: 'Wir nehmen die Lösung bei Ihnen in Betrieb und weisen Ihr Team ein.', tags: ['Einweisung', 'Unterlagen'] },
+    { icon: 'pen-line' as const, who: 'Sie', title: 'Aufgabe', text: 'Sie zeigen uns, wo es klemmt – mit einer Skizze, einem Foto oder einem Video.', result: 'Wir kennen Ihre Aufgabe' },
+    { icon: 'search' as const, who: 'Gemeinsam', title: 'Lösungsweg', text: 'Wir schauen uns den Einsatz an und zeigen Ihnen, wie die Lösung aussieht.', result: 'Klar, bevor gebaut wird' },
+    { icon: 'drafting-compass' as const, who: 'Wir', title: 'Konstruktion', text: 'Wir konstruieren und rechnen die Lösung durch, bis sie hält, was sie soll.', result: 'Abgestimmt mit Ihnen' },
+    { icon: 'wrench' as const, who: 'Wir', title: 'Bau', text: 'Stahlbau, Hydraulik und Steuerung – alles im eigenen Betrieb in {{address.city}}.', result: 'Alles aus einer Hand' },
+    { icon: 'flag' as const, who: 'Wir, bei Ihnen', title: 'Inbetriebnahme', text: 'Wir nehmen die Lösung bei Ihnen in Betrieb und weisen Ihr Team ein.', result: 'Einweisung und Unterlagen' },
   ],
 };
 
