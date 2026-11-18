@@ -44,7 +44,7 @@ const shown = art ? undefined : photo;
 </div>
 
 <style>
-  .pc { position: relative; height: 100%; overflow: hidden; border-radius: 24px; background: var(--dark); aspect-ratio: 4 / 5; isolation: isolate; }
+  .pc { position: relative; height: 100%; overflow: hidden; border-radius: var(--r-xl); background: var(--dark); aspect-ratio: 4 / 5; isolation: isolate; }
   /* Das Foto füllt die Karte; Beispielbild und Platzhalter ebenso. */
   .pc > :global(picture), .pc > :global(.ph), .pc > :global(img) { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; }
   .pc :global(img) { width: 100%; height: 100%; object-fit: cover; transition: transform 0.9s var(--ease); }
@@ -56,11 +56,10 @@ const shown = art ? undefined : photo;
   .pc__body :global(.pc__text) { max-width: 32em; font-size: 0.9375rem; line-height: 1.5; color: rgba(255, 255, 255, 0.84); }
   .pc__body :global(a:not(.btn)) { color: inherit; }
   .pc__cta {
-    --btn-h: 48px; margin-top: 12px; padding: 0 20px; border-radius: 12px; font-size: 0.9375rem; font-weight: 600;
-    background: rgba(255, 255, 255, 0.16); color: var(--white); border: 1px solid rgba(255, 255, 255, 0.22);
-    -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%);
+    --btn-h: 48px; margin-top: 12px; padding: 0 20px; border-radius: var(--r-md); font-size: 0.9375rem; font-weight: 600;
+    background: var(--white); color: var(--ink); border: 1px solid var(--white);
   }
-  .pc__cta:hover { background: rgba(255, 255, 255, 0.28); color: var(--white); }
+  .pc__cta:hover { background: var(--paper); color: var(--ink); }
   .pc--light { background: var(--gray-100); }
   .pc--light::after { content: none; }
   .pc--light .pc__body, .pc--light .pc__title { color: var(--ink); }
@@ -74,7 +73,7 @@ const shown = art ? undefined : photo;
   .pc--art .pc__body { position: relative; padding-top: 8px; }
   .pc--compact { aspect-ratio: auto; height: auto; }
   .pc--compact .pc__body { position: relative; }
-  .pc .pc__cta--ask { background: var(--red); border-color: var(--red); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .pc .pc__cta--ask { background: var(--red); border-color: var(--red); color: var(--white); }
   .pc .pc__cta--ask:hover { background: var(--red-hover); }
   @media (min-width: 960px) {
     .pc--art { padding-top: 250px; }

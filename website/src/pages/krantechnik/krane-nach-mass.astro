@@ -56,7 +56,7 @@ const titel = pageTitle('/krantechnik/krane-nach-mass');
 
   <section class="v4-section" aria-labelledby="welten">
     <div class="wrap">
-      <header class="v4-head--center"><h2 class="v4-h2" id="welten">{wo.title}</h2></header>
+      <header><h2 class="v4-h2" id="welten">{wo.title}</h2></header>
       <ul role="list" class="kn-worlds">
         {wo.items.map((it) => <li><PhotoCard photo={it.photo} label={it.label} title={it.title} text={it.text} cta={it.cta} /></li>)}
       </ul>

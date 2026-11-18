@@ -42,7 +42,7 @@ const titel = pageTitle('/krantechnik/kranservice');
 
   <section class="v4-section" id="stufen" aria-labelledby="stufen-title">
     <div class="wrap">
-      <header class="v4-head--center">
+      <header>
         <h2 class="v4-h2" id="stufen-title">{t.title}</h2>
         <Rich as="p" class="v4-sub" text={t.lead} />
       </header>
@@ -54,7 +54,7 @@ const titel = pageTitle('/krantechnik/kranservice');
 
   <section class="v4-section" aria-labelledby="arbeit-title">
     <div class="wrap">
-      <header class="v4-head--center"><h2 class="v4-h2" id="arbeit-title">{w.title}</h2></header>
+      <header><h2 class="v4-h2" id="arbeit-title">{w.title}</h2></header>
       <ul role="list" class="ks-work">
         {w.items.map((it) => <li id={it.id}><PhotoCard photo={it.photo} label={it.label} title={it.title} text={it.text} cta={it.cta} /></li>)}
       </ul>

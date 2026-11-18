@@ -14,7 +14,7 @@ const hid = `${id ?? title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-title`;
 ---
 <section class="v4-section" id={id} aria-labelledby={hid}>
   <div class="wrap">
-    <header class="v4-head--center">
+    <header>
       <h2 class="v4-h2" id={hid}>{title}</h2>
       {lead && <Rich as="p" class="v4-sub" text={lead} />}
     </header>

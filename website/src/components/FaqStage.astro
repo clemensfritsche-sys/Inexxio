@@ -1,7 +1,7 @@
 ---
 /**
- * Häufige Fragen (v4): links ein Bild, das mit der offenen Frage überblendet, rechts darüber
- * ein Glas-Akkordeon. Höchstens EINE Antwort offen – native <details name> (WEBSITE_PLAN: Faq
+ * Häufige Fragen (v4): links ein Bild, das mit der offenen Frage überblendet, rechts daneben
+ * eine schlichte Liste mit feinen Linien (keine Karten, kein Glas). Höchstens EINE Antwort offen – native <details name> (WEBSITE_PLAN: Faq
  * zeigt nur eine offene Antwort). Ist keine offen, steht das Grundbild (Frage grau, Antwort rot).
  * Schmal: das Bild steht immer direkt über der offenen Frage und rückt mit ihr (die Fragen
  * davor rutschen darüber); alle zu → Grundbild ganz oben.
@@ -46,7 +46,7 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
 ---
 <section class="v4-section fq-sec" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap">
-    <header class="v4-head--center">
+    <header>
       <h2 class="v4-h2" id={`${id}-title`}>{title}</h2>
       {lead && <Rich as="p" class="v4-sub" text={lead} />}
     </header>
@@ -74,7 +74,7 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
       </div>
       <div class="fq__list">
         {items.map((it, i) => (
-          <details class="fq__item glass-light" name={group} open={i === 0} data-i={i} style={`--o:${2 * i + 2}`}>
+          <details class="fq__item" name={group} open={i === 0} data-i={i} style={`--o:${2 * i + 2}`}>
             <summary class="fq__q"><Icon name="chevron-down" size={18} class="fq__chev" /><Rich as="h3" class="fq__title" text={it.q} /></summary>
             <div class="fq__a">{it.a.split('\n\n').map((para) => <Rich text={para} />)}</div>
           </details>
@@ -130,13 +130,13 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
   .fq { position: relative; margin-top: 24px; }
   @media (min-width: 960px) { .fq { margin-top: 48px; min-height: 600px; display: flex; align-items: center; justify-content: flex-end; } }
   .fq__art { position: relative; height: 260px; border-radius: var(--r-xl); overflow: hidden; }
-  @media (min-width: 960px) { .fq__art { position: absolute; left: 0; top: 0; width: calc(860 / 1264 * 100%); height: 100%; } }
+  @media (min-width: 960px) { .fq__art { position: absolute; left: 0; top: 0; width: calc(100% - 520px - 56px); height: 100%; } }
   .fq__v { position: absolute; inset: 0; background: var(--gray-100); opacity: 0; transition: opacity 0.5s ease; }
   .fq__v--base, .fq__v[data-i='0'] { opacity: 1; }
   .fq__v--dark { background: var(--black); }
   .fq__vin { position: absolute; inset: 24px 40px 70px; display: flex; align-items: center; justify-content: center; }
-  /* Bei langen Listen wächst die Fläche, das Bild bleibt in ruhiger Grösse mittig. */
-  @media (min-width: 960px) { .fq__vin { inset: 0 260px 0 90px; margin: auto 0; height: min(420px, calc(100% - 180px)); } }
+  /* Breit: Bild links, Fragen rechts daneben (ohne Überlappung). Bei langen Listen wächst die Fläche, das Bild bleibt mittig. */
+  @media (min-width: 960px) { .fq__vin { inset: 0 56px; margin: auto 0; height: min(420px, calc(100% - 180px)); } }
   .fq__vin :global(svg), .fq__vin img { display: block; width: 100%; height: 100%; max-width: none; object-fit: contain; }
   .fq__year { width: 86%; height: 70%; }
   .fq__tel { font-family: var(--font-display); font-size: 34px; font-weight: 600; fill: var(--ink); letter-spacing: -1px; }
@@ -150,17 +150,19 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
   .fq[data-open='6'] .fq__v[data-i='6'], .fq[data-open='7'] .fq__v[data-i='7'],
   .fq[data-open='8'] .fq__v[data-i='8'], .fq[data-open='9'] .fq__v[data-i='9'] { opacity: 1; }
 
-  .fq__list { position: relative; display: grid; gap: 10px; margin: -48px 8px 0; }
+  .fq__list { position: relative; display: grid; margin: 24px 0 0; border-top: 1px solid var(--ink); }
   /* Schmal: Bild und Fragen in einer Spalte; das Bild steht vor der offenen Frage (--art-o). */
   @media (max-width: 959px) {
-    .fq { display: flex; flex-direction: column; gap: 10px; }
+    .fq { display: flex; flex-direction: column; }
     .fq__list { display: contents; }
-    .fq__art { order: var(--art-o, 1); margin-bottom: -58px; }
-    .fq__item { position: relative; order: var(--o); margin-inline: 8px; }
+    .fq__art { order: var(--art-o, 1); margin-block: 8px; }
+    .fq__item { position: relative; order: var(--o); }
+    .fq__item:first-of-type { border-top: 1px solid var(--ink); }
   }
   @media (min-width: 960px) { .fq__list { width: 520px; margin: 0; } }
-  .fq__item { border-radius: 14px; }
-  .fq__q { list-style: none; display: flex; align-items: center; gap: 12px; padding: 16px 20px; cursor: pointer; }
+  /* Fragen als schlichte Liste: eine feine Linie je Frage, keine Karten, kein Glas. */
+  .fq__item { border-bottom: 1px solid var(--line); }
+  .fq__q { list-style: none; display: flex; align-items: center; gap: 12px; padding: 18px 4px; cursor: pointer; }
   .fq__q::-webkit-details-marker { display: none; }
   .fq__q :global(.fq__chev) { flex: none; transition: transform 0.35s var(--ease); }
   .fq__item[open] .fq__q :global(.fq__chev) { transform: rotate(180deg); }
@@ -168,7 +170,7 @@ const drawing = (i: number) => (items[i].illo ? art(items[i].illo!) : pageArt);
   @media (min-width: 960px) { .fq__q :global(.fq__title) { font-size: 1.0625rem; } }
   /* Nur mit Maus: auf dem Handy bliebe der Hover nach dem Antippen rot hängen. */
   @media (hover: hover) and (pointer: fine) { .fq__q:hover :global(.fq__title) { color: var(--red-hover); } }
-  .fq__a { padding: 0 22px 18px 50px; display: grid; gap: 8px; }
+  .fq__a { padding: 0 4px 20px 34px; display: grid; gap: 8px; }
   .fq__a :global(p) { font-size: 0.875rem; line-height: 1.6; color: var(--ink-2); }
   @media (min-width: 960px) { .fq__a :global(p) { font-size: 0.9375rem; } }
   @supports (interpolate-size: allow-keywords) {

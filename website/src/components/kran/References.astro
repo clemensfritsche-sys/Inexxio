@@ -14,7 +14,7 @@ const show = site.features.craneReferences && items.length > 0;
 {show && (
   <section class="v4-section" id="belege" aria-labelledby="belege-title">
     <div class="wrap">
-      <header class="v4-head--center"><h2 class="v4-h2" id="belege-title">{title}</h2></header>
+      <header><h2 class="v4-h2" id="belege-title">{title}</h2></header>
       <ul role="list" class="rf">
         {items.map((r) => <li><PhotoCard photo={r.photo} label={r.place} title={r.situation} text={r.solution} cta={{ label: 'Ähnliches anfragen', href: '#anfrage' }} /></li>)}
       </ul>

@@ -131,17 +131,23 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   zeigt das Titelbild ihrer Seite; hat eine Seite (noch) keines, steht ihre Zeichnung. Eine Liste
   `src/lib/titles.ts` für Seitenkopf und Menü. Menübilder laden erst beim Berühren des Kopfs.
 - **127 · Kopf mit Platz** (Entscheid 23.10.2026): Hauptzeile = was man bei uns bekommt
-  (Fahrzeugtechnik · Krantechnik · Speziallösungen · Service, Reihenfolge nach Entscheid 131) plus **Unternehmen** (Über uns ·
+  (Fahrzeugtechnik · Krantechnik · Speziallösungen · Service, Reihenfolge nach Entscheid 133) plus **Unternehmen** (Über uns ·
   Ratgeber · Kontakt · Karriere). «Kontakt» ist kein eigener Punkt mehr – Telefon und «Anfrage
   stellen» stehen rechts. Service bleibt allein (wer einen Ausfall hat, sucht dieses Wort). Die
   Sprachwahl bleibt im Kopf. Ein späterer Shop kommt rechts als Symbol, «Meine Produkte» ins Konto.
 - **128 · Reihenfolge unter «Unternehmen»** (Entscheid 24.10.2026): Über uns · Ratgeber · Kontakt ·
   Karriere – erst Vertrauen (wer wir sind, was wir wissen), dann der Weg zu uns; Karriere spricht
   Bewerbende an, nicht Kunden, und steht zuletzt.
-- **131 · Reihenfolge der Bereiche** (Entscheid 14.11.2026): Fahrzeugtechnik · Krantechnik ·
+- **133 · Reihenfolge der Bereiche** (Entscheid 14.11.2026): Fahrzeugtechnik · Krantechnik ·
   Speziallösungen – vom Bestehenden zum Neuen: zuerst das konkreteste Angebot, zuletzt das offenste.
   Steht EINMAL in `site.areas` (Kopf, Mobil-Menü, Fuss, JSON-LD, llms.txt) und gleich in
   `start.areas.order` (Karten der Startseite, schmal beginnt das Karussell links) und `lib/pages.ts`.
+- **134 · Ruhiger, sachlicher** (Entscheid 18.11.2026, nach Vergleich mit Stripe und Porsche):
+  Rundungen 6 px (Knöpfe, Felder, Etiketten) und 8 px (Karten, Flächen, Bilder, Kopf), Kreise
+  bleiben rund, keine Pillen; im Inhalt kein Glas und keine Schatten (weiss mit feiner Linie,
+  `.plate`); Überschriften immer links, im Seitenkopf bleibt das grosse graue Wort; Fragen als Liste
+  mit Linien neben dem Bild; Dropdown mit Spalten bis an den Rand, «Alles zu …» hellgrau. Der Ablauf
+  «So läuft es ab» bleibt (nur Rundungen und Schatten angepasst). Regeln: `docs/design-system/README.md`.
 - **129 · Service, Karriere, Ratgeber im Layout v4** (Entscheid 24.10.2026): Kopf wie Porsche mit
   Titelbild; Service: Notfall als dunkle Karte mit der Nummer gross, dann drei Anliegen-Karten,
   Garantien, Fragen; Karriere: Warum hier arbeiten, Wer zu uns passt (keine ausgeschriebenen Stellen),

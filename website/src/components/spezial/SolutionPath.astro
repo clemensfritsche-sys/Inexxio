@@ -15,16 +15,16 @@ const { title, start, end, items, id = 'ablauf' } = Astro.props;
 ---
 <section class="v4-section" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap">
-    <header class="v4-head--center"><h2 class="v4-h2" id={`${id}-title`}>{title}</h2></header>
+    <header><h2 class="v4-h2" id={`${id}-title`}>{title}</h2></header>
     <div class="sp" data-play>
       <span class="sp__line" aria-hidden="true"></span>
       <span class="sp__dot" aria-hidden="true"></span>
-      <p class="sp__end"><span class="sp__tag glass-light"><i></i>{start}</span></p>
+      <p class="sp__end"><span class="sp__tag plate"><i></i>{start}</span></p>
       <ol class="sp__list">
         {items.map((s, i) => (
           <li class:list={['sp__st', i % 2 === 1 && 'sp__st--r', i === items.length - 1 && 'sp__st--last']}>
             <span class="sp__no tnum" aria-hidden="true">{s.no ?? String(i + 1).padStart(2, '0')}</span>
-            <span class="sp__node glass-light"><Icon name={s.icon} size={24} /></span>
+            <span class="sp__node plate"><Icon name={s.icon} size={24} /></span>
             <div class="sp__card">
               <span class="sp__who">{s.who}</span>
               <h3 class="sp__title">{s.title}</h3>
@@ -47,14 +47,14 @@ const { title, start, end, items, id = 'ablauf' } = Astro.props;
   @keyframes sp-go { 0% { top: 28px; opacity: 0; } 6%, 88% { opacity: 1; } 100% { top: calc(100% - 40px); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .sp__dot { display: none; } }
   .sp__end { position: relative; display: flex; max-width: none; }
-  .sp__tag { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+  .sp__tag { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: var(--r-md); font-size: 0.875rem; font-weight: 600; color: var(--ink); }
   .sp__tag i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-4); }
   .sp__tag--end { background: var(--red); color: var(--white); }
   .sp__list { list-style: none; padding: 0; margin: 8px 0; }
   .sp__st { position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; align-items: start; padding: 12px 0; }
   .sp__node { grid-column: 1; grid-row: 1; position: relative; z-index: 1; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; color: var(--ink); }
   .sp__st--last .sp__node { background: var(--ink); border-color: var(--ink); color: var(--white); }
-  .sp__card { grid-column: 2; grid-row: 1; padding: 22px; border-radius: 24px; background: var(--gray-100); transition: transform 0.5s var(--ease); }
+  .sp__card { grid-column: 2; grid-row: 1; padding: 22px; border-radius: var(--r-xl); background: var(--gray-100); transition: transform 0.5s var(--ease); }
   .sp__card:hover { transform: translateY(-4px); }
   .sp__no { grid-column: 2; grid-row: 1; justify-self: end; z-index: 1; margin: 16px 18px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 2.75rem; line-height: 1; letter-spacing: -0.05em; color: var(--line-2); pointer-events: none; }
   .sp__who { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); }

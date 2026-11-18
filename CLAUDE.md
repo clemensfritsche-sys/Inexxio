@@ -762,8 +762,8 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   versetzt, schmal zum Wischen: Katalog, Situationen) ·
   `ServiceTiers` (die drei Stufen als Treppe) · `FactGrid` (Sätze an Haarlinien) · `fahrzeug/*`, `kran/*`;
   Zeichnungen per Schlüssel über `lib/illustrations.ts`. Dazu `FaqStage` (höchstens 5 Fragen je
-  Bereichsseite; Glas-Akkordeon über einem Bild zur offenen Frage, alle zu → Grundbild; schmal steht
-  das Bild direkt über der offenen Frage) und `ContactSection` (Karte als Grund, Anfrage in zwei
+  Bereichsseite; links ein Bild zur offenen Frage, rechts die Fragen als Liste mit feinen Linien, alle
+  zu → Grundbild; schmal steht das Bild direkt über der offenen Frage) und `ContactSection` (Karte als Grund, Anfrage in zwei
   Schritten, ohne Springen; auf Wunsch eine Foto-Hilfe `hint` unter dem Formular) und `CallPanel`
   (dunkle Karte für den direkten Weg: Notfall auf /service, Bewerbung auf /karriere). Auch Service,
   Karriere und Ratgeber (Übersicht und Artikel) haben ein eigenes v4-Layout; jeder Artikel nennt seine
@@ -800,7 +800,7 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
 - **Kopf-Menü = Mobil-Menü**: Hauptzeile Fahrzeugtechnik · Krantechnik · Speziallösungen · Service ·
   Unternehmen (Über uns · Ratgeber · Kontakt · Karriere); Kontakt ist kein eigener Punkt – Telefon und
   «Anfrage stellen» rechts sind der Weg zu uns. Ein Punkt mit Unterseiten beginnt mit seiner Übersicht
-  («Alles zu …», dunkel, Stapel der Bilder; bei «Unternehmen» die Kachel «Über uns»), dann die Unterseiten – EINE
+  («Alles zu …», hellgrau, Stapel der Bilder; bei «Unternehmen» die Kachel «Über uns»), dann die Unterseiten – EINE
   Liste (`Header.astro`, `tilesOf`). **Jede Kachel zeigt das Titelbild ihrer Seite, sonst die Zeichnung**;
   welche Seite welches Titelbild trägt, steht EINMAL in `src/lib/titles.ts` (auch der Seitenkopf liest
   dort). Die Menübilder laden erst, wenn der Kopf berührt wird (Kachelreihe vorher nicht im Layout).

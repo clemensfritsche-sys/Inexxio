@@ -222,7 +222,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
             <a href={acct.erp.href} class="mg__row mg__row--erp" rel="nofollow" data-acct="staff">{acct.erp.label}<Icon name="arrow-right" size={20} /></a>
           </nav>
           <div class="mnav__foot">
-            <a class="mnav__btn btn--glass" href={tel}><Icon name="phone" size={18} /> <span class="tnum">{site.phone.display}</span></a>
+            <a class="mnav__btn btn--quiet" href={tel}><Icon name="phone" size={18} /> <span class="tnum">{site.phone.display}</span></a>
             <a class="mnav__btn mnav__btn--red" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} /></a>
             <div class="mg mg--lang" data-mg="sprache">
               <button type="button" class="mnav__lang" data-mg-toggle aria-expanded="false"><Icon name="globe" size={18} /> Deutsch <Icon name="chevron-down" size={16} class="mg__chev" /></button>
@@ -324,7 +324,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
 
   /* ---------- Kachelreihe ---------- */
   .dd__panel {
-    position: absolute; left: 0; right: 0; top: var(--hd-bar); height: var(--hd-dd); padding: 20px 32px;
+    position: absolute; left: 0; right: 0; top: var(--hd-bar); height: var(--hd-dd); padding: 0;
     border-top: 1px solid rgba(10, 10, 11, 0.07); white-space: normal; color: var(--ink);
     opacity: 0; visibility: hidden; transform: translateX(24px); pointer-events: none;
     transition: opacity 350ms var(--ease), transform 450ms var(--ease), visibility 0s linear 450ms;
@@ -342,20 +342,25 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
     opacity: 1; visibility: visible; transform: none; pointer-events: auto;
     transition: opacity 350ms var(--ease), transform 450ms var(--ease), visibility 0s;
   }
-  .dd__tiles { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 12px; align-items: start; list-style: none; padding: 0; }
+  /* Spalten bis an den Rand, getrennt durch feine Linien – ein Rahmen (die Karte), kein Kasten im Kasten.
+     Zeigen hellt die ganze Spalte bis zum Rand auf; die äusseren Ecken folgen der Karte. */
+  .dd__tiles { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); height: 100%; align-items: stretch; list-style: none; padding: 0; margin: 0; }
+  .dd__tiles > li { display: flex; min-width: 0; border-left: 1px solid rgba(10, 10, 11, 0.07); }
+  .dd__tiles > li:first-child { border-left: 0; }
+  .dd__tiles > li:first-child > .tile { border-bottom-left-radius: var(--r-xl); }
+  .dd__tiles > li:last-child > .tile { border-bottom-right-radius: var(--r-xl); }
   .tile {
-    display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border-radius: var(--r-xl);
+    flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; padding: 24px 28px; border-radius: 0;
     color: var(--ink); text-decoration: none; transition: background-color 250ms var(--ease);
   }
-  a.tile:hover, a.tile:focus-visible { background: rgba(255, 255, 255, 0.55); }
+  a.tile:hover, a.tile:focus-visible { background: rgba(255, 255, 255, 0.7); }
   .tile__label { font-size: 1.375rem; font-weight: 500; letter-spacing: -0.01em; line-height: 1.2; }
   .tile__img { display: block; width: 100%; height: 160px; object-fit: contain; transition: transform 500ms var(--ease); }
   a.tile:hover .tile__img { transform: translateY(-3px); }
-  .tile__sub { font-size: 0.875rem; line-height: 1.45; color: var(--gray-500); }
-  /* Die Übersicht «Alles zu …»: dunkel wie im Mobil-Menü, die Zeichnungen der Unterseiten als Stapel. */
-  a.tile--all { background: radial-gradient(120% 90% at 50% 18%, #3A3B3F 0%, var(--ink) 70%); color: var(--white); box-shadow: 0 8px 24px rgba(10, 10, 11, 0.12); }
-  a.tile--all:hover, a.tile--all:focus-visible { background: radial-gradient(120% 90% at 50% 18%, #46474C 0%, var(--ink) 70%); }
-  .tile--all .tile__sub { color: rgba(255, 255, 255, 0.62); }
+  .tile__sub { margin-top: auto; font-size: 0.875rem; line-height: 1.45; color: var(--gray-500); }
+  /* Die Übersicht «Alles zu …»: einen Hauch dunkler als die Karte, die Zeichnungen der Unterseiten als Stapel. */
+  a.tile--all { background: rgba(10, 10, 11, 0.035); color: var(--ink); }
+  a.tile--all:hover, a.tile--all:focus-visible { background: rgba(10, 10, 11, 0.06); }
   .tile__deck { position: relative; display: block; height: 160px; }
   .tile__deck img { position: absolute; top: 10px; width: 54%; height: 140px; object-fit: contain; transition: transform 500ms var(--ease); }
   .tile__deck img:nth-child(1) { left: -8%; }
@@ -370,7 +375,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
   .is-soon { opacity: 0.5; }
   .tile__art { display: flex; align-items: center; justify-content: center; height: 160px; }
   .bubble {
-    position: relative; padding: 14px 28px; border-radius: 999px; background: var(--gray-200); color: var(--gray-500);
+    position: relative; padding: 14px 28px; border-radius: var(--r-md); background: var(--gray-200); color: var(--gray-500);
     font-family: var(--font-display); font-weight: 600; font-size: 2.25rem; line-height: 1.1; letter-spacing: -0.02em;
   }
   .bubble::after { content: ''; position: absolute; left: 22%; bottom: -9px; width: 18px; height: 18px; border-radius: 2px; background: inherit; transform: rotate(45deg); }
@@ -460,16 +465,15 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
   .mg__rail::-webkit-scrollbar { display: none; }
   .mg__rail > li { flex: 0 0 212px; scroll-snap-align: start; }
   .mg__card {
-    position: relative; display: flex; flex-direction: column; gap: 4px; height: 188px; padding: 12px; box-sizing: border-box; border-radius: 14px;
-    background: rgba(255, 255, 255, 0.62); border: 1px solid rgba(255, 255, 255, 0.95); box-shadow: 0 8px 24px rgba(10, 10, 11, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    position: relative; display: flex; flex-direction: column; gap: 4px; height: 188px; padding: 12px; box-sizing: border-box; border-radius: var(--r-xl);
+    background: var(--white); border: 1px solid var(--line);
     color: var(--ink); text-decoration: none;
   }
   .mg__img { width: 100%; height: 84px; object-fit: contain; margin-bottom: 6px; }
   .mg__label { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
   .mg__sub { font-size: 0.8125rem; line-height: 1.4; color: var(--gray-500); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  /* «Alles zu …»: die Übersicht, dunkel, mit dem Stapel der Zeichnungen und dem roten Pfeil. */
-  .mg__card--all { background: radial-gradient(120% 90% at 50% 18%, #3A3B3F 0%, var(--ink) 70%); border: 0; box-shadow: 0 8px 24px rgba(10, 10, 11, 0.12); color: var(--white); }
-  .mg__card--all .mg__sub { color: rgba(255, 255, 255, 0.62); }
+  /* «Alles zu …»: die Übersicht, einen Hauch dunkler (wie im Dropdown), mit dem Stapel der Zeichnungen. */
+  .mg__card--all { background: var(--gray-100); border-color: var(--gray-100); color: var(--ink); }
   .mg__deck { position: relative; height: 84px; margin-bottom: 6px; }
   /* Die Zeichnungen der Unterseiten nebeneinander, leicht überlappend – ohne eigene Kärtchen. */
   .mg__deck img { position: absolute; top: 4px; width: 84px; height: 76px; object-fit: contain; }

@@ -37,7 +37,7 @@ const cards = items.map((it) => ({ ...it, a: article(it.slug) }));
         <li class="rat__item" data-item>
           <a class="rat__card zoom-on-hover" href={c.a.path}>
             <Media id={c.photo} sizes="(min-width: 960px) 880px, 330px" />
-            <span class="rat__glass glass-dark">
+            <span class="rat__glass plate--dark">
               <span class="rat__title">{c.a.title}</span>
               <Rich as="span" class="rat__text" text={c.text} />
             </span>
@@ -71,7 +71,7 @@ const cards = items.map((it) => ({ ...it, a: article(it.slug) }));
   @media (min-width: 960px) { .rat__item { flex-basis: 880px; } }
   .rat__card { position: relative; display: block; height: 460px; border-radius: var(--r-xl); overflow: hidden; color: var(--white); text-decoration: none; background: var(--dark-2); }
   @media (min-width: 960px) { .rat__card { height: 560px; } }
-  .rat__glass { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 2; padding: 18px; border-radius: 14px; }
+  .rat__glass { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 2; padding: 18px; border-radius: var(--r-lg); }
   @media (min-width: 960px) { .rat__glass { left: 24px; right: auto; bottom: 24px; max-width: 600px; padding: 24px 28px; border-radius: var(--r-xl); } }
   .rat__title { display: block; font-family: var(--font-display); font-weight: 600; font-size: 1.1875rem; line-height: 1.25; letter-spacing: -0.01em; }
   @media (min-width: 960px) { .rat__title { font-size: 1.625rem; line-height: 1.2; letter-spacing: -0.02em; } }

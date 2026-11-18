@@ -46,13 +46,13 @@ const { word, image, alt, title, lead, primary, secondary, narrow = false } = As
     <Rich as="p" class="sh__lead" text={lead} />
     <div class="sh__btns">
       <a class="btn btn--primary btn--lg" href={primary.href}>{primary.label}</a>
-      {secondary && <a class="btn btn--glass btn--lg" href={secondary.href}>{secondary.label} <Icon name="arrow-down" size={18} /></a>}
+      {secondary && <a class="btn btn--quiet btn--lg" href={secondary.href}>{secondary.label} <Icon name="arrow-down" size={18} /></a>}
     </div>
   </div>
 </section>
 
 <style>
-  .sh { text-align: center; overflow: hidden; }
+  .sh { overflow: hidden; }
   .sh__band { position: relative; height: 280px; background: linear-gradient(180deg, var(--white) 0%, var(--paper) 100%); }
   .sh__word {
     position: absolute; left: 50%; top: 24px; transform: translateX(-50%); white-space: nowrap; pointer-events: none; user-select: none;
@@ -60,10 +60,10 @@ const { word, image, alt, title, lead, primary, secondary, narrow = false } = As
   }
   .sh__band :global(.sh__img) { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%); width: 100%; height: auto; max-width: none; }
   .sh--narrow .sh__band :global(.sh__img) { width: 78%; }
-  .sh__body { padding-top: 44px; display: flex; flex-direction: column; align-items: center; }
+  .sh__body { padding-top: 44px; display: flex; flex-direction: column; align-items: flex-start; }
   .sh__body :global(.sh__title) { font-family: var(--font-display); font-weight: 600; font-size: 2.75rem; line-height: 1.05; letter-spacing: -0.03em; color: var(--ink); }
   .sh__body :global(.sh__lead) { margin-top: 14px; max-width: 36em; font-size: 1.0625rem; line-height: 1.5; color: var(--ink-2); }
-  .sh__btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 28px; }
+  .sh__btns { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
   .sh__btns .btn { --btn-h: 52px; padding: 0 24px; font-size: 1rem; }
   @media (min-width: 960px) {
     .sh__band { height: 620px; }

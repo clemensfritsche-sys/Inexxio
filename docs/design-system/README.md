@@ -71,22 +71,29 @@ Referenz zum Anschauen: `reference/mockups/Startseite v4.dc.html` und
 
 - **Überschrift – eine Form:** H2 in `font-display` 600, 48 px (mobil 32 px),
   −0.03 em; darunter **höchstens ein** grauer Satz (`fg-3`, 17/16 px). Keine Kicker
-  darüber, keine roten Wörter, kein Mono, keine gesperrte Schrift. Zentriert nur bei
-  «Häufige Fragen».
+  darüber, keine roten Wörter, kein Mono, keine gesperrte Schrift. **Immer linksbündig**,
+  auch im Seitenkopf (das grosse graue Wort dahinter bleibt).
 - **Knöpfe:** Rot **nur für die Anfrage** («Anfrage stellen», «Weiter», «Anfrage
   senden», «Aufgabe schildern»). Abschnitts-Links («Mehr über uns», «Alle
   Ratgeber-Artikel») hellgrau (`bg-3`). Auf Bildkarten ein **runder Pfeil** (44 px, Glas).
-  Radius 8 px, Höhen 52 (gross) · 48 · 44.
-- **Karten:** Radius 16 px, Bild vollflächig, Text **direkt auf dem Bild** über einem
+  Radius 6 px, Höhen 52 (gross) · 48 · 44.
+- **Rundungen** (Stripe als Mass, einen Ticken weicher – November 2026): Knöpfe, Felder,
+  Etiketten, Menüpunkte **6 px** · Karten, Flächen, Bilder, Kopfleiste **8 px** · Kreise
+  bleiben rund. Tokens `--r-xs` 4 · `--r-sm` 6 · `--r-md` 6 · `--r-lg` 8 · `--r-xl` 8; feste
+  Werte in Bausteinen gibt es nicht. **Keine Pillen** (999 px) ausser Kreisen.
+- **Karten:** Radius 8 px, Bild vollflächig, Text **direkt auf dem Bild** über einem
   dunklen Verlauf. **Kein Kasten im Kasten:** Text und Knopf nie gemeinsam in einem
   Glas- oder Rahmenkasten.
-- **Glas** (`.ix-glass` hell, `.ix-glass-dark` auf Fotos; Tokens `--glass-*`): offener
-  Kopf und Menüs, Umschalter, Text auf Fotos, Eingabefelder über der Karte. Eine Ebene,
-  nie verschachtelt. **Nie im ERP.**
+- **Glas** (`.ix-glass`, Tokens `--glass-*`): **nur die Kopfleiste** (und die Leiste unten auf
+  dem Handy, die Knöpfe auf dem Bühnenvideo). Im Inhalt kein Glas und keine Schatten: Flächen
+  sind weiss mit feiner Linie (`.plate`), Text auf Fotos steht auf einer dunklen Fläche
+  (`.plate--dark`), Felder sind weiss mit Linie. **Nie im ERP.**
+- **Dropdown im Kopf:** Spalten bis an den Rand, getrennt durch feine Linien; Zeigen hellt die
+  ganze Spalte auf. «Alles zu …» einen Hauch dunkler als die Karte, nie schwarz.
 - **Abschnitts-Muster:** Bühne mit Video · Bereichskarten, die beim Darüberfahren ~25 %
   breiter werden und ihre Kran-Szene spielen · Umschalter mit Überblendung · versetzte
   Karten (Garantien) · grosse Zahlen neben Porträt · Bild-Collage · Karussell mit
-  angeschnittenen Nachbarn · Akkordeon in Glas über wechselndem Bild · Anfrage auf der
+  angeschnittenen Nachbarn · Fragen als Liste mit Linien neben wechselndem Bild · Anfrage auf der
   Skizzenkarte (erst ein Feld, dann Kontakt).
 - **Zeichnungen:** isometrisch, Grau-Rampe; **Grau ist die Serie, Rot ist, was wir
   dazubauen.**
