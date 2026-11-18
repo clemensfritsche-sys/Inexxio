@@ -1,0 +1,22 @@
+{
+  "Nach {{history.experienceDative}} übergibt Heiri Steiner sein Unternehmen an Clemens Fritsche. Standort, Telefonnummer und der Service für alle bestehenden HS-Krananlagen bleiben – ergänzt um Ingenieurwissen, wo es Ihnen nützt.": "After {{history.experienceDative}}, Heiri Steiner is handing his company over to Clemens Fritsche. The location, the phone number and the service for all existing HS crane systems remain – complemented by engineering know-how where it is useful to you.",
+  "Wer betreut meine HS-Krananlage in Zukunft?": "Who will look after my HS crane system in future?",
+  "Wir – ohne Unterbruch. Wir kennen die HS-Krananlagen von der Konstruktion bis zum Ersatzteil und betreuen sie weiter.": "We will – without interruption. We know the HS crane systems from the design to the spare part and continue to look after them.",
+  "Bauen Sie weiterhin neue Krananlagen?": "Do you still build new crane systems?",
+  "Ja. Krane nach Mass und Heukrananlagen planen, bauen und montieren wir weiterhin selbst.": "Yes. We continue to plan, build and install custom cranes and hay crane systems ourselves.",
+  "Bleibt die Telefonnummer gleich?": "Does the phone number stay the same?",
+  "Ja, {{phone.display}}. Die aktuellen Kontaktangaben finden Sie jederzeit hier auf unserer Website.": "Yes, {{phone.display}}. You can find the current contact details here on our website at any time.",
+  "Gelten bestehende Verträge weiter?": "Do existing contracts remain valid?",
+  "Ja. Das Unternehmen bleibt dasselbe, nur der Name ändert sich.": "Yes. The company stays the same, only the name changes.",
+  "Wie schnell sind Sie bei einem Stillstand vor Ort?": "How quickly are you on site in case of a breakdown?",
+  "Steht eine Anlage still, rufen Sie direkt an: {{phone.link}}. Wir kümmern uns darum.": "If a system is at a standstill, call us directly: {{phone.link}}. We will take care of it.",
+  "Betreuen Sie auch Krane anderer Hersteller?": "Do you also look after cranes from other manufacturers?",
+  "Ja. Wir prüfen, warten und reparieren Krane unabhängig vom Hersteller. Vorher schauen wir uns jeden Kran an. Ob wir Teile für ein bestimmtes Modell beschaffen können, klären wir im Einzelfall.": "Yes. We inspect, maintain and repair cranes regardless of the manufacturer. We look at every crane beforehand. Whether we can source parts for a particular model is clarified case by case.",
+  "Bekomme ich weiterhin Ersatzteile für ältere Anlagen?": "Will I still get spare parts for older systems?",
+  "Ja. Die Ersatzteile für die bestehenden HS-Anlagen liegen entweder an Lager, oder wir fertigen sie für Sie neu an.": "Yes. The spare parts for the existing HS systems are either in stock, or we make them new for you.",
+  "Aus HS Steiner wird {{brand.name}}": "HS Steiner becomes {{brand.name}}",
+  "Das Unternehmen wird zur {{brand.formerLegalName}}.": "The company becomes {{brand.formerLegalName}}.",
+  "Heute": "Today",
+  "Heiri Steiner übergibt an Clemens Fritsche – aus HS Steiner wird die {{brand.legalName}}.": "Heiri Steiner hands over to Clemens Fritsche – HS Steiner becomes {{brand.legalName}}.",
+  "Bleibt Heiri Steiner dabei?": "Is Heiri Steiner staying on?"
+}

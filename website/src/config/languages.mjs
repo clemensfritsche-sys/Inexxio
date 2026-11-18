@@ -24,8 +24,8 @@
 export const languages = [
   { code: 'de', locale: 'de-CH', og: 'de_CH', name: 'Deutsch', hello: 'Hallo', read: 'Auf Deutsch lesen', soon: 'Demnächst', status: 'live' },
   { code: 'fr', locale: 'fr-CH', og: 'fr_CH', name: 'Français', hello: 'Bonjour', read: 'Lire en français', soon: 'Bientôt disponible', status: 'preview' },
-  { code: 'en', locale: 'en', og: 'en_GB', name: 'English', hello: 'Hello', read: 'Read in English', soon: 'Coming soon', status: 'planned' },
-  { code: 'it', locale: 'it-CH', og: 'it_CH', name: 'Italiano', hello: 'Ciao', read: 'Leggi in italiano', soon: 'Presto disponibile', status: 'planned' },
+  { code: 'en', locale: 'en', og: 'en_GB', name: 'English', hello: 'Hello', read: 'Read in English', soon: 'Coming soon', status: 'preview' },
+  { code: 'it', locale: 'it-CH', og: 'it_CH', name: 'Italiano', hello: 'Ciao', read: 'Leggi in italiano', soon: 'Presto disponibile', status: 'preview' },
 ];
 
 /** Die Quellsprache. */

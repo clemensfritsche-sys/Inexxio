@@ -1,0 +1,14 @@
+{
+  "Kontakt und Anfrage": "Contact and enquiry",
+  "Kontakt zu INEXXIO in {{address.home}}: Anfrage stellen, anrufen oder die Route zum Standort öffnen. Ein Satz genügt – wir melden uns rasch.": "Contact INEXXIO in {{address.home}}: send an enquiry, call us or open the route to our location. One sentence is enough – we get back to you quickly.",
+  "Fragen kostet nichts.": "Asking costs nothing.",
+  "Ein Satz genügt. Den Rest klären wir mit Ihnen.": "One sentence is enough. We will clarify the rest with you.",
+  "Ihr Ansprechpartner": "Your contact person",
+  "Lieber direkt sprechen? Rufen Sie an.": "Prefer to talk directly? Give us a call.",
+  "{{brand.name}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefon {{phone.display}}.": "{{brand.name}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Phone {{phone.display}}.",
+  "Danke für Ihre Anfrage": "Thank you for your enquiry",
+  "Ihre Anfrage ist bei uns angekommen. Wir melden uns innert {{promises.responseTime}}.": "Your enquiry has reached us. We will get back to you within {{promises.responseTime}}.",
+  "Sie erhalten eine Bestätigung per E-Mail mit Ihren Angaben – sofern Sie eine E-Mail-Adresse genannt haben.": "You will receive a confirmation by email with your details – provided you gave an email address.",
+  "Wir prüfen Ihr Anliegen und melden uns per Telefon oder E-Mail.": "We check your request and get back to you by phone or email.",
+  "Eilt es? Rufen Sie an: {{phone.link}}.": "In a hurry? Call us: {{phone.link}}."
+}

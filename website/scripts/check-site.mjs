@@ -132,6 +132,8 @@ const langOf = (path) => languages.find((l) => l.code !== SOURCE && (path === `/
 const GERMAN = new Set(['und', 'der', 'die', 'das', 'dem', 'den', 'mit', 'für', 'nicht', 'ist', 'sind', 'wir', 'sie', 'ihr',
   'ihre', 'ihren', 'ihnen', 'unser', 'unsere', 'oder', 'auch', 'bei', 'nach', 'zum', 'zur', 'ein', 'eine', 'einen', 'wird',
   'werden', 'über', 'ohne', 'noch', 'jede', 'jeder', 'alle', 'wie', 'wenn', 'hier', 'uns', 'von', 'zu', 'auf', 'aus', 'im']);
+/** Wörter, die auch in der Sprache selbst Wörter sind (it «alle» = «an den», en «die»). */
+const OWN = { it: new Set(['alle']), en: new Set(['die']) };
 const NAMES = [...site.brand.alternateNames, site.brand.formerLegalName, site.people.founder.name, site.people.owner.name,
   site.address.street, site.address.city, site.address.municipality, ...site.marks.mixers].sort((a, b) => b.length - a.length);
 function checkLanguage(p) {
@@ -146,6 +148,7 @@ function checkLanguage(p) {
   const found = new Map();
   for (const m of text.matchAll(/[\p{L}]+/gu)) {
     const w = m[0];
+    if (OWN[lang.code]?.has(w.toLowerCase())) continue;
     if (!GERMAN.has(w.toLowerCase()) && !/[äöüß]/i.test(w)) continue;
     if (!found.has(w)) found.set(w, text.slice(Math.max(0, m.index - 40), m.index + w.length + 40).trim());
   }

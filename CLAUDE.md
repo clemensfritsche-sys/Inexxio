@@ -828,7 +828,7 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   Seite** (`?lang=` an Formular und Newsletter, Wörter je Sprache in `website_contact.json` →
   `services/inquiry.words`): Meldungen, Bestätigungen, Danke-Seiten und der Wortlaut der Einwilligung
   in der Sprache, in der zugestimmt wurde; die eine 404-Seite wechselt unter `/<sprache>/…`.
-  Französisch: `preview` (noindex, bis gegengelesen); Englisch, Italienisch: geplant.
+  Französisch, Englisch, Italienisch: `preview` (noindex, bis gegengelesen).
 - **Jede Seite steht in `website/src/lib/pages.ts`** oder trägt `noindex`; `check-site.mjs`
   prüft Links, JSON-LD, Sitemap, Weiterleitungen alter hs-steiner.ch-Pfade, Budget.
 
