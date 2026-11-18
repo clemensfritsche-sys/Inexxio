@@ -57,6 +57,31 @@ PHOTOS: dict = VOCAB["photos"]
 #: E-Mail-Regel ist ``people.is_email``.
 PHONE_RE = re.compile(VOCAB["patterns"]["phone"])
 SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
+
+#: Die Sprachen der Website (``website/src/config/languages.mjs``): Deutsch und je eine Übersetzung
+#: der Wörter des Servers in ``VOCAB["languages"]`` (WEBSITE_PLAN Entscheid 136).
+LANGS: tuple[str, ...] = ("de", *VOCAB.get("languages", {}))
+#: Was der Server in einer Sprache sagt – je Bereich das Deutsche, darüber die Übersetzung.
+WORD_PARTS = ("pages", "messages", "server", "mail", "newsletter")
+
+
+def hello(name: str, lang: str = "de") -> str:
+    """Die Anrede einer Mail in der Sprache – auf Deutsch die eine des ERP (``communication.greeting``)."""
+    if lang_of(lang) == "de":
+        return dc.greeting(name)
+    return f"{words(lang)['server']['hello']} {name}".strip()
+
+
+def lang_of(raw: object) -> str:
+    """Die Sprache der Seite, von der etwas kam (``?lang=``) – Unbekanntes ist Deutsch."""
+    return raw if isinstance(raw, str) and raw in LANGS else "de"
+
+
+def words(lang: str) -> dict:
+    """Die Wörter des Servers in einer Sprache: Meldungen, Antwortseiten, Bestätigung, Newsletter
+    (mit dem Wortlaut der Einwilligung) und die Seiten der Website, auf die er führt."""
+    over = VOCAB.get("languages", {}).get(lang_of(lang), {})
+    return {part: {**VOCAB[part], **over.get(part, {})} for part in WORD_PARTS}
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 FIELDS = ("message", "name", "company", "phone", "email")
 
@@ -80,6 +105,8 @@ class Inquiry:
     #: Das Häkchen «Post von INEXXIO» – eine Bitte, noch keine Anmeldung: angemeldet
     #: ist erst, wer in der Eingangsbestätigung klickt (Double Opt-in).
     newsletter: bool = False
+    #: Die Sprache der Seite – in ihr antworten Meldungen und Bestätigung (``words``).
+    lang: str = "de"
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     received_at: datetime = field(default_factory=lambda: clock.utcnow())
 
@@ -101,61 +128,65 @@ def clean(raw: object, multiline: bool = False) -> str:
     return text.strip()
 
 
-def _check_fields(values: dict[str, str], errors: dict[str, str]) -> None:
+def _check_fields(values: dict[str, str], errors: dict[str, str], msg: dict[str, str] = MSG) -> None:
     for name, limit in LIMITS.items():
         if name in values and len(values[name]) > limit:
-            errors.setdefault(name, MSG["tooLong"].replace("{max}", str(limit)))
+            errors.setdefault(name, msg["tooLong"].replace("{max}", str(limit)))
     if not values["message"]:
-        errors.setdefault("message", MSG["message"])
+        errors.setdefault("message", msg["message"])
     if not values["name"]:
-        errors.setdefault("name", MSG["name"])
+        errors.setdefault("name", msg["name"])
     phone, email = values["phone"], values["email"]
     # Die E-Mail ist Pflicht: über sie wird die Person gefunden (oder angelegt), und
     # dorthin gehen Bestätigung und Antwort. Das Telefon ist freiwillig.
     if not email:
-        errors.setdefault("email", MSG["emailMissing"])
+        errors.setdefault("email", msg["emailMissing"])
     if phone and not PHONE_RE.match(phone):
-        errors.setdefault("phone", MSG["phone"])
+        errors.setdefault("phone", msg["phone"])
     if email and not people.is_email(email):
-        errors.setdefault("email", MSG["email"])
+        errors.setdefault("email", msg["email"])
 
 
 def mb(n: int) -> str:
     return f"{n / 1024 / 1024:.1f} MB".replace(".", ",")
 
 
-def _photos(files: list[tuple[str, bytes]], errors: dict[str, str]) -> list[Photo]:
+def _photos(files: list[tuple[str, bytes]], errors: dict[str, str], msg: dict[str, str] = MSG) -> list[Photo]:
     """Die Fotos (Name, Bytes) – Anzahl, Endung und Gesamtgrösse wie im Browser."""
     if len(files) > int(PHOTOS["max"]):
-        errors["photos"] = MSG["photosCount"].replace("{max}", str(PHOTOS["max"])).replace("{count}", str(len(files)))
+        errors["photos"] = msg["photosCount"].replace("{max}", str(PHOTOS["max"])).replace("{count}", str(len(files)))
         return []
     photos: list[Photo] = []
     for given, data in files:
         name = Path(given or "foto").name
         ext = Path(name).suffix.lower()
         if ext not in PHOTOS["extensions"]:
-            errors["photos"] = MSG["photosType"].replace("{name}", name[:80])
+            errors["photos"] = msg["photosType"].replace("{name}", name[:80])
             return []
         safe = re.sub(r"[^\w.\-]+", "_", name)[-80:] or f"foto{ext}"
         photos.append(Photo(filename=safe, data=data))
     total = sum(len(p.data) for p in photos)
     if total > int(PHOTOS["maxTotalBytes"]):
-        errors["photos"] = MSG["photosSize"].replace("{size}", mb(total)).replace("{max}", mb(int(PHOTOS["maxTotalBytes"])))
+        errors["photos"] = msg["photosSize"].replace("{size}", mb(total)).replace("{max}", mb(int(PHOTOS["maxTotalBytes"])))
         return []
     return photos
 
 
-def read(form: dict[str, object], files: list[tuple[str, bytes]]) -> tuple[Inquiry, dict[str, str]]:
-    """►► Das Formular als Anfrage – und was daran fehlt (Feld → Satz; leer = gut). ◄◄"""
+def read(form: dict[str, object], files: list[tuple[str, bytes]],
+         lang: str = "de") -> tuple[Inquiry, dict[str, str]]:
+    """►► Das Formular als Anfrage – und was daran fehlt (Feld → Satz in der Sprache der Seite;
+    leer = gut). ◄◄"""
+    lang = lang_of(lang)
+    msg = words(lang)["messages"]
     errors: dict[str, str] = {}
     values = {name: clean(form.get(name), multiline=(name == "message")) for name in FIELDS}
-    _check_fields(values, errors)
-    photos = _photos(files, errors)
+    _check_fields(values, errors, msg)
+    photos = _photos(files, errors, msg)
     source = clean(form.get("source")).lower()
     inq = Inquiry(name=values["name"], email=values["email"].lower(), message=values["message"],
                   phone=values["phone"], company=values["company"],
                   source=source if SOURCE_RE.match(source) else "/kontakt",
-                  photos=photos, newsletter=bool(clean(form.get("newsletter"))))
+                  photos=photos, newsletter=bool(clean(form.get("newsletter"))), lang=lang)
     return inq, errors
 
 
@@ -224,17 +255,17 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     if box is None or box.problem:
         return False
     more = extra(inq, inquiry.at, words)
-    more.action = offer(db, inquiry.sender_object_id, inq.newsletter)
+    more.action = offer(db, inquiry.sender_object_id, inq.newsletter, inq.lang)
     outbox.deliver(db, channel=inquiry.channel, to=[inquiry.sender_object_id],
-                   subject=words["confirmSubject"], lead=lead(words),
+                   subject=words["confirmSubject"], lead=lead(words, inq.lang),
                    kicker=words["kicker"], extra=more)
     return True
 
 
-def lead(words: dict[str, str]) -> str:
+def lead(words: dict[str, str], lang: str = "de") -> str:
     """Der Anfang der Bestätigung – **ohne den Namen aus dem Formular**: wer eine fremde
     Adresse eintippt, soll durch uns keinen Text an sie schicken können."""
-    return f"{dc.greeting('').strip()}\n\n{words['confirmIntro']}\n\n{words['confirmMore']}"
+    return f"{hello('', lang).strip()}\n\n{words['confirmIntro']}\n\n{words['confirmMore']}"
 
 
 def extra(inq: Inquiry, at: datetime, words: dict[str, str]) -> mail_layout.Extra:

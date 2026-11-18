@@ -103,11 +103,25 @@ export function t(file, value, opts = {}) {
     mkdirSync(resolve(process.cwd(), '.build'), { recursive: true });
     appendFileSync(TEXTS_FILE, `${JSON.stringify({ file, texts })}\n`);
   }
+  return tFor(lang, value, opts);
+}
+
+/**
+ * Den deutschen Wert in einer bestimmten Sprache – unabhängig vom Build. Für das, was eine Seite
+ * oder ein Abdruck in mehreren Sprachen zugleich braucht (die eine 404-Seite, die Wörter des ERP,
+ * `scripts/export-erp.mjs`). Der Wert muss schon durch `t()` gegangen sein – nur dort wird er gezählt.
+ * @template T
+ * @param {string} lang
+ * @param {T} value
+ * @param {{ keep?: string[] }} [opts]
+ * @returns {T}
+ */
+export function tFor(lang, value, opts = {}) {
   if (lang === SOURCE) return value;
   const dict = dictionary(lang);
   // Fehlt eine Übersetzung, bleibt das Deutsch stehen – der Build hat vorher schon abgebrochen
   // (scripts/languages.mjs), ausser beim Ausprobieren mit «SITE_LANG=… astro dev».
-  return mapTexts(value, keep, (de) => dict.get(de) ?? de);
+  return mapTexts(value, opts.keep ?? [], (de) => dict.get(de) ?? de);
 }
 
 /**

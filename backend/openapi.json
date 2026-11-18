@@ -5641,6 +5641,18 @@
         "summary": "Anmeldung von der Website (E-Mail → Bitte um Bestätigung)",
         "description": "Wie das Anfrage-Formular: Honigtopf und Begrenzung je Absender vor der Datenbank. Dann\ndie Bitte um Bestätigung – **angelegt wird nichts**: gibt es zur Adresse keine Person,\nsteht die Adresse im signierten Link, und die Person entsteht erst mit dem Klick.",
         "operationId": "subscribe_api_v1_newsletter_post",
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Lang"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/x-www-form-urlencoded": {

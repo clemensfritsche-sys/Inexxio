@@ -31,14 +31,20 @@ from ..domain import communication as dc
 from ..domain import newsletter as dn
 from ..models import Message, NewsletterConsent, UserProfile
 from . import mail_layout
-from .inquiry import VOCAB as _SITE
+from .inquiry import VOCAB as _SITE, hello, lang_of, words
 from .people import is_email, normalize_email
 from ..domain.errors import Conflict, NotFound, Unavailable
 from ..core import clock
 
 WORDS: dict[str, str] = _SITE["newsletter"]
-#: Der Satz, dem zugestimmt wird – gespeichert mit jeder Anmeldung.
+#: Der Satz, dem zugestimmt wird – gespeichert mit jeder Anmeldung. Kam die Anmeldung von einer
+#: Seite in einer anderen Sprache, ist es der Satz dieser Seite (``said(lang)["consent"]``).
 WORDING: str = WORDS["consent"]
+
+
+def said(lang: str = "de") -> dict[str, str]:
+    """Die Wörter des Newsletters in einer Sprache (WEBSITE_PLAN Entscheid 136)."""
+    return words(lang)["newsletter"]
 API = "/api/v1/newsletter"
 
 
@@ -72,16 +78,17 @@ def history(db: Session, oid: int) -> list[NewsletterConsent]:
 
 
 def set_state(db: Session, oid: int, on: bool, source: str,
-              actor_id: Optional[int] = None) -> bool:
+              actor_id: Optional[int] = None, lang: str = "de") -> bool:
     """**Die eine Schreibstelle.** Eine neue Zeile, wenn sich der Zustand ändert – sonst
-    nichts (zweimal anmelden ist einmal angemeldet). Committet nicht."""
+    nichts (zweimal anmelden ist einmal angemeldet). Der Nachweis trägt den Satz in der
+    Sprache, in der zugestimmt wurde. Committet nicht."""
     if source not in dn.SOURCES:
         raise ValueError(f"Quelle «{source}» gibt es nicht.")
     now = latest(db, [oid]).get(oid)
     if (now.subscribed if now else False) == on:
         return False
     db.add(NewsletterConsent(person_object_id=oid, subscribed=on, source=source,
-                             wording=WORDING if on else None, at=clock.utcnow(),
+                             wording=said(lang)["consent"] if on else None, at=clock.utcnow(),
                              created_by=actor_id))
     db.flush()
     return True
@@ -98,12 +105,16 @@ class Link:
     person: Optional[int]
     email: str
     source: str
+    #: Die Sprache, in der gefragt wurde – in ihr antworten Seite und Nachweis.
+    lang: str = "de"
 
 
 def sign(purpose: str, *, person: Optional[int] = None, email: str = "", source: str = "",
-         days: Optional[int] = None) -> str:
+         days: Optional[int] = None, lang: str = "de") -> str:
     payload: dict = {"p": person} if person else {"m": email}
     payload["s"] = source
+    if lang_of(lang) != "de":
+        payload["l"] = lang_of(lang)
     return signed.sign(payload, purpose, days * 86400 if days else None)
 
 
@@ -117,16 +128,18 @@ def read(token: str, purpose: str) -> Link:
         raise ValueError(WORDS["invalid"])
     if person is None and not is_email(email):
         raise ValueError(WORDS["invalid"])
-    return Link(person=person, email=email, source=str(data.get("s") or ""))
+    return Link(person=person, email=email, source=str(data.get("s") or ""),
+                lang=lang_of(data.get("l")))
 
 
 def _url(path: str, token: str) -> str:
     return f"{get_settings().frontend_base_url.rstrip('/')}{API}/{path}?t={quote(token)}"
 
 
-def confirm_url(source: str, *, person: Optional[int] = None, email: str = "") -> str:
+def confirm_url(source: str, *, person: Optional[int] = None, email: str = "",
+                lang: str = "de") -> str:
     return _url("confirm", sign("confirm", person=person, email=email, source=source,
-                                days=dn.CONFIRM_DAYS))
+                                days=dn.CONFIRM_DAYS, lang=lang))
 
 
 def unsubscribe_url(oid: int) -> str:
@@ -139,7 +152,7 @@ def confirm(db: Session, link: Link) -> int:
     Objektnummer zurück; committet nicht."""
     from . import people
     oid = link.person or people.ensure(db, link.email).object_id
-    set_state(db, oid, True, link.source if link.source in dn.SOURCES else "website")
+    set_state(db, oid, True, link.source if link.source in dn.SOURCES else "website", lang=link.lang)
     return oid
 
 
@@ -153,17 +166,18 @@ def footer(oid: int) -> mail_layout.Unsubscribe:
 # Einladen
 # ---------------------------------------------------------------------------
 
-def offer(db: Session, oid: int, asked: bool) -> Optional[mail_layout.Action]:
+def offer(db: Session, oid: int, asked: bool, lang: str = "de") -> Optional[mail_layout.Action]:
     """►►► **Der Knopf in der Eingangsbestätigung einer Anfrage.** ◄◄◄ Hat die Person das
     Häkchen gesetzt, ist er die Bestätigung; sonst eine leise Einladung – aber nie an
     jemanden, der schon angemeldet ist oder sich abgemeldet hat."""
     now = latest(db, [oid]).get(oid)
     if now is not None and (now.subscribed or not asked):
         return None
+    w = said(lang)
     return mail_layout.Action(
-        title=WORDS["inviteTitle"], text=WORDS["inviteAsked" if asked else "inviteOffer"],
-        label=WORDS["confirmButton" if asked else "inviteButton"],
-        url=confirm_url("inquiry", person=oid))
+        title=w["inviteTitle"], text=w["inviteAsked" if asked else "inviteOffer"],
+        label=w["confirmButton" if asked else "inviteButton"],
+        url=confirm_url("inquiry", person=oid, lang=lang))
 
 
 def sending_channel(db: Session, country: Optional[str] = None) -> Optional[str]:
@@ -190,18 +204,19 @@ def _box(db: Session, channel: Optional[str]):
     return channel, box
 
 
-def _lead(name: str) -> str:
-    return f"{dc.greeting(name).strip()}\n\n{WORDS['confirmLead']}"
+def _lead(name: str, lang: str = "de") -> str:
+    return f"{hello(name, lang).strip()}\n\n{said(lang)['confirmLead']}"
 
 
-def _ask(url: str) -> mail_layout.Extra:
+def _ask(url: str, lang: str = "de") -> mail_layout.Extra:
     """Der eine Knopf der Bitte um Bestätigung."""
+    w = said(lang)
     return mail_layout.Extra(action=mail_layout.Action(
-        title="", text="", label=WORDS["confirmButton"], url=url, note=WORDS["confirmIgnore"]))
+        title="", text="", label=w["confirmButton"], url=url, note=w["confirmIgnore"]))
 
 
 def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
-           by_name: bool = True) -> Message:
+           by_name: bool = True, lang: str = "de") -> Message:
     """**Die Bitte um Bestätigung** – eine Mail an die Person, als Nachricht in ihrem
     Verlauf, unterschrieben vom Unternehmen. Committet und sendet. 409, wenn sie schon
     angemeldet ist; 503 ohne verbundenes Postfach. Von der Website (``by_name=False``) ohne
@@ -213,20 +228,23 @@ def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
     person = db.query(UserProfile).filter(UserProfile.object_id == oid).first()
     if person is None:
         raise NotFound(f"Person «{oid}» gibt es nicht.")
-    return outbox.deliver(db, channel=channel, to=[oid], subject=WORDS["confirmSubject"],
-                          lead=_lead(person.display_name if by_name else ""),
-                          kicker=WORDS["kicker"], extra=_ask(confirm_url(source, person=oid)))
+    w = said(lang)
+    return outbox.deliver(db, channel=channel, to=[oid], subject=w["confirmSubject"],
+                          lead=_lead(person.display_name if by_name else "", lang),
+                          kicker=w["kicker"], extra=_ask(confirm_url(source, person=oid, lang=lang), lang))
 
 
-def invite_address(db: Session, email: str, source: str, channel: Optional[str] = None) -> None:
+def invite_address(db: Session, email: str, source: str, channel: Optional[str] = None,
+                   lang: str = "de") -> None:
     """**Die Bitte an eine Adresse, zu der es noch keine Person gibt** (Anmeldung von der
     Website). Angelegt wird nichts: die Adresse steht im signierten Link, die Person entsteht
     erst mit dem Klick (``confirm``). Ohne Person gibt es keinen Verlauf – die Mail geht
     direkt hinaus; 503, wenn das nicht geht."""
     from . import mailbox, outbox
     channel, _ = _box(db, channel)
-    mail = mail_layout.compose(WORDS["confirmSubject"], _lead(""), outbox.firm(db, channel),
-                               None, kicker=WORDS["kicker"],
-                               extra=_ask(confirm_url(source, email=email)))
-    if not mailbox.send_direct(db, channel, email, WORDS["confirmSubject"], mail):
+    w = said(lang)
+    mail = mail_layout.compose(w["confirmSubject"], _lead("", lang), outbox.firm(db, channel),
+                               None, kicker=w["kicker"],
+                               extra=_ask(confirm_url(source, email=email, lang=lang), lang))
+    if not mailbox.send_direct(db, channel, email, w["confirmSubject"], mail):
         raise Unavailable("Die Bitte um Bestätigung ging nicht hinaus.")

@@ -12124,7 +12124,9 @@ export interface operations {
     };
     subscribe_api_v1_newsletter_post: {
         parameters: {
-            query?: never;
+            query?: {
+                lang?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

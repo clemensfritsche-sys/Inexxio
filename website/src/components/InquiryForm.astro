@@ -22,6 +22,11 @@ import Icon from './Icon.astro';
 import FormResult from './FormResult.astro';
 import '../styles/form.css';
 import { t } from '../i18n/t.mjs';
+import { currentLang, SOURCE } from '../config/languages.mjs';
+import { localPath } from '../i18n/paths.mjs';
+
+/** Die Sprache der Seite – der Server antwortet in ihr (Fehler, Bestätigung, Danke-Seite). */
+const here = currentLang();
 
 const T = t('ui', {
   honeypot: 'Bitte leer lassen',
@@ -61,7 +66,7 @@ const f = (name: string) => `${id}-${name}`;
     id={id}
     class="iform"
     method="post"
-    action="/api/v1/contact"
+    action={`/api/v1/contact${here.code === SOURCE ? '' : `?lang=${here.code}`}`}
     enctype="multipart/form-data"
     data-inquiry
     data-step="1"
@@ -73,7 +78,8 @@ const f = (name: string) => `${id}-${name}`;
     data-vocab={vocab}
     data-part={T.part}
   >
-    <input type="hidden" name="source" value={Astro.url.pathname.replace(/\.html$/, '')} />
+    {/* Die Seite, von der die Anfrage kam – mit ihrer Adresse in der Sprache (im ERP sieht man so auch die Sprache). */}
+    <input type="hidden" name="source" value={localPath(Astro.url.pathname.replace(/\.html$/, '').replace(/\/index$/, '') || '/', here.code) ?? Astro.url.pathname.replace(/\.html$/, '')} />
     <input type="hidden" name="t" value="" />
     <div class="iform__hp" aria-hidden="true">
       <label>{T.honeypot} <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>

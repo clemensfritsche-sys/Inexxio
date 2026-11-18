@@ -113,52 +113,54 @@ _PAGE_CSS = (
 )
 
 
-def page(title: str, body: str, status: int) -> HTMLResponse:
+def page(title: str, body: str, status: int, lang: str = "de") -> HTMLResponse:
+    """Die Antwortseite ohne JavaScript – in der Sprache der Seite, von der es kam."""
     phone = VOCAB["phone"]
+    said = svc.words(lang)["server"]
     html = (
-        '<!doctype html><html lang="de-CH"><head><meta charset="utf-8">'
+        f'<!doctype html><html lang="{escape(svc.lang_of(lang))}"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<meta name="robots" content="noindex, nofollow">'
         f"<title>{escape(title)} | {escape(VOCAB['brand']['full'])}</title><style>{_PAGE_CSS}</style></head>"
         f'<body><main><p class="brand">{escape(VOCAB["brand"]["name"])}<span>{escape(VOCAB["brand"]["formerly"])}</span></p>'
         f"<h1>{escape(title)}</h1>{body}"
-        f'<p>Telefon <a href="tel:{phone["e164"]}"><strong>{escape(phone["display"])}</strong></a></p>'
+        f'<p>{escape(said["phone"])} <a href="tel:{phone["e164"]}"><strong>{escape(phone["display"])}</strong></a></p>'
         "</main></body></html>"
     )
     return HTMLResponse(html, status_code=status)
 
 
-def _invalid(errors: dict[str, str], inq: Inquiry | None, wants_json: bool) -> Response:
-    message = "Bitte prüfen Sie die markierten Angaben."
+def _invalid(errors: dict[str, str], inq: Inquiry | None, wants_json: bool, lang: str) -> Response:
+    said = svc.words(lang)["server"]
     if wants_json:
-        return JSONResponse({"ok": False, "message": message, "fields": errors}, status_code=422)
+        return JSONResponse({"ok": False, "message": said["check"], "fields": errors}, status_code=422)
     items = "".join(f"<li>{escape(text)}</li>" for text in dict.fromkeys(errors.values()))
-    back = escape(inq.source if inq else "/kontakt")
+    back = escape(inq.source if inq else svc.words(lang)["pages"]["thanks"].rsplit("/", 1)[0])
     body = (
-        f'<div class="box"><p>Es fehlen noch Angaben:</p><ul>{items}</ul></div>'
-        "<p>Mit der Zurück-Taste Ihres Browsers kommen Sie zum Formular – Ihre Eingaben sind noch da.</p>"
-        f'<p><a class="btn" href="{back}">Zurück zum Formular</a></p>'
+        f'<div class="box"><p>{escape(said["missingLead"])}</p><ul>{items}</ul></div>'
+        f'<p>{escape(said["back"])}</p>'
+        f'<p><a class="btn" href="{back}">{escape(said["backButton"])}</a></p>'
     )
-    return page("Es fehlen noch Angaben", body, 422)
+    return page(said["missingTitle"], body, 422, lang)
 
 
-def _failed(inq: Inquiry | None, status: int, message: str, wants_json: bool) -> Response:
+def _failed(inq: Inquiry | None, status: int, message: str, wants_json: bool, lang: str) -> Response:
     if wants_json:
         return JSONResponse({"ok": False, "message": message}, status_code=status)
+    said = svc.words(lang)["server"]
     mailto = _mailto(inq) if inq else f"mailto:{VOCAB['email']}"
     body = (
-        f'<div class="box"><p>{escape(message)}</p><p>Ihre Angaben sind nicht verloren: Rufen Sie uns an '
-        "oder schicken Sie sie per E-Mail – der Text ist bereits vorbereitet.</p></div>"
-        f'<p><a class="btn btn--red" href="tel:{VOCAB["phone"]["e164"]}">Anrufen</a>'
-        f'<a class="btn" href="{escape(mailto)}">Per E-Mail senden</a></p>'
+        f'<div class="box"><p>{escape(message)}</p><p>{escape(said["failedText"])}</p></div>'
+        f'<p><a class="btn btn--red" href="tel:{VOCAB["phone"]["e164"]}">{escape(said["call"])}</a>'
+        f'<a class="btn" href="{escape(mailto)}">{escape(said["mail"])}</a></p>'
     )
-    return page("Das Senden hat nicht geklappt", body, status)
+    return page(said["failedTitle"], body, status, lang)
 
 
 def _done(inq: Inquiry, wants_json: bool) -> Response:
     if wants_json:
         return JSONResponse({"ok": True, "id": inq.id})
-    return RedirectResponse(VOCAB["pages"]["thanks"], status_code=303)
+    return RedirectResponse(svc.words(inq.lang)["pages"]["thanks"], status_code=303)
 
 
 # ------------------------------------------------------------------ Endpunkt
@@ -167,33 +169,35 @@ def _done(inq: Inquiry, wants_json: bool) -> Response:
 async def submit_inquiry(request: Request, db: Session = DB) -> Response:
     """Eine Anfrage von der Website – sie wird eine offene Nachricht im Postfach der Gesellschaft zum Land des Besuchers."""
     wants_json = "application/json" in request.headers.get("accept", "")
+    # Die Sprache der Seite steht in der Adresse (`?lang=`) – so ist sie bekannt, bevor der Rumpf gelesen ist.
+    lang = svc.lang_of(request.query_params.get("lang"))
+    said = svc.words(lang)["server"]
     length = request.headers.get("content-length", "")
     if length.isdigit() and int(length) > MAX_BODY:
         limit = svc.mb(int(PHOTOS["maxTotalBytes"]))
-        return _failed(None, 413, f"Die Anfrage ist zu gross – Dateien zusammen höchstens {limit}.", wants_json)
+        return _failed(None, 413, said["tooBig"].replace("{max}", limit), wants_json, lang)
     try:
         form_data = await request.form(max_files=int(PHOTOS["max"]) + 5, max_fields=60)
     except Exception as exc:  # zu viele Teile, kaputtes multipart
         report.warn(f"INQUIRY unreadable form: {type(exc).__name__}: {exc}")
-        return _failed(None, 400, "Die Anfrage konnte nicht gelesen werden.", wants_json)
+        return _failed(None, 400, said["unreadable"], wants_json, lang)
 
     # Spam erzeugt nichts: alles hier steht VOR dem ersten Zugriff auf die Datenbank.
     ip = visitor.sender_key(request)
     if svc.clean(form_data.get("hp")):  # Honigtopf: Menschen sehen das Feld nicht
         report.info(f"INQUIRY spam (honeypot) ip={ip}")
-        return JSONResponse({"ok": True}) if wants_json else RedirectResponse(VOCAB["pages"]["thanks"], 303)
+        return JSONResponse({"ok": True}) if wants_json else RedirectResponse(svc.words(lang)["pages"]["thanks"], 303)
     elapsed = svc.clean(form_data.get("t"))
     if elapsed.isdigit() and int(elapsed) < int(VOCAB["minSeconds"]) * 1000:
         report.info(f"INQUIRY too fast ({elapsed} ms) ip={ip}")
-        return _failed(None, 400, MSG["tooFast"], wants_json)
+        return _failed(None, 400, svc.words(lang)["messages"]["tooFast"], wants_json, lang)
 
-    inq, errors = svc.read(form_data, await _files(form_data.getlist("photos")))
+    inq, errors = svc.read(form_data, await _files(form_data.getlist("photos")), lang)
     if errors:
-        return _invalid(errors, inq, wants_json)
+        return _invalid(errors, inq, wants_json, lang)
     if not visitor.allow_send("contact", request, RATE_LIMIT):
         report.info(f"INQUIRY rate limited ip={ip}")
-        msg = f"Zu viele Anfragen in kurzer Zeit. Bitte rufen Sie uns an: {VOCAB['phone']['display']}."
-        return _failed(inq, 429, msg, wants_json)
+        return _failed(inq, 429, said["tooMany"].replace("{phone}", VOCAB["phone"]["display"]), wants_json, lang)
     return await run_in_threadpool(_store, db, inq, visitor.country(request), wants_json)
 
 
@@ -206,7 +210,7 @@ def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> 
     except Rejected as exc:  # ein Bild, das sich nicht lesen lässt
         db.rollback()
         name = inq.photos[0].filename if len(inq.photos) == 1 else "Eine der Dateien"
-        return _invalid({"photos": MSG["photosType"].replace("{name}", name)}, inq, wants_json) \
+        return _invalid({"photos": svc.words(inq.lang)["messages"]["photosType"].replace("{name}", name)}, inq, wants_json, inq.lang) \
             if exc.status in (400, 413) else _unsent(db, inq, exc, wants_json)
     except Exception as exc:
         return _unsent(db, inq, exc, wants_json)
@@ -219,7 +223,7 @@ def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> 
 def _confirm(db: Session, msg, inq: Inquiry) -> bool:
     """Die Bestätigung ist Kür: gespeichert ist die Anfrage schon. Was hier scheitert,
     steht im Log – und eine angelegte Bestätigung holt der nächste Abgleich nach."""
-    m = VOCAB["mail"]
+    m = svc.words(inq.lang)["mail"]
     try:
         with db.begin_nested():     # scheitert sie, bleibt die Anfrage stehen
             return svc.confirm(db, msg, inq, m)
@@ -234,4 +238,4 @@ def _unsent(db: Session, inq: Inquiry, exc: Exception, wants_json: bool) -> Resp
     # Die eine bewusste Ausnahme von «keine Personendaten in Meldungen»: die Anfrage steht sonst
     # nirgends – so lässt sie sich aus dem Log nachtragen.
     report.error("INQUIRY_UNSENT", inquiry=as_record(inq))
-    return _failed(inq, 503, "Das Senden ist gerade nicht möglich.", wants_json)
+    return _failed(inq, 503, svc.words(inq.lang)["server"]["unavailable"], wants_json, inq.lang)

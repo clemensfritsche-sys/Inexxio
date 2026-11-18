@@ -824,8 +824,11 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   Gebaut wird je Sprache ein Durchlauf (`scripts/languages.mjs`), zusammengeführt in `dist/`.
   **Wer einen Text der Website ändert oder hinzufügt, übersetzt ihn im selben Zug in jede gebaute
   Sprache** – sonst bricht der Build ab (fehlt · verwaist · Werte · Pfad · Ratgeber, `npm run sprachen`),
-  und `check-site` findet Deutsch, das an `t()` vorbeigeht. Französisch: `preview` (noindex, bis
-  gegengelesen); Englisch, Italienisch: geplant.
+  und `check-site` findet Deutsch, das an `t()` vorbeigeht. **Der Server spricht die Sprache der
+  Seite** (`?lang=` an Formular und Newsletter, Wörter je Sprache in `website_contact.json` →
+  `services/inquiry.words`): Meldungen, Bestätigungen, Danke-Seiten und der Wortlaut der Einwilligung
+  in der Sprache, in der zugestimmt wurde; die eine 404-Seite wechselt unter `/<sprache>/…`.
+  Französisch: `preview` (noindex, bis gegengelesen); Englisch, Italienisch: geplant.
 - **Jede Seite steht in `website/src/lib/pages.ts`** oder trägt `noindex`; `check-site.mjs`
   prüft Links, JSON-LD, Sitemap, Weiterleitungen alter hs-steiner.ch-Pfade, Budget.
 

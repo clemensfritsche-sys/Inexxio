@@ -13,7 +13,8 @@
  * `rich()` liefert HTML (für `set:html`), `plain()` liefert Text (für Meta-Tags,
  * Alt-Texte, JSON-LD, llms.txt). Beide lesen dieselben Werte.
  */
-import { site, contactEmail } from '../config/site.mjs';
+import { site as siteHere, contactEmail } from '../config/site.mjs';
+import { tFor } from '../i18n/t.mjs';
 
 const TOKEN_RE = /\{\{\s*([\w.]+)\s*\}\}/g;
 
@@ -57,12 +58,14 @@ function flatten(obj, prefix = '', out = {}) {
   return out;
 }
 
-const a = site.address;
 /**
  * Alle einsetzbaren Werte. Abgeleitete stehen ausdrücklich hier, nicht in den Texten.
- * @type {Record<string, string>}
+ * @param {typeof siteHere} site
+ * @returns {Record<string, string>}
  */
-const TOKENS = {
+const tokensOf = (site) => {
+  const a = site.address;
+  return {
   ...flatten(site),
   email: contactEmail(),
   'address.line': `${a.street}, ${a.zip} ${a.city}`,
@@ -72,11 +75,14 @@ const TOKENS = {
   'address.home': `${a.city}-${a.municipality} ${a.canton}`,
   'marks.mixerList': site.marks.mixers.join(', '),
   year: String(new Date().getFullYear()),
+  };
 };
+const TOKENS = tokensOf(siteHere);
+const a = siteHere.address;
 
 /** Tokens, die im HTML zu einem Link werden (im Text: nur die Anzeige). */
 const LINK_TOKENS = {
-  'phone.link': () => ({ href: `tel:${site.phone.e164}`, label: site.phone.display }),
+  'phone.link': () => ({ href: `tel:${siteHere.phone.e164}`, label: siteHere.phone.display }),
   'email.link': () => ({ href: `mailto:${contactEmail()}`, label: contactEmail() }),
   /**
    * Der Ort aus dem ERP (#1146/#1153): im HTML die Vorgabe dieses Builds in einem
@@ -92,7 +98,7 @@ const LINK_TOKENS = {
  * @param {string} text
  * @param {{ links?: 'keep' | 'label' }} [opts]
  */
-export function resolve(text, opts = {}) {
+export function resolve(text, opts = {}, tokens = TOKENS) {
   let out = String(text);
   for (let depth = 0; depth < 4; depth++) {
     let changed = false;
@@ -102,11 +108,11 @@ export function resolve(text, opts = {}) {
         changed = true;
         return LINK_TOKENS[/** @type {keyof typeof LINK_TOKENS} */ (key)]().label;
       }
-      if (!(key in TOKENS)) {
+      if (!(key in tokens)) {
         throw new Error(`Unbekannter Wert «{{${key}}}» – er steht nicht in src/config/site.mjs.`);
       }
       changed = true;
-      return TOKENS[key];
+      return tokens[key];
     });
     if (!changed) return out;
   }
@@ -144,8 +150,26 @@ export function rich(text) {
  * @param {string | undefined | null} text
  */
 export function plain(text) {
+  return plainWith(text, TOKENS);
+}
+
+/** @type {Map<string, Record<string, string>>} */
+const byLang = new Map();
+/**
+ * Wie `plain`, aber mit den Werten einer bestimmten Sprache («kurzer Zeit» → «peu de temps») –
+ * für Abdrucke in mehreren Sprachen (scripts/export-erp.mjs).
+ * @param {string} lang
+ * @param {string | undefined | null} text
+ */
+export function plainIn(lang, text) {
+  if (!byLang.has(lang)) byLang.set(lang, tokensOf(tFor(lang, siteHere)));
+  return plainWith(text, /** @type {Record<string, string>} */ (byLang.get(lang)));
+}
+
+/** @param {string | undefined | null} text @param {Record<string, string>} tokens */
+function plainWith(text, tokens) {
   if (text == null) return '';
-  return resolve(text)
+  return resolve(text, {}, tokens)
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/==(.+?)==/g, '$1')
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1')

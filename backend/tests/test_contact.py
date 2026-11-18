@@ -409,3 +409,38 @@ def test_the_form_never_writes_into_an_existing_person(world):
     (inq,) = inquiries(world.db, fresh["email"])
     new = world.db.query(UserProfile).filter(UserProfile.object_id == inq.sender_object_id).one()
     assert new.phone == "052 111 22 33"
+
+
+# ------------------------------------------------------------------ In der Sprache der Seite
+
+def test_a_french_page_gets_french_answers_and_its_own_thanks_page(world):
+    """►►► **Der Server antwortet in der Sprache der Seite** (`?lang=`, WEBSITE_PLAN Entscheid 136). ◄◄◄
+    Meldungen am Feld, die Seite ohne JavaScript und die Danke-Seite kommen aus den Wörtern dieser
+    Sprache. Bug-Form: eine französische Seite bekam deutsche Fehler und landete auf /kontakt/danke."""
+    fr = svc.words("fr")
+    assert fr["messages"]["name"] != MSG["name"], "ohne Übersetzung prüft dieser Test nichts"
+    res = world.client.post("/api/v1/contact?lang=fr", data=form(name=""), headers=JSON)
+    assert res.status_code == 422 and res.json()["fields"] == {"name": fr["messages"]["name"]}
+    assert res.json()["message"] == fr["server"]["check"]
+    res = world.client.post("/api/v1/contact?lang=fr", data=form(name=""))
+    assert '<html lang="fr">' in res.text and fr["server"]["back"] in res.text and "Zurück-Taste" not in res.text
+    res = world.client.post("/api/v1/contact?lang=fr", data=form(t=""), follow_redirects=False)
+    assert res.status_code == 303 and res.headers["location"] == fr["pages"]["thanks"] != "/kontakt/danke"
+
+
+def test_the_confirmation_speaks_the_language_of_the_page(world):
+    """Die Eingangsbestätigung einer französischen Anfrage ist französisch – Betreff, Anrede, Text."""
+    fr = svc.words("fr")["mail"]
+    data = form()
+    assert world.client.post("/api/v1/contact?lang=fr", data=data, headers=JSON).status_code == 200
+    after_save(world.db)
+    (inq,) = inquiries(world.db, data["email"])
+    conf = world.db.query(Message).join(MessageParty, MessageParty.message_id == Message.id).filter(
+        MessageParty.object_id == inq.sender_object_id, Message.id != inq.id).one()
+    assert conf.subject == fr["confirmSubject"] != svc.VOCAB["mail"]["confirmSubject"]
+    assert fr["confirmIntro"] in conf.body and "Guten Tag" not in conf.body
+
+
+def test_an_unknown_language_is_german(world):
+    res = world.client.post("/api/v1/contact?lang=xx", data=form(name=""), headers=JSON)
+    assert res.json()["fields"] == {"name": MSG["name"]}

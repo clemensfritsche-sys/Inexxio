@@ -29,7 +29,10 @@ const { site, contactEmail } = await import('../src/config/site.mjs');
 const { inquiry } = await import('../src/config/inquiry.mjs');
 const { newsletter } = await import('../src/config/newsletter.mjs');
 const { formVocab } = await import('../src/lib/inquiry-vocab.mjs');
-const { plain } = await import('../src/lib/text.mjs');
+const { plain, plainIn } = await import('../src/lib/text.mjs');
+const { tFor } = await import('../src/i18n/t.mjs');
+const { localPath } = await import('../src/i18n/paths.mjs');
+const { languages, SOURCE } = await import('../src/config/languages.mjs');
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TARGET = resolve(ROOT, '../backend/app/assets/website_contact.json');
@@ -38,7 +41,43 @@ const LOGOS = ['inexxio-ehemals-hs-steiner.svg'];
 const BRAND = resolve(ROOT, '../frontend/public/brand');
 
 const v = formVocab();
-const mail = inquiry.mail;
+
+/** Die Seiten, auf die der Server nach einem Schritt führt – je Sprache ihre Adresse (pfade.json). */
+const PAGES = { thanks: '/kontakt/danke', newsletterPending: '/newsletter/danke', newsletterConfirmed: '/newsletter/bestaetigt', newsletterUnsubscribed: '/newsletter/abgemeldet' };
+
+/**
+ * Die Wörter, die der Server in der Sprache des Besuchers spricht (WEBSITE_PLAN Entscheid 136):
+ * Meldungen am Feld, Antwortseiten, die Eingangsbestätigung, die Newsletter-Mails und der Wortlaut
+ * der Einwilligung – genau der Satz, den die Seite dieser Sprache zeigt.
+ * @param {string} lang
+ */
+function words(lang) {
+  const mail = tFor(lang, inquiry.mail);
+  const pages = Object.fromEntries(Object.entries(PAGES).map(([k, p]) => [k, localPath(p, lang) ?? p]));
+  return {
+    pages,
+    messages: tFor(lang, v.messages),
+    server: Object.fromEntries(Object.entries(tFor(lang, inquiry.server)).map(([k, t]) => [k, plainIn(lang, t)])),
+    mail: {
+      confirmSubject: plainIn(lang, mail.confirmSubject),
+      confirmIntro: plainIn(lang, mail.confirmIntro),
+      confirmNext: plainIn(lang, mail.confirmNext),
+      confirmMore: plainIn(lang, mail.confirmMore),
+      kicker: mail.kicker,
+      copyTitle: mail.copyTitle,
+      factCompany: mail.factCompany,
+      factPhone: mail.factPhone,
+      factPhotos: mail.factPhotos,
+      photoOne: mail.photoOne,
+      photoMany: mail.photoMany,
+      nextTitle: mail.nextTitle,
+      received: mail.received,
+      urgent: plainIn(lang, mail.urgent),
+    },
+    newsletter: Object.fromEntries(Object.entries(tFor(lang, newsletter)).map(([k, t]) => [k, plainIn(lang, t)])),
+  };
+}
+const de = words(SOURCE);
 
 const data = {
   _comment:
@@ -46,32 +85,20 @@ const data = {
   brand: { name: site.brand.name, formerly: plain(site.brand.formerly), full: plain(site.brand.full) },
   phone: { display: site.phone.display, e164: site.phone.e164 },
   email: contactEmail(),
-  pages: { thanks: '/kontakt/danke' },
+  pages: de.pages,
   photos: inquiry.photos,
   minSeconds: inquiry.minSeconds,
   limits: inquiry.limits,
   labels: v.labels,
   sourceLabel: inquiry.sourceLabel,
-  messages: v.messages,
+  messages: de.messages,
+  server: de.server,
   patterns: v.patterns,
   subject: v.subject,
-  mail: {
-    confirmSubject: plain(mail.confirmSubject),
-    confirmIntro: plain(mail.confirmIntro),
-    confirmNext: plain(mail.confirmNext),
-    confirmMore: plain(mail.confirmMore),
-    kicker: mail.kicker,
-    copyTitle: mail.copyTitle,
-    factCompany: mail.factCompany,
-    factPhone: mail.factPhone,
-    factPhotos: mail.factPhotos,
-    photoOne: mail.photoOne,
-    photoMany: mail.photoMany,
-    nextTitle: mail.nextTitle,
-    received: mail.received,
-    urgent: plain(mail.urgent),
-  },
-  newsletter: Object.fromEntries(Object.entries(newsletter).map(([k, t]) => [k, plain(t)])),
+  mail: de.mail,
+  newsletter: de.newsletter,
+  /** Jede weitere Sprache: dieselben Schlüssel, übersetzt (alle, die die Website baut oder in Prüfung hat). */
+  languages: Object.fromEntries(languages.filter((l) => l.code !== SOURCE && l.status !== 'planned').map((l) => [l.code, words(l.code)])),
 };
 
 /**

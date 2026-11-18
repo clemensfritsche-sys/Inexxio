@@ -71,6 +71,33 @@ export const inquiry = t('inquiry', {
     photosSize: 'Die Dateien sind zusammen {size} gross – erlaubt sind {max}.',
     tooFast: 'Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal.',
   },
+  /**
+   * Was der Server selbst sagt – die Antwort ohne JavaScript und die Meldungen, bevor das Formular
+   * gelesen ist (`backend/app/routers/contact.py`, `routers/newsletter.py`). In der Sprache der Seite:
+   * das Formular schickt sie mit (`?lang=`).
+   */
+  server: {
+    check: 'Bitte prüfen Sie die markierten Angaben.',
+    missingTitle: 'Es fehlen noch Angaben',
+    missingLead: 'Es fehlen noch Angaben:',
+    back: 'Mit der Zurück-Taste Ihres Browsers kommen Sie zum Formular – Ihre Eingaben sind noch da.',
+    backButton: 'Zurück zum Formular',
+    failedTitle: 'Das Senden hat nicht geklappt',
+    failedText: 'Ihre Angaben sind nicht verloren: Rufen Sie uns an oder schicken Sie sie per E-Mail – der Text ist bereits vorbereitet.',
+    call: 'Anrufen',
+    mail: 'Per E-Mail senden',
+    phone: 'Telefon',
+    tooBig: 'Die Anfrage ist zu gross – Dateien zusammen höchstens {max}.',
+    unreadable: 'Die Anfrage konnte nicht gelesen werden.',
+    tooMany: 'Zu viele Anfragen in kurzer Zeit. Bitte rufen Sie uns an: {phone}.',
+    unavailable: 'Das Senden ist gerade nicht möglich.',
+    newsletterTooMany: 'Zu viele Anmeldungen in kurzer Zeit – bitte später noch einmal.',
+    newsletterUnavailable: 'Die Anmeldung ist gerade nicht möglich – bitte später noch einmal.',
+    newsletterBack: 'Mit der Zurück-Taste kommen Sie zum Formular.',
+    newsletterAgain: 'Neu anmelden',
+    /** Die Anrede der Mails (auf Deutsch steht sie im ERP: `domain/communication.greeting`). */
+    hello: 'Guten Tag',
+  },
   /** Texte der Bestätigung an die anfragende Person. Werte mit {{…}} aus site.mjs. */
   mail: {
     /** Betreff = Überschrift der Mail. Bewusst ein eigenes Anliegen: die Bestätigung
@@ -101,4 +128,4 @@ export const inquiry = t('inquiry', {
     phone: 40,
     email: 160,
   },
-}, { keep: ['patterns', 'photos', 'subject.word', 'sourceLabel', 'mail', 'labels'] });
+}, { keep: ['patterns', 'photos', 'subject.word', 'sourceLabel', 'labels'] });

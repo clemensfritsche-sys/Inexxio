@@ -268,3 +268,28 @@ def test_a_signup_for_a_known_person_asks_without_her_name(world, monkeypatch):
     after_save(db)
     (m,) = sent
     assert p.last_name not in m.body and nl.subscribed(db, [p.object_id]) == set()
+
+
+def test_a_french_signup_is_asked_and_proven_in_french(world, monkeypatch):
+    """►►► **Der Nachweis trägt den Satz, der gezeigt wurde.** ◄◄◄ Wer auf der französischen Seite
+    zustimmt, bekommt die Bitte auf Französisch, landet auf der französischen Seite, und im Nachweis
+    steht der französische Wortlaut. Bug-Form: gespeichert war immer der deutsche Satz."""
+    db = world.db
+    fr = nl.said("fr")
+    assert fr["consent"] != nl.WORDING, "ohne Übersetzung prüft dieser Test nichts"
+    email = f"lecteur{random.randint(1, 10**9)}@exemple.ch"
+    out: list = []
+    monkeypatch.setattr(mb, "send_direct", lambda _db, ch, to, subj, mail: out.append(
+        (subj, mail)) or True)
+    res = world.client.post("/api/v1/newsletter?lang=fr", data={"email": email}, follow_redirects=False)
+    assert res.status_code == 303 and res.headers["location"].startswith("/fr/")
+    (subj, mail), = out
+    assert subj == fr["confirmSubject"] and fr["confirmButton"] in mail.body and "Guten Tag" not in mail.body
+    token = mail.body.split("confirm?t=")[1].split()[0]
+    from html import unescape
+    assert fr["confirmButton"] in unescape(world.client.get(f"/api/v1/newsletter/confirm?t={token}").text)
+    res = world.client.post(f"/api/v1/newsletter/confirm?t={token}", follow_redirects=False)
+    assert res.headers["location"].startswith("/fr/")
+    person = db.query(UserProfile).filter(UserProfile.email == email).one()
+    (row,) = nl.history(db, person.object_id)
+    assert row.subscribed and row.wording == fr["consent"]

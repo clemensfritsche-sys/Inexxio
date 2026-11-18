@@ -4,6 +4,7 @@
  * die Bitte um Bestätigung und leitet mit 303 auf /newsletter/danke (Double Opt-in).
  */
 import Base from '../../layouts/Base.astro';
+import { currentLang, SOURCE } from '../../config/languages.mjs';
 import Rich from '../../components/Rich.astro';
 import { newsletterPages as n } from '../../content/newsletter';
 import '../../styles/form.css';
@@ -15,7 +16,7 @@ import { t } from '../../i18n/t.mjs';
       <p class="eyebrow">{n.signup.eyebrow}</p>
       <Rich as="h1" class="nl__title" text={n.signup.title} />
       <Rich as="p" class="lead" text={n.signup.lead} />
-      <form class="nl__form" method="post" action="/api/v1/newsletter">
+      <form class="nl__form" method="post" action={`/api/v1/newsletter${currentLang().code === SOURCE ? '' : `?lang=${currentLang().code}`}`}>
         <div class="iform__hp" aria-hidden="true">
           <label>{t('ui', 'Bitte leer lassen')} <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
         </div>

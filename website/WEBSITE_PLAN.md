@@ -166,9 +166,12 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   `quelle`), bricht der Build ab; `check-site` findet deutsche Wörter auf Seiten anderer Sprachen.
   Status je Sprache (`src/config/languages.mjs`): `live` · `preview` (gebaut, noindex, bis eine
   Fachperson gegengelesen hat) · `planned` («bald» in der Sprachwahl). Französisch ist `preview`.
-  Regeln und Glossar: `src/i18n/README.md`. Noch deutsch: was das ERP schickt (Bestätigungsmail,
-  Meldungen des Formulars vom Server, Newsletter-Wortlaut als Nachweis), AGB/Datenschutz/Impressum
-  und die eine 404-Seite (`docs/backlog.md`).
+  Regeln und Glossar: `src/i18n/README.md`. **Auch der Server spricht die Sprache der Seite**: Formular
+  und Newsletter schicken sie mit (`?lang=`), `scripts/export-erp.mjs` gibt ihm die Wörter je Sprache
+  (`languages` in `website_contact.json`) – Meldungen, Antwortseiten, Eingangsbestätigung, Bitte um
+  Bestätigung, Danke-Seiten und **der Wortlaut der Einwilligung, gespeichert in der Sprache, in der
+  zugestimmt wurde**. Die eine 404-Seite wechselt unter `/<sprache>/…` in diese Sprache. Noch deutsch:
+  AGB, Datenschutz, Impressum (Dokumente im ERP, `docs/backlog.md`).
 - **129 · Service, Karriere, Ratgeber im Layout v4** (Entscheid 24.10.2026): Kopf wie Porsche mit
   Titelbild; Service: Notfall als dunkle Karte mit der Nummer gross, dann drei Anliegen-Karten,
   Garantien, Fragen; Karriere: Warum hier arbeiten, Wer zu uns passt (keine ausgeschriebenen Stellen),

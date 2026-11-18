@@ -330,7 +330,10 @@ function checkLinks(p) {
     if (!/rel="canonical"/.test(m[0])) checkTarget(p, decode(m[1]), 'Datei');
   }
   for (const m of p.html.matchAll(/<form\b[^>]*\saction="([^"]*)"/g)) {
-    if (!FORM_TARGETS.has(decode(m[1]))) fail(p.path, `Formular schickt an «${m[1]}»`);
+    // Die Sprache der Seite reist als `?lang=` mit (der Server antwortet in ihr) – nur eine bekannte.
+    const [target, query] = decode(m[1]).split('?');
+    const lang = query ? /^lang=([a-z]{2})$/.exec(query)?.[1] : undefined;
+    if (!FORM_TARGETS.has(target) || (query && !languages.some((l) => l.code === lang))) fail(p.path, `Formular schickt an «${m[1]}»`);
   }
 }
 

@@ -7,25 +7,48 @@
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
 import { site } from '../config/site.mjs';
+import { t, tFor } from '../i18n/t.mjs';
+import { localPath } from '../i18n/paths.mjs';
+import { builtLanguages, SOURCE } from '../config/languages.mjs';
+import { siteMode } from '../lib/text.mjs';
 const links = [
   ...site.areas.map((a) => ({ href: a.href, label: a.label, text: a.text })),
   { href: site.service.href, label: site.service.label, text: site.service.text },
 ];
+/** Die Wörter der Seite – auf Deutsch, und je gebaute Sprache übersetzt (WEBSITE_PLAN Entscheid 136). */
+const T = t('seiten', {
+  title: 'Seite nicht gefunden',
+  description: 'Diese Seite gibt es nicht (mehr). Hier geht es weiter zu Fahrzeugtechnik, Krantechnik, Speziallösungen und Service.',
+  label: 'Fehler 404',
+  h1: 'Diese Seite gibt es nicht.',
+  lead: 'Entschuldigung – die Adresse ist falsch oder die Seite wurde verschoben. Hier geht es weiter:',
+  call: 'Oder rufen Sie an:',
+  home: 'Zur Startseite',
+});
+/**
+ * ►►► EINE 404-Seite für die ganze Domain (das Hosting kennt nur eine). ◄◄◄ Sie steht auf Deutsch da;
+ * je weitere Sprache tragen `data-lang` die Wörter und Ziele – liegt die verlorene Adresse unter
+ * /<sprache>/, tauscht das Skript sie aus (ohne JavaScript bleibt Deutsch).
+ */
+const other = builtLanguages(siteMode()).filter((l) => l.code !== SOURCE).map((l) => ({
+  code: l.code, locale: l.locale,
+  words: tFor(l.code, T),
+  links: links.map((k) => ({ href: localPath(k.href, l.code) ?? k.href, label: tFor(l.code, k.label), text: tFor(l.code, k.text) })),
+  home: localPath('/', l.code),
+}));
 ---
-<Base title="Seite nicht gefunden" description="Diese Seite gibt es nicht (mehr). Hier geht es weiter zu Fahrzeugtechnik, Krantechnik, Speziallösungen und Service." noindex>
-  <section class="section nf">
+<Base title={T.title} description={T.description} noindex>
+  <section class="section nf" data-lang={JSON.stringify(other)}>
     <div class="wrap">
       <div class="nf__head" data-hero>
-        <p class="label">Fehler 404</p>
-        <h1 class="nf__title">Diese Seite gibt es nicht.</h1>
-        <p class="lead">
-          Entschuldigung – die Adresse ist falsch oder die Seite wurde verschoben. Hier geht es weiter:
-        </p>
+        <p class="label" data-w="label">{T.label}</p>
+        <h1 class="nf__title" data-w="h1">{T.h1}</h1>
+        <p class="lead" data-w="lead">{T.lead}</p>
       </div>
       <ul role="list" class="nf__links">
         {links.map((l) => (
           <li>
-            <a href={l.href}>
+            <a href={l.href} data-link>
               <span class="nf__label">{l.label}</span>
               <span class="nf__text">{l.text}</span>
               <Icon name="arrow-right" size={20} />
@@ -35,13 +58,18 @@ const links = [
       </ul>
       <div class="nf__more">
         <p>
-          Oder rufen Sie an: <a class="nf__tel tnum" href={`tel:${site.phone.e164}`}>{site.phone.display}</a>
+          <span data-w="call">{T.call}</span> <a class="nf__tel tnum" href={`tel:${site.phone.e164}`}>{site.phone.display}</a>
         </p>
-        <a class="arrow-link" href="/">Zur Startseite <Icon name="arrow-right" size={18} /></a>
+        <a class="arrow-link" href="/" data-home><span data-w="home">{T.home}</span> <Icon name="arrow-right" size={18} /></a>
       </div>
     </div>
   </section>
 </Base>
+
+<script>
+  import { localize404 } from '../scripts/notfound';
+  localize404();
+</script>
 
 <style>
   .nf { padding-top: var(--s-7); }
