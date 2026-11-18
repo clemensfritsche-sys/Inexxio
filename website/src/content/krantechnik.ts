@@ -139,10 +139,10 @@ export const craneSituations = t('krantechnik', {
   title: 'Wo ein Katalogkran nicht passt.',
   lead: 'Vier Situationen, die wir oft sehen – und wie der Kran trotzdem passt.',
   items: [
-    { photo: 'kran-kurve', illo: 'kran-kurve', label: 'Kurve', title: 'Um die Ecke', alt: 'Zeichnung von oben: Halle in L-Form, die rote Fahrbahn biegt um die Ecke', text: 'Die Fahrbahn muss abbiegen. Wir bauen sie als Kurve, mit einem Fahrwerk, das ihr folgt.' },
-    { photo: 'kran-steigung', illo: 'kran-steigung', label: 'Steigung', title: 'Über eine Steigung', alt: 'Zeichnung im Schnitt: Decke mit Absatz, die rote Fahrbahn steigt weich mit an', text: 'Die Decke hat einen Absatz. Die Fahrbahn steigt weich mit an – Antrieb und Bremse sind dafür ausgelegt.' },
+    { photo: 'kran-kurve', illo: 'karten/kran-kurve', label: 'Kurve', title: 'Um die Ecke', alt: 'Zeichnung von oben: Halle in L-Form, die rote Fahrbahn biegt um die Ecke', text: 'Die Fahrbahn muss abbiegen. Wir bauen sie als Kurve, mit einem Fahrwerk, das ihr folgt.' },
+    { photo: 'kran-steigung', illo: 'karten/kran-steigung', label: 'Steigung', title: 'Über eine Steigung', alt: 'Zeichnung im Schnitt: Decke mit Absatz, die rote Fahrbahn steigt weich mit an', text: 'Die Decke hat einen Absatz. Die Fahrbahn steigt weich mit an – Antrieb und Bremse sind dafür ausgelegt.' },
     { photo: 'kran-versatz', illo: 'kran-versatz', label: 'Versatz', title: 'Decke mit Versatz', alt: 'Zeichnung im Schnitt: Decke springt in der Höhe, die rote Fahrbahn hängt gerade darunter', text: 'Die Höhe springt, Balken oder Unterzüge stören. Wir hängen die Fahrbahn so ab, dass die Hubhöhe nutzbar bleibt.' },
-    { photo: 'kran-eng', illo: 'kran-eng', label: 'Wenig Platz', title: 'Eng und verwinkelt', alt: 'Zeichnung von oben: Raum mit Stützen und Nische, der rote Kran erreicht die Ecke', text: 'Stützen, Nischen, wenig Platz: Ein kompakter Kran mit passendem Greifer erreicht auch die letzte Ecke.' },
+    { photo: 'kran-eng', illo: 'karten/kran-eng', label: 'Wenig Platz', title: 'Eng und verwinkelt', alt: 'Zeichnung: enger Raum zwischen Wänden und Stützen, der rote Kran mit Greifer passt genau hinein', text: 'Stützen, Nischen, wenig Platz: Ein kompakter Kran mit passendem Greifer erreicht auch die letzte Ecke.' },
   ],
   missing: { title: 'Ihre Situation ist nicht dabei?', text: 'Fragen Sie trotzdem. Schicken Sie uns ein paar Fotos, wir sagen Ihnen ehrlich, ob es geht.', cta: anfrage('Fotos schicken') },
 });
