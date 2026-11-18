@@ -16,6 +16,8 @@ import { articles, withBody, formatDay } from '../../lib/ratgeber';
 import { illustration } from '../../lib/illustrations';
 import { article as articleNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
+import { t } from '../../i18n/t.mjs';
+const T = t('ui', { guide: 'Ratgeber', updated: 'aktualisiert', by: 'Von', published: 'veröffentlicht', drawing: 'Zeichnung zum Artikel «{title}»', short: 'Kurz gesagt' });
 
 export function getStaticPaths() {
   return articles().map((a) => ({ params: { slug: a.slug } }));
@@ -40,26 +42,26 @@ const related = a.related.map((r, i) => {
 <Base
   title={a.seoTitle}
   description={a.description}
-  crumbs={[{ name: 'Ratgeber', path: '/ratgeber' }, { name: a.seoTitle, path: a.path }]}
+  crumbs={[{ name: t('seiten', 'Ratgeber'), path: '/ratgeber' }, { name: a.seoTitle, path: a.path }]}
   article={{ published: a.published, updated: a.updated }}
   jsonLd={[articleNode(siteUrl, { title: a.title, description: a.description, path: a.path, published: a.published, updated: a.updated })]}
 >
   <article class="art">
     <header class="wrap art__head" data-hero>
       <div class="art__intro">
-        <p class="art__label"><a href="/ratgeber">Ratgeber</a> · aktualisiert <time datetime={a.updated}>{formatDay(a.updated)}</time></p>
+        <p class="art__label"><a href="/ratgeber">{T.guide}</a> · {T.updated} <time datetime={a.updated}>{formatDay(a.updated)}</time></p>
         <h1 class="art__title">{a.title}</h1>
         <Rich as="p" class="art__lead" text={a.description} />
         <p class="art__by">
-          Von <a class="link" href="/ueber-uns">{o.name}</a>, {o.role} · veröffentlicht <time datetime={a.published}>{formatDay(a.published)}</time>
+          {T.by} <a class="link" href="/ueber-uns">{o.name}</a>, {o.role} · {T.published} <time datetime={a.published}>{formatDay(a.published)}</time>
         </p>
       </div>
-      <figure class="art__art"><img src={illustration(a.illo, 'Ratgeber')} alt={`Zeichnung zum Artikel «${a.seoTitle}»`} width="1000" height="560" decoding="async" /></figure>
+      <figure class="art__art"><img src={illustration(a.illo, 'Ratgeber')} alt={T.drawing.replace('{title}', a.seoTitle)} width="1000" height="560" decoding="async" /></figure>
     </header>
 
     <div class="wrap art__col">
       <aside class="art__kurz" aria-labelledby="kurz-gesagt">
-        <h2 class="art__kurztitle" id="kurz-gesagt">Kurz gesagt</h2>
+        <h2 class="art__kurztitle" id="kurz-gesagt">{T.short}</h2>
         <ul class="checklist" role="list">
           {a.kurz.map((k) => <li><Icon name="check" size={20} /><Rich as="span" text={k} /></li>)}
         </ul>
@@ -73,7 +75,7 @@ const related = a.related.map((r, i) => {
     </div>
   </article>
 
-  <FieldCards id="weiterlesen" title="Weiterlesen" lead="Passende Artikel und Angebote." items={related} start={0} />
+  <FieldCards id="weiterlesen" title={t('seiten', 'Weiterlesen')} lead={t('seiten', 'Passende Artikel und Angebote.')} items={related} start={0} />
 
   <ContactSection />
 </Base>

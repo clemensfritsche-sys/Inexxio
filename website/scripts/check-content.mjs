@@ -11,6 +11,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { site } from '../src/config/site.mjs';
+import { languages, SOURCE } from '../src/config/languages.mjs';
 import { photos } from '../src/config/photos.mjs';
 import { isLive } from '../src/lib/text.mjs';
 
@@ -40,6 +41,8 @@ function scanDist() {
   const missing = new Map();
   for (const file of walk(dist, ['.html'])) {
     const page = pageOf(file, dist);
+    // Jede Sprache zeigt dieselben Fotos – die Liste nennt die deutsche Seite.
+    if (languages.some((l) => l.code !== SOURCE && (page === `/${l.code}.html` || page.startsWith(`/${l.code}/`)))) continue;
     for (const m of readFileSync(file, 'utf8').matchAll(/data-photo-missing="([^"]+)"/g)) {
       if (!missing.has(m[1])) missing.set(m[1], new Set());
       missing.get(m[1]).add(page);
@@ -92,6 +95,13 @@ function writeReport(missing) {
     'In der Fotoliste vorgesehen, aber auf keiner Seite verwendet – sie halten den Start nicht auf.',
     '',
     ...(later.length ? photoTable(later) : ['Nichts.']),
+    '',
+    '## Sprachen in Prüfung (`src/config/languages.mjs`)',
+    '',
+    'Gebaut und unter /<sprache> erreichbar, aber noindex – im Modus `live` nicht gebaut, bis eine Fachperson',
+    'der Sprache gegengelesen hat (dann `status: \'live\'`).',
+    '',
+    ...(languages.filter((l) => l.status === 'preview').map((l) => `- ${l.name} (\`${l.code}\`)`).concat(languages.some((l) => l.status === 'preview') ? [] : ['Keine.'])),
     '',
     '## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)',
     '',

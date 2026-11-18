@@ -7,13 +7,15 @@
  */
 import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
+import { t } from '../i18n/t.mjs';
+const T = t('ui', { quick: 'Schnellkontakt', call: 'Anrufen', ask: 'Anfrage' });
 ---
-<nav class="mobilebar" aria-label="Schnellkontakt" data-mobilebar>
+<nav class="mobilebar" aria-label={T.quick} data-mobilebar>
   <a class="mobilebar__btn mobilebar__btn--tel" href={`tel:${site.phone.e164}`}>
-    <Icon name="phone" size={20} /> Anrufen
+    <Icon name="phone" size={20} /> {T.call}
   </a>
   <a class="mobilebar__btn mobilebar__btn--cta" href={site.cta.href}>
-    Anfrage <Icon name="arrow-right" size={20} />
+    {T.ask} <Icon name="arrow-right" size={20} />
   </a>
 </nav>
 

@@ -155,6 +155,20 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   ist eine Partei (Sie · Gemeinsam · Wir, auch «Wir, bei Ihnen»), kein Ort. Ein Weg hat das Ergebnis an
   jeder Station oder an keiner (die Zeitleiste auf «Über uns»), sonst bricht der Bau ab. Der
   Wandkalender (Winter-Tausch, Saison-Check) steht ohne grauen Kasten: jedes Blatt mit Haarlinie.
+- **136 · Mehrsprachig, Deutsch ist die Quelle** (Entscheid 18.11.2026): jede Sprache hat eigene
+  Adressen unter `/<sprache>/…` mit übersetzten Pfaden (`src/i18n/<sprache>/pfade.json`), `hreflang`
+  in jeder Seite und in der Sitemap, keine automatische Umleitung nach Land oder Browser – die
+  Sprachwahl im Kopf führt auf dieselbe Seite. **Jeder Text geht durch `t()`** (`src/i18n/t.mjs`), der
+  deutsche Text ist der Schlüssel eines Wörterbuchs je Sprache (`src/i18n/<sprache>/*.json`); Zahlen,
+  Pfade, Bilder bleiben EINE Quelle. Gebaut wird je Sprache ein eigener Durchlauf, zusammengeführt
+  in `dist/` (`scripts/languages.mjs`). **Keine Sprache bleibt still zurück**: fehlt eine Übersetzung,
+  ist ein Text geändert oder verwaist, fehlt eine Adresse oder ein Ratgeber-Artikel (Fingerabdruck
+  `quelle`), bricht der Build ab; `check-site` findet deutsche Wörter auf Seiten anderer Sprachen.
+  Status je Sprache (`src/config/languages.mjs`): `live` · `preview` (gebaut, noindex, bis eine
+  Fachperson gegengelesen hat) · `planned` («bald» in der Sprachwahl). Französisch ist `preview`.
+  Regeln und Glossar: `src/i18n/README.md`. Noch deutsch: was das ERP schickt (Bestätigungsmail,
+  Meldungen des Formulars vom Server, Newsletter-Wortlaut als Nachweis), AGB/Datenschutz/Impressum
+  und die eine 404-Seite (`docs/backlog.md`).
 - **129 · Service, Karriere, Ratgeber im Layout v4** (Entscheid 24.10.2026): Kopf wie Porsche mit
   Titelbild; Service: Notfall als dunkle Karte mit der Nummer gross, dann drei Anliegen-Karten,
   Garantien, Fragen; Karriere: Warum hier arbeiten, Wer zu uns passt (keine ausgeschriebenen Stellen),

@@ -1,5 +1,6 @@
+import { t } from '../i18n/t.mjs';
 /** Kontakt. */
-export const kontakt = {
+export const kontakt = t('kontakt', {
   title: 'Kontakt und Anfrage',
   description:
     'Kontakt zu INEXXIO in {{address.home}}: Anfrage stellen, anrufen oder die Route zum Standort öffnen. Ein Satz genügt – wir melden uns rasch.',
@@ -22,4 +23,4 @@ export const kontakt = {
       'Eilt es? Rufen Sie an: {{phone.link}}.',
     ],
   },
-};
+});

@@ -22,25 +22,26 @@ import { faqPage, product, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 import { pageTitle } from '../../lib/titles';
 import { heukrananlagen as page, heukranModules as m, radioControl as rc } from '../../content/krantechnik';
+import { t } from '../../i18n/t.mjs';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const area = areaOf(page.area);
 const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
-  product(siteUrl, { name: 'Heukrananlage nach Mass', description: plain(page.summary), path: page.path }),
+  product(siteUrl, { name: t('seiten', 'Heukrananlage nach Mass'), description: plain(page.summary), path: page.path }),
 ];
 const titel = pageTitle('/krantechnik/heukrananlagen');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero
-    word="Heukrane"
+    word={t('seiten', 'Heukrane')}
     image={titel}
-    alt="Roter Heukran mit vollem Greifer unter einem gezeichneten Dachstuhl, darunter schaut der Landwirt mit dem Funksender hinauf"
+    alt={t('seiten', 'Roter Heukran mit vollem Greifer unter einem gezeichneten Dachstuhl, darunter schaut der Landwirt mit dem Funksender hinauf')}
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: 'Funk statt Kabine', href: '#funk' }}
+    secondary={{ label: t('seiten', 'Funk statt Kabine'), href: '#funk' }}
     narrow
   />
 

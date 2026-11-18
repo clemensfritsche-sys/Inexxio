@@ -5,16 +5,17 @@
  */
 import { site } from '../config/site.mjs';
 import type { Faq } from './types';
+import { t } from '../i18n/t.mjs';
 
 /** Der eine Satz zur Übergabe – Startseite und «Über uns» sagen ihn gleich. */
-export const handoverLead =
-  'Nach {{history.experienceDative}} übergibt Heiri Steiner sein Unternehmen an Clemens Fritsche. Standort, Telefonnummer und der Service für alle bestehenden HS-Krananlagen bleiben – ergänzt um Ingenieurwissen, wo es Ihnen nützt.';
+export const handoverLead = t('uebergabe',
+  'Nach {{history.experienceDative}} übergibt Heiri Steiner sein Unternehmen an Clemens Fritsche. Standort, Telefonnummer und der Service für alle bestehenden HS-Krananlagen bleiben – ergänzt um Ingenieurwissen, wo es Ihnen nützt.');
 
 /**
  * Fragen, die Startseite und Übergabe-Seite beide stellen – EINE Antwort, an einer Stelle.
  * (Rückmeldung 04.10.2026: «die Startseite spiegelt die Unterseiten – das muss matchen».)
  */
-export const sharedFaq = {
+export const sharedFaq = t('uebergabe', {
   whoCares: {
     q: 'Wer betreut meine HS-Krananlage in Zukunft?',
     a: 'Wir – ohne Unterbruch. Wir kennen die HS-Krananlagen von der Konstruktion bis zum Ersatzteil und betreuen sie weiter.',
@@ -50,13 +51,13 @@ export const sharedFaq = {
     q: 'Bekomme ich weiterhin Ersatzteile für ältere Anlagen?',
     a: 'Ja. Die Ersatzteile für die bestehenden HS-Anlagen liegen entweder an Lager, oder wir fertigen sie für Sie neu an.',
   },
-} satisfies Record<string, Faq>;
+} satisfies Record<string, Faq>);
 
 /**
  * Die Übergabe auf «Über uns» (#uebergabe) – vorher eine eigene Seite /uebergabe, die dieselbe
  * Geschichte erzählte wie der Abschnitt «Geschichte» daneben (Rückmeldung 07.10.2026).
  */
-export const handover = {
+export const handover = t('uebergabe', {
   title: 'Aus HS Steiner wird {{brand.name}}',
   lead: handoverLead,
   timeline: [
@@ -73,4 +74,4 @@ export const handover = {
       : []),
     sharedFaq.parts,
   ] satisfies Faq[],
-};
+});

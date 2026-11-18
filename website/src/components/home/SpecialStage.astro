@@ -9,6 +9,7 @@
  * Heukrananlagen (vier Felder): dort kommen Zeichnungen und Legende als `art` und `legend` herein.
  */
 import Icon from '../Icon.astro';
+import { t } from '../../i18n/t.mjs';
 import Rich from '../Rich.astro';
 import { plain } from '../../lib/text.mjs';
 import { illustration } from '../../lib/illustrations';
@@ -38,11 +39,11 @@ interface Props {
 const {
   title, lead, items, cta, level = 'h2', id = 'spezial',
   art = [
-    { image: krane, alt: 'Säulenschwenkkran als Zeichnung, nur der Rohrgreifer am Haken ist echt und rot' },
-    { image: fahrzeuge, alt: 'Dreiachs-Lastwagen als Zeichnung, nur die Kippbrücke ist echt und rot' },
-    { image: baumaschinen, alt: 'Minibagger als Zeichnung, nur die Anbau-Rüttelplatte ist echt und rot' },
+    { image: krane, alt: t('ui', 'Säulenschwenkkran als Zeichnung, nur der Rohrgreifer am Haken ist echt und rot') },
+    { image: fahrzeuge, alt: t('ui', 'Dreiachs-Lastwagen als Zeichnung, nur die Kippbrücke ist echt und rot') },
+    { image: baumaschinen, alt: t('ui', 'Minibagger als Zeichnung, nur die Anbau-Rüttelplatte ist echt und rot') },
   ],
-  legend = { grey: 'Grau: die Serie', red: 'Rot: was wir dazubauen' },
+  legend = t('ui', { grey: 'Grau: die Serie', red: 'Rot: was wir dazubauen' }),
 } = Astro.props;
 const H = level;
 const shown = items.slice(0, Math.min(4, art.length));

@@ -11,6 +11,8 @@ import { catalog } from '../config/catalog.mjs';
 import Magazine from './Magazine.astro';
 import PhotoCard from './PhotoCard.astro';
 import Rich from './Rich.astro';
+import { t } from '../i18n/t.mjs';
+const T = t('ui', { sku: 'Art.-Nr.', fits: 'Passend für' });
 
 const parts = catalog.groups.flatMap((g) => g.items.map((it, i) => ({ ...it, group: g.title, anchor: i === 0 ? g.id : undefined })));
 ---
@@ -20,9 +22,9 @@ const parts = catalog.groups.flatMap((g) => g.items.map((it, i) => ({ ...it, gro
       <PhotoCard photo={it.photo} label={it.group} title={it.name} text={it.text} cta={{ label: 'Teil anfragen', href: `/kontakt?teil=${encodeURIComponent(it.name)}` }}>
         {(it.sku || it.material || it.fits) && (
           <p class="catalog__spec">
-            {it.sku && <span class="tnum">Art.-Nr. {it.sku}</span>}
+            {it.sku && <span class="tnum">{T.sku} {it.sku}</span>}
             {it.material && <Rich as="span" text={it.material} />}
-            {it.fits && <span>Passend für {it.fits.join(' · ')}</span>}
+            {it.fits && <span>{T.fits} {it.fits.join(' · ')}</span>}
           </p>
         )}
       </PhotoCard>

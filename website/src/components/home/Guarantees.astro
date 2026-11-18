@@ -8,8 +8,11 @@
  */
 import Stagger from './Stagger.astro';
 import { promises } from '../../content/promises';
-import half from '../../assets/schema/garantie-haelfte.svg?raw';
-import year from '../../assets/schema/inexxio-365-jahr.svg?raw';
+import halfDe from '../../assets/schema/garantie-haelfte.svg?raw';
+import yearDe from '../../assets/schema/inexxio-365-jahr.svg?raw';
+import { tMarkup } from '../../i18n/t.mjs';
+const half = tMarkup('schemata', halfDe);
+const year = tMarkup('schemata', yearDe);
 
 interface Props {
   /** Ziel der Karte Zufriedenheitsgarantie (die Antwort in den Fragen der Seite). */

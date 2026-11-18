@@ -18,6 +18,7 @@ import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
 import { pageTitle } from '../lib/titles';
 import { fahrzeugtechnik as page, vehicleOffers as o, vehiclePath as s } from '../content/fahrzeugtechnik';
+import { t } from '../i18n/t.mjs';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const nodes = [
@@ -28,13 +29,13 @@ const titel = pageTitle('/fahrzeugtechnik');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: page.hero.eyebrow, path: page.path }]} og={page.id} jsonLd={nodes}>
   <StageHero
-    word="Fahrzeugtechnik"
+    word={t('seiten', 'Fahrzeugtechnik')}
     image={titel}
-    alt="Fahrmischer als Konstruktionszeichnung, nur Trommel und Rinne sind echt und rot"
+    alt={t('seiten', 'Fahrmischer als Konstruktionszeichnung, nur Trommel und Rinne sind echt und rot')}
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: 'Unser Angebot', href: '#angebot' }}
+    secondary={{ label: t('seiten', 'Unser Angebot'), href: '#angebot' }}
   />
 
   <div class="wrap ft-season"><SeasonNotice page={page.path} /></div>

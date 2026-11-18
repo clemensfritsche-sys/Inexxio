@@ -8,6 +8,7 @@
  */
 import { processHtml } from './text.mjs';
 import type { LinkItem } from '../content/types';
+import { SOURCE, currentLang } from '../config/languages.mjs';
 
 export interface Source { label: string; href: string }
 export interface Heading { depth: number; slug: string; text: string }
@@ -37,7 +38,13 @@ interface MdModule {
   getHeadings: () => Heading[];
 }
 
-const modules = import.meta.glob<MdModule>('../content/ratgeber/*.md', { eager: true });
+/** Die Artikel in der Sprache dieses Builds: deutsch in ratgeber/, jede andere in ratgeber/<sprache>/
+    (dieselben Dateinamen; scripts/languages.mjs prüft, dass jede Übersetzung da und aktuell ist). */
+const LANG = currentLang();
+const all = import.meta.glob<MdModule>('../content/ratgeber/**/*.md', { eager: true });
+const modules: Record<string, MdModule> = Object.fromEntries(Object.entries(all)
+  .filter(([p]) => (LANG.code === SOURCE ? !/ratgeber\/[a-z]{2}\//.test(p) : p.includes(`/ratgeber/${LANG.code}/`)))
+  .map(([p, m]) => [`../content/ratgeber/${p.split('/').pop()}`, m]));
 
 const fail = (file: string, msg: string): never => {
   throw new Error(`Ratgeber «${file}»: ${msg}`);
@@ -96,7 +103,7 @@ function load(): Article[] {
       headings: mod.getHeadings(),
     });
   }
-  return out.sort((a, b) => (a.updated === b.updated ? a.title.localeCompare(b.title, 'de') : b.updated.localeCompare(a.updated)));
+  return out.sort((a, b) => (a.updated === b.updated ? a.title.localeCompare(b.title, LANG.code) : b.updated.localeCompare(a.updated)));
 }
 
 const ARTICLES = load();
@@ -117,6 +124,6 @@ export async function withBody(slug: string): Promise<Article> {
   return { ...a, html: processHtml(await mod.compiledContent()) };
 }
 
-const DATE = new Intl.DateTimeFormat('de-CH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const DATE = new Intl.DateTimeFormat(LANG.locale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 /** «3. Oktober 2026» */
 export const formatDay = (iso: string): string => DATE.format(new Date(`${iso}T00:00:00Z`));

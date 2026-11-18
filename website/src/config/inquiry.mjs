@@ -1,4 +1,5 @@
 // @ts-check
+import { t } from '../i18n/t.mjs';
 /**
  * ►►► Das Vokabular des Anfrage-Formulars – an EINER Stelle. ◄◄◄
  *
@@ -14,7 +15,7 @@
  * Angabe; eine Auswahl davor wäre eine zweite, die er erst treffen muss.
  */
 
-export const inquiry = {
+export const inquiry = t('inquiry', {
   /**
    * Anhänge (freiwillig): nur Bilder – sie werden im ERP gespeichert und an der Anfrage
    * gezeigt. HEIC fehlt mit Absicht: nennt `accept` es nicht, wandelt das iPhone das Foto
@@ -100,4 +101,4 @@ export const inquiry = {
     phone: 40,
     email: 160,
   },
-};
+}, { keep: ['patterns', 'photos', 'subject.word', 'sourceLabel', 'mail', 'labels'] });

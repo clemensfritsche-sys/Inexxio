@@ -9,6 +9,8 @@
 import { areaOf } from '../../config/site.mjs';
 import { start } from '../../content/start';
 import Icon from '../Icon.astro';
+import { t, tMarkup } from '../../i18n/t.mjs';
+const szeneSonder = tMarkup('schemata', szeneSonderDe);
 import Media from '../Media.astro';
 import Rich from '../Rich.astro';
 import greifer from '../../assets/crane/greifer.html?raw';
@@ -18,7 +20,7 @@ import lastNew from '../../assets/crane/last-new.svg?raw';
 import lastJib from '../../assets/crane/last-jib.svg?raw';
 import szeneKran from '../../assets/crane/szene-krantechnik.svg?raw';
 import szeneFahrzeug from '../../assets/crane/szene-fahrzeugtechnik.svg?raw';
-import szeneSonder from '../../assets/crane/szene-spezialloesungen.svg?raw';
+import szeneSonderDe from '../../assets/crane/szene-spezialloesungen.svg?raw';
 
 /** Lasten am Haken: Lage des Greifpunkts in der Zeichnung (Rand, Drehpunkt). */
 const L = {
@@ -28,9 +30,9 @@ const L = {
   jib: { svg: lastJib, w: 150, h: 62, mx: -68, my: -6, ox: 68, oy: 6 },
 };
 const scenes: Record<string, { svg: string; done: string; loads: (keyof typeof L)[] }> = {
-  krantechnik: { svg: szeneKran, done: 'Heu eingelagert', loads: ['bale'] },
-  fahrzeugtechnik: { svg: szeneFahrzeug, done: 'Neue Trommel', loads: ['old', 'new'] },
-  spezialloesungen: { svg: szeneSonder, done: 'Anbau montiert', loads: ['jib'] },
+  krantechnik: { svg: szeneKran, done: t('ui', 'Heu eingelagert'), loads: ['bale'] },
+  fahrzeugtechnik: { svg: szeneFahrzeug, done: t('ui', 'Neue Trommel'), loads: ['old', 'new'] },
+  spezialloesungen: { svg: szeneSonder, done: t('ui', 'Anbau montiert'), loads: ['jib'] },
 };
 const cards = start.areas.order.map((id) => ({ area: areaOf(id), scene: scenes[id], claim: start.entries[id], go: start.areas.go[id] }));
 ---
@@ -81,7 +83,7 @@ const cards = start.areas.order.map((id) => ({ area: areaOf(id), scene: scenes[i
         </li>
       ))}
     </ul>
-    <div class="cdots" data-dots data-label="Bereich"></div>
+    <div class="cdots" data-dots data-label={t('ui', 'Bereich')}></div>
   </div>
 </section>
 

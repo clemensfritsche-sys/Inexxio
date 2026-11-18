@@ -8,6 +8,7 @@
  */
 import Icon from './Icon.astro';
 import { serviceTiers as t } from '../content/krantechnik';
+import { t as tr } from '../i18n/t.mjs';
 
 const n = t.tiers.length;
 ---
@@ -15,7 +16,7 @@ const n = t.tiers.length;
   {t.tiers.map((tier, i) => (
     <li class:list={['tiers__item', { 'tiers__item--featured': tier.featured }]} id={tier.featured ? 'inexxio-365' : undefined} style={`--i:${i}`}>
       <div class="tiers__top">
-        <p class="tiers__step tnum">Stufe {i + 1}</p>
+        <p class="tiers__step tnum">{tr('ui', 'Stufe')} {i + 1}</p>
         <span class="tiers__bars" aria-hidden="true">
           {t.tiers.map((_, j) => <i class:list={{ on: j <= i }} style={`--j:${j}`}></i>)}
         </span>

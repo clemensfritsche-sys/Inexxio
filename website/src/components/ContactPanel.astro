@@ -9,6 +9,8 @@ import { site, contactEmail } from '../config/site.mjs';
 import { plain } from '../lib/text.mjs';
 import { kontakt } from '../content/kontakt';
 import Icon from './Icon.astro';
+import { t } from '../i18n/t.mjs';
+const T = t('ui', { route: 'Route öffnen' });
 import Photo from './Photo.astro';
 const a = site.address;
 const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${a.street}, ${a.zip} ${a.city}`)}`;
@@ -29,7 +31,7 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
     </li>
     <li>
       <Icon name="map-pin" size={18} />
-      <span><span data-erp="address-line">{plain(site.brand.legalName)}, {a.street}, {a.zip} {a.city}</span><span class="cpanel__hint"><a class="cpanel__route" href={route} data-erp="route" target="_blank" rel="noopener">Route öffnen</a></span></span>
+      <span><span data-erp="address-line">{plain(site.brand.legalName)}, {a.street}, {a.zip} {a.city}</span><span class="cpanel__hint"><a class="cpanel__route" href={route} data-erp="route" target="_blank" rel="noopener">{T.route}</a></span></span>
     </li>
   </ul>
 </div>

@@ -7,6 +7,10 @@
  */
 import { site, contactEmail } from '../config/site.mjs';
 import { plain } from './text.mjs';
+import { t } from '../i18n/t.mjs';
+import { publishedLanguages } from '../config/languages.mjs';
+
+const T = t('ui', { offers: 'Leistungen', home: 'Startseite', crane: 'Krananlage' });
 
 /** @param {string} siteUrl @param {string} [path] */
 export const abs = (siteUrl, path = '/') => (path === '/' ? `${siteUrl}/` : `${siteUrl}${path}`);
@@ -46,7 +50,7 @@ function clean(obj) {
 function offerCatalog(siteUrl) {
   return {
     '@type': 'OfferCatalog',
-    name: 'Leistungen',
+    name: T.offers,
     itemListElement: site.areas.map((a) => ({
       '@type': 'OfferCatalog',
       name: a.label,
@@ -92,7 +96,7 @@ export function organization(siteUrl) {
     knowsAbout: site.seo.knowsAbout,
     hasOfferCatalog: offerCatalog(siteUrl),
     contactPoint: [
-      { '@type': 'ContactPoint', telephone: site.phone.intl, contactType: 'customer service', availableLanguage: 'de' },
+      { '@type': 'ContactPoint', telephone: site.phone.intl, contactType: 'customer service', availableLanguage: publishedLanguages().map((l) => l.code) },
     ],
     sameAs: site.seo.sameAs,
   });
@@ -115,7 +119,7 @@ export function website(siteUrl) {
  * @param {{ name: string, path: string }[]} trail  ohne die Startseite
  */
 export function breadcrumbs(siteUrl, trail) {
-  const all = [{ name: 'Startseite', path: '/' }, ...trail];
+  const all = [{ name: T.home, path: '/' }, ...trail];
   return {
     '@type': 'BreadcrumbList',
     itemListElement: all.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: plain(c.name), item: abs(siteUrl, c.path) })),
@@ -172,7 +176,7 @@ export function product(siteUrl, p) {
     image: `${siteUrl}/og/${p.og ?? 'default'}.png`,
     brand: { '@type': 'Brand', name: site.brand.name },
     manufacturer: { '@id': `${siteUrl}/#organisation` },
-    category: p.category ?? 'Krananlage',
+    category: p.category ?? T.crane,
   });
 }
 

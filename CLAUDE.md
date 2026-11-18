@@ -817,6 +817,15 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   Gespeichert wird vor jedem Versand; geht das nicht → 503, die Seite zeigt Telefon und
   mailto (an die ERP-Adresse). Das Vokabular ist generiert (`scripts/export-erp.mjs` →
   `backend/app/assets/website_contact.json`).
+- **Mehrsprachig – Deutsch ist die Quelle** (Entscheid 136, `src/config/languages.mjs`,
+  `src/i18n/README.md`): **jeder Text der Website geht durch `t()`** (`src/i18n/t.mjs`; der deutsche
+  Text ist der Schlüssel, das Wörterbuch je Sprache `src/i18n/<sprache>/*.json`), jede Sprache hat
+  eigene Adressen `/<sprache>/…` (`pfade.json`), Ratgeber je Sprache `content/ratgeber/<sprache>/`.
+  Gebaut wird je Sprache ein Durchlauf (`scripts/languages.mjs`), zusammengeführt in `dist/`.
+  **Wer einen Text der Website ändert oder hinzufügt, übersetzt ihn im selben Zug in jede gebaute
+  Sprache** – sonst bricht der Build ab (fehlt · verwaist · Werte · Pfad · Ratgeber, `npm run sprachen`),
+  und `check-site` findet Deutsch, das an `t()` vorbeigeht. Französisch: `preview` (noindex, bis
+  gegengelesen); Englisch, Italienisch: geplant.
 - **Jede Seite steht in `website/src/lib/pages.ts`** oder trägt `noindex`; `check-site.mjs`
   prüft Links, JSON-LD, Sitemap, Weiterleitungen alter hs-steiner.ch-Pfade, Budget.
 
@@ -860,7 +869,10 @@ entfernt). Buchungsbelege unveränderlich (10 Jahre).
 7. **Kein Pull Request nach `main`**, solange der Weg nach `main` nicht entschieden ist: gearbeitet
    und deployt wird auf `develop`; ein offener PR `develop` → `main` lässt bei jedem Push die
    Prüfung ein zweites Mal laufen (PR #236 deshalb im November 2026 geschlossen).
-8. **Rollback-Punkte als Commit-Hash nennen** – Git-Tags lassen sich aus der
+8. **Website: jede Sprache mitdenken** – eine Änderung an einem Text der Website ist erst fertig,
+   wenn sie in jeder gebauten Sprache (`website/src/config/languages.mjs`) nachgezogen ist (Glossar
+   und Regeln: `website/src/i18n/README.md`); der Build erzwingt es.
+9. **Rollback-Punkte als Commit-Hash nennen** – Git-Tags lassen sich aus der
    Cloud-Umgebung nicht pushen und sind auf dem Remote nicht nachweisbar.
 
 ## Lokale Entwicklung

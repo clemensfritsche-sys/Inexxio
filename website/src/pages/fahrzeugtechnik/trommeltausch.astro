@@ -19,6 +19,7 @@ import { faqPage, product, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 import { pageTitle } from '../../lib/titles';
 import { trommeltausch as page, drumOptions as d, drumPath as p, winterSlot as w } from '../../content/fahrzeugtechnik';
+import { t } from '../../i18n/t.mjs';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const area = areaOf(page.area);
@@ -26,8 +27,8 @@ const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
   product(siteUrl, {
-    name: 'Trommeltausch für Fahrmischer',
-    description: 'Neue Mischtrommel auf dem bestehenden Fahrgestell statt eines neuen Fahrmischers – für alle gängigen Marken.',
+    name: t('seiten', 'Trommeltausch für Fahrmischer'),
+    description: t('seiten', 'Neue Mischtrommel auf dem bestehenden Fahrgestell statt eines neuen Fahrmischers – für alle gängigen Marken.'),
     path: page.path,
     category: 'Fahrmischer-Trommel',
     og: 'fahrzeugtechnik',
@@ -37,13 +38,13 @@ const titel = pageTitle('/fahrzeugtechnik/trommeltausch');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero
-    word="Trommeltausch"
+    word={t('seiten', 'Trommeltausch')}
     image={titel}
-    alt="Fahrgestell als Konstruktionszeichnung, eine neue rote Trommel schwebt am Kranhaken darüber"
+    alt={t('seiten', 'Fahrgestell als Konstruktionszeichnung, eine neue rote Trommel schwebt am Kranhaken darüber')}
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: 'Tauschen oder überholen?', href: '#wahl' }}
+    secondary={{ label: t('seiten', 'Tauschen oder überholen?'), href: '#wahl' }}
   />
 
   <SpecialStage id="wahl" title={d.title} lead={d.lead} items={d.items} art={d.items} legend={d.legend} cta={d.cta} />

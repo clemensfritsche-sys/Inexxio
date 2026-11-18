@@ -251,7 +251,7 @@ function listFiles(form: HTMLFormElement, input: HTMLInputElement): void {
 /** /kontakt?teil=Auslaufrinne (aus dem Teile-Katalog) – das Teil steht schon im Anliegen. */
 function prefill(form: HTMLFormElement): void {
   const part = new URLSearchParams(location.search).get('teil');
-  if (part) setValue(form, 'message', `Anfrage zu: ${part.slice(0, 200)}\n`);
+  if (part) setValue(form, 'message', `${form.dataset.part ?? ''} ${part.slice(0, 200)}\n`.trimStart());
 }
 
 /** Kontaktangaben aus dem Konto – nur in leere Felder (Schnittstelle S2, nur lesend). */
@@ -279,7 +279,7 @@ function fail(form: HTMLFormElement, panel: HTMLElement | null, vocab: Vocab, st
   const title = panel.querySelector<HTMLElement>('[data-fail-title]');
   const text = panel.querySelector<HTMLElement>('[data-fail-text]');
   for (const el of [title, text]) if (el && el.dataset.default === undefined) el.dataset.default = el.textContent ?? '';
-  if (title) title.textContent = status === 429 ? 'Zu viele Anfragen in kurzer Zeit.' : title.dataset.default ?? '';
+  if (title) title.textContent = status === 429 ? title.dataset.many ?? '' : title.dataset.default ?? '';
   if (text) text.textContent = status >= 400 && status < 500 && serverMessage ? serverMessage : text.dataset.default ?? '';
   const mail = panel.querySelector<HTMLAnchorElement>('[data-mailto]');
   if (mail) mail.href = mailto(form, vocab);

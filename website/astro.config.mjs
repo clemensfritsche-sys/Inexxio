@@ -2,6 +2,7 @@
 import { defineConfig } from 'astro/config';
 import { satteri } from '@astrojs/markdown-satteri';
 import { siteMode } from './src/lib/text.mjs';
+import { SOURCE, currentLang } from './src/config/languages.mjs';
 
 /**
  * SITE_MODE   preview (Standard) | live – «live» bricht den Build ab, solange ein Foto fehlt
@@ -16,8 +17,13 @@ if (MODE === 'live' && !SITE_URL.startsWith('https://')) {
   throw new Error(`Modus «live»: SITE_URL (${SITE_URL}) muss eine https-Adresse sein.`);
 }
 
+// Jede Sprache ein eigener Build (scripts/languages.mjs): Deutsch nach dist/, jede weitere
+// daneben – zusammengeführt unter /<sprache>/… mit übersetzten Pfaden.
+const LANG = currentLang().code;
+
 export default defineConfig({
   site: SITE_URL,
+  outDir: LANG === SOURCE ? 'dist' : `.build/site-${LANG}`,
   // Dieselbe URL-Form wie das ERP auf derselben Firebase-Site (cleanUrls, ohne Slash):
   // /krane/reparatur wird als krane/reparatur.html ausgeliefert.
   trailingSlash: 'never',

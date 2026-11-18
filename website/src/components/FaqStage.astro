@@ -12,8 +12,11 @@ import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
 import Rich from './Rich.astro';
 import { illustration } from '../lib/illustrations';
-import half from '../assets/schema/garantie-haelfte.svg?raw';
-import year from '../assets/schema/inexxio-365-jahr.svg?raw';
+import { original, t, tMarkup } from '../i18n/t.mjs';
+const half = tMarkup('schemata', halfDe);
+const year = tMarkup('schemata', yearDe);
+import halfDe from '../assets/schema/garantie-haelfte.svg?raw';
+import yearDe from '../assets/schema/inexxio-365-jahr.svg?raw';
 import base from '../assets/schema/fragen.svg?raw';
 
 export type FaqVisual = 'garantie' | 'inexxio365' | 'telefon' | 'uebergabe' | 'zeichnung';
@@ -27,13 +30,16 @@ interface Props {
       Frage, die zu keinem eigenen Bild passt. */
   illo?: string;
 }
-const { items, title = 'Häufige Fragen', lead, id = 'fragen', illo = 'menu/service' } = Astro.props;
+const T = t('ui', { faq: 'Häufige Fragen' });
+const { items, title = T.faq, lead, id = 'fragen', illo = 'menu/service' } = Astro.props;
 const group = `${id}-faq`;
 const art = (key: string) => illustration(key, 'Fragen');
 const ueber = art('menu/ueber');
 const pageArt = art(illo);
-/** Das Bild zur Frage: angegeben – oder nach ihrem Thema; sonst die Zeichnung der Seite. */
-const pick = (q: string): FaqVisual => {
+/** Das Bild zur Frage: angegeben – oder nach ihrem Thema (am deutschen Wortlaut, in jeder Sprache
+    gleich); sonst die Zeichnung der Seite. */
+const pick = (text: string): FaqVisual => {
+  const q = original(text);
   if (/zufriedenheit/i.test(q)) return 'garantie';
   if (/365/.test(q)) return 'inexxio365';
   if (/still|notfall|stillstand|telefonnummer|anrufen/i.test(q)) return 'telefon';

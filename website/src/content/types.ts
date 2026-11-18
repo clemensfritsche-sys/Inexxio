@@ -4,6 +4,7 @@
  * Konfiguration werden mit {{schlüssel}} eingesetzt.
  */
 import type { IconName } from '../components/Icon.astro';
+import { t } from '../i18n/t.mjs';
 export type AreaId = 'krantechnik' | 'fahrzeugtechnik' | 'spezialloesungen';
 /** OG-Bild: Standard oder das des Bereichs (public/og/, scripts/make-assets.mjs). */
 export type OgImage = 'default' | AreaId;
@@ -59,8 +60,9 @@ export interface SubPage {
 export interface Entry { title: string; text: string; href: string; icon: IconName }
 
 /** «Auf einen Blick» – die drei Zeilen in fester Reihenfolge (Seite und llms-full.txt). */
+const GLANCE = t('ui', { forWhom: 'Für wen', what: 'Was wir tun', deliverables: 'Was Sie erhalten' });
 export const glanceRows = (g: SubPage['glance']): { label: string; text: string }[] => [
-  { label: 'Für wen', text: g.forWhom },
-  { label: 'Was wir tun', text: g.what },
-  { label: 'Was Sie erhalten', text: g.deliverables },
+  { label: GLANCE.forWhom, text: g.forWhom },
+  { label: GLANCE.what, text: g.what },
+  { label: GLANCE.deliverables, text: g.deliverables },
 ];

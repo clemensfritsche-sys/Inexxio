@@ -9,6 +9,8 @@
  */
 import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
+import { t } from '../i18n/t.mjs';
+const T = t('ui', { pause: 'Bewegung anhalten', play: 'Bewegung fortsetzen' });
 import Media from './Media.astro';
 import Rich from './Rich.astro';
 
@@ -38,7 +40,7 @@ const { photo, title, eyebrow, sub, primary = { label: site.cta.label, href: '#a
       {phone && <a class="btn stage__btn stage__btn--glass" href={`tel:${site.phone.e164}`}><Icon name="phone" size={18} /><span class="tnum">{site.phone.display}</span></a>}
     </div>
   </div>
-  <button type="button" class="stage__still" hidden data-motion-toggle aria-pressed="false" aria-label="Bewegung anhalten" data-label-pause="Bewegung anhalten" data-label-play="Bewegung fortsetzen">
+  <button type="button" class="stage__still" hidden data-motion-toggle aria-pressed="false" aria-label={T.pause} data-label-pause={T.pause} data-label-play={T.play}>
     <Icon name="pause" size={18} class="stage__still-pause" /><Icon name="play" size={18} class="stage__still-play" />
   </button>
 </section>

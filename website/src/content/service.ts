@@ -8,8 +8,9 @@ import type { IconName } from '../components/Icon.astro';
 import { sharedFaq } from './uebergabe';
 import { promiseFaq } from './promises';
 import type { Faq } from './types';
+import { t } from '../i18n/t.mjs';
 
-export const service = {
+export const service = t('service', {
   path: '/service',
   title: 'Service und Notfall',
   description:
@@ -52,4 +53,4 @@ export const service = {
     promiseFaq.erstservice,
     promiseFaq.inexxio365,
   ] satisfies Faq[],
-};
+});

@@ -1,8 +1,9 @@
+import { t } from '../i18n/t.mjs';
 /**
  * Die Seiten des Newsletters «Post von INEXXIO» (/newsletter …). Der Wortlaut der
  * Einwilligung und die Mail-Texte stehen in `config/newsletter.mjs` – sie reisen ins ERP.
  */
-export const newsletterPages = {
+export const newsletterPages = t('newsletter', {
   description: 'Post von INEXXIO – der Newsletter von INEXXIO: Neues aus Fahrzeugtechnik, Krantechnik und Speziallösungen, nur wenn es etwas zu erzählen gibt.',
   signup: {
     eyebrow: 'Newsletter',
@@ -25,4 +26,4 @@ export const newsletterPages = {
     lead: 'Sie erhalten keine «Post von INEXXIO» mehr. War das ein Versehen? Dann melden Sie sich einfach wieder an.',
     again: 'Wieder anmelden',
   },
-};
+});

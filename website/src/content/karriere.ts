@@ -4,10 +4,11 @@
  * → Bewerbung (dunkle Karte, #bewerbung). Keine erfundenen Stellen, Leistungen oder Zahlen.
  */
 import type { IconName } from '../components/Icon.astro';
+import { t } from '../i18n/t.mjs';
 
 const apply = { subject: 'Bewerbung' };
 
-export const karriere = {
+export const karriere = t('karriere', {
   title: 'Karriere',
   description:
     'Arbeiten bei INEXXIO in {{address.home}}: Fahrmischer, Krane und Spezialmaschinen bauen, in einem kleinen Team. Bewerbung per E-Mail oder Telefon.',
@@ -54,4 +55,4 @@ export const karriere = {
     title: 'Wir freuen uns auf Sie.',
     text: 'Schicken Sie uns Ihren Lebenslauf an {{email.link}} – oder rufen Sie an: {{phone.link}}.',
   },
-};
+});

@@ -1,4 +1,5 @@
 // @ts-check
+import { t } from '../i18n/t.mjs';
 /**
  * ►►► Die Fotoliste – zugleich Bildregister der Website. ◄◄◄
  *
@@ -24,7 +25,7 @@
  */
 
 /** @type {Record<string, Photo>} */
-export const photos = {
+export const photos = t('photos', {
   'hafen-bootskran': {
     alt: 'Bootskran an einem Hafensteg hebt ein Segelboot aus dem Wasser',
     brief: 'Boots- oder Mastkran an einem Schweizer Hafen oder Segelclub, Boot am Haken über dem Wasser, Steg und Masten im Hintergrund, quer',
@@ -161,7 +162,7 @@ export const photos = {
     brief: 'Schweissarbeit oder Stahlkonstruktion bei INEXXIO in Tuttwil, Funken und Schutzschild, quer',
     ratio: '4/3',
   },
-};
+}, { keep: ['*.brief'] });
 
 /** @param {string} id */
 export function photo(id) {

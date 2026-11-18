@@ -38,16 +38,17 @@ const looks: { visual?: FaqVisual; illo?: string }[] = [
 const faq = page.faq.map((f, i) => ({ ...f, ...looks[i] }));
 const cta = { label: page.hero.primary.label, href: '#anfrage' };
 const titel = pageTitle('/spezialloesungen');
+import { t } from '../i18n/t.mjs';
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: page.crumb, path: page.path }]} og="spezialloesungen" jsonLd={nodes}>
   <StageHero
-    word="Speziallösungen"
+    word={t('seiten', 'Speziallösungen')}
     image={titel}
-    alt="Lastwagen mit Ladekran als Konstruktionszeichnung, nur der Sondergreifer ist echt und rot"
+    alt={t('seiten', 'Lastwagen mit Ladekran als Konstruktionszeichnung, nur der Sondergreifer ist echt und rot')}
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={cta}
-    secondary={{ label: 'So läuft es ab', href: '#ablauf' }}
+    secondary={{ label: t('seiten', 'So läuft es ab'), href: '#ablauf' }}
   />
 
   <FieldCards title={fields.title} lead={fields.lead} items={fields.items} />
@@ -65,7 +66,7 @@ const titel = pageTitle('/spezialloesungen');
         <ul role="list" class="checklist">
           {b.facts.map((f) => <li><Icon name="check" size={20} /><Rich as="span" text={f} /></li>)}
         </ul>
-        <a class="arrow-link" href="/ueber-uns">Mehr über uns <Icon name="arrow-right" size={18} /></a>
+        <a class="arrow-link" href="/ueber-uns">{t('ui', 'Mehr über uns')} <Icon name="arrow-right" size={18} /></a>
       </div>
     </div>
   </section>

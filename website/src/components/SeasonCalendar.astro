@@ -9,11 +9,14 @@
  */
 import Icon, { type IconName } from './Icon.astro';
 import Rich from './Rich.astro';
+import { currentLang } from '../config/languages.mjs';
 
 interface Kind { icon: IconName; word: string; legend: string; dark?: boolean }
 interface Props { id: string; title: string; text: string; kinds: Kind[]; plan: number[]; cta: string; items?: string[] }
 const { id, title, text, kinds, plan, cta, items = [] } = Astro.props;
-const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+/** Die Monatsnamen kurz, in der Sprache der Seite (Intl, keine eigene Liste je Sprache). */
+const fmt = new Intl.DateTimeFormat(currentLang().locale, { month: 'short', timeZone: 'UTC' });
+const MONTHS = Array.from({ length: 12 }, (_, i) => fmt.format(new Date(Date.UTC(2026, i, 1))).replace(/\.$/, ''));
 if (plan.length !== 12) throw new Error(`Kalender «${id}»: der Plan braucht 12 Monate (hier ${plan.length}).`);
 ---
 <section class="v4-section" id={id} aria-labelledby={`${id}-title`}>

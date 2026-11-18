@@ -4,15 +4,16 @@ import Base from '../../layouts/Base.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
 import { newsletterPages as n } from '../../content/newsletter';
+import { t } from '../../i18n/t.mjs';
 const p = n.confirmed;
 ---
-<Base title={p.title} description={n.description} crumbs={[{ name: 'Newsletter', path: '/newsletter' }, { name: p.title, path: '/newsletter/bestaetigt' }]} noindex>
+<Base title={p.title} description={n.description} crumbs={[{ name: t('seiten', 'Newsletter'), path: '/newsletter' }, { name: p.title, path: '/newsletter/bestaetigt' }]} noindex>
   <section class="section nl" data-hero>
     <div class="wrap"><div class="nl__wrap">
       <Icon name="check" size={32} class="nl__icon" />
       <h1 class="nl__title">{p.title}</h1>
       <Rich as="p" class="lead" text={p.lead} />
-      <a class="arrow-link" href="/">Zur Startseite <Icon name="arrow-right" size={18} /></a>
+      <a class="arrow-link" href="/">{t('ui', 'Zur Startseite')} <Icon name="arrow-right" size={18} /></a>
     </div></div>
   </section>
 </Base>

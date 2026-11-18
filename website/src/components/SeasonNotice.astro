@@ -8,6 +8,8 @@
 import { site } from '../config/site.mjs';
 import Icon from './Icon.astro';
 import Rich from './Rich.astro';
+import { t } from '../i18n/t.mjs';
+const T = t('ui', { season: 'Saison-Aktion' });
 
 interface Props { page: string }
 const { page } = Astro.props;
@@ -19,7 +21,7 @@ const seasons = site.seasons.filter((s) => s.pages.includes(page));
 {seasons.length > 0 && (
   <div class="season-wrap">
     {seasons.map((s) => (
-      <aside class="season" data-season data-from={s.from} data-to={s.to} hidden={!active(s.from, s.to)} aria-label="Saison-Aktion">
+      <aside class="season" data-season data-from={s.from} data-to={s.to} hidden={!active(s.from, s.to)} aria-label={T.season}>
         <Icon name="calendar-check" size={22} class="season__icon" />
         <Rich as="p" class="season__text" text={s.text} />
         <a class="arrow-link season__link" href={s.href}>{s.label} <Icon name="arrow-right" size={18} /></a>

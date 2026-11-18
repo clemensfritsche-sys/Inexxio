@@ -14,24 +14,25 @@
 import type { IconName } from '../components/Icon.astro';
 import type { AreaPage, Faq, Station, SubPage } from './types';
 import { promiseFaq } from './promises';
+import { t } from '../i18n/t.mjs';
 
 const anfrage = (label: string) => ({ label, href: '#anfrage' });
 
-const faqBrands: Faq = {
+const faqBrands: Faq = t('fahrzeugtechnik', {
   q: 'Welche Marken betreuen Sie?',
   a: '{{marks.mixerList}} – und weitere auf Anfrage. {{marks.mixerNotice}}',
-};
-const faqSpeed: Faq = {
+});
+const faqSpeed: Faq = t('fahrzeugtechnik', {
   q: 'Wie schnell ist mein Fahrmischer wieder im Einsatz?',
   a: 'Das hängt von Trommel und Teilen ab. Nennen Sie uns Marke und Typ – dann beschaffen wir die Teile vorab und planen den Termin.',
-};
+});
 const ratgeberTeile = { href: '/ratgeber/verschleissteile-fahrmischer', label: 'Verschleissteile am Fahrmischer', text: 'Wann Rinne, Schurre und Spiralschutz ersetzen?', kind: 'ratgeber' as const };
 
 const facts = (items: Station[]) => items.map(({ title, text }) => ({ title, text }));
 
 /* ------------------------------------------------------------------ Bereich */
 /** Der Weg auf der Bereichsseite – zugleich der Ablauf in vier Schritten (`steps`). */
-export const vehiclePath = {
+export const vehiclePath = t('fahrzeugtechnik', {
   title: 'So läuft es ab.',
   start: 'Ihr Fahrmischer',
   end: 'Wieder im Einsatz',
@@ -41,9 +42,9 @@ export const vehiclePath = {
     { icon: 'wrench', who: 'Wir', title: 'Umsetzung', text: 'Neue Trommel, Teile, Hydraulik oder Reparatur – bei uns in {{address.city}}.', result: 'Im eigenen Betrieb gemacht' },
     { icon: 'truck', who: 'Gemeinsam', title: 'Übergabe', text: 'Probelauf bestanden – Ihr Fahrmischer fährt wieder.', result: 'Jede Arbeit dokumentiert' },
   ] satisfies Station[],
-};
+});
 
-export const fahrzeugtechnik: AreaPage = {
+export const fahrzeugtechnik: AreaPage = t('fahrzeugtechnik', {
   id: 'fahrzeugtechnik',
   path: '/fahrzeugtechnik',
   title: 'Fahrzeugtechnik: Fahrmischer',
@@ -73,13 +74,13 @@ export const fahrzeugtechnik: AreaPage = {
     },
   ],
   service: { name: 'Fahrzeugtechnik', serviceType: 'Trommeltausch und Verschleissteile für Fahrmischer' },
-};
+});
 
 /**
  * Alles für Ihren Fahrmischer – die Karten der Bereichsseite (components/spezial/FieldCards.astro), je mit
  * der Zeichnung aus dem Menü. Reparatur und Aufbauten haben keine Unterseite (Anker #reparatur).
  */
-export const vehicleOffers = {
+export const vehicleOffers = t('fahrzeugtechnik', {
   title: 'Alles für Ihren Fahrmischer.',
   lead: 'Von der Rinne bis zur neuen Trommel.',
   items: [
@@ -107,11 +108,11 @@ export const vehicleOffers = {
       text: 'Hydraulik, Antrieb, Aufbau: Was auf der Baustelle bricht, setzen wir instand.',
     },
   ],
-};
+});
 
 /* ------------------------------------------------------------------ Trommeltausch */
 /** Was zum Trommeltausch gehört – als Weg auf der Seite, zugleich der Leistungsumfang (`scope`). */
-export const drumPath = {
+export const drumPath = t('fahrzeugtechnik', {
   title: 'Was zum Tausch gehört.',
   start: 'Trommel am Ende',
   end: 'Wieder im Einsatz',
@@ -122,9 +123,9 @@ export const drumPath = {
     { icon: 'drafting-compass', who: 'Wir', title: 'Aufbau', text: 'Rahmen und Befestigung, dazu Wassersystem, Leiter und Beleuchtung.', result: 'Alles an der Trommel montiert' },
     { icon: 'flag', who: 'Wir', title: 'Inbetriebnahme', text: 'Ein Probelauf mit allem, was dazugehört – dann fährt der Fahrmischer wieder.', result: 'Probelauf mit Protokoll' },
   ] satisfies Station[],
-};
+});
 
-export const trommeltausch: SubPage = {
+export const trommeltausch: SubPage = t('fahrzeugtechnik', {
   area: 'fahrzeugtechnik',
   path: '/fahrzeugtechnik/trommeltausch',
   crumb: 'Trommeltausch',
@@ -167,14 +168,14 @@ export const trommeltausch: SubPage = {
     ratgeberTeile,
   ],
   service: { name: 'Trommeltausch für Fahrmischer', serviceType: 'Trommeltausch und Trommel-Revision für Fahrmischer' },
-};
+});
 
 /**
  * Tauschen, überholen oder neu kaufen (Anker #wahl) – die Bühne der Startseite
  * (components/home/SpecialStage.astro): ein Umschalter, die Zeichnung blendet über. Bildregel: rot ist,
  * was wir erneuern; der neue Fahrmischer steht hell da – er ist nicht unser Angebot.
  */
-export const drumOptions = {
+export const drumOptions = t('fahrzeugtechnik', {
   title: 'Tauschen, überholen – oder neu?',
   lead: 'Was zu Ihrem Fahrzeug passt, sagen wir nach der Kontrolle. Offen.',
   legend: { grey: 'Grau: was bleibt', red: 'Rot: was wir erneuern' },
@@ -184,14 +185,14 @@ export const drumOptions = {
     { title: 'Neu kaufen', text: 'Ist auch das Fahrgestell am Ende, lohnt sich nur ein neuer Fahrmischer. Das sagen wir Ihnen offen.', illo: 'trommel-neu', alt: 'Zeichnung: ein neuer Fahrmischer, ganz hell' },
   ],
   cta: { label: 'Trommel prüfen lassen', href: '#anfrage' },
-};
+});
 
 /**
  * Der Winter als Zeitpunkt (Anker #winter, Ziel der Saison-Aktion in config/site.mjs): der Wandkalender
  * (components/SeasonCalendar.astro) – die Wintermonate dunkel mit Schneeflocke («Tausch»), die übrigen
  * hell mit dem Fahrmischer («Einsatz»). Wer draufschaut, sieht: im Winter steht er, dann ist Zeit.
  */
-export const winterSlot = {
+export const winterSlot = t('fahrzeugtechnik', {
   id: 'winter',
   title: 'Im Winter, wenn der Bau ruht.',
   text: 'Dann brauchen Sie den Fahrmischer kaum – der beste Moment für Tausch oder Revision. Im Frühling ist er bereit.',
@@ -202,10 +203,10 @@ export const winterSlot = {
   /** Je Monat ab Januar die Art (Index in `kinds`): Nov–Feb ruht der Bau. */
   plan: [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
   cta: 'Winter-Termin planen',
-};
+});
 
 /* ------------------------------------------------------------------ Verschleissteile */
-export const verschleissteile: SubPage = {
+export const verschleissteile: SubPage = t('fahrzeugtechnik', {
   area: 'fahrzeugtechnik',
   path: '/fahrzeugtechnik/verschleissteile',
   crumb: 'Verschleissteile',
@@ -255,16 +256,16 @@ export const verschleissteile: SubPage = {
     ratgeberTeile,
   ],
   service: { name: 'Verschleissteile für Fahrmischer', serviceType: 'Beschaffung und Einbau von Verschleissteilen für Fahrmischer' },
-};
+});
 
 /** Kopf des Katalogs. */
-export const partsCatalog = {
+export const partsCatalog = t('fahrzeugtechnik', {
   title: 'Katalog',
   lead: 'Auf Bestellung beschafft, auf Wunsch eingebaut. Den Preis erfahren Sie vorab.',
-};
+});
 
 /** Bestellen in drei Schritten – als Weg (components/spezial/SolutionPath.astro). */
-export const partsOrder = {
+export const partsOrder = t('fahrzeugtechnik', {
   title: 'So läuft es ab.',
   start: 'Ihr Teil fehlt',
   end: 'Wieder im Einsatz',
@@ -273,7 +274,7 @@ export const partsOrder = {
     { icon: 'search', who: 'Wir', title: 'Preis erhalten', text: 'Wir beschaffen das Teil und nennen vorher den Preis.', result: 'Preis vorab' },
     { icon: 'package', who: 'Wir', title: 'Holen oder einbauen', text: 'Abholen in {{address.city}} – oder wir bauen es gleich ein.', result: 'Sie wählen: abholen oder Einbau' },
   ] satisfies Station[],
-};
+});
 
 /** Alle Unterseiten des Bereichs, in der Reihenfolge der Navigation. */
 export const fahrzeugtechnikPages = [trommeltausch, verschleissteile];

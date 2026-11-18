@@ -29,7 +29,10 @@
  * Anmeldezustand: `html[data-account]` (scripts/early.js), Regeln für `data-acct` in global.css.
  */
 import { site, navigation as groups } from '../config/site.mjs';
-import { plain } from '../lib/text.mjs';
+import { plain, siteMode } from '../lib/text.mjs';
+import { builtLanguages, currentLang, languages } from '../config/languages.mjs';
+import { localPath } from '../i18n/paths.mjs';
+import { t } from '../i18n/t.mjs';
 import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
 import { getImage } from 'astro:assets';
@@ -44,6 +47,26 @@ const { over = false } = Astro.props;
 const path = Astro.url.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
 const within = (href: string) => path === href || path.startsWith(`${href}/`);
 const tel = `tel:${site.phone.e164}`;
+const T = t('ui', {
+  all: 'Alles zu {label}',
+  allSub: 'Übersicht und alle Leistungen',
+  loginSub: 'Mit E-Mail-Link, Google oder Passkey – ohne Passwort.',
+  profile: 'Mein Profil',
+  profileSub: 'Person, Firma und Adressbuch an einem Ort.',
+  logoutSub: 'Auf diesem Gerät abmelden.',
+  account: 'Mein Konto',
+  signedIn: 'Angemeldet',
+  home: 'zur Startseite',
+  call: '{phone} anrufen',
+  nav: 'Hauptnavigation',
+  navMobile: 'Hauptnavigation (mobil)',
+  sub: 'Untermenü {label}',
+  language: 'Sprache: {name}',
+  current: 'Aktuelle Sprache',
+  menu: 'Menü',
+  close: 'Menü schliessen',
+  env: 'Testumgebung – nicht die öffentliche Website',
+});
 const acct = site.account;
 /** Testumgebung: ein Eckband oben rechts (nur `SITE_ENV=dev`, auch in Konto und ERP). */
 const envTag = process.env.SITE_ENV === 'dev' ? 'DEV' : null;
@@ -73,43 +96,46 @@ const tilesOf = async (g: (typeof groups)[number]): Promise<Tile[]> => {
   if (!kids.length) return [self];
   const deck = kids.slice(0, 3).map((t) => t.img);
   // Eine Übersicht, die selbst eine Seite ist (ddSelf, «Über uns»), zeigt ihr eigenes Bild; sonst der Stapel.
-  const all = g.ddSelf ? { ...self, label: g.selfLabel ?? g.label } : { ...self, label: `Alles zu ${g.label}`, sub: 'Übersicht und alle Leistungen', deck };
+  const all = g.ddSelf ? { ...self, label: g.selfLabel ?? g.label } : { ...self, label: T.all.replace('{label}', g.label), sub: T.allSub, deck };
   return [all, ...kids];
 };
 /** Ein Punkt gilt als aktuell, wenn man auf ihm oder einer seiner Unterseiten steht. */
 const menus = await Promise.all(groups.map(async (g) => ({ id: g.id, label: g.label, href: g.href, pages: [g.href, ...g.children.map((c) => c.href)], tiles: await tilesOf(g) })));
-const langs = [
-  { label: 'Deutsch', bubble: 'Hallo', sub: 'Aktuelle Sprache', on: true },
-  { label: 'English', bubble: 'Hello', sub: 'Coming soon', lang: 'en' },
-  { label: 'Français', bubble: 'Bonjour', sub: 'Bientôt disponible', lang: 'fr' },
-  { label: 'Italiano', bubble: 'Ciao', sub: 'Presto disponibile', lang: 'it' },
-];
-const login = { label: acct.login.label, href: acct.login.href, img: illo('menu/anmelden'), sub: 'Mit E-Mail-Link, Google oder Passkey – ohne Passwort.' };
-const profile = { label: 'Mein Profil', href: acct.profile.href, img: illo('menu/profil'), sub: 'Person, Firma und Adressbuch an einem Ort.' };
-const logout = { label: acct.logout.label, href: acct.logout.href, img: illo('menu/abmelden'), sub: 'Auf diesem Gerät abmelden.' };
+/** Die Sprachwahl (src/config/languages.mjs): dieselbe Seite in jeder gebauten Sprache, die übrigen «bald».
+    Der Link trägt `hreflang` – beim Zusammenführen bleibt er, wie er ist (scripts/languages.mjs). */
+const here = currentLang();
+const built = new Set(builtLanguages(siteMode()).map((l) => l.code));
+const langs = languages.map((l) => {
+  const on = l.code === here.code;
+  const href = !on && built.has(l.code) ? localPath(path, l.code) ?? localPath('/', l.code) : undefined;
+  return { label: l.name, bubble: l.hello, lang: l.locale, on, href, sub: on ? T.current : href ? l.read : l.soon };
+});
+const login = { label: acct.login.label, href: acct.login.href, img: illo('menu/anmelden'), sub: T.loginSub };
+const profile = { label: T.profile, href: acct.profile.href, img: illo('menu/profil'), sub: T.profileSub };
+const logout = { label: acct.logout.label, href: acct.logout.href, img: illo('menu/abmelden'), sub: T.logoutSub };
 const cols = (n: number) => `--cols:${Math.max(3, n)}`;
 /** Mobil-Menü: EINE Ebene. Jeder Punkt klappt eine Reihe Karten auf – dieselben Kacheln wie im Kopf. */
 const mobile: { id: string; label: string; href: string; acct?: string; cards: Tile[] }[] = [
   ...menus.map((m) => ({ id: m.id, label: m.label, href: m.href, cards: m.tiles })),
-  { id: 'konto', label: 'Mein Konto', href: acct.profile.href, acct: 'user', cards: [profile, logout] },
+  { id: 'konto', label: T.account, href: acct.profile.href, acct: 'user', cards: [profile, logout] },
 ];
 ---
 <header class:list={['site-header', over && 'site-header--over']} data-header>
-  {envTag && <div class="env-ribbon" title="Testumgebung – nicht die öffentliche Website"><span>{envTag}</span></div>}
+  {envTag && <div class="env-ribbon" title={T.env}><span>{envTag}</span></div>}
   <div class="hd" data-hd>
     <span class="hd__glass" aria-hidden="true"></span>
     <div class="hd__bar">
-      <a href="/" class="hd__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}>
+      <a href="/" class="hd__home" aria-label={`${plain(site.brand.full)} – ${T.home}`}>
         <span class="hd__logo hd__logo--ink"><Lockup define /></span>
         <span class="hd__logo hd__logo--white"><Lockup tone="dark" /></span>
       </a>
 
-      <nav class="nav" aria-label="Hauptnavigation">
+      <nav class="nav" aria-label={T.nav}>
         <ul role="list" class="nav__list">
           {menus.map((m) => (
             <li class="nav__item dd" data-dd>
               <a href={m.href} class:list={['nav__link', m.pages.some(within) && 'is-current']} aria-current={path === m.href ? 'page' : undefined}>{m.label}</a>
-              <button type="button" class="nav__toggle" aria-expanded="false" aria-controls={`dd-${m.id}`} aria-label={`Untermenü ${m.label}`} data-dd-toggle>
+              <button type="button" class="nav__toggle" aria-expanded="false" aria-controls={`dd-${m.id}`} aria-label={T.sub.replace('{label}', m.label)} data-dd-toggle>
                 <Icon name="chevron-down" size={16} class="nav__chev" />
               </button>
               <div class="dd__panel" id={`dd-${m.id}`}>
@@ -135,17 +161,25 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
 
       <div class="hd__tools">
         <div class="dd dd--tool" data-dd>
-          <button type="button" class="hd__ic hd__lang" aria-expanded="false" aria-controls="dd-sprache" aria-label="Sprache: Deutsch" data-dd-toggle>
-            <Icon name="globe" size={18} /><span>DE</span>
+          <button type="button" class="hd__ic hd__lang" aria-expanded="false" aria-controls="dd-sprache" aria-label={T.language.replace('{name}', here.name)} data-dd-toggle>
+            <Icon name="globe" size={18} /><span>{here.code.toUpperCase()}</span>
           </button>
           <div class="dd__panel" id="dd-sprache">
             <ul role="list" class="dd__tiles" style={cols(langs.length)}>
               {langs.map((l) => (
-                <li><span class:list={['tile tile--static', !l.on && 'is-soon']} lang={l.lang}>
-                  <span class="tile__label">{l.label}</span>
-                  <span class="tile__art"><span class:list={['bubble', l.on && 'bubble--on']}>{l.bubble}</span></span>
-                  <span class="tile__sub">{l.sub}</span>
-                </span></li>
+                <li>{l.href ? (
+                  <a class="tile tile--static" href={l.href} hreflang={l.lang} lang={l.lang}>
+                    <span class="tile__label">{l.label}</span>
+                    <span class="tile__art"><span class="bubble">{l.bubble}</span></span>
+                    <span class="tile__sub">{l.sub}</span>
+                  </a>
+                ) : (
+                  <span class:list={['tile tile--static', !l.on && 'is-soon']} lang={l.lang}>
+                    <span class="tile__label">{l.label}</span>
+                    <span class="tile__art"><span class:list={['bubble', l.on && 'bubble--on']}>{l.bubble}</span></span>
+                    <span class="tile__sub">{l.sub}</span>
+                  </span>
+                )}</li>
               ))}
             </ul>
           </div>
@@ -156,7 +190,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
           <a class="hd__ic hd__acct" href={login.href} rel="nofollow" data-acct="login" aria-label={login.label}>
             <span class="hd__acct-ico"><Icon name="circle-user" size={22} /></span>
           </a>
-          <a class="hd__ic hd__acct" href={acct.profile.href} rel="nofollow" data-acct="user" aria-label="Mein Konto">
+          <a class="hd__ic hd__acct" href={acct.profile.href} rel="nofollow" data-acct="user" aria-label={T.account}>
             <span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span>
           </a>
           <div class="dd__panel" id="dd-konto">
@@ -169,7 +203,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
             </ul>
             <ul role="list" class="dd__tiles" style={cols(3)} data-acct="user">
               <li><a class="tile tile--me" href={acct.profile.href} rel="nofollow">
-                <span class="tile__label" data-acct-name>Angemeldet</span>
+                <span class="tile__label" data-acct-name>{T.signedIn}</span>
                 <span class="tile__stage"><span class="tile__ring"><span class="tile__avatar" data-acct-initials><Icon name="user" size={36} /></span></span></span>
                 <span class="tile__rows">
                   <span class="tile__row"><Icon name="mail" size={16} /><span data-acct-email></span></span>
@@ -188,19 +222,19 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
         </div>
       </div>
 
-      <a class="hd__tel" href={tel} aria-label={`${site.phone.display} anrufen`}>
+      <a class="hd__tel" href={tel} aria-label={T.call.replace('{phone}', site.phone.display)}>
         <Icon name="phone" size={18} /><span class="hd__telnum tnum">{site.phone.display}</span>
       </a>
       <a class="btn btn--primary hd__cta" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
 
       <a class="hd__ic hd__m-acct" href={acct.login.href} rel="nofollow" data-acct="login" aria-label={acct.login.label}><Icon name="circle-user" size={22} /></a>
-      <a class="hd__ic hd__m-acct" href={acct.profile.href} rel="nofollow" data-acct="user" aria-label="Mein Konto"><span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span></a>
+      <a class="hd__ic hd__m-acct" href={acct.profile.href} rel="nofollow" data-acct="user" aria-label={T.account}><span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span></a>
 
       <details class="mnav" data-mnav>
-        <summary class="mnav__toggle" aria-label="Menü"><span class="mnav__word"><Icon name="menu" size={24} /></span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">Menü schliessen</span></summary>
+        <summary class="mnav__toggle" aria-label={T.menu}><span class="mnav__word"><Icon name="menu" size={24} /></span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">{T.close}</span></summary>
         <div class="mnav__sheet">
-          <div class="mnav__top"><a href="/" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup /></a></div>
-          <nav class="mnav__list" aria-label="Hauptnavigation (mobil)">
+          <div class="mnav__top"><a href="/" aria-label={`${plain(site.brand.full)} – ${T.home}`}><Lockup /></a></div>
+          <nav class="mnav__list" aria-label={T.navMobile}>
             {mobile.map((g) => (
               <div class="mg" data-mg={g.id} data-acct={g.acct}>
                 <a href={g.href} class="mg__row" data-mg-toggle aria-expanded="false" aria-current={path === g.href ? 'page' : undefined}>{g.label}<Icon name="chevron-down" size={20} class="mg__chev" /></a>
@@ -225,14 +259,22 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
             <a class="mnav__btn btn--quiet" href={tel}><Icon name="phone" size={18} /> <span class="tnum">{site.phone.display}</span></a>
             <a class="mnav__btn mnav__btn--red" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} /></a>
             <div class="mg mg--lang" data-mg="sprache">
-              <button type="button" class="mnav__lang" data-mg-toggle aria-expanded="false"><Icon name="globe" size={18} /> Deutsch <Icon name="chevron-down" size={16} class="mg__chev" /></button>
+              <button type="button" class="mnav__lang" data-mg-toggle aria-expanded="false"><Icon name="globe" size={18} /> {here.name} <Icon name="chevron-down" size={16} class="mg__chev" /></button>
               <div class="mg__panel"><div class="mg__clip"><ul role="list" class="mg__rail">
                 {langs.map((l) => (
-                  <li><span class:list={['mg__card mg__card--lang', !l.on && 'is-soon']} lang={l.lang}>
-                    <span class="mg__art"><span class:list={['bubble mg__bubble', l.on && 'bubble--on']}>{l.bubble}</span></span>
-                    <span class="mg__label">{l.label}</span>
-                    <span class="mg__sub">{l.sub}</span>
-                  </span></li>
+                  <li>{l.href ? (
+                    <a class="mg__card mg__card--lang" href={l.href} hreflang={l.lang} lang={l.lang}>
+                      <span class="mg__art"><span class="bubble mg__bubble">{l.bubble}</span></span>
+                      <span class="mg__label">{l.label}</span>
+                      <span class="mg__sub">{l.sub}</span>
+                    </a>
+                  ) : (
+                    <span class:list={['mg__card mg__card--lang', !l.on && 'is-soon']} lang={l.lang}>
+                      <span class="mg__art"><span class:list={['bubble mg__bubble', l.on && 'bubble--on']}>{l.bubble}</span></span>
+                      <span class="mg__label">{l.label}</span>
+                      <span class="mg__sub">{l.sub}</span>
+                    </span>
+                  )}</li>
                 ))}
               </ul></div></div>
             </div>

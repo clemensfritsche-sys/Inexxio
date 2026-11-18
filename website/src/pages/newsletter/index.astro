@@ -7,8 +7,9 @@ import Base from '../../layouts/Base.astro';
 import Rich from '../../components/Rich.astro';
 import { newsletterPages as n } from '../../content/newsletter';
 import '../../styles/form.css';
+import { t } from '../../i18n/t.mjs';
 ---
-<Base title="Newsletter" description={n.description} crumbs={[{ name: 'Newsletter', path: '/newsletter' }]} noindex>
+<Base title={t('seiten', 'Newsletter')} description={n.description} crumbs={[{ name: t('seiten', 'Newsletter'), path: '/newsletter' }]} noindex>
   <section class="section nl" data-hero>
     <div class="wrap"><div class="nl__wrap">
       <p class="eyebrow">{n.signup.eyebrow}</p>
@@ -16,7 +17,7 @@ import '../../styles/form.css';
       <Rich as="p" class="lead" text={n.signup.lead} />
       <form class="nl__form" method="post" action="/api/v1/newsletter">
         <div class="iform__hp" aria-hidden="true">
-          <label>Bitte leer lassen <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
+          <label>{t('ui', 'Bitte leer lassen')} <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
         </div>
         <div class="field">
           <label class="field__label" for="nl-email">{n.signup.label}</label>
@@ -24,7 +25,7 @@ import '../../styles/form.css';
         </div>
         <button type="submit" class="btn btn--primary btn--lg">{n.signup.button}</button>
       </form>
-      <p class="small muted">{n.signup.small} <a class="link" href="/datenschutz">Datenschutz</a>.</p>
+      <p class="small muted">{n.signup.small} <a class="link" href="/datenschutz">{t('ui', 'Datenschutz')}</a>.</p>
     </div></div>
   </section>
 </Base>

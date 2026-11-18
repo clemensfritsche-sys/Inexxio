@@ -16,6 +16,9 @@ import { abs, breadcrumbs as breadcrumbNode, graph, organization, website } from
 import { isListed } from '../lib/pages';
 import { hostingCsp } from '../lib/csp.mjs';
 import type { OgImage } from '../content/types';
+import { currentLang, publishedLanguages } from '../config/languages.mjs';
+import { localPath } from '../i18n/paths.mjs';
+import { t } from '../i18n/t.mjs';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import MobileBar from '../components/MobileBar.astro';
@@ -62,7 +65,17 @@ const canonical = abs(siteUrl, path);
 const fullTitle = plain(titleFull ?? `${title} | ${site.brand.name}`);
 const desc = plain(description);
 const ogImage = `${siteUrl}/og/${og}.png`;
-const indexable = mode === 'live' && !noindex;
+const indexable = mode === 'live' && !noindex && currentLang().status === 'live';
+
+// Sprache: html lang, og:locale, hreflang – eine Sprache in Prüfung (preview) bleibt noindex und
+// ohne hreflang, bis sie freigegeben ist (src/config/languages.mjs).
+const lang = currentLang();
+const T = t('ui', { skip: 'Zum Inhalt springen' });
+const alternates = noindex || lang.status !== 'live' ? [] : publishedLanguages()
+  .map((l) => ({ l, p: localPath(path, l.code) }))
+  .filter((x) => x.p)
+  .map(({ l, p }) => ({ hreflang: l.locale, href: abs(siteUrl, p!) }));
+const xDefault = alternates.length > 1 ? abs(siteUrl, path) : undefined;
 
 const nodes = [organization(siteUrl), website(siteUrl), ...(crumbs.length ? [breadcrumbNode(siteUrl, crumbs)] : []), ...jsonLd];
 
@@ -87,7 +100,7 @@ const csp = [
 ].join('; ');
 ---
 <!doctype html>
-<html lang="de-CH" data-site>
+<html lang={lang.locale} data-site>
   <head>
     <meta charset="utf-8" />
     {import.meta.env.PROD && <meta http-equiv="Content-Security-Policy" content={csp} />}
@@ -95,6 +108,8 @@ const csp = [
     <title>{fullTitle}</title>
     <meta name="description" content={desc} />
     <link rel="canonical" href={canonical} />
+    {alternates.length > 1 && alternates.map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
+    {xDefault && <link rel="alternate" hreflang="x-default" href={xDefault} />}
     <meta name="robots" content={indexable ? 'index, follow' : 'noindex, nofollow'} />
     <meta name="theme-color" content="#FFFFFF" />
     <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossorigin />
@@ -108,7 +123,7 @@ const csp = [
     <meta property="og:type" content={article ? 'article' : 'website'} />
     {article && <meta property="article:published_time" content={article.published} />}
     {article && <meta property="article:modified_time" content={article.updated} />}
-    <meta property="og:locale" content="de_CH" />
+    <meta property="og:locale" content={lang.og} />
     <meta property="og:site_name" content={site.brand.name} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={desc} />
@@ -124,7 +139,7 @@ const csp = [
     <script type="application/ld+json" is:inline set:html={graph(nodes)} />
   </head>
   <body data-contact={builtContact}>
-    <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
+    <a class="skip-link" href="#inhalt">{T.skip}</a>
     <Header over={stage} />
     <main id="inhalt" tabindex="-1" class:list={[stage && 'main--stage']}>
       <slot />

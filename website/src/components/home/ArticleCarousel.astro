@@ -6,6 +6,8 @@
  */
 import { article } from '../../lib/ratgeber';
 import Icon from '../Icon.astro';
+import { t } from '../../i18n/t.mjs';
+const T = t('ui', { prev: 'Vorheriger Artikel', next: 'Nächster Artikel', item: 'Artikel' });
 import Media from '../Media.astro';
 import Rich from '../Rich.astro';
 
@@ -28,8 +30,8 @@ const cards = items.map((it) => ({ ...it, a: article(it.slug) }));
         {lead && <Rich as="p" class="v4-sub" text={lead} />}
       </div>
       <div class="rat__arrows">
-        <button type="button" class="rat__arrow" data-prev aria-label="Vorheriger Artikel"><Icon name="arrow-left" size={18} /></button>
-        <button type="button" class="rat__arrow" data-next aria-label="Nächster Artikel"><Icon name="arrow-right" size={18} /></button>
+        <button type="button" class="rat__arrow" data-prev aria-label={T.prev}><Icon name="arrow-left" size={18} /></button>
+        <button type="button" class="rat__arrow" data-next aria-label={T.next}><Icon name="arrow-right" size={18} /></button>
       </div>
     </div>
     <ul role="list" class="rat__track" data-rail>
@@ -45,7 +47,7 @@ const cards = items.map((it) => ({ ...it, a: article(it.slug) }));
         </li>
       ))}
     </ul>
-    <div class="cdots" data-dots data-label="Artikel"></div>
+    <div class="cdots" data-dots data-label={T.item}></div>
     {all && <p class="rat__all"><a class="btn btn--grey" href={all.href}>{all.label}</a></p>}
   </div>
 </section>

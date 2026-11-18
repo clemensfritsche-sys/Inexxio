@@ -1,0 +1,12 @@
+{
+  "Bitte beschreiben Sie kurz Ihr Anliegen.": "Veuillez décrire brièvement votre demande.",
+  "Bitte geben Sie Ihren Namen an.": "Veuillez indiquer votre nom.",
+  "Bitte geben Sie Ihre E-Mail-Adresse an – dorthin geht unsere Antwort.": "Veuillez indiquer votre adresse e-mail – notre réponse y sera envoyée.",
+  "Diese Telefonnummer sieht unvollständig aus.": "Ce numéro de téléphone semble incomplet.",
+  "Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).": "Cette adresse e-mail est incomplète (exemple: nom@entreprise.ch).",
+  "Dieser Text ist zu lang – höchstens {max} Zeichen.": "Ce texte est trop long – {max} caractères au maximum.",
+  "Bitte höchstens {max} Dateien auswählen (jetzt {count}).": "Veuillez choisir au maximum {max} fichiers (actuellement {count}).",
+  "«{name}» ist kein Bild im Format JPG, PNG oder WEBP.": "«{name}» n'est pas une image au format JPG, PNG ou WEBP.",
+  "Die Dateien sind zusammen {size} gross – erlaubt sind {max}.": "Les fichiers font ensemble {size} – {max} sont autorisés.",
+  "Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal.": "C'était plus rapide que quiconque ne peut taper. Veuillez renvoyer la demande."
+}

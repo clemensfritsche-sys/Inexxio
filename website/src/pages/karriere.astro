@@ -13,20 +13,21 @@ import CallPanel from '../components/CallPanel.astro';
 import { site, contactEmail } from '../config/site.mjs';
 import { pageTitle } from '../lib/titles';
 import { karriere as c } from '../content/karriere';
+import { t } from '../i18n/t.mjs';
 
 const titel = pageTitle('/karriere');
 const mail = `mailto:${contactEmail()}?subject=${encodeURIComponent(c.apply.subject)}`;
 const profiles = c.profiles.items.map((p) => ({ ...p, href: `mailto:${contactEmail()}?subject=${encodeURIComponent(`${c.apply.subject}: ${p.title}`)}` }));
 ---
-<Base title={c.title} description={c.description} crumbs={[{ name: 'Karriere', path: '/karriere' }]}>
+<Base title={c.title} description={c.description} crumbs={[{ name: t('seiten', 'Karriere'), path: '/karriere' }]}>
   <StageHero
-    word="Karriere"
+    word={t('seiten', 'Karriere')}
     image={titel}
-    alt="Drei Menschen als Zeichnung führen einen roten Stahlträger, der am Kran hängt – gemeinsam bauen sie einen Kran"
+    alt={t('seiten', 'Drei Menschen als Zeichnung führen einen roten Stahlträger, der am Kran hängt – gemeinsam bauen sie einen Kran')}
     title={c.hero.h1}
     lead={c.hero.lead}
-    primary={{ label: 'Jetzt bewerben', href: '#bewerbung' }}
-    secondary={{ label: 'Warum hier arbeiten', href: '#warum' }}
+    primary={{ label: t('seiten', 'Jetzt bewerben'), href: '#bewerbung' }}
+    secondary={{ label: t('seiten', 'Warum hier arbeiten'), href: '#warum' }}
   />
 
   <FactGrid id="warum" title={c.why.title} items={c.why.items} columns={4} />
@@ -41,7 +42,7 @@ const profiles = c.profiles.items.map((p) => ({ ...p, href: `mailto:${contactEma
     title={c.contact.title}
     text={c.contact.text}
     actions={[
-      { label: 'Bewerbung per E-Mail', href: mail, icon: 'mail', primary: true },
+      { label: t('seiten', 'Bewerbung per E-Mail'), href: mail, icon: 'mail', primary: true },
       { label: site.phone.display, href: `tel:${site.phone.e164}`, icon: 'phone' },
     ]}
   />

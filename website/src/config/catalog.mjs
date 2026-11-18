@@ -1,4 +1,5 @@
 // @ts-check
+import { t } from '../i18n/t.mjs';
 /**
  * Verschleissteile für Fahrmischer – das Programm ist im Aufbau. Preise gibt es bewusst keine (kein Shop).
  * Gruppiert nach Teileart.
@@ -13,7 +14,7 @@
  */
 import { site } from './site.mjs';
 
-export const catalog = {
+export const catalog = t('catalog', {
   /** Die letzte Karte: wer sein Teil nicht findet, schickt ein Foto (öffnet die Anfrage). */
   missing: { title: 'Ihr Teil ist nicht dabei?', text: 'Schicken Sie uns ein Foto – wir finden es.', cta: 'Foto schicken' },
   /** @type {PartGroup[]} */
@@ -72,4 +73,4 @@ export const catalog = {
   ],
   /** Gilt für alle Teile, solange ein Teil keine eigene Liste trägt. */
   fits: site.marks.mixers,
-};
+});

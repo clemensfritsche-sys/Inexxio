@@ -15,6 +15,7 @@ import { site } from '../config/site.mjs';
 import { sharedFaq } from './uebergabe';
 import { promiseFaq } from './promises';
 import type { AreaPage, Faq, Station, Step, SubPage } from './types';
+import { t } from '../i18n/t.mjs';
 
 const anfrage = (label: string) => ({ label, href: '#anfrage' });
 const KNM = site.labels.kraneNachMass;
@@ -29,7 +30,7 @@ const facts = (items: Station[]): Step[] => items.map(({ title, text }) => ({ ti
 
 /* ------------------------------------------------------------------ Bereich */
 /** Der Weg auf der Bereichsseite – zugleich der Ablauf in vier Schritten (`steps`). */
-export const cranePath = {
+export const cranePath = t('krantechnik', {
   title: 'So läuft es ab.',
   start: 'Ihr Anliegen',
   end: 'Ihr Kran läuft',
@@ -39,9 +40,9 @@ export const cranePath = {
     { icon: 'wrench', who: 'Wir', title: 'Umsetzung', text: 'Wir bauen, montieren, prüfen oder reparieren.', result: 'Die nötigen Teile sind dabei' },
     { icon: 'clipboard-check', who: 'Wir', title: 'Protokoll', text: 'Zu jeder Arbeit ein Protokoll – der Eintrag gehört ins Kranbuch.', result: 'Kranbuch nachgeführt' },
   ] satisfies Station[],
-};
+});
 
-export const krantechnik: AreaPage = {
+export const krantechnik: AreaPage = t('krantechnik', {
   id: 'krantechnik',
   path: '/krantechnik',
   title: 'Krantechnik: Krane nach Mass',
@@ -66,10 +67,10 @@ export const krantechnik: AreaPage = {
     faqOtherMakes,
   ],
   service: { name: 'Krantechnik', serviceType: 'Bau, Prüfung, Wartung, Modernisierung und Reparatur von Kranen' },
-};
+});
 
 /** Die drei Karten der Bereichsseite (components/spezial/FieldCards.astro), je mit der Zeichnung aus dem Menü. */
-export const craneOffers = {
+export const craneOffers = t('krantechnik', {
   title: 'Alles rund um Ihren Kran.',
   lead: 'Bauen, betreuen, modernisieren – aus einer Hand.',
   items: [
@@ -77,10 +78,10 @@ export const craneOffers = {
     { id: 'service', illo: 'menu/kranservice', alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll', title: 'Kranservice', text: 'Die erste Inspektion ist gratis. Mit INEXXIO 365 übernehmen wir die Ausfälle.', href: '/krantechnik/kranservice' },
     { id: 'heukran', illo: 'menu/heukrananlagen', alt: 'Zeichnung: Heukran mit Greifer über dem Heustock', title: 'Heukrananlagen', text: 'Ohne Kabine, per Funk: Sie bleiben unten, der Greifer arbeitet.', href: '/krantechnik/heukrananlagen' },
   ],
-};
+});
 
 /* ------------------------------------------------------------------ Krane nach Mass */
-export const kraneNachMass: SubPage = {
+export const kraneNachMass: SubPage = t('krantechnik', {
   area: 'krantechnik',
   path: '/krantechnik/krane-nach-mass',
   crumb: KNM,
@@ -127,14 +128,14 @@ export const kraneNachMass: SubPage = {
     ratgeberPruefung,
   ],
   service: { name: KNM, serviceType: 'Planung, Bau und Montage von Kranen und Bootsliften nach Mass, auch für schwierige Gebäude' },
-};
+});
 
 /**
  * Wo ein Katalogkran nicht passt (Anker #situationen) – alle vier Situationen auf einen Blick, gesetzt wie
  * der Verschleissteile-Katalog (components/Magazine + PhotoCard). Solange die Fotos (config/photos.mjs
  * `kran-*`) fehlen, steht die Zeichnung (src/assets/illustrations/kran-*.svg). Die letzte Karte fragt.
  */
-export const craneSituations = {
+export const craneSituations = t('krantechnik', {
   title: 'Wo ein Katalogkran nicht passt.',
   lead: 'Vier Situationen, die wir oft sehen – und wie der Kran trotzdem passt.',
   items: [
@@ -144,10 +145,10 @@ export const craneSituations = {
     { photo: 'kran-eng', illo: 'kran-eng', label: 'Wenig Platz', title: 'Eng und verwinkelt', alt: 'Zeichnung von oben: Raum mit Stützen und Nische, der rote Kran erreicht die Ecke', text: 'Stützen, Nischen, wenig Platz: Ein kompakter Kran mit passendem Greifer erreicht auch die letzte Ecke.' },
   ],
   missing: { title: 'Ihre Situation ist nicht dabei?', text: 'Fragen Sie trotzdem. Schicken Sie uns ein paar Fotos, wir sagen Ihnen ehrlich, ob es geht.', cta: anfrage('Fotos schicken') },
-};
+});
 
 /** Für Scheune und Halle – zwei gleich starke Bildkarten (components/PhotoCard.astro). */
-export const craneWorlds = {
+export const craneWorlds = t('krantechnik', {
   title: 'Für Scheune und Halle.',
   items: [
     {
@@ -161,10 +162,10 @@ export const craneWorlds = {
       cta: { label: 'Kran anfragen', href: '#anfrage' },
     },
   ],
-};
+});
 
 /** Ablauf (Anker #ablauf) – fünf Stationen; sie sagen zugleich, was zu jedem Kran gehört. */
-export const nachMassPath = {
+export const nachMassPath = t('krantechnik', {
   title: 'So läuft es ab.',
   start: 'Ihr Gebäude',
   end: 'Ihr Kran läuft',
@@ -175,14 +176,14 @@ export const nachMassPath = {
     { icon: 'wrench', who: 'Wir', title: 'Fertigung und Montage', text: 'Stahlbau im eigenen Betrieb, Montage und Abnahme bei Ihnen, mit Einweisung.', result: 'Kranbuch angelegt' },
     { icon: 'calendar-check', who: 'Wir', title: 'Service', text: 'Prüfung, Wartung und Ersatzteile. Wächst Ihr Betrieb, bauen wir den Kran aus.', result: 'Ihr Kran bleibt geprüft' },
   ] satisfies Station[],
-};
+});
 
 /** Foto-Hilfe direkt beim Formular (Krane nach Mass). */
-export const nachMassPhotoHint = {
+export const nachMassPhotoHint = t('krantechnik', {
   title: 'Diese Fotos helfen uns am meisten:',
   items: ['Gesamtansicht des Raums', 'Die schwierige Stelle', 'Decke bzw. Dachstuhl', 'Ablade- oder Arbeitsplatz'],
   note: `Dazu, wenn vorhanden, grobe Masse: Länge, Breite, Höhe. Bis zu ${inquiry.photos.max} Fotos.`,
-};
+});
 
 /**
  * Belege (Referenzen): Projekte mit Foto, Situation, Lösung und Ort grob – ohne Kundennamen ohne
@@ -190,13 +191,13 @@ export const nachMassPhotoHint = {
  * (`kran-kurve`, `kran-steigung`, `kran-versatz`, `kran-eng` in config/photos.mjs) kommen nach.
  * Eintrag: { photo: 'kran-kurve', situation: '…', solution: '…', place: 'Thurgau' }.
  */
-export const craneReferences = {
+export const craneReferences = t('krantechnik', {
   title: 'So sieht das aus',
   items: [] as { photo: string; situation: string; solution: string; place: string }[],
-};
+});
 
 /** Häfen, Clubs und Werften (Anker #hafen) – Text und das freigestellte Hafen-Bild. */
-export const harbour = {
+export const harbour = t('krantechnik', {
   label: 'Häfen, Clubs und Werften',
   title: 'Boots- und Mastkrane, Bootslifte.',
   text: 'Wir bauen sie nach Mass für Ihren Hafen – und halten bestehende Anlagen in Schuss, auch von anderen Herstellern.',
@@ -207,7 +208,7 @@ export const harbour = {
     { icon: 'calendar-check' as IconName, title: 'Service', text: 'Prüfung und Wartung rechtzeitig vor dem Einwassern.' },
   ],
   cta: anfrage('Hafen-Anlage anfragen'),
-};
+});
 
 /* ------------------------------------------------------------------ Kranservice */
 /**
@@ -215,7 +216,7 @@ export const harbour = {
  * INEXXIO 365 mit seinen zwei Wegen, was wir prüfen, Modernisierung und die Prüfpflicht.
  * Keine Preise, keine Kranklassen – vor jeder Arbeit gibt es eine verbindliche Offerte.
  */
-export const kranservice: SubPage = {
+export const kranservice: SubPage = t('krantechnik', {
   area: 'krantechnik',
   path: '/krantechnik/kranservice',
   crumb: 'Kranservice',
@@ -270,13 +271,13 @@ export const kranservice: SubPage = {
     ratgeberPruefung,
   ],
   service: { name: 'Kranservice', serviceType: 'Kranprüfung, Kranwartung, Kranmodernisierung und Kranreparatur' },
-};
+});
 
 /**
  * Die drei Stufen des Kranservice. Jede enthält die vorherige – darum nennt jede nur, was
  * dazukommt. Kein Betrag, keine Kranklasse: die verbindliche Offerte erhalten Sie vorab.
  */
-export const serviceTiers = {
+export const serviceTiers = t('krantechnik', {
   title: 'Drei Stufen – Sie wählen, wie viel wir übernehmen.',
   lead: 'Jede Stufe enthält die vorherige.',
   tiers: [
@@ -284,10 +285,10 @@ export const serviceTiers = {
     { name: 'Service-Vertrag', claim: 'Pflicht erledigt, Kran gepflegt.', items: ['Gesetzliche Prüfung, mit Protokoll', 'Wartung nach Herstellervorgabe', 'Digitales Kranbuch, Erinnerung an Fristen', 'Feste Reaktionszeit, fester Ansprechpartner'] },
     { name: 'INEXXIO 365', claim: 'Einsatzbereit. Ausfälle übernehmen wir.', items: ['Teile und Reparaturen inklusive', 'Ersatz-Hebezeug', 'Verfügbarkeitsversprechen: jeder Tag Stillstand ist gratis'], featured: true },
   ],
-};
+});
 
 /** Prüfen, warten, modernisieren (Kranservice) – zwei Bildkarten (PhotoCard), Anker #pruefen und #modernisierung. */
-export const serviceWork = {
+export const serviceWork = t('krantechnik', {
   title: 'Prüfen, warten, modernisieren.',
   items: [
     {
@@ -301,10 +302,10 @@ export const serviceWork = {
       cta: anfrage('Modernisierung anfragen'),
     },
   ],
-};
+});
 
 /** Die Prüfpflicht – drei Sätze an einer Haarlinie (FactGrid), Einzelheiten im Ratgeber. */
-export const inspectionDuty = {
+export const inspectionDuty = t('krantechnik', {
   title: 'Was die Prüfpflicht verlangt.',
   lead: 'Nach Kranverordnung und EKAS-Richtlinie 6511. Mehr im Ratgeber [Kranprüfung in der Schweiz](/ratgeber/kranpruefung-schweiz).',
   items: [
@@ -312,15 +313,15 @@ export const inspectionDuty = {
     { icon: 'file-text' as IconName, title: 'Kranbuch', text: 'Zu jedem Kran gehört ein Kranbuch. Wir führen es nach, digital.' },
     { icon: 'shield-check' as IconName, title: 'Fahrzeug- und Turmdrehkrane', text: 'Zusätzlich die periodische Kontrolle durch einen von der Suva anerkannten Kranexperten – sie gehört nicht zu unserem Angebot.' },
   ],
-};
+});
 
 /* ------------------------------------------------------------------ Heukrananlagen */
-const faqNoCabin: Faq = {
+const faqNoCabin: Faq = t('krantechnik', {
   q: 'Warum hat Ihr Heukran keine Kabine?',
   a: 'Weil Sie vom Boden aus besser sehen, nicht klettern müssen und jeder im Betrieb den Kran bedienen kann.',
-};
+});
 
-export const heukrananlagen: SubPage = {
+export const heukrananlagen: SubPage = t('krantechnik', {
   area: 'krantechnik',
   path: '/krantechnik/heukrananlagen',
   crumb: 'Heukrananlagen',
@@ -373,13 +374,13 @@ export const heukrananlagen: SubPage = {
     ratgeberHeukran,
   ],
   service: { name: 'Heukrananlagen', serviceType: 'Service, Umbau und Bau von Heukrananlagen ohne Kabine, bedient per Funk' },
-};
+});
 
 /**
  * Funk statt Kabine (Anker #funk) – direkt nach dem Kopf der Heukrananlagen, gesetzt wie die Garantien
  * (components/kran/RadioControl.astro → home/Stagger), dazu das Foto `heukran-funk`.
  */
-export const radioControl = {
+export const radioControl = t('krantechnik', {
   title: 'Ohne Kabine. Mit dem ==besten Blick==.',
   lead: 'Unsere Heukrane bedienen Sie per Funk – vom Boden, vom Wagen oder vom Heustock aus. Das kann jeder im Betrieb, auch wer nicht schwindelfrei ist.',
   photo: 'heukran-funk',
@@ -387,10 +388,10 @@ export const radioControl = {
   a: { label: 'Funk statt Kabine', title: 'Sender in die Hand – und der Kran läuft.' },
   b: { label: 'Beste Sicht', title: 'Sie sehen genau, was der Greifer packt.' },
   c: { label: 'Allein abladen', title: 'Wagen hinein, absteigen, abladen.' },
-};
+});
 
 /** Module der Heukran-Seite. */
-export const heukranModules = {
+export const heukranModules = t('krantechnik', {
   /** Bauformen (Anker #neuanlage) – alle vier auf einen Blick wie die Situationen (Magazine + PhotoCard). */
   forms: {
     title: 'Bauformen',
@@ -432,7 +433,7 @@ export const heukranModules = {
     plan: [2, 2, 0, 0, 1, 1, 1, 1, 1, 0, 0, 2],
     cta: 'Saison-Check planen',
   },
-};
+});
 
 /** Alle Unterseiten des Bereichs, in der Reihenfolge der Navigation. */
 export const krantechnikPages = [kraneNachMass, kranservice, heukrananlagen];

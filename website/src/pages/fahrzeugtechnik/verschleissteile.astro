@@ -18,6 +18,7 @@ import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 import { pageTitle } from '../../lib/titles';
 import { verschleissteile as page, partsCatalog as c, partsOrder as o } from '../../content/fahrzeugtechnik';
+import { t } from '../../i18n/t.mjs';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const area = areaOf(page.area);
@@ -29,13 +30,13 @@ const titel = pageTitle('/fahrzeugtechnik/verschleissteile');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero
-    word="Verschleissteile"
+    word={t('seiten', 'Verschleissteile')}
     image={titel}
-    alt="Fahrmischer als Konstruktionszeichnung, davor Trichter, Rinne und Spiralschutz echt und rot"
+    alt={t('seiten', 'Fahrmischer als Konstruktionszeichnung, davor Trichter, Rinne und Spiralschutz echt und rot')}
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: 'Zum Katalog', href: '#katalog' }}
+    secondary={{ label: t('seiten', 'Zum Katalog'), href: '#katalog' }}
   />
 
   <section class="v4-section" id="katalog" aria-labelledby="katalog-title">

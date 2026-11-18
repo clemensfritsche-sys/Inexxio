@@ -32,16 +32,17 @@ const nodes = [
   faqPage(page.faq),
 ];
 const titel = pageTitle('/krantechnik/krane-nach-mass');
+import { t } from '../../i18n/t.mjs';
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero
     word={page.crumb}
     image={titel}
-    alt="Scheune als Konstruktionszeichnung, darunter eine rote Kranfahrbahn, die dem Dachstuhl in einem weichen Bogen folgt, mit Kettenzug und Greifer"
+    alt={t('seiten', 'Scheune als Konstruktionszeichnung, darunter eine rote Kranfahrbahn, die dem Dachstuhl in einem weichen Bogen folgt, mit Kettenzug und Greifer')}
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: 'Wo es passt', href: '#situationen' }}
+    secondary={{ label: t('seiten', 'Wo es passt'), href: '#situationen' }}
   />
 
   <section class="v4-section" id="situationen" aria-labelledby="situationen-title">

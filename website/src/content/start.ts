@@ -6,8 +6,9 @@
 import type { Faq } from './types';
 import { handoverLead } from './uebergabe';
 import { promiseFaq } from './promises';
+import { t } from '../i18n/t.mjs';
 
-export const start = {
+export const start = t('start', {
   title: '{{brand.name}}: Fahrmischer, Krane, Spezialmaschinen',
   description:
     'Krane nach Mass und INEXXIO 365, Trommeltausch für Fahrmischer, Spezialmaschinen für den Bau – mit Zufriedenheitsgarantie. Aus {{address.home}}.',
@@ -103,4 +104,4 @@ export const start = {
       a: 'Das Bewährte bleibt: derselbe Standort und dieselbe Telefonnummer. Ihre HS-Krananlage betreuen wir ohne Unterbruch weiter – ergänzt um Ingenieurwissen, wo es Ihnen nützt.',
     },
   ] satisfies Faq[],
-};
+});

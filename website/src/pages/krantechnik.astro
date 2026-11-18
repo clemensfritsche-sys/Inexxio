@@ -16,6 +16,7 @@ import { faqPage, service as serviceNode } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
 import { pageTitle } from '../lib/titles';
 import { krantechnik as page, craneOffers as o, cranePath as s } from '../content/krantechnik';
+import { t } from '../i18n/t.mjs';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const nodes = [
@@ -26,13 +27,13 @@ const titel = pageTitle('/krantechnik');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: page.hero.eyebrow, path: page.path }]} og={page.id} jsonLd={nodes}>
   <StageHero
-    word="Krantechnik"
+    word={t('seiten', 'Krantechnik')}
     image={titel}
-    alt="Halle als Konstruktionszeichnung, darin ein roter Zweiträger-Brückenkran mit Katze und Haken"
+    alt={t('seiten', 'Halle als Konstruktionszeichnung, darin ein roter Zweiträger-Brückenkran mit Katze und Haken')}
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: 'Unser Angebot', href: '#angebot' }}
+    secondary={{ label: t('seiten', 'Unser Angebot'), href: '#angebot' }}
   />
 
   <div class="wrap kt-season"><SeasonNotice page={page.path} /></div>

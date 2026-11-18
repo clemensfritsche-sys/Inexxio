@@ -97,6 +97,16 @@ worauf sie sich bezieht, fühlt sich aber schief an. Es ist derselbe offene Punk
 **«ein Beleg ganz ohne Ware»** (Miete, Lohn, Gebühr): `assert_releasable` verlangt
 mindestens eine Einzelinstanz. Fällt die Regel eines Tages, fällt sie für beide.
 
+## Website in weiteren Sprachen: was noch deutsch ist
+
+Die Website baut jede Sprache vollständig (WEBSITE_PLAN Entscheid 136). Deutsch bleibt, was nicht
+die Website schreibt: die Eingangsbestätigung und die Fehlermeldungen des Servers zum Formular
+(`backend/app/assets/website_contact.json` – eine Sprache), der Wortlaut der Newsletter-Einwilligung
+als Nachweis (`newsletter.WORDING`), AGB, Datenschutz und Impressum (Dokumente der Gesellschaft) und
+die eine 404-Seite der Hosting-Site. Vor dem Start einer Sprache: die Anfrage trägt ihre Sprache
+(Feld `lang`), das ERP antwortet in ihr; Rechtstexte je Sprache als Dokument; der Wortlaut der
+Einwilligung je Sprache. Dazu liest eine Fachperson der Sprache gegen (Status `preview` → `live`).
+
 ## Automatische Freigabe einzelner Papiere
 
 Nicht gebaut: Auftragsbestätigung und Quittung gibt immer ein Mensch frei («Prüfen und

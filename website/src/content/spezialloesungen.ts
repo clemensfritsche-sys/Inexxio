@@ -12,8 +12,9 @@
 import { site } from '../config/site.mjs';
 import type { SubPage } from './types';
 import { promiseFaq } from './promises';
+import { t } from '../i18n/t.mjs';
 
-export const spezialloesungen: SubPage = {
+export const spezialloesungen: SubPage = t('spezialloesungen', {
   area: 'spezialloesungen',
   path: '/spezialloesungen',
   crumb: 'Speziallösungen',
@@ -70,10 +71,10 @@ export const spezialloesungen: SubPage = {
     { href: '/fahrzeugtechnik/trommeltausch', label: 'Trommeltausch', text: 'Neue Trommel statt neuer Fahrmischer.' },
   ],
   service: { name: 'Speziallösungen', serviceType: 'Spezialmaschinenbau für Krane, Fahrzeuge und Baumaschinen' },
-};
+});
 
 /** Das Prinzip: warum es Speziallösungen braucht – und was Sie davon haben. */
-export const specialPrinciple = {
+export const specialPrinciple = t('spezialloesungen', {
   title: 'Serienmaschinen sind für den Durchschnitt gebaut. Ihre Aufgabe ist es nicht.',
   lead: 'Was dazwischen fehlt, erledigt heute meist ein Mensch – mit Zeit, Umwegen und Improvisation. Wir bauen die Maschine, die diese Lücke schliesst.',
   /** Bild: eine Reihe gleicher Serienmaschinen als Zeichnung, eine tritt heraus – mit rotem Anbau. */
@@ -83,10 +84,10 @@ export const specialPrinciple = {
     { icon: 'shield-check' as const, title: 'Mehr Sicherheit', text: 'Wer nicht mehr improvisieren muss, steht nicht mehr unter der Last.' },
     { icon: 'trending-up' as const, title: 'Ihr Vorsprung', text: 'Sie nehmen Aufträge an, die andere ablehnen müssen.' },
   ],
-};
+});
 
 /** Drei Felder, ein Prinzip – je mit Zeichnung (src/assets/illustrations/spezial-*.svg). */
-export const specialFields = {
+export const specialFields = t('spezialloesungen', {
   title: 'Drei Felder. Ein Prinzip.',
   lead: 'Wir nehmen, was die Serie kann, und bauen dazu, was Ihre Aufgabe braucht.',
   items: [
@@ -114,10 +115,10 @@ export const specialFields = {
       href: '/krantechnik/krane-nach-mass#situationen',
     },
   ],
-};
+});
 
 /** Der Weg vom Problem zur Lösung – wer was tut, ohne Offerte und ohne Zahlen. */
-export const specialSteps = {
+export const specialSteps = t('spezialloesungen', {
   title: 'Vom Problem zur Lösung.',
   start: 'Ihr Problem',
   end: 'Ihre Lösung',
@@ -128,10 +129,10 @@ export const specialSteps = {
     { icon: 'wrench' as const, who: 'Wir', title: 'Bau', text: 'Stahlbau, Hydraulik und Steuerung – alles im eigenen Betrieb in {{address.city}}.', result: 'Alles aus einer Hand' },
     { icon: 'flag' as const, who: 'Wir, bei Ihnen', title: 'Inbetriebnahme', text: 'Wir nehmen die Lösung bei Ihnen in Betrieb und weisen Ihr Team ein.', result: 'Einweisung und Unterlagen' },
   ],
-};
+});
 
 /** Modul: Wer dahintersteht – sachlich, kurz, ohne fremde Logos. */
-export const specialBackground = {
+export const specialBackground = t('spezialloesungen', {
   title: 'Entwicklung, Fertigung und Montage unter einem Dach.',
   text: `${site.people.owner.name} ist Maschinenbauingenieur und hat jahrelang Baumaschinen entwickelt – von der Hydraulik bis zu vernetzten Steuerungen und IoT-Anwendungen. Er kennt die Wünsche, die Hersteller nicht erfüllen – und weiss, wie man eine Lösung baut, die auf der Baustelle hält.`,
   facts: [
@@ -139,4 +140,4 @@ export const specialBackground = {
     'Krane bauen wir seit {{history.cranesSince}} selbst',
     'Konstruktion, Stahlbau und Montage aus einer Hand',
   ],
-};
+});

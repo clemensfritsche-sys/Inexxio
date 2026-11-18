@@ -7,8 +7,9 @@ import Base from '../../layouts/Base.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
 import { kontakt as k } from '../../content/kontakt';
+import { t } from '../../i18n/t.mjs';
 ---
-<Base title={k.danke.title} description={k.description} crumbs={[{ name: 'Kontakt', path: '/kontakt' }, { name: 'Danke', path: '/kontakt/danke' }]} noindex>
+<Base title={k.danke.title} description={k.description} crumbs={[{ name: t('seiten', 'Kontakt'), path: '/kontakt' }, { name: t('seiten', 'Danke'), path: '/kontakt/danke' }]} noindex>
   <section class="section danke" data-hero>
     <div class="wrap"><div class="danke__wrap">
       <Icon name="check" size={32} class="danke__icon" />
@@ -19,7 +20,7 @@ import { kontakt as k } from '../../content/kontakt';
           <li><span class="idx">{String(i + 1).padStart(2, '0')}</span><Rich as="span" text={n} /></li>
         ))}
       </ol>
-      <a class="arrow-link" href="/">Zur Startseite <Icon name="arrow-right" size={18} /></a>
+      <a class="arrow-link" href="/">{t('ui', 'Zur Startseite')} <Icon name="arrow-right" size={18} /></a>
     </div></div>
   </section>
 </Base>

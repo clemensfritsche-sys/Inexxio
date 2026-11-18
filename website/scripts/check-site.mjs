@@ -18,6 +18,7 @@ import { gzipSync } from 'node:zlib';
 import { site, onErpPath } from '../src/config/site.mjs';
 import { newsletter } from '../src/config/newsletter.mjs';
 import { isLive } from '../src/lib/text.mjs';
+import { languages, SOURCE } from '../src/config/languages.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
@@ -118,6 +119,39 @@ const visibleText = (html) =>
   decode(html.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<style[\s\S]*?<\/style>/g, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
 
+/** Die Sprache einer Seite – an ihrer Adresse (/fr/…), sonst Deutsch (src/config/languages.mjs). */
+const langOf = (path) => languages.find((l) => l.code !== SOURCE && (path === `/${l.code}` || path.startsWith(`/${l.code}/`)))
+  ?? languages.find((l) => l.code === SOURCE);
+
+/**
+ * ►►► Kein Deutsch auf einer Seite einer anderen Sprache (WEBSITE_PLAN Entscheid 136). ◄◄◄
+ * Ein Text, der an `t()` vorbei im Code steht, bliebe in jeder Sprache deutsch – diese Prüfung
+ * findet ihn am gebauten HTML: sichtbarer Text und was vorgelesen wird (alt, aria-label, title,
+ * placeholder, Beschreibung). Namen (Firma, Personen, Orte, Marken) zählen nicht.
+ */
+const GERMAN = new Set(['und', 'der', 'die', 'das', 'dem', 'den', 'mit', 'für', 'nicht', 'ist', 'sind', 'wir', 'sie', 'ihr',
+  'ihre', 'ihren', 'ihnen', 'unser', 'unsere', 'oder', 'auch', 'bei', 'nach', 'zum', 'zur', 'ein', 'eine', 'einen', 'wird',
+  'werden', 'über', 'ohne', 'noch', 'jede', 'jeder', 'alle', 'wie', 'wenn', 'hier', 'uns', 'von', 'zu', 'auf', 'aus', 'im']);
+const NAMES = [...site.brand.alternateNames, site.brand.formerLegalName, site.people.founder.name, site.people.owner.name,
+  site.address.street, site.address.city, site.address.municipality, ...site.marks.mixers].sort((a, b) => b.length - a.length);
+function checkLanguage(p) {
+  const lang = langOf(p.path);
+  if (lang.code === SOURCE) return;
+  const said = [...p.html.matchAll(/\s(?:alt|aria-label|title|placeholder|content)="([^"]*)"/g)].map((m) => decode(m[1]));
+  // Die Sprachwahl nennt jede Sprache in ihren eigenen Worten (Element mit `lang`) – das gehört so.
+  const own = p.html.replace(/<li\b[^>]*>(?:(?!<\/li>)[\s\S])*?\slang="[^"]*"[\s\S]*?<\/li>/g, ' ');
+  let text = `${visibleText(own)} ${said.join(' ')}`;
+  for (const n of NAMES) text = text.split(n).join(' ');
+  text = text.replace(/\S+@\S+/g, ' ');
+  const found = new Map();
+  for (const m of text.matchAll(/[\p{L}]+/gu)) {
+    const w = m[0];
+    if (!GERMAN.has(w.toLowerCase()) && !/[äöüß]/i.test(w)) continue;
+    if (!found.has(w)) found.set(w, text.slice(Math.max(0, m.index - 40), m.index + w.length + 40).trim());
+  }
+  for (const [w, ctx] of found) fail(p.path, `deutsches Wort «${w}» auf einer Seite in «${lang.code}»: «…${ctx}…»`);
+}
+
 const attr = (tag, name) => decode(new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1] ?? '');
 const pathOf = (file) => {
   const rel = relative(DIST, file).replace(/\\/g, '/').replace(/\.html$/, '');
@@ -155,7 +189,8 @@ function checkHead(p) {
   const title = [...p.html.matchAll(/<title>([\s\S]*?)<\/title>/g)].map((m) => decode(m[1]).trim());
   if (title.length !== 1) fail(p.path, `${title.length} <title> statt genau einem`);
   else if (title[0].length > 60) fail(p.path, `Titel hat ${title[0].length} Zeichen (höchstens 60): «${title[0]}»`);
-  if (!/<html lang="de-CH"/.test(p.html)) fail(p.path, 'lang="de-CH" fehlt');
+  const lang = langOf(p.path);
+  if (!new RegExp(`<html lang="${lang.locale}"`).test(p.html)) fail(p.path, `lang="${lang.locale}" fehlt`);
   const desc = attr(/<meta name="description"[^>]*>/.exec(p.html)?.[0] ?? '', 'content');
   if (!desc) fail(p.path, 'Meta-Description fehlt');
   else if (INDEXED.has(p.path) && (desc.length < 140 || desc.length > 155)) {
@@ -223,6 +258,8 @@ function checkWords(where, text) {
 }
 
 function checkFirstMention(p) {
+  // Die Regel der ersten Nennung gilt für den deutschen Wortlaut («ehemals HS Steiner»).
+  if (langOf(p.path).code !== SOURCE) return;
   const text = visibleText(p.main);
   // «INEXXIO 365», die «INEXXIO Zufriedenheitsgarantie» und der Newsletter «Post von INEXXIO»
   // sind Namen von Angeboten, keine Nennung der Firma – sie zählen nicht als erste Nennung.
@@ -588,6 +625,7 @@ for (const p of pages) {
   checkJsonLd(p);
   checkWords(p.path, visibleText(p.html));
   checkFirstMention(p);
+  checkLanguage(p);
 }
 const listed = INDEXED;
 checkRobots();

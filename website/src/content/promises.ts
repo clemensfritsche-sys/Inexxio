@@ -12,6 +12,7 @@
  * Verbotene Wörter prüft scripts/check-site.mjs (FORBIDDEN, FORBIDDEN_WORDS).
  */
 import type { Faq } from './types';
+import { t } from '../i18n/t.mjs';
 
 export type PromiseKey = 'garantie' | 'inexxio365' | 'erstservice';
 
@@ -28,7 +29,7 @@ export interface PromiseItem {
   link?: { href: string; label: string };
 }
 
-export const promises = {
+export const promises = t('promises', {
   title: 'Einsatzbereit und zufrieden mit Garantie.',
   lead: 'Zwei Garantien für alles, was wir bauen, warten und reparieren – Fahrmischer, Krane und Spezialmaschinen.',
   items: {
@@ -57,10 +58,10 @@ export const promises = {
       link: { href: '#anfrage', label: 'Termin vereinbaren' },
     },
   } satisfies Record<PromiseKey, PromiseItem>,
-};
+});
 
 /** Wie die Garantien funktionieren – kurz, ohne neue Regeln. Jede Seite wählt, was passt. */
-export const promiseFaq = {
+export const promiseFaq = t('promises', {
   erstservice: {
     q: 'Was ist in der Gratis-Inspektion enthalten?',
     a: 'Wir prüfen Ihre Maschine einmal kostenlos – Fahrmischer, Krane und Spezialmaschinen, einmal pro Kunde. Rufen Sie an oder schreiben Sie uns – wir vereinbaren den Termin.',
@@ -85,4 +86,4 @@ export const promiseFaq = {
     q: 'Fremd-Offerte erhalten – prüfen Sie sie?',
     a: 'Ja, gratis. Schicken Sie uns die Offerte. Wir sagen Ihnen offen, was wir davon halten.',
   },
-} satisfies Record<string, Faq>;
+} satisfies Record<string, Faq>);

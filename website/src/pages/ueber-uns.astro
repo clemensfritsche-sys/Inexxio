@@ -26,6 +26,7 @@ import { plain } from '../lib/text.mjs';
 import { pageTitle } from '../lib/titles';
 import ratgeber from '../assets/illustrations/menu/ratgeber.svg?url';
 import karriere from '../assets/illustrations/menu/karriere.svg?url';
+import { t } from '../i18n/t.mjs';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const faq = [...h.faq, ...u.areaFaq];
@@ -33,15 +34,15 @@ const ART = { ratgeber, karriere };
 const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plain(s.title) }));
 const titel = pageTitle('/ueber-uns');
 ---
-<Base title={u.title} description={u.description} crumbs={[{ name: 'Über uns', path: '/ueber-uns' }]} jsonLd={[owner(siteUrl), faqPage(faq)]}>
+<Base title={u.title} description={u.description} crumbs={[{ name: t('seiten', 'Über uns'), path: '/ueber-uns' }]} jsonLd={[owner(siteUrl), faqPage(faq)]}>
   <StageHero
-    word="Über uns"
+    word={t('seiten', 'Über uns')}
     image={titel}
-    alt="Rotes Hallentor mit halb geöffnetem Rolltor, dahinter die Halle mit Kran und Werkbänken als Zeichnung"
+    alt={t('seiten', 'Rotes Hallentor mit halb geöffnetem Rolltor, dahinter die Halle mit Kran und Werkbänken als Zeichnung')}
     title={u.hero.h1}
     lead={u.hero.lead}
-    primary={{ label: 'Kontakt aufnehmen', href: '#anfrage' }}
-    secondary={{ label: 'Unsere Geschichte', href: '#geschichte' }}
+    primary={{ label: t('seiten', 'Kontakt aufnehmen'), href: '#anfrage' }}
+    secondary={{ label: t('seiten', 'Unsere Geschichte'), href: '#geschichte' }}
     narrow
   />
 
@@ -73,9 +74,9 @@ const titel = pageTitle('/ueber-uns');
       <h2 class="v4-h2 uu-ho__title" id="uebergabe-title">{u.people.title}</h2>
       <figure class="uu-ho__quote">
         <blockquote><p>«{u.people.quote}»</p></blockquote>
-        <figcaption><strong>{site.people.founder.name}</strong> · Gründer von HS Steiner{site.features.heiriAdvisory && ', in der Übergangszeit beratend dabei'}</figcaption>
+        <figcaption><strong>{site.people.founder.name}</strong> · {t('ui', 'Gründer von HS Steiner')}{site.features.heiriAdvisory && t('ui', ', in der Übergangszeit beratend dabei')}</figcaption>
       </figure>
-      <p class="uu-ho__change"><span>Bleibt: <Rich as="span" text={u.people.stays} /></span><span>Neu: <Rich as="span" text={u.people.news} /></span></p>
+      <p class="uu-ho__change"><span>{t('ui', 'Bleibt:')} <Rich as="span" text={u.people.stays} /></span><span>{t('ui', 'Neu:')} <Rich as="span" text={u.people.news} /></span></p>
     </div>
   </section>
 

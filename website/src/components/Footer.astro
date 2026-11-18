@@ -13,9 +13,13 @@ import { site, navigation, contactEmail } from '../config/site.mjs';
 import { plain, rich } from '../lib/text.mjs';
 import Icon from './Icon.astro';
 import Lockup from './Lockup.astro';
+import { t } from '../i18n/t.mjs';
+import { currentLang } from '../config/languages.mjs';
 import wordmark from '../assets/brand/schriftzug-fuss.svg?url';
 
 const year = new Date().getFullYear();
+const T = t('ui', { contact: 'Kontakt', imprint: 'Impressum', privacy: 'Datenschutz', terms: 'AGB', newsletter: 'Newsletter', home: 'zur Startseite' });
+const here = currentLang();
 const a = site.address;
 /** Solange Beispielbilder stehen, führt der Fuss zu ihrem Nachweis (CC BY/BY-SA). */
 ---
@@ -23,9 +27,9 @@ const a = site.address;
   <div class="wrap">
     <div class="site-footer__grid">
       <div class="site-footer__brand">
-        <a href="/" class="site-footer__home" aria-label={`${plain(site.brand.full)} – zur Startseite`}><Lockup tone="dark" size="footer" /></a>
+        <a href="/" class="site-footer__home" aria-label={`${plain(site.brand.full)} – ${T.home}`}><Lockup tone="dark" size="footer" /></a>
         <p class="site-footer__claim" set:html={rich(site.footer.claim)} />
-        <p class="site-footer__lang"><span class="site-footer__langbtn"><Icon name="globe" size={18} /> Deutsch</span></p>
+        <p class="site-footer__lang"><span class="site-footer__langbtn"><Icon name="globe" size={18} /> {here.name}</span></p>
       </div>
 
       {navigation.map((g) => (
@@ -41,7 +45,7 @@ const a = site.address;
       ))}
 
       <div class="site-footer__col">
-        <h2 class="site-footer__title"><a href="/kontakt">Kontakt</a></h2>
+        <h2 class="site-footer__title"><a href="/kontakt">{T.contact}</a></h2>
         <address class="site-footer__contact">
           <p>
             <Icon name="map-pin" size={16} />
@@ -62,10 +66,10 @@ const a = site.address;
     <div class="site-footer__bottom">
       <p>© {year} {plain(site.brand.legalName)}</p>
       <ul role="list">
-        <li><a href="/impressum">Impressum</a></li>
-        <li><a href="/datenschutz">Datenschutz</a></li>
-        <li><a href="/agb">AGB</a></li>
-        <li><a href="/newsletter">Newsletter</a></li>
+        <li><a href="/impressum">{T.imprint}</a></li>
+        <li><a href="/datenschutz">{T.privacy}</a></li>
+        <li><a href="/agb">{T.terms}</a></li>
+        <li><a href="/newsletter">{T.newsletter}</a></li>
       </ul>
     </div>
     <div class="site-footer__mark" aria-hidden="true"><img src={wordmark} alt="" width="624" height="167" loading="lazy" decoding="async" /></div>

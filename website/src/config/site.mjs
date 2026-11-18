@@ -17,6 +17,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { t } from '../i18n/t.mjs';
 
 /**
  * ►►► Telefon und E-Mail kommen aus dem ERP (Testnotiz #1094). ◄◄◄ `scripts/erp-contact.mjs`
@@ -120,7 +121,11 @@ const areas = [
   },
 ];
 
-export const site = {
+/**
+ * Jeder Text geht durch `t()` (WEBSITE_PLAN Entscheid 136) – in einer anderen Sprache kommt er
+ * übersetzt zurück. `keep`: Namen, Anschrift, Telefon, Pfade – Daten, keine Wörter.
+ */
+export const site = t('site', {
   brand: {
     name: 'INEXXIO',
     formerly: 'ehemals HS Steiner',
@@ -367,7 +372,13 @@ export const site = {
       'Verschleissteile für Fahrmischer', 'Spezialmaschinenbau', 'Anbaugeräte für Baumaschinen', 'Baumaschinen',
     ],
   },
-};
+}, {
+  keep: [
+    'brand.name', 'brand.legalName', 'brand.formerLegalName', 'brand.alternateNames', 'people.owner.name', 'people.founder.name',
+    'phone', 'email', 'address.street', 'address.zip', 'address.city', 'address.municipality', 'address.canton', 'address.country',
+    'marks.mixers', 'account.erp', 'erpPaths', 'seo.contentUpdated', 'seo.bots', 'seo.sameAs',
+  ],
+});
 
 /**
  * ►►► Die Navigation – EINE Liste für Kopf, Mobil-Menü und Fuss (Testnotiz #1209). ◄◄◄

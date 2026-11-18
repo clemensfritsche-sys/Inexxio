@@ -4,9 +4,10 @@ import Base from '../../layouts/Base.astro';
 import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
 import { newsletterPages as n } from '../../content/newsletter';
+import { t } from '../../i18n/t.mjs';
 const p = n.unsubscribed;
 ---
-<Base title={p.title} description={n.description} crumbs={[{ name: 'Newsletter', path: '/newsletter' }, { name: p.title, path: '/newsletter/abgemeldet' }]} noindex>
+<Base title={p.title} description={n.description} crumbs={[{ name: t('seiten', 'Newsletter'), path: '/newsletter' }, { name: p.title, path: '/newsletter/abgemeldet' }]} noindex>
   <section class="section nl" data-hero>
     <div class="wrap"><div class="nl__wrap">
       <Icon name="mail" size={32} class="nl__icon" />

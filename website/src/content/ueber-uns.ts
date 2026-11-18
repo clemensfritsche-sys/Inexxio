@@ -5,8 +5,9 @@
  * Der Ort kommt aus dem ERP ({{erp.city}}, #1146/#1153).
  */
 import type { Faq } from './types';
+import { t } from '../i18n/t.mjs';
 
-export const ueberUns = {
+export const ueberUns = t('ueber-uns', {
   title: 'Über uns',
   description:
     'INEXXIO in {{address.home}}: ein Betrieb mit Ingenieurwissen, seit 1982 – Team, Werte, Geschichte und die Nachfolge von Heiri Steiner an Clemens Fritsche.',
@@ -79,4 +80,4 @@ export const ueberUns = {
       a: 'Die Anfahrt steht in der Offerte, den Sie vor der Arbeit erhalten – auf der Rechnung steht keine Überraschung.',
     },
   ] satisfies Faq[],
-};
+});

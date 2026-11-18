@@ -16,7 +16,7 @@ ab. Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qual
 | `teil-einfuelltrichter` | Produktfoto Einfülltrichter, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
 | `teil-auslaufschurre` | Produktfoto Auslaufschurre, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
 | `teil-spiralschutz` | Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
-| `clemens-heiri-quer` | Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat | 3:2 | `/` |
+| `clemens-heiri-quer` | Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat | 3:2 | `/fr`, `/` |
 
 ## Für später
 
@@ -32,6 +32,13 @@ In der Fotoliste vorgesehen, aber auf keiner Seite verwendet – sie halten den 
 | `handschlag` | Heiri Steiner und Clemens Fritsche beim Handschlag, freigestellt (transparenter Grund), hoch – heute steht dort portraet-clemens | 4:5 | noch nicht verwendet |
 | `werkstatt-aussen` | Betriebsgebäude in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer | 3:2 | noch nicht verwendet |
 | `team` | Teamfoto im Betrieb (nur mit Einverständnis aller Abgebildeten), quer | 3:2 | noch nicht verwendet |
+
+## Sprachen in Prüfung (`src/config/languages.mjs`)
+
+Gebaut und unter /<sprache> erreichbar, aber noindex – im Modus `live` nicht gebaut, bis eine Fachperson
+der Sprache gegengelesen hat (dann `status: 'live'`).
+
+- Français (`fr`)
 
 ## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)
 

@@ -1,4 +1,5 @@
 // @ts-check
+import { t } from '../i18n/t.mjs';
 /**
  * ►►► Der Newsletter «Post von INEXXIO» – seine Wörter an EINER Stelle. ◄◄◄
  *
@@ -13,7 +14,7 @@
  * Die Regeln dahinter (UWG Art. 3 lit. o, DSG): nie vorausgewählt, nie an eine Leistung
  * gekoppelt, Bestätigung per Mail (Double Opt-in), Abmelden mit einem Klick.
  */
-export const newsletter = {
+export const newsletter = t('newsletter', {
   name: 'Post von INEXXIO',
   consent:
     'Ja, schicken Sie mir ab und zu «Post von INEXXIO» – unseren Newsletter, nur wenn es etwas zu erzählen gibt. Abmelden geht jederzeit mit einem Klick.',
@@ -38,4 +39,4 @@ export const newsletter = {
   unsubscribeLead: 'Ein Klick, und Sie erhalten keine «Post von INEXXIO» mehr.',
   unsubscribeButton: 'Abmelden',
   invalid: 'Dieser Link ist abgelaufen oder unvollständig.',
-};
+});

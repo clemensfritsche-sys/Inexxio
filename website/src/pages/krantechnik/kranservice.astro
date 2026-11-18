@@ -19,7 +19,8 @@ import { areaOf } from '../../config/site.mjs';
 import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 import { pageTitle } from '../../lib/titles';
-import { kranservice as page, serviceTiers as t, serviceWork as w, inspectionDuty as d } from '../../content/krantechnik';
+import { kranservice as page, serviceTiers as tiers, serviceWork as w, inspectionDuty as d } from '../../content/krantechnik';
+import { t } from '../../i18n/t.mjs';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const area = areaOf(page.area);
@@ -31,20 +32,20 @@ const titel = pageTitle('/krantechnik/kranservice');
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: area.label, path: area.href }, { name: page.crumb, path: page.path }]} og={page.area} jsonLd={nodes}>
   <StageHero
-    word="Kranservice"
+    word={t('seiten', 'Kranservice')}
     image={titel}
-    alt="Halle mit Brückenkran als Konstruktionszeichnung, davor ein rotes Hubwerk mit Haken und ein offener roter Werkzeugkoffer"
+    alt={t('seiten', 'Halle mit Brückenkran als Konstruktionszeichnung, davor ein rotes Hubwerk mit Haken und ein offener roter Werkzeugkoffer')}
     title={page.hero.h1}
     lead={page.hero.lead}
     primary={page.hero.primary}
-    secondary={{ label: 'Die drei Stufen', href: '#stufen' }}
+    secondary={{ label: t('seiten', 'Die drei Stufen'), href: '#stufen' }}
   />
 
   <section class="v4-section" id="stufen" aria-labelledby="stufen-title">
     <div class="wrap">
       <header>
-        <h2 class="v4-h2" id="stufen-title">{t.title}</h2>
-        <Rich as="p" class="v4-sub" text={t.lead} />
+        <h2 class="v4-h2" id="stufen-title">{tiers.title}</h2>
+        <Rich as="p" class="v4-sub" text={tiers.lead} />
       </header>
       <ServiceTiers />
     </div>
