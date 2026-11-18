@@ -332,6 +332,10 @@ def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
             # Gespeichert wird die Schreibweise des Belegs (``CHE-123.456.789``); verglichen
             # wird über den Schlüssel.
             value = uid.display(value) or None
+        if key == "phone":
+            # International, wie überall (``services/phone.tidy``) – mit dem Land der Gesellschaft.
+            from . import phone as tel
+            value = tel.tidy(value, data.get("country") or company.country)
         if key == "iban":
             company.iban = value
         elif key in ENTITY_FIELDS:

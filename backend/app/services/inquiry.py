@@ -29,6 +29,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from ..core import clock
+from . import phone as tel
 from ..domain import communication as dc
 from ..models import Message
 from . import attachments, mail_layout, mailbox, outbox, people, sites
@@ -184,7 +185,7 @@ def read(form: dict[str, object], files: list[tuple[str, bytes]],
     photos = _photos(files, errors, msg)
     source = clean(form.get("source")).lower()
     inq = Inquiry(name=values["name"], email=values["email"].lower(), message=values["message"],
-                  phone=values["phone"], company=values["company"],
+                  phone=tel.tidy(values["phone"]) or "", company=values["company"],
                   source=source if SOURCE_RE.match(source) else "/kontakt",
                   photos=photos, newsletter=bool(clean(form.get("newsletter"))), lang=lang)
     return inq, errors

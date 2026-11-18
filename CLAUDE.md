@@ -919,8 +919,10 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   im Stil der Website (der Name als grosses Wort im Kopf, Sprungleiste, Person · Adressen · Firma ·
   Newsletter · Sicherheit; Auto-Save, Adressen, Firma und Passkeys als Karten). **Anmelde-E-Mail
   ändern**: Server prüft (`people.email_problem`), Firebase schickt den Link an die neue Adresse
-  (`verifyBeforeUpdateEmail`), das Profil übernimmt sie aus dem nächsten Token. Telefon schreibt
-  der Server lesbar zurück (`people.tidy_phone`).
+  (`verifyBeforeUpdateEmail`), das Profil übernimmt sie aus dem nächsten Token. **Jede Telefonnummer
+  ist international** («+41 52 378 22 47»): wo sie eingetippt wird (Konto, ERP, Gesellschaft, Formular,
+  Adresse) speichert der Server sie so (`services/phone.tidy`, EINE Stelle), überall wird sie so gezeigt
+  (Website, Mails, Papiere, ERP); bestehende Nummern zog Migration 190 nach.
 - **Verlauf** an jedem Datensatz (Nachrichten, Notizen, Dokumente, Änderungen aus dem Log – in
   Seiten); Notiz an jedem Datensatz (ohne eigene Eingabe ausser an der Person).
 - **ERP-Feed** (Master-Detail, eine Route `/erp`): Benutzer · Artikel · Aufträge · Instanzen

@@ -173,7 +173,7 @@ export const site = t('site', {
   /** Vorgabe – das ERP gewinnt (siehe oben). Eine Nummer für alles, auch bei Stillstand. */
   phone: erp.phone && erp.phone_e164
     ? { display: erp.phone, intl: erp.phone_e164, e164: erp.phone_e164 }
-    : { display: '052 378 22 47', intl: '+41 52 378 22 47', e164: '+41523782247' },
+    : { display: '+41 52 378 22 47', intl: '+41 52 378 22 47', e164: '+41523782247' },
   email: {
     /** Aus dem ERP; ohne Angabe dort bleibt die bisherige erreichbar. */
     primary: erp.email || '',

@@ -103,7 +103,7 @@ def test_an_inquiry_is_an_open_message_from_a_new_person(world):
     res = world.client.post("/api/v1/contact", data=data, headers=JSON)
     assert res.status_code == 200, res.text
     person = world.db.query(UserProfile).filter(UserProfile.email == "neu.kunde@muster.ch").one()
-    assert (person.first_name, person.last_name, person.phone) == ("Anna", "Muster", "052 000 00 00")
+    assert (person.first_name, person.last_name, person.phone) == ("Anna", "Muster", "+41 52 000 00 00")
     (msg,) = inquiries(world.db, data["email"])
     assert msg.channel == CHANNEL and msg.subject == svc.subject_of(data["message"])
     assert msg.subject.startswith("Anfrage: Hubwerk bleibt stehen")
@@ -408,7 +408,7 @@ def test_the_form_never_writes_into_an_existing_person(world):
     assert world.client.post("/api/v1/contact", data=fresh, headers=JSON).status_code == 200
     (inq,) = inquiries(world.db, fresh["email"])
     new = world.db.query(UserProfile).filter(UserProfile.object_id == inq.sender_object_id).one()
-    assert new.phone == "052 111 22 33"
+    assert new.phone == "+41 52 111 22 33"
 
 
 # ------------------------------------------------------------------ In der Sprache der Seite

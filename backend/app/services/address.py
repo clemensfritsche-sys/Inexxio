@@ -63,6 +63,12 @@ def _join(*parts) -> str:
     return " ".join(p for p in (_txt(p) for p in parts) if p)
 
 
+def _tel(phone, country) -> Optional[str]:
+    """Die Nummer einer Anschrift – international, wie überall (``services/phone.tidy``)."""
+    from . import phone as tel
+    return tel.tidy(_txt(phone), country)
+
+
 def make(*, name: str = "", street1: str = "", street2: str = "", zip: str = "",
          city: str = "", state: str = "", country=None, email=None, phone=None) -> dict:
     """Kanonische Adresse bauen (leere Strasse → ``—``, damit das Feld belegt ist)."""
@@ -75,7 +81,7 @@ def make(*, name: str = "", street1: str = "", street2: str = "", zip: str = "",
         "state": _txt(state) or None,
         "country": iso2(country),
         "email": _txt(email) or None,
-        "phone": _txt(phone) or None,
+        "phone": _tel(phone, country),
     }
 
 

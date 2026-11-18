@@ -4,7 +4,7 @@
  * HTML (oder reiner Text) wird.
  *
  * Zwei Dinge passieren hier, und nur hier:
- *  1. **Werte aus der Konfiguration** – `{{phone.display}}` wird zu «052 378 22 47».
+ *  1. **Werte aus der Konfiguration** – `{{phone.display}}` wird zu «+41 52 378 22 47».
  *     So steht eine Telefonnummer auch im Fliesstext genau einmal (in `site.mjs`).
  *     Ein unbekannter Schlüssel bricht den Build ab.
  *  2. **Minimales Inline-Markup** in Content-Dateien: `**fett**`, `[Text](/pfad)` und

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from ..models import CompanySettings, UserProfile
 from . import lookup, sites
+from . import phone as tel
 from ..domain.errors import Conflict, Forbidden, Invalid
 from ..domain import policy
 
@@ -191,9 +192,8 @@ def tidy_phone(user: UserProfile, raw: str) -> str:
     ohne feste Gruppierung bleibt sie, wie getippt – eine geratene Gruppe wäre schlechter
     als keine."""
     from . import phone
-    raw = " ".join(raw.split())
     country = user.addresses[0].country if user.addresses else None
-    return phone.display(raw, phone.e164(raw, country)) or raw
+    return phone.tidy(raw, country) or ""
 
 
 def email_problem(db: Session, user: UserProfile, email: Optional[str]) -> Optional[str]:
@@ -342,7 +342,7 @@ def ensure(db: Session, email: str, name: str = "", phone: str = "", *,
     user = UserProfile(firebase_uid=uid or contact_uid(key), email=key, role=role,
                        first_name=(first or "")[:100] or None,
                        last_name=(last or "")[:100] or None,
-                       phone=(phone or "")[:50] or None, photo_url=photo_url,
+                       phone=(tel.tidy(phone) or "")[:50] or None, photo_url=photo_url,
                        object_id=next_object_id(db, "user"))
     db.add(user)
     db.flush()

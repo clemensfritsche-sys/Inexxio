@@ -79,11 +79,12 @@ def test_the_company_is_found_by_the_one_rule():
 
 def test_a_swiss_number_is_shown_in_groups():
     """#1187: «+41795058302» liest niemand – angezeigt wird «+41 79 505 83 02». Ein Land ohne
-    feste Gruppierung bleibt wie erfasst (geraten wäre schlechter als roh)."""
+    feste Gruppierung behält die getippten Gruppen, international (geraten wäre schlechter)."""
     from app.services.phone import display as _display, e164 as _e164
 
     assert _display("+41795058302", _e164("+41795058302", "CH")) == "+41 79 505 83 02"
     assert _display("052 378 22 47", _e164("052 378 22 47", "CH")) == "+41 52 378 22 47"
     assert _display("+4232345678", "+4232345678") == "+423 234 56 78"
     assert _display("+49 30 1234567", "+49301234567") == "+49 30 1234567"
+    assert _display("030 1234567", "+49301234567") == "+49 30 1234567"
     assert _display(None, None) is None

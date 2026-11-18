@@ -14,9 +14,22 @@ def test_a_phone_is_written_the_way_one_reads_it():
     assert people.tidy_phone(_person("CH"), "079 505 83 02") == "+41 79 505 83 02"
     assert people.tidy_phone(_person(), "+41795058302") == "+41 79 505 83 02"
     assert people.tidy_phone(_person(), "0041 79 505 83 02") == "+41 79 505 83 02"
-    # Ohne Anschrift gilt die Schweiz; ohne feste Gruppierung bleibt die Nummer, wie getippt.
+    # Ohne Anschrift gilt die Schweiz; ohne feste Gruppierung steht die Nummer international am Stück.
     assert people.tidy_phone(_person(), "079  505 83 02") == "+41 79 505 83 02"
-    assert people.tidy_phone(_person("DE"), "0171  1234567") == "0171 1234567"
+    assert people.tidy_phone(_person("DE"), "0171  1234567") == "+49 171 1234567"
+
+
+def test_every_phone_everywhere_is_international():
+    """►►► **Jede Nummer international** – wo sie eingetippt wird und wo sie steht (`phone.tidy`). ◄◄◄
+    Bug-Form: eine Landesnummer («052 …») blieb national stehen – im Ausland nicht wählbar."""
+    from app.services import address, phone
+    assert phone.tidy("052 378 22 47") == "+41 52 378 22 47"
+    assert phone.tidy("+423 2345678") == "+423 234 56 78"
+    assert phone.tidy("0043 1 2345678") == "+43 1 2345678"
+    assert phone.tidy("  ") is None
+    assert phone.tidy("intern 12") == "intern 12", "was keine Nummer ist, bleibt"
+    assert address.make(city="Vaduz", country="LI", phone="2345678") ["phone"] == "2345678"
+    assert address.make(city="Wil", country="CH", phone="071 123 45 67")["phone"] == "+41 71 123 45 67"
 
 
 def test_the_login_email_changes_only_to_a_free_address(monkeypatch):
