@@ -11,4 +11,4 @@ interface Card { label: string; title: string }
 interface Props { title: string; lead: string; photo: string; sight: string; a: Card; b: Card; c: Card }
 const { title, lead, photo, sight, a, b, c } = Astro.props;
 ---
-<Stagger id="funk-title" anchor="funk" title={title} lead={lead} a={{ ...a, image: sender, alt: t('ui', 'Hand hält einen gelben Funksender für den Kran, mit rotem Not-Halt') }} b={{ ...b, photo: sight }} c={{ ...c, photo }} />
+<Stagger id="funk-title" anchor="funk" title={title} lead={lead} a={{ ...a, image: sender, alt: t('ui', 'Arbeitshand hält einen gelben Funksender für den Kran, der Daumen auf einer Taste') }} b={{ ...b, photo: sight }} c={{ ...c, photo }} />
