@@ -59,8 +59,8 @@ export const photos = t('photos', {
   },
   'heukran-drehkran': {
     file: 'heukran-drehkran.webp',
-    alt: 'Hydraulischer Drehkran: roter Ausleger mit Greifer am offenen Scheunentor, draussen Wiesen, Wald und Berge',
-    brief: 'Hydraulischer Heu-Drehkran am offenen Scheunentor: Ausleger, Greifer mit Zinken, Aussicht, quer',
+    alt: 'Hydraulischer Drehkran: grüne Katze mit rotem Ausleger und Greifer unter der Decke einer Halle',
+    brief: 'Hydraulischer Heu-Drehkran: Katze, Ausleger, Greifer mit Zinken, quer',
     ratio: '16/9',
   },
   'heukran-angepasst': {
