@@ -59,8 +59,8 @@ export const photos = t('photos', {
   },
   'heukran-drehkran': {
     file: 'heukran-drehkran.webp',
-    alt: 'Hydraulischer Drehkran: roter Ausleger mit Greifer an der grünen Katze, darunter Heuballen',
-    brief: 'Hydraulischer Heu-Drehkran von nah: Ausleger, Greifer mit Zinken, Antrieb, quer',
+    alt: 'Hydraulischer Drehkran: roter Ausleger mit Greifer am offenen Scheunentor, draussen Wiesen, Wald und Berge',
+    brief: 'Hydraulischer Heu-Drehkran am offenen Scheunentor: Ausleger, Greifer mit Zinken, Aussicht, quer',
     ratio: '16/9',
   },
   'heukran-angepasst': {
@@ -70,10 +70,10 @@ export const photos = t('photos', {
     ratio: '4/3',
   },
   // Krane nach Mass, Belege (sichtbar erst mit `features.craneReferences`) – je ein echtes Projekt.
-  // Krane nach Mass, «Für die Halle» – eine Anlage von HS Steiner (mit KI aufbereitet, ohne Beschriftung).
-  'kettenzug-dachstock': {
-    file: 'kettenzug-dachstock.webp',
-    alt: 'Elektrokettenzug an einer Laufschiene im Dachstock, daneben ein Monteur hinter der Schiene',
+  // Krane nach Mass, «Für die Halle» – eine Anlage von HS Steiner (mit KI aufbereitet, ohne Beschriftung, Umgebung aufgeräumt).
+  'kran-dachstock': {
+    file: 'kran-dachstock.webp',
+    alt: 'Kranbahn aus Aluminium im Dachstock, der Kettenzug hebt durch eine Bodenöffnung ins Geschoss darunter',
     brief: 'Kran nach Mass in einem Dachstock: Laufschiene unter den Sparren, Kettenzug mit Stromzuführung, hoch',
     ratio: '4/5',
   },
@@ -93,7 +93,8 @@ export const photos = t('photos', {
     ratio: '4/3',
   },
   'kran-eng': {
-    alt: 'Kompakter Kran mit Greifer zwischen Stützen in einem engen Raum',
+    file: 'kran-eng.webp',
+    alt: 'Verzinkter Kran mit Plattform in einem engen Betonschacht, daneben die Treppe',
     brief: 'Kompakter Kran in einem engen, verwinkelten Raum mit Stützen oder Nischen, der Greifer erreicht eine Ecke, quer',
     ratio: '4/3',
   },

@@ -162,7 +162,10 @@ test('Netz weg: die Stücke warten («wartet auf Netz», eine Meldung) und komme
   assert.deepEqual(s.uploaded, ['0.0', '0.1', '0.2']);
   assert.deepEqual(s.stops, [1]);
   assert.equal(n.texts().filter((t) => t.includes('kein Netz')).length, 1, 'einmal, nicht je Versuch');
-  assert.equal(view.current.queue.waiting, false);
+  // «wartet» endet – React zeigt es mit dem nächsten Rendern, das auf einem langsamen Rechner erst
+  // nach «gestoppt» kommt: warten, nicht sofort lesen (sonst wackelt der Test; die Bug-Form – bleibt
+  // auf «wartet» – läuft hier in die Zeitgrenze).
+  await until(() => view.current.queue.waiting === false);
   assert.ok(mic.track.stopped, 'Mikrofon zu');
   n.off();
   unmount();

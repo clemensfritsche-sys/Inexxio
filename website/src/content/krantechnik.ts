@@ -157,7 +157,7 @@ export const craneWorlds = t('krantechnik', {
       cta: { label: 'Zu den Heukrananlagen', href: '/krantechnik/heukrananlagen' },
     },
     {
-      photo: 'kettenzug-dachstock', label: 'Gewerbe und Industrie', title: 'Für die Halle',
+      photo: 'kran-dachstock', label: 'Gewerbe und Industrie', title: 'Für die Halle',
       text: 'Gewerbe, Lager, Recycling, Holz und Metall – auch Hallen, die gewachsen sind statt geplant. Passt ein Standardkran, bauen wir ihn aus Markenkomponenten.',
       cta: { label: 'Kran anfragen', href: '#anfrage' },
     },
