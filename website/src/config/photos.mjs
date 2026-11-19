@@ -70,6 +70,13 @@ export const photos = t('photos', {
     ratio: '4/3',
   },
   // Krane nach Mass, Belege (sichtbar erst mit `features.craneReferences`) – je ein echtes Projekt.
+  // Krane nach Mass, «Für die Halle» – eine Anlage von HS Steiner (mit KI aufbereitet, ohne Beschriftung).
+  'kettenzug-dachstock': {
+    file: 'kettenzug-dachstock.webp',
+    alt: 'Elektrokettenzug an einer Laufschiene im Dachstock, daneben ein Monteur hinter der Schiene',
+    brief: 'Kran nach Mass in einem Dachstock: Laufschiene unter den Sparren, Kettenzug mit Stromzuführung, hoch',
+    ratio: '4/5',
+  },
   'kran-kurve': {
     alt: 'Kranfahrbahn, die in einer Scheune oder Halle um die Ecke biegt',
     brief: 'Kran nach Mass mit Kurvenfahrbahn: die Fahrbahn biegt sichtbar um eine Ecke, Katze oder Greifer in der Kurve, Gebäude erkennbar, quer',
