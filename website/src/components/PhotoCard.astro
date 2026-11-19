@@ -31,7 +31,7 @@ const { photo, label, title, text, cta, illo, alt = '', compact = false, as: H =
 const art = illo && !(photo && photoOf(photo).file) ? illo : undefined;
 const shown = art ? undefined : photo;
 ---
-<div class:list={['pc', !shown && 'pc--light', art && 'pc--art', compact && 'pc--compact']}>
+<div class:list={['pc', shown && 'zoom-on-hover', !shown && 'pc--light', art && 'pc--art', compact && 'pc--compact']}>
   {shown && <Photo id={shown} sizes="(min-width: 960px) 600px, 100vw" />}
   {art && <img class="pc__art" src={illustration(art, 'Bildkarte')} alt={alt} width="400" height="300" loading="lazy" decoding="async" />}
   <div class="pc__body">

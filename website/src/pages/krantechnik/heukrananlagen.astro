@@ -10,7 +10,7 @@ import Base from '../../layouts/Base.astro';
 import StageHero from '../../components/StageHero.astro';
 import RadioControl from '../../components/kran/RadioControl.astro';
 import SeasonCalendar from '../../components/SeasonCalendar.astro';
-import Magazine from '../../components/Magazine.astro';
+import PhotoRows from '../../components/PhotoRows.astro';
 import PhotoCard from '../../components/PhotoCard.astro';
 import SolutionPath from '../../components/spezial/SolutionPath.astro';
 import FaqStage from '../../components/FaqStage.astro';
@@ -59,10 +59,9 @@ const titel = pageTitle('/krantechnik/heukrananlagen');
   <section class="v4-section" id="neuanlage" aria-labelledby="neuanlage-title">
     <div class="wrap">
       <header class="hk-head"><h2 class="v4-h2" id="neuanlage-title">{m.forms.title}</h2><p class="v4-sub">{m.forms.lead}</p></header>
-      <Magazine art>
-        {m.forms.items.map((f) => <li><PhotoCard photo={f.photo} illo={f.illo} alt={`Zeichnung: ${f.title}`} label={f.label} title={f.title} text={f.text} /></li>)}
-        <li class="mag__end"><PhotoCard compact title={m.forms.missing.title} text={m.forms.missing.text} cta={m.forms.missing.cta} /></li>
-      </Magazine>
+      <PhotoRows items={m.forms.items}>
+        <PhotoCard compact title={m.forms.missing.title} text={m.forms.missing.text} cta={m.forms.missing.cta} />
+      </PhotoRows>
     </div>
   </section>
 

@@ -392,15 +392,15 @@ export const radioControl = t('krantechnik', {
 
 /** Module der Heukran-Seite. */
 export const heukranModules = t('krantechnik', {
-  /** Bauformen (Anker #neuanlage) – alle vier auf einen Blick wie die Situationen (Magazine + PhotoCard). */
+  /** Bauformen (Anker #neuanlage) – Zeilen im Wechsel (components/PhotoRows), dazu die Abschlusskarte. */
   forms: {
     title: 'Bauformen',
     lead: 'Vier Bauformen, alle ohne Kabine und per Funk bedient.',
     items: [
-      { label: 'Einschiene', title: 'Einschienenkran', photo: 'heukran-einsatz', illo: 'heukran-einschiene', text: 'Der Kran fährt auf einer Laufschiene unter dem Dach. Für lange, schmale Scheunen mit einem Heustock entlang der Fahrbahn.' },
-      { label: 'Brücke', title: 'Brückenkran', photo: 'heukran-bruecke', illo: 'heukran-bruecke', text: 'Eine Kranbrücke fährt über die ganze Breite, die Katze quer dazu. Für breite Scheunen mit mehreren Stöcken oder Abladeplätzen.' },
-      { label: 'Drehkran', title: 'Drehkran, hydraulisch', photo: 'heukran-drehkran', illo: 'heukran-drehkran', text: 'Ein Drehturm mit Ausleger fährt längs und quer und dreht sich – der Greifer erreicht auch Ecken und Nischen.' },
-      { label: 'Angepasst', title: 'An das Gebäude angepasst', photo: 'heukran-angepasst', illo: 'heukran-angepasst', text: 'Fahrbahn, Stützen und Spannweite folgen dem Bau – auch um Ecken, über Steigungen und Versätze. Mehr unter [Krane nach Mass](/krantechnik/krane-nach-mass).' },
+      { label: 'Einschiene', title: 'Einschienenkran', photo: 'heukran-einsatz', text: 'Der Kran fährt auf einer Laufschiene unter dem Dach. Für lange, schmale Scheunen mit einem Heustock entlang der Fahrbahn.' },
+      { label: 'Brücke', title: 'Brückenkran', photo: 'heukran-angepasst', text: 'Eine Kranbrücke fährt über die ganze Breite, die Katze quer dazu. Für breite Scheunen mit mehreren Stöcken oder Abladeplätzen.' },
+      { label: 'Drehkran', title: 'Drehkran, hydraulisch', photo: 'heukran-drehkran', text: 'Ein Drehturm mit Ausleger fährt längs und quer und dreht sich – der Greifer erreicht auch Ecken und Nischen.' },
+      { label: 'Angepasst', title: 'An das Gebäude angepasst', photo: 'heukran-bruecke', text: 'Fahrbahn, Stützen und Spannweite folgen dem Bau – auch um Ecken, über Steigungen und Versätze. Mehr unter [Krane nach Mass](/krantechnik/krane-nach-mass).' },
     ],
     missing: { title: 'Welche passt zu Ihrer Scheune?', text: 'Das klären wir bei der Besichtigung gemeinsam – mit Blick auf Gebäude, Heustock und Ihre Arbeit.', cta: { label: 'Neuanlage anfragen', href: '#anfrage' } },
   },

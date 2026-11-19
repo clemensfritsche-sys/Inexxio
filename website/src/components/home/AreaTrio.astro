@@ -43,7 +43,7 @@ const cards = start.areas.order.map((id) => ({ area: areaOf(id), scene: scenes[i
       {cards.map(({ area, scene, claim, go }) => (
         <li class="trio__item" data-item>
           <p class="trio__mtitle" aria-hidden="true">{area.label}</p>
-          <a class="sc" href={area.href} data-scene={area.id}>
+          <a class="sc zoom-on-hover" href={area.href} data-scene={area.id}>
             <Media id={area.photo} sizes="(min-width: 960px) 40vw, 300px" />
             <span class="stg" aria-hidden="true">
               <span class="stg__rail"></span>
@@ -118,8 +118,6 @@ const cards = start.areas.order.map((id) => ({ area: areaOf(id), scene: scenes[i
     .sc__text { left: 20px !important; right: 20px !important; bottom: 20px !important; display: block !important; }
   }
   .sc { position: relative; display: block; contain: layout paint; height: 600px; border-radius: var(--r-xl); overflow: hidden; color: var(--white); text-decoration: none; background: var(--dark-2); isolation: isolate; }
-  .sc :global(.fill-media .photo) { transition: transform 1.2s var(--ease); }
-  .sc:hover :global(.fill-media .photo) { transform: scale(1.06); }
   .sc__shade { position: absolute; left: 0; right: 0; bottom: 0; height: 220px; background: linear-gradient(180deg, rgba(10, 10, 11, 0) 0%, rgba(10, 10, 11, 0.72) 100%); z-index: 2; }
   .sc__text { position: absolute; left: 32px; right: 32px; bottom: 32px; z-index: 3; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
   .sc__copy { min-width: 0; }
@@ -155,5 +153,5 @@ const cards = start.areas.order.map((id) => ({ area: areaOf(id), scene: scenes[i
     position: absolute; right: 14px; top: 54px; opacity: 0; display: inline-flex; align-items: center; gap: 4px;
     padding: 3px 9px; border-radius: 6px; background: var(--white); border: 1px solid var(--ok); color: var(--ok); font-size: 0.75rem; font-weight: 600;
   }
-  @media (prefers-reduced-motion: reduce) { .trio__item { transition: none; } .sc:hover :global(.fill-media .photo) { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .trio__item { transition: none; } }
 </style>

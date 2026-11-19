@@ -98,9 +98,10 @@ Referenz zum Anschauen: `reference/mockups/Startseite v4.dc.html` und
 - **Zeichnungen:** isometrisch, Grau-Rampe; **Grau ist die Serie, Rot ist, was wir
   dazubauen.**
 - **Bewegung:** Überblenden 0.35–0.6 s mit `--ease-out`; bei `prefers-reduced-motion`
-  steht alles. **Beim Überfahren bewegt sich nur, was als ganze Fläche ein Link ist**
-  (Karte, Kachel: Bild hebt sich oder zoomt leicht); eine Fläche, die nicht klickbar ist, steht
-  still – auch wenn ein Knopf in ihr liegt (der Knopf hat seinen eigenen Hover).
+  steht alles. **Beim Überfahren:** ein **Foto in einem Rahmen** zoomt langsam um 5 % (1.4 s) – überall
+  gleich, ob Link oder nicht, EINE Klasse `zoom-on-hover` am Rahmen (`website/src/styles/global.css`).
+  **Freigestellte Bilder und Zeichnungen** heben sich nur, wenn die ganze Fläche ein Link ist (Kachel im
+  Kopf, Feldkarte); sonst stehen sie still. Knöpfe haben ihren eigenen Hover.
 
 ## 3b. Version
 

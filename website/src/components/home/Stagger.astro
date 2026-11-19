@@ -46,13 +46,13 @@ const C = c.href ? 'a' : 'div';
           : <span class="gv__art gv__art--a" aria-hidden="true" data-play set:html={a.art} />}
         <span class="gv__text"><span><span class="gv__label">{a.label}</span><Rich as="span" class="gv__title" text={a.title} /></span>{a.href && <span class="garrow garrow--sm garrow--ink" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>}</span>
       </A>
-      <B class="gv gv--dark gar__b" href={b.href}>
+      <B class:list={['gv gv--dark gar__b', b.photo && 'zoom-on-hover']} href={b.href}>
         {b.photo
           ? <><Media id={b.photo} sizes="(min-width: 960px) 40vw, 100vw" /><span class="gv__shade" aria-hidden="true"></span></>
           : <span class="gv__art gv__art--b" aria-hidden="true" data-play set:html={b.art} />}
         <span class="gv__text"><span><span class="gv__label">{b.label}</span><Rich as="span" class="gv__title" text={b.title} /></span>{b.href && <span class="garrow garrow--sm" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>}</span>
       </B>
-      <C class:list={['gv gv--photo gar__c', c.href && 'zoom-on-hover']} href={c.href}>
+      <C class="gv gv--photo gar__c zoom-on-hover" href={c.href}>
         <Media id={c.photo} sizes="(min-width: 960px) 40vw, 100vw" />
         <span class="gv__shade" aria-hidden="true"></span>
         <span class="gv__text"><span><span class="gv__label">{c.label}</span><Rich as="span" class="gv__title" text={c.title} /></span>{c.href && <span class="garrow garrow--sm" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>}</span>

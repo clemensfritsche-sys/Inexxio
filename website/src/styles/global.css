@@ -243,10 +243,14 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 .fill-media, .fill-media.fill-media :is(picture, .photo, .ph, video) { position: absolute; inset: 0; width: 100%; height: 100%; }
 .fill-media.fill-media :is(.photo, video) { object-fit: cover; }
 .fill-media .ph { aspect-ratio: auto !important; }
-/* Bewegung beim Überfahren nur, wo die ganze Fläche ein Link ist (design-system/README «Bewegung»). */
-a.zoom-on-hover .fill-media .photo { transition: transform 1.4s var(--ease); }
-a.zoom-on-hover:hover .fill-media .photo { transform: scale(1.05); }
-@media (prefers-reduced-motion: reduce) { a.zoom-on-hover:hover .fill-media :is(.photo, video) { transform: none; } }
+/* EINE Regel für Fotos (design-system/README «Bewegung»): ein Foto in einem Rahmen zoomt beim Überfahren
+   langsam um 5 % – überall gleich, ob Link oder nicht. Der Rahmen schneidet ab (overflow) und isoliert,
+   damit die runden Ecken auch während der Bewegung sauber bleiben. Freigestellte Bilder und Zeichnungen
+   bekommen die Klasse nie. */
+.zoom-on-hover { overflow: hidden; isolation: isolate; }
+.zoom-on-hover :is(.photo, video) { transition: transform 1.4s var(--ease); }
+.zoom-on-hover:hover :is(.photo, video) { transform: scale(1.05); }
+@media (prefers-reduced-motion: reduce) { .zoom-on-hover:hover :is(.photo, video) { transform: none; } }
 
 /* Die Schemata bewegen sich ruhig: die Hälfte geht zurück; INEXXIO 365 zeigt erst die Kosten
    ohne (unregelmässig, Ausfall rot), dann gleichen sich die Balken an (mit) und der Ausfall ist
