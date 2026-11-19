@@ -50,6 +50,25 @@ export const photos = t('photos', {
     brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
     ratio: '4/3',
   },
+  // Heukrananlagen, Bauformen (Heiris Anlagen, mit KI aufbereitet: schärfer, ohne Beschriftung, Umgebung aufgeräumt).
+  'heukran-bruecke': {
+    file: 'heukran-bruecke.webp',
+    alt: 'Grüne Kranbrücke mit zwei roten Greifern voller Heu über einem Schafstall, darunter geht der Landwirt durch den Futtergang',
+    brief: 'Heu-Brückenkran über die ganze Breite eines Stalls, zwei Greifer mit Heu, quer',
+    ratio: '16/9',
+  },
+  'heukran-drehkran': {
+    file: 'heukran-drehkran.webp',
+    alt: 'Hydraulischer Drehkran: roter Ausleger mit Greifer an der grünen Katze, darunter Heuballen',
+    brief: 'Hydraulischer Heu-Drehkran von nah: Ausleger, Greifer mit Zinken, Antrieb, quer',
+    ratio: '16/9',
+  },
+  'heukran-angepasst': {
+    file: 'heukran-angepasst.webp',
+    alt: 'Grüne Kranbrücke unter den alten Balken einer Scheune, der rote Ballengreifer setzt auf einen Rundballen auf',
+    brief: 'Heukran, der in eine alte Scheune eingepasst ist, Ballengreifer über Rundballen, quer',
+    ratio: '4/3',
+  },
   // Krane nach Mass, Belege (sichtbar erst mit `features.craneReferences`) – je ein echtes Projekt.
   'kran-kurve': {
     alt: 'Kranfahrbahn, die in einer Scheune oder Halle um die Ecke biegt',

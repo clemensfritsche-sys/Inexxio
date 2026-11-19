@@ -61,7 +61,7 @@ const titel = pageTitle('/krantechnik/heukrananlagen');
     <div class="wrap">
       <header class="hk-head"><h2 class="v4-h2" id="neuanlage-title">{m.forms.title}</h2><p class="v4-sub">{m.forms.lead}</p></header>
       <Magazine art>
-        {m.forms.items.map((f) => <li><PhotoCard illo={f.illo} alt={`Zeichnung: ${f.title}`} label={f.label} title={f.title} text={f.text} /></li>)}
+        {m.forms.items.map((f) => <li><PhotoCard photo={f.photo} illo={f.illo} alt={`Zeichnung: ${f.title}`} label={f.label} title={f.title} text={f.text} /></li>)}
         <li class="mag__end"><PhotoCard compact title={m.forms.missing.title} text={m.forms.missing.text} cta={m.forms.missing.cta} /></li>
       </Magazine>
     </div>
