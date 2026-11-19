@@ -57,8 +57,7 @@ if (withResult !== 0 && withResult !== items.length) throw new Error(`Weg «${ti
   .sp__st { position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; align-items: start; padding: 12px 0; }
   .sp__node { grid-column: 1; grid-row: 1; position: relative; z-index: 1; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; color: var(--ink); }
   .sp__st--last .sp__node { background: var(--ink); border-color: var(--ink); color: var(--white); }
-  .sp__card { grid-column: 2; grid-row: 1; padding: 22px; border-radius: var(--r-xl); background: var(--gray-100); transition: transform 0.5s var(--ease); }
-  .sp__card:hover { transform: translateY(-4px); }
+  .sp__card { grid-column: 2; grid-row: 1; padding: 22px; border-radius: var(--r-xl); background: var(--gray-100); }
   .sp__no { grid-column: 2; grid-row: 1; justify-self: end; z-index: 1; margin: 16px 18px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 2.75rem; line-height: 1; letter-spacing: -0.05em; color: var(--line-2); pointer-events: none; }
   .sp__who { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); }
   .sp__title { margin-top: 6px; font-family: var(--font-display); font-weight: 600; font-size: 1.625rem; letter-spacing: -0.02em; }
