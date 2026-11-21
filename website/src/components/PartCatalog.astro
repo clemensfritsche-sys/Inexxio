@@ -30,11 +30,15 @@ const parts = catalog.groups.flatMap((g) => g.items.map((it, i) => ({ ...it, gro
       </PhotoCard>
     </li>
   ))}
-  <li class="catalog__item">
-    <PhotoCard title={catalog.missing.title} text={catalog.missing.text} cta={{ label: catalog.missing.cta, href: '#anfrage' }} />
+  <li class="catalog__item mag__end catalog__missing">
+    <PhotoCard compact title={catalog.missing.title} text={catalog.missing.text} cta={{ label: catalog.missing.cta, href: '#anfrage' }} />
   </li>
 </Magazine>
 
 <style>
+  /* «Ihr Teil ist nicht dabei?» – eine kleine Notiz rechts unten, keine Karte wie die Teile. */
+  .catalog__missing { justify-self: end; width: min(100%, 340px); }
+  .catalog__missing :global(.pc__body) { padding: 20px 24px; gap: 6px; }
+  .catalog__missing :global(.pc__title) { font-size: 1.25rem; }
   .catalog__spec { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.8125rem; color: rgba(255, 255, 255, 0.7); }
 </style>

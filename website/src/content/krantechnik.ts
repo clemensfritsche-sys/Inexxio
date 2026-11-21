@@ -10,7 +10,6 @@
  * Wir bewerben Lösungen nach Mass, keine Katalogkrane. Keine Preise, kein «Abo», keine erfundenen Werte.
  */
 import type { IconName } from '../components/Icon.astro';
-import { inquiry } from '../config/inquiry.mjs';
 import { site } from '../config/site.mjs';
 import { sharedFaq } from './uebergabe';
 import { promiseFaq } from './promises';
@@ -176,13 +175,6 @@ export const nachMassPath = t('krantechnik', {
     { icon: 'wrench', who: 'Wir', title: 'Fertigung und Montage', text: 'Stahlbau im eigenen Betrieb, Montage und Abnahme bei Ihnen, mit Einweisung.', result: 'Kranbuch angelegt' },
     { icon: 'calendar-check', who: 'Wir', title: 'Service', text: 'Prüfung, Wartung und Ersatzteile. Wächst Ihr Betrieb, bauen wir den Kran aus.', result: 'Ihr Kran bleibt geprüft' },
   ] satisfies Station[],
-});
-
-/** Foto-Hilfe direkt beim Formular (Krane nach Mass). */
-export const nachMassPhotoHint = t('krantechnik', {
-  title: 'Diese Fotos helfen uns am meisten:',
-  items: ['Gesamtansicht des Raums', 'Die schwierige Stelle', 'Decke bzw. Dachstuhl', 'Ablade- oder Arbeitsplatz'],
-  note: `Dazu, wenn vorhanden, grobe Masse: Länge, Breite, Höhe. Bis zu ${inquiry.photos.max} Fotos.`,
 });
 
 /**

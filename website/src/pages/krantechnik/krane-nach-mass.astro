@@ -22,7 +22,7 @@ import { plain } from '../../lib/text.mjs';
 import { pageTitle } from '../../lib/titles';
 import {
   kraneNachMass as page, craneSituations as sit, craneWorlds as wo, nachMassPath as p,
-  nachMassPhotoHint as hint, craneReferences as refs, harbour,
+  craneReferences as refs, harbour,
 } from '../../content/krantechnik';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -74,7 +74,7 @@ import { t } from '../../i18n/t.mjs';
 
   <FaqStage items={page.faq} illo={'heukran-angepasst'} />
 
-  <ContactSection hint={hint} />
+  <ContactSection />
 </Base>
 
 <style>
