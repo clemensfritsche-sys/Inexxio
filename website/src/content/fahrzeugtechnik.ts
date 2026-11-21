@@ -211,7 +211,7 @@ export const verschleissteile: SubPage = t('fahrzeugtechnik', {
   crumb: 'Verschleissteile',
   title: 'Fahrmischer-Verschleissteile',
   description:
-    'Rinnen, Schurren und Trichter für Fahrmischer – auf Bestellung, schnell beschafft. Mit oder ohne Einbau, mit verbindlicher Offerte vorab.',
+    'Rinnen, Schurren und Trichter für Fahrmischer – auf Bestellung und schnell beschafft. Mit oder ohne Einbau, mit verbindlicher Offerte vorab.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Verschleissteile',
     h1: 'Verschleissteile. Schnell beschafft.',

@@ -33,7 +33,7 @@ function facts(base: string): string[] {
   const lines = [
     `- Rechtlicher Name: ${plain(site.brand.legalName)} – früher ${site.brand.alternateNames.join(' · ')}`,
     `- Gegründet ${site.history.founded} von ${site.people.founder.name} in ${plain('{{address.home}}')}; heute geführt von ${o.name} (${o.role}).`,
-    `- Telefon: ${site.phone.display} (${site.phone.intl})`,
+    `- Telefon: ${site.phone.display}${site.phone.intl === site.phone.display ? '' : ` (${site.phone.intl})`}`,
     `- E-Mail: ${contactEmail()}`,
     `- Adresse: ${a.street}, ${a.zip} ${a.city} (${a.municipality} ${a.canton}), ${a.countryName}`,
     `- Im Einsatz: ${plain(site.area.summary)}`,

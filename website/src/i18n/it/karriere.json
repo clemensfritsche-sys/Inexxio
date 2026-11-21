@@ -31,5 +31,6 @@
   "Im Betrieb in {{address.city}} – Sie sehen, woran wir gerade arbeiten.": "Nella nostra azienda a {{address.city}} – vede a che cosa stiamo lavorando.",
   "Sie wissen, wie wir arbeiten": "Sa come lavoriamo",
   "Wir freuen uns auf Sie.": "La aspettiamo con piacere.",
-  "Schicken Sie uns Ihren Lebenslauf an {{email.link}} – oder rufen Sie an: {{phone.link}}.": "Ci mandi il Suo curriculum a {{email.link}} – oppure ci chiami: {{phone.link}}."
+  "Schicken Sie uns Ihren Lebenslauf an {{email.link}} – oder rufen Sie an: {{phone.link}}.": "Ci mandi il Suo curriculum a {{email.link}} – oppure ci chiami: {{phone.link}}.",
+  "Karriere: Krane und Fahrmischer bauen": "Lavora con noi: costruire gru e autobetoniere"
 }

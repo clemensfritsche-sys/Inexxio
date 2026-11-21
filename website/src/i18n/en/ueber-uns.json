@@ -37,5 +37,6 @@
   "Kommen Sie auch ins Ausland?": "Do you also work abroad?",
   "Ja. Zuerst in Deutschland und Österreich, darüber hinaus dort, wo Sie uns brauchen – geplant und zuverlässig. Fragen Sie an.": "Yes. First in Germany and Austria, and beyond that wherever you need us – planned and reliable. Just ask.",
   "Kostet die Anfahrt extra?": "Does the journey cost extra?",
-  "Die Anfahrt steht in der Offerte, den Sie vor der Arbeit erhalten – auf der Rechnung steht keine Überraschung.": "The journey is stated in the quote you receive before the work – there are no surprises on the invoice."
+  "Die Anfahrt steht in der Offerte, den Sie vor der Arbeit erhalten – auf der Rechnung steht keine Überraschung.": "The journey is stated in the quote you receive before the work – there are no surprises on the invoice.",
+  "Über uns: Maschinenbau seit {{history.founded}}": "About us: mechanical engineering since {{history.founded}}"
 }

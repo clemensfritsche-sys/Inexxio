@@ -43,6 +43,8 @@ export interface PageEntry {
   subpage?: SubPage;
   /** Slug eines Ratgeber-Artikels: llms-full.txt bringt ihn im Wortlaut. */
   article?: string;
+  /** Art der Seite für JSON-LD (schema.org), wenn nicht einfach «WebPage». */
+  type?: 'AboutPage' | 'ContactPage' | 'CollectionPage';
 }
 
 const day = site.seo.contentUpdated;
@@ -63,10 +65,10 @@ function build(): PageEntry[] {
     ...krantechnikPages.map((p) => subEntry(p, 'Krantechnik')),
     subEntry(spezialloesungen, 'Speziallösungen'),
     { path: service.path, name: service.title, description: service.description, updated: day, section: 'Service', summary: service.summary, faq: service.faq },
-    { path: '/ueber-uns', name: ueberUns.title, description: ueberUns.description, updated: day, section: 'Unternehmen', summary: ueberUns.summary, faq: [...handover.faq, ...ueberUns.areaFaq] },
-    { path: '/kontakt', name: kontakt.title, description: kontakt.description, updated: day, section: 'Unternehmen', summary: kontakt.summary },
+    { path: '/ueber-uns', name: ueberUns.title, description: ueberUns.description, updated: day, section: 'Unternehmen', type: 'AboutPage', summary: ueberUns.summary, faq: [...handover.faq, ...ueberUns.areaFaq] },
+    { path: '/kontakt', name: kontakt.title, description: kontakt.description, updated: day, section: 'Unternehmen', type: 'ContactPage', summary: kontakt.summary },
     { path: '/karriere', name: karriere.title, description: karriere.description, updated: day, section: 'Unternehmen' },
-    { path: '/ratgeber', name: ratgeberUebersicht.title, description: ratgeberUebersicht.description, updated: day, section: 'Ratgeber', summary: ratgeberUebersicht.summary },
+    { path: '/ratgeber', name: ratgeberUebersicht.title, description: ratgeberUebersicht.description, updated: day, section: 'Ratgeber', type: 'CollectionPage', summary: ratgeberUebersicht.summary },
     ...articles().map((a): PageEntry => ({
       path: a.path, name: a.title, description: a.description, updated: a.updated, section: 'Ratgeber', article: a.slug,
     })),
@@ -93,3 +95,6 @@ export const pages = (): PageEntry[] => PAGES;
 
 /** Steht diese Seite in der Liste? (Pfad ohne .html und ohne Schrägstrich am Ende) */
 export const isListed = (path: string): boolean => PAGES.some((p) => p.path === path);
+
+/** Der Eintrag einer Seite (Stand, Art) – undefined, wenn sie nicht indexiert wird. */
+export const pageOf = (path: string): PageEntry | undefined => PAGES.find((p) => p.path === path);

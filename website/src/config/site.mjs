@@ -359,11 +359,21 @@ export const site = t('site', {
      */
     contentUpdated: '2026-10-08',
     sameAs: [],
-    /** robots.txt im Modus «live»: diese Crawler ausdrücklich zugelassen. */
+    /**
+     * Wo wir im Einsatz sind – als Ländercodes (ISO 3166-1) für JSON-LD `areaServed`; dieselbe
+     * Aussage wie `area.summary` («in der Schweiz, in Deutschland und Österreich …»).
+     */
+    areaServed: ['CH', 'DE', 'AT'],
+    /**
+     * robots.txt im Modus «live»: diese Crawler ausdrücklich zugelassen – Suchmaschinen (Bing
+     * trägt auch Copilot) und KI-Dienste (OpenAI, Anthropic, Perplexity, Google Gemini, Apple,
+     * DuckDuckGo, xAI). xAI hat seine Namen nicht selbst veröffentlicht («GrokBot», «xAI-Grok»
+     * sind die gebräuchlichen); für jeden anderen gilt ohnehin die Gruppe `User-agent: *`.
+     */
     bots: [
       'Googlebot', 'Bingbot', 'Google-Extended', 'GPTBot', 'OAI-SearchBot', 'ChatGPT-User',
       'ClaudeBot', 'Claude-User', 'Claude-SearchBot', 'PerplexityBot', 'Perplexity-User',
-      'Applebot', 'Applebot-Extended', 'CCBot',
+      'Applebot', 'Applebot-Extended', 'DuckDuckBot', 'DuckAssistBot', 'GrokBot', 'xAI-Grok', 'CCBot',
     ],
     knowsAbout: [
       'Krane nach Mass', 'Sonderkrane', 'Kranservice', 'INEXXIO 365', 'Kranmodernisierung', 'Heukrananlagen',
@@ -376,7 +386,7 @@ export const site = t('site', {
   keep: [
     'brand.name', 'brand.legalName', 'brand.formerLegalName', 'brand.alternateNames', 'people.owner.name', 'people.founder.name',
     'phone', 'email', 'address.street', 'address.zip', 'address.city', 'address.municipality', 'address.canton', 'address.country',
-    'marks.mixers', 'account.erp', 'erpPaths', 'seo.contentUpdated', 'seo.bots', 'seo.sameAs',
+    'marks.mixers', 'account.erp', 'erpPaths', 'seo.contentUpdated', 'seo.bots', 'seo.sameAs', 'seo.areaServed',
   ],
 });
 

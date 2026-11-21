@@ -16,7 +16,7 @@ import { t } from '../i18n/t.mjs';
 const titel = pageTitle('/ratgeber');
 const cards = articles().map((a) => ({ id: a.slug, illo: a.illo, alt: t('ui', 'Zeichnung zum Artikel «{title}»').replace('{title}', a.seoTitle), title: a.seoTitle, text: a.description, href: a.path }));
 ---
-<Base title={r.title} description={r.description} crumbs={[{ name: r.title, path: '/ratgeber' }]}>
+<Base title={r.title} description={r.description} crumbs={[{ name: t('seiten', 'Ratgeber'), path: '/ratgeber' }]}>
   <StageHero
     word={t('seiten', 'Ratgeber')}
     image={titel}

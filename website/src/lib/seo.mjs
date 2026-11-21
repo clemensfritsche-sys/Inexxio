@@ -8,7 +8,7 @@
 import { site, contactEmail } from '../config/site.mjs';
 import { plain } from './text.mjs';
 import { t } from '../i18n/t.mjs';
-import { publishedLanguages } from '../config/languages.mjs';
+import { currentLang, publishedLanguages } from '../config/languages.mjs';
 
 const T = t('ui', { offers: 'Leistungen', home: 'Startseite', crane: 'Krananlage' });
 
@@ -65,6 +65,9 @@ function offerCatalog(siteUrl) {
   };
 }
 
+/** Wo wir im Einsatz sind (`site.seo.areaServed`, Ländercodes). */
+const areaServed = () => site.seo.areaServed.map((/** @type {string} */ c) => ({ '@type': 'Country', name: c }));
+
 /** @param {string} siteUrl */
 export function organization(siteUrl) {
   const a = site.address;
@@ -93,10 +96,11 @@ export function organization(siteUrl) {
     geo: { '@type': 'GeoCoordinates', latitude: site.geo.lat, longitude: site.geo.lng },
     foundingDate: String(site.history.founded),
     founder: { '@type': 'Person', name: site.people.founder.name },
+    areaServed: areaServed(),
     knowsAbout: site.seo.knowsAbout,
     hasOfferCatalog: offerCatalog(siteUrl),
     contactPoint: [
-      { '@type': 'ContactPoint', telephone: site.phone.intl, contactType: 'customer service', availableLanguage: publishedLanguages().map((l) => l.code) },
+      { '@type': 'ContactPoint', telephone: site.phone.intl, contactType: 'customer service', areaServed: site.seo.areaServed, availableLanguage: publishedLanguages().map((l) => l.code) },
     ],
     sameAs: site.seo.sameAs,
   });
@@ -109,8 +113,34 @@ export function website(siteUrl) {
     '@id': `${siteUrl}/#website`,
     url: abs(siteUrl),
     name: site.brand.name,
-    inLanguage: 'de-CH',
+    description: site.brand.summary,
+    inLanguage: currentLang().locale,
     publisher: { '@id': `${siteUrl}/#organisation` },
+  });
+}
+
+/**
+ * Die Seite selbst – verknüpft sie über `@id` mit Website, Firma und Brotkrumen, mit ihrem Stand
+ * (`dateModified`, dasselbe Datum wie `lastmod` der Sitemap) und ihrem Vorschaubild.
+ * `type`: AboutPage, ContactPage, CollectionPage … (src/lib/pages.ts), sonst WebPage.
+ * Name und Beschreibung sind die des Kopfs (<title>, Meta-Description) – nichts Zusätzliches.
+ * @param {string} siteUrl
+ * @param {{ path: string, name: string, description: string, updated?: string, type?: string, breadcrumb: boolean, image: string }} p
+ */
+export function webPage(siteUrl, p) {
+  const url = abs(siteUrl, p.path);
+  return clean({
+    '@type': p.type ?? 'WebPage',
+    '@id': `${url}#webpage`,
+    url,
+    name: p.name,
+    description: p.description,
+    inLanguage: currentLang().locale,
+    isPartOf: { '@id': `${siteUrl}/#website` },
+    publisher: { '@id': `${siteUrl}/#organisation` },
+    dateModified: p.updated,
+    breadcrumb: p.breadcrumb ? { '@id': `${url}#breadcrumb` } : undefined,
+    primaryImageOfPage: { '@type': 'ImageObject', url: p.image, width: 1200, height: 630 },
   });
 }
 
@@ -122,6 +152,7 @@ export function breadcrumbs(siteUrl, trail) {
   const all = [{ name: T.home, path: '/' }, ...trail];
   return {
     '@type': 'BreadcrumbList',
+    '@id': `${abs(siteUrl, all[all.length - 1].path)}#breadcrumb`,
     itemListElement: all.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: plain(c.name), item: abs(siteUrl, c.path) })),
   };
 }
@@ -195,7 +226,8 @@ export function owner(siteUrl) {
 
 /**
  * @param {string} siteUrl
- * @param {{ title: string, description: string, path: string, published: string, updated: string }} a
+ * @param {{ title: string, description: string, path: string, published: string, updated: string, image?: string }} a
+ * `image`: die Zeichnung des Artikels (volle Adresse); dazu immer das Vorschaubild.
  */
 export function article(siteUrl, a) {
   return clean({
@@ -203,13 +235,13 @@ export function article(siteUrl, a) {
     headline: a.title,
     description: a.description,
     url: abs(siteUrl, a.path),
-    mainEntityOfPage: abs(siteUrl, a.path),
+    mainEntityOfPage: { '@id': `${abs(siteUrl, a.path)}#webpage` },
     datePublished: a.published,
     dateModified: a.updated,
-    inLanguage: 'de-CH',
+    inLanguage: currentLang().locale,
     author: { '@type': 'Person', name: site.people.owner.name, '@id': `${siteUrl}/#clemens-fritsche` },
     publisher: { '@id': `${siteUrl}/#organisation` },
-    image: `${siteUrl}/og/default.png`,
+    image: [a.image, `${siteUrl}/og/default.png`].filter(Boolean),
   });
 }
 

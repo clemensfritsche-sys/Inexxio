@@ -12,8 +12,8 @@ import displayFontUrl from '../assets/fonts/inter-tight-latin-wght-600-700.woff2
 import earlyUrl from '../scripts/early.js?url';
 import { site, contactEmail } from '../config/site.mjs';
 import { plain, siteMode } from '../lib/text.mjs';
-import { abs, breadcrumbs as breadcrumbNode, graph, organization, website } from '../lib/seo.mjs';
-import { isListed } from '../lib/pages';
+import { abs, breadcrumbs as breadcrumbNode, graph, organization, webPage, website } from '../lib/seo.mjs';
+import { isListed, pageOf } from '../lib/pages';
 import { hostingCsp } from '../lib/csp.mjs';
 import type { OgImage } from '../content/types';
 import { currentLang, publishedLanguages } from '../config/languages.mjs';
@@ -77,7 +77,12 @@ const alternates = noindex || lang.status !== 'live' ? [] : publishedLanguages()
   .map(({ l, p }) => ({ hreflang: l.locale, href: abs(siteUrl, p!) }));
 const xDefault = alternates.length > 1 ? abs(siteUrl, path) : undefined;
 
-const nodes = [organization(siteUrl), website(siteUrl), ...(crumbs.length ? [breadcrumbNode(siteUrl, crumbs)] : []), ...jsonLd];
+// Die Seite selbst (WebPage) mit ihrem Stand aus src/lib/pages.ts – derselbe wie `lastmod` der Sitemap.
+const entry = noindex ? undefined : pageOf(path);
+const pageNode = webPage(siteUrl, {
+  path, name: fullTitle, description: desc, updated: entry?.updated, type: entry?.type, breadcrumb: crumbs.length > 0, image: ogImage,
+});
+const nodes = [organization(siteUrl), website(siteUrl), pageNode, ...(crumbs.length ? [breadcrumbNode(siteUrl, crumbs)] : []), ...jsonLd];
 
 // Strenge Richtlinie der Website (zusätzlich zur globalen Header-CSP): Skripte nur vom
 // eigenen Ursprung, keine Fremd-Einbettungen. Im Dev-Server nicht, dort braucht Vite Inline-Skripte.
@@ -110,7 +115,7 @@ const csp = [
     <link rel="canonical" href={canonical} />
     {alternates.length > 1 && alternates.map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
     {xDefault && <link rel="alternate" hreflang="x-default" href={xDefault} />}
-    <meta name="robots" content={indexable ? 'index, follow' : 'noindex, nofollow'} />
+    <meta name="robots" content={indexable ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' : 'noindex, nofollow'} />
     <meta name="theme-color" content="#FFFFFF" />
     <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossorigin />
     <link rel="preload" href={displayFontUrl} as="font" type="font/woff2" crossorigin />

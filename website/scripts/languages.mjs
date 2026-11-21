@@ -19,7 +19,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { SOURCE, builtLanguages } from '../src/config/languages.mjs';
+import { SOURCE, builtLanguages, languages } from '../src/config/languages.mjs';
 import { siteMode } from '../src/lib/text.mjs';
 
 const ROOT = process.cwd();
@@ -57,8 +57,11 @@ function sourceTexts() {
   return out;
 }
 
-/** Die deutschen Seiten (ohne 404 – die eine Fehlerseite der Hosting-Site). */
-const sourcePages = () => walk(DIST).filter((f) => f.endsWith('.html')).map((f) => pathOf(relative(DIST, f))).filter((p) => p !== '/404');
+/** Die deutschen Seiten (ohne 404 – die eine Fehlerseite der Hosting-Site, und ohne die schon
+    zusammengeführten Seiten der anderen Sprachen, wenn `--status` nach einem ganzen Build läuft). */
+const otherRoots = languages.filter((l) => l.code !== SOURCE).map((l) => `/${l.code}`);
+const sourcePages = () => walk(DIST).filter((f) => f.endsWith('.html')).map((f) => pathOf(relative(DIST, f)))
+  .filter((p) => p !== '/404' && !otherRoots.some((r) => p === r || p.startsWith(`${r}/`)));
 
 /** @param {string} lang */
 const langDir = (lang) => resolve(ROOT, 'src/i18n', lang);

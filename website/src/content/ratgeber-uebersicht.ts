@@ -4,7 +4,7 @@ export const ratgeberUebersicht = t('ratgeber-uebersicht', {
   /** Kurz vor den Karten (components/spezial/FieldCards). */
   listTitle: 'Artikel',
   listLead: 'Geschrieben von {{people.owner.name}} – mit Quellen zum Nachlesen.',
-  title: 'Ratgeber',
+  title: 'Ratgeber: Kranprüfung, Heukran, Fahrmischer',
   h1: 'Kurz erklärt – damit Sie ==sicher entscheiden==.',
   description:
     'Ratgeber zu Kranprüfung, Kranfachmann und Kranexperte, zur Planung einer neuen Heukrananlage und zu Verschleissteilen am Fahrmischer – kurz erklärt.',

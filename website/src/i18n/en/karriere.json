@@ -31,5 +31,6 @@
   "Im Betrieb in {{address.city}} – Sie sehen, woran wir gerade arbeiten.": "At our premises in {{address.city}} – you see what we are working on.",
   "Sie wissen, wie wir arbeiten": "You know how we work",
   "Wir freuen uns auf Sie.": "We look forward to meeting you.",
-  "Schicken Sie uns Ihren Lebenslauf an {{email.link}} – oder rufen Sie an: {{phone.link}}.": "Send your CV to {{email.link}} – or call us: {{phone.link}}."
+  "Schicken Sie uns Ihren Lebenslauf an {{email.link}} – oder rufen Sie an: {{phone.link}}.": "Send your CV to {{email.link}} – or call us: {{phone.link}}.",
+  "Karriere: Krane und Fahrmischer bauen": "Careers: building cranes and truck mixers"
 }

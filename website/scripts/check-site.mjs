@@ -7,8 +7,13 @@
 // Überschriften-Ebenen, Bildern ohne Alt-Text, mehr als drei Kranbahn-Linien, verbotenen
 // Wörtern (Kapitel 8.2), Sitemap/robots.txt/llms.txt im falschen Zustand, Weiterleitungen
 // ins Leere (../firebase.json), Dateien auf ERP-Pfaden und überschrittenem Leistungsbudget.
-// «ehemals HS Steiner» in Titel oder Beschreibung. Warnt bei Meta-Descriptions ausserhalb
-// 140–155 Zeichen.
+// «ehemals HS Steiner» in Titel oder Beschreibung. Dazu für Suchmaschinen und KI-Dienste:
+// Open Graph und Twitter-Karte vollständig; hreflang (Kopf und Sitemap) nur für freigegebene
+// Sprachen, gegenseitig, mit x-default; jede indexierte Seite mit genau einem WebPage-Knoten, der
+// Titel, Beschreibung, canonical, Sprache und lastmod des Kopfs bzw. der Sitemap wiederholt, und
+// Brotkrumen; jeder JSON-LD-Verweis (@id) findet seinen Knoten; das Bild im Seitenkopf lädt
+// zuerst (kein lazy, fetchpriority="high"); jede indexierte Seite steht in llms.txt und
+// llms-full.txt. Warnt bei Meta-Descriptions ausserhalb 140–155 Zeichen.
 //
 // Bewusst ohne HTML-Parser-Abhängigkeit: geprüft wird die eigene, generierte Ausgabe.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -155,6 +160,9 @@ function checkLanguage(p) {
   for (const [w, ctx] of found) fail(p.path, `deutsches Wort «${w}» auf einer Seite in «${lang.code}»: «…${ctx}…»`);
 }
 
+/** Die Startseite einer Sprache: «/» bzw. «/fr». */
+const homeOf = (lang) => (lang.code === SOURCE ? '/' : `/${lang.code}`);
+
 const attr = (tag, name) => decode(new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1] ?? '');
 const pathOf = (file) => {
   const rel = relative(DIST, file).replace(/\\/g, '/').replace(/\.html$/, '');
@@ -210,6 +218,18 @@ function checkHead(p) {
   for (const prop of ['og:title', 'og:description', 'og:image', 'og:url']) {
     if (!new RegExp(`<meta property="${prop}" content="[^"]+"`).test(p.html)) fail(p.path, `${prop} fehlt`);
   }
+  if (attr(/<meta property="og:url"[^>]*>/.exec(p.html)?.[0] ?? '', 'content') !== canonical) fail(p.path, 'og:url ≠ canonical');
+  for (const name of ['twitter:card', 'twitter:title', 'twitter:description', 'twitter:image']) {
+    if (!new RegExp(`<meta name="${name}" content="[^"]+"`).test(p.html)) fail(p.path, `${name} fehlt`);
+  }
+  // Sprachfassungen im Kopf: nur auf indexierten Seiten einer freigegebenen Sprache – und dann
+  // nach denselben Regeln wie in der Sitemap (sich selbst, x-default, nur indexierte Adressen).
+  const alt = [...p.html.matchAll(/<link rel="alternate" hreflang="([^"]+)" href="([^"]+)"[^>]*>/g)].map((m) => [m[1], decode(m[2])]);
+  if (alt.length) {
+    if (p.noindex || lang.status !== 'live') fail(p.path, `hreflang auf einer Seite, die nicht indexiert wird (${p.noindex ? 'noindex' : `Sprache ${lang.status}`})`);
+    hreflangProblems(p.path, urlOf(p.path), alt);
+    for (const [, href] of alt) if (!INDEXED.has(href.slice(SITE_URL.length) || '/')) fail(p.path, `hreflang «${href}» steht nicht in der Sitemap`);
+  }
   // Ein Bild, auf das Meta-Angaben oder JSON-LD mit voller Adresse zeigen (og:image, Logo),
   // muss es geben – ein fehlendes fällt sonst erst auf, wenn jemand die Seite teilt.
   const own = new RegExp(`${SITE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/[^"\\s]+\\.(?:png|jpe?g|webp|avif|svg))`, 'g');
@@ -239,12 +259,51 @@ function checkHeadings(p) {
   // Die mobile Aktionsleiste erscheint, sobald der Seitenkopf aus dem Bild ist (mobilebar.ts).
   // Markiert war einmal der ganze Artikel – dann kam sie erst am Seitenende.
   const heroes = [...p.html.matchAll(/<([a-z0-9]+)\b[^>]*\sdata-hero(?=[\s>=])/g)];
+  if (heroes.length === 1) checkHeroImages(p, heroes[0]);
   if (heroes.length !== 1) fail(p.path, `${heroes.length} Seitenköpfe (data-hero) statt genau einem`);
   else if (['article', 'main', 'body'].includes(heroes[0][1])) {
     fail(p.path, `data-hero an <${heroes[0][1]}> – gemeint ist der Seitenkopf (H1 und erste Handlung), nicht der ganze Inhalt`);
   } else if (p.html.indexOf('<h1', heroes[0].index) < 0) {
     fail(p.path, 'die H1 steht vor dem Seitenkopf (data-hero)');
   }
+}
+
+/**
+ * Das Element vom öffnenden Tag `m` bis zu seinem Abschluss (gleichnamige Tags gezählt).
+ * @param {string} html @param {RegExpMatchArray} m Treffer auf das öffnende Tag, Gruppe 1 = Name
+ */
+function elementAt(html, m) {
+  const re = new RegExp(`<(/?)${m[1]}\\b[^>]*>`, 'g');
+  re.lastIndex = m.index;
+  let depth = 0;
+  for (let t; (t = re.exec(html));) {
+    depth += t[1] ? -1 : 1;
+    if (depth === 0) return html.slice(m.index, re.lastIndex);
+  }
+  return html.slice(m.index);
+}
+
+/**
+ * ►►► Das Bild im Seitenkopf ist das grösste im ersten Bild (LCP): es lädt sofort und zuerst. ◄◄◄
+ * Seitenkopf = alles in <main> bis zum Ende des Elements mit `data-hero` (das Titelbild steht oft
+ * daneben, nicht darin). Kein Bild dort mit `loading="lazy"`, das erste mit `fetchpriority="high"`. Ein Video
+ * davor trägt sein Standbild selbst (`poster`) – dann gilt die Regel für das Video. Kleine Bilder
+ * (jede Grösse in `sizes` höchstens 320px, z. B. ein Porträt neben der Telefonnummer) sind nie
+ * das LCP-Element und zählen nicht.
+ */
+const small = (img) => {
+  const sizes = attr(img, 'sizes');
+  const lengths = sizes.split(',').map((part) => part.trim().split(/\s+/).at(-1));
+  return Boolean(sizes) && lengths.every((l) => /^\d+px$/.test(l) && parseInt(l, 10) <= 320);
+};
+function checkHeroImages(p, hero) {
+  const main = p.html.search(/<main\b/);
+  const el = p.html.slice(main >= 0 && main < hero.index ? main : hero.index, hero.index + elementAt(p.html, hero).length);
+  const video = el.indexOf('<video');
+  const imgs = [...el.matchAll(/<img\b[^>]*>/g)].filter((m) => (video < 0 || m.index < video) && !small(m[0]));
+  for (const m of imgs) if (/\sloading="lazy"/.test(m[0])) fail(p.path, `Bild im Seitenkopf lädt verzögert (loading="lazy"): ${m[0].slice(0, 90)}`);
+  if (imgs.length && !/\sfetchpriority="high"/.test(imgs[0][0])) fail(p.path, `erstes Bild im Seitenkopf ohne fetchpriority="high": ${imgs[0][0].slice(0, 90)}`);
+  if (video >= 0 && !imgs.length && !/<video\b[^>]*\sposter="/.test(el.slice(video))) fail(p.path, 'Video im Seitenkopf ohne Standbild (poster)');
 }
 
 /** Kapitel 8.1/8.2: verbotene Wörter, Ausrufezeichen, Emojis, ß. */
@@ -321,13 +380,17 @@ function checkLinks(p) {
 
 // ---------------------------------------------------------------- JSON-LD
 const has = (o, path) => path.split('.').reduce((v, k) => (v == null ? undefined : v[k]), o) != null;
+/** Die Arten der Seite selbst (src/lib/seo.mjs `webPage`, src/lib/pages.ts `type`). */
+const PAGE_TYPES = ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage'];
+const PAGE_FIELDS = ['@id', 'url', 'name', 'description', 'inLanguage', 'isPartOf', 'publisher'];
 const REQUIRED = {
-  Organization: ['name', 'url', 'telephone', 'address.streetAddress', 'address.postalCode', 'address.addressLocality', 'address.addressCountry', 'geo.latitude', 'foundingDate', 'founder.name'],
+  Organization: ['name', 'url', 'logo', 'telephone', 'address.streetAddress', 'address.postalCode', 'address.addressLocality', 'address.addressCountry', 'geo.latitude', 'areaServed', 'foundingDate', 'founder.name'],
+  ...Object.fromEntries(PAGE_TYPES.map((t) => [t, PAGE_FIELDS])),
   WebSite: ['name', 'url'],
   BreadcrumbList: ['itemListElement'],
   FAQPage: ['mainEntity'],
   Service: ['name', 'serviceType', 'provider'],
-  Article: ['headline', 'datePublished', 'dateModified', 'author.name'],
+  Article: ['headline', 'description', 'datePublished', 'dateModified', 'author.name', 'image', 'inLanguage', 'mainEntityOfPage'],
   Person: ['name'],
   JobPosting: ['title', 'description', 'datePosted', 'hiringOrganization', 'jobLocation'],
 };
@@ -372,7 +435,52 @@ function checkJsonLd(p) {
     const orgs = (data['@graph'] ?? []).filter((n) => [n['@type']].flat().includes('Organization'));
     if (orgs.length !== 1) fail(p.path, `${orgs.length} Organization-Knoten statt einem`);
     for (const node of data['@graph'] ?? []) checkNode(p, node);
+    checkRefs(p, data['@graph'] ?? []);
+    checkPageNode(p, data['@graph'] ?? []);
   }
+}
+
+/**
+ * Jeder Verweis `{ "@id": … }` (ein Objekt, das nur die @id trägt) zeigt auf einen Knoten im
+ * selben Graphen – sonst verbindet er nichts. Und keine @id ist zweimal vergeben.
+ */
+function checkRefs(p, nodes) {
+  const ids = new Map();
+  for (const n of nodes) if (n['@id']) ids.set(n['@id'], (ids.get(n['@id']) ?? 0) + 1);
+  for (const [id, n] of ids) if (n > 1) fail(p.path, `JSON-LD: @id «${id}» ${n}-mal vergeben`);
+  const walkRefs = (v) => {
+    if (Array.isArray(v)) return v.forEach(walkRefs);
+    if (!v || typeof v !== 'object') return;
+    const keys = Object.keys(v);
+    if (keys.length === 1 && keys[0] === '@id' && !ids.has(v['@id'])) fail(p.path, `JSON-LD: Verweis auf «${v['@id']}» ohne Knoten`);
+    for (const k of keys) if (k !== '@id') walkRefs(v[k]);
+  };
+  nodes.forEach((n) => Object.entries(n).forEach(([k, v]) => k !== '@id' && walkRefs(v)));
+}
+
+/**
+ * ►►► Jede indexierte Seite beschreibt sich selbst (WebPage) – mit dem, was im Kopf steht. ◄◄◄
+ * Genau ein Seiten-Knoten: Adresse = canonical, Name = <title>, Beschreibung = Meta-Description,
+ * Sprache = lang, Stand = lastmod der Sitemap; Brotkrumen auf jeder Seite ausser der Startseite.
+ * So können Titel, Beschreibung und strukturierte Daten nicht auseinanderlaufen.
+ */
+function checkPageNode(p, nodes) {
+  if (!INDEXED.has(p.path)) return;
+  const own = nodes.filter((n) => PAGE_TYPES.includes(n['@type']));
+  if (own.length !== 1) return fail(p.path, `${own.length} Seiten-Knoten (WebPage …) statt einem`);
+  const n = own[0];
+  const url = urlOf(p.path);
+  const head = {
+    url, '@id': `${url}#webpage`,
+    name: decode(/<title>([\s\S]*?)<\/title>/.exec(p.html)?.[1] ?? '').trim(),
+    description: attr(/<meta name="description"[^>]*>/.exec(p.html)?.[0] ?? '', 'content'),
+    inLanguage: langOf(p.path).locale,
+    dateModified: LASTMOD.get(p.path),
+  };
+  for (const [k, want] of Object.entries(head)) if (n[k] !== want) fail(p.path, `JSON-LD ${n['@type']}: ${k} «${n[k]}» ≠ «${want}»`);
+  const crumbs = nodes.filter((x) => x['@type'] === 'BreadcrumbList');
+  if (p.path !== homeOf(langOf(p.path)) && crumbs.length !== 1) fail(p.path, `${crumbs.length} BreadcrumbList statt einer`);
+  if (crumbs.length && n.breadcrumb?.['@id'] !== crumbs[0]['@id']) fail(p.path, 'JSON-LD: Seite verweist nicht auf ihre Brotkrumen');
 }
 
 // ---------------------------------------------------------------- Sitemap, robots.txt, llms.txt
@@ -385,22 +493,70 @@ function read(name) {
   return readFileSync(f, 'utf8');
 }
 
+/** `lastmod` je Pfad der Sitemap – dasselbe Datum steht als `dateModified` im JSON-LD der Seite. */
+const LASTMOD = new Map();
+
+/**
+ * Die Sitemap: je `<url>` genau ein `loc` und ein `lastmod` (JJJJ-MM-TT), nur Seiten, die es gibt
+ * und die indexiert werden – nie eine Sprache, die noch gegengelesen wird (`preview`). Nennt ein
+ * Eintrag seine Fassungen in anderen Sprachen (xhtml:link hreflang), dann sich selbst, x-default
+ * und nur Adressen, die selbst in der Sitemap stehen und dieselbe Gruppe nennen (gegenseitig).
+ */
 function checkSitemap() {
   const xml = read('sitemap.xml');
-  const locs = [...xml.matchAll(/<url><loc>([^<]+)<\/loc><lastmod>(\d{4}-\d{2}-\d{2})<\/lastmod><\/url>/g)];
-  const all = (xml.match(/<url>/g) ?? []).length;
-  if (locs.length !== all) fail('sitemap.xml', 'Eintrag ohne loc oder lastmod (JJJJ-MM-TT)');
+  const blocks = [...xml.matchAll(/<url>([\s\S]*?)<\/url>/g)].map((m) => m[1]);
+  if (blocks.length !== (xml.match(/<url>/g) ?? []).length) fail('sitemap.xml', '<url> ohne Abschluss');
   const listed = new Set();
-  for (const [, loc] of locs) {
-    if (!loc.startsWith(SITE_URL)) fail('sitemap.xml', `«${loc}» liegt nicht unter ${SITE_URL}`);
-    const path = loc.slice(SITE_URL.length) || '/';
+  /** @type {Map<string, string>} loc → die Gruppe seiner Sprachfassungen */
+  const groups = new Map();
+  for (const b of blocks) {
+    const loc = [...b.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => decode(m[1]));
+    const lastmod = [...b.matchAll(/<lastmod>([^<]*)<\/lastmod>/g)].map((m) => m[1]);
+    if (loc.length !== 1 || lastmod.length !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(lastmod[0])) {
+      fail('sitemap.xml', `Eintrag ohne genau ein loc und ein lastmod (JJJJ-MM-TT): ${b.trim().slice(0, 100)}`);
+      continue;
+    }
+    if (!loc[0].startsWith(SITE_URL)) fail('sitemap.xml', `«${loc[0]}» liegt nicht unter ${SITE_URL}`);
+    const path = loc[0].slice(SITE_URL.length) || '/';
     listed.add(path);
+    LASTMOD.set(path, lastmod[0]);
     const p = byPath.get(path);
-    if (!p) fail('sitemap.xml', `«${loc}» gibt es nicht`);
-    else if (LIVE && p.noindex) fail('sitemap.xml', `«${loc}» ist noindex`);
+    if (!p) fail('sitemap.xml', `«${loc[0]}» gibt es nicht`);
+    else if (LIVE && p.noindex) fail('sitemap.xml', `«${loc[0]}» ist noindex`);
+    if (langOf(path).status !== 'live') fail('sitemap.xml', `«${loc[0]}» gehört zur Sprache «${langOf(path).code}» (${langOf(path).status}) – nur freigegebene Sprachen`);
+    const alt = [...b.matchAll(/<xhtml:link rel="alternate" hreflang="([^"]+)" href="([^"]+)"\/>/g)].map((m) => [m[1], decode(m[2])]);
+    if (alt.length) {
+      if (!/xmlns:xhtml="http:\/\/www\.w3\.org\/1999\/xhtml"/.test(xml)) fail('sitemap.xml', 'hreflang ohne xmlns:xhtml');
+      groups.set(loc[0], hreflangProblems('sitemap.xml', loc[0], alt));
+    }
+  }
+  for (const [loc, group] of groups) {
+    for (const href of group.split(' ')) {
+      if (!listed.has(href.slice(SITE_URL.length) || '/')) fail('sitemap.xml', `${loc}: hreflang «${href}» steht nicht in der Sitemap`);
+      else if (groups.get(href) !== group) fail('sitemap.xml', `${loc}: hreflang nicht gegenseitig mit «${href}»`);
+    }
   }
   for (const p of pages) if (!listed.has(p.path) && !p.noindex) fail(p.path, 'indexierbar, aber nicht in der Sitemap');
   return listed;
+}
+
+/**
+ * Eine Gruppe von Sprachfassungen (Sitemap oder <link rel="alternate">): jede Sprache einmal und
+ * freigegeben, die Seite selbst darin, dazu x-default. Gibt die Gruppe als sortierte Adressen zurück.
+ * @param {string} where @param {string} self volle Adresse @param {string[][]} alt [hreflang, href]
+ */
+function hreflangProblems(where, self, alt) {
+  const live = new Map(languages.filter((l) => l.status === 'live').map((l) => [l.locale, l]));
+  const seen = new Set();
+  for (const [code, href] of alt) {
+    if (seen.has(code)) fail(where, `${self}: hreflang «${code}» doppelt`);
+    seen.add(code);
+    if (code !== 'x-default' && !live.has(code)) fail(where, `${self}: hreflang «${code}» ist keine freigegebene Sprache`);
+    else if (code !== 'x-default' && langOf(href.slice(SITE_URL.length) || '/').locale !== code) fail(where, `${self}: hreflang «${code}» zeigt auf «${href}» (andere Sprache)`);
+  }
+  if (!seen.has('x-default')) fail(where, `${self}: hreflang ohne x-default`);
+  if (!alt.some(([code, href]) => code !== 'x-default' && href === self)) fail(where, `${self}: hreflang nennt die Seite selbst nicht`);
+  return alt.filter(([code]) => code !== 'x-default').map(([, href]) => href).sort().join(' ');
 }
 
 /**
@@ -410,11 +566,18 @@ function checkSitemap() {
  * Eine neue Seite ohne Menüpunkt bricht den Build ab, statt unauffindbar zu werden.
  */
 function checkMenu(listed) {
-  const home = pages.find((p) => p.path === '/');
-  const header = home?.html.match(/<header class="site-header[\s\S]*?<\/header>/)?.[0] ?? '';
-  const inMenu = new Set([...header.matchAll(/href="([^"#?]+)/g)].map((m) => m[1].replace(/\/$/, '') || '/'));
-  const exempt = (path) => path === '/' || path.startsWith('/ratgeber/');
-  for (const path of listed) if (!exempt(path) && !inMenu.has(path)) fail(path, 'nicht über das Menü im Kopf erreichbar');
+  // Je Sprache ihr eigenes Menü (das der Startseite dieser Sprache, /fr …).
+  const menus = new Map();
+  const menuOf = (lang) => {
+    if (!menus.has(lang.code)) {
+      const header = byPath.get(homeOf(lang))?.html.match(/<header class="site-header[\s\S]*?<\/header>/)?.[0] ?? '';
+      menus.set(lang.code, new Set([...header.matchAll(/href="([^"#?]+)/g)].map((m) => m[1].replace(/\/$/, '') || '/')));
+    }
+    return menus.get(lang.code);
+  };
+  // Ein Ratgeber-Artikel steht auf der Übersicht, nicht im Menü – erkannt an seinem JSON-LD.
+  const exempt = (path) => path === homeOf(langOf(path)) || /"@type":"Article"/.test(byPath.get(path)?.html ?? '');
+  for (const path of listed) if (!exempt(path) && !menuOf(langOf(path)).has(path)) fail(path, 'nicht über das Menü im Kopf erreichbar');
 }
 
 /**
@@ -463,6 +626,14 @@ function checkLlms(listed) {
     if (path === null) fail('llms.txt', `Link «${m[1]}» zeigt nicht auf diese Website`);
     else if (!listed.has(path) && path !== '/llms-full.txt') fail('llms.txt', `Link «${m[1]}» steht nicht in der Sitemap`);
   }
+  // Umgekehrt: jede indexierte Seite der Quellsprache steht in llms.txt (verlinkt) und in
+  // llms-full.txt (im Wortlaut) – eine neue Seite kann nicht still fehlen.
+  for (const path of listed) {
+    if (langOf(path).code !== SOURCE) continue;
+    if (!short.includes(`](${urlOf(path)})`)) fail('llms.txt', `Seite ${path} fehlt (kein Link)`);
+    if (!full.includes(`URL: ${urlOf(path)}\n`)) fail('llms-full.txt', `Seite ${path} fehlt`);
+  }
+  if (!short.includes(`](${urlOf('/llms-full.txt')})`)) fail('llms.txt', 'Link auf llms-full.txt fehlt');
 }
 
 // ---------------------------------------------------------------- Weiterleitungen (../firebase.json)

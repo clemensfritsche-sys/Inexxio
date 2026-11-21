@@ -38,13 +38,15 @@ const related = a.related.map((r, i) => {
   if (!illo) throw new Error(`Ratgeber «${slug}»: für «${r.href}» gibt es keine Zeichnung (Navigation oder Artikel).`);
   return { id: `weiter-${i}`, illo, alt: `Zeichnung: ${plain(r.label)}`, title: plain(r.label), text: r.text ?? '', href: r.href };
 });
+/** Die Zeichnung des Artikels – Kopfbild der Seite (zuerst geladen) und Bild im JSON-LD. */
+const drawing = await picture(a.illo, 'Ratgeber', 1400);
 ---
 <Base
   title={a.seoTitle}
   description={a.description}
   crumbs={[{ name: t('seiten', 'Ratgeber'), path: '/ratgeber' }, { name: a.seoTitle, path: a.path }]}
   article={{ published: a.published, updated: a.updated }}
-  jsonLd={[articleNode(siteUrl, { title: a.title, description: a.description, path: a.path, published: a.published, updated: a.updated })]}
+  jsonLd={[articleNode(siteUrl, { title: a.title, description: a.description, path: a.path, published: a.published, updated: a.updated, image: `${siteUrl}${drawing}` })]}
 >
   <article class="art">
     <header class="wrap art__head" data-hero>
@@ -56,7 +58,7 @@ const related = a.related.map((r, i) => {
           {T.by} <a class="link" href="/ueber-uns">{o.name}</a>, {o.role} · {T.published} <time datetime={a.published}>{formatDay(a.published)}</time>
         </p>
       </div>
-      <figure class="art__art"><img src={await picture(a.illo, 'Ratgeber', 1400)} alt={T.drawing.replace('{title}', a.seoTitle)} width="1000" height="560" decoding="async" /></figure>
+      <figure class="art__art"><img src={drawing} alt={T.drawing.replace('{title}', a.seoTitle)} width="1000" height="560" loading="eager" fetchpriority="high" decoding="async" /></figure>
     </header>
 
     <div class="wrap art__col">

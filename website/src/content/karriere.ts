@@ -9,7 +9,7 @@ import { t } from '../i18n/t.mjs';
 const apply = { subject: 'Bewerbung' };
 
 export const karriere = t('karriere', {
-  title: 'Karriere',
+  title: 'Karriere: Krane und Fahrmischer bauen',
   description:
     'Arbeiten bei INEXXIO in {{address.home}}: Fahrmischer, Krane und Spezialmaschinen bauen, in einem kleinen Team. Bewerbung per E-Mail oder Telefon.',
   hero: {
