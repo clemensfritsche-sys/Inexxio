@@ -3,7 +3,7 @@
 > Generiert nach jedem `npm run build`. Nicht von Hand ändern – sobald ein Foto in
 > `src/config/photos.mjs` eine Datei hat, verschwindet seine Zeile von selbst.
 
-**Stand:** 4 Fotos blockieren den Start · 9 für später · 1 abgeschaltete Sektion
+**Stand:** 1 Fotos blockieren den Start · 9 für später · 1 abgeschaltete Sektion
 
 ## Blockiert den Start
 
@@ -12,9 +12,6 @@ ab. Empfehlung: ein professioneller Fototag – der grösste Hebel für die Qual
 
 | Foto | Beschreibung für den Fototag | Format | Verwendet auf |
 |---|---|---|---|
-| `teil-verlaengerungsrinne` | Produktfoto Verlängerungsrinne, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
-| `teil-einfuelltrichter` | Produktfoto Einfülltrichter, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
-| `teil-auslaufschurre` | Produktfoto Auslaufschurre, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
 | `teil-spiralschutz` | Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer | 4:3 | `/fahrzeugtechnik/verschleissteile` |
 
 ## Für später

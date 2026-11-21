@@ -71,8 +71,8 @@ export const start = t('start', {
     h2: 'Aus HS Steiner wird {{brand.name}}.',
     lead: handoverLead,
     short: 'Meine Kunden sind bei ihm in guten Händen.',
-    /** Collage: ein echter HS-Einsatz (gross, bis das gemeinsame Foto da ist), Clemens, Heiri. */
-    photos: ['fahrmischer-aufbau', 'portraet-clemens-draussen', 'portraet-heiri'],
+    /** Collage: die Übergabe des Funksenders (gross), Clemens, Heiri. */
+    photos: ['uebergabe-funk', 'portraet-clemens-draussen', 'portraet-heiri'],
     link: 'Die ganze Geschichte',
     href: '/ueber-uns#uebergabe',
   },

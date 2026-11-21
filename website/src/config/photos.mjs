@@ -131,16 +131,19 @@ export const photos = t('photos', {
     ratio: '4/3',
   },
   'teil-verlaengerungsrinne': {
+    file: 'teil-verlaengerungsrinne.jpg',
     alt: 'Verlängerungsrinne für Fahrmischer',
     brief: 'Produktfoto Verlängerungsrinne, quer',
     ratio: '4/3',
   },
   'teil-einfuelltrichter': {
+    file: 'teil-einfuelltrichter.jpg',
     alt: 'Einfülltrichter eines Fahrmischers',
     brief: 'Produktfoto Einfülltrichter, quer',
     ratio: '4/3',
   },
   'teil-auslaufschurre': {
+    file: 'teil-auslaufschurre.jpg',
     alt: 'Auslaufschurre eines Fahrmischers',
     brief: 'Produktfoto Auslaufschurre, quer',
     ratio: '4/3',
@@ -148,6 +151,13 @@ export const photos = t('photos', {
   'teil-spiralschutz': {
     alt: 'Spiralschutz für die Mischspiralen eines Fahrmischers',
     brief: 'Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer',
+    ratio: '4/3',
+  },
+  // Die Übergabe: der Funksender wechselt die Hand (Heiris Heukran im Hintergrund, mit KI erstellt, ohne Gesichter).
+  'uebergabe-funk': {
+    file: 'uebergabe-funk.jpg',
+    alt: 'Eine ältere Hand im grauen Arbeitskittel übergibt einer jüngeren Hand den gelben Funksender, dahinter der Heukran mit vollem Greifer',
+    brief: 'Übergabe des Funksenders unter dem Heukran, nur Hände, quer',
     ratio: '4/3',
   },
   'clemens-heiri-quer': {

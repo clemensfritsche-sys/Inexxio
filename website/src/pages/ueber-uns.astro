@@ -68,11 +68,8 @@ const titel = pageTitle('/ueber-uns');
 
   <section class="v4-section" id="uebergabe" aria-labelledby="uebergabe-title">
     <div class="wrap uu-ho">
-      <!-- Bis das Foto «handschlag» da ist, stehen die beiden Porträts nebeneinander: Heiri und Clemens. -->
-      <div class="uu-ho__pair">
-        <figure class="uu-ho__p uu-ho__p--a zoom-on-hover"><Photo id="portraet-heiri" sizes="(min-width: 960px) 320px, 45vw" /></figure>
-        <figure class="uu-ho__p uu-ho__p--b zoom-on-hover"><Photo id="portraet-clemens-draussen" sizes="(min-width: 960px) 320px, 45vw" /></figure>
-      </div>
+      <!-- Die Übergabe: der Funksender wechselt die Hand. -->
+      <figure class="uu-ho__fig zoom-on-hover"><Photo id="uebergabe-funk" sizes="(min-width: 960px) 760px, 92vw" /></figure>
       <h2 class="v4-h2 uu-ho__title" id="uebergabe-title">{u.people.title}</h2>
       <figure class="uu-ho__quote">
         <blockquote><p>«{u.people.quote}»</p></blockquote>
@@ -129,14 +126,12 @@ const titel = pageTitle('/ueber-uns');
     .uu-fig { border-top-color: var(--ink); }
   }
 
-  /* Die Übergabe: Heiri und Clemens nebeneinander (versetzt wie die Bildkarten), darunter
+  /* Die Übergabe: der Funksender wechselt die Hand (ein Bild, breit), darunter
      Titel und Heiris Zitat als Haupttext; was bleibt und was neu ist nur leise. */
   .uu-ho { display: flex; flex-direction: column; align-items: center; text-align: center; }
-  .uu-ho__pair { display: flex; justify-content: center; align-items: flex-end; gap: 16px; width: min(680px, 100%); }
-  .uu-ho__p { position: relative; flex: 1 1 0; margin: 0; aspect-ratio: 4 / 5; border-radius: var(--r-xl); overflow: hidden; background: var(--gray-100); }
-  .uu-ho__p :global(img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; }
-  .uu-ho__p--a { transform: translateY(24px); }
-  .uu-ho__title { margin-top: 56px; position: relative; }
+  .uu-ho__fig { position: relative; width: min(760px, 100%); margin: 0; aspect-ratio: 3 / 2; border-radius: var(--r-xl); overflow: hidden; background: var(--gray-100); }
+  .uu-ho__fig :global(img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .uu-ho__title { margin-top: 40px; position: relative; }
   .uu-ho__quote { margin: 28px 0 0; max-width: 900px; }
   .uu-ho__quote blockquote { margin: 0; }
   .uu-ho__quote p { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.375rem, 1.05rem + 1.3vw, 2.125rem); line-height: 1.25; letter-spacing: -0.025em; color: var(--ink-2); }
