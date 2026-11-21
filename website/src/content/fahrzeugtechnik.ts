@@ -58,7 +58,7 @@ export const fahrzeugtechnik: AreaPage = t('fahrzeugtechnik', {
     primary: anfrage('Fahrmischer anfragen'),
   },
   summary:
-    '{{brand.name}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – mit verbindlicher Offerte und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren, Trichter und Spiralschutz beschaffen wir auf Bestellung. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.name}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – mit verbindlicher Offerte und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren und Trichter beschaffen wir auf Bestellung. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
   steps: facts(vehiclePath.items),
   faq: [
     {
@@ -70,7 +70,7 @@ export const fahrzeugtechnik: AreaPage = t('fahrzeugtechnik', {
     faqSpeed,
     {
       q: 'Liefern Sie auch Verschleissteile ohne Montage?',
-      a: 'Ja. Rinnen, Schurren, Trichter und Spiralschutz bestellen Sie auch als Teil. Mehr dazu unter [Verschleissteile](/fahrzeugtechnik/verschleissteile).',
+      a: 'Ja. Rinnen, Schurren und Trichter bestellen Sie auch als Teil. Mehr dazu unter [Verschleissteile](/fahrzeugtechnik/verschleissteile).',
     },
   ],
   service: { name: 'Fahrzeugtechnik', serviceType: 'Trommeltausch und Verschleissteile für Fahrmischer' },
@@ -211,16 +211,16 @@ export const verschleissteile: SubPage = t('fahrzeugtechnik', {
   crumb: 'Verschleissteile',
   title: 'Fahrmischer-Verschleissteile',
   description:
-    'Rinnen, Schurren, Trichter und Spiralschutz für Fahrmischer – auf Bestellung, schnell beschafft. Mit oder ohne Einbau, mit verbindlicher Offerte vorab.',
+    'Rinnen, Schurren und Trichter für Fahrmischer – auf Bestellung, schnell beschafft. Mit oder ohne Einbau, mit verbindlicher Offerte vorab.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Verschleissteile',
     h1: 'Verschleissteile. Schnell beschafft.',
-    lead: 'Rinnen, Schurren, Trichter und Spiralschutz. Nennen Sie Marke und Typ – wir beschaffen das Teil, mit oder ohne Einbau.',
+    lead: 'Rinnen, Schurren und Trichter. Nennen Sie Marke und Typ – wir beschaffen das Teil, mit oder ohne Einbau.',
     photo: 'teil-auslaufrinne',
     primary: anfrage('Teil anfragen'),
   },
   summary:
-    '{{brand.name}} beschafft Verschleissteile für Fahrmischer auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter, Auslaufschurren und Spiralschutz – als Teil oder mit Einbau bei uns in {{address.home}}.',
+    '{{brand.name}} beschafft Verschleissteile für Fahrmischer auf Bestellung: Auslauf- und Verlängerungsrinnen, Einfülltrichter und Auslaufschurren – als Teil oder mit Einbau bei uns in {{address.home}}.',
   glance: {
     forWhom: 'Fuhrparkleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Teile nach Marke und Typ bestellen und schnell beschaffen – auf Wunsch mit Einbau.',
@@ -231,7 +231,6 @@ export const verschleissteile: SubPage = t('fahrzeugtechnik', {
     items: [
       { title: 'Rinnen', text: 'Auslauf- und Verlängerungsrinnen.' },
       { title: 'Trichter und Schurren', text: 'Einfülltrichter und Auslaufschurren.' },
-      { title: 'Spiralschutz', text: 'Schutz der Mischspiralen gegen Abrieb.' },
       { title: 'Einbau', text: 'Auf Wunsch bei uns in {{address.city}}, zusammen mit Service oder Trommeltausch.' },
     ],
   },

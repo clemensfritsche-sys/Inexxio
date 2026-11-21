@@ -57,19 +57,6 @@ export const catalog = t('catalog', {
         },
       ],
     },
-    {
-      id: 'spiralschutz',
-      title: 'Spiralschutz',
-      intro: 'Die Mischspiralen in der Trommel verschleissen an der Kante. Ein Schutz verlängert ihre Lebensdauer.',
-      items: [
-        {
-          id: 'spiralschutz',
-          photo: 'teil-spiralschutz',
-          name: 'Spiralschutz',
-          text: 'Verschleissschutz für die Kanten der Mischspiralen in der Trommel.',
-        },
-      ],
-    },
   ],
   /** Gilt für alle Teile, solange ein Teil keine eigene Liste trägt. */
   fits: site.marks.mixers,

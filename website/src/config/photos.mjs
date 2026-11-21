@@ -148,11 +148,6 @@ export const photos = t('photos', {
     brief: 'Produktfoto Auslaufschurre, quer',
     ratio: '4/3',
   },
-  'teil-spiralschutz': {
-    alt: 'Spiralschutz für die Mischspiralen eines Fahrmischers',
-    brief: 'Detail Spiralschutz an der Trommelspirale bzw. als Einzelteil, quer',
-    ratio: '4/3',
-  },
   // Die Übergabe: der Funksender wechselt die Hand (Heiris Heukran im Hintergrund, mit KI erstellt, ohne Gesichter).
   'uebergabe-funk': {
     file: 'uebergabe-funk.jpg',
