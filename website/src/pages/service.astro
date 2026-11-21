@@ -52,4 +52,7 @@ const e = s.emergency;
 
 <style>
   .sv-season:empty { display: none; }
+  /* Die Notfall-Karte endet ohne Abstand nach unten (v4-section) – der Hinweis bekommt Luft. */
+  .sv-season:has(:global(.season:not([hidden]))) { margin-top: 32px; }
+  @media (min-width: 960px) { .sv-season:has(:global(.season:not([hidden]))) { margin-top: 48px; } }
 </style>

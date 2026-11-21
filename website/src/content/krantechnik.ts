@@ -75,7 +75,7 @@ export const craneOffers = t('krantechnik', {
   items: [
     { id: 'heukran', illo: 'menu/heukrananlagen', alt: 'Zeichnung: Heukran mit Greifer über dem Heustock', title: 'Heukrananlagen', text: 'Ohne Kabine, per Funk: Sie bleiben unten, der Greifer arbeitet.', href: '/krantechnik/heukrananlagen' },
     { id: 'nach-mass', illo: 'menu/krane-nach-mass', alt: 'Zeichnung: Kran mit roter Brücke', title: KNM, text: 'Kurve, Steigung, Versatz? Wir bauen den Kran um Ihr Gebäude herum.', href: '/krantechnik/krane-nach-mass' },
-    { id: 'service', illo: 'menu/kranservice', alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll', title: 'Kranservice', text: 'Die erste Inspektion ist gratis. Mit INEXXIO 365 übernehmen wir die Ausfälle.', href: '/krantechnik/kranservice' },
+    { id: 'service', illo: 'menu/kranservice', alt: 'Rote Seilwinde auf einer Holzpalette und ein offener roter Werkzeugkoffer, dahinter eine Kranhalle als Zeichnung', title: 'Kranservice', text: 'Die erste Inspektion ist gratis. Mit INEXXIO 365 übernehmen wir die Ausfälle.', href: '/krantechnik/kranservice' },
   ],
 });
 
@@ -420,7 +420,7 @@ export const heukranModules = t('krantechnik', {
     kinds: [
       { icon: 'wrench' as IconName, word: 'Check', legend: 'Frühling und Spätherbst: Saison-Check', dark: true },
       { icon: 'sun' as IconName, word: 'Einlagern', legend: 'Sommer: Sie lagern ein' },
-      { icon: 'snowflake' as IconName, word: 'Füttern', legend: 'Winter: Sie holen heraus' },
+      { icon: 'snowflake' as IconName, word: 'Füttern', legend: 'Winter: Sie füttern' },
     ],
     plan: [2, 2, 0, 0, 1, 1, 1, 1, 1, 0, 0, 2],
     cta: 'Saison-Check planen',

@@ -23,7 +23,7 @@ const height = (m: ImageMetadata) => Math.round(Math.min(BASE * 1.5, BASE * Math
   <div class="wrap">
     <header>
       <h2 class="v4-h2" id="marken">{title}</h2>
-      <Rich as="p" class="bb__note" text={site.marks.mixerNotice} />
+      <Rich as="p" class="v4-sub" text={site.marks.mixerNotice} />
     </header>
     <ul role="list" class="bb">
       {site.marks.mixers.map((b) => {
@@ -41,5 +41,4 @@ const height = (m: ImageMetadata) => Math.round(Math.min(BASE * 1.5, BASE * Math
   .bb__logo img { display: block; height: calc(var(--h) * 0.72); width: auto; filter: grayscale(1) contrast(0.9); opacity: 0.5; transition: filter 0.4s var(--ease), opacity 0.4s var(--ease); }
   .bb__logo:hover img { filter: none; opacity: 1; }
   @media (min-width: 960px) { .bb { gap: 32px 72px; } .bb__logo img { height: var(--h); } }
-  .bb__note { margin: 12px auto 0; text-align: center; font-size: 0.8125rem; color: var(--gray-500); }
 </style>

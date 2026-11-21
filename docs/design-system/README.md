@@ -58,8 +58,10 @@ Komponenten hart kodieren.
   **ss** statt ß; angesprochen wird mit **Sie**.
 - **Wörter (v4):** kein «Fixpreis» (in keiner Form), keine «Werkstatt» – stattdessen
   «Standort», «Betrieb», «bei INEXXIO».
-- **Radien/Schatten (v3):** Bedienelemente 8 px (`rounded-ds-md`), Karten 12 px
-  (`rounded-ds-lg`), Dialoge 16 px. **Keine Pillen-Knöpfe.** Flach als Standard – Linien
+- **Radien/Schatten (v4, gilt für Website, Konto und ERP):** Bedienelemente 6 px
+  (`rounded-ds-md` = `--r-md`), Karten, Flächen und Dialoge 8 px (`rounded-ds-lg` = `--r-lg`,
+  `--r-xl`) – die Werte stehen in §3a. Die v3-Primitive `--radius-*` (8/12/16) stehen noch in der
+  Token-Datei, werden aber nirgends gelesen. **Keine Pillen-Knöpfe.** Flach als Standard – Linien
   trennen, Schatten nur für schwebende Ebenen (Menü, Dialog, Toast). Glow-Tokens sind
   `none`. Der rote Knopf bekommt `shadow-ds-red` (= `--elev-primary`, sehr dezent)
   nur als Hover/Press-Akzent, **nie** als Ruhezustand.
@@ -112,7 +114,7 @@ Konto übernehmen das Grau automatisch über die Tokens; Glas bleibt der Website
 Die E-Mail-Vorlage (`backend/app/services/mail_layout.py`) und die Website-Zeichnungen sind
 mitgezogen.
 
-v4 baut auf v3 auf (Titel 700/600, Radien 8/12/16, flach, Rot-Rampe `--red-50…900`, drei
+v4 baut auf v3 auf (Titel 700/600, flach – die v3-Radien 8/12/16 sind seit November 2026 6/8/8, §3a –, Rot-Rampe `--red-50…900`, drei
 Token-Schichten Primitive → semantisch `--color-*` → v2-Aliase); **alle v2-Namen lösen
 weiter auf**.
 

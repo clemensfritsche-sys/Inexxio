@@ -5,7 +5,7 @@
 .iform__hp { position: absolute !important; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 .iform__row { display: grid; gap: 12px; }
 @media (min-width: 640px) { .iform__row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.field__opt, .iform__opt { font-weight: 400; color: var(--gray-500); font-size: 0.875rem; }
+.field__opt, .iform__opt { font-weight: 400; color: var(--ink-3); font-size: 0.875rem; }
 .iform__files { list-style: none; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; color: var(--ink-2); }
 .iform__files li { display: flex; gap: 8px; }
 .iform__files li span:last-child { color: var(--ink-3); margin-left: auto; }
@@ -54,8 +54,8 @@
 .iform__recap strong { color: var(--ink); font-weight: 600; }
 .iform__edit { font-weight: 600; text-decoration: underline; color: var(--ink); }
 .iform__foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 4px; }
-.iform__count { font-size: 0.8125rem; color: var(--gray-500); }
-.iform__privacy { font-size: 0.8125rem; color: var(--gray-500); max-width: none; }
+.iform__count { font-size: 0.8125rem; color: var(--ink-3); }
+.iform__privacy { font-size: 0.8125rem; color: var(--ink-3); max-width: none; }
 /* Mit Skript liegen beide Schritte in DERSELBEN Zelle: die Fläche ist so hoch wie der
    grössere Schritt, der Wechsel blendet über – nichts darunter springt. Das Feld von Schritt 1
    füllt die Zelle. Ohne Skript stehen alle Felder untereinander. */

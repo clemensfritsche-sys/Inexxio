@@ -34,7 +34,7 @@ export const karriere = t('karriere', {
     lead: 'Auch ohne ausgeschriebene Stelle – gute Leute sind bei uns jederzeit willkommen.',
     items: [
       { id: 'mechanik', illo: 'menu/trommeltausch', alt: 'Zeichnung: Fahrmischer mit roter Trommel', title: 'Mechanik', text: 'Mechanikerinnen und Mechaniker für Hydraulik, Mechanik und Stahlbau – an Fahrmischern, Kranen und Spezialmaschinen.' },
-      { id: 'service', illo: 'menu/kranservice', alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll', title: 'Service', text: 'Servicetechnikerinnen und Servicetechniker, die prüfen, warten und reparieren – bei uns und bei Kunden vor Ort.' },
+      { id: 'service', illo: 'menu/kranservice', alt: 'Rote Seilwinde auf einer Holzpalette und ein offener roter Werkzeugkoffer, dahinter eine Kranhalle als Zeichnung', title: 'Service', text: 'Servicetechnikerinnen und Servicetechniker, die prüfen, warten und reparieren – bei uns und bei Kunden vor Ort.' },
       { id: 'konstruktion', illo: 'menu/krane-nach-mass', alt: 'Zeichnung: Kran mit roter Brücke', title: 'Konstruktion', text: 'Konstrukteurinnen und Konstrukteure für Krane und Spezialmaschinen nach Mass – von der Idee bis zur Fertigung.' },
     ],
   },

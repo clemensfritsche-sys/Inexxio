@@ -166,7 +166,7 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   `quelle`), bricht der Build ab; `check-site` findet deutsche Wörter auf Seiten anderer Sprachen.
   Status je Sprache (`src/config/languages.mjs`): `live` · `preview` (gebaut, noindex, bis eine
   Fachperson gegengelesen hat) · `planned` («bald» in der Sprachwahl). Französisch, Englisch und
-  Italienisch sind `preview`.
+  Italienisch sind `live` (gegengelesen und freigegeben November 2026).
   Regeln und Glossar: `src/i18n/README.md`. **Auch der Server spricht die Sprache der Seite**: Formular
   und Newsletter schicken sie mit (`?lang=`), `scripts/export-erp.mjs` gibt ihm die Wörter je Sprache
   (`languages` in `website_contact.json`) – Meldungen, Antwortseiten, Eingangsbestätigung, Bitte um

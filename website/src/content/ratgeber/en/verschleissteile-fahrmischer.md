@@ -24,7 +24,7 @@ related:
   - href: '/fahrzeugtechnik'
     label: 'Vehicles'
     text: 'Everything we do for truck mixers.'
-quelle: "b7470bd9494517d6"
+quelle: "81644d1189c97749"
 ---
 
 A truck mixer wears where concrete rubs: at the charging hopper when filling, on the mixing spirals inside the drum, on the discharge hopper and chute when emptying. That is not a defect but normal operation. What matters is replacing the parts before they hinder the work or damage adjacent parts.
@@ -63,4 +63,4 @@ A truck mixer wears where concrete rubs: at the charging hopper when filling, on
 
 ## Which parts we supply
 
-Chutes, extension chutes, charging hoppers, discharge hoppers and spiral protection, sourced quickly to order. We clarify what fits using the make, type and year of manufacture of the body; a photo of the type plate helps. The overview is under [Wear parts](/fahrzeugtechnik/verschleissteile#katalog).
+Chutes, extension chutes, charging hoppers and discharge hoppers, sourced quickly to order. We clarify what fits using the make, type and year of manufacture of the body; a photo of the type plate helps. The overview is under [Wear parts](/fahrzeugtechnik/verschleissteile#katalog).

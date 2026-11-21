@@ -77,7 +77,7 @@ export const ueberUns = t('ueber-uns', {
     },
     {
       q: 'Kostet die Anfahrt extra?',
-      a: 'Die Anfahrt steht in der Offerte, den Sie vor der Arbeit erhalten – auf der Rechnung steht keine Überraschung.',
+      a: 'Die Anfahrt steht in der Offerte, die Sie vor der Arbeit erhalten – auf der Rechnung steht keine Überraschung.',
     },
   ] satisfies Faq[],
 });

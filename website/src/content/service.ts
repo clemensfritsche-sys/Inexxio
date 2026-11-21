@@ -42,9 +42,9 @@ export const service = t('service', {
     title: 'Wobei dürfen wir helfen?',
     lead: 'Wählen Sie Ihr Anliegen – dort steht alles Weitere.',
     items: [
-      { id: 'kran', illo: 'menu/kranservice', alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll', title: 'Kranservice', text: 'Prüfen, warten, reparieren. Die erste Inspektion ist gratis.', href: '/krantechnik/kranservice' },
+      { id: 'kran', illo: 'menu/kranservice', alt: 'Rote Seilwinde auf einer Holzpalette und ein offener roter Werkzeugkoffer, dahinter eine Kranhalle als Zeichnung', title: 'Kranservice', text: 'Prüfen, warten, reparieren. Die erste Inspektion ist gratis.', href: '/krantechnik/kranservice' },
       { id: 'fahrmischer', illo: 'menu/trommeltausch', alt: 'Zeichnung: Fahrmischer mit roter Trommel', title: 'Fahrmischer', text: 'Neue Trommel statt neuer Fahrmischer – und Reparaturen am Aufbau.', href: '/fahrzeugtechnik' },
-      { id: 'teile', illo: 'menu/verschleissteile', alt: 'Zeichnung: rote Rinne und Trichter', title: 'Verschleissteile', text: 'Rinne, Schurre, Trichter und Mischspiralen – auf Bestellung, schnell beschafft.', href: '/fahrzeugtechnik/verschleissteile' },
+      { id: 'teile', illo: 'menu/verschleissteile', alt: 'Zeichnung: rote Rinne und Trichter', title: 'Verschleissteile', text: 'Rinne, Schurre und Trichter – auf Bestellung, schnell beschafft.', href: '/fahrzeugtechnik/verschleissteile' },
     ],
   },
   faq: [

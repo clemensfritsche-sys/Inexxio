@@ -101,7 +101,12 @@ img, svg, video { display: block; max-width: 100%; }
 img { height: auto; }
 input, button, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; background: none; border: 0; padding: 0; }
-p, li, dd, figcaption { overflow-wrap: break-word; hyphens: auto; }
+/* Trennen ja, aber nie kurze Wörter: INEXXIO (7) und Liebherr (8) bleiben ganz – in jeder Sprache.
+   Wörter unter 10 Zeichen werden nie getrennt, vorne bleiben mindestens 5, hinten 4 (Safari: -webkit-). */
+p, li, dd, figcaption {
+  overflow-wrap: break-word; hyphens: auto;
+  hyphenate-limit-chars: 10 5 4; -webkit-hyphenate-limit-before: 5; -webkit-hyphenate-limit-after: 4;
+}
 h1, h2, h3, h4 { overflow-wrap: break-word; hyphens: manual; }
 ul[role='list'], ol[role='list'] { list-style: none; padding: 0; }
 [hidden] { display: none !important; }
@@ -278,11 +283,13 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 [data-rail].is-dragging { cursor: grabbing; scroll-snap-type: none !important; scroll-behavior: auto; user-select: none; }
 [data-rail].is-dragging a { pointer-events: none; }
 
-/* Punkte unter einem Karussell (scripts/carousel.ts legt sie an). */
-.cdots { display: flex; justify-content: center; gap: 8px; margin-top: 20px; }
-.cdot { width: 6px; height: 6px; padding: 0; border-radius: 3px; background: #C6C8CD; transition: width 0.3s var(--ease), background-color 0.3s var(--ease); }
-.cdot[aria-current='true'] { width: 28px; background: var(--ink); }
-.cdot::after { content: ''; display: block; margin: -19px -8px; height: 44px; } /* Trefferfläche */
+/* Punkte unter einem Karussell (scripts/carousel.ts legt sie an). Der Knopf ist die Trefferfläche
+   (mindestens 24 × 24, WCAG 2.5.8, ohne Überlappung), der Punkt darin bleibt 6 × 6 (aktiv 28 breit). */
+.cdots { display: flex; justify-content: center; gap: 0; margin-top: 11px; /* 20 px bis zum Punkt */ }
+.cdot { box-sizing: content-box; display: grid; place-items: center; width: 6px; height: 24px; padding: 0 9px; background: none; transition: width 0.3s var(--ease); }
+.cdot::before { content: ''; width: 100%; height: 6px; border-radius: 3px; background: #C6C8CD; transition: background-color 0.3s var(--ease); }
+.cdot[aria-current='true'] { width: 28px; }
+.cdot[aria-current='true']::before { background: var(--ink); }
 
 /* ---------- Knöpfe ---------- */
 /* DS: 8 px Radius (keine Pillen), Höhe 40 (gross 48). Rot = die eine Hauptaktion, Umriss =

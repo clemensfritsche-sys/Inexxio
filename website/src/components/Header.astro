@@ -405,7 +405,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
   /* Klein und auf Glas verschwinden die feinen grauen Linien der Titelbilder: ein Hauch Kante macht
      sie lesbar, ohne sie zu überladen; das Rot bleibt, wie es ist (gross im Seitenkopf bleibt die Skizze leise). */
   .tile__img, .tile__deck img { filter: drop-shadow(0 0 0.3px rgba(40, 44, 52, 0.55)); }
-  .tile__sub { margin-top: auto; font-size: 0.875rem; line-height: 1.45; color: var(--gray-500); }
+  .tile__sub { margin-top: auto; font-size: 0.875rem; line-height: 1.45; color: var(--ink-3); }
   /* Die Übersicht «Alles zu …»: einen Hauch dunkler als die Karte, die Zeichnungen der Unterseiten als Stapel. */
   a.tile--all { background: rgba(10, 10, 11, 0.035); color: var(--ink); }
   a.tile--all:hover, a.tile--all:focus-visible { background: rgba(10, 10, 11, 0.06); }
@@ -441,7 +441,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
     background: var(--red); color: var(--white); font-family: var(--font-display); font-size: 2.25rem; font-weight: 600; letter-spacing: -0.02em;
     box-shadow: 0 10px 24px rgba(229, 26, 20, 0.25);
   }
-  .tile__rows { display: grid; gap: 6px; font-size: 0.875rem; color: var(--gray-500); }
+  .tile__rows { display: grid; gap: 6px; font-size: 0.875rem; color: var(--ink-3); }
   .tile__row { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
   .tile__row :global(svg) { flex: none; color: var(--gray-400); }
   .tile__row:has(> span:empty) { display: none; }
@@ -525,7 +525,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
   }
   .mg__avatar :global(.pm__avatar) { width: 100%; height: 100%; object-fit: cover; display: block; }
   .mg__label { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
-  .mg__sub { font-size: 0.8125rem; line-height: 1.4; color: var(--gray-500); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .mg__sub { font-size: 0.8125rem; line-height: 1.4; color: var(--ink-3); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   /* «Alles zu …»: die Übersicht, einen Hauch dunkler (wie im Dropdown), mit dem Stapel der Zeichnungen. */
   .mg__card--all { background: var(--gray-100); border-color: var(--gray-100); color: var(--ink); }
   .mg__deck { position: relative; height: 84px; margin-bottom: 6px; }

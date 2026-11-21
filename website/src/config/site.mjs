@@ -85,7 +85,7 @@ const areas = [
     industries: 'Betonwerke, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     children: [
       { label: 'Trommeltausch', href: '/fahrzeugtechnik/trommeltausch', text: 'Neue Trommel auf das bestehende Fahrgestell', photo: 'fahrmischer-werkstatt', dd: 'Neue Trommel statt neuer Fahrmischer.', illo: 'menu/trommeltausch' },
-      { label: 'Verschleissteile', href: '/fahrzeugtechnik/verschleissteile', text: 'Auf Bestellung, schnell beschafft', photo: 'teil-auslaufrinne', dd: 'Rinne, Schurre, Trichter und Mischspiralen.', illo: 'menu/verschleissteile' },
+      { label: 'Verschleissteile', href: '/fahrzeugtechnik/verschleissteile', text: 'Auf Bestellung, schnell beschafft', photo: 'teil-auslaufrinne', dd: 'Rinne, Schurre und Trichter.', illo: 'menu/verschleissteile' },
     ],
   },
   {

@@ -186,7 +186,7 @@ const pos = (k: number, c: number) => { let p = k - c; if (p > n / 2) p -= n; if
   .sp__text :global(.sp__s) { max-width: 34em; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
   @media (min-width: 960px) { .sp__text :global(.sp__s) { font-size: 1rem; } }
   .sp :global(.cdots) { margin-top: 4px; }
-  .sp__cta-row { display: flex; justify-content: center; margin-top: 28px; }
+  .sp__cta-row { display: flex; justify-content: center; max-width: none; margin-top: 28px; } /* gegen p { max-width } – sonst sitzt die Zeile links */
   .sp__cta { --btn-h: 52px; padding: 0 24px; font-size: 1rem; font-weight: 600; }
   @media (prefers-reduced-motion: reduce) { .sp__item, .sp__text { transition: none; } }
 </style>

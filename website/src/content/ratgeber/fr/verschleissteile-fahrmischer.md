@@ -24,7 +24,7 @@ related:
   - href: '/fahrzeugtechnik'
     label: 'Technique des véhicules'
     text: 'Tout ce que nous faisons pour les camions malaxeurs.'
-quelle: "b7470bd9494517d6"
+quelle: "81644d1189c97749"
 ---
 
 Un camion malaxeur s'use là où le béton frotte: au remplissage dans la trémie de chargement, dans le tambour sur les spirales de malaxage, à la vidange sur la trémie de déchargement et la goulotte. Ce n'est pas un défaut, c'est l'exploitation. L'essentiel est de remplacer les pièces avant qu'elles ne gênent le travail ou n'endommagent les pièces voisines.
@@ -63,4 +63,4 @@ Un camion malaxeur s'use là où le béton frotte: au remplissage dans la trémi
 
 ## Les pièces que nous proposons
 
-Goulottes, rallonges de goulotte, trémies de chargement, trémies de déchargement et protections des spirales, obtenues rapidement sur commande. Ce qui convient, nous le clarifions avec la marque, le type et l'année de construction de la superstructure; une photo de la plaque signalétique aide. La vue d'ensemble se trouve sous [Pièces d'usure](/fahrzeugtechnik/verschleissteile#katalog).
+Goulottes, rallonges de goulotte, trémies de chargement et trémies de déchargement, obtenues rapidement sur commande. Ce qui convient, nous le clarifions avec la marque, le type et l'année de construction de la superstructure; une photo de la plaque signalétique aide. La vue d'ensemble se trouve sous [Pièces d'usure](/fahrzeugtechnik/verschleissteile#katalog).

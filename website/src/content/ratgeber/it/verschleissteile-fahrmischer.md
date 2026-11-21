@@ -24,7 +24,7 @@ related:
   - href: '/fahrzeugtechnik'
     label: 'Tecnica veicoli'
     text: 'Tutto ciò che facciamo per le autobetoniere.'
-quelle: "b7470bd9494517d6"
+quelle: "81644d1189c97749"
 ---
 
 Un'autobetoniera si consuma là dove il calcestruzzo sfrega: durante il carico alla tramoggia, nel tamburo alle spirali di miscelazione, durante lo scarico alla tramoggia di scarico e alla canala. Non è un difetto, è l'esercizio. Decisivo è sostituire i pezzi prima che ostacolino il lavoro o danneggino le parti adiacenti.
@@ -63,4 +63,4 @@ Un'autobetoniera si consuma là dove il calcestruzzo sfrega: durante il carico a
 
 ## Quali pezzi forniamo
 
-Canale, prolunghe della canala, tramogge di carico, tramogge di scarico e protezioni delle spirali, su ordinazione, procurate in fretta. Che cosa è adatto lo chiariamo con marca, tipo e anno di costruzione dell'allestimento; una foto della targhetta aiuta. La panoramica si trova in [Parti di usura](/fahrzeugtechnik/verschleissteile#katalog).
+Canale, prolunghe della canala, tramogge di carico e tramogge di scarico, su ordinazione, procurate in fretta. Che cosa è adatto lo chiariamo con marca, tipo e anno di costruzione dell'allestimento; una foto della targhetta aiuta. La panoramica si trova in [Parti di usura](/fahrzeugtechnik/verschleissteile#katalog).

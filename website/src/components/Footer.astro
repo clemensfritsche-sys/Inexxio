@@ -53,7 +53,7 @@ const a = site.address;
           </p>
           <p>
             <Icon name="phone" size={16} />
-            <a href={`tel:${site.phone.e164}`} class="tnum">{site.phone.display}</a>
+            <a href={`tel:${site.phone.e164}`} class="tnum nowrap">{site.phone.display}</a>
           </p>
           <p>
             <Icon name="mail" size={16} />
@@ -110,10 +110,10 @@ const a = site.address;
   .site-footer__contact a { overflow-wrap: anywhere; }
   .site-footer__bottom {
     display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center;
-    margin-top: 24px; font-size: 0.875rem; color: var(--gray-500);
+    margin-top: 24px; font-size: 0.875rem; color: var(--ink-3);
   }
   .site-footer__bottom ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px; }
-  .site-footer__bottom a { color: var(--gray-500); display: inline-flex; min-height: 44px; align-items: center; }
+  .site-footer__bottom a { color: var(--ink-3); display: inline-flex; min-height: 44px; align-items: center; }
   /* Der Schriftzug: volle Breite, an der Grundlinie angeschnitten (der untere Schwung bleibt verborgen). */
   .site-footer__mark { margin-top: 48px; aspect-ratio: 624 / 133.5; overflow: hidden; }
   .site-footer__mark img { width: 100%; height: auto; }
