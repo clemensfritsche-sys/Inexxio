@@ -56,6 +56,10 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "https://inexxio-dev.web.app",
         "https://inexxio-prod.web.app",
+        # Die Hauptadresse der Produktion (Entscheid 21.11.2026); alle anderen Domains leiten
+        # dorthin weiter und brauchen hier keinen Eintrag.
+        "https://inexxio.com",
+        "https://www.inexxio.com",
     ]
 
     initial_admin_email: str = "clemens.fritsche@gmail.com"
