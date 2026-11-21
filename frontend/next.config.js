@@ -3,10 +3,8 @@ const nextConfig = {
   output: 'export',
   reactStrictMode: true,
   poweredByHeader: false,
-  images: {
-    unoptimized: true,
-    domains: ['storage.googleapis.com', 'lh3.googleusercontent.com'],
-  },
+  // Statischer Export – es gibt keinen Server, der Bilder optimieren könnte.
+  images: { unoptimized: true },
 };
 
 module.exports = nextConfig;

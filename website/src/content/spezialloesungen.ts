@@ -1,0 +1,168 @@
+/**
+ * Speziallösungen – Spezialmaschinenbau quer durch alle Bereiche: für Krane, Fahrzeuge und
+ * Baumaschinen. Maschinen, Anbauten und Vorrichtungen, die eine bestimmte Aufgabe erledigen,
+ * oft automatisiert. Einzelstücke und Kleinserien, keine Serienmaschinen.
+ *
+ * Die Seite hat ein eigenes Layout (src/pages/spezialloesungen.astro); das `SubPage`-Objekt
+ * liefert Titel, Beschreibung, Zusammenfassung, Leistungsumfang und FAQ für Sitemap,
+ * llms.txt und JSON-LD. Bildsprache: Grau ist die Serie, Rot ist, was wir dazubauen.
+ *
+ * Nicht auf die Seite: Mietpool, Hinweise zu CE oder Maschinenverordnung.
+ */
+import { site } from '../config/site.mjs';
+import type { SubPage } from './types';
+import { promiseFaq } from './promises';
+import { t } from '../i18n/t.mjs';
+
+export const spezialloesungen: SubPage = t('spezialloesungen', {
+  area: 'spezialloesungen',
+  path: '/spezialloesungen',
+  crumb: 'Speziallösungen',
+  title: 'Spezialmaschinen nach Mass',
+  description:
+    'Wenn kein Hersteller liefert, was Ihre Aufgabe braucht: Spezialmaschinen, Anbauten und Vorrichtungen für Krane, Fahrzeuge und Baumaschinen. Mit Garantie.',
+  hero: {
+    eyebrow: 'Speziallösungen',
+    h1: 'Maschinen, gebaut für ==genau Ihre Aufgabe==.',
+    lead: 'Wenn kein Hersteller liefert, was Ihre Arbeit verlangt, bauen wir es für Sie.',
+    photo: 'arbeit-werkstatt',
+    primary: { label: 'Aufgabe schildern', href: '#anfrage' },
+  },
+  summary:
+    '{{brand.name}} baut Spezialmaschinen nach Mass – für Krane, Fahrzeuge und Baumaschinen: Sonderkrane, Hilfskrane und Lastaufnahmen, Sonderaufbauten und Anbauten für Fahrzeuge, Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen, Vorrichtungen und die Automatisierung von Abläufen. Einzelstücke und Kleinserien, konstruiert von einem Maschinenbauingenieur und gebaut im eigenen Betrieb in {{address.home}}. Verbindliche Offerte vor Baubeginn; nicht zufrieden, übernehmen wir 50 %.',
+  glance: {
+    forWhom: 'Bauunternehmen und Spezialtiefbau mit eigener Geräteflotte, Vermieter und Händler von Baugeräten – und alle Betriebe mit Kranen oder Fahrzeugen, deren Aufgabe kein Hersteller löst.',
+    what: 'Machbarkeit prüfen, konstruieren, im eigenen Betrieb bauen und bei Ihnen in Betrieb nehmen.',
+    deliverables: 'Eine Maschine, die genau Ihre Aufgabe erledigt – mit Zeichnungen, Unterlagen und Service aus derselben Hand.',
+  },
+  scope: {
+    title: 'Was wir bauen',
+    lead: 'Einzelstücke und Kleinserien – keine Serienmaschinen.',
+    items: [
+      { title: 'Für Krane', text: 'Sonderkrane, Hilfskrane, Ausleger, Lastaufnahmen und Greifer nach Mass.' },
+      { title: 'Für Fahrzeuge', text: 'Sonderaufbauten und Anbauten, die kein Hersteller anbietet.' },
+      { title: 'Für Baumaschinen', text: 'Anbaugeräte wie Rüttler, Klemmen und Greifer, Podeste und Begehungen.' },
+      { title: 'Vorrichtungen', text: 'Damit ein Arbeitsschritt sicher, schnell und wiederholbar gelingt.' },
+      { title: 'Automatisierung', text: 'Abläufe, die heute Hand und Zeit kosten, laufen danach von selbst.' },
+      { title: 'Service danach', text: 'Wer es gebaut hat, kennt es – Wartung und Reparatur aus derselben Hand.' },
+    ],
+  },
+  faq: [
+    {
+      q: 'Welche Aufträge passen zu Ihnen?',
+      a: 'Einzelstücke und Kleinserien – vom Anbau für ein bestehendes Gerät bis zur Maschine für eine besondere Baustelle. Serienmaschinen bauen wir nicht.',
+    },
+    {
+      q: 'Brauche ich eine fertige Zeichnung?',
+      a: 'Nein. Schildern Sie die Aufgabe – eine Skizze, ein Foto oder ein Video vom Einsatz genügt. Die Konstruktion übernehmen wir.',
+    },
+    {
+      q: 'Was kostet eine Speziallösung?',
+      a: 'Nach der Machbarkeitsprüfung erhalten Sie eine verbindliche Offerte – bevor wir bauen.',
+    },
+    promiseFaq.garantie,
+    {
+      q: 'Bleibt die Lösung bei Ihnen in Betreuung?',
+      a: 'Ja. Wartung, Reparatur und Ersatzteile kommen aus demselben Betrieb, der sie gebaut hat.',
+    },
+  ],
+  related: [
+    { href: '/krantechnik/krane-nach-mass', label: 'Krane nach Mass', text: 'Sonderkrane und Industriekrane.' },
+    { href: '/fahrzeugtechnik/trommeltausch', label: 'Trommeltausch', text: 'Neue Trommel statt neuer Fahrmischer.' },
+  ],
+  service: { name: 'Speziallösungen', serviceType: 'Spezialmaschinenbau für Krane, Fahrzeuge und Baumaschinen' },
+});
+
+/** Das Prinzip: warum es Speziallösungen braucht – und was Sie davon haben. */
+export const specialPrinciple = t('spezialloesungen', {
+  title: 'Serienmaschinen sind für den Durchschnitt gebaut. Ihre Aufgabe ist es nicht.',
+  lead: 'Was dazwischen fehlt, erledigt heute meist ein Mensch – mit Zeit, Umwegen und Improvisation. Wir bauen die Maschine, die diese Lücke schliesst.',
+  /** Bild: eine Reihe gleicher Serienmaschinen als Zeichnung, eine tritt heraus – mit rotem Anbau. */
+  alt: 'Eine Reihe gleicher Minibagger als Zeichnung; einer tritt heraus, echt, mit rotem Sondergreifer',
+  gains: [
+    { icon: 'hand' as const, title: 'Weniger Handarbeit', text: 'Was heute von Hand geschieht, erledigt danach die Maschine – schneller und jedes Mal gleich.' },
+    { icon: 'shield-check' as const, title: 'Mehr Sicherheit', text: 'Wer nicht mehr improvisieren muss, steht nicht mehr unter der Last.' },
+    { icon: 'trending-up' as const, title: 'Ihr Vorsprung', text: 'Sie nehmen Aufträge an, die andere ablehnen müssen.' },
+  ],
+});
+
+/** Drei Felder, ein Prinzip – je mit Zeichnung (src/assets/illustrations/spezial-*.svg). */
+export const specialFields = t('spezialloesungen', {
+  title: 'Drei Felder. Ein Prinzip.',
+  lead: 'Wir nehmen, was die Serie kann, und bauen dazu, was Ihre Aufgabe braucht.',
+  items: [
+    {
+      id: 'baumaschinen',
+      illo: 'spezial-baumaschinen',
+      alt: 'Zeichnung: Speziallösung für Baumaschinen',
+      title: 'Für Baumaschinen',
+      text: 'Rüttler, Klemmen, Greifer: Ihr Gerät kann mehr, als der Hersteller vorsieht.',
+    },
+    {
+      id: 'fahrzeuge',
+      illo: 'spezial-fahrzeuge',
+      alt: 'Zeichnung: Speziallösung für Fahrzeuge',
+      title: 'Für Fahrzeuge',
+      text: 'Sonderaufbauten und Anbauten: Das Fahrgestell ist Serie, die Aufgabe nicht.',
+      href: '/fahrzeugtechnik',
+    },
+    {
+      id: 'krane',
+      illo: 'spezial-krane',
+      alt: 'Zeichnung: Speziallösung für Krane',
+      title: 'Für Krane',
+      text: 'Sonderkrane und Lastaufnahmen: Wo der Katalogkran aufhört, fangen wir an.',
+      href: '/krantechnik/krane-nach-mass#situationen',
+    },
+  ],
+});
+
+/** Der Weg vom Problem zur Lösung – wer was tut, ohne Offerte und ohne Zahlen. */
+export const specialSteps = t('spezialloesungen', {
+  title: 'Vom Problem zur Lösung.',
+  start: 'Ihr Problem',
+  end: 'Ihre Lösung',
+  items: [
+    { icon: 'pen-line' as const, who: 'Sie', title: 'Aufgabe', text: 'Sie zeigen uns, wo es klemmt – mit einer Skizze, einem Foto oder einem Video.', result: 'Wir kennen Ihre Aufgabe' },
+    { icon: 'search' as const, who: 'Gemeinsam', title: 'Lösungsweg', text: 'Wir schauen uns den Einsatz an und zeigen Ihnen, wie die Lösung aussieht.', result: 'Klar, bevor gebaut wird' },
+    { icon: 'drafting-compass' as const, who: 'Wir', title: 'Konstruktion', text: 'Wir konstruieren und rechnen die Lösung durch, bis sie hält, was sie soll.', result: 'Abgestimmt mit Ihnen' },
+    { icon: 'wrench' as const, who: 'Wir', title: 'Bau', text: 'Stahlbau, Hydraulik und Steuerung – alles im eigenen Betrieb in {{address.city}}.', result: 'Alles aus einer Hand' },
+    { icon: 'flag' as const, who: 'Wir, bei Ihnen', title: 'Inbetriebnahme', text: 'Wir nehmen die Lösung bei Ihnen in Betrieb und weisen Ihr Team ein.', result: 'Einweisung und Unterlagen' },
+  ],
+});
+
+/** Modul: Wer dahintersteht – sachlich, kurz, ohne fremde Logos. */
+export const specialBackground = t('spezialloesungen', {
+  title: 'Entwicklung, Fertigung und Montage unter einem Dach.',
+  text: `${site.people.owner.name} ist Maschinenbauingenieur und hat jahrelang Baumaschinen entwickelt – von der Hydraulik bis zu vernetzten Steuerungen und IoT-Anwendungen. Er kennt die Wünsche, die Hersteller nicht erfüllen – und weiss, wie man eine Lösung baut, die auf der Baustelle hält.`,
+  facts: [
+    'Langjährige Entwicklung von Baumaschinen',
+    'Krane bauen wir seit {{history.cranesSince}} selbst',
+    'Konstruktion, Stahlbau und Montage aus einer Hand',
+  ],
+});
+
+/**
+ * «Aus der Praxis» (components/spezial/PracticeCase): der Heukran mit zwei Greifern im Schafstall –
+ * alles aus den Fotos (heukran-bruecke, heukran-katze, heukran-greifer), nichts dazuerfunden.
+ */
+export const specialCase = t('spezialloesungen', {
+  kicker: 'Aus der Praxis · Heukran nach Mass',
+  title: 'Zwei Greifer. Ein Kran.',
+  title2: 'Beide Futtergänge in einer Fahrt.',
+  caption: 'Schafstall mit Mittelgang – die Kranbrücke reicht über die ganze Breite, je ein Greifer pro Seite.',
+  big: 'Der Stall gibt die Form vor.',
+  big2: 'Der Kran folgt ihm.',
+  text: 'Futterraufen links und rechts des Mittelgangs – mit einem einzigen Greifer hiesse das jeden Tag: holen, links abladen, zurück, holen, rechts abladen. Wir haben eine Kranbrücke über die ganze Stallbreite gebaut, mit zwei Katzen und zwei Greifern. Die Fahrbahnen sitzen an den Leimbindern des Dachs. Bedient wird vom Boden aus, per Funk.',
+  compare: 'Weniger Wege. Bei jeder Fütterung.',
+  store: 'Heustock',
+  one: { title: 'Ein Greifer', text: 'Holen, links abladen, zurück, holen, rechts abladen.', alt: 'Von oben: ein Greifer fährt erst zur linken, dann zur rechten Raufe' },
+  two: { title: 'Zwei Greifer', text: 'Holen, beide Seiten zugleich abladen. Fertig.', alt: 'Von oben: zwei Greifer beschicken beide Raufen gleichzeitig' },
+  details: [
+    { photo: 'heukran-katze', title: 'Zwei Katzen, eine Brücke.', text: 'Jede fährt für sich – mit eigenem Greifer.' },
+    { photo: 'heukran-greifer', title: 'Ein Greifer je Futtergang.', text: 'Beide Seiten werden in einer Fahrt beschickt.' },
+  ],
+  end: 'Jedes Gebäude ist anders. Darum bauen wir jeden Kran nach Mass.',
+  cta: 'Aufgabe schildern',
+  more: 'Heukrananlagen',
+});

@@ -1,0 +1,292 @@
+"""►►► **Die Richtung einer Nachricht ist eine Tatsache der Nachricht** – nicht der Rolle
+ihres Absenders (``messages.inbound``). ◄◄◄
+
+Dazu, was daran hängt: wer eine automatische Mail schreibt (die Gesellschaft), woran eine
+Mail sich selbst wiedererkennt (ihre Kennung, vergeben bevor sie geht) und was eine Antwort
+ist (nur, was auch draussen ankam). Jede Prüfung nennt ihre Bug-Form.
+"""
+
+import base64
+import email
+import time
+
+import pytest
+from datetime import datetime, timezone
+from types import SimpleNamespace
+
+from app.domain import communication as dc
+from app.models import Message, UserProfile
+from app.schemas.communication import MessageIn
+from app.services import communication as comm
+from app.services import mailbox as mb
+from tests import test_mailbox
+from tests.test_mailbox import CH, COMPANY, _gmail, _one, _person
+from tests.factories import post_office
+
+world = test_mailbox.world     # dieselbe Bühne: Postfach, Mitarbeiter, eigene Adresse
+
+
+def _row(db, raw) -> Message:
+    return db.query(Message).filter(Message.gmail_id == raw["id"]).one()
+
+
+def test_a_colleague_writing_from_a_private_address_writes_to_us(world, monkeypatch):
+    """Bug-Form: ein Mitarbeiter schreibt von seiner privaten Adresse an das Postfach – die
+    Mail stand als «von uns» da, war nie offen, und «Antworten» hatte niemanden im «An»."""
+    db, staff, box = world
+    post_office(db, monkeypatch)
+    raw = _gmail(f"{staff.display_name} <{staff.email}>", to=COMPANY, subject="Frage zum Kran")
+    assert mb.ingest(db, box, raw)
+    out = _one(db, raw["id"])
+    assert out.sender.object_id == staff.object_id
+    assert not out.ours and out.open, "kam von aussen – also an uns, also offen"
+    assert staff.object_id in [p.object_id for p in out.reply_all]
+    reply = comm.create(db, MessageIn(channel=CH, to=[staff.object_id],
+                                      subject=out.reply_subject, body="Antwort"), staff)
+    assert not reply.inbound
+    assert comm.answered(db, [out.id]) == {out.id}, "die Antwort nach aussen erledigt sie"
+    # Bug-Form: die Antwort an die private Adresse galt selbst als «offen» (ein Mitarbeiter
+    # im «An» = eine Bitte an uns) – und stand in «zu tun».
+    mine = comm.load(db, [reply.id])[0]
+    assert mine.ours and not mine.open
+    assert not any(c.object_id == staff.object_id and c.open for c in comm.open_counts(db))
+
+
+def test_what_a_colleague_writes_in_the_erp_is_ours(world):
+    """Die Gegenprobe: im ERP geschrieben, über das Postfach hinaus – von uns, nie offen."""
+    db, staff, _box = world
+    lea = _person(db)
+    msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Offerte",
+                                    body="Anbei"), staff)
+    out = comm.load(db, [msg.id])[0]
+    assert out.ours and not out.open and not msg.inbound
+
+
+def test_a_reply_that_never_went_out_answers_nothing(world):
+    """Bug-Form: eine Antwort, die noch wartete oder an der Gmail aufgab, galt als Antwort –
+    die Anfrage verschwand aus «offen», der Kunde bekam nie etwas."""
+    db, staff, box = world
+    lea = _person(db)
+    raw = _gmail(f"Lea <{lea.email}>", to=COMPANY, subject="Liefertermin?")
+    assert mb.ingest(db, box, raw)
+    asked = _row(db, raw)
+    reply = comm.create(db, MessageIn(channel=CH, to=[lea.object_id],
+                                      subject="Re: Liefertermin?", body="Freitag"), staff)
+    reply.outgoing = True
+    db.flush()
+    assert comm.answered(db, [asked.id]) == set(), "wartet noch – erreicht niemanden"
+    mb._give_up(db, reply, "Gmail hat sie abgewiesen (400).")
+    db.flush()
+    assert not reply.outgoing
+    assert comm.answered(db, [asked.id]) == set(), "aufgegeben – erreicht niemanden"
+
+
+def test_every_mail_gets_its_own_id_before_it_goes(world):
+    """Bug-Form: die Kennung war die Nummer der Zeile – nach einem Neuaufbau der Datenbank
+    fand Gmail eine alte Mail mit derselben Nummer, und die neue galt als gesendet."""
+    db, staff, box = world
+    lea = _person(db)
+    a, b = (comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject=s, body="x"),
+                        staff) for s in ("A", "B"))
+    a.outgoing = b.outgoing = True
+    db.flush()
+    assert a.rfc_id != b.rfc_id and dc.ours(a.rfc_id) and dc.ours(b.rfc_id)
+    # Der Abgleich findet sie im Ordner «Gesendet» – und erkennt sie wieder (nie doppelt).
+    seen = _gmail(f"Inexxio <{COMPANY}>", to=lea.email, labels=("SENT",), rfc=a.rfc_id)
+    assert not mb.ingest(db, box, seen)
+
+
+def test_a_request_to_a_bare_address_never_creates_a_person(world, monkeypatch):
+    """Bug-Form: die Bitte um Bestätigung einer Newsletter-Anmeldung von der Website kam beim
+    nächsten Abgleich aus «Gesendet» herein – und ihr Empfänger wurde eine Person."""
+    db, _staff, box = world
+    sent: dict = {}
+    monkeypatch.setattr(mb, "_access", lambda _mb: "tok")
+    monkeypatch.setattr(mb, "_post", lambda _t, body, _w: (sent.update(body), ({"id": "g"}, ""))[1])
+    mail = SimpleNamespace(text="Bitte bestätigen", html="<p>Bitte bestätigen</p>")
+    assert mb.send_direct(db, CH, "neu@kunde.ch", "Bitte bestätigen", mail)
+    rfc = email.message_from_bytes(base64.urlsafe_b64decode(sent["raw"]))["Message-ID"]
+    assert dc.ours(rfc)
+    raw = _gmail(f"Inexxio <{COMPANY}>", to="neu@kunde.ch", labels=("SENT",), rfc=rfc)
+    assert not mb.ingest(db, box, raw)
+    assert db.query(UserProfile).filter(UserProfile.email == "neu@kunde.ch").count() == 0
+
+
+def test_a_mail_sent_from_gmail_is_written_by_the_company(world):
+    """Bug-Form: was jemand direkt in Gmail schrieb, stand im Verlauf als Mail des Admins,
+    der das Postfach verband. Wer es tippte, weiss das ERP nicht – es schrieb die
+    Gesellschaft."""
+    db, staff, box = world
+    raw = _gmail(f"Inexxio <{COMPANY}>", to="kunde@example.org", labels=("SENT",))
+    assert mb.ingest(db, box, raw)
+    msg = _row(db, raw)
+    assert msg.sender_object_id == dc.company_of(box.channel) != staff.object_id
+    assert not msg.inbound
+
+
+def test_a_mail_without_a_subject_can_be_answered(world, monkeypatch):
+    """Bug-Form: eine Mail ohne Betreff liess sich nicht beantworten – der Betreff der
+    Antwort war leer, der Knopf blieb bei «Betreff fehlt», und sie blieb für immer offen."""
+    db, staff, box = world
+    post_office(db, monkeypatch)
+    lea = _person(db)
+    raw = _gmail(f"Lea <{lea.email}>", to=COMPANY, subject="")
+    assert mb.ingest(db, box, raw)
+    out = _one(db, raw["id"])
+    assert out.subject == dc.NO_SUBJECT and out.reply_subject == f"Re: {dc.NO_SUBJECT}"
+    comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject=out.reply_subject,
+                              body="Gerne"), staff)
+    assert comm.answered(db, [out.id]) == {out.id}
+
+
+def test_an_outlook_quote_is_cut():
+    """Bug-Form: der Kopf, den Outlook über das Zitat setzt, blieb stehen – der ganze alte
+    Verlauf stand ein zweites Mal im Text."""
+    de = ("Ja, das passt.\n\nVon: Inexxio AG <info@example.ch>\nGesendet: Montag, 9. November "
+          "2026 10:00\nAn: Lea Muster\nBetreff: Offerte\n\nAlter Text")
+    en = "Thanks!\n\n________________________________\nFrom: Inexxio\nSent: Monday\n\nold"
+    assert mb._strip_quote(de) == "Ja, das passt."
+    # Gmail bricht einen langen Kopf um («… schrieb Clemens Fritsche · INEXXIO <» / «adresse>:»).
+    wrapped = ("OK, danke!\n\nAm Di., 10. Nov. 2026 um 08:31 Uhr schrieb Clemens Fritsche · "
+               "INEXXIO <\ninexxio65@gmail.com>:\n\n> Wunderbar\n")
+    assert mb._strip_quote(wrapped) == "OK, danke!"
+    assert mb._strip_quote(en) == "Thanks!"
+    assert mb._strip_quote("Von: Bern nach Basel fahren wir morgen.") == \
+        "Von: Bern nach Basel fahren wir morgen.", "ein Satz ist kein Zitatkopf"
+
+
+def test_a_reply_names_the_whole_thread(world, monkeypatch):
+    """Bug-Form: ``References`` nannte nur die letzte Mail – Outlook zeigte dem Kunden den
+    früheren Verlauf nicht."""
+    db, staff, box = world
+    monkeypatch.setattr(mb, "company", lambda _db, _ch: None)
+    lea = _person(db)
+    now = int(time.time() * 1000)
+    first = _gmail(f"Lea <{lea.email}>", to=COMPANY, subject="Kran", rfc="<a@kunde.ch>")
+    first["internalDate"] = str(now - 3 * 3_600_000)
+    assert mb.ingest(db, box, first)
+    reply = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Re: Kran",
+                                      body="Gerne"), staff)
+    reply.outgoing = True
+    reply.at = datetime.fromtimestamp((now - 2 * 3_600_000) / 1000, timezone.utc)
+    db.flush()
+    again = _gmail(f"Lea <{lea.email}>", to=COMPANY, subject="Re: Kran", rfc="<b@kunde.ch>")
+    again["internalDate"] = str(now - 3_600_000)
+    assert mb.ingest(db, box, again)
+    last = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Re: Kran",
+                                     body="Bis Freitag"), staff)
+    last.outgoing = True
+    db.flush()
+    mime = mb._mime(db, box, last, mb._parent(db, last))
+    assert mime["In-Reply-To"] == "<b@kunde.ch>"
+    assert mime["References"].split() == ["<a@kunde.ch>", reply.rfc_id, "<b@kunde.ch>"]
+
+
+def test_a_mail_is_built_when_it_is_written(world, monkeypatch):
+    """►►► Gebaut beim Anlegen, nicht erst beim Senden: was im Verlauf steht, ist ab sofort,
+    was hinausgeht. Bug-Form: eine Antwort bekam ihre Vorlage erst beim Versand – bis
+    dahin (und wenn der Versand scheiterte, für immer) stand im ERP etwas anderes."""
+    db, staff, _box = world
+    monkeypatch.setattr(mb, "ready", lambda: True)
+    monkeypatch.setattr(mb, "send_after", lambda _db: None)
+    lea = _person(db)
+    msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Offerte",
+                                    body="Anbei die Offerte."), staff)
+    assert msg.outgoing and msg.html and staff.display_name in msg.html
+    assert "Anbei die Offerte." in msg.html and msg.body == "Anbei die Offerte."
+
+
+def test_a_mail_of_the_house_comes_from_one_place(world, monkeypatch):
+    """``outbox.deliver``: wer auslöst und Personal ist, schreibt; sonst die Gesellschaft.
+    Und keine zweite Stelle legt eine Mail an, die hinaus soll."""
+    from pathlib import Path
+    import re
+    from app.services import outbox
+    db, staff, box = world
+    monkeypatch.setattr(mb, "ready", lambda: True)
+    monkeypatch.setattr(mb, "send_after", lambda _db: None)
+    lea = _person(db)
+    by_staff = outbox.deliver(db, channel=CH, to=[lea.object_id], subject="Rechnung 1",
+                              lead="Guten Tag", author=staff)
+    by_customer = outbox.deliver(db, channel=CH, to=[lea.object_id], subject="Rechnung 2",
+                                 lead="Guten Tag", author=lea)
+    assert (by_staff.sender_object_id, by_staff.created_by) == (staff.object_id, staff.id)
+    assert by_customer.sender_object_id == dc.company_of(CH) and by_customer.created_by is None
+    assert by_staff.outgoing and by_staff.html and by_customer.html
+    app = Path(__file__).resolve().parents[1] / "app" / "services"
+    second = [f.name for f in app.glob("*.py") if f.name not in ("outbox.py", "communication.py")
+              and re.search(r"Message\((?:[^()]|\([^()]*\))*outgoing\s*=", f.read_text())]
+    assert second == [], f"Mail an zweiter Stelle angelegt: {second}"
+
+
+def test_a_mail_that_did_not_go_out_says_so_and_can_be_resent(world, monkeypatch):
+    """►►► Nicht gesendet steht an der Mail selbst – und «Neu senden» gibt sie wieder zum
+    Versand; die Versuche zählen danach von vorn. ◄◄◄ Bug-Form: der Zustand stand an drei
+    Orten (Spalte, zwei Ereignisse), die Mail sah danach aus wie gesendet."""
+    from app.domain.errors import Invalid
+    db, staff, box = world
+    monkeypatch.setattr(mb, "send_after", lambda _db: None)
+    lea = _person(db)
+    msg = comm.create(db, MessageIn(channel=CH, to=[lea.object_id], subject="Termin",
+                                    body="Morgen um 9"), staff)
+    msg.outgoing = True
+    db.flush()
+    with pytest.raises(Invalid):
+        comm.resend(db, msg.id, staff)          # sie wartet ja noch
+    for _ in range(mb.MAX_ATTEMPTS):
+        mb._failed(db, msg, "Gmail hat sie abgewiesen (400).")
+    db.flush()
+    out = comm.load(db, [msg.id])[0]
+    assert out.failed and not out.pending
+    comm.resend(db, msg.id, staff)
+    db.flush()
+    out = comm.load(db, [msg.id])[0]
+    assert out.pending and not out.failed
+    mb._failed(db, msg, "Gmail war nicht erreichbar.")
+    assert msg.outgoing, "nach «Neu senden» zählen die Versuche von vorn"
+
+
+def test_without_a_mailbox_a_mail_waits_and_no_mail_is_offered(db, monkeypatch):
+    """►►► Nur ein Modus: eine Mail geht hinaus oder wartet auf ihr Postfach. ◄◄◄ Bug-Form:
+    ohne Anbindung an Gmail wurde sie «nur erfasst» – sie stand wie gesendet da und ging nie
+    hinaus; und die Eingabe bot ein Postfach an, das nichts senden konnte."""
+    from app.services import outbox
+    monkeypatch.setattr(mb, "ready", lambda: False)
+    monkeypatch.setattr(mb, "send_after", lambda _db: None)
+    lea = _person(db)
+    msg = outbox.deliver(db, channel="c999999977", to=[lea.object_id], subject="Rechnung 9",
+                         lead="Guten Tag")
+    out = comm.load(db, [msg.id])[0]
+    assert msg.outgoing and out.pending, "wartet – steht nie als gesendet da"
+    assert "c999999977" not in [c.key for c in comm.channels(db)]
+
+
+def _mime(plain: str, html: str) -> dict:
+    enc = lambda t: base64.urlsafe_b64encode(t.encode()).decode()  # noqa: E731
+    return {"mimeType": "multipart/alternative", "parts": [
+        {"mimeType": "text/plain", "body": {"data": enc(plain)}},
+        {"mimeType": "text/html", "body": {"data": enc(html)}}]}
+
+
+def test_the_quote_is_cut_where_the_mail_program_marked_it():
+    """►►► Das Zitat fällt dort weg, wo das Mailprogramm es markiert hat (wie Gmails «…»),
+    unabhängig von Sprache und Zeilenumbruch. ◄◄◄ Bug-Form: nur Textmuster – ein umbrochener
+    Kopf «… schrieb Clemens Fritsche · INEXXIO <» / «adresse>:» blieb stehen."""
+    from app.services.mail_parse import _text
+    gmail = ('<div dir="ltr">OK, danke!</div><br><div class="gmail_quote"><div dir="ltr" '
+             'class="gmail_attr">Am Di., 10. Nov. 2026 um 08:31 Uhr schrieb Clemens Fritsche · '
+             'INEXXIO &lt;<a href="mailto:x@y.ch">x@y.ch</a>&gt;:<br></div><blockquote '
+             'class="gmail_quote">Wunderbar</blockquote></div>')
+    outlook = ('<div><p>Ja, Freitag passt.</p></div><hr><div id="divRplyFwdMsg"><b>Von:</b> '
+               'Inexxio<br><b>Gesendet:</b> Montag</div><div>Alter Text</div>')
+    apple = ('<div>Gerne!</div><div><br><blockquote type="cite"><div>Wann kommt der '
+             'Techniker?</div></blockquote></div>')
+    inline = ('<div>Zu Punkt 1: ja.</div><div class="gmail_quote"><blockquote class="gmail_quote">'
+              'Punkt 1?</blockquote></div><div>Und sonst alles gut.</div>')
+    assert _text(_mime("OK, danke!\n\nAm … schrieb …\n> Wunderbar", gmail)) == "OK, danke!"
+    assert _text(_mime("x", outlook)) == "Ja, Freitag passt."
+    assert _text(_mime("x", apple)) == "Gerne!"
+    assert _text(_mime("x", inline)) == "Zu Punkt 1: ja.\nUnd sonst alles gut."
+    # Ohne Zeichen gilt der Text-Teil wie bisher (das Muster schneidet später, ``_strip_quote``).
+    plain = "Hallo\n\nGrüsse"
+    assert _text(_mime(plain, "<div>Hallo</div><div>Grüsse</div>")) == plain

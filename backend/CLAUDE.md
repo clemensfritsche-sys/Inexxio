@@ -1,61 +1,379 @@
 # Backend – FastAPI (Python 3.12)
 
+> **Ist-Stand.** Wie das Backend so geworden ist (Rundenberichte, Testnotizen), steht in
+> `docs/history/2026-10-backend-claude-md-chronik.md`. Die Prozesslogik steht in
+> `PROCESS_CORE.md`, die Regeln als prüfbare Sätze in `SYSTEM_LOGIC.md`. Im Zweifel gilt der
+> Code.
+
 ## Technologie
-Python 3.12, FastAPI 0.109, SQLAlchemy 2.0, Pydantic v2, Alembic, PostgreSQL 15
+Python 3.12, FastAPI 0.162, SQLAlchemy 2.1, Pydantic v2, Alembic, PostgreSQL 16;
+firebase-admin 7.7, stripe 16.0, webauthn 3.0, anthropic 2.3, google-cloud-storage 3.17. Die
+direkten Abhängigkeiten stehen gepinnt in `requirements.txt`; **installiert wird aus
+`requirements.lock`** (alle, auch die indirekten, je mit Prüfsumme – Docker und CI mit
+`--require-hashes`). Wer eine Version ändert, erzeugt die Sperrdatei neu
+(`tests/test_lock.py` merkt, wenn sie nicht passt):
+```bash
+cd backend && uv pip compile requirements.txt --python-version 3.12 \
+  --python-platform x86_64-unknown-linux-gnu --generate-hashes --no-header -o requirements.lock
+```
+**Mit diesen Versionen** generieren (siehe unten), sonst produziert eine neuere Umgebung
+einen Diff, der lokal unsichtbar ist und erst die CI rot macht.
+
+## Pflichtregeln – vor jeder Änderung
+```bash
+git fetch origin develop && git pull origin develop
+git log --oneline -5 && git status
+```
+Dann die betroffene Datei frisch lesen – nie eine Kontext-Zusammenfassung als Dateiinhalt
+behandeln.
 
 ## Starten
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.lock
 uvicorn app.main:app --reload --port 8000
 ```
 
-## Alembic
+## Alembic und der Start
 ```bash
-alembic upgrade head          # Migrationen anwenden
-alembic revision --autogenerate -m "description"  # Neue Migration erstellen
+alembic upgrade head                                 # Migrationen anwenden
+alembic revision --autogenerate -m "description"     # neue Migration
 ```
+- **`start.sh` fährt `alembic upgrade head` bei JEDEM Start – auf jeder Umgebung.**
+  Scheitert der Lauf, **startet der Dienst nicht** (Cloud Run behält die alte Revision).
+  Einzige Ausnahme: «Can't locate revision» (die DB steht auf einer neueren Revision, etwa
+  nach einem Revert) – dann startet er mit Warnung. **Es gibt keine Start-Netze**: kein
+  `create_all`, keine Spalten-/Index-Netze, keine Daten-Reparaturen.
+- **Basis `161`**: `alembic/versions/161_baseline.py` führt `161_baseline.sql` aus (das Schema
+  bis 161, eingefroren aus `pg_dump --schema-only`, nie von Hand ändern). Eine DB, die schon
+  auf 161 steht, bekommt nichts; die nächste Migration ist `162`.
+- **Der Start** (`main.lifespan`, unter einem Advisory-Lock): die Trigger aus der
+  Fachschicht neu schreiben – `statuses.terminal_guard_sql` (Endzustand),
+  `timekeeping.append_only_sql` (`time_entries`/`time_contracts` append-only) und
+  `log.triggers_sql` (die Funktionen des Logs, `log`/`log_seal` unveränderlich, je Tabelle
+  der Zeilen-Trigger `trg_log_row`); scheitert das, startet er nicht. Danach, je in eigener
+  Sitzung (Handelnder: das System, `start`) und nur mit Warnung bei Fehlschlag: der Betreiber
+  als nummerierter Datensatz (`sites.operator`), die Rechtstexte als Dokumente
+  (`legal.adopt_templates`, nur solange es noch keine gibt) und das Siegel des Logs für jeden
+  abgeschlossenen Tag (`log.seal_due`; danach alle 5 Minuten im Takt, `services/tick`). Admin wird nur `initial_admin_email`,
+  beim Login (`core/auth`).
+- **dev neu aufbauen** (nur dev, alle Daten weg): `scripts/reset-dev-db.sql` auf `inexxio_dev`
+  (bricht auf jeder anderen Datenbank ab), dann ein Deploy – der Start baut alles aus den
+  Migrationen.
+
+### Eine Änderung am Schema ist erst fertig, wenn …
+- **neue Tabelle**: die Migration legt den **vollständigen** Spaltensatz des Modells an,
+  inklusive geerbter (`is_active`, `created_at`, `updated_at`);
+- **neue Spalte, Index, Fremdschlüssel**: in einer Migration – und am Modell;
+- **Datenänderung**: in der Migration selbst (SQL dort ausgeschrieben, nicht aus dem Code
+  gelesen – eine Migration ist eingefroren);
+- **Drop**: Zwei-Deploy-Regel – erst das Mapping weg, im Folge-Deploy die Spalte; die offene
+  Liste steht in `docs/backlog.md`.
+- Geprüft wird das, nicht geglaubt: `tests/test_schema_is_built_by_the_migrations.py` baut
+  eine Wegwerf-DB per `alembic upgrade head` und vergleicht Modell ↔ Schema in beide
+  Richtungen. Die Tests selbst laufen ebenfalls auf einem Schema aus den Migrationen
+  (`tests/runner.session`).
 
 ## Struktur
 ```
 app/
-├── main.py           ← FastAPI App, Router-Registrierung, CORS
-├── core/
-│   ├── config.py     ← Pydantic Settings (env vars)
-│   ├── database.py   ← SQLAlchemy Engine + Session
-│   └── auth.py       ← Firebase JWT-Verifikation, require_admin/require_staff
-├── models/           ← SQLAlchemy 2.0 Mapped-Column Modelle
-├── schemas/          ← Pydantic v2 Request/Response Schemas
-├── routers/          ← FastAPI Router (je ein File pro Ressource)
-└── services/         ← Business Logic (DB-unabhängig testbar)
+├── main.py           ← App, Router-Registrierung, CORS, Start (Trigger, Betreiber, Rechtstexte)
+├── core/             ← config.py (Settings – nur, was der Code liest) · database.py ·
+│                       actor.py (WER handelt: act, public(…), system_session) ·
+│                       auth.py (Firebase-JWT, get_current_user, require_employee, require_admin;
+│                       nur bestätigte Adressen) · clock.py (**die eine Uhr**: jetzt/heute in Europe/Zurich, `utcnow`, Tag `day` «24.10.2026», `stamp`) ·
+│                       signed.py (signierte Links, LINK_SECRET) ·
+│                       oidc.py (der Takt: Google-Token prüfen, require_tick)
+├── domain/           ← der fachliche Kern: KEINE DB, KEINE Services
+│   ├── statuses.py   ← jeder Zustand: Beschriftung, Ampelton, Achsen, stock, terminal
+│   ├── modules.py    ← die Prozessschrittmodule (MODULES) und was jedes deklariert; je Modul
+│   │                   `clean_config` ↔ `config_schema` (JSON-Schema → `ModuleInput`, Wächter
+│   │                   `test_module_config_schema`)
+│   ├── capture_types/← Erfassungspunkt-Typen (text · yes_no · photo · signature · measure)
+│   ├── sampling.py   ← die Stichprobe als EINE Zahl
+│   ├── chain.py      ← die Kettenregel (an Artikel-Vorlage UND Auftrag)
+│   ├── order_date.py ← das eine Datum am Auftrag: «bis» · «ab», `problem` ↔ `clean`
+│   ├── loop.py       ← die Wiederholung: Takte, Kalender (wie ein Dauerauftrag), Wahl je Zeile,
+│   │                   Prüfung der Einstellung (`problems` ↔ `clean`), Zustände (`STATES`)
+│   ├── log.py        ← das Log: Funktionen und Trigger (wer handelt, Zeilen, Ereignisse,
+│   │                   unveränderlich, Schwärzen, Siegel), OBJECT (Tabelle → Ding),
+│   │                   TABLE_WORDS (ein Wort je Tabelle für den Verlauf)
+│   ├── voucher.py    ← der Beleg: Direction, Stufen, Steuer (VAT_RATES, vat_split,
+│   │                   vat_choices nach Anschrift), Saldo (balance), Mahnstufen, Wörter
+│   ├── currency.py   ← Währungen (ISO 4217) mit ihren Nachkommastellen
+│   ├── incoterms.py  ← die elf Klauseln der Incoterms 2020 mit Erklärung
+│   ├── communication.py ← Kanäle (auch die Notiz), Rollen, Versandarten, Betreff/Anliegen, overdue (2 h), Signatur
+│   ├── newsletter.py ← Quellen der Einwilligung, Gültigkeit der Bestätigung
+│   ├── timekeeping.py← Zeiterfassung: Absenzarten (je EINE Wirkung), Regeln CH (ArG/OR),
+│   │                   Hinweise, Reglement-Texte (ⓘ), append-only-Trigger
+│   ├── uid.py        ← UID-Normalform und Prüfziffer (eCH-0097)
+│   ├── policy.py     ← wer darf was: `RULES` (staff · admin · self), `may` ↔ `require`, Rollen;
+│   │                   `SELF_SERVICE` (jede Konto-Route → Gegenstück im ERP oder `SelfOnly`)
+│   ├── errors.py     ← jede Abweisung: Invalid · Forbidden · NotFound · Conflict · Gone · …
+│   └── number.py     ← eine Zahl aus einer Eingabe (1'234.50 · 1’234,50 · 1 234.50)
+├── models/           ← SQLAlchemy 2.1 (je Entität eine Datei; Import über models/__init__)
+├── schemas/          ← Pydantic v2 Request/Response
+├── routers/          ← dünn; je Ressource eine Datei
+├── services/         ← Fachlogik (siehe «Wo was steht»)
+└── assets/           ← website_contact.json (generiert von website/scripts/export-erp.mjs)
+
+scripts/
+├── dump_openapi.py   ← OpenAPI → backend/openapi.json (Quelle der Frontend-Typen)
+├── dump_statuses.py  ← domain/statuses.py → frontend/src/lib/status-catalog.ts
+├── dump_vocab.py     ← Schlüssel und Wörter aus domain/… → frontend/src/lib/vocab.ts
+├── deadcode.py       ← «was liest eigentlich niemand mehr?» (beide Seiten)
+├── measure_verlauf.py← Messung: Verlauf und Aufgaben bei 50'000 Nachrichten (rollt zurück)
+├── build_geoip.py    ← DB-IP Lite → IP→Land (im Docker-Build)
+├── invariant_report.py · scenario_report.py  ← lesen tests/invariants.py · tests/matrix.py
 ```
 
-## API-Endpunkte Phase 1
-| Method | Path | Auth | Beschreibung |
-|--------|------|------|--------------|
-| GET | /health | – | Health Check |
-| GET | /api/v1/auth/me | user | Eigenes Profil |
-| POST | /api/v1/auth/terms-accept | user | AGB akzeptieren |
-| GET | /api/v1/objects | staff | Universal Feed |
-| CRUD | /api/v1/items | staff | Artikel |
-| POST | /api/v1/items/{id}/approve | staff | Artikel freigeben |
-| CRUD | /api/v1/boms | staff | Stücklisten |
-| CRUD | /api/v1/work-plans | staff | Arbeitspläne |
-| CRUD | /api/v1/companies | staff | Firmen (Kunden + Lieferanten) |
-| CRUD | /api/v1/companies/{id}/contacts | staff | Kontakte |
-| GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen |
-| GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos |
-| CRUD | /api/v1/admin/users | admin | Benutzerverwaltung |
-| GET | /api/v1/admin/audit-log | admin | Audit Log |
+### Wo was steht (`services/`)
+| Bereich | Datei(en) |
+|---|---|
+| Prozess-Engine | `release.py` (Freigabe: `_checked` – dieselbe Prüfung für den Entwurf –, `pick_problem` ↔ `unpickable`, Übernahme), `process.py` (Laufzeit-Schreibweg: `_pass`, `confirm_step`, `advance_payments`, Durchlauf, Ende, Rückkehr; `lock_orders`), `order_state.py` (nur Ableitungen: Auftragsstatus, Rückführungskette, Halt, Arbeitsliste, Abweichung, Log-Seiten), `orders.py` (Entwurf prüfen, anlegen), `order_view.py` (wie ein Auftrag gezeigt wird: `steps_view`, wer was sieht `involved` · `visible_steps`, `response`, Nachbarn `related`, FIFO und Stückwahl für den Entwurf – hinter `routers/orders`), `materialize.py`, `loop.py` (die Wiederholung: `freeze` bei der Freigabe, `problem` = warum gerade kein Nachfolger, `create_next` über `orders.create_order`, `end`, `view`, `todo_items`; Kalender und Wahl in `domain/loop.py`) |
+| Prozessbild, Protokoll, Journey, Genealogie | `flow.py`, `record.py`, `journey.py`, `genealogy.py` |
+| Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, Beleg: `voucher.py` (Kern: lesen, Ableitungen, Anlage, Rahmen) → `voucher_head.py` (Belegkopf, Anschrift, Positionen) → `voucher_money.py` (Geld-Zeilen, Erstattung, QR, anstehende Papiere) → `voucher_rules.py` (`REQUIRED_FOR` · `NEEDS` → `gaps`, Eigentum und Anfrage als Grund ↔ Tor) → `voucher_input.py` (was hereinkommt: Zahl, Betrag, Frist, Tag, Text, Partei) → `voucher_offer.py` (Verben bis zur Zusage) · `voucher_billing.py` (Verben ab der Zusage: Rechnung, Geld, Papiere, Storno) → `voucher_actions.py` (`VERBS`, `can`, `assert_allowed`, `apply`) → `voucher_view.py` (`embed_data`) (+ `voucher_docs.py`, `a4.py` (die A4-Vorlage jedes Papiers), `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
+| Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
+| Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
+| Kommunikation | `communication.py` (anlegen, Seiten `page`, «offen» als Abfrage, `move_note`), `mailbox.py` (verbinden, abgleichen, senden) + `mail_parse.py` (eine Gmail-Nachricht lesen: Text, Zitate, Anhänge, Massenpost – rein), `outbox.py` (jede Mail des Hauses: `deliver`, `build`, `firm`, `signer`), `mail_layout.py` (die eine Vorlage, `as_signer`), `portrait.py` (das Bild der Unterschrift als GIF), `inquiry.py`, `newsletter.py`, `login_link.py` (der Anmeldelink im Kleid des Hauses) |
+| Verlauf | `history.py` (ein Verlauf je Nummer: Nachrichten, Dokumente, Änderungen aus dem Log; `HIDDEN`), Wörter der Tabellen in `domain/log.TABLE_WORDS` |
+| Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft) |
+| Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `record_labels.py` (Datensätze benennen: Typ aus der Registry, `objects.TYPES`) |
+| Der Takt | `tick.py` (`TASKS`: Siegel, Website-Statistik aufräumen (`site`), Wiederholungen (`loop`), Mails, Aufgaben zuteilen (`tasks`), Aufnahmen (`voice`), KI – je Aufgabe eigene Sitzung, Advisory-Lock, Zeitgrenze, Ereignis `tick.<name>`), Route `routers/internal.py`, Anmeldung `core/oidc.py` |
+| Der Assistent (Phase 5, `docs/konzept/phase5-bauplan.md`) | `handgriff.py` (Handlungen aus den Routen `operations`, das Lesbare `reads` + `look` (jede lesende Route des Personals, als `ai_tools.reader`, verworfen), `incomplete` (fehlen nur Werte → trotzdem ein Vorschlag), `call` über ASGI mit den Rechten der Person – Probelauf oder Übernehmen genau einmal; der Vorschlag im Log: `prepare` mit Probelauf, `run` = Übernehmen (wartet auf), `changes_of` (alt → neu, wie es jetzt ist), `drop`, `settle`, `open_at`, `open_mail_counts`), `talk.py` (das Gespräch: `say` (auch mit dem Text von Aufnahmen, `recordings`), die KI `answer` mit Werkzeugen lesen · abrufen · nachschlagen · vorbereiten · weglegen – sie führt nie aus; eine Sperre je Gespräch, «Stopp» über `talk.stop`; `stream` live in eigenem Faden, Text Wort für Wort, `catch_up` im Takt; `clean` putzt Steuerzeichen), `ai.py` (die Tür: `converse` mit Werkzeugen, Schritten live `on_step`, Text live `on_text`, `stopped`, Zwischenspeicher `cache_control`, Dauer `ms` je `ai.call`, Deckel in Franken), `ai_tools.py` (Lese-Werkzeuge als gemeinsamer Betrachter, dazu `wissen`; `catalog` = die Handlungen als Text für den Auftrag, aus den Routen), `memory.py` (im Wissen suchen: Notizen, Dokumente, entschiedene Handgriffe, pgvector), `pins.py` («Auf einen Blick»: offene Vorschläge + Wissen, neu gewählt nur bei Änderung im Umfeld; `ahead` bereitet es im Takt vor), `surroundings.py` (das Umfeld aus dem Log, die Marke), `follow.py` (Vorschläge aus einer eingehenden Mail, im Takt), `core/outside.py` (nach aussen erst nach dem Speichern; im Probelauf `NeedsHand`) |
+| Sprache (Phase 4, `docs/konzept/phase4-bauplan.md`) | `recordings.py` (EINE Stelle: `start`, `add_chunk`, `stop`, `advance` – Abschnitte der Reihe nach über `ai.transcribe` → `recording.segment`, dann der ganze Text → `recording.done` (er geht in die Eingabe, die Person schickt ihn), Stücke weg; `due`/`sweep` für den Takt, `dismiss` verwirft eine gescheiterte oder abgeschriebene; `context` = die Stecknadel), `ai.py` (`transcribe`, Gemini über `_vertex` – dieselbe Stelle wie `embed`), Stücke in `recording_chunks` (nicht im Log), Bytes über `attachments.put_object` (eigener Bucket `RECORDINGS_BUCKET`, sonst die Zeile) |
+| Claude über MCP | `mcp.py` (Metadaten, Client/Code/Zugang signiert, `token`, `bearer`, `grants`/`revoke` (offen = `_OPEN`: nicht getrennt, zuletzt benutzt ≤ `REFRESH_TTL`), JSON-RPC `handle` mit den Werkzeugen des «+» als die Person), Route `routers/mcp.py` (am Datensatz: `routers/access.py`), Projektakte `docs/konzept/mcp.md` |
+| Aufgaben | `tasks.py` (EINE Stelle: `collect` – Quellen, Kompetenz folgt dem Ort –, `dispatch` – Arztpraxis-Modell, Anwesenheit, `task_focus` –, `hand`, `view`, `set_competences`), Kompetenzen in `domain/competences.py`, Projektakte `docs/konzept/aufgaben.md` |
+| Website-Statistik | `site_stats.py` (Meldung der Seite `record`, Anfrage/Newsletter `convert`, Tagesschlüssel, `prune` im Takt) · `site_stats_view.py` (die Auswertung, `view`) · `domain/site_sources.py` (woher: die eine Regel, beim Lesen) · Tabellen `site_hits` · `site_salts` (nicht im Log) |
+| Querschnitt | `objects.py` (Nummernkreis), `lookup.py` (Nummer ODER Name), `visitor.py` (öffentliche Türen: Absender, Begrenzung, Land), `attachments.py` (der Korb: Cloud Storage, sonst DB), `passkey.py`, `log.py` (das eine Log: Ereignisse, Prozess, Siegel, Schwärzen) |
+
+## OpenAPI → Frontend-Typen (Single Source of Truth)
+Nach jeder Änderung an einem Request/Response-Schema, am Statuskatalog oder an einem
+Vokabular, das die Oberfläche kennt (Modulschlüssel, Farbfamilie, Erfassungstyp, Richtung,
+Stufe, Vorgabe, Incoterm, Versandart, Kanal-Art, Symbol der Zeiterfassung, Takt …):
+```bash
+cd backend && python -m scripts.dump_openapi     # → backend/openapi.json
+cd backend && python -m scripts.dump_statuses    # → frontend/src/lib/status-catalog.ts
+cd backend && python -m scripts.dump_vocab       # → frontend/src/lib/vocab.ts
+cd ../frontend && npm run generate:types          # → src/types/api.ts
+```
+Die CI generiert alle vier neu und bricht bei jedem Unterschied ab. Ein neuer Schlüssel in
+`vocab.ts` macht das Frontend rot, bis seine Tabellen (Symbol, Farbe, Hover) ihn kennen – das
+ist gewollt (`Record<ModuleKey, …>`). Das Ergebnis hängt an
+der FastAPI-/Pydantic-Version – vorher prüfen:
+```bash
+python -c "import fastapi,pydantic;print(fastapi.__version__, pydantic.VERSION)"
+# muss zu requirements.txt passen (fastapi==0.162.0, pydantic==2.14.1)
+```
+Ein neuer Status ist **eine Zeile in `CATALOG`**; fehlt einem Stück-Zustand `stock`, startet
+die App nicht.
+
+## API-Endpunkte (aus dem Code)
+Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
+registriert in `main.py`. **168 Routen**. Auth: `admin` = `require_admin`,
+`staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
+Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
+
+| Methode | Pfad | Auth | Zweck |
+|---|---|---|---|
+| GET | `/health` | – | Health Check + Stand der Datenbank (`schema`: `current` · `behind`, `revision`, `head`) – der Deploy wird rot, wenn sie nicht auf dem Stand des Codes steht (`scripts/check-schema.sh`) |
+| GET · PATCH | `/api/v1/auth/me` | user | Eigenes Profil lesen / ändern (Selbstbedienung, `people.apply_profile_update`) |
+| POST | `/api/v1/auth/link` | – | **Anmeldelink im Kleid des Hauses** (`services/login_link`): Firebase erzeugt den Link, die Mail geht aus dem Postfach der Gesellschaft zum Land; 5/h je Absender; `sent=false` → die Oberfläche schickt ihn über Firebase |
+| POST | `/api/v1/auth/me/email-check` | user | Ist die neue Anmelde-E-Mail frei? (`people.email_problem`, vor dem Firebase-Bestätigungslink) |
+| POST · PATCH · DELETE | `/api/v1/auth/me/addresses` · `/{address_id}` | user | Eigenes Adressbuch |
+| POST | `/api/v1/auth/passkeys/register/options` · `/register/verify` | user | Passkey registrieren |
+| GET · DELETE | `/api/v1/auth/passkeys` · `/{passkey_id}` | user | Eigene Passkeys verwalten |
+| POST | `/api/v1/auth/passkeys/login/options` · `/login/verify` | – | Anmelden mit Passkey → Firebase Custom Token (Challenges begrenzt je Absender, `services/visitor`) |
+| POST | `/api/v1/contact` | – | Anfrage der Website → Nachricht im ERP (`services/inquiry`); Honigtopf, Mindestzeit, 5/h je IP; 503 mit Ausweg, wenn nicht speicherbar |
+| GET | `/api/v1/public/contact` | – | Telefon, E-Mail, Anschrift der Gesellschaft zum Land des Besuchers |
+| GET | `/api/v1/admin/settings/public` | – | Nur der Google-Maps-Schlüssel – aus der Deploy-Konfiguration (`GOOGLE_MAPS_API_KEY`), nicht aus der Datenbank |
+| GET · POST | `/api/v1/admin/companies` | staff | Firmen lesen / anlegen (eigene nur Admin) |
+| GET · PATCH · DELETE | `/api/v1/admin/companies/{object_id}` | staff | Firma lesen / ändern / schliessen (eigene nur Admin; Betreiber und letzte eigene nicht schliessbar) |
+| POST | `/api/v1/admin/companies/{object_id}/reopen` | staff | Geschlossene Firma wieder öffnen |
+| POST | `/api/v1/admin/companies/{object_id}/operator` | admin | Zum Betreiber der Website machen |
+| GET · PUT | `/api/v1/admin/territories` · `/{area}` | admin | Gebietskarte lesen / ein Gebiet zuweisen |
+| GET | `/api/v1/erp/objects/{object_id}` | staff | Was ist diese Objektnummer? (QR-Scan) |
+| GET · POST | `/api/v1/erp/records` | staff | Benutzer-Feed / Person anlegen (Personal-Rollen nur Admin) |
+| GET · PATCH | `/api/v1/erp/records/{object_id}` | staff | Person lesen / ändern – Kunden jedes Personal, Rollen und Mitarbeitende nur der Admin (`policy`, `may_edit`) |
+| POST · PATCH · DELETE | `/api/v1/erp/records/{object_id}/addresses` · `/{address_id}` | staff | Adressbuch einer Person (dieselbe Regel) |
+| GET · DELETE | `/api/v1/erp/records/{object_id}/passkeys` · `/{passkey_id}` | staff (selbst · Admin) | **Zugang**: Passkeys einer Person sehen / entfernen – dieselben Dienste wie das Konto (`routers/access`, `policy` «person.access»; kein Handgriff) |
+| GET · POST | `/api/v1/erp/records/{object_id}/mcp` · `/{grant_id}/revoke` | staff (selbst · Admin) | **Zugang**: offene Verbindungen einer Person mit Claude / trennen (`mcp.grants` · `revoke`) |
+| GET | `/api/v1/erp/people` | staff | **Personensuche** (`people.search`: Nummer, Firma, Name, E-Mail; `staff=true` nur Personal) |
+| GET | `/api/v1/erp/companies` | staff | Firmen-Vorschläge (Nummer, Name, UID) |
+| GET · POST | `/api/v1/erp/articles` | staff | Artikel-Feed / anlegen = freigeben (`replaces_object_id` löst einen Vorgänger ab) |
+| GET | `/api/v1/erp/articles/name-suggestions` | staff | Ähnliche Namen, lexikalisch, ohne KI |
+| POST | `/api/v1/erp/articles/validate` | staff | Entwurf prüfen, ohne ihn anzulegen |
+| GET | `/api/v1/erp/articles/{object_id}` | staff | Artikel lesen (es gibt kein Ändern) |
+| GET | `/api/v1/erp/articles/{object_id}/stock` | staff | Bestand in drei Ebenen, seitenweise |
+| GET | `/api/v1/erp/articles/{object_id}/process` | staff | Eingefrorener Erzeugungsprozess (nur lesen) |
+| GET | `/api/v1/erp/instances` · `/{object_id}` | staff | Instanz-Feed / eine Instanz |
+| GET | `/api/v1/erp/instances/{object_id}/units` | staff | Nummern der Einzelinstanzen, seitenweise |
+| GET | `/api/v1/erp/instances/{object_id}/units/{suffix}/genealogy` | staff | Woraus besteht das Stück, worin steckt es (Ableitung aus dem Log) |
+| GET | `/api/v1/erp/places` · `/{object_id}` | staff | Halter suchen / Kann diese Nummer etwas halten? (404 ist eine Antwort) |
+| GET · POST | `/api/v1/erp/orders` | user · staff | Auftrag-Feed (Partner: nur die eigenen) / Auftrag erteilen = freigeben (staff) |
+| GET | `/api/v1/erp/orders/article-options` · `/unit-options` · `/module-catalog` | staff | Auswahl für den Entwurf (FIFO-Vorauswahl vom Server, `preselect=N`) |
+| POST | `/api/v1/erp/orders/validate` | staff | Entwurf prüfen inkl. Vorschau des Prozessbildes |
+| GET | `/api/v1/erp/orders/{object_id}` | user | Auftrag lesen; ein Partner sieht nur sein Modul, ein Unbeteiligter 404 |
+| GET | `/api/v1/erp/orders/{object_id}/units?edge=` | staff | Stücke einer Kante des Prozessbildes |
+| POST | `/api/v1/erp/orders/{object_id}/date` | staff | **Das Datum** setzen oder verschieben – «bis» oder «ab», `null` = keins; nur im Prozess, nie in die Vergangenheit (`orders.set_date`, `domain/order_date`) |
+| POST | `/api/v1/erp/orders/{object_id}/loop/end` | staff | **Wiederholung beenden** – nur am neuesten Auftrag der Kette, auch wenn er abgeschlossen ist (`loop.end` → `loop.ended`; sonst 409) |
+| POST | `/api/v1/erp/orders/{object_id}/steps/{step_id}/confirm` | staff | **Ein Modul bestätigen** – für EINE Instanz (`instance_object_id`, `verification`) |
+| GET | `…/steps/{step_id}/hold?instance=&group=` | staff | Nummern einer Gruppe (`sample` · `failed` · `rest`), erst auf Klick |
+| GET | `…/steps/{step_id}/record` | staff | Modul-Protokoll, seitenweise |
+| POST | `…/steps/{step_id}/voucher` | user | **Eine Handlung am Beleg** (`voucher.VERBS`, `can` ist das Tor) |
+| POST | `…/steps/{step_id}/voucher/payment` | user | Zahlungsabsicht für die Bezahlkarte vorbereiten |
+| POST | `…/steps/{step_id}/voucher/refund` | staff | Kartenzahlung über den Dienst erstatten |
+| GET | `…/steps/{step_id}/voucher/transfer` | user | Überweisungsangaben + Swiss QR-Rechnung |
+| GET | `…/steps/{step_id}/voucher/correctable` | staff | Welche Rechnung mindert dieser Beleg? (Suche, auch über Auftragsgrenzen) |
+| POST | `/api/v1/erp/attachments` | staff | Ein Bild, das kein Dokument ist (die gezeichnete Unterschrift, `attachments.store_image`) – jede andere Datei wird ein Dokument |
+| GET | `/api/v1/erp/documents?q=` | staff | **Dokument-Feed** und Suche (Nummer, Art, Name, Volltext – ohne KI; `access.visible`) |
+| POST | `/api/v1/erp/documents` | staff | **Freigeben** (multipart: Datei oder gescannte Seiten → PDF, Art, Name, Referenzen, Pflichtfeld `target`, Unterzeichner) – die einzige Anlage (`documents.file`) |
+| POST | `/api/v1/erp/documents/read` | staff | Den Entwurf lesen lassen (KI): Vorschlag für Art, Name, Referenz, Werte – nichts gespeichert (`reading.propose`) |
+| POST | `/api/v1/erp/documents/compose` | staff | Eine Runde Verfassen (KI) – Papier als A4-HTML, nichts gespeichert (`composing`) |
+| GET | `/api/v1/erp/documents/targets` · `/of/{object_id}` · `/requirements` | staff | Datensätze zum Referenzieren · die Kacheln eines Datensatzes (mit Pflichtfeldern) · worauf Module warten |
+| GET | `/api/v1/erp/documents/{object_id}` | staff | Ein Dokument (404, wenn man die Referenz nicht sehen darf) |
+| POST · DELETE | `/api/v1/erp/documents/{object_id}/refs` · `/refs/{ref_id}` | staff | Referenz setzen / entfernen (ein Pflichtfeld nie) |
+| POST | `/api/v1/erp/documents/{object_id}/field` · `/read` · `/delete` · `/send` | staff | In ein Pflichtfeld (`fields.apply`) · Lesen nachholen · löschen mit Grund (nur, was nirgends hängt) · **senden** (Link je Empfänger, optional Unterschrift, `signing`) |
+| POST | `/api/v1/erp/documents/template` | admin (im Dienst) | AGB/Datenschutz einer eigenen Gesellschaft «aus Vorlage» |
+| GET | `/api/v1/public/document/{token}` | – (Token) | **Seite eines Dokuments**: Papier mit Unterschriften, wer unterschreibt, Handlungen; gelöscht → 410 |
+| POST | `/api/v1/public/document/{token}/sign` · `/decline` | – (Token) | Unterschreiben (PNG) / ablehnen mit Grund – endgültig |
+| POST | `/api/v1/public/document/{token}/agree` · `/reject` · `/payment` | – (Token) | Ist es ein Papier eines Belegs (`deal`: Stationen, Hinweis überholt/abgelaufen/storniert, Handlungen aus `can` der Partei): Offerte annehmen / ablehnen / Kartenzahlung vorbereiten (`voucher_docs.public_act`); sonst 409 |
+| GET | `/api/v1/attachments/{token}/preview` | – | Vorschaubild der ersten Seite (PDF, Bild), abgeleitet |
+| GET | `/api/v1/erp/messages/{id}/attachments/{index}` | staff | Ein Anhang für den Entwurf – aus Gmail geholt bzw. aus dem Korb (`mailbox.attachment`) |
+| POST | `…/steps/{step_id}/voucher/preview` | staff | **Vorschau → Freigeben**: die Papiere, die diese Handlung hinausgäbe (zurückgerollter Lauf, `voucher_docs.preview`) |
+| GET | `/api/v1/public/legal/{kind}?country=` | – | AGB (der Gesellschaft zum Land des Besuchers) · Datenschutz · Impressum (des Betreibers) als A4-Dokument oder als Link auf die Datei (`legal.for_visitor`) |
+| GET | `/api/v1/erp/payments?person=\|company=` | staff | **Zahlungen** einer Person oder eigenen Gesellschaft (Ableitung, `services/payment_list`) |
+| GET | `/api/v1/attachments/{token}` | – | Bild ausliefern (unerratbarer Token) |
+| POST | `/api/v1/payments/webhook` | – (Signatur) | Rückmeldung des Zahlungsdienstes – bucht eine Geld-Zeile am Beleg, sonst nichts |
+| GET | `/api/v1/erp/history/{object_id}?before=&limit=` | staff | **Der Verlauf eines Datensatzes** – eine Seite (30), die neuesten zuerst: Nachrichten, Dokumente, Änderungen je Handlung (`services/history`); Dokumente nach `access`, Zeiterfassung nur selbst/Admin |
+| POST | `/api/v1/erp/messages` | staff | Nachricht anlegen (jede Art dieselbe Form) |
+| GET | `/api/v1/erp/messages/channels` | staff | Kanäle, aus denen man schreiben kann |
+| GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |
+| POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
+| POST | `/api/v1/erp/messages/{message_id}/resend` | staff | **Neu senden** – eine Mail, die nicht hinausging (`communication.failed`), wieder zum Versand geben |
+| POST | `/api/v1/mail/push` | – (Google-Token wie der Takt) | **Gmail meldet** über Pub/Sub: in diesem Postfach ist etwas Neues – es wird abgeholt (`mailbox.push`) |
+| POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) – solange das ERP offen ist; ohne Browser tut es der Takt |
+| POST | `/api/v1/internal/tick` | – (Google-Token, `core/oidc`) | **Der Takt** (Cloud Scheduler, alle 5 Min.): jede Aufgabe aus `tick.TASKS` (Siegel des Logs, Mails holen und senden, Aufnahmen aufräumen und zu Ende abschreiben, KI: Gespräche nachholen, Handgriffe aus Mails, Bedeutungs-Zahlen); je `ok` · `skipped` · `failed`, 500 wenn eine scheitert; ohne `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` 503 |
+| GET | `/api/v1/mail/callback` | – (signierter `state`) | Rückkehr von Google → `/erp?mail=…` |
+| POST | `/api/v1/public/page` | – | **Eine Seite der Website meldet sich** (Ansicht, Lesezeit, Klick, Formular, Ladezeit; Text-JSON ≤ 2 KB, `services/site_stats`) – ohne Cookie, die IP wird nicht gespeichert; immer 204 |
+| GET | `/api/v1/erp/site-stats?days=` | staff | **Website-Statistik** (7 · 30 · 90 · 365 Tage): Kennzahlen mit Vorzeitraum, Verlauf, Quellen, Seiten, Länder, Gerät, Sprache, Formular, Ladezeit, Anfragen (`site_stats_view.view`) |
+| POST | `/api/v1/newsletter` | – | Anmeldung von der Website (E-Mail → Bitte um Bestätigung, legt keine Person an); Honigtopf, 5/h je IP |
+| GET · POST | `/api/v1/newsletter/confirm?t=` | – (signierter Link) | GET zeigt einen Knopf, POST bestätigt → angemeldet (Quelle aus dem Link; ohne Person entsteht sie jetzt) → `/newsletter/bestaetigt` |
+| GET · POST | `/api/v1/newsletter/unsubscribe?t=` | – (signierter Link) | GET zeigt einen Knopf, POST meldet ab; One-Click (RFC 8058) direkt |
+| GET · PUT | `/api/v1/auth/me/newsletter` | user | Mein Newsletter (Konto) – direkt an/ab, die Adresse ist bestätigt |
+| GET | `/api/v1/erp/newsletter/{object_id}` | staff | Zustand und Nachweis einer Person |
+| POST | `/api/v1/erp/newsletter/{object_id}/invite` · `/unsubscribe` | staff | Bitte um Bestätigung schicken / abmelden (anmelden kann das ERP niemanden) |
+| POST | `/api/v1/erp/assistant/talks` | staff | **Dem Assistenten etwas sagen – live** (`{text, talk?, hint_object_id?, files?, recordings?}`; ohne Text mit `talk`: antworten auf das, was dasteht; `recordings` = die Aufnahmen, deren Text darin steht – erst damit gelten sie als gesendet): die Nachricht ist gespeichert, dann ein NDJSON-Stream – `{talk}` sofort, `{step}` je Schritt der KI, `{text}` ihre Antwort Wort für Wort, am Ende `{talk}` mit Antwort und Vorschlägen. Läuft direkt am Dienst (`BACKEND_URL`), begrenzt durch Schritte, Deckel und «Stopp»; die KI arbeitet in eigener Sitzung zu Ende, auch wenn die Leitung abreisst (`talk.stream`) |
+| POST | `/api/v1/erp/assistant/talks/{id}/stop` | staff (selbst · Admin) | **Stopp** – die KI hält vor ihrem nächsten Schritt an (`talk.stop`, Antwort «Angehalten.») |
+| GET | `/api/v1/erp/assistant/door` | staff | Die direkte Adresse des Dienstes für das Gespräch live (`BACKEND_URL`; leer = dieselbe) |
+| GET | `/api/v1/erp/assistant/talks/open` · `/talks/{id}` | staff (selbst · Admin) | Meine offenen Gespräche (die Zahl am «+») · ein Gespräch |
+| POST | `/api/v1/erp/assistant/files` | staff | Eine Datei ins Gespräch (multipart) – in den Korb (`attachments.store_raw`) |
+| GET | `/api/v1/erp/assistant/handgriffe/{id}` | staff (Gespräch: selbst · Admin) | Ein Vorschlag (offen: mit `changes` alt → neu) |
+| POST | `/api/v1/erp/assistant/handgriffe/{id}/run` | staff (Gespräch: selbst · Admin) | **Übernehmen** (am Datensatz) – genau einmal, mit meinen Rechten, durch die echte Route; 409 wartet auf · schon übernommen · nur von Hand; fehlen Werte, der Satz der Route |
+| POST | `/api/v1/erp/assistant/handgriffe/{id}/drop` · `/done` | staff (Gespräch: selbst · Admin) | **Weg** · von Hand erledigt (Entwurf freigegeben, `result`) |
+| GET · POST | `/api/v1/erp/assistant/pins/{object_id}` · `/refresh` | staff | **Auf einen Blick**: offene Vorschläge + Wissen, `stale` und `mark` (Umfeld) · das Wissen neu wählen (nur bei Änderung im Umfeld, sonst kein Aufruf) |
+| GET | `/.well-known/oauth-protected-resource` · `/oauth-authorization-server` · `/openid-configuration` | – | **MCP**: wo und wie man sich anmeldet (RFC 9728 · 8414) |
+| POST | `/api/v1/mcp/oauth/register` · GET `/authorize` · POST `/token` | – (PKCE, signiert) | OAuth 2.1 für jeden Claude-Client: anmelden (ohne Speichern) · weiter zu `/erp/verbinden` · Code oder Erneuerung gegen Zugang (`mcp.grant`) |
+| GET · POST | `/api/v1/mcp/oauth/request?r=` · `/approve` | staff | Die Seite «Claude verbinden»: wer will · erlauben/ablehnen → Adresse zurück zum Client |
+| POST | `/api/v1/mcp` | – (Zugang aus MCP) | **Das Protokoll** (JSON-RPC: `initialize` · `ping` · `tools/list` · `tools/call`) als die Person; ohne Zugang 401 mit `resource_metadata`; GET 405 |
+| GET · POST | `/api/v1/auth/me/mcp` · `/{grant_id}/revoke` | staff | Meine offenen Verbindungen mit Claude (nicht getrennt, zuletzt benutzt ≤ 30 Tage, `mcp._OPEN`) · trennen (`mcp.revoked`) |
+| POST | `/api/v1/erp/recordings` | staff | **Aufnahme beginnen** (`{hint_object_id?, mime, context?}`; `context` = die Stecknadel, steht vor dem Text) → `recording.start`; `Recording` (`services/recordings`) |
+| POST | `/api/v1/erp/recordings/{id}/chunks` | staff (nur wer aufnimmt) | **Ein Stück** (multipart `segment`, `seq`, `file`; ≤ 4 MB; dasselbe Stück ersetzt es; nach Ende 409) |
+| POST | `/api/v1/erp/recordings/{id}/stop` | staff (nur wer aufnimmt) | **Stopp** (`{segments}`) → `recording.stop` |
+| POST | `/api/v1/erp/recordings/{id}/advance` | staff (selbst · Admin) | **Weiter abschreiben**, so weit die Zeit reicht (`ai.until(50)`): Abschnitte → Text → `done`; `problem` sagt, warum nicht |
+| GET | `/api/v1/erp/recordings/open` | staff | Meine Aufnahmen, deren Text noch nicht gesendet ist (mit `/assistant/talks/open` die Zahl am «+») |
+| POST | `/api/v1/erp/recordings/{id}/dismiss` | staff (selbst · Admin) | **Verwerfen** einer gescheiterten oder abgeschriebenen Aufnahme → `recording.dismissed`, weg aus dem «+» |
+| GET | `/api/v1/erp/tasks` | staff | **Aufgaben**: meine eine und die roten Zeichen, die ich sehe (eigene · Admin alle · «!» verwaist); teilt vorher zu (`services/tasks.view`) |
+| POST | `/api/v1/erp/tasks/{key}/hand` | staff | Meine Aufgabe **abgeben** – ohne Grund (`tasks.hand`) |
+| GET | `/api/v1/erp/time/{object_id}?month=` | staff (selbst · Admin) | **Zeiterfassung** einer Person: Konto, Ferien, Verträge, Buchungen, ein Monat (`services/time_view`) |
+| POST | `/api/v1/erp/time/{object_id}/swipe` | staff (selbst · Admin) | Kommen ↔ Gehen, Serverzeit, ein Schlüssel je Wisch (idempotent, 60-s-Sperre) |
+| POST | `/api/v1/erp/time/{object_id}/entries` · `/entries/preview` | staff (selbst · Admin) | **Ein Eintrag** (Stempel nachtragen/korrigieren, Absenz, Nachweis, Buchung = Admin, Rücknahme) / dieselbe Regel als Vorschau, ohne zu schreiben (`timekeeping.record` · `preview`) |
+| POST | `/api/v1/erp/time/{object_id}/contracts` | admin (im Dienst) | Neuer Vertrag ab Stichtag; 0 h = Austritt |
+| GET · PUT | `/api/v1/erp/time/companies/{object_id}` · `/rules` | staff · admin | Feiertage, Nachweis-Regeln, Regeln des Landes einer eigenen Gesellschaft / Kanton und Nachweis setzen |
+| GET | `/api/v1/erp/time/companies/{object_id}/proposal?year=` | admin | Vorschlag der Feiertage (OpenHolidays) – geholt, nicht gespeichert |
+| POST · DELETE | `/api/v1/erp/time/companies/{object_id}/holidays` · `/{holiday_id}` | admin | Feiertage übernehmen / einen entfernen (Soft-Delete) |
+
+## Befehle statt Feld-Updates
+- **Ein Auftrag entsteht als GANZES** (ein `POST`); es gibt kein `PATCH /orders/{id}`.
+- **Bewegt wird er über zwei Befehle**: `confirm` (ein Modul bestätigen) und `voucher` (eine
+  Handlung am Beleg); dazu `date` (das eine Datum verschieben) und `loop/end`. Alle sind POST; ein Wächter verbietet `PATCH` und `DELETE` im
+  Auftrags-Router (`test_pieces_and_log.test_orders_and_instances_have_no_path_to_change_or_delete`),
+  damit jede Zustandsänderung durch die Stelle geht, die den Log schreibt.
+- **Der Beleg** (`services/voucher.py`): jedes Verb steht EINMAL in `VERBS` – Stufen
+  (`offer` · `agreed` · `billed`), nötige Stammdaten (`needs` → `DataGap`), wer darf
+  (`party`: `ALWAYS` · `IF_WE_PRICE` · `IF_THEY_PRICE`) und die Funktion. `can` liest
+  dieselbe Tabelle für die Knöpfe und `assert_allowed` weist an ihr ab (fehlende Angabe →
+  400 mit Feldname, falsche Stufe → 409). `pay_online`/`refund_online` ändern den Beleg
+  nicht – gebucht wird nur vom Webhook (`record_payment`). Nach jeder Handlung (`_after`)
+  entsteht, was dazugehört (Quittung), und die Stücke ziehen weiter
+  (`process.carry_on` → `advance_payments` → `confirm_step(auto=True)`; nur `carry_on` fragt, was von selbst weiterzieht – Wächter `test_carry_on`). Ein Dokument entsteht nur über
+  `voucher_docs.issue` (ein Dokument im Feld `voucher.doc` mit Link je Partei, Mail im Postfach der
+  Gesellschaft, gesendet nach dem Commit über `send_pending`).
+- **Ein Lesepfad, der schreibt, behält**: die Positionen werden beim Anzeigen aus dem
+  Prozess nachgezogen (`voucher.sync_lines`); committet wird an der Transaktionsgrenze
+  (`routers/orders._steps`), nicht im Dienst.
+
+## Unternehmen (`services/sites.py`)
+`company_settings` trägt **mehrere** Firmen: eigene Gesellschaften (`is_own`) mit voller
+Rechtsidentität und fremde (nur `EXTERNAL_FIELDS`: Name, Rechtsform, UID). Genau eine eigene
+ist **Betreiber** (`is_operator`, partieller Unique-Index; ohne Markierung tolerant die
+älteste). Die EINE Auflösung: `find_operator()` (rein lesend), `by_object_id()`,
+`require_own()`, `company_for_country()`, `resolve()` (erkennen über `uid_key`/`name_key`
+oder anlegen), `legal_name()` (Name + Rechtsform, ohne «AG AG»). **Nie**
+`CompanySettings.id == 1` oder ein blosses `.first()` (`tests/test_sites.py`).
+`ENTITY_FIELDS` (je Gesellschaft); eine Plattform-Konfiguration in der Datenbank gibt es nicht
+(der Maps-Schlüssel kommt aus dem Deploy). Die
+Kontakt-E-Mail einer eigenen Gesellschaft schreibt allein das Postfach (`mailbox._contact`).
 
 ## Konventionen
-- Soft-Delete überall: is_active=false, KEIN hard delete
-- UTC Timestamps überall
-- Pydantic v2: `model_validate()`, `model_dump()`, `ConfigDict(from_attributes=True)`
-- SQLAlchemy 2.0: `Mapped[T]`, `mapped_column()`
-- Fehler: `raise HTTPException(status_code=..., detail="...")`
-- Audit-Log bei jedem Update schreiben
+- Soft-Delete (`is_active=false`), kein hard delete – die Spalte nur, wo gelöscht wird
+  (`models/base.SoftDeleteMixin`); `TimestampMixin` trägt nur `created_at`/`updated_at`.
+  `is_active` (Soft-Delete) und `status` (fachlich) sind zwei Achsen.
+- **Jede Sperre an einer Stelle** (`core/locks`: die Räume `TICK` · `RECORDING` · `HANDGRIFF` · `TALK`, die Schlüssel `STARTUP` · `SEAL` · `TASKS`; `xact` bis zum Ende der Transaktion, `hold`/`let_go` über Commits hinweg auf eigener Verbindung – Takt und Aufnahmen; Wächter `test_locks`).
+- UTC-Timestamps; Pydantic v2 (`model_validate`, `model_dump`,
+  `ConfigDict(from_attributes=True)`); SQLAlchemy 2.1 (`Mapped[T]`, `mapped_column`).
+- **Fehler**: `raise NotFound("…")`, `Invalid(…)`, `Conflict(…)` … aus `domain/errors` (eigener
+  Code: `Conflict("…", code="pick_stale")`); EIN Übersetzer `main.rejected_handler` →
+  `{detail, code, field?}`; eine 422 (Schema) trägt `field` und `fields` (je Feld der Satz).
+  Kein `HTTPException` ausserhalb von `main.py` (`tests/test_errors.py`).
+- **Jedes Feld einer Handlung erklärt sich** (`Field(description=…)`, Grenzen als `max_length`,
+  `pattern`, `json_schema_extra`; Listen aus der Fachschicht erzeugt) – die KI liest genau das
+  (`handgriff.operations` → `handlung`). Nie still kürzen oder umdeuten: abweisen mit Satz
+  (`tests/test_felder_erklaert.py`).
+- **Betriebsmeldungen** nur über `core/report` (`info` · `warn` · `error`, eine JSON-Zeile mit Stufe; kein
+  `print` daneben, Wächter `tests/test_report.py`); ERROR per Mail: einmal `infra/setup-meldungen.sh`.
+- **Rechte**: die Türen der Routen `require_employee` · `require_admin` lesen die Regeln `erp` · `admin`; `policy.require(actor, "time.contract")` (Tor) · `policy.may(…)` (Auskunft) –
+  die Regeln in `domain/policy.RULES`; `policy.is_staff` · `is_admin` · `inside` (System oder
+  Personal). Kein Rollenvergleich daneben (`tests/test_policy.py`).
+- **Gespeichert wird am Ende der Anfrage** (`core/database.get_db` über `DB` =
+  `Depends(get_db, scope="function")`: ohne Fehler `commit`, sonst `rollback`, vor der Antwort).
+  Kein Router und kein Dienst einer Anfrage ruft `commit` – `flush` genügt für eine Nummer;
+  Hintergrundarbeit (Takt, Abgleich, Abschreiben) hat eigene Sitzungen und speichert je Einheit.
+  Was nach aussen geht, meldet sich bei `core/outside.after` (läuft nach dem Speichern) bzw. ruft
+  `outside.now` (im Probelauf eines Handgriffs `NeedsHand`). Jede Route beschreibt sich im
+  Docstring in einem Satz – daraus kennt die KI die Handlungen (Wächter `test_handgriff`).
+- **Das Log schreibt die Datenbank** (`domain/log`, `docs/konzept/lernende-firma.md` §1): kein
+  Dienst protokolliert Zeilen-Änderungen selbst. Ein Dienst schreibt nur **Ereignisse**, die
+  keine Zeile ändern (`services/log.event`). **Jede Route mit Datenbank setzt einen
+  Handelnden** – `get_current_user` (die Person) oder `dependencies=[public("web" | "link" |
+  "webhook" | "login" | "probe")]` oder, beim Takt, `core/oidc.require_tick` (das System, `job`); eine eigene Sitzung (Start, Job, Skript) bekommt ihn über
+  `core/actor.system_session` bzw. `act`. Ohne Handelnden scheitert jedes Schreiben
+  (`tests/test_log.py` prüft jede Route).
+- **Pydantic verwirft unbekannte Felder still** – ein neues Feld gehört in Request-Schema
+  **und** Dienst; ein Feld, das die Oberfläche nicht anbietet, verwirft der Dienst
+  ausdrücklich.
+- Personal-Prüfung nur über `domain/policy` (`STAFF_ROLES` auch in `require_employee`).
 
 ## Env-Variablen
-Siehe /.env.example für vollständige Liste.
-Pflicht lokal: DATABASE_URL, FIREBASE_PROJECT_ID
+`/.env.example` nennt **nur, was der Code auch liest**. Pflicht lokal: `DATABASE_URL`,
+`FIREBASE_PROJECT_ID`. Optional: `INITIAL_ADMIN_EMAIL`, `GOOGLE_CLIENT_ID`/`_SECRET`
+(Gmail), Stripe-Schlüssel (`docs/stripe-setup.md`), `ANTHROPIC_API_KEY` und `AI_DAILY_CAP_CHF` (Deckel in Franken), `VERTEX_PROJECT`/`VERTEX_REGION` (Bedeutungs-Zahlen und Abschreiben von Aufnahmen, setzt der Deploy; einmal `infra/setup-vertex.sh`, für Aufnahmen dazu `infra/setup-sprache.sh`), `VERTEX_GEMINI_REGION` (wo Gemini abschreibt; leer = `VERTEX_REGION`), `RECORDINGS_BUCKET` (eigener Bucket der Aufnahmen ohne Soft Delete, setzt der Deploy; leer = Stücke in der DB, nie im Datei-Bucket)
+(KI, `docs/dokumente.md`), `GOOGLE_MAPS_API_KEY` (Adress-Suche, `infra/README.md`), `FILES_BUCKET` (Datei-Ablage, setzt der Deploy; leer = in der DB), `LINK_SECRET` (signierte Links, `core/signed`; leer = abgeleitet aus `DATABASE_URL`, Warnung im Log), `GMAIL_TOPIC` (Gmail meldet neue Mails über Pub/Sub, setzt der Deploy; einmal `infra/setup-gmail-push.sh`; leer = der Takt holt ab), `TICK_AUDIENCE`/`TICK_SERVICE_ACCOUNT` (der Takt, setzt der Deploy; leer = kein Takt, 503), `BACKEND_URL` (die direkte Adresse des Dienstes für das Gespräch live, setzt der Deploy; leer = über dieselbe Adresse). Secrets nie im Repo.
+
+## Tote Stellen finden
+```bash
+cd backend && python -m scripts.deadcode              # beide Seiten
+cd backend && python -m scripts.deadcode --backend    # nur das Backend
+```
+Jede Fundstelle ist ein **Hinweis**, kein Urteil: ein Endpunkt wird über den Router
+aufgerufen, ein Wächter über den Test.

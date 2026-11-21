@@ -1,0 +1,14 @@
+---
+/** /newsletter/abgemeldet – Ziel nach einem Schritt des Newsletters (der Server leitet mit 303 hierher); v4 wie /newsletter. */
+import Base from '../../layouts/Base.astro';
+import NewsletterStage from '../../components/NewsletterStage.astro';
+import Icon from '../../components/Icon.astro';
+import { newsletterPages as n } from '../../content/newsletter';
+import { t } from '../../i18n/t.mjs';
+const p = n.unsubscribed;
+---
+<Base title={p.title} description={n.description} crumbs={[{ name: t('seiten', 'Newsletter'), path: '/newsletter' }, { name: p.title, path: '/newsletter/abgemeldet' }]} noindex>
+  <NewsletterStage word={n.signup.eyebrow} eyebrow={n.signup.eyebrow} title={p.title} lead={p.lead}>
+    <a class="btn btn--quiet btn--lg" href="/newsletter">{n.unsubscribed.again} <Icon name="arrow-right" size={18} /></a>
+  </NewsletterStage>
+</Base>

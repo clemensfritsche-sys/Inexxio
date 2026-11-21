@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 340" role="img" aria-label="Schema: eine Rechnung, deren Hälfte zurückgeht">
+  <ellipse cx="262" cy="300" rx="170" ry="10" fill="#0A0A0B" opacity=".06"/>
+  <g>
+    <path d="M118 52h142v236H130a12 12 0 0 1-12-12z" fill="#FFFFFF" stroke="#DDDEE2"/>
+    <text x="132" y="86" font-family="Inter, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#0A0A0B">Rechnung</text>
+    <rect x="132" y="118" width="96" height="8" rx="4" fill="#D0D2D6"/><rect x="132" y="140" width="110" height="8" rx="4" fill="#D0D2D6"/><rect x="132" y="162" width="80" height="8" rx="4" fill="#D0D2D6"/><rect x="132" y="184" width="104" height="8" rx="4" fill="#D0D2D6"/>
+    <rect x="132" y="236" width="118" height="1" fill="#DDDEE2"/>
+    <text x="132" y="262" font-family="Inter, Helvetica, Arial, sans-serif" font-size="12" fill="#7A7A7F">Total</text>
+  </g>
+  <line x1="262" y1="40" x2="262" y2="300" stroke="#A3A5AA" stroke-width="1.5" stroke-dasharray="4 6"/>
+  <g class="gv-half">
+    <path d="M264 52h130a12 12 0 0 1 12 12v212a12 12 0 0 1-12 12H264z" fill="#E51A14"/>
+    <rect x="276" y="118" width="70" height="8" rx="4" fill="#FFFFFF" opacity=".35"/><rect x="276" y="140" width="50" height="8" rx="4" fill="#FFFFFF" opacity=".35"/><rect x="276" y="162" width="84" height="8" rx="4" fill="#FFFFFF" opacity=".35"/><rect x="276" y="184" width="60" height="8" rx="4" fill="#FFFFFF" opacity=".35"/>
+    <text x="335" y="246" text-anchor="middle" font-family="Inter, Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#FFFFFF" letter-spacing="-1">50 %</text>
+    <text x="335" y="270" text-anchor="middle" font-family="Inter, Helvetica, Arial, sans-serif" font-size="12" fill="#FFFFFF" opacity=".9">übernehmen wir</text>
+  </g>
+</svg>

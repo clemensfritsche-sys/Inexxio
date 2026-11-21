@@ -1,0 +1,86 @@
+---
+/**
+ * Drei Felder, ein Prinzip (v4, Muster Porsche-Modellvergleich): eine graue Karte, das Bild steht
+ * auf ihrer Oberkante; darin nur Titel, ein Satz und der runde Pfeil – die ganze
+ * Karte ist der Link (zur Seite, sonst zur Anfrage). Beim Zeigen hebt sich die Zeichnung. Statt der
+ * Zeichnung steht ihr Bild, wo es eines gibt (lib/illustrations `picture`).
+ * Schmal: ein Karussell zum Wischen, es beginnt in der Mitte (scripts/carousel.ts, data-start).
+ * Gebraucht auf Speziallösungen (drei Felder) und Fahrzeugtechnik (drei Angebote).
+ */
+import Icon from '../Icon.astro';
+import Rich from '../Rich.astro';
+import { picture } from '../../lib/illustrations';
+
+interface Field {
+  id: string;
+  /** Schlüssel der Zeichnung in src/assets/illustrations (z. B. «spezial-krane»). */
+  illo: string;
+  alt: string;
+  title: string;
+  text: string;
+  /** Wohin die Karte führt; ohne Seite zur Anfrage. */
+  href?: string;
+}
+interface Props {
+  title: string;
+  lead: string;
+  items: Field[];
+  /** Ziel der Karten ohne eigene Seite. */
+  fallback?: string;
+  id?: string;
+}
+const { title, lead, items, fallback = '#anfrage', id = 'felder' } = Astro.props;
+const srcs = await Promise.all(items.map((f) => picture(f.illo, 'Karten')));
+---
+<section class="v4-section" id={id} aria-labelledby={`${id}-title`}>
+  <div class="wrap">
+    <header>
+      <h2 class="v4-h2" id={`${id}-title`}>{title}</h2>
+      <Rich as="p" class="v4-sub" text={lead} />
+    </header>
+  </div>
+  <div class="wrap fc-wrap" data-carousel>
+    <ul role="list" class="fc" data-rail>
+      {items.map((f, i) => (
+        <li class="fc__item" id={f.id} data-item>
+          <a class="fc__card" href={f.href ?? fallback}>
+            <span class:list={['fc__art', f.illo.startsWith('foto/') && 'fc__art--photo']}><img src={srcs[i]} alt={f.alt} width="1000" height="560" loading="lazy" decoding="async" /></span>
+            <span class="fc__title">{f.title}</span>
+            <Rich as="span" class="fc__text" text={f.text} />
+            <span class="garrow garrow--sm garrow--ink fc__arrow" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<script>
+  import { initCarousels } from '../../scripts/carousel';
+  initCarousels();
+</script>
+
+<style>
+  /* Das Bild steht AUF der Karte (November 2026): unten bündig an der Oberkante, alle gleich hoch, nur
+     18 px Überlappung, ein weicher Schatten als Boden; beim Zeigen hebt es sich (die ganze Karte ist der Link). */
+  .fc { --art-h: 210px; list-style: none; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: calc(var(--art-h) + 8px); }
+  .fc__item { scroll-margin-top: calc(var(--header-h) + var(--art-h)); }
+  .fc__card { position: relative; display: flex; flex-direction: column; height: 100%; padding: 40px 32px 32px; border-radius: var(--r-xl); background: var(--gray-100); color: var(--ink); text-decoration: none; }
+  .fc__art { position: absolute; left: 6%; right: 6%; bottom: calc(100% - 18px); height: var(--art-h); display: flex; align-items: flex-end; justify-content: center; pointer-events: none; transition: transform 0.6s var(--ease); }
+  .fc__art::after { content: ''; position: absolute; left: 18%; right: 18%; bottom: -6px; height: 18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(10, 10, 11, 0.16), rgba(10, 10, 11, 0)); z-index: -1; transition: opacity 0.6s var(--ease), transform 0.6s var(--ease); }
+  .fc__card:hover .fc__art { transform: translateY(-10px); }
+  .fc__card:hover .fc__art::after { opacity: 0.6; transform: translateY(10px) scaleX(0.85); }
+  .fc__art img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+  .fc__art--photo img { border-radius: var(--r-xl); box-shadow: 0 14px 24px -12px rgba(10, 10, 11, 0.35); }
+  .fc__title { font-family: var(--font-display); font-weight: 600; font-size: 1.875rem; line-height: 1.15; letter-spacing: -0.02em; }
+  .fc__card :global(.fc__text) { margin-top: 10px; padding-right: 56px; font-size: 1rem; line-height: 1.5; color: var(--ink-3); }
+  .fc__arrow { position: absolute; right: 24px; bottom: 24px; }
+  @media (max-width: 959px) {
+    .fc-wrap { padding-inline: 0; }
+    .fc { --art-h: 180px; display: flex; gap: 12px; margin-top: 0; padding: calc(var(--art-h) + 8px) var(--gutter) 8px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); overscroll-behavior-x: contain; scrollbar-width: none; }
+    .fc::-webkit-scrollbar { display: none; }
+    .fc__item { flex: 0 0 78%; scroll-snap-align: center; }
+    .fc__card { padding: 32px 22px 22px; }
+    .fc__title { font-size: 1.625rem; }
+  }
+</style>

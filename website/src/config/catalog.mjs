@@ -1,0 +1,63 @@
+// @ts-check
+import { t } from '../i18n/t.mjs';
+/**
+ * Verschleissteile für Fahrmischer – das Programm ist im Aufbau. Preise gibt es bewusst keine (kein Shop).
+ * Gruppiert nach Teileart.
+ *
+ * Die Felder je Teil sind die eines ERP-Artikels (Auftrag 6.4), damit der Katalog später 1:1
+ * aus dem ERP gefüllt werden kann: `sku` (Artikelnummer, solange keine vergeben ist: leer),
+ * `name` (Bezeichnung), `fits` (passend für – fehlt es, gilt `catalog.fits`),
+ * `photo` (Bild).
+ *
+ * @typedef {{ id: string, sku?: string, name: string, text: string, fits?: string[], material?: string, photo: string }} Part
+ * @typedef {{ id: string, title: string, intro: string, items: Part[] }} PartGroup
+ */
+import { site } from './site.mjs';
+
+export const catalog = t('catalog', {
+  /** Die letzte Karte: wer sein Teil nicht findet, schickt ein Foto (öffnet die Anfrage). */
+  missing: { title: 'Ihr Teil ist nicht dabei?', text: 'Schicken Sie uns ein Foto – wir finden es.', cta: 'Foto schicken' },
+  /** @type {PartGroup[]} */
+  groups: [
+    {
+      id: 'rinnen',
+      title: 'Rinnen',
+      intro: 'Die Rinne führt den Beton von der Trommel an die Einbaustelle – ihre Lauffläche nutzt sich mit jeder Fuhre ab.',
+      items: [
+        {
+          id: 'auslaufrinne',
+          photo: 'teil-auslaufrinne',
+          name: 'Auslaufrinne',
+          text: 'Hauptrinne am Trommelauslauf, schwenk- und klappbar.',
+        },
+        {
+          id: 'verlaengerungsrinne',
+          photo: 'teil-verlaengerungsrinne',
+          name: 'Verlängerungsrinne',
+          text: 'Ansteckbare Rinne für mehr Reichweite an der Baustelle.',
+        },
+      ],
+    },
+    {
+      id: 'schurren',
+      title: 'Schurren und Trichter',
+      intro: 'Schurren und Trichter lenken den Beton beim Befüllen und Entleeren – und fangen dabei den Verschleiss ab.',
+      items: [
+        {
+          id: 'einfuelltrichter',
+          photo: 'teil-einfuelltrichter',
+          name: 'Einfülltrichter',
+          text: 'Trichter, über den die Trommel im Werk befüllt wird.',
+        },
+        {
+          id: 'auslaufschurre',
+          photo: 'teil-auslaufschurre',
+          name: 'Auslaufschurre',
+          text: 'Leitet den Beton aus der Trommel in die Rinne.',
+        },
+      ],
+    },
+  ],
+  /** Gilt für alle Teile, solange ein Teil keine eigene Liste trägt. */
+  fits: site.marks.mixers,
+});

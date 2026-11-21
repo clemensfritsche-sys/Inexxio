@@ -1,0 +1,4 @@
+# Nur Pyflakes (F): echte Fehler, keine Stilfragen. Läuft in der CI
+# (.github/workflows/quality.yml, «Ruff»): `cd backend && ruff check .`
+[lint]
+select = ["F"]

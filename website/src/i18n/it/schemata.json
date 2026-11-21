@@ -1,0 +1,16 @@
+{
+  "Rechnung": "Fattura",
+  "Total": "Totale",
+  "übernehmen wir": "a carico nostro",
+  "Schema: eine Rechnung, deren Hälfte zurückgeht": "Schema: una fattura di cui metà Le viene rimborsata",
+  "Ohne INEXXIO 365": "Senza INEXXIO 365",
+  "Mit INEXXIO 365": "Con INEXXIO 365",
+  "Ihre Kosten pro Monat": "I Suoi costi al mese",
+  "Prüfung": "Controllo",
+  "Ausfall": "Guasto",
+  "Ausfall: zahlen wir": "Guasto: lo paghiamo noi",
+  "Jeden Monat anders. Ein Ausfall wird teuer.": "Ogni mese diverso. Un guasto costa caro.",
+  "Jeden Monat gleich – alles inklusive.": "Ogni mese uguale – tutto compreso.",
+  "Schema: Kosten pro Monat ohne INEXXIO 365 unregelmässig und hoch beim Ausfall, mit INEXXIO 365 jeden Monat gleich; den Ausfall zahlen wir": "Schema: senza INEXXIO 365 costi mensili irregolari e alti in caso di guasto, con INEXXIO 365 ogni mese uguali; il guasto lo paghiamo noi",
+  "nach Mass": "su misura"
+}

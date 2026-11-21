@@ -1,0 +1,135 @@
+---
+/**
+ * «Aus der Praxis» – EIN Fall, ruhig erzählt (v4, Freigabe 21.11.2026 nach Entwurf im Artefakt):
+ * grosse Überschrift (zweite Zeile grau), das grosse Foto ohne Beschriftung, ein Satz mit kurzem
+ * Text, gleich darunter der Grund als Skizze von oben (ein Greifer ↔ zwei Greifer), zwei
+ * Detailfotos versetzt, am Schluss ein Satz und die Anfrage. Inhalt: content/spezialloesungen.ts
+ * (`specialCase`); alles aus den Fotos, nichts dazuerfunden.
+ */
+import Photo from '../Photo.astro';
+import Icon from '../Icon.astro';
+import Rich from '../Rich.astro';
+
+interface Detail { photo: string; title: string; text: string }
+interface Plan { title: string; text: string; alt: string }
+interface Props {
+  photo: string;
+  kicker: string; title: string; title2: string; caption: string;
+  big: string; big2: string; text: string;
+  compare: string; store: string; one: Plan; two: Plan;
+  details: Detail[];
+  end: string; cta: { label: string; href: string }; more: { label: string; href: string };
+}
+const p = Astro.props;
+---
+<section class="section pc-case" aria-labelledby="praxis-title" id="praxis">
+  <div class="wrap pc-case__in">
+    <header class="pc-case__head">
+      <p class="eyebrow">{p.kicker}</p>
+      <h2 id="praxis-title" class="pc-case__title">{p.title} <span>{p.title2}</span></h2>
+    </header>
+
+    <figure class="pc-case__hero">
+      <div class="pc-case__img zoom-on-hover"><Photo id={p.photo} sizes="(min-width: 1240px) 1200px, 100vw" /></div>
+      <figcaption class="pc-case__cap">{p.caption}</figcaption>
+    </figure>
+
+    <div class="pc-case__statement">
+      <p class="pc-case__big">{p.big} <span>{p.big2}</span></p>
+      <Rich as="p" class="pc-case__text" text={p.text} />
+    </div>
+
+    <div class="pc-case__compare" aria-label={p.compare}>
+      <p class="pc-case__label">{p.compare}</p>
+      <div class="pc-case__plans">
+        <figure class="pc-case__plan">
+          <svg viewBox="0 0 320 220" role="img" aria-label={p.one.alt}>
+            <rect x="10" y="10" width="300" height="200" rx="4" fill="none" stroke="#C9CBCF" />
+            <rect x="10" y="10" width="300" height="34" fill="#FFFFFF" stroke="#C9CBCF" />
+            <text x="160" y="32" text-anchor="middle" font-size="11" fill="#5E6064">{p.store}</text>
+            <line x1="140" y1="44" x2="140" y2="210" stroke="#C9CBCF" /><line x1="180" y1="44" x2="180" y2="210" stroke="#C9CBCF" />
+            <line x1="132" y1="60" x2="132" y2="200" stroke="#8A8C91" stroke-width="3" /><line x1="188" y1="60" x2="188" y2="200" stroke="#8A8C91" stroke-width="3" />
+            <path d="M150 40 C 120 70, 110 100, 122 128" fill="none" stroke="#0A0A0B" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#pc-a)" />
+            <path d="M126 140 C 150 110, 160 80, 160 48" fill="none" stroke="#B9BBC0" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#pc-a2)" />
+            <path d="M170 40 C 200 70, 210 100, 198 128" fill="none" stroke="#0A0A0B" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#pc-a)" />
+            <rect x="114" y="128" width="16" height="16" rx="2" fill="#E51A14" />
+            <defs>
+              <marker id="pc-a" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#0A0A0B" /></marker>
+              <marker id="pc-a2" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#B9BBC0" /></marker>
+            </defs>
+          </svg>
+          <figcaption><b>{p.one.title}</b>{p.one.text}</figcaption>
+        </figure>
+        <figure class="pc-case__plan">
+          <svg viewBox="0 0 320 220" role="img" aria-label={p.two.alt}>
+            <rect x="10" y="10" width="300" height="200" rx="4" fill="none" stroke="#C9CBCF" />
+            <rect x="10" y="10" width="300" height="34" fill="#FFFFFF" stroke="#C9CBCF" />
+            <text x="160" y="32" text-anchor="middle" font-size="11" fill="#5E6064">{p.store}</text>
+            <line x1="140" y1="44" x2="140" y2="210" stroke="#C9CBCF" /><line x1="180" y1="44" x2="180" y2="210" stroke="#C9CBCF" />
+            <line x1="132" y1="60" x2="132" y2="200" stroke="#8A8C91" stroke-width="3" /><line x1="188" y1="60" x2="188" y2="200" stroke="#8A8C91" stroke-width="3" />
+            <line x1="20" y1="136" x2="300" y2="136" stroke="#0A0A0B" stroke-width="2" />
+            <path d="M122 46 L122 122" fill="none" stroke="#0A0A0B" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#pc-b)" />
+            <path d="M198 46 L198 122" fill="none" stroke="#0A0A0B" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#pc-b)" />
+            <rect x="114" y="128" width="16" height="16" rx="2" fill="#E51A14" /><rect x="190" y="128" width="16" height="16" rx="2" fill="#E51A14" />
+            <defs><marker id="pc-b" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#0A0A0B" /></marker></defs>
+          </svg>
+          <figcaption><b>{p.two.title}</b>{p.two.text}</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="pc-case__details">
+      {p.details.map((d) => (
+        <figure>
+          <div class="pc-case__img zoom-on-hover"><Photo id={d.photo} sizes="(min-width: 960px) 45vw, 100vw" /></div>
+          <figcaption class="pc-case__dcap"><b>{d.title}</b> {d.text}</figcaption>
+        </figure>
+      ))}
+    </div>
+
+    <div class="pc-case__end">
+      <p class="pc-case__endline">{p.end}</p>
+      <div class="pc-case__actions">
+        <a class="btn btn--primary btn--lg" href={p.cta.href}>{p.cta.label} <Icon name="arrow-right" size={18} /></a>
+        <a class="btn btn--quiet btn--lg" href={p.more.href}>{p.more.label}</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .pc-case__in { display: grid; gap: 56px; }
+  .pc-case__head { display: grid; gap: 14px; }
+  .pc-case__title { font-family: var(--font-display); font-size: clamp(2.5rem, 6.4vw, 5.5rem); line-height: 0.96; letter-spacing: -0.045em; font-weight: 600; text-wrap: balance; }
+  .pc-case__title span { display: block; color: var(--gray-400, #B9BBC0); }
+  .pc-case__hero { margin: 0; }
+  .pc-case__img { border-radius: var(--r-xl); overflow: hidden; background: var(--paper); }
+  .pc-case__img :global(img) { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+  .pc-case__hero .pc-case__img :global(img) { aspect-ratio: 21 / 10; object-position: 50% 40%; }
+  .pc-case__cap { margin-top: 12px; font-size: 0.875rem; color: var(--ink-3); }
+  .pc-case__statement { display: grid; gap: 24px; }
+  .pc-case__big { font-family: var(--font-display); font-size: clamp(1.875rem, 3.8vw, 3.25rem); line-height: 1.03; letter-spacing: -0.035em; font-weight: 600; }
+  .pc-case__big span { display: block; color: var(--gray-400, #B9BBC0); }
+  .pc-case__text { font-size: 1.0625rem; line-height: 1.65; color: var(--ink-2); max-width: 60ch; }
+  .pc-case__compare { display: grid; gap: 20px; margin-top: -16px; }
+  .pc-case__label { font-size: 0.875rem; font-weight: 600; color: var(--ink-3); }
+  .pc-case__plans { display: grid; gap: 24px; }
+  .pc-case__plan { margin: 0; padding: 28px 28px 24px; border-radius: var(--r-xl); background: var(--paper); }
+  .pc-case__plan svg { display: block; width: 100%; height: auto; max-width: 420px; margin: 0 auto; }
+  .pc-case__plan figcaption { margin-top: 18px; display: grid; gap: 2px; font-size: 0.9375rem; color: var(--ink-3); }
+  .pc-case__plan figcaption b { font-family: var(--font-display); font-size: 1.0625rem; letter-spacing: -0.01em; color: var(--ink); }
+  .pc-case__details { display: grid; gap: 32px; }
+  .pc-case__details figure { margin: 0; }
+  .pc-case__dcap { margin-top: 14px; font-size: 0.9375rem; color: var(--ink-3); max-width: 42ch; }
+  .pc-case__dcap b { color: var(--ink); font-weight: 600; }
+  .pc-case__end { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; }
+  .pc-case__endline { font-family: var(--font-display); font-size: clamp(1.375rem, 2.4vw, 1.875rem); letter-spacing: -0.02em; font-weight: 500; max-width: 30ch; }
+  .pc-case__actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  @media (min-width: 900px) {
+    .pc-case__statement { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 64px; align-items: end; }
+    .pc-case__plans { grid-template-columns: 1fr 1fr; }
+    .pc-case__details { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; align-items: end; }
+    .pc-case__details figure:last-child { margin-bottom: 64px; }
+  }
+  @media (max-width: 899px) { .pc-case__hero .pc-case__img :global(img) { aspect-ratio: 4 / 3; } }
+</style>

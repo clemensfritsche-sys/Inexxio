@@ -1,0 +1,359 @@
+{
+  "_comment": "Generiert aus website/src/config (site.mjs, inquiry.mjs, newsletter.mjs) mit «npm run export:erp» – nicht von Hand ändern.",
+  "brand": {
+    "name": "INEXXIO",
+    "formerly": "ehemals HS Steiner",
+    "full": "INEXXIO (ehemals HS Steiner)"
+  },
+  "phone": {
+    "display": "+41 52 378 22 47",
+    "e164": "+41523782247"
+  },
+  "email": "info@inexxio.com",
+  "pages": {
+    "thanks": "/kontakt/danke",
+    "newsletterPending": "/newsletter/danke",
+    "newsletterConfirmed": "/newsletter/bestaetigt",
+    "newsletterUnsubscribed": "/newsletter/abgemeldet"
+  },
+  "photos": {
+    "max": 3,
+    "maxTotalBytes": 10485760,
+    "accept": "image/jpeg,image/png,image/webp",
+    "extensions": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp"
+    ]
+  },
+  "minSeconds": 3,
+  "limits": {
+    "message": 4000,
+    "name": 120,
+    "company": 160,
+    "phone": 40,
+    "email": 160
+  },
+  "labels": [
+    [
+      "message",
+      "Anliegen"
+    ],
+    [
+      "name",
+      "Name"
+    ],
+    [
+      "company",
+      "Firma"
+    ],
+    [
+      "phone",
+      "Telefon"
+    ],
+    [
+      "email",
+      "E-Mail"
+    ]
+  ],
+  "sourceLabel": "Seite",
+  "messages": {
+    "message": "Bitte beschreiben Sie kurz Ihr Anliegen.",
+    "name": "Bitte geben Sie Ihren Namen an.",
+    "emailMissing": "Bitte geben Sie Ihre E-Mail-Adresse an – dorthin geht unsere Antwort.",
+    "phone": "Diese Telefonnummer sieht unvollständig aus.",
+    "email": "Diese E-Mail-Adresse ist nicht vollständig (Beispiel: name@firma.ch).",
+    "tooLong": "Dieser Text ist zu lang – höchstens {max} Zeichen.",
+    "photosCount": "Bitte höchstens {max} Dateien auswählen (jetzt {count}).",
+    "photosType": "«{name}» ist kein Bild im Format JPG, PNG oder WEBP.",
+    "photosSize": "Die Dateien sind zusammen {size} gross – erlaubt sind {max}.",
+    "tooFast": "Das ging schneller, als man tippen kann. Bitte senden Sie die Anfrage noch einmal."
+  },
+  "server": {
+    "check": "Bitte prüfen Sie die markierten Angaben.",
+    "missingTitle": "Es fehlen noch Angaben",
+    "missingLead": "Es fehlen noch Angaben:",
+    "back": "Mit der Zurück-Taste Ihres Browsers kommen Sie zum Formular – Ihre Eingaben sind noch da.",
+    "backButton": "Zurück zum Formular",
+    "failedTitle": "Das Senden hat nicht geklappt",
+    "failedText": "Ihre Angaben sind nicht verloren: Rufen Sie uns an oder schicken Sie sie per E-Mail – der Text ist bereits vorbereitet.",
+    "call": "Anrufen",
+    "mail": "Per E-Mail senden",
+    "phone": "Telefon",
+    "tooBig": "Die Anfrage ist zu gross – Dateien zusammen höchstens {max}.",
+    "unreadable": "Die Anfrage konnte nicht gelesen werden.",
+    "tooMany": "Zu viele Anfragen in kurzer Zeit. Bitte rufen Sie uns an: {phone}.",
+    "unavailable": "Das Senden ist gerade nicht möglich.",
+    "newsletterTooMany": "Zu viele Anmeldungen in kurzer Zeit – bitte später noch einmal.",
+    "newsletterUnavailable": "Die Anmeldung ist gerade nicht möglich – bitte später noch einmal.",
+    "newsletterBack": "Mit der Zurück-Taste kommen Sie zum Formular.",
+    "newsletterAgain": "Neu anmelden",
+    "hello": "Guten Tag"
+  },
+  "patterns": {
+    "email": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$",
+    "phone": "^[+()\\d][\\d\\s/().-]{5,}$"
+  },
+  "subject": {
+    "word": "Anfrage",
+    "max": 60
+  },
+  "mail": {
+    "confirmSubject": "Angekommen – danke für Ihre Anfrage",
+    "confirmIntro": "Danke für Ihre Nachricht. Sie liegt jetzt nicht in einem Stapel, sondern bei den Menschen, die sich damit auskennen.",
+    "confirmNext": "Wir melden uns innert kurzer Zeit.",
+    "confirmMore": "Fällt Ihnen noch etwas ein? Antworten Sie einfach auf diese E-Mail – es landet am selben Ort.",
+    "kicker": "Anfrage erhalten",
+    "copyTitle": "Ihre Angaben",
+    "factCompany": "Firma",
+    "factPhone": "Rückruf an",
+    "factPhotos": "Fotos",
+    "photoOne": "1 Bild",
+    "photoMany": "{n} Bilder",
+    "nextTitle": "So geht es weiter",
+    "received": "Angekommen",
+    "urgent": "Eilt es? Dann rufen Sie uns direkt an:"
+  },
+  "newsletter": {
+    "name": "Post von INEXXIO",
+    "consent": "Ja, schicken Sie mir ab und zu «Post von INEXXIO» – unseren Newsletter, nur wenn es etwas zu erzählen gibt. Abmelden geht jederzeit mit einem Klick.",
+    "confirmSubject": "Ein Klick noch: Post von INEXXIO",
+    "confirmLead": "Sie möchten «Post von INEXXIO» erhalten, unseren Newsletter. Damit niemand Sie ohne Ihr Wissen anmeldet, bestätigen Sie es bitte mit einem Klick.",
+    "confirmIgnore": "Waren Sie das nicht? Dann ignorieren Sie diese Mail einfach – ohne Bestätigung schicken wir nichts.",
+    "confirmButton": "Ja, ich bin dabei",
+    "kicker": "Newsletter",
+    "inviteTitle": "Post von INEXXIO",
+    "inviteAsked": "Sie möchten unseren Newsletter – bitte bestätigen Sie es noch mit einem Klick.",
+    "footer": "Sie erhalten «Post von INEXXIO», weil Sie sich dafür angemeldet haben.",
+    "unsubscribe": "Abmelden",
+    "unsubscribeTitle": "Vom Newsletter abmelden?",
+    "unsubscribeLead": "Ein Klick, und Sie erhalten keine «Post von INEXXIO» mehr.",
+    "unsubscribeButton": "Abmelden",
+    "invalid": "Dieser Link ist abgelaufen oder unvollständig."
+  },
+  "languages": {
+    "fr": {
+      "pages": {
+        "thanks": "/fr/contact/merci",
+        "newsletterPending": "/fr/newsletter/merci",
+        "newsletterConfirmed": "/fr/newsletter/confirme",
+        "newsletterUnsubscribed": "/fr/newsletter/desinscrit"
+      },
+      "messages": {
+        "message": "Veuillez décrire brièvement votre demande.",
+        "name": "Veuillez indiquer votre nom.",
+        "emailMissing": "Veuillez indiquer votre adresse e-mail – notre réponse y sera envoyée.",
+        "phone": "Ce numéro de téléphone semble incomplet.",
+        "email": "Cette adresse e-mail est incomplète (exemple: nom@entreprise.ch).",
+        "tooLong": "Ce texte est trop long – {max} caractères au maximum.",
+        "photosCount": "Veuillez choisir au maximum {max} fichiers (actuellement {count}).",
+        "photosType": "«{name}» n'est pas une image au format JPG, PNG ou WEBP.",
+        "photosSize": "Les fichiers font ensemble {size} – {max} sont autorisés.",
+        "tooFast": "C'était plus rapide que quiconque ne peut taper. Veuillez renvoyer la demande."
+      },
+      "server": {
+        "check": "Veuillez vérifier les indications signalées.",
+        "missingTitle": "Il manque encore des indications",
+        "missingLead": "Il manque encore des indications:",
+        "back": "La touche retour de votre navigateur vous ramène au formulaire – vos saisies y sont encore.",
+        "backButton": "Retour au formulaire",
+        "failedTitle": "L'envoi n'a pas abouti",
+        "failedText": "Vos indications ne sont pas perdues: appelez-nous ou envoyez-les par e-mail – le texte est déjà préparé.",
+        "call": "Appeler",
+        "mail": "Envoyer par e-mail",
+        "phone": "Téléphone",
+        "tooBig": "La demande est trop volumineuse – fichiers au total {max} au maximum.",
+        "unreadable": "La demande n'a pas pu être lue.",
+        "tooMany": "Trop de demandes en peu de temps. Veuillez nous appeler: {phone}.",
+        "unavailable": "L'envoi n'est pas possible pour le moment.",
+        "newsletterTooMany": "Trop d'inscriptions en peu de temps – veuillez réessayer plus tard.",
+        "newsletterUnavailable": "L'inscription n'est pas possible pour le moment – veuillez réessayer plus tard.",
+        "newsletterBack": "La touche retour vous ramène au formulaire.",
+        "newsletterAgain": "S'inscrire à nouveau",
+        "hello": "Bonjour"
+      },
+      "mail": {
+        "confirmSubject": "Bien reçu – merci pour votre demande",
+        "confirmIntro": "Merci pour votre message. Il n'est pas sur une pile, mais chez les personnes qui s'y connaissent.",
+        "confirmNext": "Nous vous répondons dans peu de temps.",
+        "confirmMore": "Autre chose vous vient à l'esprit? Répondez simplement à cet e-mail – il arrive au même endroit.",
+        "kicker": "Demande reçue",
+        "copyTitle": "Vos indications",
+        "factCompany": "Société",
+        "factPhone": "Rappel au",
+        "factPhotos": "Photos",
+        "photoOne": "1 image",
+        "photoMany": "{n} images",
+        "nextTitle": "La suite",
+        "received": "Reçue",
+        "urgent": "C'est urgent? Appelez-nous directement:"
+      },
+      "newsletter": {
+        "name": "Courrier d'INEXXIO",
+        "consent": "Oui, envoyez-moi de temps en temps le «Courrier d'INEXXIO» – notre newsletter, seulement quand il y a quelque chose à raconter. Désinscription possible à tout moment en un clic.",
+        "confirmSubject": "Encore un clic: Courrier d'INEXXIO",
+        "confirmLead": "Vous souhaitez recevoir le «Courrier d'INEXXIO», notre newsletter. Pour que personne ne vous inscrive à votre insu, veuillez le confirmer d'un clic.",
+        "confirmIgnore": "Ce n'était pas vous? Ignorez simplement ce message – sans confirmation, nous n'envoyons rien.",
+        "confirmButton": "Oui, je m'inscris",
+        "kicker": "Newsletter",
+        "inviteTitle": "Courrier d'INEXXIO",
+        "inviteAsked": "Vous souhaitez recevoir notre newsletter – veuillez encore le confirmer d'un clic.",
+        "footer": "Vous recevez le «Courrier d'INEXXIO» parce que vous vous y êtes inscrit.",
+        "unsubscribe": "Se déconnecter",
+        "unsubscribeTitle": "Se désinscrire de la newsletter?",
+        "unsubscribeLead": "Un clic, et vous ne recevrez plus le «Courrier d'INEXXIO».",
+        "unsubscribeButton": "Se déconnecter",
+        "invalid": "Ce lien a expiré ou est incomplet."
+      }
+    },
+    "en": {
+      "pages": {
+        "thanks": "/en/contact/thank-you",
+        "newsletterPending": "/en/newsletter/thank-you",
+        "newsletterConfirmed": "/en/newsletter/confirmed",
+        "newsletterUnsubscribed": "/en/newsletter/unsubscribed"
+      },
+      "messages": {
+        "message": "Please describe your request briefly.",
+        "name": "Please enter your name.",
+        "emailMissing": "Please enter your email address – that is where our reply goes.",
+        "phone": "This phone number looks incomplete.",
+        "email": "This email address is incomplete (example: name@company.ch).",
+        "tooLong": "This text is too long – at most {max} characters.",
+        "photosCount": "Please select at most {max} files (now {count}).",
+        "photosType": "«{name}» is not an image in JPG, PNG or WEBP format.",
+        "photosSize": "The files total {size} – {max} is allowed.",
+        "tooFast": "That was faster than anyone can type. Please send the enquiry again."
+      },
+      "server": {
+        "check": "Please check the marked details.",
+        "missingTitle": "Some details are still missing",
+        "missingLead": "Some details are still missing:",
+        "back": "Your browser's back button takes you to the form – your entries are still there.",
+        "backButton": "Back to the form",
+        "failedTitle": "Sending did not work",
+        "failedText": "Your details are not lost: call us or send them by email – the text is already prepared.",
+        "call": "Call",
+        "mail": "Send by email",
+        "phone": "Phone",
+        "tooBig": "The enquiry is too large – files at most {max} in total.",
+        "unreadable": "The enquiry could not be read.",
+        "tooMany": "Too many enquiries in a short time. Please call us: {phone}.",
+        "unavailable": "Sending is not possible right now.",
+        "newsletterTooMany": "Too many sign-ups in a short time – please try again later.",
+        "newsletterUnavailable": "Signing up is not possible right now – please try again later.",
+        "newsletterBack": "The back button takes you to the form.",
+        "newsletterAgain": "Sign up again",
+        "hello": "Hello"
+      },
+      "mail": {
+        "confirmSubject": "Received – thank you for your enquiry",
+        "confirmIntro": "Thank you for your message. It is not sitting in a pile but with the people who know about it.",
+        "confirmNext": "We will get back to you within a short time.",
+        "confirmMore": "Anything else come to mind? Simply reply to this email – it ends up in the same place.",
+        "kicker": "Enquiry received",
+        "copyTitle": "Your details",
+        "factCompany": "Company",
+        "factPhone": "Call back on",
+        "factPhotos": "Photos",
+        "photoOne": "1 image",
+        "photoMany": "{n} images",
+        "nextTitle": "What happens next",
+        "received": "Received",
+        "urgent": "In a hurry? Then call us directly:"
+      },
+      "newsletter": {
+        "name": "Mail from INEXXIO",
+        "consent": "Yes, send me «Mail from INEXXIO» now and then – our newsletter, only when there is something to tell. You can unsubscribe at any time with one click.",
+        "confirmSubject": "One more click: Mail from INEXXIO",
+        "confirmLead": "You would like to receive «Mail from INEXXIO», our newsletter. So that nobody signs you up without your knowledge, please confirm with one click.",
+        "confirmIgnore": "Was this not you? Then simply ignore this email – without confirmation we send nothing.",
+        "confirmButton": "Yes, count me in",
+        "kicker": "Newsletter",
+        "inviteTitle": "Mail from INEXXIO",
+        "inviteAsked": "You would like our newsletter – please confirm with one click.",
+        "footer": "You receive «Mail from INEXXIO» because you signed up for it.",
+        "unsubscribe": "Sign out",
+        "unsubscribeTitle": "Unsubscribe from the newsletter?",
+        "unsubscribeLead": "One click, and you will no longer receive «Mail from INEXXIO».",
+        "unsubscribeButton": "Sign out",
+        "invalid": "This link has expired or is incomplete."
+      }
+    },
+    "it": {
+      "pages": {
+        "thanks": "/it/contatto/grazie",
+        "newsletterPending": "/it/newsletter/grazie",
+        "newsletterConfirmed": "/it/newsletter/confermata",
+        "newsletterUnsubscribed": "/it/newsletter/disiscrizione"
+      },
+      "messages": {
+        "message": "Descriva brevemente la Sua richiesta.",
+        "name": "Indichi il Suo nome.",
+        "emailMissing": "Indichi il Suo indirizzo e-mail – la nostra risposta arriverà lì.",
+        "phone": "Questo numero di telefono sembra incompleto.",
+        "email": "Questo indirizzo e-mail non è completo (esempio: nome@ditta.ch).",
+        "tooLong": "Questo testo è troppo lungo – al massimo {max} caratteri.",
+        "photosCount": "Scelga al massimo {max} file (ora {count}).",
+        "photosType": "«{name}» non è un'immagine in formato JPG, PNG o WEBP.",
+        "photosSize": "I file insieme pesano {size} – sono consentiti {max}.",
+        "tooFast": "È stato più veloce di quanto si possa digitare. Invii di nuovo la richiesta."
+      },
+      "server": {
+        "check": "Verifichi i dati evidenziati.",
+        "missingTitle": "Mancano ancora dei dati",
+        "missingLead": "Mancano ancora dei dati:",
+        "back": "Con il tasto indietro del browser torna al modulo – i Suoi dati sono ancora lì.",
+        "backButton": "Torna al modulo",
+        "failedTitle": "L'invio non è riuscito",
+        "failedText": "I Suoi dati non sono andati persi: ci chiami o ce li mandi per e-mail – il testo è già pronto.",
+        "call": "Chiamare",
+        "mail": "Inviare per e-mail",
+        "phone": "Telefono",
+        "tooBig": "La richiesta è troppo grande – file insieme al massimo {max}.",
+        "unreadable": "Non è stato possibile leggere la richiesta.",
+        "tooMany": "Troppe richieste in poco tempo. Ci chiami: {phone}.",
+        "unavailable": "L'invio non è possibile al momento.",
+        "newsletterTooMany": "Troppe iscrizioni in poco tempo – riprovi più tardi.",
+        "newsletterUnavailable": "L'iscrizione non è possibile al momento – riprovi più tardi.",
+        "newsletterBack": "Con il tasto indietro torna al modulo.",
+        "newsletterAgain": "Iscriversi di nuovo",
+        "hello": "Buongiorno"
+      },
+      "mail": {
+        "confirmSubject": "Arrivata – grazie per la Sua richiesta",
+        "confirmIntro": "Grazie per il Suo messaggio. Ora non si trova su una pila, ma presso le persone che se ne intendono.",
+        "confirmNext": "Le rispondiamo entro poco tempo.",
+        "confirmMore": "Le viene in mente ancora qualcosa? Risponda semplicemente a questa e-mail – arriva allo stesso posto.",
+        "kicker": "Richiesta ricevuta",
+        "copyTitle": "I Suoi dati",
+        "factCompany": "Ditta",
+        "factPhone": "Richiamare al",
+        "factPhotos": "Foto",
+        "photoOne": "1 immagine",
+        "photoMany": "{n} immagini",
+        "nextTitle": "Come si prosegue",
+        "received": "Arrivata",
+        "urgent": "È urgente? Allora ci chiami direttamente:"
+      },
+      "newsletter": {
+        "name": "Posta da INEXXIO",
+        "consent": "Sì, mi mandi ogni tanto «Posta da INEXXIO» – la nostra newsletter, solo quando c'è qualcosa da raccontare. La disiscrizione è possibile in ogni momento con un clic.",
+        "confirmSubject": "Ancora un clic: Posta da INEXXIO",
+        "confirmLead": "Desidera ricevere «Posta da INEXXIO», la nostra newsletter. Affinché nessuno La iscriva a Sua insaputa, La preghiamo di confermarlo con un clic.",
+        "confirmIgnore": "Non è stato Lei? Allora ignori semplicemente questa e-mail – senza conferma non mandiamo nulla.",
+        "confirmButton": "Sì, mi iscrivo",
+        "kicker": "Newsletter",
+        "inviteTitle": "Posta da INEXXIO",
+        "inviteAsked": "Desidera la nostra newsletter – La preghiamo di confermarlo ancora con un clic.",
+        "footer": "Riceve «Posta da INEXXIO» perché si è iscritto.",
+        "unsubscribe": "Esci",
+        "unsubscribeTitle": "Disiscriversi dalla newsletter?",
+        "unsubscribeLead": "Un clic, e non riceverà più «Posta da INEXXIO».",
+        "unsubscribeButton": "Esci",
+        "invalid": "Questo link è scaduto o incompleto."
+      }
+    }
+  }
+}

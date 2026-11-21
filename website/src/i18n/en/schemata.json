@@ -1,0 +1,16 @@
+{
+  "Rechnung": "Invoice",
+  "Total": "Total",
+  "übernehmen wir": "we cover",
+  "Schema: eine Rechnung, deren Hälfte zurückgeht": "Diagram: an invoice, half of which is refunded",
+  "Ohne INEXXIO 365": "Without INEXXIO 365",
+  "Mit INEXXIO 365": "With INEXXIO 365",
+  "Ihre Kosten pro Monat": "Your costs per month",
+  "Prüfung": "Inspection",
+  "Ausfall": "Breakdown",
+  "Ausfall: zahlen wir": "Breakdown: we pay",
+  "Jeden Monat anders. Ein Ausfall wird teuer.": "Different every month. A breakdown gets expensive.",
+  "Jeden Monat gleich – alles inklusive.": "The same every month – all inclusive.",
+  "Schema: Kosten pro Monat ohne INEXXIO 365 unregelmässig und hoch beim Ausfall, mit INEXXIO 365 jeden Monat gleich; den Ausfall zahlen wir": "Diagram: costs per month without INEXXIO 365 irregular and high in case of a breakdown, with INEXXIO 365 the same every month; we pay for the breakdown",
+  "nach Mass": "custom-made"
+}

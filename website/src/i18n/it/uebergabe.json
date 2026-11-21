@@ -1,0 +1,22 @@
+{
+  "Nach {{history.experienceDative}} übergibt Heiri Steiner sein Unternehmen an Clemens Fritsche. Standort, Telefonnummer und der Service für alle bestehenden HS-Krananlagen bleiben – ergänzt um Ingenieurwissen, wo es Ihnen nützt.": "Dopo {{history.experienceDative}} Heiri Steiner passa la sua azienda a Clemens Fritsche. Sede, numero di telefono e servizio per tutti gli impianti gru HS esistenti restano – completati dal sapere ingegneristico, dove Le è utile.",
+  "Wer betreut meine HS-Krananlage in Zukunft?": "Chi si occuperà in futuro del mio impianto gru HS?",
+  "Wir – ohne Unterbruch. Wir kennen die HS-Krananlagen von der Konstruktion bis zum Ersatzteil und betreuen sie weiter.": "Noi – senza interruzione. Conosciamo gli impianti gru HS dalla progettazione fino al ricambio e continuiamo ad assisterli.",
+  "Bauen Sie weiterhin neue Krananlagen?": "Costruite ancora nuovi impianti gru?",
+  "Ja. Krane nach Mass und Heukrananlagen planen, bauen und montieren wir weiterhin selbst.": "Sì. Gru su misura e impianti gru per fieno continuiamo a pianificarli, costruirli e montarli noi stessi.",
+  "Bleibt die Telefonnummer gleich?": "Il numero di telefono resta lo stesso?",
+  "Ja, {{phone.display}}. Die aktuellen Kontaktangaben finden Sie jederzeit hier auf unserer Website.": "Sì, {{phone.display}}. I recapiti attuali li trova in ogni momento qui sul nostro sito.",
+  "Gelten bestehende Verträge weiter?": "I contratti esistenti restano validi?",
+  "Ja. Das Unternehmen bleibt dasselbe, nur der Name ändert sich.": "Sì. L'azienda resta la stessa, cambia solo il nome.",
+  "Wie schnell sind Sie bei einem Stillstand vor Ort?": "In caso di fermo macchina, quanto tempo vi serve per essere sul posto?",
+  "Steht eine Anlage still, rufen Sie direkt an: {{phone.link}}. Wir kümmern uns darum.": "Se un impianto è fermo, ci chiami direttamente: {{phone.link}}. Ce ne occupiamo noi.",
+  "Betreuen Sie auch Krane anderer Hersteller?": "Vi occupate anche di gru di altri produttori?",
+  "Ja. Wir prüfen, warten und reparieren Krane unabhängig vom Hersteller. Vorher schauen wir uns jeden Kran an. Ob wir Teile für ein bestimmtes Modell beschaffen können, klären wir im Einzelfall.": "Sì. Controlliamo, manteniamo e ripariamo gru indipendentemente dal produttore. Prima esaminiamo ogni gru. Se possiamo procurare pezzi per un determinato modello, lo chiariamo caso per caso.",
+  "Bekomme ich weiterhin Ersatzteile für ältere Anlagen?": "Riceverò ancora ricambi per impianti più vecchi?",
+  "Ja. Die Ersatzteile für die bestehenden HS-Anlagen liegen entweder an Lager, oder wir fertigen sie für Sie neu an.": "Sì. I ricambi per gli impianti HS esistenti sono in magazzino, oppure li fabbrichiamo di nuovo per Lei.",
+  "Aus HS Steiner wird {{brand.name}}": "HS Steiner diventa {{brand.name}}",
+  "Das Unternehmen wird zur {{brand.formerLegalName}}.": "L'azienda diventa la {{brand.formerLegalName}}.",
+  "Heute": "Oggi",
+  "Heiri Steiner übergibt an Clemens Fritsche – aus HS Steiner wird die {{brand.legalName}}.": "Heiri Steiner passa l'azienda a Clemens Fritsche – HS Steiner diventa la {{brand.legalName}}.",
+  "Bleibt Heiri Steiner dabei?": "Heiri Steiner resta con voi?"
+}

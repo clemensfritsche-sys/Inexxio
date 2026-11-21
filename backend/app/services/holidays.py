@@ -1,0 +1,182 @@
+"""Feiertage und Zeit-Regeln einer eigenen Gesellschaft (Zeiterfassung).
+
+►►► **Es zählt nur, was ein Mensch bestätigt.** ◄◄◄ Der Vorschlag kommt aus OpenHolidays
+(openholidaysapi.org, CC BY 4.0) für den Kanton der Gesellschaft; übernommen wird er erst
+mit «Übernehmen». Ist der Dienst nicht erreichbar, sagt es ein Satz – von Hand geht immer.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
+from typing import Optional
+
+import httpx
+from sqlalchemy.orm import Session
+
+from ..domain import timekeeping as tk
+from ..models import CompanySettings, Holiday, TimeContract, UserProfile
+from ..schemas.timekeeping import CompanyTimeView, HolidayOut, TaskOut
+from . import sites
+from .time_view import vocab
+from .timekeeping import local, now_utc
+from ..domain.errors import Conflict, Invalid, NotFound, Upstream
+from ..domain import policy
+
+PROPOSAL_URL = "https://openholidaysapi.org/PublicHolidays"
+
+
+def company(db: Session, object_id: int) -> CompanySettings:
+    c = sites.by_object_id(db, object_id)
+    if c is None or not c.is_own:
+        raise NotFound(f"«{object_id}» ist keine unserer Gesellschaften.")
+    return c
+
+
+def _admin(actor: UserProfile) -> None:
+    policy.require(actor, "time.company")
+
+
+def holiday_tasks(db: Session, c: CompanySettings, today: date) -> list[TaskOut]:
+    """►►► **Fehlen die Feiertage?** ◄◄◄ Das laufende Jahr ohne Feiertag ist sofort dringend;
+    das nächste ist ab 1. Oktober fällig und ab 1. Dezember dringend. Nur für eine
+    Gesellschaft, auf die ein Vertrag lautet – eine ohne Personal braucht keine."""
+    if db.query(TimeContract.id).filter(TimeContract.company_object_id == c.object_id,
+                                        TimeContract.weekly_minutes > 0).first() is None:
+        return []
+    years = {d.year for (d,) in db.query(Holiday.day).filter(
+        Holiday.company_object_id == c.object_id, Holiday.is_active.is_(True)).all()}
+    out = []
+    if today.year not in years:
+        out.append(TaskOut(kind="holidays", day=date(today.year, 1, 1),
+                           label=f"Feiertage {today.year} fehlen", age=tk.URGENT_DAYS))
+    nxt = today.year + 1
+    if today.month >= tk.HOLIDAYS_DUE_MONTH and nxt not in years:
+        urgent = today.month >= tk.HOLIDAYS_URGENT_MONTH
+        out.append(TaskOut(kind="holidays", day=date(nxt, 1, 1),
+                           label=f"Feiertage {nxt} übernehmen",
+                           age=tk.URGENT_DAYS if urgent else 0))
+    return out
+
+
+def view(db: Session, actor: UserProfile, object_id: int, year: Optional[int]) -> CompanyTimeView:
+    c = company(db, object_id)
+    today = local(now_utc()).date()
+    year = year or today.year
+    rows = (db.query(Holiday).filter(Holiday.company_object_id == c.object_id,
+                                     Holiday.is_active.is_(True),
+                                     Holiday.day >= date(year, 1, 1),
+                                     Holiday.day <= date(year, 12, 31))
+            .order_by(Holiday.day).all())
+    rules = c.time_rules or {}
+    return CompanyTimeView(
+        company_object_id=c.object_id, canton=rules.get("canton"), cantons=list(tk.CANTONS),
+        year=year, holidays=[HolidayOut(id=h.id, day=h.day, name=h.name) for h in rows],
+        proof={a.key: tk.proof_from(a, rules.get("proof", {})) for a in tk.ARTS if a.proof},
+        rules=list(tk.RULE_FACTS), tasks=holiday_tasks(db, c, today),
+        can_edit=policy.may(actor, "time.company"), vocab=vocab(rules.get("proof", {})))
+
+
+def _closed_note(d: date) -> str:
+    """Der eine Satz für einen Feiertag in einem abgeschlossenen Tag – im Vorschlag (Hover) und
+    in der Abweisung von ``add``."""
+    return tk.closed_sentence(d, "ein Feiertag an diesem Tag")
+
+
+def add(db: Session, actor: UserProfile, object_id: int, items) -> None:
+    """Feiertage übernehmen – was schon dasteht, bleibt (kein Doppel)."""
+    _admin(actor)
+    c = company(db, object_id)
+    taken = {h.day for h in db.query(Holiday).filter(
+        Holiday.company_object_id == c.object_id, Holiday.is_active.is_(True)).all()}
+    today = local(now_utc()).date()
+    for it in items:
+        # Was zurückliegt, bleibt, wie es war (7-Tage-Regel): ein Feiertag davor änderte
+        # schon abgerechnete Tage. Abgewiesen mit dem Satz – nie still übergangen.
+        if tk.closed(it.day, today):
+            raise Conflict(_closed_note(it.day))
+        if it.day in taken:
+            continue
+        db.add(Holiday(company_object_id=c.object_id, day=it.day, name=it.name.strip()))
+        taken.add(it.day)
+    db.flush()
+
+
+def remove(db: Session, actor: UserProfile, object_id: int, holiday_id: int) -> None:
+    """Ein Feiertag ist Stammdaten – er fällt weg (Soft-Delete), festgehalten im Audit-Log."""
+    _admin(actor)
+    c = company(db, object_id)
+    h = db.query(Holiday).filter(Holiday.id == holiday_id,
+                                 Holiday.company_object_id == c.object_id,
+                                 Holiday.is_active.is_(True)).first()
+    if h is None:
+        raise NotFound(f"Den Feiertag «{holiday_id}» gibt es nicht (mehr).")
+    if tk.closed(h.day, local(now_utc()).date()):
+        raise Conflict(tk.closed_sentence(h.day, "der Feiertag"))
+    h.is_active = False
+
+
+def set_rules(db: Session, actor: UserProfile, object_id: int, data) -> None:
+    _admin(actor)
+    c = company(db, object_id)
+    rules = dict(c.time_rules or {})
+    fields = data.model_dump(exclude_unset=True)
+    if "canton" in fields:
+        if fields["canton"] not in (None, *tk.CANTON_CODES):
+            raise Invalid(f"«{fields['canton']}» ist kein Kanton.")
+        rules["canton"] = fields["canton"]
+    if fields.get("proof") is not None:
+        proof = dict(rules.get("proof", {}))
+        for key, n in fields["proof"].items():
+            art = tk.ART_BY_KEY.get(key)
+            if art is None or art.proof is None:
+                raise Invalid(f"«{key}» braucht keinen Nachweis.")
+            if n is not None and not 0 <= n <= 30:
+                raise Invalid("Nachweis ab Tag 1 bis 30 (leer = nie).")
+            proof[key] = n or 0
+        rules["proof"] = proof
+    c.time_rules = rules
+
+
+def _text(names: list) -> str:
+    for n in names:
+        if (n.get("language") or "").upper() == "DE":
+            return n.get("text") or ""
+    return (names[0].get("text") if names else "") or ""
+
+
+def proposal(db: Session, actor: UserProfile, object_id: int, year: int) -> list[HolidayOut]:
+    """Der Vorschlag für ein Jahr – geholt, nicht gespeichert. Ein Tag, der schon abgeschlossen
+    ist, steht mit ``closed`` und seinem Satz da: nicht wählbar (``add`` wiese ihn ab)."""
+    _admin(actor)
+    c = company(db, object_id)
+    canton = (c.time_rules or {}).get("canton")
+    if not canton:
+        raise Invalid("Zuerst den Kanton der Gesellschaft wählen.")
+    params = {"countryIsoCode": "CH", "languageIsoCode": "DE", "subdivisionCode": f"CH-{canton}",
+              "validFrom": f"{year}-01-01", "validTo": f"{year}-12-31"}
+    try:
+        r = httpx.get(PROPOSAL_URL, params=params, timeout=8,
+                      headers={"accept": "application/json"})
+        r.raise_for_status()
+        items = r.json()
+    except (httpx.HTTPError, ValueError):
+        raise Upstream("Der Vorschlag ist gerade nicht erreichbar – "
+                                         "Feiertage lassen sich von Hand eintragen.")
+    taken = {h.day for h in db.query(Holiday).filter(
+        Holiday.company_object_id == c.object_id, Holiday.is_active.is_(True)).all()}
+    today = local(now_utc()).date()
+    out: dict[date, HolidayOut] = {}
+    for it in items if isinstance(items, list) else []:
+        try:
+            start = datetime.strptime(it["startDate"], "%Y-%m-%d").date()
+            end = datetime.strptime(it.get("endDate") or it["startDate"], "%Y-%m-%d").date()
+        except (KeyError, TypeError, ValueError):
+            continue
+        d = start
+        while d <= end and d.year == year:
+            closed = tk.closed(d, today)
+            out.setdefault(d, HolidayOut(day=d, name=_text(it.get("name") or [])[:120],
+                                         taken=d in taken, closed=closed,
+                                         closed_note=_closed_note(d) if closed else None))
+            d += timedelta(days=1)
+    return [out[d] for d in sorted(out)]

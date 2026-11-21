@@ -1,61 +1,51 @@
 import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { NOTHING } from './when';
 
+/** Klassen zusammensetzen (Bedingungen, Listen) – ohne Mischen: wer zwei widersprüchliche
+ *  Klassen setzt, setzt eine zu viel. */
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return clsx(inputs);
 }
 
-export function formatDate(date: string | Date, locale = 'de-CH'): string {
-  return new Intl.DateTimeFormat(locale, {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date(date));
+/**
+ * Betrag im Schweizer Zahlenformat – OHNE Währung («12'345.60»), EINE Formatier-Stelle.
+ *
+ * ►►► **Die Nachkommastellen kommen von der WÄHRUNG** (ISO 4217 «minor units») ◄◄◄ – JPY
+ * null, KWD drei; der Wert reist mit den Daten (`VoucherEmbed.currency_decimals`), Vorgabe zwei.
+ *
+ * **Der Tausender-Trenner ist das gerade `'`** – festgeschrieben, weil ICU je nach Laufzeit
+ * `’` oder `'` liefert (sonst Hydrations-Fehler).
+ */
+export function formatAmount(v: string | number | null | undefined,
+                             decimals = 2): string {
+  if (v == null || v === '') return NOTHING;
+  return swiss(Number(v), decimals, decimals);
 }
 
-export function formatDateTime(date: string | Date, locale = 'de-CH'): string {
-  return new Intl.DateTimeFormat(locale, {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(date));
+/** Die eine Stelle, an der eine Zahl ihre Schweizer Schreibweise bekommt. */
+function swiss(n: number, min: number, max: number): string {
+  return n
+    .toLocaleString('de-CH', { minimumFractionDigits: min, maximumFractionDigits: max })
+    .replace(/\u2019/g, "'");
 }
 
-export function formatCurrency(amount: number | string, currency = 'CHF'): string {
-  return new Intl.NumberFormat('de-CH', { style: 'currency', currency }).format(Number(amount));
+// Datum und Uhrzeit stehen in `lib/when`.
+
+/** Anzeigename einer Person – **dieselbe Regel wie im Backend** (`UserProfile.display_name`):
+ *  «Vorname Nachname» → E-Mail. Eine Firma ist nie der Name einer Person. */
+export function personFullName(user: { first_name?: string | null; last_name?: string | null }): string {
+  return [user.first_name, user.last_name].filter(Boolean).join(' ');
 }
 
-export function formatObjectId(id: number): string {
-  return id.toString().padStart(9, '0');
+export function userDisplayName(user: {
+  first_name?: string | null; last_name?: string | null; email: string;
+}): string {
+  return personFullName(user) || user.email;
 }
 
-export function relativeTime(date: string | Date, locale = 'de-CH'): string {
-  const now = new Date();
-  const then = new Date(date);
-  const diffMs = now.getTime() - then.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-
-  if (diffMinutes < 1) return 'Gerade eben';
-  if (diffMinutes < 60) return `vor ${diffMinutes} Min.`;
-  if (diffHours < 24) return `vor ${diffHours} Std.`;
-  if (diffDays < 7) return `vor ${diffDays} Tagen`;
-  return formatDate(date, locale);
-}
-
-export function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((part) => part.charAt(0))
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-}
-
-export function truncate(str: string, maxLength: number): string {
-  if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength - 3) + '...';
+/** **Die EINE Schreibweise einer Objektnummer**: neunstellig, führende Nullen, **ohne**
+ *  Tausender-Trennung – ein Bezeichner, keine Menge. */
+export function formatObjectId(id: number | null | undefined): string {
+  if (!id) return NOTHING;
+  return String(id).padStart(9, '0');
 }

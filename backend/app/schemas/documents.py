@@ -1,0 +1,235 @@
+"""Dokumente – was über die API-Grenze geht (``services/documents``)."""
+
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class DocumentRefOut(BaseModel):
+    id: int
+    object_id: int
+    #: Typ des Datensatzes (``user`` · ``order`` · …) und sein Name.
+    type: Optional[str] = None
+    label: str
+    part: Optional[str] = None
+    #: Gesetzt bei einem Pflichtfeld: was auf dem Schloss steht. Dann gibt es kein ×.
+    field: Optional[str] = None
+    field_label: Optional[str] = None
+
+
+class SignatureOut(BaseModel):
+    id: int
+    person_object_id: int
+    name: str
+    signed_at: Optional[datetime] = None
+    declined_at: Optional[datetime] = None
+    reason: Optional[str] = None
+
+
+class DocumentSummary(BaseModel):
+    """Eine Zeile im Feed bzw. eine Kachel unten im Datensatz."""
+    object_id: int
+    art: str
+    name: str
+    status: str
+    source: str
+    mime: str
+    created_at: datetime
+    #: Das kleine Bild der ersten Seite (abgeleitet) – leer, wenn es keins gibt.
+    preview_url: Optional[str] = None
+    #: Wo das Gesuchte im gelesenen Text steht (nur bei einer Suche).
+    snippet: Optional[str] = None
+    #: Welche Pflichtfelder des gefragten Datensatzes es füllt (nur an einem Datensatz).
+    fields: list[str] = []
+
+
+class DocumentDetail(DocumentSummary):
+    file_url: Optional[str] = None
+    filename: Optional[str] = None
+    byte_size: int = 0
+    pages: Optional[int] = None
+    refs: list[DocumentRefOut] = []
+    created_by: Optional[str] = None
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[str] = None
+    delete_reason: Optional[str] = None
+    #: Warum «Löschen» (noch) nicht geht – leer heisst: es geht. ``can`` als Satz.
+    delete_problem: Optional[str] = None
+    signatures: list[SignatureOut] = []
+    #: Ist die Datei ein Papier aus unserer Vorlage (Beleg, Verfasstes)? Dann zeigt die
+    #: Seite es als HTML in einem abgeschirmten Rahmen.
+    html: Optional[str] = None
+    #: Ohne KI freigegeben und die Datei ist lesbar: die Seite holt das Lesen nach.
+    read_later: bool = False
+
+
+class FiledOut(BaseModel):
+    """Die Antwort auf «Freigeben»: das Dokument – und ob es dieselbe Datei schon gab."""
+    document: DocumentDetail
+    existed: bool = False
+
+
+class RefIn(BaseModel):
+    object_id: int = Field(description="Objektnummer des Datensatzes, an dem das Dokument erscheinen soll.")
+
+
+class DeleteIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=300, description="Warum gelöscht wird – Pflicht, steht im Log.")
+
+
+class RecordOut(BaseModel):
+    """Ein Datensatz zum Referenzieren – «Typ · Name» mit Nummer."""
+    object_id: int
+    type: str
+    label: str
+
+
+class TargetIn(BaseModel):
+    """Ein Pflichtfeld, das die Freigabe gleich mitsetzt (``services/fields``)."""
+    object_id: int = Field(description="Objektnummer des Datensatzes mit dem Pflichtfeld.")
+    part: Optional[str] = Field(None, description="Teil des Datensatzes, z. B. der Schritt (step:<id>) – wo das Feld sitzt.")
+    field: str = Field(description="Schlüssel des Pflichtfelds (z. B. voucher.original, time.proof) – welche es gibt, nennt GET /erp/documents/of/{nummer}.")
+    #: Was das Feld zusätzlich braucht (z. B. ``note`` beim Annehmen einer Abweichung).
+    extra: dict = Field({}, description="Was das Feld zusätzlich braucht, z. B. {\"note\": …} beim Annehmen einer Abweichung.")
+
+
+class ProposedRef(BaseModel):
+    object_id: int
+    label: str
+    part: Optional[str] = None
+    field: Optional[str] = None
+
+
+class ProposalOut(BaseModel):
+    """Der Vorschlag für einen Entwurf – nichts davon ist gespeichert."""
+    art: str = ""
+    name: str = ""
+    text: str = ""
+    keywords: str = ""
+    facts: dict = {}
+    refs: list[ProposedRef] = []
+    why: str = ""
+    #: Hat die KI gelesen? Sonst tippt der Mensch Art und Name selbst.
+    read: bool = False
+    #: Gibt es heute eine KI (Schlüssel, Deckel)?
+    ai: bool = False
+    #: Warum die KI nicht gelesen hat – ein Satz (``ai.problem``), sonst leer.
+    ai_problem: str = ""
+    #: Die Felder der gewählten Anforderung, wie abgelesen – das Modul füllt sich daraus vor.
+    values: dict = {}
+    requirement: Optional[str] = None
+
+
+class RequirementOut(BaseModel):
+    key: str
+    label: str
+    sentence: str
+    fields: list[str]
+    object_id: int
+    part: Optional[str] = None
+    field: str
+
+
+class TemplateIn(BaseModel):
+    """«Aus Vorlage»: welche Gesellschaft, welcher Rechtstext (``agb`` · ``datenschutz``)."""
+    company: int = Field(description="Objektnummer der eigenen Gesellschaft.")
+    kind: str = Field(description="Welcher Rechtstext: 'agb' oder 'datenschutz'.")
+
+
+class TurnIn(BaseModel):
+    who: str = Field(pattern="^(user|ai)$", description="Wer spricht: 'user' oder 'ai'.")
+    text: str = Field(max_length=4000, description="Was gesagt wurde.")
+
+
+class ComposeIn(BaseModel):
+    """Eine Runde Verfassen: das Gespräch und der letzte Stand (lebt im Browser)."""
+    turns: list[TurnIn] = Field(min_length=1, max_length=40, description="Das Gespräch bisher, älteste zuerst.")
+    current: Optional[dict] = Field(None, description="Der letzte Stand des Papiers (wie die vorige Runde ihn lieferte), leer beim ersten Mal.")
+
+
+class SignerOut(BaseModel):
+    object_id: int
+    name: str
+
+
+class ComposeOut(BaseModel):
+    """Das Papier dieser Runde – als A4-HTML und als Stand für die nächste Runde."""
+    ai: bool = True
+    reply: str = ""
+    paper: Optional[dict] = None
+    html: Optional[str] = None
+    art: str = ""
+    name: str = ""
+    signers: list[SignerOut] = []
+
+
+class SendIn(BaseModel):
+    """Senden: an wen, ob sie unterschreiben sollen, und ein Satz dazu."""
+    to: list[int] = Field(min_length=1, max_length=20, description="Empfänger: Objektnummern von Personen; jede bekommt ihren Link.")
+    sign: bool = Field(False, description="Sollen sie unterschreiben?")
+    note: str = Field(default="", max_length=1000, description="Ein Satz zur Mail.")
+
+
+class PublicSigner(BaseModel):
+    name: str
+    signed_at: Optional[datetime] = None
+    declined_at: Optional[datetime] = None
+
+
+class StationOut(BaseModel):
+    who: str
+    title: str
+    text: str
+    #: ``done`` · ``active`` · ``ahead``
+    state: str
+
+
+class NoteOut(BaseModel):
+    """Ein Satz statt einer Handlung – abgelaufen, überholt, storniert."""
+    kind: str
+    title: str
+    text: str
+    link: Optional[str] = None
+
+
+class DealOut(BaseModel):
+    """**Ist das Dokument ein Papier eines Belegs** (Offerte, Rechnung …), steht hier der
+    Vorgang: der Weg, was die Partei jetzt tun kann, was offen ist."""
+    #: Der Link des gezeigten Papiers (ist ein neueres da, ist es dessen).
+    token: str
+    kind: str
+    word: str
+    number: Optional[str] = None
+    note: Optional[NoteOut] = None
+    #: ``agree`` · ``reject`` · ``pay_online`` – was die Partei jetzt tun kann.
+    actions: list[str] = Field(default_factory=list)
+    stations: list[StationOut] = Field(default_factory=list)
+    open: Optional[str] = None
+    currency: str = "CHF"
+    agb: Optional[str] = None
+
+
+class PublicDocument(BaseModel):
+    """Was die Seite eines Links zeigt – jedes Dokument, ein Papier eines Belegs ebenso."""
+    art: str
+    name: str
+    status: str
+    mime: str
+    html: Optional[str] = None
+    url: Optional[str] = None
+    filename: Optional[str] = None
+    signers: list[PublicSigner] = []
+    #: ``sign`` · ``decline`` – was der Empfänger jetzt tun kann.
+    actions: list[str] = []
+    #: Der Vorgang, wenn das Dokument ein Papier eines Belegs ist – sonst leer.
+    deal: Optional[DealOut] = None
+
+
+class SignIn(BaseModel):
+    #: Der Zug als PNG (``data:image/png;base64,…``).
+    image: str = Field(max_length=600_000)
+
+
+class DeclineIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=300)

@@ -1,0 +1,44 @@
+---
+/**
+ * Ergebnis-Flächen der Anfrage (Erfolg · Fehlerfall). Texte aus der Konfiguration,
+ * sichtbar gemacht von scripts/form.ts. Der Fehlerfall verliert nichts: Telefon und ein
+ * mailto-Link, dessen Text die Eingaben bereits enthält.
+ */
+import { site, contactEmail } from '../config/site.mjs';
+import Icon from './Icon.astro';
+import { t } from '../i18n/t.mjs';
+const T = t('ui', {
+  thanks: 'Danke für Ihre Anfrage.',
+  reply: 'Wir melden uns innert {time}.',
+  again: 'Neue Anfrage',
+  failed: 'Das Senden hat nicht geklappt.',
+  failedText: 'Ihre Angaben sind nicht verloren. Rufen Sie uns an oder schicken Sie sie per E-Mail – der Text ist bereits vorbereitet.',
+  mail: 'Per E-Mail senden',
+  kept: 'Ihre Eingaben stehen weiterhin im Formular – Sie können es später noch einmal versuchen.',
+  tooMany: 'Zu viele Anfragen in kurzer Zeit.',
+});
+
+interface Props {
+  /** 2 = Formular direkt unter der H1 (/kontakt), 3 = in einer Sektion mit H2 (Kurzformular). */
+  level?: 2 | 3;
+}
+const { level = 3 } = Astro.props;
+const H = `h${level}` as 'h2' | 'h3';
+---
+<div class="iresult iresult--ok" data-result="ok" hidden tabindex="-1">
+  <H class="iresult__title"><span class="iresult__dot" aria-hidden="true"><Icon name="check" size={20} /></span>{T.thanks}</H>
+  <p>{T.reply.replace('{time}', site.promises.responseTime)} <button type="button" class="iresult__again" data-reset>{T.again}</button></p>
+</div>
+
+<div class="iresult iresult--fail" data-result="fail" hidden tabindex="-1" role="alert">
+  <Icon name="alert" size={32} class="iresult__icon" />
+  <H class="iresult__title h3" data-fail-title data-many={T.tooMany}>{T.failed}</H>
+  <p data-fail-text>
+    {T.failedText}
+  </p>
+  <div class="btn-row">
+    <a class="btn btn--primary" href={`tel:${site.phone.e164}`}><Icon name="phone" size={18} /> {site.phone.display}</a>
+    <a class="btn btn--secondary" href={`mailto:${contactEmail()}`} data-mailto><Icon name="mail" size={18} /> {T.mail}</a>
+  </div>
+  <p class="small muted">{T.kept}</p>
+</div>

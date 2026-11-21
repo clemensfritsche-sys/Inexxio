@@ -1,0 +1,33 @@
+---
+/**
+ * /ratgeber – Übersicht der Fachartikel, eigenes Layout v4 (Oktober 2026): Kopf wie Porsche → die Artikel
+ * als Karten mit Zeichnung (neueste zuerst; die Zeichnung steht im Artikel, `illo`) → Anfrage («Ihre Frage
+ * ist nicht dabei?»). Texte: content/ratgeber-uebersicht.ts und src/content/ratgeber/*.md.
+ */
+import Base from '../layouts/Base.astro';
+import StageHero from '../components/StageHero.astro';
+import FieldCards from '../components/spezial/FieldCards.astro';
+import ContactSection from '../components/ContactSection.astro';
+import { articles } from '../lib/ratgeber';
+import { pageTitle } from '../lib/titles';
+import { ratgeberUebersicht as r } from '../content/ratgeber-uebersicht';
+import { t } from '../i18n/t.mjs';
+
+const titel = pageTitle('/ratgeber');
+const cards = articles().map((a) => ({ id: a.slug, illo: a.illo, alt: t('ui', 'Zeichnung zum Artikel «{title}»').replace('{title}', a.seoTitle), title: a.seoTitle, text: a.description, href: a.path }));
+---
+<Base title={r.title} description={r.description} crumbs={[{ name: t('seiten', 'Ratgeber'), path: '/ratgeber' }]}>
+  <StageHero
+    word={t('seiten', 'Ratgeber')}
+    image={titel}
+    alt={t('seiten', 'Rotes Klemmbrett mit offenem Kranbuch und Messschieber, dahinter eine Unterflasche mit Haken als Zeichnung')}
+    title={r.h1}
+    lead={r.summary}
+    primary={{ label: t('seiten', 'Frage stellen'), href: '#anfrage' }}
+    secondary={{ label: t('seiten', 'Zu den Artikeln'), href: '#artikel' }}
+  />
+
+  <FieldCards id="artikel" title={r.listTitle} lead={r.listLead} items={cards} />
+
+  <ContactSection />
+</Base>

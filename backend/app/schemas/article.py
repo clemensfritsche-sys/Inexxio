@@ -1,0 +1,366 @@
+import re
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from typing import Optional
+
+from pydantic import (BaseModel, ConfigDict, Field, field_validator,
+                      model_validator)
+
+from .process import ModuleFacts, ModuleInput
+
+# ─── Erlaubte Werte ──────────────────────────────────────────────────────────
+
+ALLOWED_UNITS = ("Stk", "mm", "m2", "m3", "kg", "l")
+ALLOWED_SERIALIZATION = ("unit", "batch")
+#: Keine Status-Whitelist: der Zustand eines Artikels ist abgeleitet (``Article.status`` ←
+#: ``replaced_by_id``) und kommt nie von aussen.
+
+# Artikelnamen bewusst KURZ (Feed, Etiketten, Listen); gekappt hier, das Frontend zusätzlich.
+NAME_MAX_LENGTH = 32
+
+#: ►►► **Abmessungen: genau drei Masse in mm, aufsteigend** («klein x mittel x gross»). ◄◄◄
+#: Eine Regel – der Prüfer (``normalize_size``) und die Beschreibung des Feldes lesen sie hier.
+SIZE_PATTERN = r"^\d+(\.\d+)?x\d+(\.\d+)?x\d+(\.\d+)?$"
+_SIZE_RE = re.compile(SIZE_PATTERN)
+
+
+def clean_article_name(v: Optional[str], *, required: bool = True) -> Optional[str]:
+    """Artikelname normalisieren: trimmen, auf ``NAME_MAX_LENGTH`` kappen. ``required`` steuert,
+    ob ein leerer Wert ein Fehler ist (Anlage) oder erlaubt bleibt (None-Teilupdate)."""
+    if v is None:
+        if required:
+            raise ValueError("Name ist ein Pflichtfeld")
+        return None
+    v = v.strip()
+    if not v:
+        raise ValueError("Name ist ein Pflichtfeld" if required else "Name darf nicht leer sein")
+    # **Nie still kürzen** – der Probelauf soll merken, dass der Name zu lang ist.
+    if len(v) > NAME_MAX_LENGTH:
+        raise ValueError(f"Name ist zu lang – höchstens {NAME_MAX_LENGTH} Zeichen "
+                         f"(jetzt {len(v)})")
+    return v
+
+
+# ─── Wiederverwendbare Validatoren ───────────────────────────────────────────
+
+def normalize_size(raw: str) -> str:
+    """Validiere & normalisiere eine Grössenangabe.
+
+    Regeln: genau drei Masse in mm, getrennt durch 'x', jeweils > 0, aufsteigend
+    (klein → gross), z. B. ``3x40x600``. ``×`` und ``X`` werden zu ``x`` normalisiert.
+    """
+    s = raw.strip().lower().replace("×", "x").replace(" ", "")
+    if not _SIZE_RE.match(s):
+        raise ValueError(
+            "Abmessungen sind drei Masse in mm, getrennt durch 'x' (z. B. 3x40x600)"
+        )
+    parts = [float(p) for p in s.split("x")]
+    if any(p <= 0 for p in parts):
+        raise ValueError("Alle Masse müssen grösser als 0 sein")
+    if any(parts[i] > parts[i + 1] for i in range(len(parts) - 1)):
+        raise ValueError("Masse müssen aufsteigend angegeben werden (klein → gross)")
+    return s
+
+
+def validate_weight(value: Decimal) -> Decimal:
+    """Gewicht: grösser als 0, höchstens 3 Nachkommastellen."""
+    try:
+        d = Decimal(value)
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValueError("Gewicht muss eine Zahl sein")
+    if d <= 0:
+        raise ValueError("Gewicht darf nicht 0 sein und muss grösser als 0 sein")
+    if d.as_tuple().exponent < -3:
+        raise ValueError("Gewicht darf höchstens 3 Nachkommastellen haben")
+    return d
+
+
+def _opt_text(v: Optional[str]) -> Optional[str]:
+    """Optionales Textfeld: leeren String zu None normalisieren."""
+    if v is None:
+        return None
+    return v.strip() or None
+
+
+def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
+    """Optionale Mengenangabe (MOQ/Sicherheitsbestand): ≥ 0, max. 3 Nachkommastellen."""
+    if v is None:
+        return None
+    try:
+        d = Decimal(v)
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValueError("Wert muss eine Zahl sein")
+    if d < 0:
+        raise ValueError("Wert darf nicht negativ sein")
+    if d.as_tuple().exponent < -3:
+        raise ValueError("Höchstens 3 Nachkommastellen erlaubt")
+    return d
+
+
+# Optionale Stammdatenfelder (dynamische Feldliste): Validatoren je Feld.
+_OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "hs_code", "origin_country")
+_OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
+#: Ein Link ins Web: Schema ``http``/``https`` und ein Host danach.
+_WEB_LINK = re.compile(r"^https?://[^\s/]", re.IGNORECASE)
+
+
+# ─── Schemas ─────────────────────────────────────────────────────────────────
+
+class ArticleCreate(BaseModel):
+    """Der Artikel-Entwurf, so wie ihn die Oberfläche schickt – Spezifikation **und**
+    Erzeugungsprozess in einem Aufruf.
+
+    Das ist keine Bequemlichkeit, sondern die Folge aus der Regel: der Artikel entsteht
+    erst mit seiner **Freigabe**, und die verlangt beides. Zwei Aufrufe hiessen zwei
+    Transaktionen und damit die Möglichkeit eines halben Artikels – genau die, die es
+    vorher gab (Spezifikation gespeichert, Prozess leer).
+
+    Pflicht sind **Name, Abmessungen, Gewicht** und **mindestens ein Prozessschrittmodul**.
+    Einheit/Serialisierung tragen einen Default (Stk / Einzelteil). Geprüft wird in
+    ``services/articles.missing_for_release`` – der einen Stelle, die auch ``/validate``
+    beantwortet."""
+
+    name: str = Field(
+        description=f"Kurzer Name für Feed, Etikett und Listen – höchstens {NAME_MAX_LENGTH} "
+                    "Zeichen.", json_schema_extra={"maxLength": NAME_MAX_LENGTH},
+        examples=["Welle Ø20 x 300"])
+    unit: Optional[str] = Field(
+        None, description="Mengeneinheit: " + ", ".join(ALLOWED_UNITS) + " (leer = Stk).")
+    serialization: Optional[str] = Field(
+        None, description="Wie Stücke gezählt werden: 'unit' = jedes Stück einzeln (Einzelteil), "
+                          "'batch' = eine Charge (leer = unit).")
+    size: Optional[str] = Field(
+        None, description="Abmessungen in mm: genau drei Masse, aufsteigend (klein x mittel x "
+                          "gross), getrennt durch 'x', ohne Einheit. Pflicht zur Freigabe.",
+        json_schema_extra={"pattern": SIZE_PATTERN}, examples=["3x40x600"])
+    weight_kg: Optional[Decimal] = Field(
+        None, description="Gewicht eines Stücks in kg, grösser als 0, höchstens 3 "
+                          "Nachkommastellen. Pflicht zur Freigabe.", examples=["2.5"])
+    material: Optional[str] = Field(None, description="Werkstoff, z. B. «S235» oder «PA6».")
+    cad_url: Optional[str] = Field(
+        None, description="Link zur CAD-Zeichnung im Web – beginnt mit http:// oder https://.")
+    surface: Optional[str] = Field(None, description="Oberfläche, z. B. «verzinkt».")
+    min_order_qty: Optional[Decimal] = Field(
+        None, description="Mindestbestellmenge in der Mengeneinheit, ≥ 0, höchstens 3 "
+                          "Nachkommastellen.")
+    safety_stock: Optional[Decimal] = Field(
+        None, description="Sicherheitsbestand in der Mengeneinheit, ≥ 0, höchstens 3 "
+                          "Nachkommastellen.")
+    is_hazmat: Optional[bool] = Field(None, description="Gefahrgut?")
+    #: **Ware oder Dienstleistung** – daraus folgen Steuersatz und Lieferbedingung im
+    #: Zahlungsmodul (Ware: Lieferadresse; Dienstleistung: Sitz des Empfängers).
+    is_service: Optional[bool] = Field(
+        None, description="Dienstleistung statt Ware? Bestimmt im Zahlungsmodul Steuersatz und "
+                          "Lieferbedingung.")
+    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind weltweit
+    #: identisch, der Rest national.
+    hs_code: Optional[str] = Field(None, description="Zolltarifnummer (HS), 6 bis 8 Ziffern.")
+    #: **Ursprungsland** (ISO-2) – eine eigene Angabe, nicht das Versandland.
+    origin_country: Optional[str] = Field(
+        None, description="Ursprungsland als ISO-Code mit 2 Buchstaben (z. B. CH) – nicht das "
+                          "Versandland.")
+    #: Der Erzeugungsprozess. **Pflicht** – ein Artikel ohne ihn kann nichts erzeugen.
+    steps: list[ModuleInput] = Field(
+        default_factory=list,
+        description="Der Erzeugungsprozess: die Schritte, die jedes neue Stück durchläuft. "
+                    "Mindestens einer. Ein gekauftes Teil: Zahlung (Ausgabe) mit dem Lieferanten, "
+                    "dann Bewegen ins Lager.")
+    #: **Welchen Artikel löst dieser hier ab?** (Objektnummer, optional.)
+    #:
+    #: Steht am **Nachfolger** (einziger Moment: die Anlage). Wirkung:
+    #: ``predecessor.replaced_by_id`` zeigt hierher, der Vorgänger geht ausser Betrieb.
+    replaces_object_id: Optional[int] = Field(
+        None, description="Objektnummer des Artikels, den dieser ablöst (der alte geht ausser "
+                          "Betrieb). Leer = neu.")
+
+    @field_validator(*_OPTIONAL_TEXT_FIELDS)
+    @classmethod
+    def _opt_text_clean(cls, v: Optional[str]) -> Optional[str]:
+        return _opt_text(v)
+
+    @field_validator(*_OPTIONAL_QTY_FIELDS)
+    @classmethod
+    def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        return _opt_qty(v)
+
+    @field_validator("cad_url")
+    @classmethod
+    def _cad_url_web(cls, v: Optional[str]) -> Optional[str]:
+        """Ein CAD-Link führt ins Web (``http``/``https``) – das ERP setzt ihn als Link.
+        Dieselbe Regel liest die Oberfläche (``lib/web-link.webHref``)."""
+        if v is not None and not _WEB_LINK.match(v):
+            raise ValueError(f"CAD-Link «{v}» muss mit http:// oder https:// beginnen")
+        return v
+
+    @field_validator("origin_country")
+    @classmethod
+    def _origin_iso2(cls, v: Optional[str]) -> Optional[str]:
+        """**Ein Land, eine Schreibweise** – «ch» und «CH» wären auf dem Beleg zwei Länder."""
+        return v.upper() if v else v
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_empty(cls, v: str) -> str:
+        return clean_article_name(v, required=True)
+
+    @field_validator("unit")
+    @classmethod
+    def _unit_allowed(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if v not in ALLOWED_UNITS:
+            raise ValueError(f"Einheit muss eine von {', '.join(ALLOWED_UNITS)} sein")
+        return v
+
+    @field_validator("serialization")
+    @classmethod
+    def _serialization_allowed(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if v not in ALLOWED_SERIALIZATION:
+            raise ValueError("Seriennummererfassung muss 'unit' (Einzelteil) oder 'batch' sein")
+        return v
+
+    @field_validator("size")
+    @classmethod
+    def _size_valid(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return normalize_size(v)
+
+    @field_validator("weight_kg", mode="before")
+    @classmethod
+    def _weight_valid(cls, v: object) -> Optional[Decimal]:
+        """Wie Menschen Zahlen schreiben («2,5») – gelesen an der einen Stelle (``domain/number``)."""
+        from ..domain import number
+        d = number.decimal(v)
+        return None if d is None else validate_weight(d)
+
+    @model_validator(mode="after")
+    def _defaults(self) -> "ArticleCreate":
+        # Einheit/Serialisierung bekommen einen sinnvollen Default; Grösse/Gewicht bleiben
+        # optional (leer, wenn nicht angegeben – z. B. bei einem Dokument-Artikel).
+        self.unit = self.unit or "Stk"
+        self.serialization = self.serialization or "unit"
+        return self
+
+
+class ArticleLink(BaseModel):
+    """Ein Artikel, wie ihn eine andere Antwort **nennt**: Nummer, Name, Zustand.
+
+    Der Zustand reist mit, weil er die Aussage trägt: «Schraube M6 (ausser Betrieb)» ist
+    eine Warnung, «Schraube M6» ist eine Angabe. Ihn beim Empfänger nachzuladen hiesse,
+    je Zeile eine Abfrage zu fahren.
+    """
+
+    object_id: int
+    name: str
+    status: str
+
+
+class RetiredInput(BaseModel):
+    """Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels."""
+
+    article: ArticleLink
+    #: Der Weg dorthin – die Artikel dazwischen, von mir aus gesehen. Leer heisst:
+    #: er steht **direkt** in meiner Stückliste.
+    via: list[ArticleLink] = Field(default_factory=list)
+    #: Der Nachfolger, wenn es einen gibt – die **Lösung** steht dort, wo das Problem
+    #: gemeldet wird.
+    replaced_by: Optional[ArticleLink] = None
+
+
+class ArticleBom(BaseModel):
+    """Die **geplante** Stückliste in beide Richtungen (``services/bom.py``).
+
+    Nur am Detail gefüllt, nie im Feed: sie kostet zwei Abfragen je Artikel, und im Feed
+    wären das zweihundert. ``None`` an der Antwort heisst darum «nicht geladen», nicht
+    «nichts gefunden» – die beiden zu verwechseln hiesse, im Feed jedem Artikel eine
+    leere Stückliste zu attestieren.
+    """
+
+    #: Wer nennt mich in seiner Stückliste? Die Antwort auf «was mache ich kaputt, wenn
+    #: ich diesen Artikel ausser Betrieb nehme».
+    used_in: list[ArticleLink] = Field(default_factory=list)
+    #: Was in meiner Stückliste steckt und ausser Betrieb ist – direkt oder über Stufen.
+    retired_inputs: list[RetiredInput] = Field(default_factory=list)
+
+
+class ArticleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    object_id: Optional[int]
+    status: str
+    name: str
+    unit: str
+    serialization: str
+    size: Optional[str] = None
+    weight_kg: Optional[Decimal] = None
+    # Optionale Stammdaten (dynamische Feldliste)
+    material: Optional[str] = None
+    cad_url: Optional[str] = None
+    surface: Optional[str] = None
+    min_order_qty: Optional[Decimal] = None
+    safety_stock: Optional[Decimal] = None
+    is_hazmat: bool = False                     # Gefahrgut
+    is_service: bool = False                    # Dienstleistung (sonst Ware)
+    #: ►►► **Zolltarifnummer (HS)** – 6 bis 8 Stellen. ◄◄◄ Die ersten sechs sind weltweit
+    #: identisch, der Rest national.
+    hs_code: Optional[str] = None
+    #: **Ursprungsland** (ISO-2) – eine eigene Angabe, nicht das Versandland.
+    origin_country: Optional[str] = None
+    # ── Ersetzen: die Kette in beide Richtungen ────────────────────────────────
+    #: Die rohe Kante, wie sie in der Zeile steht (``articles.replaced_by_id``).
+    replaced_by_id: Optional[int] = None
+    #: Aufgelöst – Nummer, Name und Zustand; vom Router gefüllt.
+    replaced_by: Optional[ArticleLink] = None
+    #: Die Gegenrichtung: wen löst dieser Artikel ab? **Abgefragt, nicht gespiegelt.**
+    replaces: Optional[ArticleLink] = None
+    #: Die geplante Stückliste – **nur am Detail** (``None`` = nicht geladen).
+    bom: Optional[ArticleBom] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ArticleValidation(BaseModel):
+    """Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."""
+
+    missing: list[str] = Field(
+        default_factory=list,
+        description="Was noch fehlt – leer heisst freigebbar.",
+    )
+
+
+class ArticleNameSuggestion(BaseModel):
+    """Ein Namensvorschlag beim Anlegen eines Artikels (freie Namensgebung, aber das
+    System schlägt bereits verwendete/ähnliche Namen vor, um Dubletten zu vermeiden)."""
+    name: str
+    count: int = 0                       # wie viele aktive Artikel diesen Namen bereits tragen
+    score: Optional[float] = None        # Ähnlichkeit zur Eingabe (nur bei Suche gesetzt)
+
+
+# ---------------------------------------------------------------------------
+# Erzeugungsprozess (Vorlage am Artikel)
+# ---------------------------------------------------------------------------
+
+class ArticleProcessStepResponse(ModuleFacts):
+    """Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,
+    nur bevor er läuft.
+
+    Beschriftung, Farbfamilie und «Ausgang?» kommen aus ``ModuleFacts`` – derselben
+    Ableitung wie im Auftrag. Zwei Wege dorthin wären zwei Stände.
+    """
+
+    #: **Die Identität des Moduls** – der Ereignis-Log zeigt auf sie, nicht auf Name oder
+    #: Position.
+    id: int
+    position: int
+    config: Optional[dict] = None
+
+
+class ArticleProcess(BaseModel):
+    """Der Erzeugungsprozess eines Artikels – eingefroren: ein Artikel ändert sich nie, eine
+    Änderung ist ein neuer Artikel. Der Auftrag trägt eine Kopie."""
+
+    steps: list[ArticleProcessStepResponse] = Field(default_factory=list)

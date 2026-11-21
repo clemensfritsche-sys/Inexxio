@@ -1,0 +1,238 @@
+"""►►► **Der Takt** – was nicht davon abhängen darf, dass irgendwo ein Browser offen ist. ◄◄◄
+
+Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, ``POST /api/v1/internal/tick``
+(``routers/internal``, Anmeldung ``core/oidc``; eingerichtet im Deploy, ``infra/README.md``).
+Was er tut, steht **an dieser einen Stelle**: ``TASKS``, eine Liste von Aufgaben. Für jede gilt:
+
+* **eigene Sitzung, eigene Transaktion** – das System handelt (``system_session("job")``);
+* **wiederholbar** – ein zweiter Lauf direkt danach findet nichts mehr zu tun;
+* **einzeln gesperrt** – ein Advisory-Lock je Aufgabe (``core/locks.hold``, auf einer
+  eigenen Verbindung, über Commits hinweg): läuft sie gerade anderswo, wird sie
+  **übersprungen**, nicht verdoppelt;
+* **mit Zeitgrenze** – nach ``START_WITHIN`` Sekunden beginnt keine Aufgabe und kein Schritt
+  mehr; ein angefangener Schritt ist durch die Zeitgrenzen seiner Abrufe (höchstens 30 s)
+  begrenzt. So bleibt der Lauf unter der Anfrage-Grenze von Cloud Run (60 s);
+* **ein Fehlschlag hält die übrigen nicht auf** – er wird gemeldet (Antwort und Cloud
+  Logging), die nächste Aufgabe läuft.
+
+**Was eine Aufgabe getan hat, steht im Log** (Ereignis ``tick.<name>`` mit den Zahlen) –
+nichts, wenn nichts geschah: 288 Läufe am Tag füllen das Log nicht mit Leerlauf.
+"""
+
+import time
+import traceback
+import zlib
+from dataclasses import dataclass, field
+from typing import Any, Callable, Optional
+
+
+from ..core import locks
+from ..core.actor import system_session
+from ..core import report
+
+#: Danach beginnt der Takt nichts Neues mehr (Sekunden ab Beginn des Laufs).
+START_WITHIN = 20.0
+#: Bis dahin muss auch die KI fertig sein (Sekunden ab Beginn) – Cloud Scheduler wartet 60 s.
+FINISH_WITHIN = 50.0
+
+
+
+@dataclass(frozen=True)
+class Task:
+    """Eine Aufgabe: ``run(db, deadline)`` gibt zurück, was sie getan hat (Zahlen für das
+    Log) – oder nichts (leer / ``None``), wenn es nichts zu tun gab."""
+    name: str
+    run: Callable[[Any, float], Optional[dict[str, int]]]
+
+
+@dataclass
+class Outcome:
+    name: str
+    state: str                          # ok · skipped · failed
+    detail: Optional[str] = None
+    done: dict[str, int] = field(default_factory=dict)
+
+
+def _seal(db, deadline: float) -> dict[str, int]:
+    """Das Siegel des Logs: jeder abgeschlossene Tag, der noch keins hat."""
+    from . import log
+    return {"days": log.seal_due(db)}
+
+
+def _mail(db, deadline: float) -> dict[str, int]:
+    """Die Postfächer abgleichen und Fälliges senden (``mailbox.sync_all``) – dasselbe wie
+    das offene ERP (``POST /erp/messages/sync``), nur ohne Browser."""
+    from . import mailbox
+    new, sent = mailbox.sync_all(db, deadline=deadline)
+    return {"new": new, "sent": sent}
+
+
+#: So viele Einträge ohne Bedeutungs-Zahlen holt ein Lauf nach.
+MEMORY_PER_RUN = 20
+
+
+def _ai(db, deadline: float) -> dict[str, int]:
+    """**Die KI im Takt** (Phase 5): Gespräche nachholen, auf die sie nicht antwortete · neue
+    Mails auf ihre Folgen prüfen (Handgriffe am Datensatz) · fehlende Bedeutungs-Zahlen (Fälle,
+    Notizen, Dokumente – «im Wissen suchen»; braucht nur Vertex). Jeder Schritt speichert für
+    sich – ein Ausfall der KI nimmt das Getane nicht zurück."""
+    import time as _t
+    from . import ai
+    with ai.until(deadline - _t.monotonic() + FINISH_WITHIN - START_WITHIN):
+        return _ai_steps(db, deadline)
+
+
+def _ai_steps(db, deadline: float) -> dict[str, int]:
+    import time as _t
+    from . import ai, follow, memory, pins, talk
+    done: dict[str, int] = {}
+    if ai.available(db) and _t.monotonic() < deadline:
+        done["answered"] = talk.catch_up(db, deadline)
+    if ai.available(db) and _t.monotonic() < deadline:
+        done["mails"], done["handgriffe"] = follow.run(db, deadline)
+        db.commit()
+    if _t.monotonic() < deadline:          # Bedeutungs-Zahlen brauchen nur Vertex
+        done["remembered"] = memory.catch_up(db, deadline, MEMORY_PER_RUN)
+    if ai.available(db) and _t.monotonic() < deadline:   # «Auf einen Blick» vorab
+        done["glanced"] = pins.ahead(db, deadline)
+    return {k: v for k, v in done.items() if v}
+
+
+#: So viele Aufnahmen schaut ein Lauf höchstens an (jede nur, solange Zeit ist).
+VOICE_PER_RUN = 10
+
+
+def _voice(db, deadline: float) -> dict[str, int]:
+    """**Aufnahmen ohne Browser zu Ende bringen** (Phase 4): zuerst aufräumen (braucht keine KI,
+    läuft immer – kein Audio bleibt länger als einen Tag), dann gestoppte oder abgebrochene
+    Aufnahmen abschreiben und erfassen, solange Zeit ist (``recordings.advance`` committet je
+    Schritt)."""
+    import time as _t
+    from . import ai, recordings
+    done = recordings.sweep(db)
+    db.commit()
+    with ai.until(deadline - _t.monotonic() + FINISH_WITHIN - START_WITHIN):
+        for rid in recordings.due(db, VOICE_PER_RUN):
+            if _t.monotonic() >= deadline:
+                break
+            recordings.advance(db, rid)
+            if recordings.load(db, rid).end is not None:
+                done["finished"] = done.get("finished", 0) + 1
+    return done
+
+
+def _loop(db, deadline: float) -> dict[str, int]:
+    """**Wiederkehrende Aufträge** (``services/loop``): je fälligem Auftrag ohne Nachfolger den
+    Nachfolger anlegen – wenn nichts fehlt; sonst wartet er (der Grund steht in «zu tun»).
+    Jeder in eigener Transaktion: eine Kette, die scheitert, hält die anderen nicht auf. Fehlt
+    die Zeit, nimmt der nächste Lauf den Rest – keine Periode geht verloren."""
+    import time as _t
+    from . import loop
+    done: dict[str, int] = {}
+    for order in loop.due(db):
+        if _t.monotonic() >= deadline:
+            break
+        try:
+            if loop.create_next(db, order) is not None:
+                done["created"] = done.get("created", 0) + 1
+            db.commit()
+        except Exception as exc:        # noqa: BLE001 – gemeldet, die nächste Kette läuft
+            db.rollback()
+            done["failed"] = done.get("failed", 0) + 1
+            report.error(f"TICK loop {order.object_id}: {exc!r}")
+    return done
+
+
+def _tasks(db, deadline: float) -> dict[str, int]:
+    """**Aufgaben zuteilen** (``services/tasks.dispatch``) – auch, wenn kein ERP offen ist:
+    wer einstempelt oder frei wird, bekommt die nächste. Nach den Mails, die neue Aufgaben
+    bringen können. Kein eigenes Ereignis: wer etwas bekam, schreibt das Log an ``task_focus``."""
+    from . import tasks
+    tasks.dispatch(db)
+    return {}
+
+
+def _site(db, deadline: float) -> dict[str, int]:
+    """**Website-Statistik aufräumen** (``site_stats.prune``): der Schlüssel vergangener Tage
+    geht weg – damit lässt sich keine Kennung mehr einer Adresse zuordnen –, alte Aufrufe auch."""
+    from . import site_stats
+    return site_stats.prune(db)
+
+
+#: ►► **Die Aufgaben des Takts, in dieser Reihenfolge.** Das Siegel zuerst: es dauert
+#:    Millisekunden und darf nie hinter einem langsamen Postfach warten; ebenso das Aufräumen der
+#:    Website-Statistik (``site``: der Schlüssel des Vortags muss weg). Dann die
+#:    Wiederholungen (``loop``): reine Datenbank-Arbeit, ein Nachfolger ist fällig ab
+#:    Tagesbeginn und soll nicht hinter Gmail oder der KI warten. Dann die Aufnahmen
+#:    (``voice``): eine eigene Aufgabe mit eigener Sperre – das Aufräumen läuft auch, wenn die KI
+#:    scheitert, und ein Mensch wartet auf seinen Text; vor der KI, weil ein langes Ablegen oder
+#:    Folgen sonst jeden Lauf die Zeit nähme. Die KI zuletzt: sie braucht am längsten, wartet auf
+#:    die Mails, die der Abgleich eben holte, und legt ab, was ``voice`` eben erfasste.
+TASKS: tuple[Task, ...] = (
+    Task("seal", _seal),
+    Task("site", _site),
+    Task("loop", _loop),
+    Task("mail", _mail),
+    Task("tasks", _tasks),
+    Task("voice", _voice),
+    Task("ai", _ai),
+)
+
+
+def lock_key(name: str) -> int:
+    """Der Schlüssel der Sperre einer Aufgabe – aus ihrem Namen, also für immer derselbe."""
+    return locks.key(zlib.crc32(f"tick:{name}".encode()))
+
+
+def _acquire(name: str):
+    """Die Sperre der Aufgabe – ``None``, wenn sie gerade jemand hält (``core/locks``)."""
+    return locks.hold(locks.TICK, lock_key(name))
+
+
+def _release(con, name: str) -> None:
+    locks.let_go(con, locks.TICK, lock_key(name))
+
+
+def _counts(done: Optional[dict[str, Any]]) -> dict[str, int]:
+    """Nur, was geschah – Zahlen über null."""
+    return {k: int(v) for k, v in (done or {}).items() if v}
+
+
+def _one(task: Task, deadline: float) -> Outcome:
+    """Eine Aufgabe: sperren, in eigener Sitzung laufen, Getanes ins Log, freigeben."""
+    con = _acquire(task.name)
+    if con is None:
+        return Outcome(task.name, "skipped", "Läuft gerade anderswo.")
+    db = system_session("job")
+    try:
+        done = _counts(task.run(db, deadline))
+        if done:
+            from . import log
+            log.event(db, f"tick.{task.name}", None, done)
+        db.commit()
+        return Outcome(task.name, "ok", done=done)
+    except Exception as exc:        # noqa: BLE001 – gemeldet, die nächste Aufgabe läuft
+        db.rollback()
+        report.error(f"TICK {task.name} failed: {exc!r}\n{traceback.format_exc()}")
+        return Outcome(task.name, "failed", f"{type(exc).__name__}: {exc}"[:300])
+    finally:
+        db.close()
+        _release(con, task.name)
+
+
+def run(tasks: Optional[tuple[Task, ...]] = None,
+        start_within: float = START_WITHIN) -> list[Outcome]:
+    """**Ein Lauf des Takts** – jede Aufgabe einmal, keine hält die anderen auf."""
+    tasks = TASKS if tasks is None else tasks
+    deadline = time.monotonic() + start_within
+    out: list[Outcome] = []
+    for task in tasks:
+        if time.monotonic() >= deadline:
+            out.append(Outcome(task.name, "skipped", "Keine Zeit mehr in diesem Lauf."))
+            continue
+        try:
+            out.append(_one(task, deadline))
+        except Exception as exc:    # noqa: BLE001 – auch die Sperre selbst kann scheitern
+            report.error(f"TICK {task.name} not started: {exc!r}")
+            out.append(Outcome(task.name, "failed", f"{type(exc).__name__}: {exc}"[:300]))
+    return out

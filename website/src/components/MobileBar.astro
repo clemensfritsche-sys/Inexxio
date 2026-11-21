@@ -1,0 +1,52 @@
+---
+/**
+ * Feste Aktionsleiste unten – nur mobil: [Anrufen] [Anfrage], 56 px hoch.
+ * Erscheint, sobald der Seitenkopf aus dem Bild ist: das EINE Element mit data-hero – H1 und
+ * die erste Handlung, nie der ganze Artikel (sonst käme sie erst am Seitenende; check-site
+ * prüft es). Ohne JS ist sie immer da. «Anfrage» führt nach /kontakt; hat die Seite selbst eine
+ * Anfrage (#anfrage), springt sie dorthin (scripts/mobilebar.ts).
+ */
+import { site } from '../config/site.mjs';
+import Icon from './Icon.astro';
+import { t } from '../i18n/t.mjs';
+const T = t('ui', { quick: 'Schnellkontakt', call: 'Anrufen', ask: 'Anfrage' });
+---
+<nav class="mobilebar" aria-label={T.quick} data-mobilebar>
+  <a class="mobilebar__btn mobilebar__btn--tel" href={`tel:${site.phone.e164}`}>
+    <Icon name="phone" size={20} /> {T.call}
+  </a>
+  <a class="mobilebar__btn mobilebar__btn--cta" href={site.cta.href} data-mobilebar-cta>
+    {T.ask} <Icon name="arrow-right" size={20} />
+  </a>
+</nav>
+
+<style>
+  /* v4: zwei schwebende Knöpfe mit 12 px Rand, ohne gemeinsame Fläche – links «Anrufen» in
+     Glas, rechts die rote Anfrage; jeder trägt seinen eigenen Schatten. */
+  .mobilebar {
+    position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 40;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    transition: transform 320ms var(--ease), opacity 320ms var(--ease), visibility 0s linear 0s;
+  }
+  /* Versteckt heisst auch: nicht fokussierbar. `visibility` schaltet erst um, wenn die Leiste
+     draussen ist (Verzögerung = Dauer der Bewegung). */
+  :global(.js) .mobilebar:not(.is-visible),
+  :global(html.menu-open) .mobilebar {
+    transform: translateY(calc(100% + 24px)); opacity: 0; visibility: hidden;
+    transition: transform 320ms var(--ease), opacity 320ms var(--ease), visibility 0s linear 320ms;
+  }
+  .mobilebar__btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; border-radius: var(--r-md);
+    font-weight: 600; font-size: 1rem; text-decoration: none; box-shadow: 0 10px 28px rgba(10, 10, 11, 0.16), 0 2px 6px rgba(10, 10, 11, 0.06);
+  }
+  .mobilebar__btn--tel {
+    color: var(--ink); background: rgba(255, 255, 255, 0.62); border: 1px solid rgba(255, 255, 255, 0.95);
+    -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+  }
+  /* Der rote Knopf trägt in Ruhe denselben neutralen Schatten wie «Anrufen» (er schwebt); der rote
+     Schein nur beim Zeigen und Drücken (Design-System §3). */
+  .mobilebar__btn--cta { background: var(--red); color: var(--white); transition: box-shadow var(--t-base) var(--ease), background-color var(--t-fast) var(--ease); }
+  .mobilebar__btn--cta:hover, .mobilebar__btn--cta:active { box-shadow: 0 10px 28px rgba(10, 10, 11, 0.16), var(--shadow-red); }
+  .mobilebar__btn:active { transform: scale(0.98); }
+  @media (min-width: 768px) { .mobilebar { display: none; } }
+</style>

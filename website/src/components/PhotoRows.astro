@@ -1,0 +1,48 @@
+---
+/**
+ * Zeilen im Wechsel (v4): je Zeile ein breites Foto (16:10) und daneben Wort, Titel und Satz; das Bild
+ * abwechselnd links und rechts, jedes genau in seiner Hälfte (keines geht über die Mittellinie). Ab der
+ * zweiten Zeile rückt jede ein wenig in die vorige hinein (32 px) – die Bilder überlappen in der Höhe.
+ * Der Abschluss (Slot) steht als halbe Breite links unter dem letzten Bild. Schmal: alles untereinander.
+ * Gebraucht für die Bauformen der Heukrananlagen.
+ */
+import Media from './Media.astro';
+import Rich from './Rich.astro';
+
+interface Item { photo: string; label: string; title: string; text: string }
+interface Props { items: Item[] }
+const { items } = Astro.props;
+---
+<div class="prow">
+  {items.map((it, i) => (
+    <article class:list={['prow__row', i % 2 === 1 && 'prow__row--r']}>
+      <div class="prow__img zoom-on-hover"><Media id={it.photo} sizes="(min-width: 960px) 560px, 100vw" /></div>
+      <div class="prow__txt">
+        <span class="prow__label">{it.label}</span>
+        <h3 class="prow__title">{it.title}</h3>
+        <Rich as="p" class="prow__text" text={it.text} />
+      </div>
+    </article>
+  ))}
+  {Astro.slots.has('default') && <div class="prow__end"><slot /></div>}
+</div>
+
+<style>
+  .prow { --lap: 32px; display: grid; }
+  .prow__row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .prow__row + .prow__row, .prow__end { margin-top: 48px; }
+  .prow__img { position: relative; aspect-ratio: 16 / 10; border-radius: var(--r-xl); background: var(--gray-100); }
+  .prow__txt { display: grid; gap: 10px; max-width: 30em; }
+  .prow__label { font-size: 0.8125rem; font-weight: 600; color: var(--ink-3); }
+  .prow__title { font-family: var(--font-display); font-weight: 600; font-size: 1.75rem; line-height: 1.15; letter-spacing: -0.02em; color: var(--ink); }
+  .prow__txt :global(.prow__text) { font-size: 1rem; line-height: 1.5; color: var(--ink-2); }
+  .prow__txt :global(a) { color: inherit; }
+  @media (min-width: 760px) {
+    .prow__row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 64px; align-items: center; }
+    .prow__row--r .prow__img { order: 2; }
+    .prow__row--r .prow__txt { justify-self: end; }
+    .prow__row + .prow__row { margin-top: calc(-1 * var(--lap)); }
+    .prow__end { width: calc(50% - 32px); margin-top: calc(24px - var(--lap)); }
+    .prow__title { font-size: 2rem; }
+  }
+</style>

@@ -1,0 +1,65 @@
+---
+/**
+ * Logo: das gestapelte Zeichen des Design-Systems – «INEXXIO» mit rotem Schwung, darunter
+ * «ehemals HS Steiner». Der zugängliche Name nennt beides; das kleine «ehemals» im Zeichen ist
+ * Gestaltung, die Aussage steht im Namen.
+ *
+ * ►►► **Die Zeichnung steht EINMAL auf der Seite** (`<symbol id="ix-logo">`), jedes Zeichen –
+ * Kopf hell, Kopf weiss, Mobil-Menü, Fuss – verweist mit `<use>` darauf. ◄◄◄ Das Zeichen mit
+ * `define` trägt das Symbol (der erste Lockup im Kopf; Kopf und Fuss stehen im ERP wie auf der
+ * Website immer zusammen). Die Farben folgen dem Ton: Schrift `currentColor`, Linie und
+ * «ehemals» über `--lk-rule`/`--lk-sub`, der Schwung bleibt rot.
+ *
+ * Quelle ist das gelieferte SVG (public/logo/, vom Logo-Generator), nicht eine Kopie: hier werden
+ * nur seine Farben durch Bezüge ersetzt und die Pfadangaben verlustfrei verdichtet.
+ */
+import { site } from '../config/site.mjs';
+import { plain } from '../lib/text.mjs';
+import source from '../../public/logo/inexxio-ehemals-hs-steiner.svg?raw';
+
+interface Props {
+  tone?: 'light' | 'dark';
+  size?: 'header' | 'footer';
+  /** Dieses Zeichen trägt die Zeichnung für alle anderen auf der Seite. */
+  define?: boolean;
+}
+const { tone = 'light', size = 'header', define = false } = Astro.props;
+const label = plain(site.brand.full);
+const LOGO_ID = 'ix-logo';
+
+/** Die Farben des hellen Zeichens → Bezüge (Schrift · Linie · «ehemals»); Rot bleibt Rot. */
+const FILLS: Record<string, string> = {
+  '#0A0A0B': 'fill="currentColor"',
+  '#D1CEC8': 'style="fill:var(--lk-rule)"',
+  '#5F5C58': 'style="fill:var(--lk-sub)"',
+  '#E51A14': 'fill="#E51A14"',
+};
+const viewBox = source.match(/viewBox="([^"]+)"/)?.[1];
+const inner = source.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '').replace(/<title>[^<]*<\/title>/, '');
+const body = inner
+  .replace(/fill="(#[0-9A-Fa-f]{6})"/g, (_, c: string) => {
+    const to = FILLS[c.toUpperCase()];
+    if (!to) throw new Error(`Lockup: Farbe ${c} im Logo ist keinem Ton zugeordnet.`);
+    return to;
+  })
+  .replace(/\sfill-opacity="1"/g, '')
+  // Pfade verlustfrei verdichten: «M 6.8,255.2 L 0,255.2» → «M6.8 255.2L0 255.2».
+  .replace(/\sd="([^"]+)"/g, (_, d: string) => ` d="${d.replace(/\s*([MLQZmlqz])\s*/g, '$1').replace(/,/g, ' ')}"`);
+if (!viewBox || !body.includes('<path')) throw new Error('Lockup: das Logo-SVG hat keine Zeichnung.');
+---
+<span class:list={['lockup', `lockup--${size}`, `lockup--${tone}`]} translate="no">
+  <svg class="lockup__svg" viewBox={viewBox} role="img" aria-label={label} focusable="false">
+    {define && <symbol id={LOGO_ID} viewBox={viewBox} set:html={body} />}
+    <use href={`#${LOGO_ID}`} />
+  </svg>
+</span>
+
+<style>
+  /* Seitenverhältnis des Zeichens 624 : 278.3 – Höhe fest, Breite folgt. */
+  .lockup { display: block; aspect-ratio: 624 / 278.3; height: 50px; flex: none; }
+  .lockup--footer { height: 64px; }
+  .lockup--light { color: #0A0A0B; --lk-rule: #D1CEC8; --lk-sub: #5F5C58; }
+  .lockup--dark { color: #FFFFFF; --lk-rule: rgba(255, 255, 255, 0.2); --lk-sub: #A9A6A0; }
+  .lockup__svg { display: block; width: 100%; height: 100%; }
+  @media (max-width: 767px) { .lockup--header { height: 42px; } }
+</style>

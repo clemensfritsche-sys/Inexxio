@@ -1,0 +1,260 @@
+"""Zeiterfassung – was über die API-Grenze geht. Jede Zahl ist in **Minuten**."""
+
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field
+
+from ..domain import timekeeping as _tk
+
+
+# ─── Eingaben ───────────────────────────────────────────────────────────────────────
+
+class SwipeIn(BaseModel):
+    """Ein Wisch: die Richtung, die der Knopf zeigte, und ein Schlüssel je Wisch – derselbe
+    Schlüssel zweimal (Netz wackelt) schreibt nur einmal."""
+    direction: Literal["in", "out"] = Field(description="Was der Knopf zeigte: 'in' (Kommen) oder 'out' (Gehen).")
+    key: str = Field(min_length=8, max_length=64, description="Ein zufälliger Schlüssel je Wisch – zweimal derselbe schreibt nur einmal.")
+
+
+class EntryIn(BaseModel):
+    """EIN Eingang für alles, was einen Tag füllt oder ein Konto bewegt.
+
+    * ``in``/``out`` – ein Stempel am ``day`` um ``time`` (nachgetragen); mit ``replaces_id``
+      die Korrektur eines Stempels.
+    * ``absence`` – ``art`` von ``day`` bis ``until``; ``minutes`` je Tag, leer = ganzer Tag.
+      Mit ``replaces_id`` (und nur ``until``): **«Ende ändern»** – dieselbe Absenz mit neuem Ende.
+    * ``proof`` – der Nachweis zu einer Absenz (``replaces_id``, ``proof_url``).
+    * ``booking`` – nur Admin: ``minutes`` (Stundenkonto ±), ``vacation_minutes``, ``note``.
+    * ``void`` – nimmt den Eintrag ``replaces_id`` zurück (festgehalten, nicht gelöscht).
+    """
+    kind: Literal["in", "out", "absence", "proof", "booking", "void"] = Field(
+        description="'in'/'out' = Stempel Kommen/Gehen, 'absence' = Absenz, 'proof' = Nachweis zu einer Absenz, 'booking' = Buchung (nur Admin), 'void' = Eintrag zurücknehmen.")
+    day: Optional[date] = Field(None, description="Der Tag (JJJJ-MM-TT), höchstens 7 Tage zurück; bei einer Absenz der erste Tag.")
+    time: Optional[str] = Field(None, pattern=r"^\d{1,2}:\d{2}$", description="Uhrzeit eines Stempels, HH:MM.")
+    until: Optional[date] = Field(None, description="Absenz: letzter Tag (leer = nur day).")
+    art: Optional[str] = Field(None, description="Absenz: " + ", ".join(f"'{a.key}' ({a.label})" for a in _tk.ARTS) + ".")
+    minutes: Optional[int] = Field(None, description="Absenz: Minuten je Tag (leer = ganzer Tag); Buchung: Minuten ins Stundenkonto (±).")
+    vacation_minutes: Optional[int] = Field(None, description="Buchung: Minuten ins Ferienkonto (±).")
+    note: Optional[str] = Field(None, max_length=500, description="Bemerkung (bei einer Buchung der Grund).")
+    proof_url: Optional[str] = Field(None, max_length=200, description="Nachweis: Link des Dokuments (wird über das Pflichtfeld time.proof gesetzt).")
+    replaces_id: Optional[int] = Field(None, description="Id des Eintrags, den dieser ersetzt, zurücknimmt oder belegt.")
+
+
+class ContractIn(BaseModel):
+    valid_from: date = Field(description="Gilt ab diesem Tag (JJJJ-MM-TT), höchstens 7 Tage zurück.")
+    weekly_minutes: int = Field(ge=0, description="Sollzeit je Woche in Minuten (42 h = 2520); 0 = Austritt.")
+    workdays: list[int] = Field([], description="Arbeitstage: 0 = Montag … 6 = Sonntag.")
+    vacation_weeks: Optional[Decimal] = Field(None, description="Ferienwochen je Jahr (z. B. 5).")
+    company_object_id: Optional[int] = Field(None, description="Objektnummer der eigenen Gesellschaft, bei der die Person angestellt ist.")
+
+
+class HolidayIn(BaseModel):
+    day: date = Field(description="Der Feiertag, JJJJ-MM-TT.")
+    name: str = Field(min_length=1, max_length=120, description="Name, z. B. «Auffahrt».")
+
+
+class HolidaysIn(BaseModel):
+    """Mehrere Feiertage auf einmal übernehmen (der bestätigte Vorschlag)."""
+    holidays: list[HolidayIn] = Field(description="Die Feiertage, die übernommen werden.")
+
+
+class TimeRulesIn(BaseModel):
+    """Was die Gesellschaft festlegt: der Kanton und ab welchem Arbeitstag ein Nachweis
+    nötig ist (je Absenzart; ``None``/0 = nie)."""
+    canton: Optional[str] = Field(None, description="Kanton als Kürzel (z. B. ZH) – für den Vorschlag der Feiertage.")
+    proof: Optional[dict[str, Optional[int]]] = Field(None, description="Je Absenzart, ab welchem Arbeitstag ein Nachweis nötig ist (leer/0 = nie).")
+
+
+# ─── Ausgaben ───────────────────────────────────────────────────────────────────────
+
+class Mark(BaseModel):
+    """Was an einer Zeile vermerkt ist: «geändert», «nachgetragen», «durch …» – Einzelheiten
+    im Hover."""
+    kind: Literal["changed", "added", "by"]
+    label: str
+    tip: str
+
+
+class StampOut(BaseModel):
+    id: int
+    kind: Literal["in", "out"]
+    at: datetime
+    time: str
+    mark: Optional[Mark] = None
+    #: Ein Kommen, zu dem «Gehen» fehlt (nicht das laufende) – die Zeile «Gehen · fehlt»
+    #: steht direkt darunter.
+    missing_out: bool = False
+
+
+class AbsenceOut(BaseModel):
+    id: int
+    art: str
+    day: date
+    until: date
+    minutes: Optional[int]
+    #: Was sie an DIESEM Tag zählt.
+    minutes_on_day: int
+    note: Optional[str] = None
+    proof_url: Optional[str] = None
+    #: Ein Nachweis ist nötig (ab Tag …), ``proof_url`` sagt, ob er da ist.
+    proof_needed: bool = False
+    #: …und er ist fällig, aber noch nicht da («fehlt»). Vorher lässt er sich schon hochladen.
+    proof_missing: bool = False
+    #: Welche ältere Absenz sie an diesem Tag ersetzt – Satz für den Hover.
+    replaces: Optional[str] = None
+    #: Ganz zurücknehmen – nur, solange schon ihr Beginn offen ist (7-Tage-Regel).
+    can_void: bool = False
+    #: «Ende ändern»: das früheste neue Ende (davor ist abgeschlossen); ``None`` = die Absenz
+    #: ist ganz abgeschlossen. Begann sie vor den 7 Tagen, ist «den offenen Teil
+    #: zurücknehmen» = das Ende auf diesen Tag (``timekeeping.end_from``).
+    end_from: Optional[date] = None
+    #: Der Satz dazu für den Hover – warum das Ende nicht früher sein kann.
+    end_note: Optional[str] = None
+
+
+class DayOut(BaseModel):
+    day: date
+    workday: bool
+    holiday: Optional[str] = None
+    soll: int
+    ist: int
+    credit: int
+    today: bool = False
+    future: bool = False
+    #: Abgeschlossen (älter als 7 Tage) – niemand ändert ihn mehr, auch nicht der Admin;
+    #: korrigiert wird mit einer Buchung (blass im Kalender, ``timekeeping.closed``).
+    locked: bool = False
+    open: bool = False
+    hints: list[str] = []
+    stamps: list[StampOut] = []
+    absence: Optional[AbsenceOut] = None
+
+
+class ContractOut(BaseModel):
+    id: int
+    valid_from: date
+    weekly_minutes: int
+    workdays: list[int]
+    vacation_weeks: Decimal
+    company_object_id: Optional[int]
+    company_name: Optional[str]
+    state: Literal["current", "planned", "replaced"]
+    #: Austritt: Stundenkonto und Ferien am letzten Tag.
+    closing_day: Optional[date] = None
+    closing_account: Optional[int] = None
+    closing_vacation: Optional[int] = None
+
+
+class BookingOut(BaseModel):
+    id: int
+    day: date
+    note: str
+    minutes: int
+    vacation_minutes: int
+    by: Optional[str]
+
+
+class TaskOut(BaseModel):
+    kind: str
+    day: date
+    label: str
+    age: int
+
+
+class ArtOut(BaseModel):
+    key: str
+    label: str
+    icon: str
+    effect: str
+    effect_label: str
+    effect_tip: str
+    proof: Optional[str] = None
+    proof_from: Optional[int] = None
+
+
+class HintOut(BaseModel):
+    key: str
+    label: str
+    tone: str
+    icon: str
+
+
+class TimeVocab(BaseModel):
+    """Die Wörter der Zeiterfassung – EINE Quelle (``domain/timekeeping``)."""
+    arts: list[ArtOut]
+    hints: list[HintOut]
+    texts: dict[str, str]
+    correction_days: int
+    week_max: int
+
+
+class TimeView(BaseModel):
+    person_object_id: int
+    #: Gibt es überhaupt einen Vertrag? Ohne ihn zeigt die Karte nur das Werkzeug «Vertrag».
+    has_contract: bool
+    now: datetime
+    today: date
+    #: Ein Satz zur letzten Handlung, wenn sie nichts geschrieben hat (zweiter Wisch).
+    notice: Optional[str] = None
+    #: Heute: läuft ein Kommen (seit «07:42»), wann zuletzt gegangen – Uhrzeit in Zürich.
+    present_since: Optional[str] = None
+    last_out: Optional[str] = None
+    today_ist: int
+    today_soll: int
+    account: int
+    vacation: int
+    #: Ferien in Tagen (Tagessoll des aktuellen Vertrags), eine Nachkommastelle.
+    vacation_days: Optional[float] = None
+    day_soll: int
+    born: bool
+    can_stamp: bool
+    is_admin: bool
+    contracts: list[ContractOut]
+    bookings: list[BookingOut]
+    month: str
+    days: list[DayOut]
+    default_day: date
+    tasks: list[TaskOut]
+    vocab: TimeVocab
+
+
+class EntryPreview(BaseModel):
+    """►►► **Was dieser Eintrag bewirken würde** – vor dem Speichern, nach derselben Regel. ◄◄◄
+    ``problem`` ist der Satz, warum es nicht geht (dann ist «Erfassen» gesperrt)."""
+    problem: Optional[str] = None
+    workdays: int = 0
+    minutes: int = 0
+    #: «Ferien an 2 Tagen» – was die neue Absenz an ihren Tagen ersetzt.
+    replaces: Optional[str] = None
+    #: Ferienguthaben heute, wenn dieser Eintrag gilt (Minuten).
+    vacation_after: Optional[int] = None
+    proof: Optional[str] = None
+    proof_from: Optional[int] = None
+
+
+class HolidayOut(BaseModel):
+    id: Optional[int] = None
+    day: date
+    name: str
+    #: Vorschlag: steht schon in der Liste.
+    taken: bool = False
+    #: Vorschlag: der Tag ist abgeschlossen (7-Tage-Regel) – nicht wählbar, ``closed_note`` sagt
+    #: warum.
+    closed: bool = False
+    closed_note: Optional[str] = None
+
+
+class CompanyTimeView(BaseModel):
+    company_object_id: int
+    canton: Optional[str]
+    cantons: list[tuple[str, str]]
+    year: int
+    holidays: list[HolidayOut]
+    proof: dict[str, Optional[int]]
+    rules: list[tuple[str, str]]
+    #: Fehlen die Feiertage eines Jahres? – die Aufgabe am Symbol.
+    tasks: list[TaskOut]
+    can_edit: bool
+    vocab: TimeVocab

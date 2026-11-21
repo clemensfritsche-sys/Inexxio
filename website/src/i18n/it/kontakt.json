@@ -1,0 +1,14 @@
+{
+  "Kontakt und Anfrage": "Contatto e richiesta",
+  "Kontakt zu INEXXIO in {{address.home}}: Anfrage stellen, anrufen oder die Route zum Standort öffnen. Ein Satz genügt – wir melden uns rasch.": "Contattare INEXXIO a {{address.home}}: inviare una richiesta, chiamare o aprire l'itinerario fino alla sede. Basta una frase – Le rispondiamo in fretta.",
+  "Fragen kostet nichts.": "Chiedere non costa nulla.",
+  "Ein Satz genügt. Den Rest klären wir mit Ihnen – Sie hören innert {{promises.responseTime}} von uns.": "Basta una frase. Il resto lo chiariamo con voi – avrete nostre notizie entro {{promises.responseTime}}.",
+  "Ihr Ansprechpartner – ich melde mich persönlich bei Ihnen": "Il vostro interlocutore – vi ricontatto personalmente",
+  "Lieber direkt sprechen? Rufen Sie an.": "Preferisce parlare direttamente? Ci chiami.",
+  "{{brand.name}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefon {{phone.display}}.": "{{brand.name}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefono {{phone.display}}.",
+  "Danke für Ihre Anfrage": "Grazie per la Sua richiesta",
+  "Ihre Anfrage ist bei uns angekommen. Wir melden uns innert {{promises.responseTime}}.": "La Sua richiesta ci è pervenuta. Le rispondiamo entro {{promises.responseTime}}.",
+  "Sie erhalten eine Bestätigung per E-Mail mit Ihren Angaben – sofern Sie eine E-Mail-Adresse genannt haben.": "Riceve una conferma per e-mail con i Suoi dati – se ha indicato un indirizzo e-mail.",
+  "Wir prüfen Ihr Anliegen und melden uns per Telefon oder E-Mail.": "Esaminiamo la Sua richiesta e Le rispondiamo per telefono o per e-mail.",
+  "Eilt es? Rufen Sie an: {{phone.link}}.": "È urgente? Ci chiami: {{phone.link}}."
+}

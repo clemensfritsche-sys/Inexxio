@@ -1,0 +1,298 @@
+"""►►► **Der KI-Kern – Werkzeuge, Rechte, Deckel in Franken** (Phase 3, Schritte 3.1 und 3.7). ◄◄◄
+
+Jeder Wächter steht neben der Fehlerform, die er fängt.
+"""
+
+import random
+from types import SimpleNamespace
+
+from app.core.config import get_settings
+from app.models import Log
+from app.services import ai, ai_tools, documents as docs
+from tests.factories import new_person
+
+PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"
+
+
+class _Block(SimpleNamespace):
+    def to_dict(self):
+        return {k: v for k, v in vars(self).items()}
+
+
+def _answer(parsed=None, stop="end_turn", content=(), tin=1000, tout=200):
+    return SimpleNamespace(parsed_output=parsed, stop_reason=stop, content=list(content),
+                           usage=SimpleNamespace(input_tokens=tin, output_tokens=tout))
+
+
+class _Script:
+    """Eine KI, die Zug für Zug antwortet, was das Skript sagt – und mitschreibt, was sie bekam."""
+
+    def __init__(self, *answers):
+        self.answers, self.seen = list(answers), []
+        self.messages = SimpleNamespace(parse=self._parse, stream=self._stream)
+
+    def _parse(self, **kw):
+        self.seen.append(kw)
+        return self.answers.pop(0)
+
+    def _stream(self, **kw):
+        """Text gestreamt (``ai._turn`` ohne geprüfte Form): je Textblock ein Stück."""
+        answer = self._parse(**kw)
+
+        class Live:
+            text_stream = [b.text for b in answer.content if getattr(b, "type", "") == "text"]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def get_final_message(self):
+                return answer
+        return Live()
+
+
+def _ready(monkeypatch, script, spent=0.0):
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "spent_today", lambda db: spent)
+    monkeypatch.setattr(ai, "_client", lambda *a: script)
+
+
+class Out(ai.BaseModel):
+    answer: str
+
+
+# ─── 3.1 Die Schleife mit Werkzeugen ───────────────────────────────────────────────────
+
+def test_the_ai_looks_up_with_a_tool_and_then_answers(db, monkeypatch):
+    """Bug-Form: das Werkzeug wird nie ausgeführt oder sein Ergebnis geht nicht zurück."""
+    staff = new_person(db, "employee")
+    target = new_person(db, "user")
+    call = _Block(type="tool_use", id="t1", name="record", input={"object_id": target.object_id})
+    script = _Script(_answer(stop="tool_use", content=[_Block(type="text", text="…"), call]),
+                     _answer(parsed=Out(answer="ok")))
+    _ready(monkeypatch, script)
+    got = ai.converse(db, task="talk", actor=staff, system="s", schema=Out,
+                      content=[{"type": "text", "text": "x"}], tools=ai_tools.tools_for(db))
+    assert got == Out(answer="ok")
+    result = script.seen[1]["messages"][-1]["content"][0]
+    assert result["type"] == "tool_result" and result["tool_use_id"] == "t1"
+    assert str(target.object_id) in result["content"] and not result["is_error"]
+    assert script.seen[0]["tools"][0]["strict"] is True
+    assert script.seen[0]["output_config"] == {"effort": "low"}
+    calls = db.query(Log).filter(Log.event == "ai.call", Log.actor_id == staff.object_id).all()
+    assert len(calls) == 2 and all(c.actor_kind == "ai" and c.payload["chf"] > 0 for c in calls)
+
+
+def test_a_failing_tool_is_an_answer_not_a_crash(db, monkeypatch):
+    staff = new_person(db, "employee")
+    call = _Block(type="tool_use", id="t1", name="nope", input={})
+    script = _Script(_answer(stop="tool_use", content=[call]), _answer(parsed=Out(answer="x")))
+    _ready(monkeypatch, script)
+    assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[],
+                       tools=ai_tools.tools_for(db)) == Out(answer="x")
+    assert script.seen[1]["messages"][-1]["content"][0]["is_error"] is True
+
+
+def test_endless_looking_up_ends_without_an_answer(db, monkeypatch):
+    staff = new_person(db, "employee")
+    rounds = ai.TASKS["talk"].rounds
+    script = _Script(*[_answer(stop="tool_use", content=[
+        _Block(type="tool_use", id=f"t{i}", name="find", input={"q": "x"})]) for i in range(rounds)])
+    _ready(monkeypatch, script)
+    assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[],
+                       tools=ai_tools.tools_for(db)) is None
+    assert "keinem Ergebnis" in ai.problem() and len(script.seen) == rounds
+
+
+# ─── 3.1 Die KI sieht nie mehr als die Person ───────────────────────────────────────────
+
+def test_the_ai_never_sees_more_than_the_person(db):
+    """Ein Arztzeugnis am Nachweis einer Absenz sieht nur die Person selbst und der Admin – die
+    KI im Namen einer Kollegin sieht es weder über ``record`` noch über ``history``.
+    Bug-Form: ein Werkzeug liest an ``access`` vorbei."""
+    owner, colleague = new_person(db, "employee"), new_person(db, "employee")
+    admin = new_person(db, "admin")
+    doc, _ = docs.file(db, raw=PDF + str(random.random()).encode(), filename="z.pdf",
+                       mime="application/pdf", art="Arztzeugnis", name="Zeugnis Grippe",
+                       source="file", refs=[], actor=owner)
+    doc.text = "Diagnose: geheim"
+    docs.set_field(db, document_object_id=doc.object_id, object_id=owner.object_id,
+                   part="time:42", field="time.proof", actor=owner)
+    db.flush()
+    assert "geheim" in ai_tools.record(db, owner, doc.object_id)
+    assert "geheim" in ai_tools.record(db, admin, doc.object_id)
+    assert "nicht gefunden" in ai_tools.record(db, colleague, doc.object_id)
+    assert "Zeugnis Grippe" in ai_tools.history(db, admin, owner.object_id)
+    assert "Zeugnis Grippe" not in ai_tools.history(db, colleague, owner.object_id)
+    assert "nicht gefunden" in ai_tools.history(db, colleague, doc.object_id)
+
+
+def test_a_customer_gets_nothing_from_the_tools(db, make_person):
+    customer, other = new_person(db, "user"), new_person(db, "user")
+    assert "nicht gefunden" in ai_tools.record(db, customer, other.object_id)
+    assert ai_tools.find(db, customer, other.last_name or "x") == "Nichts gefunden."
+
+
+def test_record_reads_through_the_route_a_person_sees(db):
+    """Änderungsakte B2. Bug-Form: ``record`` las die Spalten der Tabelle mit einer Liste, was
+    die KI *nicht* sehen soll – jede neue Spalte ging ungefragt an sie. Jetzt liest sie die Route,
+    die den Datensatz auch einem Menschen zeigt: dieselben Felder, dieselben Rechte."""
+    import json
+
+    from app.schemas.admin import UserProfileResponse
+
+    person = new_person(db, "employee")
+    head, _, body = ai_tools.record(db, person, person.object_id).partition("\n")
+    shown = json.loads(body)
+    assert str(person.object_id) in head and shown["email"] == person.email
+    assert set(shown) <= set(UserProfileResponse.model_fields)
+
+    from app.services import objects
+    assert set(ai_tools.ROUTES) | {"document"} == set(objects.TYPES)       # jeder Typ hat seinen Weg
+
+
+# ─── 3.7 Der Deckel in Franken ──────────────────────────────────────────────────────────
+
+def test_cost_follows_the_price_list():
+    assert ai.cost_chf("claude-sonnet-5-5", 1_000_000, 0) == round(2.0 * ai.CHF_PER_USD, 6)
+    assert ai.cost_chf("claude-haiku-5-5", 100_000, 0) == round(0.1 * 0.10 * ai.CHF_PER_USD, 6)
+    # Haiku über 100'000 Eingabe-Tokens: der höhere Preis
+    assert ai.cost_chf("claude-haiku-5-5", 200_000, 0) == round(0.2 * 0.50 * ai.CHF_PER_USD, 6)
+    # Unbekanntes Modell: der teuerste Preis (lieber zu früh am Deckel)
+    assert ai.cost_chf("unbekannt", 1_000_000, 0) >= ai.cost_chf("claude-sonnet-5-5", 1_000_000, 0)
+
+
+def test_the_day_adds_up_in_francs_and_stops_at_the_cap(db, monkeypatch):
+    """Bug-Form: der Deckel zählt Aufrufe statt Franken – zwei teure Aufrufe kämen durch."""
+    staff = new_person(db, "employee")
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(get_settings(), "ai_daily_cap_chf", 0.05)
+    before = ai.spent_today(db)
+    ai._record(db, "talk", "claude-sonnet-5-5", staff, {"in": 20_000, "out": 2_000})   # 0.048 CHF
+    assert abs(ai.spent_today(db) - before - 0.048) < 1e-9
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.048)
+    assert ai.available(db) and ai.near_cap(db)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.05)
+    assert not ai.available(db)
+    assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[]) is None
+    assert "Tagesdeckel" in ai.problem()
+
+
+def test_without_vertex_there_are_no_meaning_numbers_but_no_error(db, monkeypatch):
+    monkeypatch.setattr(get_settings(), "vertex_project", "")
+    assert ai.embed(db, "Hydraulikschlauch geplatzt", actor=None) is None
+    assert "nicht eingerichtet" in ai.problem()
+
+
+def test_a_refusing_vertex_is_asked_once_an_hour_not_every_tick(db, monkeypatch):
+    """Bug-Form: ohne Einrichtung stünde jeder Takt einen Fehlversuch mehr im Log."""
+    calls = []
+
+    class Session:
+        def post(self, *a, **kw):
+            calls.append(1)
+            return SimpleNamespace(status_code=403, text="denied")
+
+    monkeypatch.setattr(get_settings(), "vertex_project", "p")
+    monkeypatch.setattr(ai, "_vertex_session", lambda: Session())
+    monkeypatch.setattr(ai, "_vertex_paused", {})
+    assert ai.embed(db, "x", actor=None) is None and "setup-vertex" in ai.problem()
+    assert ai.embed(db, "y", actor=None) is None and len(calls) == 1
+    assert "in einer Stunde" in ai.problem()
+
+
+def test_a_flow_with_a_time_limit_never_gives_a_call_more_time(db, monkeypatch):
+    """Cloud Scheduler und Firebase Hosting warten 60 s – ``ai.until`` kürzt jeden Aufruf darin.
+    Bug-Form: ein Aufruf nimmt seine eigene Grenze (45 s), obwohl nur noch 10 s bleiben."""
+    staff = new_person(db, "employee")
+    seen = []
+    monkeypatch.setattr(ai, "ready", lambda: True)
+    monkeypatch.setattr(ai, "spent_today", lambda db: 0.0)
+    monkeypatch.setattr(ai, "_client", lambda timeout, retries: seen.append(timeout) or _Script(
+        _answer(parsed=Out(answer="ok"))))
+    with ai.until(10):
+        assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[])
+    assert 0 < seen[0] <= 10
+    with ai.until(1):
+        assert ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[]) is None
+    assert "zu lange" in ai.problem()
+
+
+# ─── Webseiten lesen, Pause des Anbieters, Zwischenspeicher des Verlaufs ─────────────────
+
+def test_the_conversation_may_read_a_web_page_mails_may_not(db, monkeypatch):
+    """Bug-Form: die KI hat kein Werkzeug für einen Link (Amazon) – oder auch eine fremde Mail
+    könnte sie Seiten lesen lassen."""
+    staff = new_person(db, "employee")
+    script = _Script(_answer(parsed=Out(answer="a")), _answer(parsed=Out(answer="b")))
+    _ready(monkeypatch, script)
+    ai.converse(db, task="talk", actor=staff, system="s", schema=Out, content=[])
+    ai.converse(db, task="follow", actor=staff, system="s", schema=Out, content=[])
+    talk_tools = [t.get("type") for t in script.seen[0].get("tools", [])]
+    follow_tools = [t.get("type") for t in script.seen[1].get("tools", [])]
+    assert ai.WEB_FETCH["type"] in talk_tools, "Das Gespräch kann keine Webseite lesen."
+    assert ai.WEB_FETCH["type"] not in follow_tools, "Eine fremde Mail liesse Webseiten lesen."
+    assert ai.WEB_FETCH["max_uses"] <= 3
+    assert ai.WEB_SEARCH["type"] in talk_tools, "Das Gespräch kann nicht im Web suchen."
+    assert ai.WEB_SEARCH["type"] not in follow_tools, "Eine fremde Mail liesse im Web suchen."
+    assert ai.WEB_SEARCH["max_uses"] <= 3
+
+
+def test_a_web_search_costs_under_the_cap(db):
+    """Bug-Form: eine Suche kostet je Abfrage, nicht je Token – ohne sie läge der Deckel daneben."""
+    from app.models import Log
+    staff = new_person(db, "employee")
+    ai._record(db, "talk", "claude-sonnet-5-5", staff, {"in": 0, "out": 0, "searches": 3})
+    row = db.query(Log).filter(Log.event == "ai.call").order_by(Log.id.desc()).first()
+    assert row.payload["chf"] == round(3 * ai.SEARCH_USD * ai.CHF_PER_USD, 6)
+
+
+def test_a_refused_web_page_stays_visible_in_the_log(db, monkeypatch):
+    """Bug-Form: eine Seite lehnt den Abruf ab (Amazon), und niemand sieht, warum."""
+    from app.services.talk import AUFTRAG
+    staff = new_person(db, "employee")
+    refused = _Block(type="web_fetch_tool_result", tool_use_id="s1",
+                     content=_Block(type="web_fetch_tool_result_error",
+                                    error_code="url_not_accessible"))
+    script = _Script(_answer(parsed=Out(answer="geht nicht"), content=[refused]))
+    _ready(monkeypatch, script)
+    ai.converse(db, task="talk", actor=staff, system="s", schema=Out,
+                content=[{"type": "text", "text": "https://amazon.de/x"}])
+    call = db.query(Log).filter(Log.event == "ai.call", Log.actor_id == staff.object_id).one()
+    assert call.payload["web"] == [{"url": None, "error": "url_not_accessible"}]
+    assert "Bildschirmfoto" in AUFTRAG, "Die KI sagt nicht, was die Person stattdessen tun kann."
+
+
+def test_a_paused_turn_goes_on_without_a_new_message(db, monkeypatch):
+    """Bug-Form: bei «pause_turn» (der Anbieter liest noch) endet der Zug ohne Antwort – oder
+    eine neue Nachricht lässt ihn von vorn beginnen."""
+    staff = new_person(db, "employee")
+    steps = []
+    fetch = _Block(type="server_tool_use", id="s1", name="web_fetch", input={"url": "https://x"})
+    script = _Script(_answer(stop="pause_turn", content=[fetch]), _answer(parsed=Out(answer="ok")))
+    _ready(monkeypatch, script)
+    got = ai.converse(db, task="talk", actor=staff, system="s", schema=Out,
+                      content=[{"type": "text", "text": "x"}], on_step=steps.append)
+    assert got == Out(answer="ok")
+    last = script.seen[1]["messages"][-1]
+    assert last["role"] == "assistant" and last["content"][0]["type"] == "server_tool_use"
+    assert steps == [ai.WEB_STEP]
+
+
+def test_the_history_is_read_from_the_cache(db, monkeypatch):
+    """Bug-Form: jeder Zug schickt das ganze Gespräch (mit Bildern, PDFs) zum vollen Preis –
+    nur die Anleitung lag im Zwischenspeicher."""
+    staff = new_person(db, "employee")
+    call = _Block(type="tool_use", id="t1", name="find", input={"q": "x"})
+    script = _Script(_answer(stop="tool_use", content=[call]), _answer(parsed=Out(answer="ok")))
+    _ready(monkeypatch, script)
+    ai.converse(db, task="talk", actor=staff, system="s", schema=Out,
+                content=[{"type": "text", "text": "x"}], tools=ai_tools.tools_for(db))
+    for seen in script.seen:
+        last = seen["messages"][-1]["content"][-1]
+        assert last.get("cache_control") == {"type": "ephemeral"}
+    marks = sum(1 for m in script.seen[1]["messages"] for b in m["content"]
+                if isinstance(b, dict) and "cache_control" in b)
+    assert marks == 1, "Der Verlauf sammelt Merkpunkte – höchstens vier sind erlaubt."

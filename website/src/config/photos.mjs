@@ -1,0 +1,235 @@
+// @ts-check
+import { t } from '../i18n/t.mjs';
+/**
+ * ►►► Die Fotoliste – zugleich Bildregister der Website. ◄◄◄
+ *
+ * Jede Bildstelle der Website nennt eine ID von hier. Solange `file` fehlt, zeigt sie einen
+ * grauen Rahmen im richtigen Seitenverhältnis mit der Bildbeschreibung (`brief`) – und
+ * genau diese Beschreibungen sind die Fotoliste in OFFENE_PUNKTE.md.
+ *
+ * Ein echtes Foto einsetzen: Datei nach src/assets/photos/ legen (JPG, sprechender Name,
+ * z. B. kranpruefung-brueckenkran-tuttwil.jpg, lange Seite ≥ 2400 px), hier bei `file`
+ * eintragen. AVIF/WebP, srcset und feste Masse erzeugt der Build.
+ *
+ * Fotos: Betrieb, Team bei der Arbeit, Krane im Einsatz – echt oder generiert. Generierte Bilder
+ * nur ohne echte Personen und Orte (keine erfundenen Mitarbeitenden, kein erfundener Betrieb);
+ * wer oder was echt sein soll, wird fotografiert. Keine Stockfotos mit Menschen.
+ * Bis dahin steht dort der graue Rahmen «Foto fehlt» – im Modus «live» ein Fehler.
+ *
+ * Ein Video dazu: Datei (MP4, H.264, ohne Ton, kurz, ≤ 8 MB) nach public/video/ legen, daneben
+ * ihr erstes Bild als Standbild mit gleichem Namen (.webp, z. B.
+ * `ffmpeg -i buehne.mp4 -frames:v 1 -vf scale=1280:-2 buehne.webp`), und hier bei `video`
+ * eintragen. In Bühne und Seitenkopf steht dann das Video statt des Fotos (components/Media.astro).
+ *
+ * @typedef {{ alt: string, brief: string, ratio: '3/2' | '4/3' | '4/5' | '1/2' | '1/1' | '16/9', file?: string, video?: string }} Photo
+ */
+
+/** @type {Record<string, Photo>} */
+export const photos = t('photos', {
+  'hafen-bootskran': {
+    alt: 'Bootskran an einem Hafensteg hebt ein Segelboot aus dem Wasser',
+    brief: 'Boots- oder Mastkran an einem Schweizer Hafen oder Segelclub, Boot am Haken über dem Wasser, Steg und Masten im Hintergrund, quer',
+    ratio: '4/3',
+  },
+  'pruefung-hallenkran': {
+    file: 'pruefung-hallenkran.jpg',
+    alt: 'Monteur im Dachstock hinter der Kranbahn, davor der Elektrokettenzug mit Kette und Haken',
+    brief: 'Prüfung am Kran: Monteur am Elektrokettenzug einer Kranbahn (echte Anlage von HS Steiner), quer',
+    ratio: '4/3',
+  },
+  'reparatur-vor-ort': {
+    file: 'reparatur-vor-ort.webp',
+    alt: 'Kranbahn aus Aluminium mit Elektrokettenzug im Dachstock, die Kette hängt durch eine Bodenöffnung',
+    brief: 'Moderne Krananlage: Aluminium-Kranbahn mit Elektrokettenzug (echte Anlage von HS Steiner), quer',
+    ratio: '4/3',
+  },
+  'heukran-einsatz': {
+    file: 'heukran-einsatz.webp',
+    video: 'buehne.mp4',
+    alt: 'Heukrananlage mit vollem Greifer im Einsatz in einer Scheune',
+    brief: 'Heukrananlage im Einsatz in einer Scheune, Greifer voll mit Heu, Betriebsleiter an der Steuerung, quer',
+    ratio: '4/3',
+  },
+  // Heukrananlagen, Bauformen (Heiris Anlagen, mit KI aufbereitet: schärfer, ohne Beschriftung, Umgebung aufgeräumt).
+  'heukran-bruecke': {
+    file: 'heukran-bruecke.webp',
+    alt: 'Grüne Kranbrücke mit zwei roten Greifern voller Heu über einem Schafstall, darunter geht der Landwirt durch den Futtergang',
+    brief: 'Heu-Brückenkran über die ganze Breite eines Stalls, zwei Greifer mit Heu, quer',
+    ratio: '16/9',
+  },
+  // Speziallösungen, «Aus der Praxis»: Details des Heukrans mit zwei Greifern im Schafstall (heukran-bruecke).
+  'heukran-katze': {
+    file: 'heukran-katze.jpg',
+    alt: 'Grüne Kranbrücke mit Antrieb und roter Katze an der grauen Fahrbahn unter dem Holzdach, darunter der rote Greifer',
+    brief: 'Detail: Kranbrücke, Antrieb und Katze an der Fahrbahn, quer',
+    ratio: '4/3',
+  },
+  'heukran-greifer': {
+    file: 'heukran-greifer.jpg',
+    alt: 'Roter Greifer mit schwarzen Zinken, voll mit Heu, unter der grünen Kranbrücke',
+    brief: 'Detail: Greifer voller Heu, quer',
+    ratio: '4/3',
+  },
+  'heukran-drehkran': {
+    file: 'heukran-drehkran.webp',
+    alt: 'Hydraulischer Drehkran: grüne Katze mit rotem Ausleger und Greifer unter der Decke einer Halle',
+    brief: 'Hydraulischer Heu-Drehkran: Katze, Ausleger, Greifer mit Zinken, quer',
+    ratio: '16/9',
+  },
+  'heukran-angepasst': {
+    file: 'heukran-angepasst.webp',
+    alt: 'Grüne Kranbrücke unter den alten Balken einer Scheune, der rote Ballengreifer setzt auf einen Rundballen auf',
+    brief: 'Heukran, der in eine alte Scheune eingepasst ist, Ballengreifer über Rundballen, quer',
+    ratio: '4/3',
+  },
+  // Krane nach Mass, Belege (sichtbar erst mit `features.craneReferences`) – je ein echtes Projekt.
+  // Krane nach Mass, «Für die Halle» – eine Anlage von HS Steiner (mit KI aufbereitet, ohne Beschriftung, Umgebung aufgeräumt).
+  'kran-dachstock': {
+    file: 'kran-dachstock.webp',
+    alt: 'Kranbahn aus Aluminium im Dachstock, der Kettenzug hebt durch eine Bodenöffnung ins Geschoss darunter',
+    brief: 'Kran nach Mass in einem Dachstock: Laufschiene unter den Sparren, Kettenzug mit Stromzuführung, hoch',
+    ratio: '4/5',
+  },
+  'kran-kurve': {
+    alt: 'Kranfahrbahn, die in einer Scheune oder Halle um die Ecke biegt',
+    brief: 'Kran nach Mass mit Kurvenfahrbahn: die Fahrbahn biegt sichtbar um eine Ecke, Katze oder Greifer in der Kurve, Gebäude erkennbar, quer',
+    ratio: '4/3',
+  },
+  'kran-steigung': {
+    alt: 'Kranfahrbahn unter einem ansteigenden Dach',
+    brief: 'Kran nach Mass in einem Gebäude mit Steigung: Fahrbahn folgt dem ansteigenden Dach oder Boden, Steigung gut sichtbar, quer',
+    ratio: '4/3',
+  },
+  'kran-versatz': {
+    alt: 'Kranfahrbahn unter einer Decke mit Versatz und Unterzug',
+    brief: 'Kran nach Mass unter einer Decke mit Höhensprung oder Unterzug: Aufhängungen unterschiedlich lang, die Fahrbahn läuft durch, quer',
+    ratio: '4/3',
+  },
+  'kran-eng': {
+    alt: 'Verzinkter Kran mit Plattform in einem engen Betonschacht, daneben die Treppe',
+    brief: 'Kompakter Kran in einem engen, verwinkelten Raum mit Stützen oder Nischen, der Greifer erreicht eine Ecke, quer',
+    ratio: '4/3',
+  },
+  // Heukrananlagen, «Funk statt Kabine» (generiert, ohne echte Person oder echten Ort).
+  'heukran-funk': {
+    file: 'heukran-funk.jpg',
+    alt: 'Landwirt steht neben dem Heuwagen in der Scheune, schaut zum Greifer hinauf und hält den Funksender',
+    brief: 'Landwirt am Boden der Scheune neben dem Heuwagen mit Funksender in der Hand, darüber der Heukran mit vollem Greifer, keine Kabine, hoch',
+    ratio: '4/5',
+  },
+  // Heukrananlagen, «Funk statt Kabine», dunkle Karte (generiert).
+  'funk-sicht': {
+    file: 'funk-sicht.jpg',
+    alt: 'Blick vom Scheunenboden hinauf zum vollen Heugreifer unter dem Dachstuhl, vorne die Hand mit dem Funksender',
+    brief: 'Blick vom Scheunenboden steil nach oben zum Heugreifer unter dem dunklen Dachstuhl, Lichtstrahlen, vorne unscharf die Hand mit dem Funksender, hoch',
+    ratio: '4/5',
+  },
+  // Fahrzeugtechnik – ein echter Einsatz von HS Steiner (mit KI aufbereitet: schärfer, ohne Beschriftung, Wetter).
+  'fahrmischer-aufbau': {
+    file: 'fahrmischer-aufbau.jpg',
+    alt: 'Hellgrüner Fahrmischer, der Mischaufbau mit der Trommel ist auf dem Fahrgestell angehoben, daneben steht ein Mitarbeiter',
+    brief: 'Fahrmischer im Hof, Mischaufbau angehoben, quer',
+    ratio: '4/3',
+  },
+  'fahrmischer-werkstatt': {
+    file: 'fahrmischer-werkstatt.jpg',
+    alt: 'Neue weisse Trommel hängt an Hebebändern am Kran über dem Fahrgestell eines Fahrmischers in der Halle, ein Mechaniker führt sie',
+    brief: 'Trommeltausch in der Halle: neue Trommel hängt am Kran über dem Fahrgestell, ein Mechaniker führt sie, quer',
+    ratio: '4/3',
+  },
+  'teil-auslaufrinne': {
+    file: 'teil-auslaufrinne.jpg',
+    alt: 'Verzinkte, schwenkbare Auslaufrinne für Fahrmischer mit Griffbügel auf dem Hallenboden',
+    brief: 'Produktfoto Auslaufrinne, freigestellt auf hellem Grund oder auf der Werkbank, quer',
+    ratio: '4/3',
+  },
+  'teil-verlaengerungsrinne': {
+    file: 'teil-verlaengerungsrinne.jpg',
+    alt: 'Verzinkte Verlängerungsrinne für Fahrmischer mit schwarzem Befestigungsflansch auf dem Hallenboden',
+    brief: 'Produktfoto Verlängerungsrinne, quer',
+    ratio: '4/3',
+  },
+  'teil-einfuelltrichter': {
+    file: 'teil-einfuelltrichter.jpg',
+    alt: 'Einfülltrichter eines Fahrmischers',
+    brief: 'Produktfoto Einfülltrichter, quer',
+    ratio: '4/3',
+  },
+  'teil-auslaufschurre': {
+    file: 'teil-auslaufschurre.jpg',
+    alt: 'Auslaufschurre eines Fahrmischers',
+    brief: 'Produktfoto Auslaufschurre, quer',
+    ratio: '4/3',
+  },
+  // Die Übergabe: der Funksender wechselt die Hand (Heiris Heukran im Hintergrund, mit KI erstellt, ohne Gesichter).
+  'uebergabe-funk': {
+    file: 'uebergabe-funk.jpg',
+    alt: 'Eine ältere Hand im grauen Arbeitskittel übergibt einer jüngeren Hand den gelben Funksender, dahinter der Heukran mit vollem Greifer',
+    brief: 'Übergabe des Funksenders unter dem Heukran, nur Hände, quer',
+    ratio: '4/3',
+  },
+  'clemens-heiri-quer': {
+    alt: 'Clemens Fritsche und Heiri Steiner vor dem Betrieb in Tuttwil',
+    brief: 'Clemens Fritsche und Heiri Steiner gemeinsam vor dem Betrieb in Tuttwil, Querformat',
+    ratio: '3/2',
+  },
+  handschlag: {
+    alt: 'Heiri Steiner und Clemens Fritsche geben sich vor dem Betrieb in Tuttwil die Hand',
+    brief: 'Heiri Steiner und Clemens Fritsche beim Handschlag, freigestellt (transparenter Grund), hoch – heute steht dort portraet-clemens',
+    ratio: '4/5',
+  },
+  'werkstatt-aussen': {
+    alt: 'Betrieb von INEXXIO in Tuttwil (Wängi TG) von aussen',
+    brief: 'Betriebsgebäude in Tuttwil von aussen, mit Zufahrt und Beschriftung, quer',
+    ratio: '3/2',
+  },
+  'portraet-clemens': {
+    file: 'portraet-clemens.png',
+    alt: 'Clemens Fritsche',
+    brief: 'Clemens Fritsche, freigestellt, Kopf bis Hüfte (Ausschnitt aus portraet-clemens-stehend)',
+    ratio: '4/5',
+  },
+  'portraet-heiri': {
+    file: 'portraet-heiri.jpg',
+    alt: 'Heiri Steiner',
+    brief: 'Heiri Steiner in Arbeitskleidung an einer Maschine, quer',
+    ratio: '1/1',
+  },
+  'portraet-clemens-draussen': {
+    file: 'portraet-clemens-draussen.jpg',
+    alt: 'Clemens Fritsche',
+    brief: 'Clemens Fritsche stehend, draussen im Abendlicht, mit Hintergrund, hoch',
+    ratio: '4/5',
+  },
+  'portraet-clemens-stehend': {
+    file: 'portraet-clemens-stehend.png',
+    alt: 'Clemens Fritsche',
+    brief: 'Clemens Fritsche stehend, freigestellt (transparenter Grund), hoch',
+    ratio: '1/2',
+  },
+  'team': {
+    alt: 'Das Team von INEXXIO bei der Arbeit',
+    brief: 'Teamfoto im Betrieb (nur mit Einverständnis aller Abgebildeten), quer',
+    ratio: '3/2',
+  },
+  // Garantien, Karte «Die erste Inspektion ist gratis» (generiert, ohne echte Person oder echten Betrieb).
+  'erste-inspektion': {
+    file: 'erste-inspektion.jpg',
+    alt: 'Monteur im Dachstock an der Kranbahn, er prüft über das Geländer hinweg Kette und Haken des Elektrokettenzugs',
+    brief: 'Prüfung am Kettenzug einer Kranbahn im Dachstock (Anlage von HS Steiner, Monteur mit KI ergänzt, ohne erkennbares Gesicht), hoch',
+    ratio: '4/5',
+  },
+  'arbeit-werkstatt': {
+    file: 'arbeit-werkstatt.webp',
+    alt: 'Schweisser mit Schutzhelm an einer roten Stahlkonstruktion in einer hellen Halle',
+    brief: 'Schweissarbeit an einer roten Stahlkonstruktion in einer hellen Halle, quer',
+    ratio: '4/3',
+  },
+}, { keep: ['*.brief'] });
+
+/** @param {string} id */
+export function photo(id) {
+  const p = photos[id];
+  if (!p) throw new Error(`Unbekanntes Foto «${id}» – nicht in src/config/photos.mjs.`);
+  return p;
+}

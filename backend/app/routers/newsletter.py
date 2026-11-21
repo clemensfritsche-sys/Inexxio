@@ -1,0 +1,220 @@
+"""Newsletter – anmelden, bestätigen, abmelden (``services/newsletter``).
+
+Drei Türen, ein Dienst:
+
+* **Öffentlich** (``/api/v1/newsletter``): die Anmeldung von der Website (E-Mail → Bitte um
+  Bestätigung), der Bestätigungslink und der Abmeldelink. Ohne JavaScript: Formular und
+  Weiterleitung auf eine Seite der Website.
+* **Selbst** (``/api/v1/auth/me/newsletter``): der Schalter im Konto – die Adresse ist dort
+  bestätigt, ein zweiter Klick wäre keiner mehr.
+* **ERP** (``/api/v1/erp/newsletter``): Zustand und Nachweis einer Person, Einladung
+  verschicken, abmelden. **Anmelden kann das ERP niemanden** – zustimmen muss die Person
+  selbst; das ERP schickt ihr die Bitte.
+
+Bestätigungs- und Abmeldelink zeigen einen Knopf, statt sofort zu handeln: Link-Scanner der
+Mailprogramme rufen Links auf, ohne dass jemand klickt. Die Abmeldung mit einem Klick im
+Mailprogramm selbst (``List-Unsubscribe-Post``, RFC 8058) geht direkt.
+"""
+
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import JSONResponse, RedirectResponse, Response
+from html import escape
+from sqlalchemy.orm import Session
+
+from ..core.auth import get_current_user, require_employee
+from ..core.actor import public
+from ..core.database import DB
+from ..domain import newsletter as dn
+from ..models import UserProfile
+from ..schemas.newsletter import ConsentRow, NewsletterIn, NewsletterState
+from ..services import newsletter as svc, people, site_stats, visitor
+from ..services.people import is_email, normalize_email
+from ..services.inquiry import clean, lang_of, words
+from .contact import page
+from ..domain.errors import Invalid, Rejected
+from ..core import report
+
+router = APIRouter(prefix=svc.API, tags=["newsletter"])
+me_router = APIRouter(prefix="/api/v1/auth/me/newsletter", tags=["newsletter"])
+erp_router = APIRouter(prefix="/api/v1/erp/newsletter", tags=["newsletter"])
+
+RATE_LIMIT = 5
+
+
+def _page_of(step: str, lang: str = "de") -> str:
+    """Die Seite der Website nach einem Schritt – in der Sprache, in der gefragt wurde
+    (``website/src/pages/newsletter``, Adressen aus ``assets/website_contact.json``)."""
+    return words(lang)["pages"][{"pending": "newsletterPending", "confirmed": "newsletterConfirmed",
+                                 "unsubscribed": "newsletterUnsubscribed"}[step]]
+
+
+def _state(db: Session, oid: int, *, full: bool = False) -> NewsletterState:
+    rows = svc.history(db, oid)
+    now = rows[0] if rows else None
+    return NewsletterState(
+        subscribed=bool(now and now.subscribed), since=now.at if now else None,
+        source=dn.SOURCES.get(now.source, now.source) if now else None, wording=svc.WORDING,
+        history=[ConsentRow(subscribed=r.subscribed, source=dn.SOURCES.get(r.source, r.source),
+                            at=r.at, wording=r.wording) for r in rows] if full else [])
+
+
+def _invalid(message: str, status: int = 400, lang: str = "de") -> Response:
+    again = escape(words(lang)["server"]["newsletterAgain"])
+    home = escape(_page_of("pending", lang).rsplit("/", 1)[0])
+    return page(message, f'<p><a class="btn" href="{home}">{again}</a></p>', status, lang)
+
+
+# ── Öffentlich ──────────────────────────────────────────────────────────────
+
+def _answer(wants_json: bool, msg: str, status: int, html_body: str = "", lang: str = "de") -> Response:
+    return (JSONResponse({"ok": False, "message": msg}, status_code=status) if wants_json
+            else page(msg, html_body, status, lang))
+
+
+@router.post("", summary="Anmeldung von der Website (E-Mail → Bitte um Bestätigung)", dependencies=[public("web")])
+def subscribe(request: Request, email: str = Form(""), hp: str = Form(""), lang: str = "",
+              db: Session = DB) -> Response:
+    """Wie das Anfrage-Formular: Honigtopf und Begrenzung je Absender vor der Datenbank. Dann
+    die Bitte um Bestätigung – **angelegt wird nichts**: gibt es zur Adresse keine Person,
+    steht die Adresse im signierten Link, und die Person entsteht erst mit dem Klick."""
+    wants_json = "application/json" in request.headers.get("accept", "")
+    lang = lang_of(lang)     # die Sprache der Seite (`?lang=`): Mail, Nachweis und Seiten in ihr
+    said = words(lang)
+    done = (JSONResponse({"ok": True}) if wants_json
+            else RedirectResponse(_page_of("pending", lang), status_code=303))
+    if clean(hp):
+        return done
+    email = normalize_email(clean(email))
+    if not is_email(email):
+        return _answer(wants_json, said["messages"]["email"], 422,
+                       f'<p>{escape(said["server"]["newsletterBack"])}</p>', lang)
+    if not visitor.allow_send("newsletter", request, RATE_LIMIT):
+        return _answer(wants_json, said["server"]["newsletterTooMany"], 429, lang=lang)
+    channel = svc.sending_channel(db, visitor.country(request))
+    known = people.by_email(db, email)
+    try:
+        if known is not None and known.object_id:
+            if known.object_id not in svc.subscribed(db, [known.object_id]):
+                svc.invite(db, known.object_id, "website", channel, by_name=False, lang=lang)
+        else:
+            svc.invite_address(db, email, "website", channel, lang)
+    except Rejected as exc:
+        db.rollback()
+        report.warn(f"NEWSLETTER invite failed: {exc.detail}")
+        return _answer(wants_json, said["server"]["newsletterUnavailable"], 503, lang=lang)
+    _count(db, request)
+    return done
+
+
+def _count(db: Session, request: Request) -> None:
+    """Für die Website-Statistik (``site_stats.convert``) – scheitert sie, gilt die Anmeldung trotzdem."""
+    try:
+        with db.begin_nested():
+            site_stats.convert(db, site_stats.who(request), "newsletter",
+                               site_stats.page_of(request.headers.get("referer")), visitor.country(request))
+    except Exception as exc:
+        report.warn(f"NEWSLETTER not counted: {type(exc).__name__}: {exc}")
+
+
+@router.get("/confirm", include_in_schema=False, dependencies=[public("link")])
+def confirm_page(t: str = "") -> Response:
+    """Ein Knopf statt sofortiger Bestätigung – ein Link-Scanner drückt keinen Knopf."""
+    try:
+        link = svc.read(t, "confirm")
+    except ValueError as exc:
+        return _invalid(str(exc))
+    w = svc.said(link.lang)
+    body = (f'<p>{escape(w["confirmLead"])}</p><form method="post" '
+            f'action="{svc.API}/confirm?t={escape(t)}"><button class="btn btn--red" '
+            f'type="submit">{escape(w["confirmButton"])}</button></form>')
+    return page(w["inviteTitle"], body, 200, link.lang)
+
+
+@router.post("/confirm", include_in_schema=False, dependencies=[public("link")])
+def confirm(t: str = "", db: Session = DB) -> Response:
+    """Der Klick auf den Knopf – angemeldet, mit Quelle und Wortlaut (``newsletter.confirm``)."""
+    try:
+        link = svc.read(t, "confirm")
+    except ValueError as exc:
+        return _invalid(str(exc))
+    svc.confirm(db, link)
+    db.flush()
+    return RedirectResponse(_page_of("confirmed", link.lang), status_code=303)
+
+
+@router.get("/unsubscribe", include_in_schema=False, dependencies=[public("link")])
+def unsubscribe_page(t: str = "") -> Response:
+    """Ein Knopf statt sofortiger Abmeldung – ein Link-Scanner drückt keinen Knopf."""
+    try:
+        svc.read(t, "unsubscribe")
+    except ValueError as exc:
+        return _invalid(str(exc))
+    w = svc.WORDS
+    body = (f'<p>{escape(w["unsubscribeLead"])}</p><form method="post" '
+            f'action="{svc.API}/unsubscribe?t={escape(t)}"><button class="btn btn--red" '
+            f'type="submit">{escape(w["unsubscribeButton"])}</button></form>')
+    return page(w["unsubscribeTitle"], body, 200)
+
+
+@router.post("/unsubscribe", include_in_schema=False, dependencies=[public("link")])
+def unsubscribe(t: str = "", one_click: str = Form("", alias="List-Unsubscribe"),
+                db: Session = DB) -> Response:
+    """Abmelden – vom Knopf der Seite oder mit einem Klick im Mailprogramm (RFC 8058: der
+    Rumpf ist ``List-Unsubscribe=One-Click``)."""
+    try:
+        link = svc.read(t, "unsubscribe")
+    except ValueError as exc:
+        return _invalid(str(exc))
+    if link.person is None:
+        return _invalid(svc.WORDS["invalid"])
+    direct = one_click == "One-Click"
+    svc.set_state(db, link.person, False, "one_click" if direct else "link")
+    db.flush()
+    return Response(status_code=200) if direct else RedirectResponse(
+        _page_of("unsubscribed"), status_code=303)
+
+
+# ── Selbst ──────────────────────────────────────────────────────────────────
+
+@me_router.get("", response_model=NewsletterState)
+def my_state(db: Session = DB, user: UserProfile = Depends(get_current_user)):
+    """Bin ich für den Newsletter angemeldet?"""
+    return _state(db, user.object_id) if user.object_id else NewsletterState(
+        subscribed=False, wording=svc.WORDING)
+
+
+@me_router.put("", response_model=NewsletterState)
+def set_mine(data: NewsletterIn, db: Session = DB,
+             user: UserProfile = Depends(get_current_user)):
+    """Mich für den Newsletter an- oder abmelden (meine Adresse ist bestätigt)."""
+    if not user.object_id:
+        raise Invalid("Ohne Objektnummer gibt es keinen Newsletter.")
+    svc.set_state(db, user.object_id, data.subscribed, "account", user.id)
+    db.flush()
+    return _state(db, user.object_id)
+
+
+# ── ERP ─────────────────────────────────────────────────────────────────────
+
+@erp_router.get("/{object_id}", response_model=NewsletterState)
+def person_state(object_id: int, db: Session = DB,
+                 _: UserProfile = Depends(require_employee)):
+    """Newsletter einer Person: angemeldet oder nicht, mit dem Nachweis."""
+    return _state(db, object_id, full=True)
+
+
+@erp_router.post("/{object_id}/invite", response_model=NewsletterState)
+def invite(object_id: int, db: Session = DB,
+           _: UserProfile = Depends(require_employee)):
+    """Die Bitte um Bestätigung schicken – angemeldet ist die Person erst mit ihrem Klick."""
+    svc.invite(db, object_id, "invitation")
+    return _state(db, object_id, full=True)
+
+
+@erp_router.post("/{object_id}/unsubscribe", response_model=NewsletterState)
+def unsubscribe_person(object_id: int, db: Session = DB,
+                       user: UserProfile = Depends(require_employee)):
+    """Abmelden im Namen der Person (sie hat es am Telefon gesagt) – mit Quelle «ERP»."""
+    svc.set_state(db, object_id, False, "erp", user.id)
+    db.flush()
+    return _state(db, object_id, full=True)

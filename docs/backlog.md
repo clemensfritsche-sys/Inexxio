@@ -1,0 +1,131 @@
+# Backlog
+
+Offene Themen, die bewusst **nicht** sofort umgesetzt werden. Jeder Eintrag nennt Ziel,
+Vorschlag und – wichtig – was dagegen spricht bzw. noch zu entscheiden ist. Erledigtes
+steht nicht hier, sondern in `docs/history/` (zuletzt `2026-10-backlog-erledigt.md`).
+
+---
+
+## Zwei-Deploy-Regel: vorgemerkte Drops
+
+`articles.supplier_article_number` (entmappt 12.11.2026: «Wie bestellen?» je Partner am Zahlungsmodul ersetzt sie; Drop im nächsten Deploy). Zuletzt gefallen (Aufräumen A1, Migration 182): `captures.note`, `process_steps.source_article_id`, `webauthn_credentials.transports` · `device_type`, `attachments.width` · `height`; davor die Tabelle `voucher_documents` (Migration 178, die Papiere
+sind gewöhnliche Dokumente mit `document_links`); davor (Aufräumen 1, Migration 176): `is_active` an 23 Tabellen, an
+denen nie gelöscht wird; `created_by` an `attachments`, `document_refs`, `document_links`,
+`holidays`; `captures.captured_by`; `articles.process_version`, `process_steps.source_version`;
+`orders.name`; `instances.label`; `vouchers.original_id`, `export_photo_id`. Davor: `message_parties.person_object_id` samt Brücke und Index
+(Migration 169, ersetzt durch `object_id`); davor die Tabellen `audit_log` und `process_events` (Migration 167,
+durch das Log ersetzt); davor `orders.end_status`, `user_profiles.department`, `job_title`
+(Migration 165). Ganze Tabellen stehen dazwischen in `PENDING_DROP_TABLES`.
+Wer eine Spalte entmappt, trägt sie in `PENDING_DROP`
+(`backend/tests/test_schema_is_built_by_the_migrations.py`) **und** hier ein; der Eintrag geht mit
+dem Drop.
+Bewusst gemappt geblieben (Entscheid E7): `articles.safety_stock`, `min_order_qty`,
+`user_profiles.language`, `notification_email`,
+`notification_inapp`. Die beiden `notification_*` nimmt seit November 2026 keine Route mehr an
+(`docs/history/2026-11-11-erp-master-pruefung.md`) – Kandidaten für die Zwei-Deploy-Regel.
+
+## Offene Befunde
+
+Aus dem Audit vom August 2026 (`docs/history/2026-08-findings.md`, dort mit Ursache).
+
+1. **S94 – «Noch nicht erfasst: OK.» nennt den Punkt, aber nicht das Stück.**
+   `capture_types.check_values` kennt die Einzelinstanz nicht; bei 1500 gezogenen Stücken
+   sucht der Mensch. In der Matrix als `open_finding` an S94 – wer es behebt, entfernt die Markierung.
+2. **Zwei Fallback-Anzeigen im Auftrags-Detail** (`components/erp/order-detail.tsx`):
+   `ln.article_name ?? 'Artikel'` (ein erfundenes Wort) und `…?.action ?? ''` (ein leerer
+   Knopf). Heute unerreichbar; im Fehlerfall lügen sie statt zu melden (SYSTEM_LOGIC G3.6).
+3. **`modules.sample_of` fällt auf «alle» zurück**, wenn die Stichprobe in einer
+   gespeicherten Definition fehlt – ein dokumentierter Rückfall für Alt-Definitionen
+   (SYSTEM_LOGIC §5 Punkt 2), heute unerreichbar. Stehen lassen, nicht zum Standard werden lassen.
+4. **Der Verlierer einer echten Nebenläufigkeit sieht eine rohe Datenbankmeldung** (S63):
+   die Exklusivität hält, aber statt des Satzes aus `_assert_as_picked` kommt ein
+   `IntegrityError`. Erst angehen, wenn mehrere Personen gleichzeitig freigeben.
+5. **Die Anmelde-E-Mail einer Person kann das ERP nicht korrigieren** («ERP ist Master»,
+   `docs/history/2026-11-11-erp-master-pruefung.md`, Vorschlag 1): heute nur die Person im Konto
+   (`policy.SELF_SERVICE`, `SelfOnly`). Vorschlag: Admin-Handlung – ohne je eine Anmeldung direkt
+   über das Firebase Admin SDK, sonst der Bestätigungslink an die neue Adresse.
+
+## Shop
+
+> **In Arbeit als Projekt «Sortiment»:** `docs/konzept/sortiment.md` (Konzept, nichts entschieden).
+
+**Offen.** Das Zahlungsmodul trägt einen Shop (ein Aufruf legt den Auftrag samt Beleg an,
+`can` ist Auskunft und Tor auch für einen Shop-Server, Karte und QR-Rechnung sind da). Was
+fehlt, liegt **vor** dem Beleg:
+
+- ein **Verkaufspreis** am Artikel (Vorschlag: Tabelle Artikel · gültig ab · Preis ·
+  Währung – ohne das Abo-Feld des Vorgängers),
+- **Konditionen je Partner** als Kaskade Haus → Partner → Vorgang (leer = Stufe darüber),
+- eine **Herkunft** am Auftrag (`source_reference`, eindeutig) gegen doppelte Bestellungen.
+
+Nicht nötig: ein eigener Endpunkt, ein Warenkorb im ERP, eine Reservierung. Wortlaut und
+Begründung: `docs/history/2026-09-13-konzept-beleg-shop-besitz.md` (Frage 1; Frage 2 und 3
+sind umgesetzt).
+
+## Die Zahlungsarten sind eine Konto-Entscheidung
+
+Keine Code-Frage — unser Code fragt `automatic_payment_methods` und führt bewusst **keine
+eigene Liste**. Gemessen im Sandbox-Konto (`payment_method_configurations`, 05.09.2026):
+
+- **TWINT ist aus** (`available: false` — Stripe schaltet es frei, wenn das Konto
+  aktiviert ist). Karte ist an, bezahlen funktioniert also.
+- **An sind daneben** Klarna, Link, Amazon Pay, Bancontact, EPS, BLIK, MB Way, Pix,
+  Satispay, Apple Pay — für ein Schweizer B2B-ERP kaum passend, und sie stehen dem
+  Zahlenden alle im Formular.
+
+Beides ist ein Schalter unter **Settings → Payments → Payment methods**.
+
+## Die offene-Posten-Liste je Partner (und mit ihr die Sammelzahlung)
+
+**Benannt, nicht versteckt** (PROCESS_CORE §9.15). Eine Rechnung ist *der Beleg*; zwei
+Rechnungen desselben Kunden liegen damit zwingend in **verschiedenen Modulen** – meist in
+verschiedenen Aufträgen. Zwei Fragen haben keinen Ort an *einem* Modul:
+
+1. **«Was schuldet mir dieser Kunde insgesamt?»** Die Summe über alle Module ist
+   **Debitorenbuchhaltung**. Die Zahlungen-Liste an Person und Gesellschaft
+   (`services/payment_list`) zeigt die Zeilen, rechnet aber nicht gegeneinander auf.
+2. **Eine Überweisung über mehrere Rechnungen.** Auf dem Kontoauszug steht eine Zeile; im
+   ERP sind es zwei erfasste Zahlungen – eine Zeile mehr auf dem Bildschirm, **keine
+   falsche Zahl**.
+
+## Teilkorrektur ohne Ware und ein Beleg ganz ohne Ware
+
+«Stornieren» nach der Rechnung erzeugt die Gutschrift über die **ganze** Rechnung von
+selbst. Eine **Teil**korrektur (ein reiner Rechnungsfehler nach dem Versand) braucht einen
+eigenen Korrekturbeleg in einem Auftrag über die betroffenen Stücke – das dokumentiert,
+worauf sie sich bezieht, fühlt sich aber schief an. Es ist derselbe offene Punkt wie
+**«ein Beleg ganz ohne Ware»** (Miete, Lohn, Gebühr): `assert_releasable` verlangt
+mindestens eine Einzelinstanz. Fällt die Regel eines Tages, fällt sie für beide.
+
+## Recht: offen nach der Prüfung vom November 2026
+
+Umgesetzt am 21.11.2026: neue Fassungen von AGB, Datenschutz und Impressum (Vorlagen
+`backend/app/assets/legal/*/2026-11-21.md`; AGB und Datenschutz übernimmt der Admin an jeder eigenen
+Gesellschaft mit «Aus Vorlage übernehmen»), Schriften selbst ausgeliefert, Firebase erst bei
+Anmeldung, Garantie mit Bedingungen (AGB Ziff. 11, nicht für reine Teilelieferungen), Satz am
+Formular, keine Newsletter-Einladung ohne Häkchen, Knopf «Offerte zahlungspflichtig annehmen».
+Offen:
+- ~~Löschfrist Anfragen ohne Auftrag~~ und ~~EU-Vertreter (DSGVO Art. 27)~~: **entschieden
+  21.11.2026 – beides nicht**, auf eigenes Risiko des Inhabers. Die Datenschutzerklärung verspricht
+  keine feste Frist mehr (Ziff. 4: aufbewahren, solange nützlich; auf Wunsch sofort löschen).
+- **Widerrufsfunktion (Richtlinie 2023/2673, ab 19.6.2026)**: für Endkunden aus der EU, die über
+  `/dokument` annehmen, ein Knopf «Vertrag widerrufen». Heute nur Widerruf per Brief oder E-Mail
+  (AGB Ziff. 12 mit Muster-Formular).
+- **Rechtstexte in FR · EN · IT**: siehe «Website in weiteren Sprachen»; massgebend bleibt Deutsch.
+
+## Website in weiteren Sprachen: was noch deutsch ist
+
+Die Website baut jede Sprache vollständig, und der Server antwortet in der Sprache der Seite
+(WEBSITE_PLAN Entscheid 136: Meldungen, Eingangsbestätigung, Newsletter mit Wortlaut der
+Einwilligung, 404). Deutsch bleiben AGB, Datenschutz und Impressum: sie sind Dokumente der
+Gesellschaft im ERP – je Sprache ein Dokument (Pflichtfeld je Sprache), `/agb` usw. wählt nach der
+Sprache der Seite. Ebenso schreibt das ERP von Hand deutsch (Antworten auf Anfragen); die Sprache
+einer Anfrage steht an ihrer Seite (`Seite: /fr/…`). Vor dem Start einer Sprache: eine Fachperson
+liest gegen (Status `preview` → `live`).
+
+## Automatische Freigabe einzelner Papiere
+
+Nicht gebaut: Auftragsbestätigung und Quittung gibt immer ein Mensch frei («Prüfen und
+freigeben», Verb `release`). Wer ein Papier von selbst freigeben will, entscheidet zuerst,
+welches – WANN es ansteht, sagt schon `voucher_money.papers_due`; der leere Haken
+`AUTO_RELEASE` ist im November 2026 entfernt worden.

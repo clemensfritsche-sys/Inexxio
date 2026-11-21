@@ -1,0 +1,192 @@
+---
+/**
+ * Bühne (v4, November 2026): drei feste Plätze – das mittlere Bild gross, links und rechts die Nachbarn
+ * nah daneben, kleiner und blasser. Die Bilder drehen sich im Kreis (es gibt immer einen Nachbarn auf
+ * beiden Seiten); Start in der Mitte. Bedient mit den Pfeilen oben rechts (wie der Ratgeber), wischen,
+ * einem Klick auf ein Nachbarbild, den Punkten (`.cdots`, wie überall) oder den Pfeiltasten. Darunter Titel
+ * und Satz des mittleren Bildes, dann «Aufgabe schildern». Keine Legende. Ohne Skript steht die Mitte.
+ * Gebraucht auf der Startseite («Ihre Aufgabe. Unsere Lösung.») und dem Trommeltausch
+ * («Tauschen · Überholen · Neu kaufen»); die Bilder kommen als Schlüssel (`art[].illo`, lib/illustrations
+ * `picture`), auf der Startseite die drei der Speziallösungen.
+ */
+import Icon from '../Icon.astro';
+import { t } from '../../i18n/t.mjs';
+import Rich from '../Rich.astro';
+import { plain } from '../../lib/text.mjs';
+import { picture } from '../../lib/illustrations';
+
+interface Item { title: string; text: string }
+interface Props {
+  title: string;
+  lead: string;
+  /** Die Felder (höchstens vier) – Titel und Satz, auf der Startseite die drei «Für …» (content/spezialloesungen.ts). */
+  items: Item[];
+  cta: { label: string; href: string };
+  /** Überschrift als H1 (eigene Seite) oder H2 (Abschnitt). */
+  level?: 'h1' | 'h2';
+  id?: string;
+  /** Je Feld das Bild als Schlüssel (src/assets/illustrations, siehe lib/illustrations `picture`) und der Alt-Text. */
+  art?: { illo: string; alt: string }[];
+}
+const T = t('ui', { prev: 'Vorheriges Bild', next: 'Nächstes Bild', item: 'Bild' });
+const {
+  title, lead, items, cta, level = 'h2', id = 'spezial',
+  art = [
+    { illo: 'spezial-krane', alt: t('ui', 'Säulenschwenkkran als Zeichnung, nur der Rohrgreifer am Haken ist echt und rot') },
+    { illo: 'spezial-fahrzeuge', alt: t('ui', 'Dreiachs-Lastwagen als Zeichnung, nur die Kippbrücke ist echt und rot') },
+    { illo: 'spezial-baumaschinen', alt: t('ui', 'Minibagger als Zeichnung, nur die Anbau-Rüttelplatte ist echt und rot') },
+  ],
+} = Astro.props;
+const H = level;
+const shown = items.slice(0, Math.min(4, art.length));
+const n = shown.length;
+const start = Math.floor(n / 2);
+const srcs = await Promise.all(shown.map((_, i) => picture(art[i].illo, 'Bühne', 1600)));
+/** Platz eines Bildes, wenn `c` in der Mitte steht: −1 links, 0 Mitte, 1 rechts, sonst verborgen. */
+const pos = (k: number, c: number) => { let p = k - c; if (p > n / 2) p -= n; if (p < -n / 2) p += n; return p; };
+---
+<section class="v4-section sp-sec" id={id} aria-labelledby={`${id}-title`}>
+  <div class="wrap" data-hero={level === 'h1' ? true : undefined}>
+    <div class="sp" data-ring data-start={start}>
+      <div class="sp__head">
+        <div>
+          <H class="v4-h2" id={`${id}-title`}>{plain(title)}</H>
+          <Rich as="p" class="v4-sub" text={lead} />
+        </div>
+        <div class="sp__arrows">
+          <button type="button" class="sp__arrow" data-prev aria-label={T.prev}><Icon name="arrow-left" size={18} /></button>
+          <button type="button" class="sp__arrow" data-next aria-label={T.next}><Icon name="arrow-right" size={18} /></button>
+        </div>
+      </div>
+      <div class="sp__stage" data-stage tabindex="0">
+        {shown.map((_, i) => (
+          <div class="sp__item" data-item data-pos={String(pos(i, start))} aria-hidden={pos(i, start) !== 0 ? 'true' : undefined}>
+            <img src={srcs[i]} alt={art[i].alt} width="960" height="560" loading="lazy" decoding="async" draggable="false" />
+          </div>
+        ))}
+      </div>
+      <div class="sp__texts" aria-live="polite">
+        {shown.map((it, i) => (
+          <div class:list={['sp__text', i === start && 'is-on']} data-text>
+            <p class="sp__t">{it.title}</p>
+            <Rich as="p" class="sp__s" text={it.text} />
+          </div>
+        ))}
+      </div>
+      <div class="cdots" data-dots data-label={T.item}></div>
+      <p class="sp__cta-row"><a class="btn btn--primary sp__cta" href={cta.href}>{cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a></p>
+    </div>
+  </div>
+</section>
+
+<script>
+  /* Drei Plätze im Kreis: setzt data-pos je Bild, den Satz und den Punkt der Mitte. Beim Ziehen folgen die
+     Bilder dem Finger; der Klick, den der Browser nach einem Zug noch schickt, wird verschluckt. */
+  document.querySelectorAll<HTMLElement>('[data-ring]').forEach((root) => {
+    if (root.dataset.ready) return;
+    root.dataset.ready = '1';
+    const stage = root.querySelector<HTMLElement>('[data-stage]')!;
+    const items = Array.from(root.querySelectorAll<HTMLElement>('[data-item]'));
+    const texts = Array.from(root.querySelectorAll<HTMLElement>('[data-text]'));
+    const box = root.querySelector<HTMLElement>('[data-dots]');
+    const n = items.length;
+    let cur = Number(root.dataset.start ?? 0);
+    const dots = items.map((_, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cdot';
+      b.setAttribute('aria-label', `${box?.dataset.label ?? 'Bild'} ${i + 1}`);
+      b.addEventListener('click', () => show(i));
+      box?.append(b);
+      return b;
+    });
+    function show(i: number) {
+      cur = (i + n) % n;
+      items.forEach((el, k) => {
+        let p = k - cur;
+        if (p > n / 2) p -= n;
+        if (p < -n / 2) p += n;
+        el.dataset.pos = String(p);
+        if (p === 0) el.removeAttribute('aria-hidden'); else el.setAttribute('aria-hidden', 'true');
+      });
+      texts.forEach((t, k) => t.classList.toggle('is-on', k === cur));
+      dots.forEach((d, k) => d.setAttribute('aria-current', String(k === cur)));
+    }
+    let swiped = false;
+    items.forEach((el, k) => el.addEventListener('click', () => { if (swiped) { swiped = false; return; } if (k !== cur) show(k); }));
+    root.querySelector('[data-prev]')?.addEventListener('click', () => show(cur - 1));
+    root.querySelector('[data-next]')?.addEventListener('click', () => show(cur + 1));
+    // Ziehen: die Bilder folgen dem Finger bzw. der Maus (--drag); losgelassen dreht es weiter, wenn der Zug
+    // weit genug ging (ein Fünftel der Breite oder ein kräftiger kurzer Zug), sonst gleitet alles zurück.
+    let drag: { x: number; t: number; id: number } | null = null;
+    let dx = 0;
+    stage.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      drag = { x: e.clientX, t: performance.now(), id: e.pointerId };
+      dx = 0;
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      dx = e.clientX - drag.x;
+      if (!stage.classList.contains('is-dragging')) {
+        if (Math.abs(dx) < 6) return;
+        stage.classList.add('is-dragging');
+        stage.setPointerCapture(drag.id);
+      }
+      stage.style.setProperty('--drag', `${dx}px`);
+    });
+    const release = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const fast = Math.abs(dx) > 40 && performance.now() - drag.t < 300;
+      const far = Math.abs(dx) > stage.clientWidth / 5;
+      const was = stage.classList.contains('is-dragging');
+      drag = null;
+      stage.classList.remove('is-dragging');
+      stage.style.setProperty('--drag', '0px');
+      if (!was) return;
+      swiped = true;
+      setTimeout(() => { swiped = false; }, 0);
+      if (fast || far) show(cur + (dx < 0 ? 1 : -1));
+    };
+    stage.addEventListener('pointerup', release);
+    stage.addEventListener('pointercancel', release);
+    stage.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') show(cur + 1); if (e.key === 'ArrowLeft') show(cur - 1); });
+    show(cur);
+  });
+</script>
+
+<style>
+  .sp__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 48px; }
+  /* Die Pfeile wie im Ratgeber (ArticleCarousel .rat__arrow). */
+  .sp__arrows { display: none; gap: 8px; flex: none; }
+  @media (min-width: 960px) { .sp__arrows { display: flex; } }
+  .sp__arrow { width: 44px; height: 44px; border-radius: 50%; background: var(--gray-100); display: inline-flex; align-items: center; justify-content: center; color: var(--ink); transition: background-color 0.2s var(--ease); }
+  .sp__arrow:hover { background: var(--line); }
+  .sp__stage { position: relative; margin-top: 24px; height: clamp(220px, 38vw, 460px); overflow: hidden; touch-action: pan-y; user-select: none; -webkit-user-select: none; outline: none; }
+  /* Beim Ziehen folgt alles dem Finger (ohne Übergang), beim Loslassen gleitet es an den Platz. */
+  .sp__stage.is-dragging { cursor: grabbing; }
+  .sp__stage.is-dragging .sp__item { transition: none; }
+  .sp__stage:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  .sp__item { position: absolute; top: 0; bottom: 0; left: 50%; width: 70%; display: flex; align-items: flex-end; justify-content: center; cursor: pointer; opacity: 0; transform: translateX(var(--drag, 0px)) translateX(-50%) scale(0.5);
+    transition: transform 0.7s var(--ease), opacity 0.5s ease; }
+  .sp__item img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; pointer-events: none; -webkit-user-drag: none; }
+  .sp__item[data-pos='0'] { transform: translateX(var(--drag, 0px)) translateX(-50%); opacity: 1; z-index: 2; cursor: default; }
+  .sp__item[data-pos='-1'] { transform: translateX(var(--drag, 0px)) translateX(-118%) scale(0.6); opacity: 0.45; z-index: 1; }
+  .sp__item[data-pos='1'] { transform: translateX(var(--drag, 0px)) translateX(18%) scale(0.6); opacity: 0.45; z-index: 1; }
+  @media (min-width: 720px) {
+    .sp__item { width: 50%; }
+    .sp__item[data-pos='-1'] { transform: translateX(var(--drag, 0px)) translateX(-122%) scale(0.66); }
+    .sp__item[data-pos='1'] { transform: translateX(var(--drag, 0px)) translateX(22%) scale(0.66); }
+  }
+  .sp__texts { position: relative; margin-top: 16px; min-height: 7em; text-align: center; }
+  .sp__text { position: absolute; inset: 0; display: grid; gap: 6px; justify-items: center; align-content: start; opacity: 0; transform: translateY(6px); transition: opacity 0.35s ease, transform 0.35s ease; }
+  .sp__text.is-on { opacity: 1; transform: none; }
+  .sp__t { font-family: var(--font-display); font-weight: 600; font-size: 1.375rem; letter-spacing: -0.02em; color: var(--ink); }
+  @media (min-width: 960px) { .sp__t { font-size: 1.625rem; } }
+  .sp__text :global(.sp__s) { max-width: 34em; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-3); }
+  @media (min-width: 960px) { .sp__text :global(.sp__s) { font-size: 1rem; } }
+  .sp :global(.cdots) { margin-top: 4px; }
+  .sp__cta-row { display: flex; justify-content: center; max-width: none; margin-top: 28px; } /* gegen p { max-width } – sonst sitzt die Zeile links */
+  .sp__cta { --btn-h: 52px; padding: 0 24px; font-size: 1rem; font-weight: 600; }
+  @media (prefers-reduced-motion: reduce) { .sp__item, .sp__text { transition: none; } }
+</style>

@@ -1,0 +1,91 @@
+---
+/**
+ * Die dunkle Karte für den direkten Weg zu uns (v4): links ein leises Wort, Titel, ein Satz, auf Wunsch die
+ * Telefonnummer gross und die Knöpfe; rechts an Haarlinien, was man bereithält (Symbol, Titel, Satz); unten
+ * auf Wunsch ein Hinweis. Schmal untereinander.
+ * Gebraucht für den Notfall auf /service (#notfall) und die Bewerbung auf /karriere (#bewerbung).
+ */
+import Icon, { type IconName } from './Icon.astro';
+import Rich from './Rich.astro';
+import { site } from '../config/site.mjs';
+
+interface Action { label: string; href: string; icon: IconName; primary?: boolean }
+interface Props {
+  id: string;
+  label: string;
+  title: string;
+  text?: string;
+  /** Die Telefonnummer gross zeigen (als Link). */
+  phone?: boolean;
+  actions?: Action[];
+  items?: { icon: IconName; title: string; text: string }[];
+  note?: { title: string; text: string };
+}
+const { id, label, title, text, phone = false, actions = [], items = [], note } = Astro.props;
+---
+<section class="v4-section cp-sec" id={id} aria-labelledby={`${id}-title`}>
+  <div class="wrap">
+    <div class:list={['cp', items.length > 0 && 'cp--split']}>
+      <div class="cp__main">
+        <p class="cp__label">{label}</p>
+        <h2 class="cp__title" id={`${id}-title`}>{title}</h2>
+        {text && <Rich as="p" class="cp__text" text={text} />}
+        {phone && <a class="cp__phone tnum" href={`tel:${site.phone.e164}`}><Icon name="phone" size={28} /> {site.phone.display}</a>}
+        {actions.length > 0 && (
+          <div class="cp__actions">
+            {actions.map((a) => <a class:list={['btn btn--lg', a.primary ? 'btn--primary' : 'cp__btn']} href={a.href}><Icon name={a.icon} size={18} /> {a.label}</a>)}
+          </div>
+        )}
+      </div>
+      {items.length > 0 && (
+        <ul role="list" class="cp__list">
+          {items.map((it) => (
+            <li>
+              <span class="cp__ic" aria-hidden="true"><Icon name={it.icon} size={20} /></span>
+              <span><strong>{it.title}</strong><Rich as="span" class="cp__t" text={it.text} /></span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {note && (
+        <p class="cp__note"><Icon name="alert" size={20} /><span><strong>{note.title}</strong> <Rich as="span" text={note.text} /></span></p>
+      )}
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Steht die Karte als Letztes vor dem Fuss, braucht sie Luft nach unten. */
+  .cp-sec:last-of-type { padding-bottom: 64px; }
+  @media (min-width: 960px) { .cp-sec:last-of-type { padding-bottom: 120px; } }
+  .cp { display: grid; gap: 32px; padding: 28px 24px; border-radius: var(--r-xl); background: var(--black); color: var(--white); }
+  .cp__label { font-size: 0.875rem; font-weight: 600; color: rgba(255, 255, 255, 0.64); margin-bottom: 12px; }
+  .cp__title { font-family: var(--font-display); font-weight: 600; font-size: 2rem; line-height: 1.08; letter-spacing: -0.03em; color: var(--white); }
+  .cp__main :global(.cp__text) { margin-top: 14px; max-width: 32em; font-size: 1.0625rem; line-height: 1.5; color: rgba(255, 255, 255, 0.76); }
+  .cp__main :global(.cp__text a) { color: var(--white); }
+  .cp__phone {
+    display: inline-flex; align-items: center; gap: 14px; margin-top: 28px; min-height: 56px;
+    font-family: var(--font-display); font-weight: 600; font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); letter-spacing: -0.03em; line-height: 1;
+    color: var(--white); text-decoration: none;
+  }
+  .cp__phone:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.12em; }
+  .cp__phone :global(svg) { color: var(--red); flex: none; }
+  .cp__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .cp__actions .btn { --btn-h: 52px; padding: 0 24px; font-size: 1rem; }
+  .cp__btn { background: rgba(255, 255, 255, 0.1); color: var(--white); border: 1px solid rgba(255, 255, 255, 0.2); }
+  .cp__btn:hover { background: rgba(255, 255, 255, 0.18); color: var(--white); }
+  .cp__list { list-style: none; padding: 0; display: grid; }
+  .cp__list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; padding: 18px 0; border-top: 1px solid rgba(255, 255, 255, 0.14); }
+  .cp__ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); color: var(--white); }
+  .cp__list strong { display: block; font-size: 1.0625rem; line-height: 1.35; color: var(--white); }
+  .cp__list :global(.cp__t) { display: block; margin-top: 2px; font-size: 0.9375rem; line-height: 1.5; color: rgba(255, 255, 255, 0.68); }
+  .cp__note { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 14px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: 0.9375rem; line-height: 1.5; color: rgba(255, 255, 255, 0.76); }
+  .cp__note :global(svg) { margin-top: 2px; color: var(--red); }
+  .cp__note strong { color: var(--white); }
+  @media (min-width: 960px) {
+    .cp { padding: 64px; gap: 48px 64px; }
+    .cp--split { grid-template-columns: 6fr 5fr; align-items: center; }
+    .cp__note { grid-column: 1 / -1; }
+    .cp__title { font-size: 3rem; }
+  }
+</style>

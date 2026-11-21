@@ -1,0 +1,50 @@
+---
+/**
+ * «Serienmaschinen sind für den Durchschnitt gebaut …» (v4): links Titel und Satz, rechts ein
+ * freigestelltes Bild ohne Fläche (eine Reihe gleicher Serienmaschinen als Zeichnung, eine tritt
+ * heraus – echt, mit rotem Anbau). Darunter die drei Gewinne kompakt an Haarlinien.
+ */
+import { Picture } from 'astro:assets';
+import Icon, { type IconName } from '../Icon.astro';
+import Rich from '../Rich.astro';
+import serie from '../../assets/illustrations/spezial-serie.webp';
+
+interface Props {
+  title: string;
+  lead: string;
+  alt: string;
+  gains: { icon: IconName; title: string; text: string }[];
+}
+const { title, lead, alt, gains } = Astro.props;
+---
+<section class="v4-section" aria-labelledby="prinzip">
+  <div class="wrap sg">
+    <div class="sg__head">
+      <h2 class="v4-h2 sg__title" id="prinzip">{title}</h2>
+      <Rich as="p" class="v4-sub" text={lead} />
+    </div>
+    <div class="sg__art">
+      <Picture src={serie} alt={alt} formats={['avif', 'webp']} widths={[640, 960, 1280].filter((w) => w <= serie.width)} sizes="(min-width: 960px) 58vw, 100vw" loading="lazy" decoding="async" fallbackFormat="webp" />
+    </div>
+    <ul role="list" class="sg__gains">
+      {gains.map((g) => (
+        <li><span class="sg__ic"><Icon name={g.icon} size={18} /></span><span><strong>{g.title}</strong><Rich as="span" class="sg__text" text={g.text} /></span></li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .sg { display: grid; gap: 24px; }
+  .sg__art :global(img) { display: block; width: 100%; height: auto; }
+  .sg__gains { list-style: none; padding: 0; display: grid; }
+  .sg__gains li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 14px; align-items: start; padding: 16px 0; border-top: 1px solid var(--line); }
+  .sg__ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--gray-100); color: var(--ink); }
+  .sg__gains strong { display: block; font-size: 1rem; line-height: 1.35; }
+  .sg__gains :global(.sg__text) { display: block; margin-top: 2px; font-size: 0.875rem; line-height: 1.5; color: var(--ink-3); }
+  @media (min-width: 960px) {
+    .sg { grid-template-columns: 5fr 7fr; gap: 16px 40px; align-items: center; }
+    .sg__title { font-size: 2.5rem; }
+    .sg__gains { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; margin-top: 24px; }
+  }
+</style>
