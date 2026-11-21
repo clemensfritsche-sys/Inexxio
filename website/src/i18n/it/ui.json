@@ -28,7 +28,6 @@
   "Für alle gängigen Marken.": "Per tutte le marche correnti.",
   "Foto fehlt": "Foto mancante",
   "Zürich": "Zurigo",
-  "Schematische Karte: Tuttwil zwischen Winterthur, Frauenfeld, Wil und St. Gallen, nahe dem Bodensee.": "Carta schematica: Tuttwil tra Winterthur, Frauenfeld, Wil e San Gallo, vicino al Lago di Costanza.",
   "Standort Tuttwil.": "Sede di Tuttwil.",
   "BODENSEE": "LAGO DI COSTANZA",
   "Bitte leer lassen": "Lasciare vuoto",
@@ -83,5 +82,13 @@
   "Nächster Artikel": "Articolo successivo",
   "Vorheriges Bild": "Immagine precedente",
   "Nächstes Bild": "Immagine successiva",
-  "Bild": "Immagine"
+  "Bild": "Immagine",
+  "Schematische Karte: Tuttwil im Thurgau, zwischen Zürich, dem Bodensee und den Grenzen zu Deutschland und Österreich.": "Mappa schematica: Tuttwil in Turgovia, tra Zurigo, il lago di Costanza e i confini con Germania e Austria.",
+  "DEUTSCHLAND": "GERMANIA",
+  "ÖSTERREICH": "AUSTRIA",
+  "SCHWEIZ": "SVIZZERA",
+  "Mailand": "Milano",
+  "FRANKREICH": "FRANCIA",
+  "ITALIEN": "ITALIA",
+  "Genf": "Ginevra"
 }

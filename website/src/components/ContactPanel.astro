@@ -1,6 +1,7 @@
 ---
 /**
- * Direkter Kontakt unter dem Formular (v4): links der Ansprechpartner mit Foto, rechts eine
+ * Direkter Kontakt unter dem Formular (v4): links der Ansprechpartner – freigestellt, wie überall
+ * auf der Website, kein runder Ausschnitt –, rechts eine
  * Liste aus Haarlinien – Telefon, E-Mail, Anschrift mit «Route öffnen».
  * Alles aus dem ERP (scripts/contact.ts tauscht die Vorgabe dieses Builds); die Route öffnet
  * Google Maps in einem NEUEN Tab – die Website bleibt offen (#1145).
@@ -17,7 +18,7 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
 ---
 <div class="cpanel">
   <div class="cpanel__who">
-    <Photo id="portraet-clemens" sizes="64px" class="cpanel__img" />
+    <Photo id="portraet-clemens" sizes="(min-width: 768px) 150px, 96px" class="cpanel__img" />
     <span class="cpanel__name"><strong>{site.people.owner.name}</strong><span>{kontakt.person.label}</span></span>
   </div>
   <ul role="list" class="cpanel__list">
@@ -39,10 +40,13 @@ const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURICom
 <style>
   .cpanel { display: grid; gap: 14px 24px; grid-template-columns: minmax(0, 1fr); align-items: start; }
   @media (min-width: 768px) { .cpanel { grid-template-columns: 170px minmax(0, 1fr); } }
-  .cpanel__who { display: flex; gap: 14px; align-items: center; }
+  .cpanel__who { display: flex; gap: 14px; align-items: flex-end; }
   @media (min-width: 768px) { .cpanel__who { flex-direction: column; align-items: flex-start; gap: 10px; } }
-  .cpanel__who :global(.cpanel__img), .cpanel__who :global(picture), .cpanel__who :global(.ph) { flex: none; width: 64px; height: 64px; border-radius: 50%; overflow: hidden; }
-  .cpanel__who :global(img) { width: 64px; height: 64px; object-fit: cover; object-position: 50% 0; border-radius: 50%; background: var(--paper-2); transform: scale(1.7); transform-origin: 50% 12%; }
+  .cpanel__who :global(.cpanel__img), .cpanel__who :global(picture), .cpanel__who :global(.ph) { flex: none; width: 96px; }
+  .cpanel__who :global(img) { display: block; width: 100%; height: auto; }
+  @media (min-width: 768px) {
+    .cpanel__who :global(.cpanel__img), .cpanel__who :global(picture), .cpanel__who :global(.ph) { width: 150px; }
+  }
   .cpanel__name { display: grid; font-size: 0.9375rem; line-height: 1.4; }
   .cpanel__name span { color: var(--gray-500); }
   .cpanel__list { list-style: none; padding: 0; border-bottom: 1px solid var(--line); }

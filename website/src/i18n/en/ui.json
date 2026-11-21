@@ -28,7 +28,6 @@
   "Für alle gängigen Marken.": "For all common makes.",
   "Foto fehlt": "Photo missing",
   "Zürich": "Zurich",
-  "Schematische Karte: Tuttwil zwischen Winterthur, Frauenfeld, Wil und St. Gallen, nahe dem Bodensee.": "Schematic map: Tuttwil between Winterthur, Frauenfeld, Wil and St. Gallen, near Lake Constance.",
   "Standort Tuttwil.": "Tuttwil location.",
   "BODENSEE": "LAKE CONSTANCE",
   "Bitte leer lassen": "Please leave empty",
@@ -83,5 +82,13 @@
   "Nächster Artikel": "Next article",
   "Vorheriges Bild": "Previous image",
   "Nächstes Bild": "Next image",
-  "Bild": "Image"
+  "Bild": "Image",
+  "Schematische Karte: Tuttwil im Thurgau, zwischen Zürich, dem Bodensee und den Grenzen zu Deutschland und Österreich.": "Schematic map: Tuttwil in Thurgau, between Zurich, Lake Constance and the borders with Germany and Austria.",
+  "DEUTSCHLAND": "GERMANY",
+  "ÖSTERREICH": "AUSTRIA",
+  "SCHWEIZ": "SWITZERLAND",
+  "Mailand": "Milan",
+  "FRANKREICH": "FRANCE",
+  "ITALIEN": "ITALY",
+  "Genf": "Geneva"
 }
