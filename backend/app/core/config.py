@@ -62,7 +62,7 @@ class Settings(BaseSettings):
         "https://www.inexxio.com",
     ]
 
-    initial_admin_email: str = "clemens.fritsche@gmail.com"
+    initial_admin_email: str = "clemens.fritsche@inexxio.com"
 
     #: Öffentliche Basis-URL des Frontends. Unter welcher Adresse die Website läuft, weiss
     #: das **Deployment** – kein Eingabefeld daneben, das beim ersten Domain-Wechsel still
