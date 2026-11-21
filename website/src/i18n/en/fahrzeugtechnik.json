@@ -75,7 +75,7 @@
   "Zeichnung: Fahrmischer mit neuer roter Trommel, die alte liegt daneben": "Drawing: truck mixer with a new red drum, the old one lying beside it",
   "Überholen": "Overhaul",
   "Die Trommel ist verschlissen, aber zu retten: Wir erneuern Lager, Dichtungen, Laufring, Rollen und Mischspiralen.": "The drum is worn but can be saved: we renew the bearings, seals, roller track, rollers and mixing spirals.",
-  "Zeichnung: Fahrmischer mit der bestehenden Trommel, die Mischspiralen rot": "Drawing: truck mixer with the existing drum, the mixing spirals in red",
+  "Zeichnung: Fahrmischer mit aufgeschnittener Trommel, Mischspiralen, Lager und Laufrollen rot": "Drawing: truck mixer with a cut-open drum, mixing spirals, bearing and support rollers in red",
   "Neu kaufen": "Buy new",
   "Ist auch das Fahrgestell am Ende, lohnt sich nur ein neuer Fahrmischer. Das sagen wir Ihnen offen.": "If the chassis is worn out too, only a new truck mixer makes sense. We tell you that frankly.",
   "Zeichnung: ein neuer Fahrmischer, ganz hell": "Drawing: a new truck mixer, all in light tones",
@@ -124,5 +124,5 @@
   "Holen oder einbauen": "Collect or fit",
   "Abholen in {{address.city}} – oder wir bauen es gleich ein.": "Collect in {{address.city}} – or we fit it straight away.",
   "Sie wählen: abholen oder Einbau": "You choose: collect or fitting",
-  "Hellgrüner Fahrmischer, der Mischaufbau ist auf dem Fahrgestell angehoben": "Light-green truck mixer, the mixer body is raised on the chassis"
+  "Zeichnung: Fahrmischer, der Trommelantrieb mit Getriebe und Hydraulikmotor ist rot": "Drawing: truck mixer, the drum drive with gearbox and hydraulic motor in red"
 }

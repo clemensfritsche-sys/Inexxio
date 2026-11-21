@@ -75,7 +75,7 @@
   "Zeichnung: Fahrmischer mit neuer roter Trommel, die alte liegt daneben": "Dessin: camion malaxeur avec un nouveau tambour rouge, l'ancien posé à côté",
   "Überholen": "Réviser",
   "Die Trommel ist verschlissen, aber zu retten: Wir erneuern Lager, Dichtungen, Laufring, Rollen und Mischspiralen.": "Le tambour est usé, mais récupérable: nous renouvelons paliers, joints, anneau de roulement, galets et spirales de malaxage.",
-  "Zeichnung: Fahrmischer mit der bestehenden Trommel, die Mischspiralen rot": "Dessin: camion malaxeur avec le tambour existant, les spirales de malaxage en rouge",
+  "Zeichnung: Fahrmischer mit aufgeschnittener Trommel, Mischspiralen, Lager und Laufrollen rot": "Dessin: camion malaxeur au tambour ouvert, spirales de malaxage, palier et galets en rouge",
   "Neu kaufen": "Acheter neuf",
   "Ist auch das Fahrgestell am Ende, lohnt sich nur ein neuer Fahrmischer. Das sagen wir Ihnen offen.": "Si le châssis est lui aussi usé, seul un nouveau camion malaxeur vaut la peine. Nous vous le disons franchement.",
   "Zeichnung: ein neuer Fahrmischer, ganz hell": "Dessin: un nouveau camion malaxeur, entièrement clair",
@@ -124,5 +124,5 @@
   "Holen oder einbauen": "Retrait ou montage",
   "Abholen in {{address.city}} – oder wir bauen es gleich ein.": "Retrait à {{address.city}} – ou nous la montons tout de suite.",
   "Sie wählen: abholen oder Einbau": "Vous choisissez: retrait ou montage",
-  "Hellgrüner Fahrmischer, der Mischaufbau ist auf dem Fahrgestell angehoben": "Camion malaxeur vert clair, la superstructure est soulevée sur le châssis"
+  "Zeichnung: Fahrmischer, der Trommelantrieb mit Getriebe und Hydraulikmotor ist rot": "Dessin: camion malaxeur, l'entraînement du tambour avec réducteur et moteur hydraulique en rouge"
 }

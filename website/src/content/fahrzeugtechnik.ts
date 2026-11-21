@@ -102,8 +102,8 @@ export const vehicleOffers = t('fahrzeugtechnik', {
     },
     {
       id: 'reparatur',
-      illo: 'foto/fahrmischer-aufbau',
-      alt: 'Hellgrüner Fahrmischer, der Mischaufbau ist auf dem Fahrgestell angehoben',
+      illo: 'karten/fahrmischer-reparatur',
+      alt: 'Zeichnung: Fahrmischer, der Trommelantrieb mit Getriebe und Hydraulikmotor ist rot',
       title: 'Reparatur',
       text: 'Hydraulik, Antrieb, Aufbau: Was auf der Baustelle bricht, setzen wir instand.',
     },
@@ -180,7 +180,7 @@ export const drumOptions = t('fahrzeugtechnik', {
   lead: 'Was zu Ihrem Fahrzeug passt, sagen wir nach der Kontrolle. Offen.',
   items: [
     { title: 'Tauschen', text: 'Die Trommel ist am Ende, das Fahrgestell gut: Eine neue Trommel kommt auf Ihr Fahrgestell.', illo: 'menu/trommeltausch', alt: 'Zeichnung: Fahrmischer mit neuer roter Trommel, die alte liegt daneben' },
-    { title: 'Überholen', text: 'Die Trommel ist verschlissen, aber zu retten: Wir erneuern Lager, Dichtungen, Laufring, Rollen und Mischspiralen.', illo: 'trommel-revision', alt: 'Zeichnung: Fahrmischer mit der bestehenden Trommel, die Mischspiralen rot' },
+    { title: 'Überholen', text: 'Die Trommel ist verschlissen, aber zu retten: Wir erneuern Lager, Dichtungen, Laufring, Rollen und Mischspiralen.', illo: 'karten/trommel-ueberholen', alt: 'Zeichnung: Fahrmischer mit aufgeschnittener Trommel, Mischspiralen, Lager und Laufrollen rot' },
     { title: 'Neu kaufen', text: 'Ist auch das Fahrgestell am Ende, lohnt sich nur ein neuer Fahrmischer. Das sagen wir Ihnen offen.', illo: 'trommel-neu', alt: 'Zeichnung: ein neuer Fahrmischer, ganz hell' },
   ],
   cta: { label: 'Trommel prüfen lassen', href: '#anfrage' },

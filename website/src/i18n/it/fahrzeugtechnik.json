@@ -75,7 +75,7 @@
   "Zeichnung: Fahrmischer mit neuer roter Trommel, die alte liegt daneben": "Disegno: autobetoniera con nuovo tamburo rosso, quello vecchio accanto",
   "Überholen": "Revisionare",
   "Die Trommel ist verschlissen, aber zu retten: Wir erneuern Lager, Dichtungen, Laufring, Rollen und Mischspiralen.": "Il tamburo è usurato, ma si può salvare: rinnoviamo cuscinetti, guarnizioni, anello di rotolamento, rulli e spirali di miscelazione.",
-  "Zeichnung: Fahrmischer mit der bestehenden Trommel, die Mischspiralen rot": "Disegno: autobetoniera con il tamburo esistente, le spirali di miscelazione in rosso",
+  "Zeichnung: Fahrmischer mit aufgeschnittener Trommel, Mischspiralen, Lager und Laufrollen rot": "Disegno: autobetoniera con tamburo sezionato, spirali di miscelazione, cuscinetto e rulli in rosso",
   "Neu kaufen": "Comprare nuovo",
   "Ist auch das Fahrgestell am Ende, lohnt sich nur ein neuer Fahrmischer. Das sagen wir Ihnen offen.": "Se anche il telaio è consumato, conviene solo una nuova autobetoniera. Glielo diciamo apertamente.",
   "Zeichnung: ein neuer Fahrmischer, ganz hell": "Disegno: una nuova autobetoniera, tutta chiara",
@@ -124,5 +124,5 @@
   "Holen oder einbauen": "Ritiro o montaggio",
   "Abholen in {{address.city}} – oder wir bauen es gleich ein.": "Ritiro a {{address.city}}, oppure lo montiamo subito.",
   "Sie wählen: abholen oder Einbau": "Lei sceglie: ritiro o montaggio",
-  "Hellgrüner Fahrmischer, der Mischaufbau ist auf dem Fahrgestell angehoben": "Autobetoniera verde chiaro, la sovrastruttura è sollevata sul telaio"
+  "Zeichnung: Fahrmischer, der Trommelantrieb mit Getriebe und Hydraulikmotor ist rot": "Disegno: autobetoniera, l'azionamento del tamburo con riduttore e motore idraulico in rosso"
 }
