@@ -105,11 +105,9 @@ Gesellschaft mit «Aus Vorlage übernehmen»), Schriften selbst ausgeliefert, Fi
 Anmeldung, Garantie mit Bedingungen (AGB Ziff. 11, nicht für reine Teilelieferungen), Satz am
 Formular, keine Newsletter-Einladung ohne Häkchen, Knopf «Offerte zahlungspflichtig annehmen».
 Offen:
-- **Löschfrist Anfragen ohne Auftrag (2 Jahre)**: die Datenschutzerklärung verspricht eine jährliche
-  Durchsicht – heute von Hand (schwärzen über `log.redact`); eine Liste «seit 2 Jahren ohne Kontakt,
-  ohne Auftrag» im ERP fehlt.
-- **EU-Vertreter (DSGVO Art. 27)**: Entscheid des Inhabers offen (Dienstleister mit Mandat, keine
-  Gesellschaft). Kommt er, gehört er in Ziff. 1 der Datenschutzerklärung.
+- ~~Löschfrist Anfragen ohne Auftrag~~ und ~~EU-Vertreter (DSGVO Art. 27)~~: **entschieden
+  21.11.2026 – beides nicht**, auf eigenes Risiko des Inhabers. Die Datenschutzerklärung verspricht
+  keine feste Frist mehr (Ziff. 4: aufbewahren, solange nützlich; auf Wunsch sofort löschen).
 - **Widerrufsfunktion (Richtlinie 2023/2673, ab 19.6.2026)**: für Endkunden aus der EU, die über
   `/dokument` annehmen, ein Knopf «Vertrag widerrufen». Heute nur Widerruf per Brief oder E-Mail
   (AGB Ziff. 12 mit Muster-Formular).

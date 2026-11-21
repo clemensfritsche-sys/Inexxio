@@ -895,9 +895,11 @@ speichert keine IP und legt nichts auf dem Gerät ab (siehe «Website-Statistik�
 6. **CLAUDE.md beschreibt nur den Ist-Stand.** Nach einer Runde wird der Stand hier
    nachgezogen; der **Rundenbericht** (was, warum, gemessen, verworfen) gehört als
    `docs/history/<JJJJ-MM-TT>-<thema>.md` nach `docs/history/`, nie hierher.
-7. **Kein Pull Request nach `main`**, solange der Weg nach `main` nicht entschieden ist: gearbeitet
-   und deployt wird auf `develop`; ein offener PR `develop` → `main` lässt bei jedem Push die
-   Prüfung ein zweites Mal laufen (PR #236 deshalb im November 2026 geschlossen).
+7. **Zwei Stufen, ein Weg nach oben** (entschieden 21.11.2026): `develop` = **Staging**
+   (inexxio-dev, jeder Push), `main` = **Produktion** (inexxio-prod). Ein **Release** ist ein Pull
+   Request `develop` → `main`, eröffnet erst, wenn ein Stand live gehen soll, gemergt **nur mit
+   Freigabe des Inhabers**, danach noch einmal die Freigabe im Environment `production`. Nie direkt
+   auf `main` committen; kein PR, der offen liegen bleibt (jeder Push liesse die Prüfung doppelt laufen).
 8. **Website: jede Sprache mitdenken** – eine Änderung an einem Text der Website ist erst fertig,
    wenn sie in jeder gebauten Sprache (`website/src/config/languages.mjs`) nachgezogen ist (Glossar
    und Regeln: `website/src/i18n/README.md`); der Build erzwingt es.
@@ -925,9 +927,9 @@ cd backend && alembic upgrade head
   Hosting genau dieses Artefakts); `deploy-dev.yml` und `deploy-prod.yml` rufen ihn nur mit den
   Werten ihrer Umgebung auf (Prod nach der Freigabe). Die umgerechneten Bilder der Website liegen
   im Zwischenspeicher (`actions/cache`, `website/node_modules/.astro`). Rund 4–5 Minuten.
-- **Dev**: Push auf `develop`. Cloud Run `inexxio-backend-dev` (europe-west6, min 0 / max 2),
+- **Staging (Dev)**: Push auf `develop`. Cloud Run `inexxio-backend-dev` (europe-west6, min 0 / max 2),
   Firebase Hosting `inexxio-dev` → https://inexxio-dev.web.app; nie indexiert (X-Robots-Tag).
-- **Prod**: Push auf `main`, mit manueller Freigabe (Environment `production`); setzt den
+- **Produktion (Prod)**: Release-PR `develop` → `main` (Regel 7), dann manuelle Freigabe (Environment `production`); setzt den
   `/api/**`-Rewrite per `jq` auf den Prod-Dienst und bricht sonst ab (min 0 / max 2 bis zum
   Go-live; mehr Instanzen erst ab Cloud SQL `db-g1-small`).
 - Erster Besuch nach einem Deploy: einmal Hard-Refresh (Ctrl+Shift+R).

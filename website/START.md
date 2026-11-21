@@ -28,9 +28,8 @@
 
 ## Beim Umschalten
 
-- [ ] Domain mit Firebase Hosting verbinden; hs-steiner.ch per 301 weiterleiten – dafür eine
-      eigene Hosting-Site mit derselben Tabelle plus Fangregel «alles andere → Startseite»
-      (auf der neuen Site wäre diese Regel ein Fehler, WEBSITE_PLAN Entscheid 40)
+- [ ] Domain mit Firebase Hosting verbinden (keine eigene Weiterleitungs-Site für hs-steiner.ch –
+      Entscheid 21.11.2026)
 - [ ] Formular und Login in Produktion einmal testen (Anfrage steht im ERP, Bestätigung kommt an)
 - [ ] Google Search Console und Bing Webmaster Tools: Domain bestätigen, Sitemap einreichen,
       Adressänderung melden
@@ -46,4 +45,5 @@
 - Der `/api/**`-Rewrite zeigt in Prod auf den Prod-Dienst (`deploy-prod.yml` setzt ihn per
   `jq` und bricht ab, wenn danach ein anderer Dienst steht).
 - Kein SMTP mehr: Anfrage und Bestätigung laufen über das ERP (`services/inquiry`).
-- Keine Statistik, kein Einwilligungs-Dialog (Plausible entfernt, Oktober 2026).
+- Kein Einwilligungs-Dialog: die eigene Statistik setzt keine Cookies und speichert keine IP
+  (`services/site_stats`, November 2026).

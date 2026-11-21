@@ -20,6 +20,7 @@ on:
       service:           { type: string, required: true }    # Cloud-Run-Dienst
       sql_instance:      { type: string, required: true }
       site_url:          { type: string, required: true }    # Hosting-Adresse, auch API (same origin)
+      site_mode:         { type: string, default: preview }  # preview | live (website/START.md)
       app_env:           { type: string, required: true }    # development | production
       min_instances:     { type: number, default: 0 }
       max_instances:     { type: number, required: true }
@@ -88,12 +89,12 @@ jobs:
           key: astro-assets-${{ hashFiles('website/src/assets/**', 'website/package-lock.json') }}
           restore-keys: astro-assets-
 
-      # Modus «preview», bis die Domain verbunden ist und jede Bildstelle ein echtes Foto
-      # hat (website/START.md). Der Build prüft Links, Sitemap, Budget (check-site).
+      # Modus je Umgebung (`site_mode`): «preview», bis die Domain verbunden ist; «live» nur in
+      # Produktion (website/START.md). Der Build prüft Links, Sitemap, Budget (check-site).
       - name: Build website
         working-directory: website
         env:
-          SITE_MODE: preview
+          SITE_MODE: ${{ inputs.site_mode }}
           SITE_URL: ${{ inputs.site_url }}
           SITE_API: ${{ inputs.site_url }}            # Telefon und E-Mail ins HTML, aus dem ERP
           SITE_ENV: ${{ inputs.site_env }}

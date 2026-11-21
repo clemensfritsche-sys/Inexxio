@@ -32,6 +32,8 @@ jobs:
       service: inexxio-backend-prod
       sql_instance: inexxio-prod-db
       site_url: https://inexxio-prod.web.app
+      # Am Go-live-Tag: «live» und die echte Domain (website/START.md, Plan «Go-live»).
+      site_mode: preview
       app_env: production
       # Bis zum Go-live auf null im Leerlauf; danach min 1 (kein Kaltstart, ~7–9 CHF/Monat).
       # Verbindungen: 2 Instanzen × 1 Worker × (5 + 5) = 20 ≤ 25 − 3 – passt auf jede
