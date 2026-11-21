@@ -23,7 +23,7 @@ export const ueberUns = t('ueber-uns', {
     figures: [
       { figure: '{{history.founded}}', text: 'Gegründet von Heiri Steiner in {{address.town}}' },
       { figure: '{{history.cranesSince}}', text: 'Die erste eigene Krananlage' },
-      { figure: '3', text: 'Bereiche: Fahrzeugtechnik, Krantechnik, Speziallösungen' },
+      { figure: '100+', text: 'Krananlagen gebaut – in Scheunen, Hallen und Häfen' },
       { figure: '1', text: 'Ansprechpartner – vom ersten Gespräch bis zum Service' },
     ],
   },

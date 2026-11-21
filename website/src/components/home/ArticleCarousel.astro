@@ -16,14 +16,13 @@ interface Props {
   lead?: string;
   items: { slug: string; photo: string; text: string }[];
   all?: { label: string; href: string };
-  start?: number;
   id?: string;
 }
-const { title, lead, items, all, start = 1, id = 'ratgeber' } = Astro.props;
+const { title, lead, items, all, id = 'ratgeber' } = Astro.props;
 const cards = items.map((it) => ({ ...it, a: article(it.slug) }));
 ---
 <section class="v4-section rat-sec" aria-labelledby={id}>
-  <div class="rat" data-carousel data-start={String(Math.min(start, cards.length - 1))}>
+  <div class="rat" data-carousel>
     <div class="wrap rat__head">
       <div>
         <h2 class="v4-h2" id={id}>{title}</h2>

@@ -78,7 +78,7 @@ const areas = [
     overview: 'Alle Leistungen Fahrzeugtechnik',
     ddText: 'Übersicht des Bereichs',
     text: 'Trommeltausch und Verschleissteile für Fahrmischer.',
-    photo: 'fahrmischer-aufbau',
+    photo: 'fahrmischer-werkstatt',
     dd: 'Trommeltausch und Verschleissteile für Fahrmischer.',
     illo: 'menu/trommeltausch',
     ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
@@ -177,7 +177,7 @@ export const site = t('site', {
   email: {
     /** Aus dem ERP; ohne Angabe dort bleibt die bisherige erreichbar. */
     primary: erp.email || '',
-    legacy: 'fahrzeug-kranbau@hs-steiner.ch',
+    legacy: 'info@inexxio.com',
   },
 
   address: {

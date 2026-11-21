@@ -27,7 +27,7 @@ const cards = articles().map((a) => ({ id: a.slug, illo: a.illo, alt: t('ui', 'Z
     secondary={{ label: t('seiten', 'Zu den Artikeln'), href: '#artikel' }}
   />
 
-  <FieldCards id="artikel" title={r.listTitle} lead={r.listLead} items={cards} start={0} />
+  <FieldCards id="artikel" title={r.listTitle} lead={r.listLead} items={cards} />
 
   <ContactSection />
 </Base>

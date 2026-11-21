@@ -55,7 +55,7 @@ export const start = t('start', {
     /** Grosse Zahlen: «Seit» darüber, Einheit daneben, ein Satz darunter. */
     figures: [
       { pre: 'Seit', figure: '{{history.founded}}', text: 'In {{address.town}} gegründet.' },
-      { pre: 'Seit', figure: '{{history.cranesSince}}', text: 'bauen wir Krane selbst. Darum kennen wir jedes Bauteil.' },
+      { figure: '100', unit: '+', text: 'Krananlagen gebaut – darum kennen wir jedes Bauteil.' },
       { figure: '1', unit: 'Ansprechpartner', text: 'für Fahrmischer, Krane und Spezialmaschinen.' },
       { figure: '50', unit: '%', text: 'übernehmen wir, wenn Sie mit dem Ergebnis nicht zufrieden sind – die Zufriedenheitsgarantie.' },
     ] as { pre?: string; figure: string; unit?: string; text: string }[],
@@ -65,12 +65,14 @@ export const start = t('start', {
     href: '/ueber-uns',
   },
 
+  /** Leiser Hinweis gleich unter der Bühne – für alle, die schon eine HS-Anlage haben. */
+  hsNote: { text: 'Sie haben eine Anlage von HS Steiner? Wir betreuen sie weiter – Service, Prüfung und Ersatzteile.', label: 'So geht es weiter', href: '/ueber-uns#uebergabe' },
   handover: {
     h2: 'Aus HS Steiner wird {{brand.name}}.',
     lead: handoverLead,
     short: 'Meine Kunden sind bei ihm in guten Händen.',
-    /** Collage: Standort (gross), Porträt, ein HS-Kran. */
-    photos: ['clemens-heiri-quer', 'portraet-clemens-draussen', 'portraet-heiri'],
+    /** Collage: ein echter HS-Einsatz (gross, bis das gemeinsame Foto da ist), Clemens, Heiri. */
+    photos: ['fahrmischer-aufbau', 'portraet-clemens-draussen', 'portraet-heiri'],
     link: 'Die ganze Geschichte',
     href: '/ueber-uns#uebergabe',
   },

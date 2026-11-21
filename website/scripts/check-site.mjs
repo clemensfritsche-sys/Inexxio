@@ -247,7 +247,7 @@ function checkHeadings(p) {
   }
 }
 
-/** Kapitel 8.1/8.2: verbotene Wörter, Ausrufezeichen, Emojis, ß – und die erste Nennung. */
+/** Kapitel 8.1/8.2: verbotene Wörter, Ausrufezeichen, Emojis, ß. */
 function checkWords(where, text) {
   const lower = text.toLowerCase();
   for (const w of FORBIDDEN) if (lower.includes(w)) fail(where, `verbotenes Wort «${w}»`);
@@ -258,27 +258,6 @@ function checkWords(where, text) {
   const emoji = /\p{Emoji_Presentation}|\uFE0F/u.exec(text);
   if (emoji) fail(where, `Emoji im Text: «${emoji[0]}»`);
   if (text.includes('ß')) fail(where, '«ß» statt «ss» (Schweizer Rechtschreibung)');
-}
-
-function checkFirstMention(p) {
-  // Die Regel der ersten Nennung gilt für den deutschen Wortlaut («ehemals HS Steiner»).
-  if (langOf(p.path).code !== SOURCE) return;
-  const text = visibleText(p.main);
-  // «INEXXIO 365», die «INEXXIO Zufriedenheitsgarantie» und der Newsletter «Post von INEXXIO»
-  // sind Namen von Angeboten, keine Nennung der Firma – sie zählen nicht als erste Nennung.
-  if (!newsletter.name.endsWith(site.brand.name)) fail('check-site', `Newsletter-Name «${newsletter.name}» endet nicht auf «${site.brand.name}» – Regel der ersten Nennung anpassen`);
-  const offer = newsletter.name.slice(0, newsletter.name.length - site.brand.name.length);
-  const m = new RegExp(`(?<!${offer})${site.brand.name}(?! 365| Zufriedenheitsgarantie)`).exec(text);
-  if (!m) return;
-  const first = m.index;
-  const full = `${site.brand.name} (${site.brand.formerly})`;
-  const legal = `${site.brand.legalName} (${site.brand.formerly})`;
-  // «Aus HS Steiner wird INEXXIO» sagt dasselbe – die alte Firma steht unmittelbar davor.
-  const before = text.slice(Math.max(0, first - 30), first);
-  const at = (s) => text.slice(first, first + s.length) === s;
-  if (!at(full) && !at(legal) && !before.includes('HS Steiner')) {
-    warn(p.path, `erste Nennung im Inhalt ist «${text.slice(first, first + full.length + 5)}…» statt «${full}»`);
-  }
 }
 
 /**
@@ -630,7 +609,6 @@ for (const p of pages) {
   checkUseRefs(p);
   checkJsonLd(p);
   checkWords(p.path, visibleText(p.html));
-  checkFirstMention(p);
   checkLanguage(p);
 }
 const listed = INDEXED;

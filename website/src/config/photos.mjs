@@ -33,14 +33,14 @@ export const photos = t('photos', {
   },
   'pruefung-hallenkran': {
     file: 'pruefung-hallenkran.jpg',
-    alt: 'Techniker prüft auf einer Arbeitsbühne das Hubwerk eines Brückenkrans in einer Produktionshalle',
-    brief: 'Techniker bei der Prüfung eines Hallenkrans (Brückenkran), Hubwerk und Laufkatze im Bild, natürliches Licht, quer',
+    alt: 'Monteur im Dachstock hinter der Kranbahn, davor der Elektrokettenzug mit Kette und Haken',
+    brief: 'Prüfung am Kran: Monteur am Elektrokettenzug einer Kranbahn (echte Anlage von HS Steiner), quer',
     ratio: '4/3',
   },
   'reparatur-vor-ort': {
     file: 'reparatur-vor-ort.webp',
-    alt: 'Techniker arbeitet am offenen Schaltschrank eines roten Brückenkrans in einer Halle',
-    brief: 'Industriekran (Brückenkran) in einer Halle, Techniker bei Service oder Reparatur am Hubwerk oder Schaltschrank, quer',
+    alt: 'Kranbahn aus Aluminium mit Elektrokettenzug im Dachstock, die Kette hängt durch eine Bodenöffnung',
+    brief: 'Moderne Krananlage: Aluminium-Kranbahn mit Elektrokettenzug (echte Anlage von HS Steiner), quer',
     ratio: '4/3',
   },
   'heukran-einsatz': {

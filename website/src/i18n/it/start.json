@@ -15,7 +15,7 @@
   "Entwicklung, Produktion und Service aus einer Hand.": "Sviluppo, produzione e assistenza da un unico fornitore.",
   "Seit": "Dal",
   "In {{address.town}} gegründet.": "Fondata a {{address.town}}.",
-  "bauen wir Krane selbst. Darum kennen wir jedes Bauteil.": "costruiamo noi stessi le nostre gru. Per questo ne conosciamo ogni componente.",
+  "Krananlagen gebaut – darum kennen wir jedes Bauteil.": "impianti di sollevamento costruiti – per questo conosciamo ogni componente.",
   "Ansprechpartner": "interlocutore",
   "für Fahrmischer, Krane und Spezialmaschinen.": "per autobetoniere, gru e macchine speciali.",
   "übernehmen wir, wenn Sie mit dem Ergebnis nicht zufrieden sind – die Zufriedenheitsgarantie.": "a nostro carico se non è soddisfatto del risultato: la garanzia di soddisfazione.",
@@ -33,5 +33,7 @@
   "Unsere Maschine steht still – was tun?": "La nostra macchina è ferma: cosa fare?",
   "Rufen Sie direkt an: {{phone.link}}. Wir kümmern uns darum.": "Chiami direttamente: {{phone.link}}. Ce ne occupiamo noi.",
   "Ich bin Kunde von HS Steiner – was ändert sich?": "Sono cliente di HS Steiner: cosa cambia?",
-  "Das Bewährte bleibt: derselbe Standort und dieselbe Telefonnummer. Ihre HS-Krananlage betreuen wir ohne Unterbruch weiter – ergänzt um Ingenieurwissen, wo es Ihnen nützt.": "Ciò che funziona resta: la stessa sede e lo stesso numero di telefono. Continuiamo ad assistere senza interruzione il Suo impianto gru HS, con in più competenze ingegneristiche dove Le sono utili."
+  "Das Bewährte bleibt: derselbe Standort und dieselbe Telefonnummer. Ihre HS-Krananlage betreuen wir ohne Unterbruch weiter – ergänzt um Ingenieurwissen, wo es Ihnen nützt.": "Ciò che funziona resta: la stessa sede e lo stesso numero di telefono. Continuiamo ad assistere senza interruzione il Suo impianto gru HS, con in più competenze ingegneristiche dove Le sono utili.",
+  "Sie haben eine Anlage von HS Steiner? Wir betreuen sie weiter – Service, Prüfung und Ersatzteile.": "Avete un impianto HS Steiner? Continuiamo a seguirlo – servizio, controllo e ricambi.",
+  "So geht es weiter": "Come si prosegue"
 }

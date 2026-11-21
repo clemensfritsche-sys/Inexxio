@@ -102,8 +102,8 @@ export const vehicleOffers = t('fahrzeugtechnik', {
     },
     {
       id: 'reparatur',
-      illo: 'menu/kranservice',
-      alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll',
+      illo: 'foto/fahrmischer-aufbau',
+      alt: 'Hellgrüner Fahrmischer, der Mischaufbau ist auf dem Fahrgestell angehoben',
       title: 'Reparatur',
       text: 'Hydraulik, Antrieb, Aufbau: Was auf der Baustelle bricht, setzen wir instand.',
     },

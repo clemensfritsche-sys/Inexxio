@@ -180,10 +180,11 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   im Artikel «Kurz gesagt» als Karte, «Weiterlesen» als Karten. Artikeltexte unverändert.
 - **130 · Der frühere Name nur im Fliesstext** (Weisung 24.10.2026): Seitentitel, Meta-Description,
   `og:*`, der Name der Website im JSON-LD und der Kopf von llms.txt nennen nur «INEXXIO».
-  «ehemals HS Steiner» steht im Fliesstext, im Logo und als `alternateName` im JSON-LD (so bleibt
-  der alte Name für Suchmaschinen auffindbar). `check-site` bricht ab, wenn Titel oder
-  Beschreibung ihn nennen. Die Kontakt-E-Mail kommt aus dem ERP (Postfach der Betreiber-Gesellschaft);
-  ohne Angabe dort steht die bisherige Adresse.
+  «ehemals HS Steiner» steht nur noch im Logo, in der rechtlichen Zeile im Fuss und als `alternateName`
+  im JSON-LD (so bleibt der alte Name für Suchmaschinen auffindbar) – im Fliesstext heisst es «INEXXIO»
+  (Weisung 21.11.2026; die frühere Regel «erste Nennung = INEXXIO (ehemals HS Steiner)» ist aufgehoben).
+  `check-site` bricht ab, wenn Titel oder Beschreibung ihn nennen. Die Kontakt-E-Mail kommt aus dem ERP
+  (Postfach der Betreiber-Gesellschaft); ohne Angabe dort steht info@inexxio.com.
 - **131 · Eine Regel für Überschriften** (Entscheid 24.10.2026): Das grosse Wort im Kopf nennt den
   Bereich; die H1 ist ein Nutzen-Satz und wiederholt es nie. Aussagen enden mit Punkt (oder
   Fragezeichen), reine Rubriken nicht («Häufige Fragen», «Katalog», «Bauformen», «Artikel», «Mehr

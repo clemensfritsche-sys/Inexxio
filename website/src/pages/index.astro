@@ -7,6 +7,7 @@
  * Texte: src/content/start.ts, Bereiche aus src/config/site.mjs.
  */
 import Base from '../layouts/Base.astro';
+import SeasonNotice from '../components/SeasonNotice.astro';
 import Stage from '../components/Stage.astro';
 import AreaTrio from '../components/home/AreaTrio.astro';
 import SpecialStage from '../components/home/SpecialStage.astro';
@@ -25,6 +26,7 @@ const faq = start.faq.map((f, i) => ({ ...f, visual: visuals[i] }));
 ---
 <Base title="" titleFull={start.title} description={start.description} jsonLd={[faqPage(start.faq)]} stage>
   <Stage photo={start.hero.photo} eyebrow={start.hero.eyebrow} title={start.hero.h1} sub={start.hero.sub} />
+  <div class="wrap home-note"><SeasonNotice page="/" note={start.hsNote} seasons={false} /></div>
   <AreaTrio />
   <SpecialStage title={start.special.h2} lead={start.special.lead} items={spezialloesungen.scope?.items ?? []} cta={start.special.cta} />
   <Guarantees />
@@ -35,3 +37,7 @@ const faq = start.faq.map((f, i) => ({ ...f, visual: visuals[i] }));
   <ContactSection />
 </Base>
 
+<style>
+  .home-note { margin-top: 32px; }
+  @media (min-width: 960px) { .home-note { margin-top: 48px; } }
+</style>

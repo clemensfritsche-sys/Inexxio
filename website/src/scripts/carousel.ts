@@ -2,7 +2,7 @@
  * Karussell (v4: Bereiche schmal, Ratgeber): eine waagrechte Spur mit Einrasten, Punkte
  * darunter, auf Wunsch Pfeile. Das Element in der Mitte ist `is-active` (es spielt, es ist
  * hell); `carousel:change` meldet den Wechsel.
- *   [data-carousel] (data-start = erster Eintrag in der Mitte)
+ *   [data-carousel] (beginnt immer beim mittleren Eintrag)
  *     [data-rail] > [data-item]…   [data-prev] [data-next]   [data-dots] (data-label)
  * Mit der Maus lässt sich die Spur ziehen (Touch und Trackpad scrollen ohnehin selbst); nach
  * dem Loslassen rastet sie am nächsten Eintrag ein, ein Zug klickt nicht versehentlich.
@@ -60,7 +60,8 @@ function setup(root: HTMLElement): void {
   root.querySelector('[data-next]')?.addEventListener('click', () => go(active + 1));
   window.addEventListener('resize', () => { active = -1; update(); });
   requestAnimationFrame(() => {
-    go(Number(root.dataset.start ?? 0), false);
+    // Regel der Website: jedes Karussell beginnt in der Mitte – links und rechts liegt je ein Nachbar.
+    go(Math.floor((items.length - 1) / 2), false);
     update();
   });
 }

@@ -6,10 +6,10 @@ export const kontakt = t('kontakt', {
     'Kontakt zu INEXXIO in {{address.home}}: Anfrage stellen, anrufen oder die Route zum Standort öffnen. Ein Satz genügt – wir melden uns rasch.',
   /** Überschrift und Satz des EINEN Kontaktbereichs (ContactSection) – auf jeder Seite gleich. */
   h1: 'Fragen kostet nichts.',
-  lead: 'Ein Satz genügt. Den Rest klären wir mit Ihnen.',
+  lead: 'Ein Satz genügt. Den Rest klären wir mit Ihnen – Sie hören innert {{promises.responseTime}} von uns.',
   /** Die Karte mit dem Ansprechpartner neben dem Formular. */
   person: {
-    label: 'Ihr Ansprechpartner',
+    label: 'Ihr Ansprechpartner – liest jede Anfrage selbst',
     text: 'Lieber direkt sprechen? Rufen Sie an.',
   },
   summary:
