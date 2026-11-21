@@ -18,11 +18,11 @@ const { art = false } = Astro.props;
   .mag::-webkit-scrollbar { display: none; }
   .mag > :global(li) { flex: 0 0 82%; scroll-snap-align: start; scroll-margin-top: calc(var(--header-h) + 24px); }
   /* Schmal: Platz für die Zeichnung, die oben aus der Karte ragt (der Wischstreifen schneidet sonst ab). */
-  .mag--art { padding-top: 64px; }
+  .mag--art { padding-top: 0; }
   @media (min-width: 960px) {
     .mag { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; margin-inline: 0; padding: 0 0 160px; overflow: visible; }
     .mag > :global(li:nth-child(odd)) { transform: translateY(160px); }
-    .mag--art { --row: 128px; padding-top: 96px; gap: var(--row) 32px; }
+    .mag--art { --row: 48px; padding-top: 0; gap: var(--row) 32px; }
     .mag > :global(li.mag__end) { grid-column: 2; transform: none; margin-top: calc(32px - var(--row, 32px)); }
     .mag > :global(li.mag__end) > :global(.pc) { aspect-ratio: auto; }
   }

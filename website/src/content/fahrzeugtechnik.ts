@@ -178,7 +178,6 @@ export const trommeltausch: SubPage = t('fahrzeugtechnik', {
 export const drumOptions = t('fahrzeugtechnik', {
   title: 'Tauschen, überholen – oder neu?',
   lead: 'Was zu Ihrem Fahrzeug passt, sagen wir nach der Kontrolle. Offen.',
-  legend: { grey: 'Grau: was bleibt', red: 'Rot: was wir erneuern' },
   items: [
     { title: 'Tauschen', text: 'Die Trommel ist am Ende, das Fahrgestell gut: Eine neue Trommel kommt auf Ihr Fahrgestell.', illo: 'menu/trommeltausch', alt: 'Zeichnung: Fahrmischer mit neuer roter Trommel, die alte liegt daneben' },
     { title: 'Überholen', text: 'Die Trommel ist verschlissen, aber zu retten: Wir erneuern Lager, Dichtungen, Laufring, Rollen und Mischspiralen.', illo: 'trommel-revision', alt: 'Zeichnung: Fahrmischer mit der bestehenden Trommel, die Mischspiralen rot' },
