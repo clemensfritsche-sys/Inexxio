@@ -101,7 +101,7 @@ async function shot(html, w, h, out, needsFont = false) {
 }
 
 for (const og of OG) await shot(ogHtml(og), 1200, 630, og.file, true);
-await shot(iconHtml(32, 2, 'transparent'), 32, 32, 'favicon-32.png');
+await shot(iconHtml(32, 0, 'transparent'), 32, 32, 'favicon-32.png');
 await shot(iconHtml(180, 30, '#FFFFFF'), 180, 180, 'apple-touch-icon.png');
 await shot(logoHtml, 1200, 600, 'logo/inexxio-ehemals-hs-steiner.png');
 await browser.close();
