@@ -33,9 +33,7 @@ In der Fotoliste vorgesehen, aber auf keiner Seite verwendet – sie halten den 
 Gebaut und unter /<sprache> erreichbar, aber noindex – im Modus `live` nicht gebaut, bis eine Fachperson
 der Sprache gegengelesen hat (dann `status: 'live'`).
 
-- Français (`fr`)
-- English (`en`)
-- Italiano (`it`)
+Keine.
 
 ## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)
 

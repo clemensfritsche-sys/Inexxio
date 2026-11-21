@@ -140,14 +140,15 @@ const esc = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'
 /**
  * Jeden Link einer Seite auf die Adresse der Sprache: `href="/krantechnik#x"` und volle
  * Adressen (canonical, og:url, JSON-LD). Ein Tag mit `hreflang` zeigt bewusst auf eine andere
- * Sprache (Sprachwahl, alternate) – er bleibt, wie er ist.
+ * Sprache (Sprachwahl, alternate) – er bleibt, wie er ist. Die Organisation und die Website im
+ * JSON-LD (`/#organisation`, `/#website`) sind EINE für alle Sprachen – ihre Kennung bleibt.
  * @param {string} html @param {Record<string, string>} table
  */
 function relink(html, table) {
   const map = (/** @type {string} */ p) => table[p.replace(/\/$/, '') || '/'];
   const fix = (/** @type {string} */ part) => part
     .replace(/(href=")(\/[^"#?]*)/g, (m, a, p) => (map(p) ? a + map(p) : m))
-    .replace(new RegExp(`${esc(SITE_URL)}(/[^"#?\\s<\\\\]*)`, 'g'), (m, p) => (map(p) ? SITE_URL + map(p) : m));
+    .replace(new RegExp(`${esc(SITE_URL)}(/[^"#?\\s<\\\\]*)(?!#(?:organisation|website)\\b)`, 'g'), (m, p) => (map(p) ? SITE_URL + map(p) : m));
   return html.split(/(<(?:a|link)\b[^>]*\shreflang="[^"]*"[^>]*>)/g).map((part, i) => (i % 2 ? part : fix(part))).join('');
 }
 

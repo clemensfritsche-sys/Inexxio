@@ -126,13 +126,13 @@ export const photos = t('photos', {
   },
   'teil-auslaufrinne': {
     file: 'teil-auslaufrinne.jpg',
-    alt: 'Verzinkte Auslaufrinne für Fahrmischer mit schwarzem Befestigungsflansch auf dem Hallenboden der Werkstatt',
+    alt: 'Verzinkte, schwenkbare Auslaufrinne für Fahrmischer mit Griffbügel auf dem Hallenboden',
     brief: 'Produktfoto Auslaufrinne, freigestellt auf hellem Grund oder auf der Werkbank, quer',
     ratio: '4/3',
   },
   'teil-verlaengerungsrinne': {
     file: 'teil-verlaengerungsrinne.jpg',
-    alt: 'Verlängerungsrinne für Fahrmischer',
+    alt: 'Verzinkte Verlängerungsrinne für Fahrmischer mit schwarzem Befestigungsflansch auf dem Hallenboden',
     brief: 'Produktfoto Verlängerungsrinne, quer',
     ratio: '4/3',
   },

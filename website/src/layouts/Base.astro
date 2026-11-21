@@ -67,11 +67,11 @@ const desc = plain(description);
 const ogImage = `${siteUrl}/og/${og}.png`;
 const indexable = mode === 'live' && !noindex && currentLang().status === 'live';
 
-// Sprache: html lang, og:locale, hreflang – eine Sprache in Prüfung (preview) bleibt noindex und
-// ohne hreflang, bis sie freigegeben ist (src/config/languages.mjs).
+// Sprache: html lang, og:locale, hreflang – hreflang nur auf indexierten Seiten (Modus «live», Seite
+// ohne noindex, Sprache freigegeben in src/config/languages.mjs); sonst wäre es ein Widerspruch.
 const lang = currentLang();
 const T = t('ui', { skip: 'Zum Inhalt springen' });
-const alternates = noindex || lang.status !== 'live' ? [] : publishedLanguages()
+const alternates = !indexable ? [] : publishedLanguages()
   .map((l) => ({ l, p: localPath(path, l.code) }))
   .filter((x) => x.p)
   .map(({ l, p }) => ({ hreflang: l.locale, href: abs(siteUrl, p!) }));
