@@ -9,7 +9,7 @@ export const kontakt = t('kontakt', {
   lead: 'Ein Satz genügt. Den Rest klären wir mit Ihnen – Sie hören innert {{promises.responseTime}} von uns.',
   /** Die Karte mit dem Ansprechpartner neben dem Formular. */
   person: {
-    label: 'Ihr Ansprechpartner – liest jede Anfrage selbst',
+    label: 'Ihr Ansprechpartner – ich melde mich persönlich bei Ihnen',
     text: 'Lieber direkt sprechen? Rufen Sie an.',
   },
   summary:

@@ -3,7 +3,7 @@
   "Kontakt zu INEXXIO in {{address.home}}: Anfrage stellen, anrufen oder die Route zum Standort öffnen. Ein Satz genügt – wir melden uns rasch.": "Contacter INEXXIO à {{address.home}}: faire une demande, appeler ou ouvrir l'itinéraire jusqu'au site. Une phrase suffit – nous vous répondons rapidement.",
   "Fragen kostet nichts.": "Demander ne coûte rien.",
   "Ein Satz genügt. Den Rest klären wir mit Ihnen – Sie hören innert {{promises.responseTime}} von uns.": "Une phrase suffit. Nous clarifions le reste avec vous – vous aurez de nos nouvelles d'ici {{promises.responseTime}}.",
-  "Ihr Ansprechpartner – liest jede Anfrage selbst": "Votre interlocuteur – lit chaque demande lui-même",
+  "Ihr Ansprechpartner – ich melde mich persönlich bei Ihnen": "Votre interlocuteur – je vous recontacte personnellement",
   "Lieber direkt sprechen? Rufen Sie an.": "Vous préférez parler directement? Appelez-nous.",
   "{{brand.name}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Telefon {{phone.display}}.": "{{brand.name}}, {{address.line}} ({{address.municipality}} {{address.canton}}). Téléphone {{phone.display}}.",
   "Danke für Ihre Anfrage": "Merci pour votre demande",
