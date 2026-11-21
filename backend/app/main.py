@@ -110,6 +110,15 @@ def _startup() -> None:
     _seed("Betreiber", _ensure_operator)
     _seed("Rechtstexte", _adopt_documents)
     _seed("Siegel des Logs", _seal)
+    _check_geoip()
+
+
+def _check_geoip() -> None:
+    """Ohne IP→Land-Tabelle kennt der Dienst kein Land (Kontaktdaten, Statistik) – das darf nie
+    still geschehen (bis November 2026 fehlte sie unbemerkt): eine Meldung der Stufe ERROR."""
+    from .services import geoip
+    if not geoip.ready():
+        report.error("GEOIP table missing – the visitor's country stays unknown (backend/scripts/build_geoip.py)")
 
 
 @asynccontextmanager

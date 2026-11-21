@@ -18,6 +18,7 @@ import datetime as dt
 import gzip
 import io
 import ipaddress
+import os
 import sys
 import urllib.request
 from pathlib import Path
@@ -26,17 +27,25 @@ OUT = Path(__file__).resolve().parent.parent / "app" / "assets" / "geoip" / "ip-
 URL = "https://download.db-ip.com/free/dbip-country-lite-{month}.csv.gz"
 
 
+#: DB-IP weist Abrufe ohne Browser-Kennung ab (403 für «Python-urllib») – deshalb fehlte die
+#: Tabelle bis November 2026 in jedem Image, und das Land blieb immer unbekannt.
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; inexxio-build/1.0)"}
+
+
 def _months() -> list[str]:
+    """Der Monat aus dem Deploy (``GEOIP_MONTH``), dann der laufende, dann der vorige."""
     today = dt.date.today().replace(day=1)
     prev = (today - dt.timedelta(days=1)).replace(day=1)
-    return [today.strftime("%Y-%m"), prev.strftime("%Y-%m")]
+    wanted = os.environ.get("GEOIP_MONTH", "").strip()
+    return list(dict.fromkeys([m for m in (wanted, today.strftime("%Y-%m"), prev.strftime("%Y-%m")) if m]))
 
 
 def _download() -> tuple[bytes, str] | None:
     for month in _months():
         url = URL.format(month=month)
         try:
-            with urllib.request.urlopen(url, timeout=60) as r:   # noqa: S310 – feste https-Adresse
+            req = urllib.request.Request(url, headers=HEADERS)
+            with urllib.request.urlopen(req, timeout=60) as r:   # noqa: S310 – feste https-Adresse
                 return r.read(), month
         except Exception as e:  # noqa: BLE001 – jede Störung heisst «ohne Tabelle weiter»
             print(f"GeoIP: {url} nicht erreichbar ({e})")
@@ -74,7 +83,7 @@ def main() -> None:
         got = _download()
         if got is None:
             print("GeoIP: keine Tabelle – die Website zeigt die Kontaktdaten des Betreibers.")
-            return
+            sys.exit(1)     # laut im Build-Log (der Dockerfile fängt es ab und warnt)
         raw, source = got[0], f"dbip-country-lite-{got[1]}"
     print(f"GeoIP: {build(raw, source)} Bereiche → {OUT}")
 

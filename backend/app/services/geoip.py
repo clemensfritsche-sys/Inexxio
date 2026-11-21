@@ -37,6 +37,11 @@ def _table() -> dict[int, tuple[list[int], list[int], list[str]]]:
     return out
 
 
+def ready() -> bool:
+    """Gibt es die Tabelle? (Ohne sie ist jedes Land unbekannt – ``main`` meldet es beim Start.)"""
+    return bool(_table()[4][0])
+
+
 def country_of(ip: str | None) -> str | None:
     """ISO-2 des Landes zu einer IP-Adresse – ``None``, wenn unbekannt oder privat."""
     try:

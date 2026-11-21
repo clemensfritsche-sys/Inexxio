@@ -80,7 +80,7 @@ def _pages(db: Session, s: date, e: date) -> list[dict]:
     rows = _rows(db, f"""
         SELECT path, count(DISTINCT {_VISIT}) FILTER (WHERE kind = 'view') AS visits,
                count(*) FILTER (WHERE kind = 'view') AS views,
-               count(*) FILTER (WHERE kind = 'view' AND entry) AS entries,
+               count(DISTINCT {_VISIT}) FILTER (WHERE kind = 'view' AND entry) AS entries,
                coalesce(sum(value) FILTER (WHERE kind = 'leave'), 0) AS seconds,
                count(*) FILTER (WHERE kind = 'call') AS calls,
                count(*) FILTER (WHERE kind = 'inquiry') AS sent
