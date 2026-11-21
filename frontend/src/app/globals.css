@@ -65,7 +65,7 @@
 }
 @media (prefers-reduced-motion: reduce) { .ix-login-scrim, .ix-login-card { animation: none; } }
 
-.ix-login-art { display: block; width: 150px; height: 96px; margin: 0 auto; object-fit: contain; }
+.ix-login-art { display: block; width: 168px; height: 168px; margin: 0 auto; object-fit: contain; }
 .ix-verify-logo { display: block; height: 40px; margin: 8px auto 20px; }
 .ix-verify-icon { display: block; width: 36px; height: 36px; margin: 0 auto; }
 .ix-login-card h1, .ix-login-card h2 {

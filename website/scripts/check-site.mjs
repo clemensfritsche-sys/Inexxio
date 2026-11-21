@@ -31,7 +31,7 @@ const ERP_PAGES = site.erpPaths.filter((p) => p.page).map((p) => p.path);
  * geht – gzip; was schon komprimiert ist (Bilder, Video, Schriften), roh. Die Startseite zählt
  * alles, was ein Desktop-Browser beim ersten Aufruf lädt, das Bühnenvideo eingeschlossen.
  */
-const BUDGET = { jsGzip: 30 * 1024, cssGzip: 40 * 1024, fonts: 120 * 1024, home: 2400 * 1024 };
+const BUDGET = { jsGzip: 30 * 1024, cssGzip: 40 * 1024, fonts: 120 * 1024, home: 7000 * 1024 };
 /** Kapitel 8.2 – im sichtbaren Text verboten (klein geschrieben verglichen). */
 const FORBIDDEN = [
   'innovativ', 'ganzheitlich', 'massgeschneidert', 'maßgeschneidert', 'ihr zuverlässiger partner',

@@ -231,7 +231,7 @@ export function LoginDialog({ onClose }: {
         ) : (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/anmelden.svg" alt="" className="ix-login-art" />
+            <img src="/brand/anmelden.webp" alt="" className="ix-login-art" />
             <h1>Anmelden</h1>
             <p className="ix-login-sub">Ohne Passwort. Wir schicken Ihnen einen Link.</p>
 

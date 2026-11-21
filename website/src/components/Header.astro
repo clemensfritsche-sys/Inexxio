@@ -110,9 +110,9 @@ const langs = languages.map((l) => {
   const href = !on && built.has(l.code) ? localPath(path, l.code) ?? localPath('/', l.code) : undefined;
   return { label: l.name, bubble: l.hello, lang: l.locale, on, href, sub: on ? T.current : href ? l.read : l.soon };
 });
-const login = { label: acct.login.label, href: acct.login.href, img: illo('menu/anmelden'), sub: T.loginSub };
+const login = { label: acct.login.label, href: acct.login.href, img: await imgOf(acct.login.href, 'menu/anmelden'), sub: T.loginSub };
 const profile = { label: T.profile, href: acct.profile.href, img: illo('menu/profil'), sub: T.profileSub };
-const logout = { label: acct.logout.label, href: acct.logout.href, img: illo('menu/abmelden'), sub: T.logoutSub };
+const logout = { label: acct.logout.label, href: acct.logout.href, img: await imgOf(acct.logout.href, 'menu/abmelden'), sub: T.logoutSub };
 const cols = (n: number) => `--cols:${Math.max(3, n)}`;
 /** Mobil-Menü: EINE Ebene. Jeder Punkt klappt eine Reihe Karten auf – dieselben Kacheln wie im Kopf. */
 const mobile: { id: string; label: string; href: string; acct?: string; cards: Tile[] }[] = [

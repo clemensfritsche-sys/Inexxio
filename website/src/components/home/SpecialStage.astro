@@ -41,7 +41,7 @@ const H = level;
 const shown = items.slice(0, Math.min(4, art.length));
 const n = shown.length;
 const start = Math.floor(n / 2);
-const srcs = await Promise.all(shown.map((_, i) => picture(art[i].illo, 'Bühne', 820)));
+const srcs = await Promise.all(shown.map((_, i) => picture(art[i].illo, 'Bühne', 1600)));
 /** Platz eines Bildes, wenn `c` in der Mitte steht: −1 links, 0 Mitte, 1 rechts, sonst verborgen. */
 const pos = (k: number, c: number) => { let p = k - c; if (p > n / 2) p -= n; if (p < -n / 2) p += n; return p; };
 ---

@@ -19,8 +19,9 @@ const TEXTS = [
  *
  * Je ein Dokument (Regel 6: änderbar, nie leer). Jedes Papier eines Belegs hängt die AGB
  * seiner Gesellschaft an; die Website zeigt die AGB der Gesellschaft zum Land des Besuchers,
- * den Datenschutz des Betreibers. Ist ein Feld leer, bietet die Karte die Vorlage an – ein
- * Mensch entscheidet, angelegt wird nie von selbst. Setzen darf nur der Admin.
+ * den Datenschutz des Betreibers. Die Karte bietet die Vorlage an – leer «Aus Vorlage», sonst
+ * «Neueste Vorlage» (eine neue Fassung im Repo gilt erst, wenn ein Mensch sie übernimmt; dieselbe
+ * Vorlage ist dasselbe Dokument). Angelegt wird nie von selbst. Setzen darf nur der Admin.
  */
 export function LegalTexts({ company, isAdmin }: { company: number; isAdmin: boolean }) {
   // Nachgeladen nach jeder Änderung an Dokumenten (`lib/feed.TOUCHES`) – auch nach «Aus
@@ -46,11 +47,11 @@ export function LegalTexts({ company, isAdmin }: { company: number; isAdmin: boo
                 target={{ object_id: company, part: null, field: t.field, extra: {}, label: 'Gesellschaft', lock: t.label }}
                 seed={{ art: t.label }}
                 />
-              {!value && isAdmin && (
+              {isAdmin && (
                 <button type="button" onClick={() => void fromTemplate(t.kind)}
                   style={{ alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, cursor: 'pointer',
                            fontSize: 12.5, color: 'var(--accent-ink)' }}>
-                  Aus Vorlage übernehmen
+                  {value ? 'Neueste Vorlage übernehmen' : 'Aus Vorlage übernehmen'}
                 </button>
               )}
             </div>

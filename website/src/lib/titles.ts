@@ -24,6 +24,8 @@ const TITLES: Record<string, string> = {
   '/karriere': 'karriere',
   // Nur im Menü (diese Seite hat keinen Seitenkopf mit Bild):
   '/kontakt': 'kontakt',
+  '/login': 'anmelden',
+  '/abmelden': 'abmelden',
 };
 
 const fileOf = (name: string): ImageMetadata => {

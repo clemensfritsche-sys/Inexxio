@@ -23,7 +23,9 @@ export default function LogoutPage() {
   }, []);
 
   return (
-    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', alignContent: 'center', gap: 12, padding: 24 }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/abmelden.webp" alt="" width={168} height={168} />
       <p role="status" style={{ font: '500 15px var(--font-body)', color: 'var(--fg-2)' }}>
         Sie werden abgemeldet …
       </p>
