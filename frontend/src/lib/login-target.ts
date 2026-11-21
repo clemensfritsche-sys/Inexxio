@@ -49,7 +49,13 @@ export function loginTarget(role: string | null | undefined, fallback?: string):
   return [from, saved, fallback].find(isSafeTarget) ?? startPage(role);
 }
 
-/** Hart dorthin – siehe oben, warum nicht über den Router. */
+/** Läuft die Anmeldung im Rahmen der Website (gleicher Ursprung)? Dann gilt das Fenster dahinter. */
+export function framed(): boolean {
+  try { return window.parent !== window && window.parent.location.origin === window.location.origin; } catch { return false; }
+}
+
+/** Hart dorthin – siehe oben, warum nicht über den Router. Im Rahmen der Website (Anmelden über
+ *  der Seite) geht das ganze Fenster, nicht nur der Rahmen. */
 export function goTo(path: string): void {
-  window.location.replace(path);
+  (framed() ? window.parent : window).location.replace(path);
 }

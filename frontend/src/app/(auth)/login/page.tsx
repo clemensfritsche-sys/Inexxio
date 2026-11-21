@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { LoginDialog } from '@/components/auth/login-dialog';
 import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
-import { goTo, isSafeTarget, loginTarget } from '@/lib/login-target';
+import { framed, goTo, isSafeTarget, loginTarget } from '@/lib/login-target';
 import { cachedRole } from '@/lib/account-cache';
 
 /**
@@ -19,6 +19,10 @@ import { cachedRole } from '@/lib/account-cache';
  * Startplatz (ERP bzw. Konto). Vorher zeigte die Route jedem den Dialog, auch dem, der
  * längst angemeldet war – und nach der Anmeldung ging es zurück zur Website, wo nichts
  * davon zu sehen ist. Gefragt wird nur der **erste** Stand: danach meldet der Dialog selbst.
+ *
+ * **Im Rahmen der Website** (`website/src/scripts/account.ts`, «Anmelden» über der Seite): ohne
+ * Kopf und Fuss, durchsichtig (`html[data-embed]`), «daneben klicken» schliesst den Rahmen
+ * (`close`), und erst wenn der Dialog steht, wird er sichtbar (`ready`).
  */
 export default function LoginPage() {
   const [ready, setReady] = useState(false);
@@ -30,7 +34,14 @@ export default function LoginPage() {
     return onAuthChange(async (user) => {
       if (!first) return;
       first = false;
-      if (!user) { setReady(true); return; }
+      if (!user) {
+        setReady(true);
+        if (framed()) {
+          document.documentElement.setAttribute('data-embed', '');
+          tellSite('ready');
+        }
+        return;
+      }
       let role: string | null = null;
       try { role = (await api.getMe()).role; } catch { role = cachedRole(); }
       goTo(loginTarget(role));
@@ -38,7 +49,12 @@ export default function LoginPage() {
   }, []);
 
   if (!ready) return null;
-  return <LoginDialog onClose={() => window.location.assign(cameFrom())} />;
+  return <LoginDialog onClose={() => (framed() ? tellSite('close') : window.location.assign(cameFrom()))} />;
+}
+
+/** Der Website (dem Fenster dahinter, gleicher Ursprung) sagen, wie es steht. */
+function tellSite(what: 'ready' | 'close'): void {
+  window.parent.postMessage({ source: 'inexxio-login', what }, window.location.origin);
 }
 
 /** Daneben klicken führt dorthin zurück, wo man war (`?from=`, vom Kopf gesetzt) – sonst zur Website. */

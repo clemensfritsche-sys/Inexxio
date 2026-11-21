@@ -68,6 +68,56 @@ function loginReturns(): void {
   document.querySelectorAll<HTMLAnchorElement>('a[href^="/login"]').forEach((a) => {
     a.href = `/login?from=${encodeURIComponent(here)}`;
   });
+  loginOverlay();
+}
+
+/**
+ * ►►► **Anmelden als Fenster ÜBER der Seite** (Rückmeldung 21.11.2026). ◄◄◄ Auf der Website
+ * (`html[data-site]`) öffnet «Anmelden» die Anmeldung des ERP (`/login`, dieselbe Seite wie
+ * sonst) in einem durchsichtigen Rahmen – die Seite bleibt dahinter stehen, nur leicht
+ * abgedeckt. Die Anmeldung spricht über `postMessage` (`ready`, `close`); nach der Anmeldung
+ * navigiert sie selbst das ganze Fenster (frontend/lib/login-target.goTo). Ohne Antwort in
+ * 8 s geht es auf die Seite /login – nie ein stiller Klick.
+ */
+const LOGIN_FRAME = 'ix-login-frame';
+let loginBound = false;
+function loginOverlay(): void {
+  if (loginBound || !document.documentElement.hasAttribute('data-site')) return;
+  loginBound = true;
+  document.addEventListener('click', (e) => {
+    const a = (e.target as Element | null)?.closest?.('a[href^="/login"]') as HTMLAnchorElement | null;
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    openLogin(a.getAttribute('href') ?? '/login');
+  });
+  window.addEventListener('message', (e) => {
+    if (e.origin !== location.origin) return;
+    const frame = document.getElementById(LOGIN_FRAME) as HTMLIFrameElement | null;
+    if (!frame || e.source !== frame.contentWindow) return;
+    const data = e.data as { source?: string; what?: string } | null;
+    if (data?.source !== 'inexxio-login') return;
+    if (data.what === 'ready') { frame.style.visibility = 'visible'; frame.focus(); }
+    if (data.what === 'close') frame.remove();
+  });
+}
+
+function openLogin(href: string): void {
+  if (document.getElementById(LOGIN_FRAME)) return;
+  const frame = document.createElement('iframe');
+  frame.id = LOGIN_FRAME;
+  frame.title = 'Anmelden';
+  frame.src = href;
+  // Passkeys im Rahmen nur mit ausdrücklicher Erlaubnis (gleicher Ursprung).
+  frame.allow = 'publickey-credentials-get *; publickey-credentials-create *';
+  frame.setAttribute('style', 'position:fixed;inset:0;width:100%;height:100%;border:0;z-index:1000;'
+    + 'background:transparent;color-scheme:normal;visibility:hidden');
+  document.body.appendChild(frame);
+  window.setTimeout(() => {
+    if (document.getElementById(LOGIN_FRAME) === frame && frame.style.visibility !== 'visible') {
+      frame.remove();
+      location.href = href;
+    }
+  }, 8000);
 }
 
 /** Anmeldezustand neu lesen und zeigen – beim Laden und nach jeder Änderung des Caches. */

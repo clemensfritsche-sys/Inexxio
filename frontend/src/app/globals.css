@@ -24,9 +24,7 @@
   justify-content: center;
   padding: 16px;
   /* Leicht: die Seite bleibt erkennbar dahinter (Rückmeldung 21.11.2026). */
-  background: rgba(10, 10, 11, 0.08);
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
+  background: rgba(10, 10, 11, 0.12);
   animation: ix-scrim-in 0.2s ease-out;
   overflow-y: auto;
 }
@@ -741,7 +739,8 @@ fieldset:disabled .ix-editable.is-missing {
 
 /* Eingebettet (`/erp/erfassen` im Rahmen über der Website): nur das «+» – kein Kopf, kein Fuss,
    keine Fläche; die Website bleibt dahinter sichtbar. */
-html[data-embed], html[data-embed] body, html[data-embed] main { background: transparent !important; }
+html[data-embed], html[data-embed] body, html[data-embed] main, html[data-embed] body > .min-h-screen { background: transparent !important; }
+/* Im Rahmen der Website (Anmelden über der Seite) ist auch die Fläche der Seite durchsichtig – nur der Schleier deckt leicht ab. */
 html[data-embed] main { min-height: 0 !important; }
 html[data-embed] .ix-shell { display: none !important; }
 

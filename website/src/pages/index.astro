@@ -27,11 +27,13 @@ const faq = start.faq.map((f, i) => ({ ...f, visual: visuals[i] }));
 <Base title="" titleFull={start.title} description={start.description} jsonLd={[faqPage(start.faq)]} stage>
   <Stage photo={start.hero.photo} eyebrow={start.hero.eyebrow} title={start.hero.h1} sub={start.hero.sub} />
   <div class="wrap home-note"><SeasonNotice page="/" note={start.hsNote} seasons={false} /></div>
+  <!-- Reihenfolge (Rückmeldung 21.11.2026): was wir tun → wer wir sind (die Übergabe) → Belege in
+       Zahlen → das Risiko tragen wir (Garantien) → was wir sonst noch können → Wissen → Fragen → Anfrage. -->
   <AreaTrio />
-  <SpecialStage title={start.special.h2} lead={start.special.lead} items={spezialloesungen.scope?.items ?? []} cta={start.special.cta} />
-  <Guarantees />
-  <WhyNumbers />
   <Handover />
+  <WhyNumbers />
+  <Guarantees />
+  <SpecialStage title={start.special.h2} lead={start.special.lead} items={spezialloesungen.scope?.items ?? []} cta={start.special.cta} />
   <ArticleCarousel title={start.ratgeber.h2} lead={start.ratgeber.lead} items={start.ratgeber.items} all={{ label: start.ratgeber.all, href: '/ratgeber' }} />
   <FaqStage items={faq} title={start.faqHead.h2} lead={start.faqHead.lead} />
   <ContactSection />
