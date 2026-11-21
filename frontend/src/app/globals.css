@@ -23,9 +23,10 @@
      die höher ist als das Fenster, würde sonst oben abgeschnitten (Telefon im Querformat). */
   justify-content: center;
   padding: 16px;
-  background: rgba(246, 247, 249, 0.3);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  backdrop-filter: blur(18px) saturate(140%);
+  /* Leicht: die Seite bleibt erkennbar dahinter (Rückmeldung 21.11.2026). */
+  background: rgba(10, 10, 11, 0.08);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   animation: ix-scrim-in 0.2s ease-out;
   overflow-y: auto;
 }
@@ -37,7 +38,8 @@
   max-width: 400px;
   margin: auto;
   padding: 28px 32px 28px;
-  border-radius: 32px;
+  /* Ecken wie die Karten der Website (--r-xl = 8 px), Knöpfe wie ihre Knöpfe (--r-md = 6 px). */
+  border-radius: 8px;
   text-align: center;
   color: var(--fg-1);
   background: rgba(255, 255, 255, 0.74);
@@ -56,7 +58,7 @@
   .ix-login-scrim { padding: 0; }
   .ix-login-scrim .ix-login-card {
     max-width: none; margin: auto 0 0; padding: 30px 20px calc(28px + env(safe-area-inset-bottom));
-    border-radius: 32px 32px 0 0; border-bottom: 0; background: rgba(255, 255, 255, 0.94);
+    border-radius: 8px 8px 0 0; border-bottom: 0; background: rgba(255, 255, 255, 0.94);
   }
   .ix-login-scrim .ix-login-card::before {
     content: ''; position: absolute; left: 50%; top: 10px; width: 36px; height: 5px; margin-left: -18px;
@@ -73,10 +75,10 @@
 }
 .ix-login-sub { margin: 8px auto 0; max-width: 24em; font: 400 14px/1.5 var(--font-body); color: var(--fg-3); }
 
-/* Das Feld ist eine Pille, der rote Pfeil steckt darin (wie das Anfrage-Feld der Website). */
+/* Das Feld trägt den roten Pfeil (wie das Anfrage-Feld der Website). */
 .ix-login-field {
   display: flex; align-items: center; gap: 8px; margin-top: 22px; padding: 5px 5px 5px 18px;
-  border-radius: 999px; background: rgba(255, 255, 255, 0.88); border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 8px; background: rgba(255, 255, 255, 0.88); border: 1px solid rgba(255, 255, 255, 0.95);
   box-shadow: 0 6px 18px rgba(10, 10, 11, 0.06); transition: box-shadow 0.2s;
 }
 .ix-login-field:focus-within { box-shadow: 0 0 0 3px rgba(10, 10, 11, 0.08), 0 6px 18px rgba(10, 10, 11, 0.06); }
@@ -97,10 +99,10 @@
 .ix-login-error { margin: 10px 0 0; font: 400 13px/1.5 var(--font-body); color: var(--inexxio-red-deep); animation: ix-shake 0.4s ease; }
 @keyframes ix-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 
-/* Passkey und Google: zwei kleine Glas-Pillen. */
+/* Passkey und Google: zwei kleine Glas-Knöpfe. */
 .ix-login-alt { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; }
 .ix-login-pill {
-  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.95); background: rgba(255, 255, 255, 0.5); color: var(--fg-1);
   font: 500 14px/1 var(--font-body); cursor: pointer; transition: background 0.2s;
 }

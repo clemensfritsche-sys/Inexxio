@@ -1,25 +1,14 @@
 ---
-/** /newsletter/bestaetigt – Ziel nach einem Schritt des Newsletters (der Server leitet mit 303 hierher). */
+/** /newsletter/bestaetigt – Ziel nach einem Schritt des Newsletters (der Server leitet mit 303 hierher); v4 wie /newsletter. */
 import Base from '../../layouts/Base.astro';
+import NewsletterStage from '../../components/NewsletterStage.astro';
 import Icon from '../../components/Icon.astro';
-import Rich from '../../components/Rich.astro';
 import { newsletterPages as n } from '../../content/newsletter';
 import { t } from '../../i18n/t.mjs';
 const p = n.confirmed;
 ---
 <Base title={p.title} description={n.description} crumbs={[{ name: t('seiten', 'Newsletter'), path: '/newsletter' }, { name: p.title, path: '/newsletter/bestaetigt' }]} noindex>
-  <section class="section nl" data-hero>
-    <div class="wrap"><div class="nl__wrap">
-      <Icon name="check" size={32} class="nl__icon" />
-      <h1 class="nl__title">{p.title}</h1>
-      <Rich as="p" class="lead" text={p.lead} />
-      <a class="arrow-link" href="/">{t('ui', 'Zur Startseite')} <Icon name="arrow-right" size={18} /></a>
-    </div></div>
-  </section>
+  <NewsletterStage word={n.signup.eyebrow} eyebrow={n.signup.eyebrow} title={p.title} lead={p.lead}>
+    <a class="btn btn--quiet btn--lg" href="/">{t('ui', 'Zur Startseite')} <Icon name="arrow-right" size={18} /></a>
+  </NewsletterStage>
 </Base>
-
-<style>
-  .nl__wrap { display: grid; gap: var(--s-4); justify-items: start; max-width: 760px; }
-  .nl__icon { color: var(--ok); }
-  .nl__title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
-</style>

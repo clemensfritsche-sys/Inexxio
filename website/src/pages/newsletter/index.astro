@@ -1,39 +1,40 @@
 ---
 /**
- * /newsletter – Anmeldung zu «Post von INEXXIO». Ohne JavaScript: der Server schickt
- * die Bitte um Bestätigung und leitet mit 303 auf /newsletter/danke (Double Opt-in).
+ * /newsletter – Anmeldung zu «Post von INEXXIO» (v4, components/NewsletterStage). Ohne JavaScript:
+ * der Server schickt die Bitte um Bestätigung und leitet mit 303 auf /newsletter/danke (Double
+ * Opt-in). Das Feld trägt den roten Pfeil wie das Anfrage-Feld (styles/form.css, `.iform__send`).
  */
 import Base from '../../layouts/Base.astro';
+import NewsletterStage from '../../components/NewsletterStage.astro';
+import Icon from '../../components/Icon.astro';
 import { currentLang, SOURCE } from '../../config/languages.mjs';
-import Rich from '../../components/Rich.astro';
 import { newsletterPages as n } from '../../content/newsletter';
 import '../../styles/form.css';
 import { t } from '../../i18n/t.mjs';
 ---
 <Base title={t('seiten', 'Newsletter')} description={n.description} crumbs={[{ name: t('seiten', 'Newsletter'), path: '/newsletter' }]} noindex>
-  <section class="section nl" data-hero>
-    <div class="wrap"><div class="nl__wrap">
-      <p class="eyebrow">{n.signup.eyebrow}</p>
-      <Rich as="h1" class="nl__title" text={n.signup.title} />
-      <Rich as="p" class="lead" text={n.signup.lead} />
-      <form class="nl__form" method="post" action={`/api/v1/newsletter${currentLang().code === SOURCE ? '' : `?lang=${currentLang().code}`}`}>
-        <div class="iform__hp" aria-hidden="true">
-          <label>{t('ui', 'Bitte leer lassen')} <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
-        </div>
-        <div class="field">
-          <label class="field__label" for="nl-email">{n.signup.label}</label>
-          <input class="input" id="nl-email" name="email" type="email" required maxlength="160" autocomplete="email" />
-        </div>
-        <button type="submit" class="btn btn--primary btn--lg">{n.signup.button}</button>
-      </form>
-      <p class="small muted">{n.signup.small} <a class="link" href="/datenschutz">{t('ui', 'Datenschutz')}</a>.</p>
-    </div></div>
-  </section>
+  <NewsletterStage word={n.signup.eyebrow} eyebrow={n.signup.eyebrow} title={n.signup.title} lead={n.signup.lead}>
+    <form class="nlf" method="post" action={`/api/v1/newsletter${currentLang().code === SOURCE ? '' : `?lang=${currentLang().code}`}`}>
+      <div class="iform__hp" aria-hidden="true">
+        <label>{t('ui', 'Bitte leer lassen')} <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
+      </div>
+      <label class="visually-hidden" for="nl-email">{n.signup.label}</label>
+      <div class="nlf__field">
+        <input id="nl-email" name="email" type="email" required maxlength="160" autocomplete="email" placeholder={n.signup.label} />
+        <button type="submit" class="iform__send" aria-label={n.signup.button}><Icon name="send" size={22} /></button>
+      </div>
+    </form>
+    <p class="nlf__small">{n.signup.small} <a class="link" href="/datenschutz">{t('ui', 'Datenschutz')}</a>.</p>
+  </NewsletterStage>
 </Base>
 
 <style>
-  .nl__wrap { display: grid; gap: var(--s-4); justify-items: start; max-width: 640px; }
-  .nl__title { font-size: clamp(2.25rem, 1.7rem + 2.2vw, 3.5rem); }
-  .nl__form { display: grid; gap: var(--s-4); width: 100%; margin-top: var(--s-3); }
-  @media (min-width: 640px) { .nl__form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; } }
+  .nlf__field {
+    display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 20px; border: 1px solid var(--line-2); border-radius: var(--r-xl);
+    background: var(--white); box-shadow: 0 6px 18px rgba(10, 10, 11, 0.05); transition: box-shadow 0.2s var(--ease);
+  }
+  .nlf__field:focus-within { box-shadow: var(--focus-ring); }
+  .nlf__field input { flex: 1; min-width: 0; min-height: 52px; border: 0; outline: 0; background: transparent; font-size: 1.0625rem; color: var(--ink); }
+  .nlf__field input::placeholder { color: var(--gray-500); }
+  .nlf__small { margin-top: 14px; max-width: 520px; font-size: 0.8125rem; line-height: 1.5; color: var(--ink-3); }
 </style>

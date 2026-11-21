@@ -85,7 +85,7 @@ const imgOf = async (href: string, key: string) => {
   return t ? (await getImage({ src: t, width: 480, format: 'webp', quality: 70 })).src : illo(key);
 };
 
-type Tile = { label: string; href: string; img: string; sub: string; deck?: string[] };
+type Tile = { label: string; href: string; img?: string; sub: string; deck?: string[]; avatar?: boolean };
 /** Kacheln eines Punkts: er selbst, wenn er keine Unterseiten hat – sonst zuerst seine Übersicht
     («Alles zu …», dunkel, mit dem Stapel der Bilder seiner Unterseiten; «Über uns» mit eigenem Bild),
     dann die Unterseiten.
@@ -111,7 +111,8 @@ const langs = languages.map((l) => {
   return { label: l.name, bubble: l.hello, lang: l.locale, on, href, sub: on ? T.current : href ? l.read : l.soon };
 });
 const login = { label: acct.login.label, href: acct.login.href, img: await imgOf(acct.login.href, 'menu/anmelden'), sub: T.loginSub };
-const profile = { label: T.profile, href: acct.profile.href, img: illo('menu/profil'), sub: T.profileSub };
+/** Das Profil zeigt das eigene Bild (bzw. die Initialen) – wie die Kachel im Kopf, nie eine Zeichnung. */
+const profile = { label: T.profile, href: acct.profile.href, sub: T.profileSub, avatar: true };
 const logout = { label: acct.logout.label, href: acct.logout.href, img: await imgOf(acct.logout.href, 'menu/abmelden'), sub: T.logoutSub };
 const cols = (n: number) => `--cols:${Math.max(3, n)}`;
 /** Mobil-Menü: EINE Ebene. Jeder Punkt klappt eine Reihe Karten auf – dieselben Kacheln wie im Kopf. */
@@ -241,7 +242,9 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
                 <div class="mg__panel"><div class="mg__clip"><ul role="list" class="mg__rail">
                   {g.cards.map((c) => (
                     <li><a class:list={['mg__card', c.deck && 'mg__card--all']} href={c.href} rel={g.acct ? 'nofollow' : undefined}>
-                      {c.deck ? (
+                      {c.avatar ? (
+                        <span class="mg__img mg__face"><span class="mg__avatar" data-acct-initials><Icon name="user" size={28} /></span></span>
+                      ) : c.deck ? (
                         <span class="mg__deck" aria-hidden="true">{c.deck.map((src) => <img src={src} alt="" loading="lazy" decoding="async" width="64" height="64" data-menu-img />)}<span class="mg__go"><Icon name="arrow-right" size={18} /></span></span>
                       ) : (
                         <img class="mg__img" src={c.img} alt="" loading="lazy" decoding="async" width="188" height="84" data-menu-img />
@@ -515,6 +518,12 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
     color: var(--ink); text-decoration: none;
   }
   .mg__img { width: 100%; height: 84px; object-fit: contain; margin-bottom: 6px; }
+  .mg__face { display: flex; align-items: center; justify-content: center; }
+  .mg__avatar {
+    display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%; overflow: hidden;
+    background: var(--red); color: var(--white); font-family: var(--font-display); font-size: 1.5rem; font-weight: 600;
+  }
+  .mg__avatar :global(.pm__avatar) { width: 100%; height: 100%; object-fit: cover; display: block; }
   .mg__label { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
   .mg__sub { font-size: 0.8125rem; line-height: 1.4; color: var(--gray-500); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   /* «Alles zu …»: die Übersicht, einen Hauch dunkler (wie im Dropdown), mit dem Stapel der Zeichnungen. */

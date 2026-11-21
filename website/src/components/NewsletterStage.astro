@@ -1,0 +1,42 @@
+---
+/**
+ * Die Bühne der Newsletter-Seiten (/newsletter, …/danke, …/bestaetigt, …/abgemeldet) – im Kleid
+ * der übrigen Seiten (v4): ein grosses graues Wort im Hintergrund, davor Überschrift und Satz wie
+ * der Kontaktbereich (`v4-h2` · `v4-sub`), darunter der Inhalt (Formular oder Weg zurück).
+ * Der Bereich füllt den Bildschirm unter dem Kopf – der Fuss erscheint erst beim Scrollen
+ * (wie /kontakt, Rückmeldung 21.11.2026).
+ */
+import Rich from './Rich.astro';
+
+interface Props {
+  /** Das Wort im Hintergrund (rein grafisch). */
+  word: string;
+  eyebrow?: string;
+  title: string;
+  lead: string;
+}
+const { word, eyebrow, title, lead } = Astro.props;
+---
+<section class="nls" aria-labelledby="nls-title" data-hero>
+  <span class="nls__word" aria-hidden="true">{word}</span>
+  <div class="wrap nls__in">
+    <div class="nls__col">
+      {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+      <Rich as="h1" id="nls-title" class="v4-h2" text={title} />
+      <Rich as="p" class="v4-sub" text={lead} />
+      <div class="nls__body"><slot /></div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .nls { position: relative; overflow: hidden; min-height: calc(100svh - var(--header-h)); display: flex; align-items: center; background: linear-gradient(180deg, var(--paper) 0%, var(--white) 70%); }
+  .nls__word {
+    position: absolute; right: -1vw; top: 24px; white-space: nowrap; pointer-events: none; user-select: none;
+    font-family: var(--font-display); font-weight: 700; font-size: clamp(5rem, 13vw, 15rem); line-height: 1; letter-spacing: -0.05em; color: var(--gray-200);
+  }
+  .nls__in { position: relative; width: 100%; padding-block: 96px; }
+  .nls__col { max-width: 620px; display: grid; gap: 16px; justify-items: start; }
+  .nls__body { width: 100%; margin-top: 16px; }
+  @media (max-width: 640px) { .nls__in { padding-block: 96px 64px; } .nls__word { font-size: 24vw; top: 16px; } }
+</style>
