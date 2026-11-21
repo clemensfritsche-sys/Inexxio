@@ -70,7 +70,7 @@ export const start = t('start', {
     lead: handoverLead,
     short: 'Meine Kunden sind bei ihm in guten Händen.',
     /** Collage: Standort (gross), Porträt, ein HS-Kran. */
-    photos: ['clemens-heiri-quer', 'portraet-clemens-draussen', 'heukran-einsatz'],
+    photos: ['clemens-heiri-quer', 'portraet-clemens-draussen', 'portraet-heiri'],
     link: 'Die ganze Geschichte',
     href: '/ueber-uns#uebergabe',
   },
