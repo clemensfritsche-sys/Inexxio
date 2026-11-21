@@ -9,7 +9,7 @@
     "display": "+41 52 378 22 47",
     "e164": "+41523782247"
   },
-  "email": "fahrzeug-kranbau@hs-steiner.ch",
+  "email": "info@inexxio.com",
   "pages": {
     "thanks": "/kontakt/danke",
     "newsletterPending": "/newsletter/danke",
@@ -339,7 +339,7 @@
         "factPhotos": "Foto",
         "photoOne": "1 immagine",
         "photoMany": "{n} immagini",
-        "nextTitle": "Come si procede",
+        "nextTitle": "Come si prosegue",
         "received": "Arrivata",
         "urgent": "È urgente? Allora ci chiami direttamente:"
       },
