@@ -128,7 +128,9 @@ def test_sale_from_offer_to_done(db):
     offers = svc.documents_of(db, row, vo.OFFER_DOC)
     paper = voucher_docs.paper_of(db, offers[0])
     assert len(offers) == 1 and "Offerte" in paper and "AGB" in paper
-    assert "vom 01.01.2026" in paper, "Das Dokument nennt das Datum der AGB."
+    from app.services import legal
+    agb_day = clock.day(legal.template(legal.AGB)[0])          # die geltende Vorlage
+    assert f"vom {agb_day}" in paper, "Das Dokument nennt das Datum der AGB."
     assert voucher_view.situation(db, row, order=order, step=step)["key"] == "sent"
     _do(db, order, step, "agree", party=who.object_id)
     assert row.stage == vo.AGREED and row.head, "Mit der Zusage friert der Kopf ein."
