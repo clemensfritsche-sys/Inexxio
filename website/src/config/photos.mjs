@@ -93,7 +93,6 @@ export const photos = t('photos', {
     ratio: '4/3',
   },
   'kran-eng': {
-    file: 'kran-eng.webp',
     alt: 'Verzinkter Kran mit Plattform in einem engen Betonschacht, daneben die Treppe',
     brief: 'Kompakter Kran in einem engen, verwinkelten Raum mit Stützen oder Nischen, der Greifer erreicht eine Ecke, quer',
     ratio: '4/3',
