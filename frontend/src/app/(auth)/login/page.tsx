@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { LoginDialog } from '@/components/auth/login-dialog';
-import { auth, onAuthChange } from '@/lib/firebase';
+import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { goTo, isSafeTarget, loginTarget } from '@/lib/login-target';
 import { cachedRole } from '@/lib/account-cache';
@@ -24,8 +24,8 @@ export default function LoginPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Ohne Firebase gäbe es nie eine Antwort – dann eben gleich der Dialog (der meldet es).
-    if (!auth) { setReady(true); return; }
+    // Ist niemand angemeldet, antwortet `onAuthChange` «niemand», ohne Firebase zu starten –
+    // der Dialog steht, und erst eine Anmeldung spricht mit Google.
     let first = true;
     return onAuthChange(async (user) => {
       if (!first) return;

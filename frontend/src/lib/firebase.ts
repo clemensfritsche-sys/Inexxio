@@ -20,7 +20,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { api } from './api';
-import { clearAccountCache } from './account-cache';
+import { cachedRole, clearAccountCache } from './account-cache';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
@@ -31,20 +31,32 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '',
 };
 
-let app: FirebaseApp;
-let auth: Auth;
+// ►►► **Firebase startet erst, wenn es gebraucht wird – vorher spricht keine Seite mit Google.** ◄◄◄
+//
+// Gestartet wird es von einer Handlung (anmelden, abmelden, Token holen) oder von einem Abo
+// (`onAuthChange`), aber Letzteres nur, wenn jemand angemeldet sein KANN (`mayBeSignedIn`).
+// Ohne Hinweis weiss das Abo die Antwort selbst: niemand – so öffnen `/datenschutz`, `/agb`,
+// `/dokument` keine Verbindung zu Google. Der Helfer für das Google-Pop-up (Rahmen von
+// `<projekt>.firebaseapp.com`, Skript von apis.google.com) kommt erst, wenn der Anmeldedialog
+// offen ist (`prepareSignIn`): er muss vor dem Klick bereitstehen, sonst sperrt Safari/iOS das
+// Pop-up (der Klick wäre beim Öffnen schon «verbraucht»). Wer den Dialog öffnet, will sich
+// anmelden – das sagt die Datenschutzerklärung (Ziff. 7).
+let auth: Auth | undefined;
+/** Abos, die auf den Start warten (niemand angemeldet) – sie hören ab dem Start mit. */
+const waiting = new Set<(a: Auth) => void>();
 
-if (typeof window !== 'undefined') {
-  app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+function startAuth(withPopup = false): Auth | undefined {
+  if (auth || typeof window === 'undefined') return auth;
+  const app: FirebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   try {
-    // Use localStorage persistence to avoid IndexedDB initialization issues
-    // (stale pendingRedirect entries can cause auth/internal-error on init).
-    auth = initializeAuth(app, {
-      persistence: browserLocalPersistence,
-      popupRedirectResolver: browserPopupRedirectResolver,
-    });
+    // localStorage statt IndexedDB (veraltete pendingRedirect-Einträge führten beim Start zu
+    // auth/internal-error). Den popupRedirectResolver (er lädt den Rahmen von Google vor) nur
+    // aus dem Anmeldedialog (`prepareSignIn`); sonst reist er mit dem Aufruf, der ihn braucht.
+    auth = initializeAuth(app, withPopup
+      ? { persistence: browserLocalPersistence, popupRedirectResolver: browserPopupRedirectResolver }
+      : { persistence: browserLocalPersistence });
   } catch {
-    // initializeAuth throws on hot-reload / multiple calls — fall back
+    // Schon gestartet (Hot Reload): `getAuth` gibt dieselbe Instanz zurück.
     auth = getAuth(app);
   }
   // Wechselt die angemeldete Person (Abmelden, anderes Konto), gilt das gehaltene Profil
@@ -55,9 +67,46 @@ if (typeof window !== 'undefined') {
     if (uid !== undefined && next !== uid) api.forgetMe();
     uid = next;
   });
+  const started = auth;
+  for (const join of [...waiting]) join(started);
+  waiting.clear();
+  return auth;
 }
 
-export { auth };
+/**
+ * Kann hier jemand angemeldet sein? Firebase hält die Sitzung unter `firebase:authUser:…` in
+ * localStorage (`browserLocalPersistence`); dazu der Anzeige-Cache (`cachedRole`) – steht er
+ * noch, ohne dass eine Sitzung besteht, startet Firebase und räumt ihn (`AccountSync`).
+ */
+function mayBeSignedIn(): boolean {
+  if (auth) return true;
+  if (cachedRole()) return true;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      if (localStorage.key(i)?.startsWith('firebase:authUser:')) return true;
+    }
+  } catch {
+    // Kein Speicher – dann hat Firebase auch keine Sitzung gespeichert.
+  }
+  return false;
+}
+
+/** Firebase, falls jemand angemeldet sein kann – sonst nichts (und kein Start). */
+function authIfSignedIn(): Auth | undefined {
+  return mayBeSignedIn() ? startAuth() : undefined;
+}
+
+/** **Der Anmeldedialog ist offen** – Firebase samt Pop-up-Helfer vorbereiten, damit «Google»
+ *  das Fenster im selben Klick öffnen kann (Safari/iOS). Läuft Firebase schon, bleibt es dabei. */
+export function prepareSignIn(): void {
+  startAuth(true);
+}
+
+function startedAuth(): Auth {
+  const a = startAuth();
+  if (!a) throw new Error('Firebase not initialized');
+  return a;
+}
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
@@ -88,14 +137,15 @@ async function sentByUs(email: string): Promise<boolean> {
 }
 
 export async function sendMagicLink(email: string): Promise<void> {
-  if (!auth) throw new Error('Firebase not initialized');
+  // Firebase nur, wenn der Link nicht von uns hinausging – sonst bleibt Google ganz aussen vor.
   if (!(await sentByUs(email))) {
-    await sendSignInLinkToEmail(auth, email, getActionCodeSettings());
+    await sendSignInLinkToEmail(startedAuth(), email, getActionCodeSettings());
   }
   localStorage.setItem('emailForSignIn', email);
 }
 
 export async function completeMagicLink(): Promise<User | null> {
+  const auth = startAuth();
   if (!auth) return null;
   if (!isSignInWithEmailLink(auth, window.location.href)) return null;
 
@@ -109,9 +159,11 @@ export async function completeMagicLink(): Promise<User | null> {
   return result.user;
 }
 
+/** Der Helfer des Pop-ups lädt erst hier (Rahmen + apis.google.com). In Safari und auf dem
+ *  Handy kann das Laden die Geste des Klicks aufbrauchen – dann blockiert der Browser das
+ *  Pop-up (`auth/popup-blocked`); der zweite Klick öffnet es sofort, der Helfer steht dann. */
 export async function signInWithGoogle(): Promise<User> {
-  if (!auth) throw new Error('Firebase not initialized');
-  const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
+  const result = await signInWithPopup(startedAuth(), googleProvider, browserPopupRedirectResolver);
   return result.user;
 }
 
@@ -119,8 +171,7 @@ export async function signInWithGoogle(): Promise<User> {
 // Firebase Custom Token aus. Damit wird hier eine ganz normale Firebase-Session
 // begründet – ab jetzt verhält sich alles wie bei Magic Link / Google.
 export async function signInWithPasskey(firebaseToken: string): Promise<User> {
-  if (!auth) throw new Error('Firebase not initialized');
-  const result = await signInWithCustomToken(auth, firebaseToken);
+  const result = await signInWithCustomToken(startedAuth(), firebaseToken);
   return result.user;
 }
 
@@ -135,7 +186,8 @@ export async function logout(): Promise<void> {
   // sich berufen könnte (`AccountSync` prüft `currentUid()` vor jedem Schreiben); das
   // `finally` räumt auch dann, wenn das Abmelden scheitert.
   try {
-    if (auth) await signOut(auth);
+    const a = authIfSignedIn();
+    if (a) await signOut(a);
   } finally {
     api.forgetMe();
     clearAccountCache();
@@ -154,18 +206,33 @@ export function currentUid(): string | null {
 // Erneuerungs-Timer nicht). `authStateReady` wartet beim Laden der Seite, bis Firebase die
 // gespeicherte Sitzung gelesen hat – sonst ginge die erste Anfrage ohne Token hinaus.
 // Hier registriert, damit `api.ts` nichts von Firebase wissen muss.
+// Kann niemand angemeldet sein, geht die Anfrage ohne Token – und ohne Firebase zu starten.
 api.setTokenProvider(async (force) => {
+  const auth = authIfSignedIn();
   if (!auth) return null;
   await auth.authStateReady();
   return auth.currentUser ? auth.currentUser.getIdToken(force) : null;
 });
 
-export function onAuthChange(callback: (user: User | null) => void) {
-  if (!auth) return () => {};
+export function onAuthChange(callback: (user: User | null) => void): () => void {
+  if (typeof window === 'undefined') return () => {};
   // `onIdTokenChanged` statt `onAuthStateChanged`: feuert bei Anmelden/Abmelden UND bei
   // jeder Token-Erneuerung (die Abonnenten – `AuthGate`, `AccountSync`,
-  // Passkey-Hinweis – prüfen darum selbst, ob sich für sie etwas geändert hat).
-  return onIdTokenChanged(auth, callback);
+  // Passkey-Hinweis, `/login` – prüfen darum selbst, ob sich für sie etwas geändert hat).
+  const started = authIfSignedIn();
+  if (started) return onIdTokenChanged(started, callback);
+  // Niemand angemeldet: die Antwort «niemand» kommt ohne Firebase (wie sonst von ihm: nicht
+  // synchron). Startet es später (eine Anmeldung auf dieser Seite), hört das Abo ab da mit.
+  let gone = false;
+  let stop: (() => void) | undefined;
+  const join = (a: Auth) => { if (!gone) stop = onIdTokenChanged(a, callback); };
+  waiting.add(join);
+  queueMicrotask(() => { if (!gone && !stop) callback(null); });
+  return () => {
+    gone = true;
+    waiting.delete(join);
+    stop?.();
+  };
 }
 
 /**

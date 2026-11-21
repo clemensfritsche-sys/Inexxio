@@ -23,7 +23,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowRight, Fingerprint, Mail } from 'lucide-react';
 import type { FirebaseError } from 'firebase/app';
-import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
+import { prepareSignIn, sendMagicLink, signInWithGoogle } from '@/lib/firebase';
 import {
   loginWithPasskey, loginWithPasskeyAutofill, cancelPasskeyAutofill,
   passkeySupported, passkeyAutofillSupported, isPasskeyCancellation,
@@ -54,6 +54,10 @@ function getGoogleErrorMessage(code: string): string {
       return 'Diese Domain ist nicht autorisiert.';
     case 'auth/network-request-failed':
       return 'Netzwerkfehler. Bitte Internetverbindung prüfen.';
+    case 'auth/popup-blocked':
+      // Der Helfer von Google lädt erst mit dem ersten Klick (`lib/firebase`); hat das die
+      // Geste aufgebraucht, öffnet der zweite Klick das Fenster sofort.
+      return 'Das Anmeldefenster wurde blockiert. Bitte noch einmal auf «Google» klicken.';
     case 'auth/web-storage-unavailable':
       return 'Browser-Speicher nicht verfügbar. Cookie-Einstellungen prüfen.';
     default:
@@ -77,6 +81,7 @@ export function LoginDialog({ onClose }: {
 
   useEffect(() => {
     setShowPasskey(passkeySupported());
+    prepareSignIn();   // «Google» muss das Pop-up im selben Klick öffnen können (Safari/iOS)
     // `?from=` merken: der Magic Link kommt oft in einem neuen Tab zurück, ohne Parameter.
     rememberFrom();
   }, []);

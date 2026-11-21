@@ -420,6 +420,14 @@ derselben Herkunft bleibt (`isSafeTarget`, auch für «daneben klicken»). Die R
 Magic Link (`/login/verify`) ist dieselbe Lightbox (`.ix-login-scrim` + `.ix-login-card`).
 Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.test.mjs`; jede
 `ix-`-Klasse im Markup hat einen Stil (`scripts/design.test.mjs`).
+- **Ohne Anmeldung spricht keine Seite mit Google** (`lib/firebase.ts`): Firebase startet erst
+  mit einer Handlung (anmelden, abmelden, Token) oder wenn jemand angemeldet sein kann
+  (`firebase:authUser:…` in localStorage oder `cachedRole`); sonst antwortet `onAuthChange`
+  selbst «niemand». Der Pop-up-Helfer (`browserPopupRedirectResolver`: Rahmen von
+  `*.firebaseapp.com`, apis.google.com) startet erst mit dem offenen Anmeldedialog
+  (`prepareSignIn`) – er muss vor dem Klick bereitstehen, sonst sperrt Safari/iOS das Pop-up.
+- **Die Schrift ist selbst gehostet** (`public/fonts/`, dieselben Dateien wie
+  `website/src/assets/fonts/`; `@font-face` in `colors_and_type.css`) – kein Google Fonts.
 
 ## Konventionen
 - `'use client'` nur, wo nötig. Lucide React für alle Icons. TypeScript strict, kein `any`.

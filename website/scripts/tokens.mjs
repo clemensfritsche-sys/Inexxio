@@ -4,8 +4,8 @@
 // Warum generiert statt kopiert: `frontend/src/styles/design-system/colors_and_type.css`
 // ist laut CLAUDE.md die einzige Stelle, an der ein Token-Wert definiert wird. Eine
 // abgeschriebene Kopie würde beim nächsten Re-Sync aus Claude Design still veralten.
-// Die Datei selbst wird nicht importiert: sie lädt Inter über Google Fonts (Fremdanfrage),
-// und die Website hostet ihre Schrift selbst.
+// Die Datei selbst wird nicht importiert: ihre @font-face-Regeln zeigen auf die Schriften des
+// Frontends (/fonts/…); die Website bindet ihre eigenen Schriftdateien ein.
 //
 // Fehlt ein Token, bricht das Skript ab – lieber ein roter Build als eine Farbe, die
 // stillschweigend auf den Browser-Standard zurückfällt.
