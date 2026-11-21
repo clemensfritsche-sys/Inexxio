@@ -27,7 +27,7 @@ from ..core.database import DB
 from ..domain import newsletter as dn
 from ..models import UserProfile
 from ..schemas.newsletter import ConsentRow, NewsletterIn, NewsletterState
-from ..services import newsletter as svc, people, visitor
+from ..services import newsletter as svc, people, site_stats, visitor
 from ..services.people import is_email, normalize_email
 from ..services.inquiry import clean, lang_of, words
 from .contact import page
@@ -102,7 +102,18 @@ def subscribe(request: Request, email: str = Form(""), hp: str = Form(""), lang:
         db.rollback()
         report.warn(f"NEWSLETTER invite failed: {exc.detail}")
         return _answer(wants_json, said["server"]["newsletterUnavailable"], 503, lang=lang)
+    _count(db, request)
     return done
+
+
+def _count(db: Session, request: Request) -> None:
+    """Für die Website-Statistik (``site_stats.convert``) – scheitert sie, gilt die Anmeldung trotzdem."""
+    try:
+        with db.begin_nested():
+            site_stats.convert(db, site_stats.who(request), "newsletter",
+                               site_stats.page_of(request.headers.get("referer")), visitor.country(request))
+    except Exception as exc:
+        report.warn(f"NEWSLETTER not counted: {type(exc).__name__}: {exc}")
 
 
 @router.get("/confirm", include_in_schema=False, dependencies=[public("link")])

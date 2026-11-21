@@ -70,7 +70,7 @@ Je ein Satz, was es war, und wo die Entscheidung steht. Der Code liegt in der Gi
 | **«Ausliefern»** | Modul-Eintrag in `domain/modules.py` | Ein Scan und ein Statuswechsel auf `Verkauft` – «gehört jetzt jemand anderem» ist die Folge aus Bewegen und Zahlung, kein Vorgang. `Verkauft` schreibt heute das Ende-Objekt, wenn das Stück der Partei gehört (`process._finish`, PROCESS_CORE §4.2). | `docs/history/2026-10-process-core-9-15-chronik.md` (§9.9) |
 | **Kontotyp** «Privat ↔ Geschäft» | `domain/accounts.py` · `lib/accounts.ts` · `assert_account` | Eine Angabe zu viel: ob jemand für eine Firma auftritt, sagt die **Zuordnung** zu einem Firmen-Datensatz (#1043, CRM Schritt 1). | `docs/history/2026-10-claude-md-chronik.md` («Kontotyp», «Die Rolle ist der Zugang») |
 | **Erfassungspunkt «Objekt scannen»** | `domain/capture_types/object_scan.py` | Der einzige Nachweis für Werkzeug/Prüfmittel – bewusst offen (`SYSTEM_LOGIC.md` §5.9); der Weg zurück beginnt bei der Modellfrage «Nutzung ohne Exklusivität». | `SYSTEM_LOGIC.md` §5.9 |
-| **Statistik + Einwilligungs-Dialog** (Plausible) | `track.ts`, Cookie-Dialog, `plausible_domain` | Das Skript lud nie; ohne Statistik braucht es keine Einwilligung (Cleanup 2026-10, E5). | `docs/history/2026-10-cleanup-analyse.md` |
+| **Statistik + Einwilligungs-Dialog** (Plausible) | `track.ts`, Cookie-Dialog, `plausible_domain` | Das Skript lud nie; ohne Statistik braucht es keine Einwilligung (Cleanup 2026-10, E5). Seit November 2026 gibt es eine **eigene** Statistik ohne Cookies und ohne IP (`services/site_stats`) – wieder ohne Einwilligung. | `docs/history/2026-10-cleanup-analyse.md` |
 
 ## Der Stand
 

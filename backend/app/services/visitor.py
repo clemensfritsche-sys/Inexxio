@@ -63,9 +63,11 @@ def sender_key(request: Request) -> str:
     return ",".join(chain[-TRUSTED_HOPS:]) if chain else (_peer(request) or "unbekannt")
 
 
-def allow_send(kind: str, request: Request, limit: int) -> bool:
-    """Je Absender ``limit`` je Stunde **und** insgesamt ``GLOBAL_LIMIT`` – beides muss passen."""
-    return _allow(f"{kind}:{sender_key(request)}", limit) and _allow(f"{kind}:all", GLOBAL_LIMIT)
+def allow_send(kind: str, request: Request, limit: int, total: Optional[int] = None) -> bool:
+    """Je Absender ``limit`` je Stunde **und** insgesamt ``total`` (sonst ``GLOBAL_LIMIT``) –
+    beides muss passen."""
+    return (_allow(f"{kind}:{sender_key(request)}", limit)
+            and _allow(f"{kind}:all", GLOBAL_LIMIT if total is None else total))
 
 
 def country(request: Request) -> Optional[str]:

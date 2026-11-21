@@ -51,6 +51,8 @@ export const qk = {
   /** Die Zeiterfassung einer Person (ein Monat) und einer Gesellschaft (Feiertage, Regeln). */
   time: (person: number, month?: string) => key('time', person, month ?? null),
   companyTime: (company: number, year: number) => key('time', 'company', company, year),
+  /** Die Website-Statistik eines Zeitraums (Tage) – Reiter «Website» am Betreiber. */
+  siteStats: (days: number) => key('siteStats', days),
   /** Was sich selten ändert: der Modul-Katalog, die Auswahl für einen Entwurf. */
   catalog: (what: string, ...rest: unknown[]) => key('catalog', what, ...rest),
 };

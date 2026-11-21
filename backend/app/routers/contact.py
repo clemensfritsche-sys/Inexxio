@@ -40,7 +40,7 @@ from starlette.datastructures import UploadFile
 
 from ..core.actor import public
 from ..core.database import DB
-from ..services import inquiry as svc, visitor
+from ..services import inquiry as svc, site_stats, visitor
 from ..domain.errors import Rejected
 from ..core import report
 
@@ -198,10 +198,12 @@ async def submit_inquiry(request: Request, db: Session = DB) -> Response:
     if not visitor.allow_send("contact", request, RATE_LIMIT):
         report.info(f"INQUIRY rate limited ip={ip}")
         return _failed(inq, 429, said["tooMany"].replace("{phone}", VOCAB["phone"]["display"]), wants_json, lang)
-    return await run_in_threadpool(_store, db, inq, visitor.country(request), wants_json)
+    return await run_in_threadpool(_store, db, inq, visitor.country(request), wants_json,
+                                   site_stats.who(request))
 
 
-def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> Response:
+def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool,
+           who: site_stats.Who | None = None) -> Response:
     """Ins ERP – und erst wenn das steht, «Danke». Scheitert es, sagt die Seite es mit
     Telefon und mailto; die Anfrage steht dann im Log."""
     try:
@@ -215,6 +217,8 @@ def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool) -> 
     except Exception as exc:
         return _unsent(db, inq, exc, wants_json)
     confirmed = _confirm(db, msg, inq)
+    if who is not None:
+        _count(db, who, msg.id, inq, country)
     report.info(f"INQUIRY stored id={inq.id} message={msg.id} channel={msg.channel} "
           f"photos={len(inq.photos)} confirmation={'ja' if confirmed else 'nein'}")
     return _done(inq, wants_json)
@@ -230,6 +234,16 @@ def _confirm(db: Session, msg, inq: Inquiry) -> bool:
     except Exception as exc:
         report.warn(f"INQUIRY confirmation not sent message={msg.id}: {type(exc).__name__}: {exc}")
         return False
+
+
+def _count(db: Session, who: site_stats.Who, message_id: int, inq: Inquiry, country: str | None) -> None:
+    """Für die Website-Statistik (``site_stats.convert``) – Kür wie die Bestätigung: scheitert
+    sie, steht die Anfrage trotzdem."""
+    try:
+        with db.begin_nested():
+            site_stats.convert(db, who, "inquiry", inq.source, country, message_id)
+    except Exception as exc:
+        report.warn(f"INQUIRY not counted message={message_id}: {type(exc).__name__}: {exc}")
 
 
 def _unsent(db: Session, inq: Inquiry, exc: Exception, wants_json: bool) -> Response:

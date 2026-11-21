@@ -41,6 +41,9 @@ EXEMPT = {
     "recording_chunks": ("technische Stücke einer Aufnahme, gelöscht nach der Abschrift "
                          "(spätestens nach einem Tag); was geschah, steht als ``recording.*`` "
                          "im Log (``recordings``)"),
+    "site_hits": ("die Website-Statistik – Aufrufe ohne IP und ohne Datensatz, viele je Tag "
+                  "(``site_stats``)"),
+    "site_salts": "der Schlüssel eines Tages der Website-Statistik – geheim, nach dem Tag gelöscht",
 }
 
 

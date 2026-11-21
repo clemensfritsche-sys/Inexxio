@@ -209,6 +209,9 @@ export type Mailbox = components['schemas']['MailboxOut'];
  *  aus den Zahlungsmodulen (`services/payments`). */
 export type PaymentRow = components['schemas']['PaymentRow'];
 
+// ─── Website-Statistik (Reiter «Website» am Betreiber) ───────────────────────
+export type SiteStats = components['schemas']['SiteStatsOut'];
+
 // ─── Öffentliche Seiten: Dokument, Rechtstexte ──────────────────────────────
 /** Der Vorgang eines Belegs auf der Seite seines Papiers – Weg, Handlungen der Partei. */
 export type Deal = components['schemas']['DealOut'];

@@ -3021,6 +3021,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page Seen
+         * @description Eine Seite der Website meldet sich (Ansicht, Lesezeit, Klick, Formular, Ladezeit) – ohne Cookie, die IP wird nicht gespeichert.
+         */
+        post: operations["page_seen_api_v1_public_page_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/site-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Site Stats
+         * @description Die Statistik der Website für einen Zeitraum (7, 30, 90 oder 365 Tage bis heute): Besuche, Quellen, Seiten, Länder, Formular, Ladezeit, Anfragen.
+         */
+        get: operations["read_site_stats_api_v1_erp_site_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -6718,6 +6758,166 @@ export interface components {
             object_id: number;
             /** Name */
             name: string;
+        };
+        /** SiteChannel */
+        SiteChannel: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /** SiteDay */
+        SiteDay: {
+            /** Day */
+            day: string;
+            /** Visits */
+            visits: number;
+            /** Inquiries */
+            inquiries: number;
+            /** Calls */
+            calls: number;
+        };
+        /** SiteFunnel */
+        SiteFunnel: {
+            /** Seen */
+            seen: number;
+            /** Started */
+            started: number;
+            /** Step2 */
+            step2: number;
+            /** Sent */
+            sent: number;
+        };
+        /** SiteInquiry */
+        SiteInquiry: {
+            /** At */
+            at: string;
+            /** Person Object Id */
+            person_object_id: number | null;
+            /** Person */
+            person: string | null;
+            /** Source */
+            source: string;
+            /** Channel */
+            channel: string;
+            /** Entry Path */
+            entry_path: string | null;
+            /** Path */
+            path: string;
+            /** Country */
+            country: string | null;
+        };
+        /** SiteLcp */
+        SiteLcp: {
+            /** Lcp */
+            lcp: number;
+            /** Samples */
+            samples: number;
+        };
+        /** SitePage */
+        SitePage: {
+            /** Path */
+            path: string;
+            /** Visits */
+            visits: number;
+            /** Entries */
+            entries: number;
+            /** Read Seconds */
+            read_seconds: number;
+            /** Calls */
+            calls: number;
+            /** Inquiries */
+            inquiries: number;
+            /** Sent */
+            sent: number;
+        };
+        /** SiteSlowPage */
+        SiteSlowPage: {
+            /** Path */
+            path: string;
+            /** Lcp */
+            lcp: number;
+            /** Samples */
+            samples: number;
+        };
+        /** SiteSource */
+        SiteSource: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Channel */
+            channel: string;
+            /** Visits */
+            visits: number;
+            /** Inquiries */
+            inquiries: number;
+            /** Calls */
+            calls: number;
+        };
+        /** SiteSpeed */
+        SiteSpeed: {
+            /** By Device */
+            by_device: {
+                [key: string]: components["schemas"]["SiteLcp"];
+            };
+            /** Cls */
+            cls: number | null;
+            /** Slowest */
+            slowest: components["schemas"]["SiteSlowPage"][];
+        };
+        /** SiteSplit */
+        SiteSplit: {
+            /** Key */
+            key: string;
+            /** Visits */
+            visits: number;
+            /** Inquiries */
+            inquiries: number;
+        };
+        /** SiteStatsOut */
+        SiteStatsOut: {
+            /** Days */
+            days: number;
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            totals: components["schemas"]["SiteTotals"];
+            previous: components["schemas"]["SiteTotals"];
+            /** Series */
+            series: components["schemas"]["SiteDay"][];
+            /** Sources */
+            sources: components["schemas"]["SiteSource"][];
+            /** Channels */
+            channels: components["schemas"]["SiteChannel"][];
+            /** Pages */
+            pages: components["schemas"]["SitePage"][];
+            /** Countries */
+            countries: components["schemas"]["SiteSplit"][];
+            /** Devices */
+            devices: components["schemas"]["SiteSplit"][];
+            /** Languages */
+            languages: components["schemas"]["SiteSplit"][];
+            funnel: components["schemas"]["SiteFunnel"];
+            speed: components["schemas"]["SiteSpeed"];
+            /** Inquiries */
+            inquiries: components["schemas"]["SiteInquiry"][];
+        };
+        /** SiteTotals */
+        SiteTotals: {
+            /** Visits */
+            visits: number;
+            /** Views */
+            views: number;
+            /** Inquiries */
+            inquiries: number;
+            /** Calls */
+            calls: number;
+            /** Mails */
+            mails: number;
+            /** Newsletter */
+            newsletter: number;
         };
         /** StampOut */
         StampOut: {
@@ -13379,6 +13579,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GrantOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    page_seen_api_v1_public_page_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    read_site_stats_api_v1_erp_site_stats_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteStatsOut"];
                 };
             };
             /** @description Validation Error */

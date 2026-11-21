@@ -392,7 +392,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 
 Cloud Scheduler ruft alle 5 Minuten, Tag und Nacht, `POST /api/v1/internal/tick` – was nicht
 von einem offenen Browser abhängen darf. **Die Aufgaben stehen an einer Stelle**
-(`services/tick.TASKS`): Siegel des Logs · Wiederholungen anlegen (`loop`) · Mails holen und senden · Aufnahmen
+(`services/tick.TASKS`): Siegel des Logs · Website-Statistik aufräumen (`site`: Schlüssel des Vortags weg) · Wiederholungen anlegen (`loop`) · Mails holen und senden · Aufnahmen
 (`voice`) · die KI (Gespräche nachholen, auf die sie nicht antwortete, Vorschläge aus Mails,
 «Auf einen Blick» vorbereiten, Bedeutungs-Zahlen für «im Wissen suchen»; alles unter 50 s, `ai.until`). Je Aufgabe eigene Sitzung
 (das System, `job`), Advisory-Lock (läuft sie anderswo: übersprungen), Zeitgrenze, ein
@@ -586,6 +586,30 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
   eine gesendete Offerte überholt (`voucher.fingerprint`). Die Wiederholung gibt dem Nachfolger
   dasselbe Wort und denselben Abstand zu seinem Termin (nie vor heute, `loop._next_date`);
   «Nachschub» und «Holen lassen» am Verbrauch schlagen das Datum als «bis» vor.
+
+## Website-Statistik (`services/site_stats` · `site_stats_view`, `domain/site_sources`)
+
+- **Was bringt Anfragen?** Eine eigene Statistik statt Google Analytics – ohne Cookies, ohne
+  Speicher im Browser, **ohne IP**, ohne Banner. Die statische Website meldet sich selbst
+  (`website/src/scripts/stats.ts` → `POST /api/v1/public/page`, `sendBeacon`): Ansicht (mit
+  Herkunft und `utm_*`), sichtbare Lesezeit, Klick auf Telefon/Mail/Route, die Schritte des
+  Anfrage-Formulars, Ladezeit (LCP, CLS). **Anfrage und Newsletter-Anmeldung zählt der Dienst**,
+  wo sie entstehen (`site_stats.convert` in `routers/contact` · `routers/newsletter`, als Kür in
+  einem Savepoint – scheitert sie, gilt die Anfrage trotzdem).
+- **Ein Besuch = ein Besucher an einem Tag**: `visitor` ist eine Prüfsumme aus dem zufälligen
+  Schlüssel des Tages (`site_salts`), IP und Browser; der Takt löscht den Schlüssel nach dem Tag
+  (`site_stats.prune`). **Eine Anfrage trägt keine Kennung**, nur Einstieg und Quelle ihres
+  Besuchs. Personal (`html[data-account="staff"]`), Roboter und `localhost` zählen nicht; nur
+  Seiten mit `html[data-site]` (Kopf und Fuss reisen ins ERP, die Statistik nicht).
+- **Eine Tabelle** `site_hits` (nicht im Log, `domain/log.EXEMPT`), Aufrufe 800 Tage; die
+  Auswertung ist eine Ableitung. **Die Quelle wird beim Lesen benannt** (`site_sources.source_of`:
+  Suchmaschinen, KI-Assistenten, soziale Medien, Mail, Kampagne) – **was keine Regel kennt, heisst
+  wie sein Rechnername** (Verweis); eine Anfrage ohne gezählten Besuch ist «Ohne gezählten Besuch».
+- **Gezeigt** im Reiter «Website» am Betreiber (`components/erp/site-stats.tsx`, jedes Personal,
+  `GET /erp/site-stats?days=7|30|90|365`): Anfragen · Anrufe · Besuche · Quote · Newsletter mit
+  Vorzeitraum, Verlauf, Quellen, Europakarte (`lib/europe-map.ts`, Natural Earth, generiert),
+  Seiten nach Anfragen, Formular, Gerät und Sprache, Ladezeit, die Anfragen mit Quelle.
+- Offen: Suchbegriffe aus der Google Search Console (Etappe 3).
 
 ## Leitbild (VERBINDLICH)
 
@@ -846,8 +870,8 @@ Dokumente (`document.read`, `document.viewed`, `voucher.viewed`) ebenso. Das Log
 unveränderlich und je Tag versiegelt; Schwärzen (Datenschutz) nur über `log.redact`. Hochgeladene Dateien, die nicht Bild oder PDF sind, kommen mit
 `Content-Security-Policy: sandbox`.
 **Vorgemerkt, nicht gebaut:** TOTP-MFA für Admins, Session-Timeout, Brute-Force-Sperre.
-CH DSG + DSGVO: **keine Statistik, keine Cookies, kein Einwilligungs-Dialog** (Plausible
-entfernt). Buchungsbelege unveränderlich (10 Jahre).
+CH DSG + DSGVO: **keine Cookies, kein Einwilligungs-Dialog**; die **eigene Statistik der Website**
+speichert keine IP und legt nichts auf dem Gerät ab (siehe «Website-Statistik»). Buchungsbelege unveränderlich (10 Jahre).
 
 ## Pflichtregeln für Claude – vor jeder Änderung
 1. **Zuerst mit Remote synchronisieren** – vor der ersten Code-Änderung einer Sitzung:
@@ -957,6 +981,8 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
   suchen nach Bedeutung; Deckel in Franken (siehe «Der Assistent»); Rückmeldungen zur Software
   als Notiz an den Artikeln «ERP» und «Website»; **Claude über MCP** (lesen, vorbereiten) für
   jeden Claude-Client der Person.
+- **Website-Statistik** (eigene, ohne Cookies und ohne IP) im Reiter «Website» am Betreiber:
+  was Anfragen bringt, Quellen inkl. KI-Assistenten, Karte, Seiten, Formular, Ladezeit.
 - **Speichern an einer Stelle**: jede Anfrage speichert einmal, am Ende (`core/database.get_db`,
   ganz oder gar nicht); was nach aussen geht (Mails, Dateien, Zahlung, KI), geschieht erst danach
   bzw. nie in einem Probelauf (`core/outside`).
@@ -964,7 +990,7 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
 **Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): Shop, Module
 Beschaffen/Verkauf/Ausliefern, «Zahlung (alt)», das alte Dokumentmodul (neu gebaut, siehe
 oben), KI-Assistent, Versand-Anbindung, Ereignis-Strom, Feature-Schalter, Kontotyp,
-Statistik. Nie gebaut: Typesense-Suche, Buchhaltung, HR.
+Plausible (ersetzt durch die eigene Statistik). Nie gebaut: Typesense-Suche, Buchhaltung, HR.
 
 **Offen**
 - Prozess-Module nach Bedarf; ein Wiederaufbau beginnt bei der Modellfrage in

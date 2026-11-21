@@ -128,6 +128,7 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `place-trail.tsx`, `obj-id.tsx` | Ortskette eines Stücks · Objektnummer als Kennung (`.erp-objid`) |
 | `time/` | **Zeiterfassung**: `time-card` (die Karte im Personendatensatz), `time-swipe` (Kommen ↔ Gehen), `time-calendar` (Monat, abgeschlossene Tage blass), `time-day` (Tag + «Erfassen», Vorschau vom Server), `time-contracts` (Verträge, Buchungen), `company-time` (Feiertage, Absenzarten, Regeln an der Gesellschaft), `time-ui` (Formate in Minuten, Symbole – getippt gegen `TimeIconName`) |
 | `territory-map.tsx`, `world-map.tsx` | Gebietskarte |
+| `site-stats.tsx` | **Website-Statistik** – Reiter «Website» am Betreiber (lädt erst beim Öffnen): Kennzahlen mit Vorzeitraum, Verlauf, Quellen, Europakarte (`lib/europe-map.ts`, generiert), Seiten, Formular, Gerät, Ladezeit, Anfragen; `qk.siteStats` |
 | `detail-tabs.tsx`, `error-boundary.tsx` | Hilfen |
 
 ## Design System (VERBINDLICH)
@@ -441,8 +442,8 @@ Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.tes
 - **Eine Abhängigkeit ohne Import ist Altlast** – auf Unterpfade und dynamische Importe
   achten (`await import('@zxing/browser')` ist echte Nutzung).
 - Rechtliches: AGB, Datenschutz und Impressum hier (`/agb`, `/datenschutz`, `/impressum`, eine
-  Komponente `components/beleg/legal-page.tsx`, Text vom Server `api.publicLegal`). Keine
-  Statistik, kein Cookie-Dialog.
+  Komponente `components/beleg/legal-page.tsx`, Text vom Server `api.publicLegal`). Kein
+  Cookie-Dialog; die Statistik der Website ist eigen (ohne Cookies, Reiter «Website», `site-stats.tsx`).
 
 ## Aufnehmen (Phase 4, `docs/konzept/phase4-bauplan.md`)
 - **Logik ohne Browser** in `lib/recorder.ts`: Stück alle 30 s (`MediaRecorder.start(30000)`),

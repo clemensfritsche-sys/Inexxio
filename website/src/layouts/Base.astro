@@ -161,6 +161,7 @@ const csp = [
       import { initContact } from '../scripts/contact';
       import { initMedia } from '../scripts/media';
       import { initPlay } from '../scripts/play';
+      import { initStats } from '../scripts/stats';
       initHeader();
       initAccount();
       initMobileBar();
@@ -169,6 +170,7 @@ const csp = [
       initContact();
       initMedia();
       initPlay();
+      initStats();
       // Dasselbe Skript trägt Kopf und Fuss im Konto/ERP (WEBSITE_PLAN Entscheid 60): dort
       // setzt React sie nach einem Seitenwechsel neu ein bzw. ändert den Anmeldezustand.
       Object.assign(window, {

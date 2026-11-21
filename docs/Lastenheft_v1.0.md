@@ -3,8 +3,8 @@
 > ## Kopfstatus (Oktober 2026): **Zielbild, nicht Ist-Stand**
 > Das Lastenheft beschreibt, was das System **werden** soll. Wo der Code heute bewusst
 > abweicht, gilt der Code bzw. `CLAUDE.md`. Benannte Abweichungen: **TOTP-MFA für Admins**
-> ist nicht gebaut (vorgemerkt); **keine Statistik** (Plausible entfernt, kein
-> Einwilligungs-Dialog); **kein hCaptcha** (das Formular schützt sich mit Honigtopf,
+> ist nicht gebaut (vorgemerkt); **eigene Statistik statt Plausible** (ohne Cookies und
+> ohne IP, kein Einwilligungs-Dialog, `services/site_stats`); **kein hCaptcha** (das Formular schützt sich mit Honigtopf,
 > Mindestzeit und Rate-Limit); **kein PWA/SSE**; **Typesense** nicht verdrahtet;
 > **Autosave** debounced 3 s (`frontend/src/lib/use-autosave.ts`). **Verdrahtet** sind
 > Cloud Storage (je Umgebung ein Bucket, `services/attachments`) und die KI (EINE Tür

@@ -7713,6 +7713,70 @@
         }
       }
     },
+    "/api/v1/public/page": {
+      "post": {
+        "tags": [
+          "site-stats"
+        ],
+        "summary": "Page Seen",
+        "description": "Eine Seite der Website meldet sich (Ansicht, Lesezeit, Klick, Formular, Ladezeit) – ohne Cookie, die IP wird nicht gespeichert.",
+        "operationId": "page_seen_api_v1_public_page_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/erp/site-stats": {
+      "get": {
+        "tags": [
+          "site-stats"
+        ],
+        "summary": "Read Site Stats",
+        "description": "Die Statistik der Website für einen Zeitraum (7, 30, 90 oder 365 Tage bis heute): Besuche, Quellen, Seiten, Länder, Formular, Ladezeit, Anfragen.",
+        "operationId": "read_site_stats_api_v1_erp_site_stats_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteStatsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -15757,6 +15821,478 @@
           "name"
         ],
         "title": "SignerOut"
+      },
+      "SiteChannel": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "SiteChannel"
+      },
+      "SiteDay": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "title": "Day"
+          },
+          "visits": {
+            "type": "integer",
+            "title": "Visits"
+          },
+          "inquiries": {
+            "type": "integer",
+            "title": "Inquiries"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "visits",
+          "inquiries",
+          "calls"
+        ],
+        "title": "SiteDay"
+      },
+      "SiteFunnel": {
+        "properties": {
+          "seen": {
+            "type": "integer",
+            "title": "Seen"
+          },
+          "started": {
+            "type": "integer",
+            "title": "Started"
+          },
+          "step2": {
+            "type": "integer",
+            "title": "Step2"
+          },
+          "sent": {
+            "type": "integer",
+            "title": "Sent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seen",
+          "started",
+          "step2",
+          "sent"
+        ],
+        "title": "SiteFunnel"
+      },
+      "SiteInquiry": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "person_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person Object Id"
+          },
+          "person": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "entry_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Path"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "person_object_id",
+          "person",
+          "source",
+          "channel",
+          "entry_path",
+          "path",
+          "country"
+        ],
+        "title": "SiteInquiry"
+      },
+      "SiteLcp": {
+        "properties": {
+          "lcp": {
+            "type": "integer",
+            "title": "Lcp"
+          },
+          "samples": {
+            "type": "integer",
+            "title": "Samples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lcp",
+          "samples"
+        ],
+        "title": "SiteLcp"
+      },
+      "SitePage": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "visits": {
+            "type": "integer",
+            "title": "Visits"
+          },
+          "entries": {
+            "type": "integer",
+            "title": "Entries"
+          },
+          "read_seconds": {
+            "type": "integer",
+            "title": "Read Seconds"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls"
+          },
+          "inquiries": {
+            "type": "integer",
+            "title": "Inquiries"
+          },
+          "sent": {
+            "type": "integer",
+            "title": "Sent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "visits",
+          "entries",
+          "read_seconds",
+          "calls",
+          "inquiries",
+          "sent"
+        ],
+        "title": "SitePage"
+      },
+      "SiteSlowPage": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "lcp": {
+            "type": "integer",
+            "title": "Lcp"
+          },
+          "samples": {
+            "type": "integer",
+            "title": "Samples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "lcp",
+          "samples"
+        ],
+        "title": "SiteSlowPage"
+      },
+      "SiteSource": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "visits": {
+            "type": "integer",
+            "title": "Visits"
+          },
+          "inquiries": {
+            "type": "integer",
+            "title": "Inquiries"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "channel",
+          "visits",
+          "inquiries",
+          "calls"
+        ],
+        "title": "SiteSource"
+      },
+      "SiteSpeed": {
+        "properties": {
+          "by_device": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SiteLcp"
+            },
+            "type": "object",
+            "title": "By Device"
+          },
+          "cls": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cls"
+          },
+          "slowest": {
+            "items": {
+              "$ref": "#/components/schemas/SiteSlowPage"
+            },
+            "type": "array",
+            "title": "Slowest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "by_device",
+          "cls",
+          "slowest"
+        ],
+        "title": "SiteSpeed"
+      },
+      "SiteSplit": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "visits": {
+            "type": "integer",
+            "title": "Visits"
+          },
+          "inquiries": {
+            "type": "integer",
+            "title": "Inquiries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "visits",
+          "inquiries"
+        ],
+        "title": "SiteSplit"
+      },
+      "SiteStatsOut": {
+        "properties": {
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/SiteTotals"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/SiteTotals"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/SiteDay"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SiteSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/SiteChannel"
+            },
+            "type": "array",
+            "title": "Channels"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/SitePage"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/SiteSplit"
+            },
+            "type": "array",
+            "title": "Countries"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/SiteSplit"
+            },
+            "type": "array",
+            "title": "Devices"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/SiteSplit"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "funnel": {
+            "$ref": "#/components/schemas/SiteFunnel"
+          },
+          "speed": {
+            "$ref": "#/components/schemas/SiteSpeed"
+          },
+          "inquiries": {
+            "items": {
+              "$ref": "#/components/schemas/SiteInquiry"
+            },
+            "type": "array",
+            "title": "Inquiries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "days",
+          "start",
+          "end",
+          "totals",
+          "previous",
+          "series",
+          "sources",
+          "channels",
+          "pages",
+          "countries",
+          "devices",
+          "languages",
+          "funnel",
+          "speed",
+          "inquiries"
+        ],
+        "title": "SiteStatsOut"
+      },
+      "SiteTotals": {
+        "properties": {
+          "visits": {
+            "type": "integer",
+            "title": "Visits"
+          },
+          "views": {
+            "type": "integer",
+            "title": "Views"
+          },
+          "inquiries": {
+            "type": "integer",
+            "title": "Inquiries"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls"
+          },
+          "mails": {
+            "type": "integer",
+            "title": "Mails"
+          },
+          "newsletter": {
+            "type": "integer",
+            "title": "Newsletter"
+          }
+        },
+        "type": "object",
+        "required": [
+          "visits",
+          "views",
+          "inquiries",
+          "calls",
+          "mails",
+          "newsletter"
+        ],
+        "title": "SiteTotals"
       },
       "StampOut": {
         "properties": {

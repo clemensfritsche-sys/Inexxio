@@ -25,7 +25,7 @@ type FeedList = (typeof FEED_LISTS)[number];
 /** Die Bereiche der Detailansichten – je einer ist das erste Glied ihrer Schlüssel. */
 export const DETAILS = ['order', 'instance', 'article', 'articleProcess', 'stock', 'units',
   'unitOptions', 'document', 'documentsOf', 'payments', 'history', 'senders', 'mailboxes',
-  'newsletter', 'access', 'company', 'pins', 'talks', 'recordings', 'time', 'catalog'] as const;
+  'newsletter', 'access', 'company', 'pins', 'talks', 'recordings', 'time', 'catalog', 'siteStats'] as const;
 export type Detail = (typeof DETAILS)[number];
 type Area = FeedList | Detail;
 const AREAS: readonly Area[] = [...FEED_LISTS, ...DETAILS];

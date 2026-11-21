@@ -152,8 +152,16 @@ def _tasks(db, deadline: float) -> dict[str, int]:
     return {}
 
 
+def _site(db, deadline: float) -> dict[str, int]:
+    """**Website-Statistik aufräumen** (``site_stats.prune``): der Schlüssel vergangener Tage
+    geht weg – damit lässt sich keine Kennung mehr einer Adresse zuordnen –, alte Aufrufe auch."""
+    from . import site_stats
+    return site_stats.prune(db)
+
+
 #: ►► **Die Aufgaben des Takts, in dieser Reihenfolge.** Das Siegel zuerst: es dauert
-#:    Millisekunden und darf nie hinter einem langsamen Postfach warten. Dann die
+#:    Millisekunden und darf nie hinter einem langsamen Postfach warten; ebenso das Aufräumen der
+#:    Website-Statistik (``site``: der Schlüssel des Vortags muss weg). Dann die
 #:    Wiederholungen (``loop``): reine Datenbank-Arbeit, ein Nachfolger ist fällig ab
 #:    Tagesbeginn und soll nicht hinter Gmail oder der KI warten. Dann die Aufnahmen
 #:    (``voice``): eine eigene Aufgabe mit eigener Sperre – das Aufräumen läuft auch, wenn die KI
@@ -162,6 +170,7 @@ def _tasks(db, deadline: float) -> dict[str, int]:
 #:    die Mails, die der Abgleich eben holte, und legt ab, was ``voice`` eben erfasste.
 TASKS: tuple[Task, ...] = (
     Task("seal", _seal),
+    Task("site", _site),
     Task("loop", _loop),
     Task("mail", _mail),
     Task("tasks", _tasks),

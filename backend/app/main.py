@@ -24,7 +24,7 @@ from .routers import (
     access, admin, articles, assistant, attachments, auth, communication, contact, documents, erp, legal,
     health, history, internal, website,
     instances, mcp, newsletter, orders, passkey, payments, payments_list, places,
-    public_documents, recordings, tasks, timekeeping,
+    public_documents, recordings, site_stats, tasks, timekeeping,
 )
 from .core import report
 
@@ -316,6 +316,7 @@ app.include_router(assistant.router)
 app.include_router(recordings.router)
 app.include_router(internal.router)
 app.include_router(mcp.router)
+app.include_router(site_stats.router)
 
 
 @app.get("/")

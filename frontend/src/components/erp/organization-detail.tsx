@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare, HandCoins } from 'lucide-react';
+import { Building2, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare, HandCoins, BarChart3 } from 'lucide-react';
 import { Communication } from '@/components/erp/communication';
 import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
@@ -26,6 +26,12 @@ import { TerritoryMap } from '@/components/erp/territory-map';
 import { ObjId } from '@/components/erp/obj-id';
 import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
 import { useAction } from '@/lib/use-action';
+import dynamic from 'next/dynamic';
+import { DetailSkeleton } from '@/components/erp/skeleton';
+
+// Die Statistik lädt erst, wenn der Reiter offen ist (Karte und Diagramme).
+const SiteStats = dynamic(() => import('@/components/erp/site-stats').then((m) => m.SiteStats),
+  { loading: () => <DetailSkeleton /> });
 
 // Das Land als Klarname (`toIso2` in address-field.tsx); breiter als bei einer Personenadresse.
 const COMPANY_COUNTRIES: [string, string][] = [
@@ -92,7 +98,7 @@ function splitStreet(line: string): [string, string] {
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
 
-type OrgTab = 'stamm' | 'pay' | 'docs' | 'comm';
+type OrgTab = 'stamm' | 'pay' | 'site' | 'docs' | 'comm';
 
 /** Das Formular – nur die Felder, die es noch gibt (alles String, wie im Konto). */
 interface OrgForm {
@@ -278,6 +284,8 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
         tabs={<DetailTabs<OrgTab> active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
           ...(own ? [{ key: 'pay' as const, label: 'Zahlungen', icon: HandCoins }] : []),
+          // Die Statistik der Website steht am Betreiber – er betreibt sie.
+          ...(isOperator ? [{ key: 'site' as const, label: 'Website', icon: BarChart3 }] : []),
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
           { key: 'comm', label: 'Verlauf', icon: MessagesSquare },
         ]} />}
@@ -289,6 +297,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
         {tab === 'comm' && record.object_id != null && (
           <DetailBody><Communication company={record.object_id} ownCompany={own} /></DetailBody>
         )}
+        {tab === 'site' && isOperator && <SiteStats />}
         {tab === 'pay' && own && record.object_id != null && (
           <CompanyPayments company={record.object_id} name={organizationName(base)} />
         )}

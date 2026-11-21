@@ -27,6 +27,7 @@ from .timekeeping import Holiday, TimeContract, TimeEntry
 from .ai_memory import AiMemory
 from .recording_chunk import RecordingChunk
 from .task_focus import TaskFocus
+from .site_hit import SiteHit, SiteSalt
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Address", "Article",
@@ -38,4 +39,5 @@ __all__ = [
     "Log", "LogSeal", "ObjectRef",
     "Message", "MessageParty", "Mailbox", "NewsletterConsent",
     "TimeContract", "TimeEntry", "Holiday", "AiMemory", "RecordingChunk", "TaskFocus",
+    "SiteHit", "SiteSalt",
 ]

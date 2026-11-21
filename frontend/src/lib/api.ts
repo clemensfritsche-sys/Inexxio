@@ -771,6 +771,12 @@ class ApiClient {
     return this.call('get', '/api/v1/erp/payments', { query: scope }, req);
   }
 
+  // ─── Website-Statistik ─────────────────────────────────────────────────────
+  /** **Die Statistik der Website** für 7, 30, 90 oder 365 Tage bis heute (`services/site_stats`). */
+  siteStats(days: number, req?: Req) {
+    return this.call('get', '/api/v1/erp/site-stats', { query: { days } }, req);
+  }
+
   // ─── Zeiterfassung ─────────────────────────────────────────────────────────
   // Jede Schreib-Route antwortet mit der neuen Ansicht des gezeigten Monats (`month`,
   // «2026-10»; leer = der aktuelle).
