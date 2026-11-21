@@ -141,3 +141,28 @@ export const specialBackground = t('spezialloesungen', {
     'Konstruktion, Stahlbau und Montage aus einer Hand',
   ],
 });
+
+/**
+ * «Aus der Praxis» (components/spezial/PracticeCase): der Heukran mit zwei Greifern im Schafstall –
+ * alles aus den Fotos (heukran-bruecke, heukran-katze, heukran-greifer), nichts dazuerfunden.
+ */
+export const specialCase = t('spezialloesungen', {
+  kicker: 'Aus der Praxis · Heukran nach Mass',
+  title: 'Zwei Greifer. Ein Kran.',
+  title2: 'Beide Futtergänge in einer Fahrt.',
+  caption: 'Schafstall mit Mittelgang – die Kranbrücke reicht über die ganze Breite, je ein Greifer pro Seite.',
+  big: 'Der Stall gibt die Form vor.',
+  big2: 'Der Kran folgt ihm.',
+  text: 'Futterraufen links und rechts des Mittelgangs – mit einem einzigen Greifer hiesse das jeden Tag: holen, links abladen, zurück, holen, rechts abladen. Wir haben eine Kranbrücke über die ganze Stallbreite gebaut, mit zwei Katzen und zwei Greifern. Die Fahrbahnen sitzen an den Leimbindern des Dachs. Bedient wird vom Boden aus, per Funk.',
+  compare: 'Weniger Wege. Bei jeder Fütterung.',
+  store: 'Heustock',
+  one: { title: 'Ein Greifer', text: 'Holen, links abladen, zurück, holen, rechts abladen.', alt: 'Von oben: ein Greifer fährt erst zur linken, dann zur rechten Raufe' },
+  two: { title: 'Zwei Greifer', text: 'Holen, beide Seiten zugleich abladen. Fertig.', alt: 'Von oben: zwei Greifer beschicken beide Raufen gleichzeitig' },
+  details: [
+    { photo: 'heukran-katze', title: 'Zwei Katzen, eine Brücke.', text: 'Jede fährt für sich – mit eigenem Greifer.' },
+    { photo: 'heukran-greifer', title: 'Ein Greifer je Futtergang.', text: 'Beide Seiten werden in einer Fahrt beschickt.' },
+  ],
+  end: 'Jedes Gebäude ist anders. Darum bauen wir jeden Kran nach Mass.',
+  cta: 'Aufgabe schildern',
+  more: 'Heukrananlagen',
+});

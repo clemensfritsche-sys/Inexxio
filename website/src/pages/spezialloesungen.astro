@@ -23,7 +23,7 @@ import { plain } from '../lib/text.mjs';
 import { pageTitle } from '../lib/titles';
 import {
   spezialloesungen as page, specialPrinciple as pr, specialFields as fields,
-  specialSteps as s, specialBackground as b,
+  specialSteps as s, specialBackground as b, specialCase as pcase,
 } from '../content/spezialloesungen';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
@@ -38,6 +38,7 @@ const looks: { visual?: FaqVisual; illo?: string }[] = [
 const faq = page.faq.map((f, i) => ({ ...f, ...looks[i] }));
 const cta = { label: page.hero.primary.label, href: '#anfrage' };
 const titel = pageTitle('/spezialloesungen');
+import PracticeCase from '../components/spezial/PracticeCase.astro';
 import { t } from '../i18n/t.mjs';
 ---
 <Base title={page.title} description={page.description} crumbs={[{ name: page.crumb, path: page.path }]} og="spezialloesungen" jsonLd={nodes}>
@@ -52,6 +53,8 @@ import { t } from '../i18n/t.mjs';
   />
 
   <FieldCards title={fields.title} lead={fields.lead} items={fields.items} />
+
+  <PracticeCase photo="heukran-bruecke" {...pcase} cta={cta} more={{ label: pcase.more, href: '/krantechnik/heukrananlagen' }} />
 
   <SeriesGap title={pr.title} lead={pr.lead} alt={pr.alt} gains={pr.gains} />
 

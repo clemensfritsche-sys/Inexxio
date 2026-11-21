@@ -57,6 +57,19 @@ export const photos = t('photos', {
     brief: 'Heu-Brückenkran über die ganze Breite eines Stalls, zwei Greifer mit Heu, quer',
     ratio: '16/9',
   },
+  // Speziallösungen, «Aus der Praxis»: Details des Heukrans mit zwei Greifern im Schafstall (heukran-bruecke).
+  'heukran-katze': {
+    file: 'heukran-katze.jpg',
+    alt: 'Grüne Kranbrücke mit Antrieb und roter Katze an der grauen Fahrbahn unter dem Holzdach, darunter der rote Greifer',
+    brief: 'Detail: Kranbrücke, Antrieb und Katze an der Fahrbahn, quer',
+    ratio: '4/3',
+  },
+  'heukran-greifer': {
+    file: 'heukran-greifer.jpg',
+    alt: 'Roter Greifer mit schwarzen Zinken, voll mit Heu, unter der grünen Kranbrücke',
+    brief: 'Detail: Greifer voller Heu, quer',
+    ratio: '4/3',
+  },
   'heukran-drehkran': {
     file: 'heukran-drehkran.webp',
     alt: 'Hydraulischer Drehkran: grüne Katze mit rotem Ausleger und Greifer unter der Decke einer Halle',
