@@ -165,6 +165,12 @@ export const photos = t('photos', {
     brief: 'Clemens Fritsche, freigestellt, Kopf bis Hüfte (Ausschnitt aus portraet-clemens-stehend)',
     ratio: '4/5',
   },
+  'portraet-clemens-draussen': {
+    file: 'portraet-clemens-draussen.jpg',
+    alt: 'Clemens Fritsche',
+    brief: 'Clemens Fritsche stehend, draussen im Abendlicht, mit Hintergrund, hoch',
+    ratio: '4/5',
+  },
   'portraet-clemens-stehend': {
     file: 'portraet-clemens-stehend.png',
     alt: 'Clemens Fritsche',
@@ -179,9 +185,9 @@ export const photos = t('photos', {
   // Garantien, Karte «Die erste Inspektion ist gratis» (generiert, ohne echte Person oder echten Betrieb).
   'erste-inspektion': {
     file: 'erste-inspektion.jpg',
-    alt: 'Techniker auf einer Arbeitsbühne prüft Haken und Unterflasche eines roten Brückenkrans, in der Hand ein Tablet',
-    brief: 'Kran-Techniker auf einer Arbeitsbühne prüft Haken und Hubwerk eines roten Brückenkrans in einer hellen Produktionshalle, Tablet in der Hand, quer',
-    ratio: '16/9',
+    alt: 'Monteur im Dachstock hinter der Kranbahn, davor der Elektrokettenzug mit Kette, Kettenspeicher und Haken',
+    brief: 'Echter Einsatz: Monteur am Kettenzug einer Kranbahn im Dachstock (Anlage von HS Steiner, nur Licht und Farbe aufbereitet)',
+    ratio: '1/1',
   },
   'arbeit-werkstatt': {
     file: 'arbeit-werkstatt.webp',
