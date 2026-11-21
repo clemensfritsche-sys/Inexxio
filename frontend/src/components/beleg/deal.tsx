@@ -51,7 +51,7 @@ export function DealActions({ actions, busy, asking, canPay, paying, onAct, onAs
       {agree && (
         <button type="button" className={`${css.btn} ${css.agree}`} disabled={busy !== null}
           onClick={() => onAct('agree')}>
-          {busy === 'agree' ? spin : <Check size={18} strokeWidth={2.25} />}Offerte annehmen
+          {busy === 'agree' ? spin : <Check size={18} strokeWidth={2.25} />}Offerte zahlungspflichtig annehmen
         </button>
       )}
       {reject && (

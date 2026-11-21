@@ -48,7 +48,7 @@ export const start = t('start', {
   },
 
   summary:
-    '{{brand.name}} arbeitet in drei Bereichen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles: Die Zufriedenheitsgarantie – nicht zufrieden, übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis. Der Standort ist in {{address.home}}.',
+    '{{brand.name}} arbeitet in drei Bereichen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles, was wir bauen, warten und reparieren: Die Zufriedenheitsgarantie – nicht zufrieden, übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis. Der Standort ist in {{address.home}}.',
 
   why: {
     h2: 'Entwicklung, Produktion und Service aus einer Hand.',

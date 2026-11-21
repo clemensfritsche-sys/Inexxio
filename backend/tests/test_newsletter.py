@@ -209,13 +209,13 @@ def test_a_newsletter_carries_the_unsubscribe_link_in_footer_and_header(world):
 
 # ------------------------------------------------------------------ Kontaktformular
 
-def test_the_inquiry_confirmation_asks_or_invites_but_never_twice(world):
-    """Mit Häkchen bittet die Eingangsbestätigung um den Klick, ohne lädt sie leise ein;
-    wer angemeldet ist oder sich abgemeldet hat, bekommt keinen Knopf."""
+def test_the_inquiry_confirmation_asks_only_with_the_tick(world):
+    """Mit Häkchen bittet die Eingangsbestätigung um den Klick; ohne Häkchen lädt sie nicht
+    ein (keine Werbung ohne Einwilligung); wer angemeldet ist, bekommt keinen Knopf."""
     db = world.db
     p = _person(db)
-    asked, offered = nl.offer(db, p.object_id, True), nl.offer(db, p.object_id, False)
-    assert asked.text == nl.WORDS["inviteAsked"] and offered.text == nl.WORDS["inviteOffer"]
+    asked = nl.offer(db, p.object_id, True)
+    assert asked.text == nl.WORDS["inviteAsked"] and nl.offer(db, p.object_id, False) is None
     assert nl.read(asked.url.split("t=")[1].replace("%3D", "="), "confirm").source == "inquiry"
     nl.set_state(db, p.object_id, True, "account")
     assert nl.offer(db, p.object_id, True) is None

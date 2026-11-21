@@ -25,12 +25,9 @@ export const newsletter = t('newsletter', {
   confirmIgnore: 'Waren Sie das nicht? Dann ignorieren Sie diese Mail einfach – ohne Bestätigung schicken wir nichts.',
   confirmButton: 'Ja, ich bin dabei',
   kicker: 'Newsletter',
-  /** In der Eingangsbestätigung einer Anfrage: Häkchen gesetzt → bestätigen, sonst einladen. */
+  /** In der Eingangsbestätigung einer Anfrage, nur mit Häkchen: bitte bestätigen. */
   inviteTitle: 'Post von INEXXIO',
   inviteAsked: 'Sie möchten unseren Newsletter – bitte bestätigen Sie es noch mit einem Klick.',
-  inviteOffer:
-    'Ab und zu erzählen wir, was bei uns entsteht. Wenn Sie mögen, genügt ein Klick – abmelden geht genauso schnell.',
-  inviteButton: 'Ja, gerne',
   /** Im Fuss jedes Newsletters. */
   footer: 'Sie erhalten «Post von INEXXIO», weil Sie sich dafür angemeldet haben.',
   unsubscribe: 'Abmelden',

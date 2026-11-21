@@ -97,6 +97,24 @@ worauf sie sich bezieht, fühlt sich aber schief an. Es ist derselbe offene Punk
 **«ein Beleg ganz ohne Ware»** (Miete, Lohn, Gebühr): `assert_releasable` verlangt
 mindestens eine Einzelinstanz. Fällt die Regel eines Tages, fällt sie für beide.
 
+## Recht: offen nach der Prüfung vom November 2026
+
+Umgesetzt am 21.11.2026: neue Fassungen von AGB, Datenschutz und Impressum (Vorlagen
+`backend/app/assets/legal/*/2026-11-21.md`; AGB und Datenschutz übernimmt der Admin an jeder eigenen
+Gesellschaft mit «Aus Vorlage übernehmen»), Schriften selbst ausgeliefert, Firebase erst bei
+Anmeldung, Garantie mit Bedingungen (AGB Ziff. 11, nicht für reine Teilelieferungen), Satz am
+Formular, keine Newsletter-Einladung ohne Häkchen, Knopf «Offerte zahlungspflichtig annehmen».
+Offen:
+- **Löschfrist Anfragen ohne Auftrag (2 Jahre)**: die Datenschutzerklärung verspricht eine jährliche
+  Durchsicht – heute von Hand (schwärzen über `log.redact`); eine Liste «seit 2 Jahren ohne Kontakt,
+  ohne Auftrag» im ERP fehlt.
+- **EU-Vertreter (DSGVO Art. 27)**: Entscheid des Inhabers offen (Dienstleister mit Mandat, keine
+  Gesellschaft). Kommt er, gehört er in Ziff. 1 der Datenschutzerklärung.
+- **Widerrufsfunktion (Richtlinie 2023/2673, ab 19.6.2026)**: für Endkunden aus der EU, die über
+  `/dokument` annehmen, ein Knopf «Vertrag widerrufen». Heute nur Widerruf per Brief oder E-Mail
+  (AGB Ziff. 12 mit Muster-Formular).
+- **Rechtstexte in FR · EN · IT**: siehe «Website in weiteren Sprachen»; massgebend bleibt Deutsch.
+
 ## Website in weiteren Sprachen: was noch deutsch ist
 
 Die Website baut jede Sprache vollständig, und der Server antwortet in der Sprache der Seite

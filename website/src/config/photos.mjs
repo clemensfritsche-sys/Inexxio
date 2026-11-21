@@ -126,7 +126,7 @@ export const photos = t('photos', {
   },
   'teil-auslaufrinne': {
     file: 'teil-auslaufrinne.jpg',
-    alt: 'Stählerne Auslaufrinne für Fahrmischer auf einer Werkbank aus Stahl',
+    alt: 'Verzinkte Auslaufrinne für Fahrmischer mit schwarzem Befestigungsflansch auf dem Hallenboden der Werkstatt',
     brief: 'Produktfoto Auslaufrinne, freigestellt auf hellem Grund oder auf der Werkbank, quer',
     ratio: '4/3',
   },

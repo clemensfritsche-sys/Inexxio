@@ -382,7 +382,8 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Links signiert an einer Stelle (`core/signed`, Schlüssel `LINK_SECRET`, der frühere aus
   `database_url` prüft mit); Bestätigungs- und Abmeldeseite mit Knopf (gegen Link-Scanner),
   One-Click nach RFC 8058. Anmeldestellen:
-  Häkchen im Anfrage-Formular (nie vorausgewählt), Einladung in der Eingangsbestätigung,
+  Häkchen im Anfrage-Formular (nie vorausgewählt; nur dann bittet die Eingangsbestätigung um
+  den Klick – ohne Häkchen keine Einladung, Rechtsprüfung November 2026),
   Seite `/newsletter` (Link im Fuss), Konto. Wörter: `website/src/config/newsletter.mjs`.
 - **Kontaktformular der Website** → offene Nachricht im ERP (`services/inquiry`), siehe
   «Website».

@@ -167,17 +167,17 @@ def footer(oid: int) -> mail_layout.Unsubscribe:
 # ---------------------------------------------------------------------------
 
 def offer(db: Session, oid: int, asked: bool, lang: str = "de") -> Optional[mail_layout.Action]:
-    """►►► **Der Knopf in der Eingangsbestätigung einer Anfrage.** ◄◄◄ Hat die Person das
-    Häkchen gesetzt, ist er die Bestätigung; sonst eine leise Einladung – aber nie an
-    jemanden, der schon angemeldet ist oder sich abgemeldet hat."""
+    """►►► **Der Knopf in der Eingangsbestätigung einer Anfrage.** ◄◄◄ Nur wer das Häkchen
+    gesetzt hat, bekommt ihn – als Bitte um Bestätigung. Ohne Häkchen keine Einladung:
+    Werbung in einer automatischen Antwort ohne Einwilligung ist in der EU unzulässig
+    (BGH VI ZR 134/15, Rechtsprüfung November 2026). Nie an Angemeldete."""
     now = latest(db, [oid]).get(oid)
-    if now is not None and (now.subscribed or not asked):
+    if not asked or (now is not None and now.subscribed):
         return None
     w = said(lang)
-    return mail_layout.Action(
-        title=w["inviteTitle"], text=w["inviteAsked" if asked else "inviteOffer"],
-        label=w["confirmButton" if asked else "inviteButton"],
-        url=confirm_url("inquiry", person=oid, lang=lang))
+    return mail_layout.Action(title=w["inviteTitle"], text=w["inviteAsked"],
+                              label=w["confirmButton"],
+                              url=confirm_url("inquiry", person=oid, lang=lang))
 
 
 def sending_channel(db: Session, country: Optional[str] = None) -> Optional[str]:

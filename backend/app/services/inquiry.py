@@ -249,8 +249,8 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     **Gebaut an EINER Stelle** (``outbox.deliver``): der Verlauf ist der Inhalt der
     Mail, Wort für Wort. Unterschrieben vom Unternehmen – geschrieben hat sie niemand.
 
-    **Darin der Newsletter** (``newsletter.offer``): mit Häkchen die Bitte um Bestätigung,
-    ohne eine leise Einladung – nie an Angemeldete oder Abgemeldete."""
+    **Darin der Newsletter** (``newsletter.offer``): nur mit Häkchen, als Bitte um
+    Bestätigung – ohne Häkchen keine Einladung, nie an Angemeldete."""
     from .newsletter import offer
     box = mailbox.active(db, inquiry.channel)
     if box is None or box.problem:

@@ -38,8 +38,8 @@ export const promises = t('promises', {
       unit: '%',
       label: 'INEXXIO Zufriedenheitsgarantie',
       title: 'Nicht zufrieden? Die Hälfte übernehmen wir.',
-      text: 'Sind Sie mit dem Ergebnis nicht zufrieden, übernehmen wir 50 %. Das gilt für alles, was Sie bei uns bekommen: Krane, Bootslifte, Heukrananlagen, Modernisierung, Trommeltausch und Speziallösungen.',
-      checks: ['Gilt für alles, was Sie bei uns bekommen', 'Bezogen auf den vereinbarten Preis', 'Das Ergebnis besprechen wir gemeinsam'],
+      text: 'Sind Sie mit dem Ergebnis nicht zufrieden, übernehmen wir 50 % des vereinbarten Preises. Das gilt für alles, was wir für Sie bauen, warten und reparieren: Krane, Bootslifte, Heukrananlagen, Modernisierung, Trommeltausch und Speziallösungen.',
+      checks: ['Für alles, was wir bauen, warten und reparieren', 'Bezogen auf den vereinbarten Preis', 'Bedingungen: AGB, Ziffer 11'],
     },
     inexxio365: {
       figure: '365',
@@ -68,7 +68,7 @@ export const promiseFaq = t('promises', {
   },
   garantie: {
     q: 'Wie funktioniert die Zufriedenheitsgarantie?',
-    a: 'Sind Sie mit dem Ergebnis nicht zufrieden, übernehmen wir 50 % des vereinbarten Preises – für alles, was Sie bei uns bekommen.',
+    a: 'Sind Sie mit dem Ergebnis nicht zufrieden, übernehmen wir 50 % des vereinbarten Preises – für alles, was wir für Sie bauen, warten und reparieren. Melden Sie sich innert 30 Tagen nach der Abnahme; die Bedingungen stehen in unseren AGB (Ziffer 11). Für reine Teilelieferungen gilt die Garantie nicht.',
   },
   inexxio365: {
     q: 'Was ist INEXXIO 365?',
