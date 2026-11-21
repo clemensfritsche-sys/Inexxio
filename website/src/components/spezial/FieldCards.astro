@@ -2,13 +2,14 @@
 /**
  * Drei Felder, ein Prinzip (v4, Muster Porsche-Modellvergleich): eine graue Karte, die Zeichnung
  * liegt gross darüber und ragt oben hinaus; darin nur Titel, ein Satz und der runde Pfeil – die ganze
- * Karte ist der Link (zur Seite, sonst zur Anfrage). Beim Zeigen hebt sich die Zeichnung.
+ * Karte ist der Link (zur Seite, sonst zur Anfrage). Beim Zeigen hebt sich die Zeichnung. Statt der
+ * Zeichnung steht ihr Bild, wo es eines gibt (lib/illustrations `picture`).
  * Schmal: ein Karussell zum Wischen, es beginnt in der Mitte (scripts/carousel.ts, data-start).
  * Gebraucht auf Speziallösungen (drei Felder) und Fahrzeugtechnik (drei Angebote).
  */
 import Icon from '../Icon.astro';
 import Rich from '../Rich.astro';
-import { illustration } from '../../lib/illustrations';
+import { picture } from '../../lib/illustrations';
 
 interface Field {
   id: string;
@@ -31,6 +32,7 @@ interface Props {
   start?: number;
 }
 const { title, lead, items, fallback = '#anfrage', id = 'felder', start = Math.floor(items.length / 2) } = Astro.props;
+const srcs = await Promise.all(items.map((f) => picture(f.illo, 'Karten')));
 ---
 <section class="v4-section" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap">
@@ -41,10 +43,10 @@ const { title, lead, items, fallback = '#anfrage', id = 'felder', start = Math.f
   </div>
   <div class="wrap fc-wrap" data-carousel data-start={start}>
     <ul role="list" class="fc" data-rail>
-      {items.map((f) => (
+      {items.map((f, i) => (
         <li class="fc__item" id={f.id} data-item>
           <a class="fc__card" href={f.href ?? fallback}>
-            <span class="fc__art"><img src={illustration(f.illo, 'Karten')} alt={f.alt} width="1000" height="560" loading="lazy" decoding="async" /></span>
+            <span class="fc__art"><img src={srcs[i]} alt={f.alt} width="1000" height="560" loading="lazy" decoding="async" /></span>
             <span class="fc__title">{f.title}</span>
             <Rich as="span" class="fc__text" text={f.text} />
             <span class="garrow garrow--sm garrow--ink fc__arrow" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>

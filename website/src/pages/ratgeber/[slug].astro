@@ -13,7 +13,7 @@ import Icon from '../../components/Icon.astro';
 import Rich from '../../components/Rich.astro';
 import { site, navigation } from '../../config/site.mjs';
 import { articles, withBody, formatDay } from '../../lib/ratgeber';
-import { illustration } from '../../lib/illustrations';
+import { picture } from '../../lib/illustrations';
 import { article as articleNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 import { t } from '../../i18n/t.mjs';
@@ -56,7 +56,7 @@ const related = a.related.map((r, i) => {
           {T.by} <a class="link" href="/ueber-uns">{o.name}</a>, {o.role} · {T.published} <time datetime={a.published}>{formatDay(a.published)}</time>
         </p>
       </div>
-      <figure class="art__art"><img src={illustration(a.illo, 'Ratgeber')} alt={T.drawing.replace('{title}', a.seoTitle)} width="1000" height="560" decoding="async" /></figure>
+      <figure class="art__art"><img src={await picture(a.illo, 'Ratgeber', 1400)} alt={T.drawing.replace('{title}', a.seoTitle)} width="1000" height="560" decoding="async" /></figure>
     </header>
 
     <div class="wrap art__col">

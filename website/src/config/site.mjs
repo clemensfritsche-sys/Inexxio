@@ -78,7 +78,7 @@ const areas = [
     overview: 'Alle Leistungen Fahrzeugtechnik',
     ddText: 'Übersicht des Bereichs',
     text: 'Trommeltausch und Verschleissteile für Fahrmischer.',
-    photo: 'fahrmischer-werkstatt',
+    photo: 'fahrmischer-aufbau',
     dd: 'Trommeltausch und Verschleissteile für Fahrmischer.',
     illo: 'menu/trommeltausch',
     ogTitle: 'Neue Trommel statt neuer Fahrmischer.',
@@ -101,9 +101,9 @@ const areas = [
     ogTitle: 'Ihr Kran ist einsatzbereit. Ausfälle übernehmen wir.',
     industries: 'Recycling und Entsorgung, Sägewerke und Holzhandel, Stahlhandel und Metallbau, Betonwerke, Häfen und Clubs.',
     children: [
+      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Bestehende Anlagen betreuen, neue planen', photo: 'heukran-einsatz', dd: 'Ohne Kabine, bedient per Funk – passend zu Gebäude und Arbeit.', illo: 'menu/heukrananlagen' },
       { label: kraneNachMass, href: '/krantechnik/krane-nach-mass', text: 'Auch um Ecken, über Steigungen und Versätze', photo: 'reparatur-vor-ort', dd: 'Auch für schwierige Gebäude – selbst gebaut seit {{history.cranesSince}}.', illo: 'menu/krane-nach-mass' },
       { label: 'Kranservice', href: '/krantechnik/kranservice', text: 'Inspektion, Modernisierung, INEXXIO 365', photo: 'pruefung-hallenkran', dd: 'Prüfung, Wartung und Reparatur – jeder Einsatz mit Protokoll.', illo: 'menu/kranservice' },
-      { label: 'Heukrananlagen', href: '/krantechnik/heukrananlagen', text: 'Bestehende Anlagen betreuen, neue planen', photo: 'heukran-einsatz', dd: 'Ohne Kabine, bedient per Funk – passend zu Gebäude und Arbeit.', illo: 'menu/heukrananlagen' },
     ],
   },
   {

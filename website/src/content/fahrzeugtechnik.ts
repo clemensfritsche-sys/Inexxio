@@ -54,7 +54,7 @@ export const fahrzeugtechnik: AreaPage = t('fahrzeugtechnik', {
     eyebrow: 'Fahrzeugtechnik',
     h1: 'Länger fahren statt neu kaufen.',
     lead: 'Trommeltausch, Verschleissteile und Reparatur für Fahrmischer aller gängigen Marken.',
-    photo: 'fahrmischer-werkstatt',
+    photo: 'fahrmischer-aufbau',
     primary: anfrage('Fahrmischer anfragen'),
   },
   summary:

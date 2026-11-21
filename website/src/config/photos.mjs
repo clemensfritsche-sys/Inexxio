@@ -112,10 +112,17 @@ export const photos = t('photos', {
     brief: 'Blick vom Scheunenboden steil nach oben zum Heugreifer unter dem dunklen Dachstuhl, Lichtstrahlen, vorne unscharf die Hand mit dem Funksender, hoch',
     ratio: '4/5',
   },
+  // Fahrzeugtechnik – ein echter Einsatz von HS Steiner (mit KI aufbereitet: schärfer, ohne Beschriftung, Wetter).
+  'fahrmischer-aufbau': {
+    file: 'fahrmischer-aufbau.jpg',
+    alt: 'Hellgrüner Fahrmischer, der Mischaufbau mit der Trommel ist auf dem Fahrgestell angehoben, daneben steht ein Mitarbeiter',
+    brief: 'Fahrmischer im Hof, Mischaufbau angehoben, quer',
+    ratio: '4/3',
+  },
   'fahrmischer-werkstatt': {
     file: 'fahrmischer-werkstatt.jpg',
-    alt: 'Zwei Mechaniker setzen in der Halle eine neue weisse Trommel auf das gebrauchte Fahrgestell eines Fahrmischers, die Trommel hängt an Hebebändern am Kran',
-    brief: 'Trommeltausch in der Halle: neue, saubere Trommel wird am Kran auf das gebrauchte, verschmutzte Fahrgestell gesetzt, zwei Mechaniker führen sie, quer',
+    alt: 'Neue weisse Trommel hängt an Hebebändern am Kran über dem Fahrgestell eines Fahrmischers in der Halle, ein Mechaniker führt sie',
+    brief: 'Trommeltausch in der Halle: neue Trommel hängt am Kran über dem Fahrgestell, ein Mechaniker führt sie, quer',
     ratio: '4/3',
   },
   'teil-auslaufrinne': {
@@ -197,8 +204,8 @@ export const photos = t('photos', {
   },
   'arbeit-werkstatt': {
     file: 'arbeit-werkstatt.webp',
-    alt: 'Schweisser mit Schutzhelm an einer roten Stahlkonstruktion, Funken fliegen',
-    brief: 'Schweissarbeit oder Stahlkonstruktion bei INEXXIO in Tuttwil, Funken und Schutzschild, quer',
+    alt: 'Schweisser mit Schutzhelm an einer roten Stahlkonstruktion in einer hellen Halle',
+    brief: 'Schweissarbeit an einer roten Stahlkonstruktion in einer hellen Halle, quer',
     ratio: '4/3',
   },
 }, { keep: ['*.brief'] });

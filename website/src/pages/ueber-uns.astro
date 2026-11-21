@@ -24,13 +24,12 @@ import { handover as h } from '../content/uebergabe';
 import { faqPage, owner } from '../lib/seo.mjs';
 import { plain } from '../lib/text.mjs';
 import { pageTitle } from '../lib/titles';
-import ratgeber from '../assets/illustrations/menu/ratgeber.svg?url';
-import karriere from '../assets/illustrations/menu/karriere.svg?url';
+import { picture } from '../lib/illustrations';
 import { t } from '../i18n/t.mjs';
 
 const siteUrl = (Astro.site?.href ?? '').replace(/\/$/, '');
 const faq = [...h.faq, ...u.areaFaq];
-const ART = { ratgeber, karriere };
+const ART = { ratgeber: await picture('menu/ratgeber', 'Über uns', 640), karriere: await picture('menu/karriere', 'Über uns', 640) };
 const history = u.history.items.map((s) => ({ ...s, no: plain(s.no), title: plain(s.title) }));
 const titel = pageTitle('/ueber-uns');
 ---

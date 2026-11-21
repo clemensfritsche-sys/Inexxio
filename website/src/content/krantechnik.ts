@@ -74,9 +74,9 @@ export const craneOffers = t('krantechnik', {
   title: 'Alles rund um Ihren Kran.',
   lead: 'Bauen, betreuen, modernisieren – aus einer Hand.',
   items: [
+    { id: 'heukran', illo: 'menu/heukrananlagen', alt: 'Zeichnung: Heukran mit Greifer über dem Heustock', title: 'Heukrananlagen', text: 'Ohne Kabine, per Funk: Sie bleiben unten, der Greifer arbeitet.', href: '/krantechnik/heukrananlagen' },
     { id: 'nach-mass', illo: 'menu/krane-nach-mass', alt: 'Zeichnung: Kran mit roter Brücke', title: KNM, text: 'Kurve, Steigung, Versatz? Wir bauen den Kran um Ihr Gebäude herum.', href: '/krantechnik/krane-nach-mass' },
     { id: 'service', illo: 'menu/kranservice', alt: 'Zeichnung: roter Werkzeugkasten und Prüfprotokoll', title: 'Kranservice', text: 'Die erste Inspektion ist gratis. Mit INEXXIO 365 übernehmen wir die Ausfälle.', href: '/krantechnik/kranservice' },
-    { id: 'heukran', illo: 'menu/heukrananlagen', alt: 'Zeichnung: Heukran mit Greifer über dem Heustock', title: 'Heukrananlagen', text: 'Ohne Kabine, per Funk: Sie bleiben unten, der Greifer arbeitet.', href: '/krantechnik/heukrananlagen' },
   ],
 });
 
@@ -436,4 +436,4 @@ export const heukranModules = t('krantechnik', {
 });
 
 /** Alle Unterseiten des Bereichs, in der Reihenfolge der Navigation. */
-export const krantechnikPages = [kraneNachMass, kranservice, heukrananlagen];
+export const krantechnikPages = [heukrananlagen, kraneNachMass, kranservice];

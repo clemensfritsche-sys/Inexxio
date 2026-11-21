@@ -12,7 +12,7 @@ import Icon from '../Icon.astro';
 import { t } from '../../i18n/t.mjs';
 import Rich from '../Rich.astro';
 import { plain } from '../../lib/text.mjs';
-import { illustration } from '../../lib/illustrations';
+import { picture } from '../../lib/illustrations';
 import { Picture } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
 import krane from '../../assets/illustrations/spezial-krane-bild.jpg';
@@ -47,6 +47,7 @@ const {
 } = Astro.props;
 const H = level;
 const shown = items.slice(0, Math.min(4, art.length));
+const srcs = await Promise.all(shown.map((_, i) => (art[i].image ? '' : picture(art[i].illo ?? '', 'Bühne', 1400))));
 ---
 <section class="v4-section sp-sec" id={id} aria-labelledby={`${id}-title`}>
   <div class="wrap" data-hero={level === 'h1' ? true : undefined}>
@@ -65,7 +66,7 @@ const shown = items.slice(0, Math.min(4, art.length));
             const a = art[i];
             return a.image
               ? <Picture src={a.image} alt={a.alt} data-i={i} formats={['avif', 'webp']} widths={[640, 1100]} sizes="(min-width: 960px) 1100px, 100vw" fallbackFormat="webp" loading="lazy" decoding="async" />
-              : <img src={illustration(a.illo ?? '', 'Bühne')} alt={a.alt} data-i={i} width="1000" height="560" loading="lazy" decoding="async" />;
+              : <img src={srcs[i]} alt={a.alt} data-i={i} width="1000" height="560" loading="lazy" decoding="async" />;
           })}
         </div>
         <p class="sp__legend" aria-hidden="true"><span><i class="sp__sw sp__sw--grey"></i>{legend.grey}</span><span><i class="sp__sw"></i>{legend.red}</span></p>
