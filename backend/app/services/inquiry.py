@@ -226,7 +226,7 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
     Ein Foto, das sich nicht lesen lässt, wirft (``attachments.store_image``: 400/413);
     dann ist nichts gespeichert, und der Aufrufer sagt es am Feld."""
     firm = company_for(db, country)
-    person = people.ensure(db, inq.email, inq.name, inq.phone).object_id
+    person = people.ensure(db, inq.email, inq.name, inq.phone, language=inq.lang).object_id
     files = []
     for p in inq.photos:
         att = attachments.store_image(db, p.data, p.filename)

@@ -33,6 +33,7 @@ const ALLOWED = new Map([
   ['lib/use-recorder.ts · stopRecording', 'eine Handlung: die Aufnahme beenden (auch beim Verlassen)'],
   ['lib/use-recorder.ts · recordingChunk', 'eine Handlung: ein Stück der Aufnahme hochladen'],
   ['lib/use-url-params.ts · resolveObject', 'einmal je Seitenaufruf: eine Nummer aus der Adresse öffnen'],
+  ['app/(account)/konto/page.tsx · updateMe', 'eine Handlung: die im Konto gewählte Sprache merken'],
 ]);
 
 /** Jeder `api.<methode>(…)`-Aufruf im Körper eines `useEffect`. */

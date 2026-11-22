@@ -11176,6 +11176,24 @@
             "title": "Phone",
             "description": "Telefon, international lesbar (z. B. +41 44 123 45 67)."
           },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "de",
+                  "fr",
+                  "en",
+                  "it"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language",
+            "description": "Sprache, in der wir der Person schreiben: 'de' Deutsch, 'fr' Französisch, 'en' Englisch, 'it' Italienisch."
+          },
           "company_object_id": {
             "anyOf": [
               {
@@ -18006,6 +18024,24 @@
             ],
             "title": "Phone",
             "description": "Telefon, international lesbar (z. B. +41 44 123 45 67)."
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "de",
+                  "fr",
+                  "en",
+                  "it"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language",
+            "description": "Sprache, in der wir der Person schreiben: 'de' Deutsch, 'fr' Französisch, 'en' Englisch, 'it' Italienisch."
           },
           "company_object_id": {
             "anyOf": [

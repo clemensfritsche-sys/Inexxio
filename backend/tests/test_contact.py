@@ -458,3 +458,21 @@ def test_the_confirmation_speaks_the_language_of_the_page(world):
 def test_an_unknown_language_is_german(world):
     res = world.client.post("/api/v1/contact?lang=xx", data=form(name=""), headers=JSON)
     assert res.json()["fields"] == {"name": MSG["name"]}
+
+
+def test_the_person_keeps_the_language(world):
+    """►►► **Die Sprache gehört zur Person.** ◄◄◄ Wer zum ersten Mal von der französischen Seite
+    schreibt, ist ab dann französisch; eine bestehende Person ändert das öffentliche Formular nie
+    (wie ihr Telefon) – das tut sie selbst im Konto oder das Personal im ERP. Die Sprachen der
+    Person sind genau die der Website. Bug-Form: nur die erste Mail sprach Französisch."""
+    from typing import get_args
+    from app.schemas.admin import Language
+    assert set(get_args(Language)) == set(svc.LANGS)
+    data = form()
+    assert world.client.post("/api/v1/contact?lang=fr", data=data, headers=JSON).status_code == 200
+    person = world.db.query(UserProfile).filter(UserProfile.email == data["email"]).one()
+    assert person.language == "fr"
+    again = dict(data, message="Noch eine Frage, diesmal auf Deutsch.")
+    assert world.client.post("/api/v1/contact?lang=de", data=again, headers=JSON).status_code == 200
+    world.db.refresh(person)
+    assert person.language == "fr", "das Formular schreibt nie in eine bestehende Person"

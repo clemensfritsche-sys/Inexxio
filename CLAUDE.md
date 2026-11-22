@@ -276,6 +276,12 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   ihre Verbindungen mit Claude (trennen), sichtbar und änderbar nur für sie selbst und den Admin
   (`policy` «person.access», `may_access`). Einen Passkey einrichten kann nur die Person auf ihrem
   Gerät (Konto).
+- **Die Sprache gehört zur Person** (`user_profiles.language`: de · fr · en · it, `schemas.admin.Language`):
+  eine neue Person bekommt die Sprache der Seite, von der sie uns zum ersten Mal schreibt (Formular,
+  Newsletter, `people.ensure(language=…)`); das öffentliche Formular ändert eine bestehende nie. Die
+  Person ändert sie im Konto (die Sprachwahl dort merkt sie sich), das Personal im ERP (Stammdaten,
+  «Sprache»). Automatische Mails mit übersetztem Text folgen ihr (Bestätigung und Newsletter-Bitte in
+  der Sprache der Seite bzw. der Person); Belege und Antworten von Hand sind noch deutsch.
 - **Es bestellt immer eine Person**; die Firma ist höchstens Rechnungsempfänger «z. H.».
   **Eine fremde Firma ist ihre Identität** – Name, Rechtsform, UID (`sites.EXTERNAL_FIELDS`).
   Eigene Gesellschaften (`is_own`, nur Admin) tragen Anschrift, Bank, Währung, Gebiete und

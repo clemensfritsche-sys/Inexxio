@@ -46,8 +46,13 @@ export function userInitials(name: string, email: string): string {
 
 // ─── Formular (Spiegel des Profils + ERP-Extras) ───────────────────────────────
 
+/** Die Sprache, in der wir der Person schreiben – automatische Mails folgen ihr. */
+type Language = NonNullable<ErpAdminUpdate['language']>;
+const LANGUAGES: Record<Language, string> = { de: 'Deutsch', fr: 'Französisch', en: 'Englisch', it: 'Italienisch' };
+
 interface ERPForm {
   role: UserRole;
+  language: Language;
   first_name: string;
   last_name: string;
   date_of_birth: string;
@@ -59,6 +64,7 @@ type StrKey = { [K in keyof ERPForm]: ERPForm[K] extends string ? K : never }[ke
 function buildForm(p: UserProfile): ERPForm {
   return {
     role: p.role,
+    language: (p.language in LANGUAGES ? p.language : 'de') as Language,
     first_name: p.first_name ?? '',
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
@@ -75,6 +81,7 @@ const nn = (s: string): string | null => (s.trim() === '' ? null : s);
 function mapUpdate(v: ERPForm): ErpAdminUpdate {
   return {
     role: v.role,
+    language: v.language,
     first_name: nn(v.first_name),
     last_name: nn(v.last_name),
     date_of_birth: nn(v.date_of_birth),
@@ -186,6 +193,14 @@ function ProfileForm({ record, isAdmin, onSaved, todo }: {
           <AField name="last_name" label="Nachname" value={form.last_name} onChange={str('last_name')} readOnly={ro} placeholder="Muster" onEnter={saveNow} required={required('last_name')} />
           <AField name="phone" label="Telefon" value={form.phone} onChange={str('phone')} readOnly={ro} type="tel" placeholder="+41 44 000 00 00" onEnter={saveNow} required={required('phone')} />
           <AField name="date_of_birth" label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} required={required('date_of_birth')} />
+          {/* Gesetzt, wenn die Person uns zum ersten Mal schreibt; automatische Mails folgen ihr. */}
+          {ro ? (
+            <AField name="language" label="Sprache" value={LANGUAGES[form.language]} readOnly />
+          ) : (
+            <SelectField name="language" label="Sprache" value={form.language}
+              onChange={(x) => set('language', x as Language)}
+              options={(Object.keys(LANGUAGES) as Language[]).map((l) => ({ value: l, label: LANGUAGES[l] }))} />
+          )}
         </div>
         {isStaff(record.role) && <Competences record={record} onSaved={onSaved} />}
 

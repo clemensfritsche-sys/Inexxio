@@ -323,12 +323,13 @@ def split_name(name: str) -> Optional[tuple[str, str]]:
 def ensure(db: Session, email: str, name: str = "", phone: str = "", *,
            uid: Optional[str] = None, role: str = "user", first: Optional[str] = None,
            last: Optional[str] = None, photo_url: Optional[str] = None,
-           actor_id: Optional[int] = None) -> UserProfile:
+           actor_id: Optional[int] = None, language: Optional[str] = None) -> UserProfile:
     """►►► **Die Person zu dieser E-Mail – angelegt, wenn es sie nicht gibt.** ◄◄◄ Die EINE
     Stelle, an der eine Person entsteht (Anmeldung, Personal, Mail, Anfrage, Newsletter).
 
-    Eine gefundene Person bleibt, wie sie ist – auch ihr Telefon: was jemand in ein
-    öffentliches Formular tippt, schreibt nie in einen bestehenden Datensatz. Ohne ``uid``
+    Eine gefundene Person bleibt, wie sie ist – auch ihr Telefon und ihre Sprache: was jemand in
+    ein öffentliches Formular tippt, schreibt nie in einen bestehenden Datensatz. Eine neue Person
+    bekommt die Sprache der Seite, von der sie kam (``language``). Ohne ``uid``
     ist es ein Kontakt (``contact_uid``); ohne Namen heisst ein Kontakt wie der Anfang
     seiner Adresse. Committet nicht."""
     from .objects import next_object_id
@@ -343,7 +344,7 @@ def ensure(db: Session, email: str, name: str = "", phone: str = "", *,
                        first_name=(first or "")[:100] or None,
                        last_name=(last or "")[:100] or None,
                        phone=(tel.tidy(phone) or "")[:50] or None, photo_url=photo_url,
-                       object_id=next_object_id(db, "user"))
+                       object_id=next_object_id(db, "user"), language=language or "de")
     db.add(user)
     db.flush()
     return user

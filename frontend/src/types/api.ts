@@ -4623,6 +4623,11 @@ export interface components {
              */
             phone?: string | null;
             /**
+             * Language
+             * @description Sprache, in der wir der Person schreiben: 'de' Deutsch, 'fr' Französisch, 'en' Englisch, 'it' Italienisch.
+             */
+            language?: ("de" | "fr" | "en" | "it") | null;
+            /**
              * Company Object Id
              * @description Objektnummer der Firma, zu der die Person gehört; leer = Privatperson.
              */
@@ -7824,6 +7829,11 @@ export interface components {
              * @description Telefon, international lesbar (z. B. +41 44 123 45 67).
              */
             phone?: string | null;
+            /**
+             * Language
+             * @description Sprache, in der wir der Person schreiben: 'de' Deutsch, 'fr' Französisch, 'en' Englisch, 'it' Italienisch.
+             */
+            language?: ("de" | "fr" | "en" | "it") | null;
             /**
              * Company Object Id
              * @description Objektnummer der Firma, zu der die Person gehört; leer = Privatperson.
