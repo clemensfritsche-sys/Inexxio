@@ -51,7 +51,10 @@ from . import portrait
 
 BRAND = "INEXXIO"
 LOGO, LOGO_DARK = "/mail/logo.png", "/mail/logo-dark.png"
-LOGO_W, LOGO_H = 97, 26
+#: Das gestapelte Logo mit Unterzeile «Kranbau · Fahrzeugbau · Service» und «ehemals HS Steiner»
+#: (Design System, Logo v5 «F1»; Mindestbreite 240 px), als PNG in doppelter Auflösung.
+LOGO_W, LOGO_H = 240, 150
+LOGO_ALT = "INEXXIO – Kranbau · Fahrzeugbau · Service – ehemals HS Steiner"
 FONT = "Inter, Arial, Helvetica, sans-serif"
 INK, TEXT_2, TEXT_3, LINE = "#0A0A0B", "#44464A", "#66686D", "#E3E4E7"
 RED_TEXT = "#C8140F"
@@ -439,7 +442,9 @@ def _promo(lang: str = "de", unsubscribe: Optional[Unsubscribe] = None) -> str:
 _DARK_BG, _DARK_LINE = "#1F1F1F", "#3A3936"
 _DARK = ('<style>:root{color-scheme:light dark;supported-color-schemes:light dark}'
          '@media (max-width:620px){.ix-pad{padding-left:20px!important;'
-         'padding-right:20px!important}.ix-h1{font-size:21px!important;line-height:27px!important}}'
+         'padding-right:20px!important}.ix-h1{font-size:21px!important;line-height:27px!important}'
+         '.ix-col{display:block!important;width:100%!important;padding:0!important;text-align:left!important}'
+         '.ix-logo-cell{padding:0 0 18px!important}}'
          '@media (prefers-color-scheme:dark){'
          f'body,.ix-bg{{background:{_DARK_BG}!important}}'
          '.ix-ink{color:#EDEBE7!important}.ix-t2{color:#C4C0BA!important}'
@@ -451,7 +456,7 @@ _DARK = ('<style>:root{color-scheme:light dark;supported-color-schemes:light dar
 
 
 def _logo(base: str) -> str:
-    img = (f'width="{LOGO_W}" height="{LOGO_H}" alt="{BRAND}" style="display:block;'
+    img = (f'width="{LOGO_W}" height="{LOGO_H}" alt="{LOGO_ALT}" style="display:block;'
            f'border:0;width:{LOGO_W}px;height:{LOGO_H}px')
     return (f'<img class="ix-logo-l" src="{base}{LOGO}" {img}">'
             f'<img class="ix-logo-d" src="{base}{LOGO_DARK}" {img};display:none">')
@@ -469,10 +474,14 @@ def _html(subject: str, lead: str, firm: Firm, signer: Optional[Signer],
     title = (f'<h1 class="ix-ink ix-h1" style="margin:0;font-family:\'Inter Tight\',{FONT};'
              f'font-size:24px;line-height:30px;font-weight:700;letter-spacing:-0.02em;'
              f'color:{INK}">{escape(dc.title(subject))}</h1>')
-    head = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            f'style="margin:0 0 {GAP}px"><tr><td valign="middle" style="padding:0 20px 0 0">'
-            f'{title}</td><td width="{LOGO_W}" align="right" valign="middle" style="width:'
-            f'{LOGO_W}px">{_logo(base)}</td></tr></table>')
+    # Am Computer: Überschrift links, Logo rechts. Am Handy steht das Logo darüber – darum steht es
+    # im Quelltext zuerst und die Zeile läuft von rechts nach links (``dir="rtl"``), damit beide
+    # Zellen untereinander rutschen (``.ix-col``), ohne dass ein Mailprogramm etwas umsortiert.
+    head = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="rtl" '
+            f'style="margin:0 0 {GAP}px"><tr><td class="ix-col ix-logo-cell" dir="ltr" '
+            f'width="{LOGO_W}" align="right" valign="middle" style="width:{LOGO_W}px">'
+            f'{_logo(base)}</td><td class="ix-col" dir="ltr" valign="middle" align="left" '
+            f'style="padding:0 24px 0 0;text-align:left">{title}</td></tr></table>')
     body = (f'<tr><td class="ix-pad" style="padding:32px {PAD}px {PAD - GAP}px">{head}'
             f'<!--inhalt-->{content}<!--/inhalt-->'
             f'{_signature(firm, signer, lead, lang)}<div style="height:{GAP}px;line-height:'

@@ -349,7 +349,8 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Versand geben – Beleg, Dokument, Eingangsbestätigung, Newsletter-Bitte), `build` (auch die
   Antwort aus dem Verlauf), `firm`, `signer`. **Gebaut beim Anlegen, nie beim Versand.**
 - **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Betreff als Überschrift, rechts
-  auf gleicher Höhe das Logo · Inhalt · «Beste Grüsse aus <Ort der Gesellschaft>» · Unterschrift
+  auf gleicher Höhe das Logo (gestapelt mit «Kranbau · Fahrzeugbau · Service» und «ehemals HS
+  Steiner», 240 px; am Handy darüber) · Inhalt · «Beste Grüsse aus <Ort der Gesellschaft>» · Unterschrift
   (Mensch im Namen der Gesellschaft, ohne Funktion; Gesellschaft, Anschrift, Telefon, E-Mail,
   Website – **sie ist der Fuss**) · unten ein **Streifen** als kleine Werbefläche (Bild, Stichwort,
   Titel, Satz, Link; heute die Nachfolge HS Steiner → INEXXIO). Gruss und Streifen stehen EINMAL in

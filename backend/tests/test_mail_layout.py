@@ -179,12 +179,17 @@ def test_the_signature_is_the_footer_and_below_stands_the_strip():
 
 
 def test_the_headline_and_the_logo_share_a_row():
-    """Kopf: links die Überschrift (= Betreff), rechts auf gleicher Höhe das Logo – in einer
-    Zeile, nie übereinander und ohne Stichwort daneben."""
+    """Kopf: am Computer links die Überschrift (= Betreff), rechts auf gleicher Höhe das Logo –
+    eine Zeile, die von rechts nach links läuft (das Logo steht im Quelltext zuerst, damit es am
+    Handy über der Überschrift steht, ``.ix-col``); kein Stichwort daneben. Das Logo ist das
+    gestapelte mit Unterzeile und «ehemals HS Steiner», nie schmaler als 240 px."""
     html = layout.compose("Angekommen – Danke für Ihre Anfrage", "y", FIRM, None).html
     row = html.split("<!--inhalt-->", 1)[0]
-    assert row.index("</h1>") < row.index(layout.LOGO) and row.count("<tr>") >= 1
-    assert "</h1></td><td" in row
+    head = row[row.index('dir="rtl"'):]
+    head = head[:head.index("</table>")]
+    assert head.index(layout.LOGO) < head.index("<h1") and head.count("<tr>") == 1
+    assert ".ix-col{display:block!important" in html
+    assert layout.LOGO_W >= 240 and "ehemals HS Steiner" in layout.LOGO_ALT
 
 
 def test_every_link_opens_a_new_window():
