@@ -1,12 +1,12 @@
 ---
 /**
- * Kopfzeile v4 (Vorlage: docs/design-system/reference/mockups/Startseite v4.dc.html):
+ * Kopfzeile v4 (Regeln: docs/design-system/README.md):
  *   Logo · Fahrzeugtechnik · Krantechnik · Speziallösungen · Service · Unternehmen ·
  *   ERP (nur Personal) | Sprache · Konto | Telefon · «Anfrage stellen». Kontakt steht unter
  *   «Unternehmen» – Telefon und Anfrage rechts sind der Weg zu uns (WEBSITE_PLAN Entscheid 127).
  * Jeder Punkt öffnet beim Zeigen eine Reihe Kacheln: Name, isometrische Zeichnung, ein leiser
  * Satz. Die Karte des Kopfs wächst dabei nach unten – auf der Website als Glas
- * (README §3a), im Konto/ERP deckend weiss (dort gibt es kein Glas).
+ * (docs/design-system/README.md «Website»), im Konto/ERP deckend weiss (dort gibt es kein Glas).
  * Schmaler als 1200 px: Logo, Konto, Telefon und das Menü-Symbol – ein Blatt mit EINER Ebene:
  * jeder Punkt klappt eine Reihe Karten zum Wischen auf (beim Öffnen sind alle zu), unten Telefon,
  * Anfrage und die Sprache, die genauso aufklappt.
@@ -319,7 +319,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
     height: calc(var(--hd-bar) + var(--hd-dd)); box-shadow: var(--shadow-lg);
   }
 
-  /* Website: Glas (README §3a) – das ERP behält die deckende Fläche oben. */
+  /* Website: Glas (docs/design-system/README.md «Website») – das ERP behält die deckende Fläche oben. */
   :global(html[data-site]) .hd__glass {
     background: rgba(255, 255, 255, 0.78); border-color: var(--glass-light-rim);
     -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
@@ -446,7 +446,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
   }
   .tile__rows { display: grid; gap: 6px; font-size: 0.875rem; color: var(--ink-3); }
   .tile__row { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
-  .tile__row :global(svg) { flex: none; color: var(--gray-400); }
+  .tile__row :global(svg) { flex: none; color: var(--ink-4); }
   .tile__row:has(> span:empty) { display: none; }
   .hd__avatar :global(.pm__avatar), .tile__avatar :global(.pm__avatar) { width: 100%; height: 100%; object-fit: cover; display: block; }
 

@@ -1,159 +1,219 @@
-# Inexxio Design System — verbindliche Grundlage
+# INEXXIO Design System
 
-> **Krane · Fahrmischer · Spezialmaschinen.** – Stand v4, Oktober 2026.
-> Dies ist die **eine, verbindliche** Design-Grundlage für ALLE Oberflächen von
-> Inexxio (Website, Shop, ERP). Jede neue oder geänderte UI **muss** auf diesem
-> System aufbauen. Es ist der in den Code übernommene Export aus **Claude Design**
-> (claude.ai/design) und ersetzt die frühere, abgedriftete Ad-hoc-Palette
-> (slate/blue-600).
+> **Stand v4, November 2026 – verbindlich für jede Oberfläche:** Website, Konto, ERP, E-Mail,
+> Papiere (Offerte bis Mahnung). **Der Code ist die Wahrheit.** Diese Datei beschreibt, was gebaut
+> ist; das Artefakt [«INEXXIO Design System»](https://claude.ai/artifact/6CQGEWynpkcEskuDzVkKbn)
+> zeigt dasselbe zum Anschauen und wird nach dieser Datei nachgezogen, nie umgekehrt.
+> Was entfernt wurde (Mockups v4, Dunkelmodus, v2/v3-Aliase, ungenutzte Tokens und Klassen),
+> steht in `docs/history/2026-11-22-design-system-aufgeraeumt.md`.
 
----
-
-## 1. Wo liegt was (Single Source of Truth)
+## 1. Wo was steht
 
 | Pfad | Rolle |
 |---|---|
-| **`frontend/src/styles/design-system/colors_and_type.css`** | **DIE Quelle der Wahrheit.** Alle Design-Tokens (Farbe, Typo, Spacing, Radien, Schatten) + `.ix-*`-Helper. Wird als erstes CSS-Modul in `frontend/src/app/layout.tsx` geladen. |
-| `frontend/tailwind.config.js` | Spiegelt die Tokens als Tailwind-Utilities (`bg-bg-2`, `text-fg-3`, `text-accent`, `border-border-1`, `rounded-ds-lg`, `shadow-ds-md`, `font-display`). Enthält **keine eigenen Werte** – nur `var(--…)`-Referenzen. |
-| `frontend/src/app/globals.css` | Nur noch app-lokale Komponenten-Styles (Login, Public-Site, Buttons) + die Alias-Map `--ix-* → --inexxio-*`. **Definiert keine Token-Werte mehr.** |
-| `docs/design-system/brand-foundations.md` | Vollständige Marken-/Content-/Visual-Doku (Stimme, Farben, Typo, Bildsprache, ERP-Muster). Zum Lesen, nicht zum Bauen. |
-| **`frontend/public/brand/`** | Was die App selbst zeigt: `inexxio-ehemals-hs-steiner.svg` (Kopie von `website/scripts/export-erp.mjs`, auf `/login/verify`) und `anmelden.svg` (Zeichnung im Anmeldedialog). Das Favicon der App ist `frontend/src/app/icon.svg`; die Wortmarke steht in `reference/assets/logo/`. |
-| `docs/design-system/reference/assets/logo/` | **Logo-System v5 «F1»** (Oktober 2026, vektoriell, nie umfärben): Wortmarke `inexxio-horizontal-light|dark|red|mono.svg`, mit «ehemals HS Steiner» `inexxio-stacked-*.svg` (60 % INEXXIO : 40 % HS Steiner), Favicon `inexxio-symbol-red.svg` (ganz rot), Symbol `inexxio-symbol.svg` (passt sich an), feste Symbole `inexxio-symbol-light|dark|red|on-red|mono.svg`, `inexxio-app-icon.svg`. Erzeugt von `generator/make_logos.py` – nie von Hand ändern. Regeln: `brand-foundations.md` §5. |
-| `docs/design-system/reference/mockups/` | Die Vorlage der Website v4: `Startseite v4.dc.html` und `Startseite v4 mobil.dc.html` (Design-Artefakt «Website Startseite»). Zum Anschauen, **nicht** importieren. |
-| `.claude/skills/inexxio-design-system/SKILL.md` | Auto-Skill: legt jeder künftigen Claude-Session bei UI-Arbeit diese Regeln vor. |
+| **`frontend/src/styles/design-system/colors_and_type.css`** | **Die eine Quelle aller Werte**: Skalen → Rollen, Schrift, Form, Schatten, Bewegung, Glas, `@font-face`, `.ix-tnum`. Erstes CSS-Modul in `frontend/src/app/layout.tsx`. |
+| `frontend/tailwind.config.js` | Die Rollen als Utilities (`bg-bg-2`, `text-fg-3`, `text-accent`, `border-border-1`, `rounded-ds-lg`, `shadow-ds-md`, `font-display` …) – nur `var(--…)`, keine Werte. |
+| `website/scripts/tokens.mjs` → `website/src/styles/tokens.css` | Die Website liest dieselben Werte unter eigenen Namen (`--ink`, `--line`, `--red` …), generiert bei jedem Build. Fehlt ein Token, bricht der Build. |
+| `website/src/styles/global.css` | Masse der Website (`--maxw`, `--gutter`, `--header-h`, `--section-y`) und die Klassen, die mehrere Bausteine teilen: `.btn*`, `.v4-h2`/`.v4-sub`, `.v4-section`, `.plate`/`.plate--dark`, `.garrow`, `.cdot`, `.zoom-on-hover`. |
+| `website/src/components/` | **Die Bausteine der Website** (§6). Je Baustein eine Datei, der Kopfkommentar sagt, was er ist. |
+| `frontend/src/app/globals.css` · `frontend/src/components/erp/` | ERP und Konto: Klassen `.erp-*`, `.kt-*`, `.ix-login-*`; Bausteine §7. |
+| `backend/app/services/mail_layout.py` | **Die eine Mail-Vorlage** (§8). |
+| `backend/app/services/a4.py` | **Die eine Papier-Vorlage** (§9). |
+| `docs/design-system/reference/assets/logo/` | Das Logo als Vektor, erzeugt von `generator/make_logos.py` (§10). |
+| `frontend/public/fonts/` · `website/src/assets/fonts/` · `backend/app/assets/fonts/` | Inter (variabel) und Inter Tight 600–700, selbst gehostet – kein Abruf bei Google. |
+| `.claude/skills/inexxio-design-system/SKILL.md` | Legt jeder Claude-Sitzung bei UI-Arbeit diese Datei vor. |
 
+**Wächter** (`frontend/scripts/design.test.mjs`): jede `var(--x)` ist definiert · jede `ix-`-Klasse
+hat einen Stil · keine Alt-Palette (auch als Hex) · Status über `StatusDot` · **jedes Token wird
+gelesen** – ein Token, das niemand liest, wird gelöscht, nicht gepflegt.
 
-**Regel:** Ein Token-Wert wird an **genau einer** Stelle definiert – in
-`colors_and_type.css`. Niemals Werte in `globals.css`, `tailwind.config.js` oder in
-Komponenten hart kodieren.
+## 2. Grundsätze
 
-## 2. So nutzt du das System (drei Wege, gleiche Wahrheit)
+1. **Farbe = Bedeutung.** Kühles, neutrales Grau trägt die Fläche – überall gleich. **Rot ist der
+   eine laute Akzent**: auf der Website nur die Anfrage, im ERP der aktive Zustand und echte Fehler.
+   Nie dekorativ, **nie in einer Überschrift**. **Slate** ist die leise Stimme im ERP (Info, Links,
+   aktive Zeile) und konkurriert nie mit Rot.
+2. **Struktur vor Fläche.** Haarlinien und Weissraum trennen, nicht Rahmen und Schatten. Schatten
+   nur, was schwebt (Menü, Dialog, Toast).
+3. **Nie nur Farbe.** Ein Zustand ist Punkt + Wort (`fields.StatusDot`), ein Fehler ein Satz an
+   der Stelle.
+4. **Symbol vor Text** im ERP: Lucide-Symbole, der Name im Hover (`data-tip`). Keine Emoji, kein
+   zweites Icon-Set.
+5. **Ruhig.** Flach, kurze Bewegungen, bei «weniger Bewegung» steht alles.
+6. **Was nicht feststeht, steht nicht da** – keine Platzhalter, keine erfundenen Zahlen.
 
-1. **Tailwind-Utilities** (bevorzugt im JSX):
-   `className="bg-bg-1 text-fg-2 border border-border-1 rounded-ds-lg shadow-ds-sm"`
-2. **CSS-Variablen** (in CSS/`style=`): `color: var(--fg-2); background: var(--bg-2);`
-3. **`.ix-*`-Helper** (Typo-Primitive): `.ix-h2`, `.ix-overline`, `.ix-index`, `.ix-tnum`, `.ix-rule`.
+## 3. Farbe
 
-## 3. Kernregeln (aus den Foundations, verbindlich)
+Verwendet werden die **Rollen**, nie Hexwerte. Die Skalen speisen die Rollen; direkt gelesen wird
+eine Skala nur in Zeichnungen (Kran-Szenen) und für einzelne Grautöne.
 
-- **Farbe = Bedeutung.** Kühle, neutrale Grautöne (v4, `bg-*`, `fg-*`) tragen die
-  Fläche – überall gleich: Website, Konto, ERP, E-Mail. **Rot (`inexxio`) ist der EINE
-  laute Akzent** – CTA, aktiver Zustand, echte Fehler. Nie dekorativ, **nie in einer
-  Überschrift** (seit v4).
-- **Slate (`accent`) ist die leise dritte Stimme** – informative/aktive Zustände,
-  Links, aktive Zeilen im dichten ERP, wo Rot zu laut wäre oder als Alarm gelesen
-  würde. Konkurriert **nie** mit Rot. `accent-soft` = getönte Füllung, `accent-ink`
-  = Text/Icon darauf.
-- **Struktur vor Fläche.** Im ERP: Haarlinien (`border-1`) + Weissraum statt
-  Kartenrahmen + Schlagschatten. `shadow-ds-*` nur für echte Overlays (Modals, Menüs).
-- **Status: Punkt statt Badge**, wo möglich (6px farbiger Dot + ein Wort). Gefüllte
-  Pillen sparsam. Symbol + Farbe + Label (semantische Config), Infotexte in den Hover.
-- **Typo (v3):** Titel in `font-display` (Inter Tight **700**, Zwischentitel **600**,
-  Laufweite −0.03 em), Body in `font-body` (Inter 400, Labels 500). **Kein Gewicht 800+.**
-  Leiter 12·14·16·18·24·32·48·64. Zahlen **immer tabellarisch** (`.ix-tnum` /
-  `font-variant-numeric: tabular-nums`), wo Werte ausgerichtet sind.
-- **Icons:** ausschliesslich **Lucide** (`lucide-react`), funktional & sparsam,
-  neutral `fg-3`/`fg-2`; Rot nur für aktiv/selektiert. Keine Emoji, kein Deko-Icon-Set.
-- **Schweizer Konventionen:** CHF mit `'`-Tausendertrennung (`9'999 CHF`), `25 m²`,
-  **ss** statt ß; angesprochen wird mit **Sie**.
-- **Wörter (v4):** kein «Fixpreis» (in keiner Form), keine «Werkstatt» – stattdessen
-  «Standort», «Betrieb», «bei INEXXIO».
-- **Radien/Schatten (v4, gilt für Website, Konto und ERP):** Bedienelemente 6 px
-  (`rounded-ds-md` = `--r-md`), Karten, Flächen und Dialoge 8 px (`rounded-ds-lg` = `--r-lg`,
-  `--r-xl`) – die Werte stehen in §3a. Die v3-Primitive `--radius-*` (8/12/16) stehen noch in der
-  Token-Datei, werden aber nirgends gelesen. **Keine Pillen-Knöpfe.** Flach als Standard – Linien
-  trennen, Schatten nur für schwebende Ebenen (Menü, Dialog, Toast). Glow-Tokens sind
-  `none`. Der rote Knopf bekommt `shadow-ds-red` (= `--elev-primary`, sehr dezent)
-  nur als Hover/Press-Akzent, **nie** als Ruhezustand.
+| Rolle | Token (Website-Name) | Wert | Einsatz |
+|---|---|---|---|
+| Text | `fg-1` (`--ink`) · `fg-2` · `fg-3` · `fg-4` | `#0A0A0B` · `#44464A` · `#5E6064` · `#A3A5AA` | Titel · Text · der graue Satz, Metadaten · Deaktiviertes |
+| Fläche | `bg-1` (`--white`) · `bg-2` (`--paper`) · `bg-3` · `bg-4` | `#FFF` · `#F5F6F7` · `#EEEFF1` · `#E3E4E7` | Grund · Gruppen · Hover · tiefer |
+| Dunkel | `bg-dark` · `bg-dark-2` | `#0A0A0B` · `#191A1C` | Fusszeile, dunkle Karten |
+| Linie | `border-1` (`--line`) · `border-2` · `border-strong` · `border-on-dark` | `#E3E4E7` · `#D0D2D6` · Ink · Weiss 12 % | Trenner · Feldrahmen · Fokus · auf Dunkel |
+| Rot | `inexxio-red` (`--red`) · `-hover` · `-deep` | `#E51A14` · `#C8140F` · `#A5110D` | Anfrage, aktiv, Fehler |
+| Slate | `accent` · `accent-soft` · `accent-ink` | `#2C6E8F` · `#EEF4F7` · `#1C4D66` | Info, Links, aktive Zeile (ERP) |
+| Bedeutung | `success` · `warning` · `danger`, je `-bg` | `#1E7F46` · `#94570A` · `#C8140F` | Freigegeben/fertig · im Prozess · Problem |
 
-## 3a. Website-Sprache (v4, verbindlich für Website und Konto-Kopf)
+- **Status im Prozess:** Grün = Freigegeben, Anfang und Ende · Amber = im Prozess · Rot = Problem.
+  Die Farbe hängt am Status (`domain/statuses.CATALOG`), nie an der Position.
+- **Die Alt-Palette ist weg** (`slate-*`, `blue-*`, `gray-*`, `brand-*`, `#2563eb`: 0 Vorkommen;
+  eigene Palette nur die Gebietskarte). **Kein Dunkelmodus** – es gibt ihn nirgends.
 
-Referenz zum Anschauen: `reference/mockups/Startseite v4.dc.html` und
-`Startseite v4 mobil.dc.html` (Design-Artefakt «Website Startseite»).
+## 4. Schrift
 
-- **Überschrift – eine Form:** H2 in `font-display` 600, 48 px (mobil 32 px),
-  −0.03 em; darunter **höchstens ein** grauer Satz (`fg-3`, 17/16 px). Keine Kicker
-  darüber, keine roten Wörter, kein Mono, keine gesperrte Schrift. **Immer linksbündig**,
-  auch im Seitenkopf (das grosse graue Wort dahinter bleibt).
-- **Knöpfe:** Rot **nur für die Anfrage** («Anfrage stellen», «Weiter», «Anfrage
-  senden», «Aufgabe schildern»). Abschnitts-Links («Mehr über uns», «Alle
-  Ratgeber-Artikel») hellgrau (`bg-3`). Auf Bildkarten ein **runder Pfeil** (44 px, Glas).
-  Radius 6 px, Höhen 52 (gross) · 48 · 44.
-- **Rundungen** (Stripe als Mass, einen Ticken weicher – November 2026): Knöpfe, Felder,
-  Etiketten, Menüpunkte **6 px** · Karten, Flächen, Bilder, Kopfleiste **8 px** · Kreise
-  bleiben rund. Tokens `--r-xs` 4 · `--r-sm` 6 · `--r-md` 6 · `--r-lg` 8 · `--r-xl` 8; feste
-  Werte in Bausteinen gibt es nicht. **Keine Pillen** (999 px) ausser Kreisen.
-- **Karten:** Radius 8 px, Bild vollflächig, Text **direkt auf dem Bild** über einem
-  dunklen Verlauf. **Kein Kasten im Kasten:** Text und Knopf nie gemeinsam in einem
-  Glas- oder Rahmenkasten.
-- **Glas** (`.ix-glass`, Tokens `--glass-*`): **nur die Kopfleiste** (und die Leiste unten auf
-  dem Handy, die Knöpfe auf dem Bühnenvideo). Im Inhalt kein Glas und keine Schatten: Flächen
-  sind weiss mit feiner Linie (`.plate`), Text auf Fotos steht auf einer dunklen Fläche
-  (`.plate--dark`), Felder sind weiss mit Linie. **Nie im ERP.**
-- **Dropdown im Kopf:** Spalten bis an den Rand, getrennt durch feine Linien; Zeigen hellt die
-  ganze Spalte auf. «Alles zu …» einen Hauch dunkler als die Karte, nie schwarz.
-- **Abschnitts-Muster:** Bühne mit Video · Bereichskarten, die beim Darüberfahren ~25 %
-  breiter werden und ihre Kran-Szene spielen · Umschalter mit Überblendung · versetzte
-  Karten (Garantien) · grosse Zahlen neben Porträt · Bild-Collage · Karussell mit
-  angeschnittenen Nachbarn · Fragen als Liste mit Linien neben wechselndem Bild · Anfrage auf der
-  Skizzenkarte (erst ein Feld, dann Kontakt).
-- **Zeichnungen:** isometrisch, Grau-Rampe; **Grau ist die Serie, Rot ist, was wir
-  dazubauen.**
-- **Bewegung:** Überblenden 0.35–0.6 s mit `--ease-out`; bei `prefers-reduced-motion`
-  steht alles. **Beim Überfahren:** ein **Foto in einem Rahmen** zoomt langsam um 5 % (1.4 s) – überall
-  gleich, ob Link oder nicht, EINE Klasse `zoom-on-hover` am Rahmen (`website/src/styles/global.css`).
-  **Freigestellte Bilder und Zeichnungen** heben sich nur, wenn die ganze Fläche ein Link ist (Kachel im
-  Kopf, Feldkarte); sonst stehen sie still. Knöpfe haben ihren eigenen Hover.
+- **Inter Tight 600–700** für Titel, **Inter** für alles andere (400 Text, 500 Bedienelemente,
+  600 kleine Titel). Kein Gewicht über 700, keine weitere Schrift.
+- Laufweite Titel −0.03 em (`--tracking-tight`), Zwischentitel −0.015 em (`--tracking-snug`),
+  Versalien +0.08 em nur im Mikro-Label des ERP (`fields.MICRO_LABEL`).
+- **Zahlen, die untereinander stehen, sind tabellarisch** (`.ix-tnum`, `tabular-nums`).
+- **Schweiz:** `1'240.50`, `CHF 1'240.50` (in Tabellen die Währung im Kopf), `14.10.2026`, `14:30`,
+  Leerschlag vor der Einheit (`75 %`, `24.5 kg`), **ss** statt ß, Anführungszeichen «so».
+  Datum im Frontend nur über `lib/when.ts`, Telefonnummern international («+41 52 378 22 47»).
 
-## 3b. Version
+## 5. Form, Schatten, Bewegung
 
-**v4 (Oktober 2026)** – kühles, neutrales Grau statt warmem Beige (gleiche Token-Namen,
-neue Werte: `--gray-*`, Elevation, Dark-Theme, `--fg-on-dark`, `sand-*` zeigt auf die
-Grauskala), Glas-Tokens `--glass-*` und `.ix-glass*`, die Website-Sprache §3b. ERP und
-Konto übernehmen das Grau automatisch über die Tokens; Glas bleibt der Website vorbehalten.
-Die E-Mail-Vorlage (`backend/app/services/mail_layout.py`) und die Website-Zeichnungen sind
-mitgezogen.
+- **Radien:** Bedienelemente (Knopf, Feld, Etikett, Menüpunkt) **6 px** (`--r-sm`/`--r-md`,
+  `rounded-ds-md`) · Karten, Flächen, Bilder, Dialoge, Kopfleiste **8 px** (`--r-lg`/`--r-xl`,
+  `rounded-ds-lg`). Kreise bleiben rund. **Keine Pillen-Knöpfe**, keine festen Radien in Bausteinen.
+- **Schatten** `--shadow-sm` … `-xl` nur für Schwebendes; `--shadow-red` nur beim Zeigen auf den
+  roten Knopf, nie im Ruhezustand.
+- **Bewegung:** `--dur-fast` 120 ms (Farbe, Hover) · `--dur-base` 180 ms (Anhebung), Kurve
+  `--ease-out`. Auf der Website dürfen Überblendungen 350–600 ms dauern. Bei
+  `prefers-reduced-motion` steht alles still.
 
-v4 baut auf v3 auf (Titel 700/600, flach – die v3-Radien 8/12/16 sind seit November 2026 6/8/8, §3a –, Rot-Rampe `--red-50…900`, drei
-Token-Schichten Primitive → semantisch `--color-*` → v2-Aliase); **alle v2-Namen lösen
-weiter auf**.
+## 6. Website (v4)
 
-## 4. Migration der Bestands-Komponenten — **abgeschlossen** (August 2026)
+Haltung wie porsche.com in Struktur und Ruhe: grosse Bilder und Videos, wenige Worte, präzise
+Raster, weiche Übergänge. Gefühl: leicht, vertrauenswürdig, kompetent, nahbar. Jede Seite will eine
+**Anfrage** oder einen **Anruf**.
 
-Die Alt-Palette ist aus dem Code verschwunden: `slate-*`, `blue-*`, `gray-*`, das
-hartkodierte `#2563eb` und der `brand-*`-Vorrat in `tailwind.config.js` sind entfernt
-(**0 Vorkommen**, geprüft). Was hier stand, war der Migrationspfad; er ist gegangen.
+**Masse:** Inhalt bis 1264 px (`--maxw`) mittig, Seitenrand 16 / 24 px (`--gutter`, ab 768 px),
+12 Spalten ab 960 px, Kopf 64 / 76 px (`--header-h`). Abschnitte `.v4-section` 72 px oben (ab
+960 px 120 px); nach den drei Bereichen der Startseite etwas mehr (96 / 152 px).
 
-Die Zuordnung bleibt als **Lesehilfe** für alten Code aus der Historie:
+**Regeln**
+- **Überschrift – eine Form:** `.v4-h2` (Inter Tight 600, 48 px, mobil 32 px, −0.03 em), darunter
+  höchstens ein grauer Satz `.v4-sub` (17 / 16 px, `--ink-3`). **Immer linksbündig.** Keine Kicker,
+  keine roten Wörter, kein Mono, keine gesperrte Schrift (`SectionHead.astro`).
+- **Knöpfe** (`.btn`, 40 px, gross 48 px, 6 px Radius): **Rot nur für die Anfrage** («Anfrage
+  stellen», «Weiter», «Anfrage senden», «Aufgabe schildern»). Abschnitts-Links hellgrau
+  (`.btn--grey`). Auf Bildkarten der runde Pfeil `.garrow` (44 px, hell auf Foto, `--ink` auf Grau).
+- **Karten:** 8 px, Foto randlos, Text direkt auf dem Bild über einem dunklen Verlauf oder auf der
+  dunklen Fläche `.plate--dark`. **Kein Kasten im Kasten** – Text und Knopf nie gemeinsam in einem
+  Rahmen. Flächen im Inhalt sind weiss mit feiner Linie (`.plate`), ohne Schatten.
+- **Glas nur in der Kopfleiste** (`Header.astro`, Tokens `--glass-*`, nur unter `html[data-site]`).
+  Im ERP und Konto ist derselbe Kopf deckend weiss. Sonst nirgends Glas.
+- **Beim Überfahren:** ein Foto in einem Rahmen zoomt langsam um 5 % (1.4 s, `.zoom-on-hover` am
+  Rahmen) – überall gleich, ob Link oder nicht. Freigestellte Bilder und Zeichnungen heben sich nur,
+  wenn die ganze Fläche ein Link ist (Kachel im Kopf, Feldkarte); sonst stehen sie still.
+- **Karussell** (`scripts/carousel.ts`, `[data-carousel]`): eingerastet, beginnt in der Mitte,
+  Nachbarn angeschnitten, Punkte darunter (`.cdot`), mit der Maus ziehbar – und **endlos**: nach dem
+  letzten kommt der erste. Breit, wo alles nebeneinander passt, ist es eine Reihe.
+- **Zeichnungen:** isometrisch, Grau-Rampe – «**Grau ist die Serie, Rot ist, was wir dazubauen.**»
+  Garantien zeigen Schemata, keine Stockfotos. Zeichnungen per Schlüssel über `lib/illustrations.ts`.
+- **Bilder:** echte Arbeit (Anlagen, Montage, Menschen), natürliches Licht, keine Filter. Ein
+  fehlendes Foto ist der graue Rahmen «Foto fehlt» – keine Beispielbilder. Video als `<video>` mit
+  Standbild, schmal die Hochkant-Fassung, bei «weniger Bewegung» das Standbild.
+- **Wörter:** kein «Fixpreis» (in keiner Form), keine «Werkstatt» – «Standort», «Betrieb», «bei
+  INEXXIO» (`check-site` bricht ab). Jeder Text in jeder gebauten Sprache (`t()`).
 
-| alt (deprecated) | neu (Design System) |
+**Bausteine** (`website/src/components/`)
+
+| Baustein | Was er ist |
 |---|---|
-| `bg-slate-50` / `bg-white` | `bg-bg-2` / `bg-bg-1` |
-| `bg-slate-900` (Inverse-Sektion) | `bg-bg-dark` (Achtung: Farbgruppe **und** Wert heissen `bg`) |
-| `text-slate-900` / `-700` / `-600` / `-400` | `text-fg-1` / `-2` / `-3` / `-4` |
-| `border-slate-200` | `border-border-1` |
-| `blue-600` (Info/aktiv/Link) | `accent` (Slate) |
-| `bg-blue-50/100` (Info-Fläche, Symbol-Chip) | `bg-accent-soft` + `text-accent-ink` |
-| `bg-blue-600` als **CTA-Fläche** | `bg-inexxio` (Rot = der EINE laute Akzent) |
-| `focus:ring-blue-500` | `focus:ring-accent` |
-| `rounded-xl` (Karte) | `rounded-ds-lg` |
+| `Header` | Logo · fünf Menüpunkte · Telefon · «Anfrage stellen». Öffnet zu Glas mit Kacheln (Titelbild der Seite, sonst Zeichnung); mobil dasselbe Menü. |
+| `Stage` | Bühne der Startseite: Video oder Foto über die ganze Breite, Titel unten links, Rot + runder Knopf. |
+| `StageHero` | Seitenkopf der Unterseiten: grosses graues Wort hinten, freigestelltes Bild davor, weich auslaufend. |
+| `SectionHead` | Die eine Überschrift-Form. |
+| `home/AreaTrio` | Drei Bereiche: hohe Bildkarten, beim Darüberfahren breiter mit Kran-Szene; schmal ein Karussell. |
+| `home/Handover` | Nachfolge: Collage aus drei Bildern, Text darunter. |
+| `home/WhyNumbers` | Grosse Zahlen an Haarlinien (2 × 2) neben einem freigestellten Porträt. |
+| `home/Stagger` · `home/Guarantees` | Drei versetzte Karten, Überschrift dazwischen (Garantien, Funk). |
+| `home/SpecialStage` | Bühne mit drei Plätzen und Umschalter (bis vier Felder). |
+| `home/ArticleCarousel` | Ratgeber als Karussell, Text auf `.plate--dark`. |
+| `spezial/FieldCards` | Graue Karten, das Bild steht auf ihrer Oberkante; schmal ein Karussell. |
+| `spezial/SolutionPath` | Jeder Ablauf als senkrechter Weg: «Ihr Problem» → Stationen → roter Punkt «Ihre Lösung». |
+| `spezial/PracticeCase` · `spezial/SeriesGap` | Ein Fall aus der Praxis · Serie gegen Einzelstück. |
+| `PhotoCard` · `Magazine` · `PhotoRows` | Bildkarte · zwei Spalten versetzt (schmal zum Wischen) · Zeilen im Wechsel. |
+| `FactGrid` · `ServiceTiers` · `SeasonCalendar` | Sätze an Haarlinien · drei Stufen als Treppe · Wandkalender (Jan–Dez). |
+| `FaqStage` | Höchstens fünf Fragen: links ein Bild zur offenen Frage, rechts eine Liste mit feinen Linien. |
+| `ContactSection` · `InquiryForm` · `ContactPanel` | Die Anfrage auf der Standortkarte, in zwei Schritten (erst ein Feld, dann Kontakt); darunter der direkte Kontakt. |
+| `CallPanel` | Dunkle Karte für den direkten Weg (Notfall, Bewerbung). |
+| `Footer` | Dunkel: Logo oben links, je Menüpunkt eine Spalte, unten der grosse Schriftzug. |
+| `MobileBar` | Schmal unten: «Anrufen» · «Anfrage», sobald der Kopf aus dem Bild ist. |
+| `Media` · `Photo` · `Icon` · `Lockup` | Bild oder Video · ein Foto aus der Fotoliste · Lucide inline (Strich 1.75) · das Logo als `<symbol>`. |
 
-> **Gemessen, nicht geglaubt.** Die Umstellung der öffentlichen Seiten wurde in Chromium
-> geprüft (Screenshot + eine Suche nach Text, dessen Farbe der Hintergrundfarbe
-> entspricht). Genau das hat den einen echten Fehler gefunden: `bg-dark` gibt es nicht –
-> die Farbgruppe heisst `bg`, die Klasse also `bg-bg-dark`. Ohne die Prüfung wären fünf
-> dunkle Hero-Sektionen weiss auf weiss gewesen, und der Build hätte nichts gemeldet:
-> eine unbekannte Tailwind-Klasse ist kein Fehler, sie erzeugt schlicht kein CSS.
+## 7. Konto und ERP
 
-## 5. Neuen Claude-Design-Export übernehmen (Re-Sync)
+- **Konto** sieht aus wie die Website (Kopf, Fuss, Schrift, Radien), ohne Glas; der Name als
+  grosses Wort im Kopf, Karten `.kt-*`.
+- **ERP – dicht, 14 px:** Struktur vor Fläche, Haarlinien statt Kartenrahmen mit Schatten, 8-px-Raster,
+  Infotexte im Hover, Objektnummer als Kennung (`.erp-objid`), Zahlen tabellarisch. Rot nur aktiv,
+  Slate für Info und Links.
+- **Die Bausteine** (nicht neu erfinden): `detail-frame.tsx` (Anatomie eines Datensatzes:
+  `DetailHeader`, `RecordIcon`, `Card`, `SpecSection`, `ReadField`, `DETAIL_MAXW`) · `controls.tsx`
+  (`inputClass` – die eine Feldform –, `Label`, `Segmented`, `Dialog`) · `fields.tsx` (`StatusDot`,
+  `MICRO_LABEL`) · `hints.tsx` (die eine Hover-Blase) · `module-ui.tsx` (`ActionButton`, `LedgerRow`,
+  `Amount`, `ValueBar`) · `object-select.tsx` (jedes Referenzfeld) · `form/field.tsx` (jedes
+  Eingabefeld) · `skeleton.tsx` (Laden = die graue Form dessen, was kommt). Regeln und die ganze
+  Liste: `frontend/CLAUDE.md`.
 
-Wenn du in Claude Design weiterarbeitest und neu exportierst:
+## 8. E-Mail
 
-1. Die kanonische Token-Datei ersetzen:
-   `cp <export>/…/colors_and_type.css frontend/src/styles/design-system/colors_and_type.css`
-2. Doku in `docs/design-system/` aktualisieren (`brand-foundations.md`, die Vorlage in
-   `reference/mockups/`).
+**Eine Vorlage für jede Mail des Hauses** (`mail_layout.compose`): Betreff als Überschrift, rechts
+auf gleicher Höhe das Logo mit Unterzeile und «ehemals HS Steiner» (240 × 150 px, am Handy darüber;
+`frontend/public/mail/logo.png` · `logo-dark.png`) · Inhalt · «Beste Grüsse aus ‹Ort›» ·
+Unterschrift (Mensch im Namen der Gesellschaft, ohne Funktion; Gesellschaft, Anschrift, Telefon,
+E-Mail, Website – **sie ist der Fuss**) · unten ein Streifen als kleine Werbefläche (Bild, Stichwort,
+Titel, Satz, Link). Inter, sonst Arial; Kästen 8 px, Knöpfe 6 px in Ink; Links öffnen ein neues
+Fenster; hell und dunkel. Gruss und Streifen stehen in `website/src/config/inquiry.mjs` (`letter`,
+je Sprache). Das Bild der Unterschrift: schräge Streifen mit roter Kante (`services/portrait.py`).
 
-3. `cd frontend && npm run build` – der Build ist der Wächter (fehlende Tokens fallen
-   sofort auf). Tokens sind nach **Name** stabil; nur Werte ändern sich → kein
-   Komponenten-Refactor nötig.
+## 9. Papier (A4)
+
+**Eine Vorlage für jedes Papier** (`a4.py`: Offerte, Auftragsbestätigung, Rechnung, Quittung,
+Stornierung, Gutschrift, Mahnung, AGB, Datenschutz, Impressum): A4, Ränder 20 mm, der Dokumenttyp
+gross und blass oben links, das Logo (32 mm) oben rechts, links die Anschrift (Fensterkuvert), rechts
+die Fakten; Positionen mit Seriennummer, Beträge rechtsbündig und tabellarisch; **der Absender steht
+einmal – in der Fusszeile** (Name, Sitz, MWST-Nummer, Seite x/n). Rot nur im Logo. Die Schrift steckt
+im Dokument, die Seiten sind echte A4-Seiten (der Download hat so viele Seiten, wie «Seite x/n» sagt).
+
+## 10. Logo
+
+**Logo v5 «F1»** (Oktober 2026): Pfeil-E, das verschachtelte XX, der rote Schwung; O als gerundetes
+Rechteck. **Nie umfärben, verzerren, nachbauen** – eine Änderung geht über den Generator
+(`reference/assets/logo/generator/`, Kopien und Masse: dessen README).
+
+| Datei | Wo |
+|---|---|
+| `inexxio-stacked-light` · `-dark` | **Im Einsatz auf Website, Konto und ERP:** Kopf, Mobil-Menü, Fuss (`Lockup.astro`, Kopie `website/public/logo/inexxio-ehemals-hs-steiner*.svg`), Anmeldung, Vorschaubild. 60 % INEXXIO : 40 % «ehemals HS Steiner». |
+| `inexxio-horizontal-light` · `-dark` | Wortmarke allein: Papiere (`backend/app/assets/logo.png`), Laufkatze der Kran-Szenen, der Schriftzug im Fuss (`schriftzug-fuss.svg`). |
+| `inexxio-symbol-red` | **Favicon** (Website `favicon.svg`, ERP `app/icon.svg`, PNG-Abzüge `make-assets.mjs`). |
+| `inexxio-*-mono` | Einfarbig Ink: Gravur, Typenschild, Stempel. |
+| `inexxio-symbol*`, `inexxio-app-icon`, `inexxio-*-red` | Symbol auf bekanntem Grund, App-Icon, auf Logo-Rot. |
+| mit Unterzeile «Kranbau · Fahrzeugbau · Service» | Nur im Artefakt (Gruppe «Logos»); daraus das Logo der Mail. |
+
+Schutzraum rundum ≈ ¼ der Versalhöhe; Mindestbreite Wortmarke 96 px, gestapelt 120 px, Symbol
+16 px; nur auf Weiss, hellem Grau, Ink oder Logo-Rot. Kein zweiter Schwung neben dem Logo.
+
+## 11. Schreiben
+
+- **Sie**, kurze Sätze, eine Sache je Satz, Nutzen vor Aufzählung. Kein Werbe-Superlativ, kein
+  Ausrufezeichen, kein Emoji. Versprechen so, dass man sie prüfen kann.
+- Die Marke heisst **INEXXIO** (Versalien, auch im Fliesstext).
+- **Oberfläche:** Knopf = Verb («Speichern», «Auftrag freigeben») · Bestätigung = Partizip
+  («Gespeichert») · Fehler = ein Satz an der Stelle, der sagt, was zu tun ist, mit der Sache in «»
+  · leer = «—» (`NOTHING`).
+
+## 12. Das System ändern
+
+1. Einen Wert ändern: nur in `colors_and_type.css`. Website und Frontend bauen ihn mit.
+2. Ein neues Token nur, wenn es jemand liest – der Wächter verlangt es.
+3. Einen neuen Website-Baustein: aus den Bausteinen §6 zusammensetzen; erst wenn keiner passt, ein
+   neuer – mit Kopfkommentar und einer Zeile in §6.
+4. Danach das Artefakt nachziehen (README, Tokens, Komponente).
+5. Hinsehen, nicht nur bauen: eine unbekannte Tailwind-Klasse oder CSS-Variable erzeugt still
+   nichts (`bg-dark` gibt es nicht, `bg-bg-dark` schon).

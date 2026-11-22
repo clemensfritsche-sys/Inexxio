@@ -71,7 +71,7 @@ inexxio/
 │                       same-code.mjs (hat sich nur Text geändert, nie Code? – Prüfung für
 │                       Arbeiten an Kommentaren)
 └── docs/             ← adr/ (gültige, mit Kopfstatus; historische in history/adr/) · attic.md · backlog.md (offen, auch die Befunde)
-                         · design-system/ · prozessbild.md · gmail-setup.md · stripe-setup.md
+                         · design-system/ (README = Regeln, reference/assets/logo) · prozessbild.md · gmail-setup.md · stripe-setup.md
                          · passkeys.md · dokumente.md · history/
 ```
 Messwerkzeug: `backend/scripts/deadcode.py` – «was liest eigentlich niemand mehr?» für
@@ -725,18 +725,20 @@ Oberfläche und Dienst garantiert dasselbe.
   Inland steuerbar (Dienstleistung an eine Privatperson im Ausland) – je mit Pflichtsatz auf dem Beleg.
 
 ## Design System (VERBINDLICH)
-Grundlage ALLER Oberflächen (Website, Konto, ERP). Regeln: **`docs/design-system/README.md`**
-(vor UI-Arbeit lesen), Skill `inexxio-design-system`. Tokens **nur** in
-`frontend/src/styles/design-system/colors_and_type.css` (die Website generiert ihre daraus).
+Grundlage ALLER Oberflächen (Website, Konto, ERP, E-Mail, Papiere). Regeln, wie sie gebaut sind:
+**`docs/design-system/README.md`** (vor UI-Arbeit lesen), Skill `inexxio-design-system`; das
+Artefakt «INEXXIO Design System» zeigt dasselbe zum Anschauen und folgt dem Code. Tokens **nur** in
+`frontend/src/styles/design-system/colors_and_type.css` (zwei Schichten: Skalen → Rollen; die
+Website generiert ihre daraus); **jedes Token wird gelesen** (Wächter `design.test.mjs`).
 Farbe = Bedeutung: **kühle, neutrale Grautöne** (v4) tragen die Fläche, **Rot (`inexxio`) ist
-der eine laute Akzent** (nie in Überschriften), **Slate (`accent`) die leise Stimme**. Website:
-eine Überschrift-Form, Rot nur für die Anfrage, Glas (`.ix-glass*`) nur dort, nie im ERP;
-Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`. Wörter: kein
+der eine laute Akzent** (nie in Überschriften), **Slate (`accent`) die leise Stimme**. Radien 6 px
+(Bedienelemente) · 8 px (Karten, Flächen, Dialoge). Website: eine Überschrift-Form, Rot nur für die
+Anfrage, Glas nur in der Kopfleiste, nie im ERP. Wörter: kein
 «Fixpreis», keine «Werkstatt». ERP: Struktur vor Fläche (Haarlinien statt
 Schatten), Status als Punkt + Wort, Lucide-Symbole statt Text, tabellarische Zahlen,
 Infotexte im Hover, 8-px-Raster, Inter / Inter Tight. **Die Alt-Palette ist weg** (`slate-*`,
-`blue-*`, `gray-*`, `brand-*`, `#2563eb`: 0 Vorkommen). Eine unbekannte Tailwind-Klasse oder
-CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
+`blue-*`, `gray-*`, `brand-*`, `#2563eb`: 0 Vorkommen), ebenso Dunkelmodus und die v4-Mockups.
+Eine unbekannte Tailwind-Klasse oder CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
 
 ## Schema
 - **Die Migration ist der einzige Weg.** `backend/start.sh` fährt `alembic upgrade head` bei
@@ -794,7 +796,7 @@ Eigenes Teilprojekt (Astro 7, Node ≥ 22.12), getrennt vom ERP. **Zuerst lesen:
 später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website-auftrag.md`.
 - **Eine Quelle**: `website/src/config/site.mjs`; Texte setzen Werte mit `{{schlüssel}}` ein.
   Was nicht feststeht, steht nicht da (keine Platzhalter-Vermerke).
-- **Gestaltung v4** (Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`):
+- **Gestaltung v4** (Regeln und Liste der Bausteine: `docs/design-system/README.md` §6):
   Startseite aus `components/home/*`. Die drei Bereiche, ihre Unterseiten, «Über uns», Service, Karriere und Ratgeber haben je ein
   eigenes Layout aus denselben Bausteinen (es gibt keine Bereichs-/Unterseiten-Vorlage mehr):
   `StageHero` (Kopf wie Porsche: grosses Wort, freigestelltes Bild mit weich auslaufenden Rändern) · `spezial/FieldCards`

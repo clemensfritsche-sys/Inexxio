@@ -575,7 +575,7 @@ fieldset:disabled .ix-editable.is-missing {
 .erp-actbtn:disabled { opacity: .5; cursor: not-allowed; }
 
 .erp-actbtn-primary { background: var(--inexxio-black); color: #fff; box-shadow: var(--shadow-sm); }
-.erp-actbtn-primary:not(:disabled):hover { background: var(--color-ink-hover); }
+.erp-actbtn-primary:not(:disabled):hover { background: var(--gray-800); }
 .erp-actbtn-danger { background: var(--bg-1); border-color: color-mix(in srgb, var(--danger) 25%, transparent); color: var(--danger); }
 .erp-actbtn-danger:not(:disabled):hover { background: var(--danger-bg); }
 .erp-actbtn-neutral { background: var(--bg-1); border-color: var(--border-2); color: var(--fg-2); }

@@ -136,7 +136,7 @@ Alle UI baut auf dem Inexxio Design System – Regeln: **`../docs/design-system/
 Skill `inexxio-design-system`.
 - **Tokens** nur in `src/styles/design-system/colors_and_type.css` (erstes CSS-Modul in
   `app/layout.tsx`). Tailwind-Utilities daraus (`bg-bg-1/2/3`, `text-fg-1…4`, `text-accent`,
-  `text-inexxio`, `border-border-1/2`, `rounded-ds-lg`, `shadow-ds-sm/md`, `font-display`),
+  `text-inexxio`, `border-border-1/2`, `rounded-ds-md/lg`, `shadow-ds-md`, `font-display`),
   Zahlen `.ix-tnum`.
 - **Farbe = Bedeutung**: kühle, neutrale Grautöne (v4) = Fläche · Rot (`inexxio`) = der eine laute Akzent
   · Slate (`accent`) = Info/aktiv/Links im ERP.
