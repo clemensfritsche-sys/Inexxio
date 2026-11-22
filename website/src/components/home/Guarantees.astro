@@ -11,6 +11,7 @@ import { promises } from '../../content/promises';
 import halfDe from '../../assets/schema/garantie-haelfte.svg?raw';
 import yearDe from '../../assets/schema/inexxio-365-jahr.svg?raw';
 import { tMarkup } from '../../i18n/t.mjs';
+import { site } from '../../config/site.mjs';
 const half = tMarkup('schemata', halfDe);
 const year = tMarkup('schemata', yearDe);
 
@@ -24,11 +25,11 @@ const g = promises.items.garantie;
 const y = promises.items.inexxio365;
 const e = promises.items.erstservice;
 ---
-<Stagger
+{site.features.guarantees && <Stagger
   id="garantien"
   title={promises.title}
   lead={promises.lead}
   a={{ label: g.label, title: g.title, href: garantieHref, art: half }}
   b={{ label: y.label, title: y.title, href: y.link?.href ?? '#anfrage', art: year }}
   c={{ label: e.label, title: e.title, href: e.link?.href ?? '#anfrage', photo }}
-/>
+/>}
