@@ -54,8 +54,11 @@ export function useT(): T {
 /** Ein Link innerhalb von Konto und Anmeldung, der die Sprache behält. */
 export function withLang(href: string): string {
   const l = currentLang();
-  // Deutsch braucht kein Zeichen; eine Seite der Website in der Sprache trägt sie schon im Pfad.
-  if (l === 'de' || href === `/${l}` || href.startsWith(`/${l}/`)) return href;
-  const [path, hash] = href.split('#');
-  return `${path}${path.includes('?') ? '&' : '?'}lang=${l}${hash !== undefined ? `#${hash}` : ''}`;
+  const u = new URL(href, 'http://x');
+  // Eine Seite der Website in der Sprache trägt sie schon im Pfad.
+  if (u.pathname === `/${l}` || u.pathname.startsWith(`/${l}/`)) return href;
+  // Deutsch braucht kein Zeichen – ausser das Ziel nennt eine andere Sprache: die Wahl gilt.
+  if (l === 'de' && !u.searchParams.has('lang')) return href;
+  u.searchParams.set('lang', l);
+  return `${u.pathname}${u.search}${u.hash}`;
 }

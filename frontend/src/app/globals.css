@@ -292,7 +292,7 @@
 .kt-card-tag { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--fg-3); }
 .kt-card-text { font-size: 15px; line-height: 1.5; color: var(--fg-1); overflow-wrap: anywhere; }
 .kt-card-text small { display: block; margin-top: 4px; font-size: 13px; color: var(--fg-3); }
-.kt-round { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-md); border: 0; background: rgba(255, 255, 255, 0.85); color: var(--fg-2); cursor: pointer; transition: background 0.2s; }
+.kt-round { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.85); color: var(--fg-2); cursor: pointer; transition: background 0.2s; }
 .kt-round:hover { background: #fff; color: var(--fg-1); }
 .kt-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: var(--r-md); border: 1px dashed var(--border-2);
   background: transparent; font: 500 14px/1 var(--font-body); color: var(--fg-2); cursor: pointer; }

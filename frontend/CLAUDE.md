@@ -443,7 +443,7 @@ Zentriert über `margin: auto` an der Karte. Wächter: `scripts/login-target.tes
   `(account)` und `(auth)`): `?lang=fr` (so verlinkt die Website jeder Sprache Konto, Anmelden,
   Abmelden), sonst die Sprache des Ziels `?from=`, sonst Deutsch; sie setzt `html[data-lang]` und
   tauscht Kopf und Fuss gegen die der Sprache (`shell.json` → `langs`, aus der Fehlerseite jeder
-  Sprache). Texte: `const t = useT()` bzw. `t` ausserhalb von Bauteilen, **der deutsche Text ist der
+  Sprache); **die Sprachwahl im Kopf bleibt auf der Seite** (`/konto?lang=it`). Texte: `const t = useT()` bzw. `t` ausserhalb von Bauteilen, **der deutsche Text ist der
   Schlüssel**, Wörterbücher `src/i18n/<sprache>.json`; Links innerhalb über `withLang`. Wächter
   `scripts/i18n.test.mjs`: jeder Schlüssel eine feste Zeichenkette, jede Sprache der Website
   vollständig, nichts verwaist, dieselben Werte `{…}`. Die Anmeldemail kommt in derselben Sprache
