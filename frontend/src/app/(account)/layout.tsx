@@ -1,14 +1,12 @@
-'use client';
+import { AccountFrame } from '@/components/account/account-frame';
+import { ShellLanguage } from '@/components/layout/site-shell';
 
-import { AuthGate, MAIN_H } from '@/components/auth/auth-gate';
-
-/** Das Konto – für jede angemeldete Person (`AuthGate`). */
+/** Das Konto – in der Sprache der Seite, von der man kommt (`ShellLanguage`). */
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthGate>
-      <main style={{ minHeight: MAIN_H, background: 'var(--bg-1)' }}>
-        {children}
-      </main>
-    </AuthGate>
+    <>
+      <ShellLanguage />
+      <AccountFrame>{children}</AccountFrame>
+    </>
   );
 }

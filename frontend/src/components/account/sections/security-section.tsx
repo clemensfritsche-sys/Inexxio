@@ -21,6 +21,7 @@ import { KtField, KtSection } from '@/components/form/kt-section';
 import { ClaudeList, PasskeyList } from '@/components/erp/person-access';
 import { isStaff } from '@/lib/record-status';
 import { errorText, useAction } from '@/lib/use-action';
+import { t as tr, useT, withLang } from '@/lib/lang';
 
 /** Die neue Adresse über eine Neuanmeldung hinweg (der Magic Link öffnet oft einen neuen Tab). */
 const PENDING = 'inexxio_new_email';
@@ -29,17 +30,18 @@ type Step = 'idle' | 'form' | 'reauth' | 'sent';
 
 function reason(e: unknown): string {
   const code = (e as { code?: string }).code;
-  if (code === 'auth/email-already-in-use') return 'Diese Adresse gehört bereits zu einem anderen Konto.';
-  if (code === 'auth/invalid-email' || code === 'auth/invalid-new-email') return 'Das ist keine gültige E-Mail-Adresse.';
-  if (code === 'auth/too-many-requests') return 'Zu viele Versuche – bitte in ein paar Minuten noch einmal.';
-  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return 'Die Anmeldung wurde abgebrochen.';
-  return errorText(e, 'Das hat nicht geklappt.');
+  if (code === 'auth/email-already-in-use') return tr('Diese Adresse gehört bereits zu einem anderen Konto.');
+  if (code === 'auth/invalid-email' || code === 'auth/invalid-new-email') return tr('Das ist keine gültige E-Mail-Adresse.');
+  if (code === 'auth/too-many-requests') return tr('Zu viele Versuche – bitte in ein paar Minuten noch einmal.');
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return tr('Die Anmeldung wurde abgebrochen.');
+  return errorText(e, tr('Das hat nicht geklappt.'));
 }
 
 export function SecuritySection({ profile }: { profile: UserProfile }) {
   const [step, setStep] = useState<Step>('idle');
   const [email, setEmail] = useState('');
   const { busy, error, setError, run } = useAction();
+  const t = useT();
 
   // Zurück von der Neuanmeldung: die gemerkte Adresse steht wieder im Feld.
   useEffect(() => {
@@ -74,33 +76,31 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
     await logout();
     // Hart navigiert, wie jeder Weg zur Anmeldung (frontend/CLAUDE.md «Anmelden»): nach dem
     // Abmelden soll kein Zustand der alten Sitzung im Speicher bleiben.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.assign(`/login?from=${encodeURIComponent('/konto#sicherheit')}`);
+    window.location.assign(withLang(`/login?from=${encodeURIComponent(withLang('/konto#sicherheit'))}`));
   }
 
   return (
-    <KtSection id="sicherheit" title="Sicherheit"
-      text="Ohne Passwort. Sie melden sich per E-Mail-Link, mit Passkey oder mit Google an.">
+    <KtSection id="sicherheit" title={t('Sicherheit')}
+      text={t('Ohne Passwort. Sie melden sich per E-Mail-Link, mit Passkey oder mit Google an.')}>
       <div className="kt-card">
         <span className="kt-card-ic"><Mail aria-hidden /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span className="kt-card-tag">Anmelde-E-Mail</span>
+          <span className="kt-card-tag">{t('Anmelde-E-Mail')}</span>
           <div className="kt-card-text">{profile.email}</div>
 
           {step === 'form' && (
             <form onSubmit={submit} style={{ display: 'grid', gap: 12, marginTop: 16 }}>
-              <KtField id="kt-new-mail" name="email" label="Neue E-Mail-Adresse" type="email" value={email}
-                onChange={setEmail} placeholder="name@beispiel.ch" autoComplete="email" />
+              <KtField id="kt-new-mail" name="email" label={t('Neue E-Mail-Adresse')} type="email" value={email}
+                onChange={setEmail} placeholder={t('name@beispiel.ch')} autoComplete="email" />
               <p className="kt-note">
-                Wir schicken einen Bestätigungslink an die <strong>neue</strong> Adresse. Erst
-                mit dem Klick gilt sie – danach melden Sie sich mit ihr an.
+                {t('Wir schicken einen Bestätigungslink an die neue Adresse. Erst mit dem Klick gilt sie – danach melden Sie sich mit ihr an.')}
               </p>
               {error && <p className="kt-note is-error">{error}</p>}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button type="submit" className="kt-pill" disabled={busy || !email.trim()}>
-                  {busy ? 'Wird gesendet …' : 'Link senden'}
+                  {busy ? t('Wird gesendet …') : t('Link senden')}
                 </button>
-                <button type="button" className="kt-pill kt-pill--ghost" onClick={cancel}>Abbrechen</button>
+                <button type="button" className="kt-pill kt-pill--ghost" onClick={cancel}>{t('Abbrechen')}</button>
               </div>
             </form>
           )}
@@ -108,24 +108,23 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
           {step === 'reauth' && (
             <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
               <p className="kt-note">
-                Zur Sicherheit braucht es eine frische Anmeldung. Danach kommen Sie hierher
-                zurück, «{email.trim()}» steht schon im Feld.
+                {t('Zur Sicherheit braucht es eine frische Anmeldung. Danach kommen Sie hierher zurück, «{mail}» steht schon im Feld.', { mail: email.trim() })}
               </p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button type="button" className="kt-pill" onClick={() => void signInAgain()}>Neu anmelden</button>
-                <button type="button" className="kt-pill kt-pill--ghost" onClick={cancel}>Abbrechen</button>
+                <button type="button" className="kt-pill" onClick={() => void signInAgain()}>{t('Neu anmelden')}</button>
+                <button type="button" className="kt-pill kt-pill--ghost" onClick={cancel}>{t('Abbrechen')}</button>
               </div>
             </div>
           )}
 
           {step === 'sent' && (
             <p className="kt-note is-ok" style={{ marginTop: 10 }}>
-              Link an «{email.trim()}» gesendet. Bis Sie ihn anklicken, gilt «{profile.email}».
+              {t('Link an «{neu}» gesendet. Bis Sie ihn anklicken, gilt «{alt}».', { neu: email.trim(), alt: profile.email })}
             </p>
           )}
         </div>
         {step === 'idle' && (
-          <button type="button" className="kt-round" data-tip="Ändern" aria-label="E-Mail-Adresse ändern"
+          <button type="button" className="kt-round" data-tip={t('Ändern')} aria-label={t('E-Mail-Adresse ändern')}
             onClick={() => setStep('form')}>
             <Pencil size={16} />
           </button>
@@ -137,7 +136,7 @@ export function SecuritySection({ profile }: { profile: UserProfile }) {
 
       {isStaff(profile.role) && <ClaudeList owner={null} cards />}
 
-      <a className="kt-out" href="/abmelden"><LogOut size={18} aria-hidden />Abmelden</a>
+      <a className="kt-out" href={withLang('/abmelden')}><LogOut size={18} aria-hidden />{t('Abmelden')}</a>
     </KtSection>
   );
 }

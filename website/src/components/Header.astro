@@ -30,7 +30,7 @@
  */
 import { site, navigation as groups } from '../config/site.mjs';
 import { plain, siteMode } from '../lib/text.mjs';
-import { builtLanguages, currentLang, languages } from '../config/languages.mjs';
+import { SOURCE, builtLanguages, currentLang, languages } from '../config/languages.mjs';
 import { localPath } from '../i18n/paths.mjs';
 import { t } from '../i18n/t.mjs';
 import Icon from './Icon.astro';
@@ -68,6 +68,9 @@ const T = t('ui', {
   env: 'Testumgebung – nicht die öffentliche Website',
 });
 const acct = site.account;
+/** Konto und Anmeldung sprechen die Sprache der Seite, von der man kommt (`?lang=`, frontend/lib/lang). */
+const lq = currentLang().code === SOURCE ? '' : `?lang=${currentLang().code}`;
+const go = (href: string) => `${href}${lq}`;
 /** Testumgebung: ein Eckband oben rechts (nur `SITE_ENV=dev`, auch in Konto und ERP). */
 const envTag = process.env.SITE_ENV === 'dev' ? 'DEV' : null;
 
@@ -110,15 +113,15 @@ const langs = languages.map((l) => {
   const href = !on && built.has(l.code) ? localPath(path, l.code) ?? localPath('/', l.code) : undefined;
   return { label: l.name, bubble: l.hello, lang: l.locale, on, href, sub: on ? T.current : href ? l.read : l.soon };
 });
-const login = { label: acct.login.label, href: acct.login.href, img: await imgOf(acct.login.href, 'menu/anmelden'), sub: T.loginSub };
+const login = { label: acct.login.label, href: go(acct.login.href), img: await imgOf(acct.login.href, 'menu/anmelden'), sub: T.loginSub };
 /** Das Profil zeigt das eigene Bild (bzw. die Initialen) – wie die Kachel im Kopf, nie eine Zeichnung. */
-const profile = { label: T.profile, href: acct.profile.href, sub: T.profileSub, avatar: true };
-const logout = { label: acct.logout.label, href: acct.logout.href, img: await imgOf(acct.logout.href, 'menu/abmelden'), sub: T.logoutSub };
+const profile = { label: T.profile, href: go(acct.profile.href), sub: T.profileSub, avatar: true };
+const logout = { label: acct.logout.label, href: go(acct.logout.href), img: await imgOf(acct.logout.href, 'menu/abmelden'), sub: T.logoutSub };
 const cols = (n: number) => `--cols:${Math.max(3, n)}`;
 /** Mobil-Menü: EINE Ebene. Jeder Punkt klappt eine Reihe Karten auf – dieselben Kacheln wie im Kopf. */
 const mobile: { id: string; label: string; href: string; acct?: string; cards: Tile[] }[] = [
   ...menus.map((m) => ({ id: m.id, label: m.label, href: m.href, cards: m.tiles })),
-  { id: 'konto', label: T.account, href: acct.profile.href, acct: 'user', cards: [profile, logout] },
+  { id: 'konto', label: T.account, href: go(acct.profile.href), acct: 'user', cards: [profile, logout] },
 ];
 ---
 <header class:list={['site-header', over && 'site-header--over']} data-header>
@@ -191,7 +194,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
           <a class="hd__ic hd__acct" href={login.href} rel="nofollow" data-acct="login" aria-label={login.label}>
             <span class="hd__acct-ico"><Icon name="circle-user" size={22} /></span>
           </a>
-          <a class="hd__ic hd__acct" href={acct.profile.href} rel="nofollow" data-acct="user" aria-label={T.account}>
+          <a class="hd__ic hd__acct" href={go(acct.profile.href)} rel="nofollow" data-acct="user" aria-label={T.account}>
             <span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span>
           </a>
           <div class="dd__panel" id="dd-konto">
@@ -203,7 +206,7 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
               </a></li>
             </ul>
             <ul role="list" class="dd__tiles" style={cols(3)} data-acct="user">
-              <li><a class="tile tile--me" href={acct.profile.href} rel="nofollow">
+              <li><a class="tile tile--me" href={go(acct.profile.href)} rel="nofollow">
                 <span class="tile__label" data-acct-name>{T.signedIn}</span>
                 <span class="tile__stage"><span class="tile__ring"><span class="tile__avatar" data-acct-initials><Icon name="user" size={36} /></span></span></span>
                 <span class="tile__rows">
@@ -228,8 +231,8 @@ const mobile: { id: string; label: string; href: string; acct?: string; cards: T
       </a>
       <a class="btn btn--primary hd__cta" href={site.cta.href}>{site.cta.label} <Icon name="arrow-right" size={18} class="btn__arrow" /></a>
 
-      <a class="hd__ic hd__m-acct" href={acct.login.href} rel="nofollow" data-acct="login" aria-label={acct.login.label}><Icon name="circle-user" size={22} /></a>
-      <a class="hd__ic hd__m-acct" href={acct.profile.href} rel="nofollow" data-acct="user" aria-label={T.account}><span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span></a>
+      <a class="hd__ic hd__m-acct" href={go(acct.login.href)} rel="nofollow" data-acct="login" aria-label={acct.login.label}><Icon name="circle-user" size={22} /></a>
+      <a class="hd__ic hd__m-acct" href={go(acct.profile.href)} rel="nofollow" data-acct="user" aria-label={T.account}><span class="hd__avatar" data-acct-initials><Icon name="user" size={14} /></span></a>
 
       <details class="mnav" data-mnav>
         <summary class="mnav__toggle" aria-label={T.menu}><span class="mnav__word"><Icon name="menu" size={24} /></span><span class="mnav__close" aria-hidden="true"><Icon name="x" size={24} /></span><span class="visually-hidden mnav__x">{T.close}</span></summary>

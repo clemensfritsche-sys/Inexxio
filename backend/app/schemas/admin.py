@@ -47,6 +47,8 @@ class EmailCheck(BaseModel):
 class LoginLinkIn(BaseModel):
     """Die Adresse, an die der Anmeldelink geht."""
     email: str = Field(max_length=254, description="E-Mail-Adresse, mit der sich die Person anmeldet.")
+    lang: Literal["de", "fr", "en", "it"] = Field(
+        "de", description="Sprache der Mail und der Seite danach – die der Seite, auf der sich die Person anmeldet.")
 
 
 class LoginLinkResult(BaseModel):

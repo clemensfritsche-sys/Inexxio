@@ -49,3 +49,34 @@ export function SiteShellHead() {
     </>
   );
 }
+
+/** Kopf und Fuss je weiterer Sprache (`website/scripts/export-shell.mjs`). */
+type ShellLangs = Record<string, { locale: string; header: string; footer: string }>;
+
+/**
+ * ►►► **Konto und Anmeldung sprechen die Sprache der Seite, von der man kommt.** ◄◄◄
+ *
+ * Das ERP ist bewusst deutsch; Konto und Anmeldung sieht auch der Kunde. Welche Sprache, steht in
+ * der Adresse – EINE Regel, nur hier: `?lang=fr` (so verlinkt die Website in jeder Sprache), sonst
+ * die Sprache des Ziels `?from=/fr/…` bzw. `?from=/konto?lang=fr` (die Anmeldung), sonst Deutsch.
+ *
+ * Scheitert das Skript (ein unlesbares `from`), bleibt alles deutsch – nie halb.
+ *
+ * Ein kleines Skript im ausgelieferten HTML, gleich nach dem Kopf: es setzt `html[data-lang]`
+ * (gelesen von `lib/lang.useT`) und `lang`, tauscht den Kopf, bevor er gezeichnet wird, und den
+ * Fuss, sobald er gelesen ist. Nur in den Layouts von Konto und Anmeldung – das ERP trägt es nicht.
+ */
+export function ShellLanguage() {
+  const langs = (shell as { langs?: ShellLangs }).langs ?? {};
+  if (!Object.keys(langs).length) return null;
+  const data = JSON.stringify(langs).replace(/</g, '\\u003c');
+  const js = `(function(){var L=${data};`
+    + 'function pick(s){var u=new URL(s,location.origin),c=u.searchParams.get("lang");if(L[c])return c;'
+    + 'var m=/^\\/([a-z]{2})(?:\\/|$)/.exec(u.pathname);return m&&L[m[1]]?m[1]:null}'
+    + 'var c=pick(location.href);if(!c){var f=new URLSearchParams(location.search).get("from");if(f)c=pick(f)}'
+    + 'if(!c)return;var d=document.documentElement;d.setAttribute("data-lang",c);d.lang=L[c].locale;'
+    + 'var s=document.querySelectorAll(".ix-shell");if(s[0])s[0].innerHTML=L[c].header;'
+    + 'document.addEventListener("DOMContentLoaded",function(){var a=document.querySelectorAll(".ix-shell");'
+    + 'if(a.length>1)a[a.length-1].innerHTML=L[c].footer})})()';
+  return <script dangerouslySetInnerHTML={{ __html: js }} />;
+}

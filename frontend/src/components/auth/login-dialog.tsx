@@ -33,6 +33,7 @@ import { goTo, loginTarget, rememberFrom } from '@/lib/login-target';
 import { cachedRole, rememberName, rememberRole } from '@/lib/account-cache';
 import { errorText } from '@/lib/use-action';
 import { useDialog } from '@/lib/use-dialog';
+import { t as tr, useT, withLang } from '@/lib/lang';
 
 type Step = 'input' | 'loading' | 'sent';
 
@@ -49,19 +50,19 @@ function getMailUrl(email: string): string {
 function getGoogleErrorMessage(code: string): string {
   switch (code) {
     case 'auth/operation-not-allowed':
-      return 'Google-Anmeldung ist nicht aktiviert.';
+      return tr('Google-Anmeldung ist nicht aktiviert.');
     case 'auth/unauthorized-domain':
-      return 'Diese Domain ist nicht autorisiert.';
+      return tr('Diese Domain ist nicht autorisiert.');
     case 'auth/network-request-failed':
-      return 'Netzwerkfehler. Bitte Internetverbindung prüfen.';
+      return tr('Netzwerkfehler. Bitte Internetverbindung prüfen.');
     case 'auth/popup-blocked':
       // Der Helfer von Google lädt erst mit dem ersten Klick (`lib/firebase`); hat das die
       // Geste aufgebraucht, öffnet der zweite Klick das Fenster sofort.
-      return 'Das Anmeldefenster wurde blockiert. Bitte noch einmal auf «Google» klicken.';
+      return tr('Das Anmeldefenster wurde blockiert. Bitte noch einmal auf «Google» klicken.');
     case 'auth/web-storage-unavailable':
-      return 'Browser-Speicher nicht verfügbar. Cookie-Einstellungen prüfen.';
+      return tr('Browser-Speicher nicht verfügbar. Cookie-Einstellungen prüfen.');
     default:
-      return `Anmeldung fehlgeschlagen (${code || 'unbekannt'}). Bitte erneut versuchen.`;
+      return tr('Anmeldung fehlgeschlagen ({code}). Bitte erneut versuchen.', { code: code || '?' });
   }
 }
 
@@ -78,6 +79,7 @@ export function LoginDialog({ onClose }: {
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [showPasskey, setShowPasskey] = useState(false);
   const [sentEmail, setSentEmail] = useState('');
+  const t = useT();
 
   useEffect(() => {
     setShowPasskey(passkeySupported());
@@ -103,7 +105,7 @@ export function LoginDialog({ onClose }: {
         if (!cancelled) await finishLogin();
       } catch (err: unknown) {
         if (!cancelled && !isPasskeyCancellation(err)) {
-          setError(errorText(err, 'Passkey-Anmeldung fehlgeschlagen.'));
+          setError(errorText(err, tr('Passkey-Anmeldung fehlgeschlagen.')));
         }
       }
     })();
@@ -126,7 +128,7 @@ export function LoginDialog({ onClose }: {
       // Rolle unbekannt – dann führt der Startplatz ins Konto; das ERP prüft selbst.
       role = cachedRole();
     }
-    goTo(loginTarget(role));
+    goTo(withLang(loginTarget(role)));
   }
 
   async function handlePasskeyLogin() {
@@ -138,7 +140,7 @@ export function LoginDialog({ onClose }: {
       await finishLogin();
     } catch (err: unknown) {
       if (!isPasskeyCancellation(err)) {
-        setError(errorText(err, 'Passkey-Anmeldung fehlgeschlagen.'));
+        setError(errorText(err, t('Passkey-Anmeldung fehlgeschlagen.')));
       }
       setPasskeyLoading(false);
     }
@@ -154,7 +156,7 @@ export function LoginDialog({ onClose }: {
       setSentEmail(email.trim());
       setStep('sent');
     } catch {
-      setError('Fehler beim Senden. Bitte versuchen Sie es erneut.');
+      setError(t('Fehler beim Senden. Bitte versuchen Sie es erneut.'));
       setStep('input');
     }
   }
@@ -198,7 +200,7 @@ export function LoginDialog({ onClose }: {
       className="ix-login-scrim"
       role="dialog"
       aria-modal="true"
-      aria-label="Anmelden"
+      aria-label={t('Anmelden')}
       /* **Klick daneben schliesst** – es gibt kein ✕: ein Pop-up hat diese Geste ohnehin, und
          `Esc` sagt dasselbe. Nur der Scrim selbst zählt: ein Klick, der in der Karte begann,
          schliesst nicht (Textauswahl über den Rand hinaus). */
@@ -213,8 +215,8 @@ export function LoginDialog({ onClose }: {
                 <polyline className="ix-success-line" points="38,62 53,77 84,44" fill="none" stroke="var(--inexxio-red)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <h2>Schauen Sie in Ihr Postfach.</h2>
-            <p className="ix-login-sub">Ein Klick auf den Link – und Sie sind angemeldet.</p>
+            <h2>{t('Schauen Sie in Ihr Postfach.')}</h2>
+            <p className="ix-login-sub">{t('Ein Klick auf den Link – und Sie sind angemeldet.')}</p>
             <span className="ix-login-mail"><Mail aria-hidden />{sentEmail}</span>
             <a
               href={getMailUrl(sentEmail)}
@@ -222,29 +224,29 @@ export function LoginDialog({ onClose }: {
               rel="noopener noreferrer"
               className="ix-submit-btn"
             >
-              Posteingang öffnen
+              {t('Posteingang öffnen')}
             </a>
             <button type="button" className="ix-login-link" onClick={() => { setStep('input'); setEmail(''); }}>
-              Andere E-Mail verwenden
+              {t('Andere E-Mail verwenden')}
             </button>
           </>
         ) : (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/anmelden.webp" alt="" className="ix-login-art" />
-            <h1>Anmelden</h1>
-            <p className="ix-login-sub">Ohne Passwort. Wir schicken Ihnen einen Link.</p>
+            <h1>{t('Anmelden')}</h1>
+            <p className="ix-login-sub">{t('Ohne Passwort. Wir schicken Ihnen einen Link.')}</p>
 
             {/* Das Feld und der rote Pfeil sind EIN Formular. Ein Passkey erscheint direkt im
                 Autofill des Feldes (`webauthn`) – darum braucht es keinen Hinweis mehr. */}
             <form onSubmit={handleMagicLink} className="ix-login-field">
-              <label htmlFor="email" className="sr-only">E-Mail-Adresse</label>
+              <label htmlFor="email" className="sr-only">{t('E-Mail-Adresse')}</label>
               <input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="E-Mail-Adresse"
+                placeholder={t('E-Mail-Adresse')}
                 required
                 autoComplete="email webauthn"
                 autoFocus
@@ -254,7 +256,7 @@ export function LoginDialog({ onClose }: {
                 type="submit"
                 className="ix-login-go"
                 disabled={step === 'loading' || !email.trim()}
-                aria-label={step === 'loading' ? 'Wird gesendet' : 'Anmeldelink senden'}
+                aria-label={step === 'loading' ? t('Wird gesendet') : t('Anmeldelink senden')}
               >
                 {step === 'loading' ? <span className="ix-spinner" /> : <ArrowRight aria-hidden />}
               </button>
@@ -283,7 +285,7 @@ export function LoginDialog({ onClose }: {
             </div>
 
             <p className="ix-login-legal">
-              Mit der Anmeldung gelten <a href="/agb">AGB</a> und <a href="/datenschutz">Datenschutz</a>.
+              {t('Mit der Anmeldung gelten')} <a href="/agb">{t('AGB')}</a> {t('und')} <a href="/datenschutz">{t('Datenschutz')}</a>.
             </p>
           </>
         )}

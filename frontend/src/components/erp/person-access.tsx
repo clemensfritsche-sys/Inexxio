@@ -21,7 +21,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { registerPasskey, passkeySupported, isPasskeyCancellation } from '@/lib/passkey';
-import { when } from '@/lib/when';
+import { day, when } from '@/lib/when';
+import { useT } from '@/lib/lang';
 import { errorText, useAction } from '@/lib/use-action';
 import { ErrorText } from '@/components/erp/hints';
 import type { McpGrant, Passkey } from '@/types';
@@ -88,7 +89,8 @@ export function PasskeyList({ owner, cards }: Props) {
   const setPasskeys = (next: (rows: Passkey[]) => Passkey[]) =>
     qc.setQueryData<Passkey[]>(key, (rows = []) => next(rows));
   const [supported, setSupported] = useState(true);
-  const { busy: adding, error, setError, run } = useAction('Passkey konnte nicht hinzugefügt werden.');
+  const t = useT();
+  const { busy: adding, error, setError, run } = useAction(t('Passkey konnte nicht hinzugefügt werden.'));
   useEffect(() => { setSupported(passkeySupported()); }, []);
 
   async function add() {
@@ -107,7 +109,7 @@ export function PasskeyList({ owner, cards }: Props) {
       await api.deletePasskey(owner, id);
     } catch (err: unknown) {
       setPasskeys(() => before);
-      setError(errorText(err, 'Passkey konnte nicht entfernt werden.'));
+      setError(errorText(err, t('Passkey konnte nicht entfernt werden.')));
     }
   }
 
@@ -116,33 +118,37 @@ export function PasskeyList({ owner, cards }: Props) {
   return (
     <>
       {error && (cards ? <p className="kt-note is-error">{error}</p> : <ErrorText msg={error} />)}
-      {query.isPending ? <Note cards={cards}>Passkeys werden geladen…</Note>
+      {query.isPending ? <Note cards={cards}>{t('Passkeys werden geladen…')}</Note>
         : empty ? (cards ? (
           <div className="kt-card">
             <span className="kt-card-ic is-red"><Fingerprint aria-hidden /></span>
             <div className="kt-card-text" style={{ flex: 1 }}>
-              Noch kein Passkey
-              <small>Melden Sie sich mit Face&nbsp;ID, Touch&nbsp;ID oder Windows&nbsp;Hello an – ohne E-Mail-Link. Ein Passkey verlässt Ihr Gerät nie.</small>
+              {t('Noch kein Passkey')}
+              <small>{t('Melden Sie sich mit Face ID, Touch ID oder Windows Hello an – ohne E-Mail-Link. Ein Passkey verlässt Ihr Gerät nie.')}</small>
             </div>
           </div>
         ) : <Note>Kein Passkey eingerichtet.</Note>)
         : passkeys.map((pk, i) => (
           <Row key={pk.id} icon={Fingerprint} first={i === 0} cards={cards}
-            tag={pk.backed_up ? 'Passkey · synchronisiert' : 'Passkey'} title={pk.device_name || 'Passkey'}
-            meta={`Hinzugefügt ${when(pk.created_at)}${pk.last_used_at ? ` · zuletzt benutzt ${when(pk.last_used_at)}` : ''}`}
-            action="Passkey entfernen" actIcon={Trash2} onAct={() => void remove(pk.id)} />
+            tag={pk.backed_up ? t('Passkey · synchronisiert') : 'Passkey'} title={pk.device_name || 'Passkey'}
+            // Im Konto ein Tag (in jeder Sprache lesbar), im ERP die Auskunft «vor 3 Tagen».
+            meta={cards
+              ? t('Hinzugefügt am {tag}', { tag: day(pk.created_at) })
+                + (pk.last_used_at ? ` · ${t('zuletzt benutzt am {tag}', { tag: day(pk.last_used_at) })}` : '')
+              : `Hinzugefügt ${when(pk.created_at)}${pk.last_used_at ? ` · zuletzt benutzt ${when(pk.last_used_at)}` : ''}`}
+            action={t('Passkey entfernen')} actIcon={Trash2} onAct={() => void remove(pk.id)} />
         ))}
       {!self ? (
         <Note cards={cards}>Einen Passkey richtet die Person selbst im Konto ein – auf ihrem Gerät, das ihn nie verlässt.</Note>
       ) : !supported ? (
-        <p className="kt-note">Dieser Browser unterstützt keine Passkeys. Bitte einen aktuellen Browser verwenden.</p>
+        <p className="kt-note">{t('Dieser Browser unterstützt keine Passkeys. Bitte einen aktuellen Browser verwenden.')}</p>
       ) : empty ? (
         <button type="button" className="kt-pill" onClick={add} disabled={adding} style={{ alignSelf: 'flex-start' }}>
-          <Fingerprint size={16} aria-hidden />{adding ? 'Wird erstellt…' : 'Passkey einrichten'}
+          <Fingerprint size={16} aria-hidden />{adding ? t('Wird erstellt…') : t('Passkey einrichten')}
         </button>
       ) : !query.isPending && (
         <button type="button" className="kt-add" onClick={add} disabled={adding}>
-          <Plus size={16} aria-hidden />{adding ? 'Wird erstellt…' : 'Passkey hinzufügen'}
+          <Plus size={16} aria-hidden />{adding ? t('Wird erstellt…') : t('Passkey hinzufügen')}
         </button>
       )}
     </>

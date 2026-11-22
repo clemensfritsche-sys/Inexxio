@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { UserProfile } from '@/types';
 
 /** Ein fehlender Pflichtwert: wie er heisst und wo auf der Konto-Seite er steht. */
-interface MissingField { label: string; anchor: 'person' | 'adressen' }
+interface MissingField { key: string; label: string; anchor: 'person' | 'adressen' }
 
 interface ProfileCompletion {
   percentage: number;
@@ -22,7 +22,7 @@ export function useProfileCompletion(profile: UserProfile | null): ProfileComple
     if (!profile) return { percentage: 0, missing: [] };
     const required = profile.required_fields?.length ?? 0;
     const missing = (profile.missing_fields ?? []).map((m) => ({
-      label: m.label, anchor: (m.section === 'adressen' ? 'adressen' : 'person') as MissingField['anchor'],
+      key: m.key, label: m.label, anchor: (m.section === 'adressen' ? 'adressen' : 'person') as MissingField['anchor'],
     }));
     const percentage = required ? Math.round(((required - missing.length) / required) * 100) : 100;
     return { percentage, missing };

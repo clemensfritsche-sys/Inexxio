@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { logout } from '@/lib/firebase';
+import { currentLang, useT } from '@/lib/lang';
 
 /**
  * ►►► `/abmelden` – der Abmelde-Weg für die Website (WEBSITE_PLAN §7.5, Schnittstelle S3).
@@ -16,10 +17,13 @@ import { logout } from '@/lib/firebase';
  * Startseite – stehenzubleiben hilft niemandem, und der Anzeige-Cache ist dann schon leer.
  */
 export default function LogoutPage() {
+  const t = useT();
   useEffect(() => {
+    // Zurück zur Startseite der Sprache, aus der man kam.
+    const home = currentLang() === 'de' ? '/' : `/${currentLang()}`;
     logout()
       .catch(() => undefined)
-      .finally(() => window.location.replace('/'));
+      .finally(() => window.location.replace(home));
   }, []);
 
   return (
@@ -27,7 +31,7 @@ export default function LogoutPage() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/brand/abmelden.webp" alt="" width={168} height={168} />
       <p role="status" style={{ font: '500 15px var(--font-body)', color: 'var(--fg-2)' }}>
-        Sie werden abgemeldet …
+        {t('Sie werden abgemeldet …')}
       </p>
     </main>
   );

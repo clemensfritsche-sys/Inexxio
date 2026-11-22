@@ -6,6 +6,7 @@ import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { framed, goTo, isSafeTarget, loginTarget } from '@/lib/login-target';
 import { cachedRole } from '@/lib/account-cache';
+import { withLang } from '@/lib/lang';
 
 /**
  * **Die Route ist der zweite Weg zum selben Dialog.**
@@ -44,7 +45,7 @@ export default function LoginPage() {
       }
       let role: string | null = null;
       try { role = (await api.getMe()).role; } catch { role = cachedRole(); }
-      goTo(loginTarget(role));
+      goTo(withLang(loginTarget(role)));
     });
   }, []);
 

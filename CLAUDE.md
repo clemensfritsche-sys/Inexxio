@@ -853,6 +853,9 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   Seite** (`?lang=` an Formular und Newsletter, Wörter je Sprache in `website_contact.json` →
   `services/inquiry.words`): Meldungen, Bestätigungen, Danke-Seiten und der Wortlaut der Einwilligung
   in der Sprache, in der zugestimmt wurde; die eine 404-Seite wechselt unter `/<sprache>/…`.
+  **Konto und Anmeldung folgen** (Kunden sehen sie): die Website verlinkt sie mit `?lang=`, sie zeigen
+  Kopf, Fuss und Texte in der Sprache, die Anmeldemail ebenso (`frontend/CLAUDE.md`, `lib/lang.ts`);
+  das ERP bleibt deutsch.
   Französisch, Englisch, Italienisch: `live` (gegengelesen und freigegeben November 2026; hreflang
   nur auf indexierten Seiten, die Organisation ist im JSON-LD EINE für alle Sprachen).
 - **Jede Seite steht in `website/src/lib/pages.ts`** oder trägt `noindex`; `check-site.mjs`

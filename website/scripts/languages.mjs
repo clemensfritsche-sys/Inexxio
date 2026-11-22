@@ -168,7 +168,9 @@ function merge(lang) {
       copyFileSync(file, to);
       continue;
     }
-    if (!rel.endsWith('.html') || rel === '404.html') continue;
+    // Die Fehlerseite der Sprache liefert Kopf und Fuss für Konto und Anmeldung (export-shell.mjs).
+    if (rel === '404.html') { writeFileSync(join(BUILD, `shell-${lang}.html`), relink(readFileSync(file, 'utf8'), table)); continue; }
+    if (!rel.endsWith('.html')) continue;
     const target = table[pathOf(rel)];
     if (!target) throw new Error(`«${pathOf(rel)}» hat keine Adresse in ${lang}/pfade.json.`);
     const to = join(DIST, `${target.slice(1)}.html`);

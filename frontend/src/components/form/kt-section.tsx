@@ -6,6 +6,7 @@
 
 import { useEffect, useId, useState } from 'react';
 import { Input } from './field';
+import { useT } from '@/lib/lang';
 
 /** Ein Abschnitt: links Titel und ein Satz (darunter z. B. «Gespeichert»), rechts die Sache. */
 export function KtSection({ id, title, text, aside, children }: {
@@ -34,9 +35,10 @@ export function KtField({ id: given, name, label, value, onChange, onEnter, type
 }) {
   const auto = useId();
   const id = given ?? auto;
+  const t = useT();
   return (
     <div className="kt-f">
-      <label htmlFor={id}>{label}{missing && <em> · fehlt</em>}</label>
+      <label htmlFor={id}>{label}{missing && <em> · {t('fehlt')}</em>}</label>
       <Input
         id={id} name={name} className="kt-input" type={type} value={value}
         placeholder={placeholder} readOnly={readOnly} autoComplete={autoComplete} list={list}
@@ -79,6 +81,7 @@ export function KtDate({ id, name, label, value, onChange, onEnter, missing }: {
   missing?: boolean;
 }) {
   const [text, setText] = useState(() => isoToText(value));
+  const t = useT();
   // Ein neuer Wert von aussen (anderer Datensatz) ersetzt die Eingabe – der eigene nicht.
   useEffect(() => {
     setText((t) => (textToIso(t) ?? '') === value ? t : isoToText(value));
@@ -87,10 +90,10 @@ export function KtDate({ id, name, label, value, onChange, onEnter, missing }: {
   const invalid = iso === null && text.length >= 8;
   return (
     <div className="kt-f">
-      <label htmlFor={id}>{label}{invalid ? <em> · ungültig</em> : missing && !text && <em> · fehlt</em>}</label>
+      <label htmlFor={id}>{label}{invalid ? <em> · {t('ungültig')}</em> : missing && !text && <em> · {t('fehlt')}</em>}</label>
       <Input
         id={id} name={name} className="kt-input" inputMode="numeric"
-        autoComplete="bday" placeholder="TT.MM.JJJJ" value={text}
+        autoComplete="bday" placeholder={t('TT.MM.JJJJ')} value={text}
         onChange={(raw) => {
           const next = maskDate(raw);
           setText(next);

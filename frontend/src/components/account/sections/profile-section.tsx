@@ -22,6 +22,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMapsApiKey } from '@/lib/use-maps-key';
 import { KtDate, KtField, KtSection } from '@/components/form/kt-section';
 import { errorText } from '@/lib/use-action';
+import { useT } from '@/lib/lang';
 
 interface Form {
   first_name: string;
@@ -53,6 +54,7 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
   const prevId = useRef<number | undefined>(undefined);
   const mapsKey = useMapsApiKey();
   const qc = useQueryClient();
+  const t = useT();
 
   useEffect(() => {
     if (profile.id !== prevId.current) {
@@ -90,24 +92,24 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
 
   return (
     <>
-      <KtSection id="person" title="Person" text="So sprechen wir Sie an und so erreichen wir Sie."
+      <KtSection id="person" title={t('Person')} text={t('So sprechen wir Sie an und so erreichen wir Sie.')}
         aside={<SaveStatusIndicator status={status} errorMsg={errorMsg} />}>
         <div className="kt-grid2">
-          <KtField id="kt-first" name="first_name" label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)}
+          <KtField id="kt-first" name="first_name" label={t('Vorname')} value={form.first_name} onChange={(v) => set('first_name', v)}
             onEnter={saveNow} missing={empty('first_name')} autoComplete="given-name" />
-          <KtField id="kt-last" name="last_name" label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)}
+          <KtField id="kt-last" name="last_name" label={t('Nachname')} value={form.last_name} onChange={(v) => set('last_name', v)}
             onEnter={saveNow} missing={empty('last_name')} autoComplete="family-name" />
-          <KtField id="kt-phone" name="phone" label="Telefon" type="tel" value={form.phone} onChange={(v) => set('phone', v)}
+          <KtField id="kt-phone" name="phone" label={t('Telefon')} type="tel" value={form.phone} onChange={(v) => set('phone', v)}
             onEnter={saveNow} missing={empty('phone')} placeholder="+41 44 000 00 00" autoComplete="tel" />
-          <KtDate id="kt-born" name="date_of_birth" label="Geburtsdatum" value={form.date_of_birth}
+          <KtDate id="kt-born" name="date_of_birth" label={t('Geburtsdatum')} value={form.date_of_birth}
             onChange={(v) => set('date_of_birth', v)} onEnter={saveNow} missing={empty('date_of_birth')} />
         </div>
       </KtSection>
 
       {/* ►►► **Eine Adresse, optional eine abweichende Lieferadresse und weitere
           Lieferadressen.** ◄◄◄ Privat geht die Rechnung an die E-Mail der Person. */}
-      <KtSection id="adressen" title="Adressen"
-        text="Eine Anschrift für Rechnungen, dazu so viele Lieferadressen, wie Sie brauchen.">
+      <KtSection id="adressen" title={t('Adressen')}
+        text={t('Eine Anschrift für Rechnungen, dazu so viele Lieferadressen, wie Sie brauchen.')}>
         <AddressBook owner={null} account="private" addresses={profile.addresses ?? []} cards
           loginEmail={profile.email} mapsKey={mapsKey}
           onSaved={(u) => qc.setQueryData(['me'], u)} />
@@ -116,8 +118,8 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
       {/* ►►► **Dieselbe Maske noch einmal – für die Firma.** ◄◄◄ Die Firma wird genannt
           (UID, sonst Name und Rechtsform) und vom Server erkannt oder angelegt; eine Liste
           fremder Firmen sieht ein Kunde nie. */}
-      <KtSection id="firma" title="Firma"
-        text="Bestellen Sie für einen Betrieb? Dann geht die Rechnung an die Firma.">
+      <KtSection id="firma" title={t('Firma')}
+        text={t('Bestellen Sie für einen Betrieb? Dann geht die Rechnung an die Firma.')}>
         <CompanyField look="kt" company={profile.company} readOnly={isStaff}
           country={profile.addresses?.[0]?.country}
           onLink={(id) => onSave({ company_object_id: id })}
@@ -129,8 +131,8 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
         )}
       </KtSection>
 
-      <KtSection id="newsletter" title="Newsletter"
-        text="«Post von INEXXIO» – selten, und nur, wenn es etwas zu sagen gibt.">
+      <KtSection id="newsletter" title={t('Newsletter')}
+        text={t('«Post von INEXXIO» – selten, und nur, wenn es etwas zu sagen gibt.')}>
         <Newsletter />
       </KtSection>
     </>
@@ -142,6 +144,7 @@ export function ProfileSection({ profile, isStaff, onSave }: Props) {
  *  zustimmt – derselbe, der als Nachweis gespeichert wird (vom Server). */
 function Newsletter() {
   const qc = useQueryClient();
+  const t = useT();
   const state: NewsletterState | null = useQuery({
     queryKey: ['me', 'newsletter'],
     queryFn: () => api.myNewsletter(),
@@ -152,16 +155,16 @@ function Newsletter() {
   const flip = (on: boolean) => {
     setError(null);
     api.setMyNewsletter(on).then(setState)
-      .catch((e) => setError(errorText(e, 'Konnte nicht gespeichert werden.')));
+      .catch((e) => setError(errorText(e, t('Konnte nicht gespeichert werden.'))));
   };
   const on = !!state?.subscribed;
   return (
     <div className="kt-switch">
-      <button type="button" role="switch" aria-checked={on} aria-label="Newsletter"
+      <button type="button" role="switch" aria-checked={on} aria-label={t('Newsletter')}
         disabled={!state} onClick={() => flip(!on)} />
       <div>
         <p>{state?.wording ?? ''}</p>
-        {on && state?.since && <p className="kt-note">Angemeldet seit {day(state.since)}</p>}
+        {on && state?.since && <p className="kt-note">{t('Angemeldet seit {tag}', { tag: day(state.since) })}</p>}
         {error && <p className="kt-note is-error">{error}</p>}
       </div>
     </div>

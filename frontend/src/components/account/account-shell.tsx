@@ -18,6 +18,7 @@ import { useProfileCompletion } from '@/lib/use-profile-completion';
 import { ProfileSection } from './sections/profile-section';
 import { SecuritySection } from './sections/security-section';
 import { Skeleton } from '@/components/erp/skeleton';
+import { useT, type T } from '@/lib/lang';
 
 interface Props {
   profile: UserProfile | null;
@@ -25,13 +26,20 @@ interface Props {
   onSave: (data: UserProfileUpdate) => Promise<void>;
 }
 
-const NAV = [
-  { id: 'person', label: 'Person' },
-  { id: 'adressen', label: 'Adressen' },
-  { id: 'firma', label: 'Firma' },
-  { id: 'newsletter', label: 'Newsletter' },
-  { id: 'sicherheit', label: 'Sicherheit' },
+const NAV = (t: T) => [
+  { id: 'person', label: t('Person') },
+  { id: 'adressen', label: t('Adressen') },
+  { id: 'firma', label: t('Firma') },
+  { id: 'newsletter', label: t('Newsletter') },
+  { id: 'sicherheit', label: t('Sicherheit') },
 ];
+const SECTIONS = ['person', 'adressen', 'firma', 'newsletter', 'sicherheit'];
+
+/** Die Wörter der Pflichtangaben (Schlüssel vom Server, `people.missing_fields`). */
+const FIELD_WORD = (t: T): Record<string, string> => ({
+  first_name: t('Vorname'), last_name: t('Nachname'), phone: t('Telefon'),
+  date_of_birth: t('Geburtsdatum'), addresses: t('Adresse'),
+});
 
 /** Profilbild oder Initialen auf Rot, im Ring. */
 function Avatar({ profile, name }: { profile: UserProfile; name: string }) {
@@ -50,16 +58,16 @@ function Avatar({ profile, name }: { profile: UserProfile; name: string }) {
 
 /** Welcher Abschnitt gerade oben steht – die Leiste zeigt ihn als weisse Pille. */
 function useActiveSection(ready: boolean): string {
-  const [active, setActive] = useState(NAV[0].id);
+  const [active, setActive] = useState(SECTIONS[0]);
   useEffect(() => {
     const seen = new Map<string, boolean>();
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) seen.set(e.target.id, e.isIntersecting);
-      const first = NAV.find((n) => seen.get(n.id));
-      if (first) setActive(first.id);
+      const first = SECTIONS.find((id) => seen.get(id));
+      if (first) setActive(first);
     }, { rootMargin: '-40% 0px -55% 0px' });
-    for (const n of NAV) {
-      const el = document.getElementById(n.id);
+    for (const id of SECTIONS) {
+      const el = document.getElementById(id);
       if (el) io.observe(el);
     }
     return () => io.disconnect();
@@ -70,17 +78,18 @@ function useActiveSection(ready: boolean): string {
 export function AccountShell({ profile, isLoading, onSave }: Props) {
   const completion = useProfileCompletion(profile);
   const active = useActiveSection(!!profile);
+  const t = useT();
 
   if (isLoading || !profile) {
     return (
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '48px 16px' }}>
-        {isLoading && <Skeleton block={96} lines={6} label="Konto wird geladen" />}
+        {isLoading && <Skeleton block={96} lines={6} label={t('Konto wird geladen')} />}
       </div>
     );
   }
 
   const name = userDisplayName(profile);
-  const word = name || 'Mein Konto';
+  const word = name || t('Mein Konto');
   const number = profile.object_id != null ? String(profile.object_id).padStart(9, '0').replace(/(\d{3})(?=\d)/g, '$1 ') : '';
   const next = completion.missing[0];
   const tone = completion.percentage === 100 ? 'var(--success)' : 'var(--fg-1)';
@@ -96,20 +105,20 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
         <Avatar profile={profile} name={name} />
         <p className="kt-meta">
           <span>{profile.email}</span>
-          {number && <> · <span>Benutzernummer <b>{number}</b></span></>}
+          {number && <> · <span>{t('Benutzernummer')} <b>{number}</b></span></>}
         </p>
         {next && (
           <p className="kt-todo">
             <span className="kt-ring" aria-hidden
               style={{ background: `conic-gradient(${tone} 0 ${completion.percentage}%, var(--border-1) ${completion.percentage}% 100%)` }} />
-            Profil zu {completion.percentage} % vollständig – <a href={`#${next.anchor}`}>{next.label} ergänzen</a>
+            {t('Profil zu {p} % vollständig', { p: completion.percentage })} – <a href={`#${next.anchor}`}>{t('{feld} ergänzen', { feld: FIELD_WORD(t)[next.key] ?? next.label })}</a>
           </p>
         )}
       </header>
 
-      <nav className="kt-nav" aria-label="Konto">
+      <nav className="kt-nav" aria-label={t('Konto')}>
         <div>
-          {NAV.map((n) => (
+          {NAV(t).map((n) => (
             <a key={n.id} href={`#${n.id}`} aria-current={active === n.id ? 'true' : undefined}>{n.label}</a>
           ))}
         </div>

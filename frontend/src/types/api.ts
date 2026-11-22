@@ -5232,6 +5232,13 @@ export interface components {
              * @description E-Mail-Adresse, mit der sich die Person anmeldet.
              */
             email: string;
+            /**
+             * Lang
+             * @description Sprache der Mail und der Seite danach – die der Seite, auf der sich die Person anmeldet.
+             * @default de
+             * @enum {string}
+             */
+            lang: "de" | "fr" | "en" | "it";
         };
         /**
          * LoginLinkResult

@@ -10,6 +10,7 @@ import { ErrorText } from '@/components/erp/hints';
 import { KtField } from '@/components/form/kt-section';
 import type { CompanyRef, NewCompany } from '@/types';
 import { useAction } from '@/lib/use-action';
+import { useT } from '@/lib/lang';
 
 /**
  * ►►► **Die Firma einer Person – GENANNT, nicht gesucht** (CRM). ◄◄◄
@@ -42,7 +43,8 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
   look?: 'erp' | 'kt';
 }) {
   const kt = look === 'kt';
-  const { busy, error, setError, run: act } = useAction('Speichern nicht möglich.');
+  const t = useT();
+  const { busy, error, setError, run: act } = useAction(t('Speichern nicht möglich.'));
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<NewCompany>({ company_name: '', legal_form: '', uid_number: '' });
   const forms = legalForms(country ?? 'CH');
@@ -90,7 +92,7 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
       {!readOnly && !adding && onCreate && !company && (
         <button type="button" onClick={() => setAdding(true)}
           className={kt ? 'kt-add' : 'self-start inline-flex items-center gap-1.5 text-xs text-accent hover:underline'}>
-          <Plus size={kt ? 16 : 13} /> Firma angeben
+          <Plus size={kt ? 16 : 13} /> {t('Firma angeben')}
         </button>
       )}
 
@@ -98,12 +100,12 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
         <div className="kt-card">
           <span className="kt-card-ic"><Building2 aria-hidden /></span>
           <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 12 }}>
-            <KtField id="kt-uid" name="uid_number" label="UID" value={draft.uid_number ?? ''} placeholder="CHE-123.456.788"
+            <KtField id="kt-uid" name="uid_number" label={t('UID')} value={draft.uid_number ?? ''} placeholder="CHE-123.456.788"
               onChange={(v) => setDraft((d) => ({ ...d, uid_number: v }))} />
             <div className="kt-grid2">
-              <KtField id="kt-firm" name="company_name" label="Firmenname" value={draft.company_name ?? ''} placeholder="Muster"
+              <KtField id="kt-firm" name="company_name" label={t('Firmenname')} value={draft.company_name ?? ''} placeholder={t('Muster')}
                 onChange={(v) => setDraft((d) => ({ ...d, company_name: v }))} />
-              <KtField id="kt-form" name="legal_form" label="Rechtsform" value={draft.legal_form ?? ''} list="company-field-forms"
+              <KtField id="kt-form" name="legal_form" label={t('Rechtsform')} value={draft.legal_form ?? ''} list="company-field-forms"
                 placeholder={forms[0] ?? 'AG'} onChange={(v) => setDraft((d) => ({ ...d, legal_form: v }))} />
               <datalist id="company-field-forms">
                 {forms.map((f) => <option key={f} value={f} />)}
@@ -111,13 +113,13 @@ export function CompanyField({ company, readOnly, country, search, onLink, onCre
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" className="kt-pill" disabled={!ready || busy}
-                data-tip={ready ? undefined : 'UID – oder Firmenname und Rechtsform – fehlen.'}
+                data-tip={ready ? undefined : t('UID – oder Firmenname und Rechtsform – fehlen.')}
                 onClick={() => void create()}>
-                Firma übernehmen
+                {t('Firma übernehmen')}
               </button>
               <button type="button" className="kt-pill kt-pill--ghost" disabled={busy}
                 onClick={() => { setAdding(false); setError(null); }}>
-                Abbrechen
+                {t('Abbrechen')}
               </button>
             </div>
           </div>
@@ -168,9 +170,10 @@ function Current({ company, busy, readOnly, onUnlink, kt }: {
   company: CompanyRef | null | undefined; busy: boolean; readOnly?: boolean;
   onUnlink: () => void; kt?: boolean;
 }) {
+  const t = useT();
   if (!company) {
     // Im Konto sagt der Knopf «Firma angeben» genug; nur wer nichts ändern kann, liest es.
-    if (kt) return readOnly ? <p className="kt-note">Keine – Privatperson</p> : null;
+    if (kt) return readOnly ? <p className="kt-note">{t('Keine – Privatperson')}</p> : null;
     return <span className="text-sm text-fg-3">Keine – Privatperson</span>;
   }
   if (kt) {
@@ -178,7 +181,7 @@ function Current({ company, busy, readOnly, onUnlink, kt }: {
       <div className="kt-card">
         <span className="kt-card-ic"><Building2 aria-hidden /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span className="kt-card-tag">Firma</span>
+          <span className="kt-card-tag">{t('Firma')}</span>
           <div className="kt-card-text">
             {company.legal_name}
             {company.uid_number && <small className="ix-tnum">{company.uid_number}</small>}
@@ -186,7 +189,7 @@ function Current({ company, busy, readOnly, onUnlink, kt }: {
         </div>
         {!readOnly && (
           <button type="button" className="kt-round" disabled={busy} onClick={onUnlink}
-            data-tip="Zuordnung lösen – danach bestellen Sie privat." aria-label="Zuordnung lösen">
+            data-tip={t('Zuordnung lösen – danach bestellen Sie privat.')} aria-label={t('Zuordnung lösen')}>
             <Unlink size={16} />
           </button>
         )}
