@@ -10,14 +10,14 @@
  */
 import { useState } from 'react';
 import { Check, Plus } from 'lucide-react';
-import { ErrorText, InfoHint } from '@/components/erp/hints';
-import { MICRO_LABEL, Row } from '@/components/erp/fields';
+import { ErrorText } from '@/components/erp/hints';
+import { Row } from '@/components/erp/fields';
 import { LedgerRow } from '@/components/erp/module-ui';
 import { useErpNav } from '@/components/erp/obj-id';
 import { day as dayText, parseDay } from '@/lib/when';
 import type { TimeContract, TimeContractIn, TimeEntryIn, TimeView } from '@/types';
 import {
-  Note, Pill, QuietButton, ROW_FORM, TimeField, WEEKDAYS, daysLabel, hm, hours, parseHm, parseSigned,
+  Note, Pill, QuietButton, ROW_FORM, Sect, TimeField, WEEKDAYS, daysLabel, hm, hours, parseHm, parseSigned,
   sgn, vacationText,
 } from './time-ui';
 
@@ -50,8 +50,10 @@ function ContractRow({ c, first, daySoll }: { c: TimeContract; first: boolean; d
   );
 }
 
-function NewContract({ view, onSave }: {
+function NewContract({ view, onSave, onCancel }: {
   view: TimeView; onSave: (c: TimeContractIn) => Promise<string | null>;
+  /** «Abbrechen» – nur, wo man den Entwurf wieder schliessen kann. */
+  onCancel?: () => void;
 }) {
   const [from, setFrom] = useState('');
   const [hours, setHours] = useState('42');
@@ -70,7 +72,7 @@ function NewContract({ view, onSave }: {
     setErr(e);
   };
   return (
-    <div style={{ display: 'grid', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border-1)' }}>
+    <div style={{ display: 'grid', gap: 12 }}>
       <div style={ROW_FORM}>
         <TimeField id="nc-from" name="valid_from" label="Gültig ab" value={from} onChange={setFrom} bad={!iso}
           placeholder="TT.MM.JJJJ" width={140}
@@ -79,17 +81,18 @@ function NewContract({ view, onSave }: {
           bad={minutes == null} placeholder="h" width={110} info="0 h = Austritt" />
         {!exit && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)', display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-              Arbeitstage<InfoHint text="An diesen Tagen gilt das Soll: Wochenstunden ÷ Anzahl Tage. Samstag oder Sonntag möglich (Sonntag braucht eine Bewilligung)." /></span>
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-3)', display: 'inline-flex', gap: 5, alignItems: 'center' }}
+              data-tip="An diesen Tagen gilt das Soll: Wochenstunden ÷ Anzahl Tage. Samstag oder Sonntag möglich (Sonntag braucht eine Bewilligung).">
+              Arbeitstage</span>
             <div style={{ display: 'flex', gap: 4 }}>
               {WEEKDAYS.map((label, i) => {
                 const on = days.includes(i);
                 return (
                   <button key={label} type="button" aria-pressed={on}
                     onClick={() => setDays(on ? days.filter((x) => x !== i) : [...days, i])}
-                    style={{ width: 34, height: 36, borderRadius: 8, font: '600 12px var(--font-body)', cursor: 'pointer',
-                      border: `1px solid ${on ? 'var(--accent)' : 'var(--border-2)'}`,
-                      background: on ? 'var(--accent-soft)' : 'var(--bg-1)', color: on ? 'var(--accent-ink)' : 'var(--fg-3)' }}>
+                    style={{ width: 36, height: 38, borderRadius: 'var(--r-md)', font: '600 12px var(--font-body)', cursor: 'pointer',
+                      border: `1px solid ${on ? 'var(--fg-1)' : 'transparent'}`,
+                      background: on ? 'var(--bg-1)' : 'var(--bg-2)', color: on ? 'var(--fg-1)' : 'var(--fg-3)' }}>
                     {label}</button>
                 );
               })}
@@ -101,8 +104,11 @@ function NewContract({ view, onSave }: {
             placeholder="gesetzlich" width={110}
             info="Leer = gesetzlich (bis zum 20. Geburtstag 5, sonst 4 Wochen, Alter am Stichtag). Mehr ist möglich, weniger nicht." />
         )}
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!ok} onClick={save}>
           <Plus size={15} />{exit ? 'Austritt anlegen' : 'Vertrag anlegen'}</button>
+        {onCancel && <button type="button" className="erp-actbtn erp-actbtn-neutral" onClick={onCancel}>Abbrechen</button>}
       </div>
       {!view.born && <ErrorText msg="Geburtsdatum fehlt in den Stammdaten – es bestimmt Jugendschutz und gesetzliche Ferien." />}
       {err && <ErrorText msg={err} />}
@@ -137,6 +143,8 @@ function NewBooking({ view, onSave }: {
         <TimeField id="nb-vac" name="vacation_minutes" label="Ferien ±" value={f} onChange={setF} bad={vac == null} placeholder="±H:MM"
           width={110} info={`In Stunden, wie alles. Ein Tag = Tagessoll des Vertrags (${hm(view.day_soll)} h).`} />
         <TimeField id="nb-note" name="note" label="Grund" value={note} onChange={setNote} placeholder="z. B. Auszahlung Oktober" width={220} />
+      </div>
+      <div>
         <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={!ok} onClick={save}>
           <Check size={15} />Buchen</button>
       </div>
@@ -145,26 +153,35 @@ function NewBooking({ view, onSave }: {
   );
 }
 
-export function TimeContracts({ view, onContract, onEntry }: {
+export function TimeContracts({ view, onContract, onEntry, startNew, onCancel }: {
   view: TimeView;
   onContract: (c: TimeContractIn) => Promise<string | null>;
   onEntry: (e: TimeEntryIn) => Promise<string | null>;
+  /** Gleich mit dem Entwurf eines neuen Vertrags beginnen (der erste Vertrag). */
+  startNew?: boolean;
+  /** Den Entwurf des ersten Vertrags wieder schliessen. */
+  onCancel?: () => void;
 }) {
-  const [newC, setNewC] = useState(false);
+  const [newC, setNewC] = useState(!!startNew);
   const [newB, setNewB] = useState(false);
+  // Der erste Vertrag: nur der Entwurf – Verträge und Buchungen gibt es noch keine.
+  if (!view.contracts.length) {
+    return view.is_admin
+      ? <NewContract view={view} onCancel={onCancel} onSave={onContract} />
+      : <Note>Noch kein Vertrag – ohne Vertrag gibt es kein Soll.</Note>;
+  }
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ display: 'grid', gap: 10 }}>
-        {view.contracts.map((c, i) => <ContractRow key={c.id} c={c} first={i === 0} daySoll={view.day_soll} />)}
-        {!view.contracts.length && <Note>Noch kein Vertrag – ohne Vertrag gibt es kein Soll.</Note>}
-      </div>
-      {view.is_admin && (newC
-        ? <NewContract view={view} onSave={async (c) => { const e = await onContract(c); if (!e) setNewC(false); return e; }} />
-        : <QuietButton icon={Plus} label="Neuer Vertrag" onClick={() => setNewC(true)} />)}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 12, borderTop: '1px solid var(--border-1)' }}>
-        <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)' }}>Buchungen</span>
-        <InfoHint text={view.vocab.texts.bookings} />
-      </div>
+    <div style={{ display: 'grid', gap: 24 }}>
+      <Sect title="Verträge" info={view.vocab.texts.contract}>
+        <div style={{ display: 'grid', gap: 10 }}>
+          {view.contracts.map((c, i) => <ContractRow key={c.id} c={c} first={i === 0} daySoll={view.day_soll} />)}
+        </div>
+        {view.is_admin && (newC
+          ? <NewContract view={view} onCancel={() => setNewC(false)}
+              onSave={async (c) => { const e = await onContract(c); if (!e) setNewC(false); return e; }} />
+          : <QuietButton icon={Plus} label="Neuer Vertrag" onClick={() => setNewC(true)} />)}
+      </Sect>
+      <Sect title="Buchungen" info={view.vocab.texts.bookings}>
       {view.bookings.length ? (
         <div style={{ display: 'grid', gap: 10 }}>
           {view.bookings.map((b) => {
@@ -182,6 +199,7 @@ export function TimeContracts({ view, onContract, onEntry }: {
       {view.is_admin && (newB
         ? <NewBooking view={view} onSave={onEntry} />
         : <QuietButton icon={Plus} label="Neue Buchung" onClick={() => setNewB(true)} />)}
+      </Sect>
     </div>
   );
 }

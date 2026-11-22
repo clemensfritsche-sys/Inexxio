@@ -6,7 +6,7 @@ import { cn, formatObjectId } from '@/lib/utils';
 import { FILTER_TYPES, TYPE_META } from '@/lib/erp-record';
 import { type Row, rowStatus, rowTitle } from '@/lib/use-feed-lists';
 import { useUnfinished } from '@/lib/assistant';
-import { RecordIcon } from '@/components/erp/detail-frame';
+import { ERP_HEAD_H, RecordIcon } from '@/components/erp/detail-frame';
 import { StatusBadge } from '@/components/erp/fields';
 import { userInitials } from '@/components/erp/user-detail';
 import type { ErpRecordType, Todo } from '@/types';
@@ -24,7 +24,7 @@ function FeedItem({ row, sel, onClick, todo, mine }: {
   row: Row; sel: boolean; onClick: () => void;
   /** Was zu tun ist – das rote Zeichen am Symbol (`lib/todo`). */
   todo?: Todo | null;
-  /** **Meine eine Aufgabe** – die Zeile steht zuoberst, mit Rahmen. */
+  /** **Meine eine Aufgabe** – die Zeile steht zuoberst, mit einer Linie darunter. */
   mine?: boolean;
 }) {
   const title = rowTitle(row);
@@ -35,11 +35,14 @@ function FeedItem({ row, sel, onClick, todo, mine }: {
       onClick={onClick}
       className={cn(
         // Der Feed ist eine Liste zum Überfliegen – die Trennung machen Weissraum und
-        // Ausrichtung, nicht Fläche.
-        'w-full flex items-center gap-3 px-3 py-3 mb-1 rounded-ds-md text-left transition-colors',
-        sel ? 'bg-accent-soft' : 'hover:bg-bg-2',
-        mine && 'border border-border-2',
+        // Ausrichtung, nicht Fläche. Eine Zeile geht über die ganze Breite (kein Kasten in der
+        // Liste); die gewählte liegt auf dem hellen Ton ihrer Art – derselbe Ton wie ihr Symbol.
+        'w-full flex items-center gap-3 px-5 py-3 text-left transition-colors',
+        !sel && 'hover:bg-bg-2',
+        mine && 'border-b border-border-1',
       )}
+      style={sel ? { background: TYPE_META[row.type].bg } : undefined}
+      aria-current={sel || undefined}
     >
       {/* **Dieselbe Komponente wie im Detail-Kopf** – Symbol, Farbfamilie, Form und das
           Abweichungs-Zeichen kommen aus EINER Stelle; nur die Grösse unterscheidet sie. */}
@@ -53,7 +56,7 @@ function FeedItem({ row, sel, onClick, todo, mine }: {
         todo={todo}
       />
       <div className="min-w-0 flex-1">
-        <div className={cn('text-sm font-semibold truncate', sel ? 'text-accent-ink' : title ? 'text-fg-1' : 'text-fg-4 italic')}>
+        <div className={cn('text-sm font-semibold truncate', title ? 'text-fg-1' : 'text-fg-4 italic')}>
           {title ?? (row.type === 'user' ? 'Kein Name' : 'Ohne Bezeichnung')}
         </div>
         {/* Zweite Zeile: Kennung + Zustand – dieselbe Pille wie im Detail-Kopf. */}
@@ -66,13 +69,14 @@ function FeedItem({ row, sel, onClick, todo, mine }: {
   );
 }
 
-/** Suche + Scan – die eine Eingabe über der Liste. */
+/** Suche + Scan – die eine Eingabe über der Liste: eine graue Fläche wie die Felder im Konto,
+ *  darin Lupe, Eingabe und der Scan als Symbol (kein Kasten im Kasten). */
 function SearchBar({ search, onSearch, onScan }: {
   search: string; onSearch: (q: string) => void; onScan: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2.5 px-5 pt-4 pb-3.5">
-      <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-ds-md border border-border-2 px-2.5 py-2">
+    <div className="flex items-center px-5 pt-4 pb-3">
+      <div className="flex-1 min-w-0 h-11 flex items-center gap-2.5 rounded-ds-md bg-bg-2 pl-3 pr-1 focus-within:bg-bg-1 focus-within:ring-1 focus-within:ring-fg-1">
         <Search size={17} className="flex-none text-fg-4" aria-hidden />
         <input
           value={search}
@@ -83,13 +87,13 @@ function SearchBar({ search, onSearch, onScan }: {
         />
         {search && (
           <button type="button" onClick={() => onSearch('')} data-tip="Eingabe löschen" aria-label="Eingabe löschen"
-            className="flex-none w-8 h-8 rounded-ds-sm flex items-center justify-center bg-bg-3 text-fg-3 hover:text-fg-1 transition-colors">
+            className="flex-none w-8 h-8 rounded-ds-md flex items-center justify-center text-fg-4 hover:text-fg-1 transition-colors">
             <X size={13} />
           </button>
         )}
         <button type="button" onClick={onScan} data-tip="Datensatz scannen" data-tip-pos="bottom"
           aria-label="Datensatz scannen"
-          className="flex-none w-10 h-10 rounded-ds-sm flex items-center justify-center bg-bg-2 border border-border-1 text-fg-3 hover:text-fg-1 hover:bg-bg-3 transition-colors">
+          className="flex-none w-9 h-9 rounded-ds-md flex items-center justify-center text-fg-3 hover:text-fg-1 hover:bg-bg-3 transition-colors">
           <ScanLine size={18} />
         </button>
       </div>
@@ -97,13 +101,13 @@ function SearchBar({ search, onSearch, onScan }: {
   );
 }
 
-/** Typ-Filter – Symbol zuerst, aktiv mit Wort und Anzahl (Farbe = Typ). */
+/** Typ-Filter – nur das Symbol in seiner Art-Farbe; aktiv auf dem hellen Ton, mit Wort und Anzahl. */
 function TypeChips({ typeFilter, onTypeFilter, count }: {
   typeFilter: ErpRecordType | null; onTypeFilter: (t: ErpRecordType | null) => void;
   count: (t: ErpRecordType) => number;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5 px-5 pb-4 border-b border-border-1">
+    <div className="flex flex-wrap items-center gap-1 px-4 pb-3 min-h-[52px]">
       {FILTER_TYPES.filter((t) => count(t)).map((t) => {
         const active = typeFilter === t;
         const meta = TYPE_META[t];
@@ -119,8 +123,8 @@ function TypeChips({ typeFilter, onTypeFilter, count }: {
             data-tip-pos="bottom"
             {...(active ? { 'data-tip-hidden': '' } : {})}
             className={cn(
-              'h-[42px] rounded-ds-md flex items-center justify-center gap-1.5 border transition-colors',
-              active ? 'border-transparent px-3.5' : 'min-w-[42px] border-border-1 bg-bg-1 hover:bg-bg-2',
+              'h-10 rounded-ds-md flex items-center justify-center gap-1.5 transition-colors',
+              active ? 'px-3' : 'min-w-[40px] hover:bg-bg-2',
             )}
             style={active ? { background: meta.bg, color: meta.fg } : { color: meta.fg }}
           >
@@ -151,7 +155,7 @@ function CaptureButton({ onCapture }: { onCapture: () => void }) {
   const tip = unfiled.count
     ? `Assistent · ${unfiled.count} zu tun` : 'Assistent – sagen, was ist, oder neu anlegen';
   return (
-    <div className="absolute right-5 bottom-5 z-20">
+    <div className="absolute left-5 bottom-5 z-20">
       <button
         type="button"
         onClick={onCapture}
@@ -224,9 +228,14 @@ export function FeedPanel({ show, search, onSearch, typeFilter, onTypeFilter, ro
       'w-full md:w-[300px] lg:w-[336px]',
       show ? 'flex' : 'hidden md:flex',
     )}>
-      <SearchBar search={search} onSearch={onSearch} onScan={onScan} />
-      <TypeChips typeFilter={typeFilter} onTypeFilter={onTypeFilter} count={count} />
-      <div className="flex-1 overflow-y-auto min-h-0 p-2 pb-24">
+      {/* Der Kopf des Feeds ist genau so hoch wie der Kopf eines Datensatzes (`ERP_HEAD_H`) –
+          die Linie darunter läuft ohne Versatz in die Linie unter dem Kopf rechts. */}
+      <div className="flex flex-col justify-end border-b border-border-1 flex-none"
+        style={{ height: ERP_HEAD_H, boxSizing: 'border-box' }}>
+        <SearchBar search={search} onSearch={onSearch} onScan={onScan} />
+        <TypeChips typeFilter={typeFilter} onTypeFilter={onTypeFilter} count={count} />
+      </div>
+      <div className="flex-1 overflow-y-auto min-h-0 pb-24">
         {loading && <Skeleton rows={8} label="Datensätze werden geladen" style={{ padding: 16 }} />}
         {!loading && rows.length === 0 && (
           <div className="p-6 text-center text-sm text-fg-4">

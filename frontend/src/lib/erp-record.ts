@@ -3,32 +3,31 @@ import type { ElementType } from 'react';
 import type { ErpRecordType } from '@/types';
 
 /**
- * EINE Quelle der Wahrheit für die visuelle Identität jedes ERP-Datensatztyps:
- * Symbol + getönte Symbolfarbe (Design-System: «Symbole statt Text, Farbe =
- * Bedeutung»). Jeder Typ hat eine eigene Farbfamilie → sofortige optische
- * Unterscheidung im Feed, im Typ-Filter und in Detail-Köpfen.
- * Werte aus dem Inexxio-Design-Mockup (Instanz-Detail Redesign).
+ * EINE Quelle der Wahrheit für die visuelle Identität jedes ERP-Datensatztyps: Symbol und
+ * **Art-Farbe** (Tokens `--type-*` im Design System, `colors_and_type.css`). Die Farbe steht im
+ * Symbol, in der Überschrift des Kopfs und als heller Ton der gewählten Zeile im Feed – so gehören
+ * Zeile und Datensatz sichtbar zusammen. Rot bleibt für «zu tun».
  */
 interface TypeMeta {
   label: string;
   icon: ElementType;
-  /** getönte Füllung des Symbol-Quadrats */
+  /** Heller Ton: Füllung des Symbols, gewählte Zeile im Feed, aktiver Filter. */
   bg: string;
-  /** Symbol-/Textfarbe */
+  /** Die Farbe: Symbol, Überschrift im Kopf. */
   fg: string;
 }
 
 export const TYPE_META: Record<ErpRecordType, TypeMeta> = {
-  user:             { label: 'Benutzer',    icon: Users,         bg: '#E8F1EC', fg: '#2E7D5B' },
-  article:          { label: 'Artikel',     icon: Package,       bg: '#F4EBDD', fg: '#9A7238' },
-  order:            { label: 'Auftrag',     icon: ClipboardList, bg: '#E7F0F4', fg: '#1C6487' },
+  user:             { label: 'Benutzer',    icon: Users,         bg: 'var(--type-user-bg)',     fg: 'var(--type-user)' },
+  article:          { label: 'Artikel',     icon: Package,       bg: 'var(--type-article-bg)',  fg: 'var(--type-article)' },
+  order:            { label: 'Auftrag',     icon: ClipboardList, bg: 'var(--type-order-bg)',    fg: 'var(--type-order)' },
   // **Singular, wie jeder andere Typ.** Das Wort steht im Detail-Kopf über EINEM
   // Datensatz («INSTANZEN · Schraube M4» las sich, als wären es mehrere) und im Feed
   // neben seiner Anzahl – beides will die Einzahl.
-  instance:         { label: 'Instanz',     icon: Boxes,         bg: '#E9EDEC', fg: '#5E6B66' },
-  organization:     { label: 'Unternehmen', icon: Building2,     bg: '#F3E5DD', fg: '#A65A3C' },
-  // Jede freigegebene Datei (`services/documents`) – eine eigene, kühle Farbfamilie.
-  document:         { label: 'Dokument',    icon: FileText,      bg: '#EEEAF4', fg: '#6B5A8E' },
+  instance:         { label: 'Instanz',     icon: Boxes,         bg: 'var(--type-instance-bg)', fg: 'var(--type-instance)' },
+  organization:     { label: 'Unternehmen', icon: Building2,     bg: 'var(--type-company-bg)',  fg: 'var(--type-company)' },
+  // Jede freigegebene Datei (`services/documents`).
+  document:         { label: 'Dokument',    icon: FileText,      bg: 'var(--type-document-bg)', fg: 'var(--type-document)' },
 };
 
 /**

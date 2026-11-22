@@ -6,8 +6,8 @@ import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { instanceName } from '@/lib/record-name';
 import { kindLabel } from '@/lib/record-status';
-import { DetailBody, DetailHeader, ReadField, SectionSep, SPEC, SpecHead } from '@/components/erp/detail-frame';
-import { History } from '@/components/erp/history';
+import { DETAIL_PANE, DetailBody, DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/detail-frame';
+import { HistoryCard } from '@/components/erp/history';
 import { DocumentTiles } from '@/components/erp/documents';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
@@ -45,7 +45,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
         onBack={onBack}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
+      <div style={DETAIL_PANE}>
         <DetailBody gap={22}>
           {/* Woher stammt diese Gruppe? Der Artikel als verlinkte Objektnummer – die
               Spezifikation liegt einen Klick entfernt. */}
@@ -72,8 +72,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
           {/* Dasselbe Bestandsmodul wie am Artikel, im kleineren Umfang. */}
           <StockView scope={{ kind: 'instance', record: rec }} />
           <DocumentTiles objectId={rec.object_id} />
-          <SectionSep label="Verlauf" />
-          <History objectId={rec.object_id} />
+          <HistoryCard objectId={rec.object_id} />
         </DetailBody>
       </div>
     </div>

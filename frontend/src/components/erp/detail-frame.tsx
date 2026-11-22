@@ -18,38 +18,34 @@ import { MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
 // (`DetailBody`), Karten (`Card`, `SPEC`, `SpecHead`, `SpecSection`, `ReadField`) und
 // Abschnitte (`SectionSep`, `TodoChip`). ◄◄◄
 
-// ─── Karte: der Container eines Formular-Abschnitts ──────────────────────────
+// ─── Abschnitt: die Einheit einer Datensatz-Seite ─────────────────────────────
 
 /**
- * Symbol (optional) + Titel + rechter Slot (Speicher-Anzeige), darunter der Inhalt – EINE
- * Anatomie für Konto, Benutzer und Unternehmen.
+ * ►►► **Ein Abschnitt – dieselbe Form wie im Konto** (`.kt-sec`, `components/form/kt-section`). ◄◄◄
+ * Links der Titel (daneben ⓘ und die Zahl «zu tun», darunter z. B. «Gespeichert»), rechts die
+ * Sache; eine Haarlinie trennt ihn vom vorigen. Kein Kasten, kein Symbol, kein Untertitel. Ist die
+ * Sache breit (Diagramme, Tabellen), steht der Titel darüber (`wide`).
  */
-export function Card({ icon: Icon, title, right, children, info, extra, unclipped, anchor }: {
-  icon?: ElementType; title: string; right?: ReactNode; children: ReactNode;
+export function Card({ title, right, children, info, extra, anchor, wide }: {
+  title: string; right?: ReactNode; children: ReactNode;
   /** ⓘ neben dem Titel – die Erklärung im Hover. */
   info?: string;
   /** Neben dem Titel, z. B. die Zahl «zu tun» (`TodoChip`). */
   extra?: ReactNode;
-  /** Ohne `overflow: hidden` – sonst schneidet die Karte die Hover-Blasen ihres Inhalts ab. */
-  unclipped?: boolean;
   /** Sprungziel der Zahl am Symbol (`data-todo`). */
   anchor?: string;
+  /** Titel über der Sache statt links daneben – für breiten Inhalt. */
+  wide?: boolean;
 }) {
   return (
-    <div data-todo={anchor} style={{ background: 'var(--bg-1)', border: '1px solid var(--border-1)',
-      borderRadius: 12, overflow: unclipped ? undefined : 'hidden', scrollMarginTop: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    gap: 12, padding: '18px 24px', borderBottom: '1px solid var(--border-1)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          {Icon && <Icon style={{ width: 16, height: 16, color: 'var(--fg-3)', flex: 'none' }} />}
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{title}</h2>
-          {info && <InfoHint text={info} />}
-          {extra}
-        </div>
-        {right}
+    <section data-todo={anchor} aria-label={title} style={{ scrollMarginTop: 16 }}
+      className={wide ? 'kt-sec erp-sec erp-sec--wide' : 'kt-sec erp-sec'}>
+      <div className="kt-sec-h">
+        <h2>{title}{info && <InfoHint text={info} />}{extra}</h2>
+        {right && <div>{right}</div>}
       </div>
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>{children}</div>
-    </div>
+      <div className="kt-body">{children}</div>
+    </section>
   );
 }
 
@@ -60,17 +56,26 @@ export function Card({ icon: Icon, title, right, children, info, extra, unclippe
  * ►►► **Die Breite eines Datensatz-Fensters — EINE Zahl für alle.** ◄◄◄ Ausnahme ist das
  * Prozessbild mit seinen drei Spuren – es misst seine Breite selbst.
  */
-export const DETAIL_MAXW = 880;
+export const DETAIL_MAXW = 1040;
 
-/** Der Inhalt eines Datensatz-Reiters: **zentriert, auf {@link DETAIL_MAXW} begrenzt**. */
+/**
+ * ►►► **Die Höhe des Kopfs – EINE Zahl für Feed und Datensatz.** ◄◄◄ Der Kopf des Feeds (Suche,
+ * Filter) und der Kopf eines Datensatzes sind gleich hoch; ihre Linien treffen sich ohne Versatz.
+ */
+export const ERP_HEAD_H = 125;
+
+/**
+ * Der Inhalt eines Datensatz-Reiters: **zentriert, auf {@link DETAIL_MAXW} begrenzt** – und der
+ * Behälter der Abschnitte (`.erp-secs`: sie stapeln sich, wenn er schmal wird).
+ */
 export function DetailBody({ children, gap, style }: {
   children: ReactNode;
-  /** Abstand zwischen den Karten; ohne ihn stapelt der Aufrufer selbst. */
+  /** Abstand zwischen den Teilen; ohne ihn stapelt der Aufrufer selbst. */
   gap?: number;
   style?: React.CSSProperties;
 }) {
   return (
-    <div style={{
+    <div className="erp-secs" style={{
       maxWidth: DETAIL_MAXW, marginInline: 'auto', width: '100%',
       ...(gap ? { display: 'flex', flexDirection: 'column', gap } : null),
       ...style,
@@ -79,6 +84,15 @@ export function DetailBody({ children, gap, style }: {
     </div>
   );
 }
+
+/**
+ * ►►► **Die Fläche eines Datensatzes – weiss, eine für alle.** ◄◄◄ Der scrollende Bereich unter dem
+ * Kopf; darin `DetailBody` mit den Abschnitten.
+ */
+export const DETAIL_PANE: React.CSSProperties = {
+  flex: 1, overflowY: 'auto', background: 'var(--bg-1)',
+  padding: '0 clamp(16px, 4vw, 32px) 96px',
+};
 
 export const SPEC = {
   card: {
@@ -247,24 +261,17 @@ export function TodoAt({ part, objectId, children }: {
   );
 }
 
-/** ►►► **Hier beginnt ein Bereich** – eine Haarlinie mit dem Mikro-Label in der Mitte
- *  (Stammdaten, Zeiterfassung); daneben die Zahl, wenn darin etwas zu tun ist. */
+/** ►►► **Hier beginnt ein Bereich** – Haarlinie und Titel wie ein Abschnitt (`Card`), die Sache
+ *  folgt darunter in voller Breite (Verlauf, Zahlungen, Dokumente); daneben die Zahl «zu tun». */
 export function SectionSep({ label, todo, anchor, tip }: {
   label: string; todo?: TodoItem[]; anchor?: string;
   /** Was der Bereich ist – im Hover am Wort, nicht als Zeile darunter. */
   tip?: string;
 }) {
   return (
-    <div role="separator" aria-label={label} data-todo={anchor} style={{
-      ...MICRO_LABEL, color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 12,
-      margin: '8px 0 -4px', scrollMarginTop: 16,
-    }}>
-      <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />
-      <span {...(tip ? { 'data-tip': tip } : {})}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        {label}{todo && <TodoChip items={todo} />}
-      </span>
-      <span style={{ flex: 1, height: 1, background: 'var(--border-1)' }} />
+    <div className="erp-sep" role="separator" aria-label={label} data-todo={anchor}>
+      <h2 {...(tip ? { 'data-tip': tip } : {})}>{label}</h2>
+      {todo && <TodoChip items={todo} />}
     </div>
   );
 }
@@ -375,7 +382,9 @@ export function DetailHeader({
 }) {
   const meta = TYPE_META[type];
   return (
-    <div style={{ ...DH.head, paddingBottom: tabs ? 0 : 14 }}>
+    <div style={DH.head}>
+      {/* Das Band ist so hoch wie der Kopf des Feeds (`ERP_HEAD_H`); der Inhalt steht in der Mitte. */}
+      <div style={DH.band}>
       {onBack && (
         <button onClick={onBack} className="flex items-center gap-1 text-sm mb-3 md:hidden" style={{ color: 'var(--accent)' }}>
           <ArrowLeft size={15} /> Zurück
@@ -386,7 +395,7 @@ export function DetailHeader({
           deviation={deviation} own={own} todo={todo}
           onTodo={todo ? () => jumpToTodo(todo.items) : undefined} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={DH.eyebrow}>{meta.label}</div>
+          <div style={{ ...DH.eyebrow, color: meta.fg }}>{meta.label}</div>
           <h1 style={{ ...DH.title, ...(title ? null : DH.titleEmpty) }}>{title ?? placeholder}</h1>
           <div style={DH.sub}>
             <span style={DH.subN} data-tip={objectIdHint} data-tip-pos="bottom">
@@ -406,7 +415,8 @@ export function DetailHeader({
         )}
       </div>
       {children}
-      {tabs && <div style={{ marginTop: 14 }}>{tabs}</div>}
+      </div>
+      {tabs && <div>{tabs}</div>}
     </div>
   );
 }
@@ -434,14 +444,19 @@ export function HeaderSep() {
 
 export const DH: Record<string, React.CSSProperties> = {
   head: {
-    // paddingBottom 0 mit Reitern (Aktiv-Balken auf der Haarlinie); ohne setzt `DetailHeader` ihn.
-    padding: '20px clamp(14px, 4vw, 28px) 0', borderBottom: '1px solid var(--border-1)',
-    background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0,
+    // Weiss mit Haarlinie; mit Reitern liegt ihr Aktiv-Balken auf dieser Linie.
+    padding: '0 clamp(14px, 4vw, 28px)', borderBottom: '1px solid var(--border-1)',
+    background: 'var(--bg-1)', flexShrink: 0,
+  },
+  band: {
+    minHeight: ERP_HEAD_H - 1, padding: '14px 0', boxSizing: 'border-box',
+    display: 'flex', flexDirection: 'column', justifyContent: 'center',
   },
   top: { display: 'flex', alignItems: 'flex-start', gap: 'clamp(10px, 3vw, 16px)', flexWrap: 'wrap' },
   eyebrow: {
     font: 'var(--overline)', letterSpacing: 'var(--tracking-overline)',
-    textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6,
+    // Die Farbe ist die der Datensatz-Art (`TYPE_META.fg`) – Rot steht nie in einer Überschrift.
+    textTransform: 'uppercase', marginBottom: 6,
   },
   title: {
     // **Einzelangaben, KEINE `font`-Kurzschreibweise**: fällt die Überschreibung `titleEmpty`

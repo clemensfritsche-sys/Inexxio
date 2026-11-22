@@ -10,8 +10,8 @@ import type {
   RelatedOrder, StepWork,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
-import { DetailBody, DetailHeader, HeaderAction, SectionSep, TodoAt } from '@/components/erp/detail-frame';
-import { History } from '@/components/erp/history';
+import { DetailBody, DetailHeader, HeaderAction, TodoAt } from '@/components/erp/detail-frame';
+import { HistoryCard } from '@/components/erp/history';
 import { DocumentTiles } from '@/components/erp/documents';
 import { LabelButton } from '@/components/scan/object-label';
 import { EMPTY_GRAPH, definitionGraph, type DiagramStep, type JourneyOrigin } from '@/lib/process-graph';
@@ -228,7 +228,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
         onBack={onBack}
       />
 
-      <div className="flex-1 p-5" style={{ background: 'var(--bg-2)' }}>
+      <div className="flex-1 p-5" style={{ background: 'var(--bg-1)' }}>
         {(error ?? loadError) && (
           <p className="mb-3 text-sm max-w-[880px] mx-auto px-3 py-2 rounded-ds-lg"
             style={{ color: 'var(--danger)', background: 'var(--danger-bg)' }}>
@@ -253,8 +253,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
         {!isDraft && live?.object_id != null && (
           <DetailBody gap={22} style={{ paddingBottom: 40 }}>
             <DocumentTiles objectId={live.object_id} />
-            <SectionSep label="Verlauf" />
-            <History objectId={live.object_id} />
+            <HistoryCard objectId={live.object_id} />
           </DetailBody>
         )}
 

@@ -271,7 +271,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   der Person. **Admin wird nur `initial_admin_email`** (beim Login), nie «wer zuerst
   kommt». Personen werden nicht deaktiviert; Personal kann eine Person anlegen
   (`POST /erp/records`, das Anmeldekonto entsteht bei der ersten Anmeldung).
-- **Der Zugang einer Person** (Karte «Zugang» am Personendatensatz, `components/erp/person-access`
+- **Der Zugang einer Person** (Abschnitt «Sicherheit» am Personendatensatz, `components/erp/person-access`
   – dasselbe Bauteil wie «Sicherheit» im Konto; `routers/access.py`): ihre Passkeys (entfernen) und
   ihre Verbindungen mit Claude (trennen), sichtbar und änderbar nur für sie selbst und den Admin
   (`policy` «person.access», `may_access`). Einen Passkey einrichten kann nur die Person auf ihrem
@@ -491,7 +491,7 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   **Offen** ist eine Verbindung, solange sie nicht getrennt und zuletzt (Erlauben oder jüngste
   Erneuerung) vor höchstens 30 Tagen benutzt ist (`mcp._OPEN`, dieselbe Abfrage für Liste und jede
   Anfrage) – trennt jemand in Claude selbst, fällt sie so von selbst weg. Gesehen und getrennt im
-  Konto (Sicherheit) und am ERP-Datensatz (Karte «Zugang», selbst · Admin). Erlauben auf `/erp/verbinden`; das Hosting leitet
+  Konto (Sicherheit) und am ERP-Datensatz (Abschnitt «Sicherheit», selbst · Admin). Erlauben auf `/erp/verbinden`; das Hosting leitet
   `/.well-known/oauth-*` an den Dienst. Protokoll: JSON-RPC über einen `POST`, ohne SDK.
 - **Vorschläge aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person liest die
   KI im Takt und bereitet Vorschläge am Datensatz vor (Probelauf mit den Rechten der Person, die
@@ -546,7 +546,7 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
 ## Zeiterfassung
 
 Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
-- **Ein Abschnitt im Personendatensatz** (zwischen Kommunikation und Stammdaten, EINE Karte,
+- **Ein Abschnitt im Personendatensatz** («Zeit», zwischen Verlauf und den Stammdaten, EIN Abschnitt,
   `components/erp/time/`), sichtbar nur im eigenen Datensatz und für den Admin
   (`timekeeping.may_see`). Der Admin kann dasselbe wie die Person, dazu Verträge und Buchungen.
 - **Gespeichert wird nur Eingegebenes**: `time_contracts` (Vertrag ab Stichtag – Wochenstunden,
@@ -743,7 +743,9 @@ der eine laute Akzent** (nie in Überschriften), **Slate (`accent`) die leise St
 (Bedienelemente) · 8 px (Karten, Flächen, Dialoge). Website: eine Überschrift-Form, Rot nur für die
 Anfrage, Glas nur, was schwebt (Kopfleiste, Handy-Leiste, Knöpfe auf Fotos), nie im ERP. Wörter: kein
 «Fixpreis», keine «Werkstatt». ERP: Struktur vor Fläche (Haarlinien statt
-Schatten), Status als Punkt + Wort, Lucide-Symbole statt Text, tabellarische Zahlen,
+Schatten), **ein Datensatz ist eine weisse Seite aus denselben Abschnitten wie das Konto** (`Card` =
+`.kt-sec`, Felder grau ohne Rahmen), **Art-Farben** `--type-*` (Symbol, Überschrift des Kopfs,
+gewählte Feed-Zeile), Status als Etikett mit Wort, Lucide-Symbole statt Text, tabellarische Zahlen,
 Infotexte im Hover, 8-px-Raster, Inter / Inter Tight. **Die Alt-Palette ist weg** (`slate-*`,
 `blue-*`, `gray-*`, `brand-*`, `#2563eb`: 0 Vorkommen), ebenso Dunkelmodus und die v4-Mockups.
 Eine unbekannte Tailwind-Klasse oder CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.

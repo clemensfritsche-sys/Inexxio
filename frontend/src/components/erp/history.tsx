@@ -18,9 +18,14 @@
  *
  * **Unten beim Neuesten steht «Auf einen Blick»** (`pinned.tsx`): offene Vorschläge, dann die
  * Hinweise der KI – an jedem Datensatz, der einen Verlauf hat, auch wenn er noch leer ist.
+ *
+ * ►►► **Die Änderungen sind da, aber nicht ungefragt.** ◄◄◄ Der Schalter «Änderungen zeigen»
+ * (`ChangesSwitch`, standardmässig aus) blendet die Blöcke aus dem Log ein; geladen, gespeichert und
+ * von der KI gelesen wird immer alles – nur die Anzeige wählt. Ein Abschnitt «Verlauf» mit Schalter
+ * für jeden Datensatz: `HistoryCard`.
  */
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { ChevronUp, FileText, PenLine, Zap } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -30,6 +35,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import type { ChangeBlock, HistoryEntry, Message } from '@/types';
 import { Bubble, Divider, SendingBubble, type Sending } from '@/components/erp/communication/timeline';
 import { Pinned } from '@/components/erp/pinned';
+import { Card } from '@/components/erp/detail-frame';
 import { Skeleton } from './skeleton';
 
 /** Die Seiten des Verlaufs – eine Query je Nummer; dieselbe für den Verlauf und die
@@ -126,8 +132,32 @@ function DocumentRow({ e }: { e: HistoryEntry }) {
   );
 }
 
-export function History({ objectId, mirror = true, personId, meId, onReply, onDone, sending }: {
+/** Der Schalter «Änderungen zeigen» – unter dem Titel des Abschnitts «Verlauf». */
+export function ChangesSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <div className="kt-switch" style={{ alignItems: 'center', gap: 12 }}>
+      <button type="button" role="switch" aria-checked={on} aria-label="Änderungen zeigen"
+        onClick={() => onChange(!on)} />
+      <p style={{ fontSize: 14, color: 'var(--fg-2)' }}>Änderungen zeigen</p>
+    </div>
+  );
+}
+
+/** ►►► **Der Abschnitt «Verlauf»** – Titel und Schalter links, der Verlauf rechts; an jedem
+ *  Datensatz ohne Eingabe (Artikel, Auftrag, Instanz, Dokument). ◄◄◄ */
+export function HistoryCard({ objectId }: { objectId: number }) {
+  const [changes, setChanges] = useState(false);
+  return (
+    <Card title="Verlauf" right={<ChangesSwitch on={changes} onChange={setChanges} />}>
+      <History objectId={objectId} changes={changes} />
+    </Card>
+  );
+}
+
+export function History({ objectId, mirror = true, personId, meId, onReply, onDone, sending, changes = false }: {
   objectId: number;
+  /** Die Änderungen aus dem Log zeigen (`ChangesSwitch`) – sonst nur Nachrichten und Dokumente. */
+  changes?: boolean;
   /** Nur lesend (Firma, jeder Datensatz ausser der Person): Namen an jeder Blase, kein
    *  offen/überfällig. */
   mirror?: boolean;
@@ -155,11 +185,11 @@ export function History({ objectId, mirror = true, personId, meId, onReply, onDo
     return <p style={{ color: 'var(--danger)', fontSize: 13 }}>{q.error.message || 'Konnte nicht geladen werden.'}</p>;
   }
   if (!q.data) return <Skeleton rows={3} label="Verlauf wird geladen" />;
-  const entries = entriesOf(q.data.pages).reverse();
+  const entries = entriesOf(q.data.pages).reverse().filter((e) => changes || !e.change);
   const rows: ReactNode[] = [];
   if (!entries.length && !sending) {
-    rows.push(<p key="empty" style={{ color: 'var(--fg-3)', fontSize: 13, padding: '24px 0', margin: 0 }}>
-      Noch nichts im Verlauf.</p>);
+    rows.push(<p key="empty" style={{ color: 'var(--fg-3)', fontSize: 14, padding: '6px 0 12px', margin: 0 }}>
+      {changes ? 'Noch nichts im Verlauf.' : 'Noch keine Nachrichten, Notizen oder Dokumente.'}</p>);
   }
   if (hasNextPage) rows.push(
     <button key="more" ref={more} type="button" data-more="" disabled={isFetchingNextPage}

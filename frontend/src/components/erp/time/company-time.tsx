@@ -9,10 +9,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Select } from '@/components/form/field';
-import { CalendarDays, CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Download, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Card, TodoChip } from '@/components/erp/detail-frame';
 import { ErrorText } from '@/components/erp/hints';
-import { MICRO_LABEL } from '@/components/erp/fields';
 import { StageAction } from '@/components/erp/module-ui';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '@/lib/api';
@@ -79,7 +78,7 @@ function Holidays({ v, company, onView, onYear, todo }: {
   const n = picked.length;
   const iso = add ? parseDay(add.d) : null;
   return (
-    <Sect icon={CalendarDays} title={<>Feiertage{canton ? ` · ${canton[1]}` : ''}<TodoChip items={todo} /></>}
+    <Sect title={<>Feiertage{canton ? ` · ${canton[1]}` : ''}<TodoChip items={todo} /></>}
       info={v.vocab.texts.holidays}
       right={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <IconButton icon={ChevronLeft} label="Voriges Jahr" height={24} onClick={() => year(v.year - 1)} />
@@ -161,7 +160,7 @@ function Arts({ v, company, onView }: { v: CompanyTimeView; company: number; onV
       .then((x) => { onView(x); setEdit(null); setMsg(null); }).catch((e) => setMsg(err(e)));
   };
   return (
-    <Sect icon={CalendarPlus} title="Absenzarten" info={v.vocab.texts.proof}>
+    <Sect title="Absenzarten" info={v.vocab.texts.proof}>
       <div style={{ ...GRID, gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 230px), 1fr))' }}>
         {v.vocab.arts.map((a) => {
           const Icon = timeIcon(a.icon);
@@ -212,18 +211,18 @@ export function CompanyTime({ company, todo }: { company: number; todo: TodoItem
   const msg = error ? err(error) : null;
   const setV = (x: CompanyTimeView) => qc.setQueryData(key, x);
   return (
-    <Card icon={Clock} title="Zeiterfassung" unclipped anchor="feiertage">
+    <Card title="Zeiterfassung" anchor="feiertage">
       {!v ? (msg ? <ErrorText msg={msg} /> : <Skeleton lines={4} label="Feiertage werden geladen" />) : (
         <>
           <Holidays v={v} company={company} onView={setV} onYear={setYear} todo={todo} />
           {HR}
           <Arts v={v} company={company} onView={setV} />
           {HR}
-          <Sect icon={Scale} title="Regeln · Schweiz" info={v.vocab.texts.rules}>
+          <Sect title="Regeln · Schweiz" info={v.vocab.texts.rules}>
             <div style={GRID}>
               {v.rules.map(([k, val]) => (
                 <span key={k} style={{ display: 'grid', gap: 2 }}>
-                  <span style={MICRO_LABEL}>{k}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-3)' }}>{k}</span>
                   <span style={{ fontSize: 13, color: 'var(--fg-1)' }}>{val}</span>
                 </span>
               ))}

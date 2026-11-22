@@ -28,7 +28,11 @@ description: >-
 - **Radien:** Bedienelemente 6 px (`rounded-ds-md`), Karten, Flächen, Bilder, Dialoge 8 px
   (`rounded-ds-lg`). Keine Pillen-Knöpfe.
 - **Flach:** Haarlinien statt Schatten; Schatten nur, was schwebt.
-- **Status = Punkt + Wort** (`fields.StatusDot`). **Icons nur Lucide**, kein Emoji.
+- **Status trägt sein Wort** – im ERP als Etikett (`fields.StatusBadge`), in Zeilen Punkt + Wort
+  (`fields.StatusDot`). **Icons nur Lucide**, kein Emoji.
+- **ERP-Datensatz = Abschnitte wie im Konto** (`detail-frame.Card` = `.kt-sec`, weiss, keine Karte
+  in der Karte); Felder grau ohne Rahmen (`inputClass`); **Art-Farben** `--type-*` nur in Symbol,
+  Überschrift des Kopfs und gewählter Feed-Zeile.
 - **Zahlen tabellarisch** (`.ix-tnum`), Schweizer Formate, Datum nur über `lib/when.ts`.
 - **Website:** eine Überschrift-Form (`.v4-h2` + höchstens ein grauer Satz, linksbündig); Glas nur
   in der Kopfleiste, der Handy-Leiste und auf kleinen Knöpfen über Fotos; Text auf Fotos auf `.plate--dark`; kein Kasten im Kasten; Fotos zoomen beim

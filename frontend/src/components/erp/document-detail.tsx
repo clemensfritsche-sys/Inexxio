@@ -8,8 +8,8 @@ import { api, assetUrl } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { statusCfg } from '@/lib/process-status';
 import { when } from '@/lib/when';
-import { DetailBody, DetailHeader, ReadField, SectionSep } from '@/components/erp/detail-frame';
-import { History } from '@/components/erp/history';
+import { DETAIL_PANE, DetailBody, DetailHeader, ReadField } from '@/components/erp/detail-frame';
+import { HistoryCard } from '@/components/erp/history';
 import { Dialog, inputCls } from '@/components/erp/controls';
 import { Input, TextArea } from '@/components/form/field';
 import { ErrorText } from '@/components/erp/hints';
@@ -141,7 +141,7 @@ export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack:
             </button>
           </>
         )} />
-      <div className="flex-1 overflow-y-auto" style={{ background: 'var(--bg-2)', padding: '24px clamp(14px, 4vw, 28px) 88px' }}>
+      <div style={DETAIL_PANE}>
         <DetailBody gap={22}>
           {error && <ErrorText msg={error} />}
           {deleted ? (
@@ -174,8 +174,7 @@ export function DocumentDetail({ objectId, onBack }: { objectId: number; onBack:
               <Signatures doc={doc} />
             </DocumentLayout>
           )}
-          <SectionSep label="Verlauf" />
-          <History objectId={doc.object_id} />
+          <HistoryCard objectId={doc.object_id} />
         </DetailBody>
       </div>
       {sending && (

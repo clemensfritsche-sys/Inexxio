@@ -27,8 +27,8 @@ import { FREIGEGEBEN } from '@/lib/process-status';
 import { ErrorText } from '@/components/erp/hints';
 import { IconSwitch, Label, inputCls } from '@/components/erp/controls';
 import { Field, Input, Select } from '@/components/form/field';
-import { DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField, SectionSep } from '@/components/erp/detail-frame';
-import { History } from '@/components/erp/history';
+import { DETAIL_PANE, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/detail-frame';
+import { HistoryCard } from '@/components/erp/history';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { DocumentTiles } from '@/components/erp/documents';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -257,7 +257,7 @@ export function ArticleDetail({ record, initial, proposal, onSaved, onBack, onRe
         ) : undefined}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
+      <div style={DETAIL_PANE}>
         <DetailBody>
             {/* Wie steht dieser Artikel im Netz der anderen? Schmaler Streifen über der
                 Spezifikation – dieselbe Stelle, an der man bei der Anlage den Vorgänger wählt. */}
@@ -329,8 +329,7 @@ export function ArticleDetail({ record, initial, proposal, onSaved, onBack, onRe
             {record?.object_id != null && <DocumentTiles objectId={record.object_id} />}
             {record?.object_id != null && (
               <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <SectionSep label="Verlauf" />
-                <History objectId={record.object_id} />
+                <HistoryCard objectId={record.object_id} />
               </div>
             )}
         </DetailBody>

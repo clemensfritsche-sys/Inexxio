@@ -2,14 +2,15 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, FolderOpen, Star, Pencil, Ban, Users, RotateCcw, MessagesSquare, HandCoins, BarChart3 } from 'lucide-react';
+import { Building2, FolderOpen, Star, Pencil, Ban, RotateCcw, MessagesSquare, HandCoins, BarChart3 } from 'lucide-react';
 import { Communication } from '@/components/erp/communication';
 import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import type { CompanySettings, CompanySettingsUpdate, Todo } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { DetailBody, Card, DetailHeader, SectionSep, TodoAt } from '@/components/erp/detail-frame';
-import { Segmented } from '@/components/erp/controls';
+import { DetailBody, Card, DETAIL_PANE, DetailHeader, SectionSep, TodoAt } from '@/components/erp/detail-frame';
+import { ChangesSwitch } from '@/components/erp/history';
+import { Segmented, inputCls } from '@/components/erp/controls';
 import { DocumentTiles } from '@/components/erp/documents';
 import { LegalTexts } from '@/components/erp/legal-texts';
 import { CompanyTime } from '@/components/erp/time/company-time';
@@ -293,9 +294,9 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
 
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
+      <div style={DETAIL_PANE}>
         {tab === 'comm' && record.object_id != null && (
-          <DetailBody><Communication company={record.object_id} ownCompany={own} /></DetailBody>
+          <DetailBody><CompanyHistory company={record.object_id} own={own} /></DetailBody>
         )}
         {tab === 'site' && isOperator && <SiteStats />}
         {tab === 'pay' && own && record.object_id != null && (
@@ -303,7 +304,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
         )}
         {tab === 'stamm' && (
         <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <DetailBody gap={16}>
+        <DetailBody>
           {/* ── 1. Allgemeine Angaben ────────────────────────────────────────── */}
           <Card title="Allgemeine Angaben" right={saveIndicator}>
             {/* «Extern ↔ Eigen» – eine Admin-Entscheidung; alle anderen sehen sie gesperrt. */}
@@ -349,9 +350,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)' }}>Währung</label>
                 <Select name="currency" value={form.currency} onChange={str('currency')}
-                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-1)',
-                           fontSize: 14, color: 'var(--fg-1)', background: 'var(--bg-1)', outline: 'none',
-                           width: '100%', boxSizing: 'border-box', cursor: 'pointer' }}>
+                  className={`${inputCls} cursor-pointer`}>
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </Select>
               </div>
@@ -420,7 +419,7 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
 
           {/* ►►► **Wer gehört zu dieser Firma?** – abgeleitet aus der Zuordnung an der
               Person; gepflegt wird sie dort. */}
-          <Card icon={Users} title="Personen">
+          <Card title="Personen">
             {(base.people ?? []).length === 0 ? (
               <span className="text-sm text-fg-3">Keine Personen zugeordnet.</span>
             ) : (
@@ -443,18 +442,28 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
         {/* ►►► **Zeiterfassung der Gesellschaft** – ganz unten in den Stammdaten, nur für
             eine eigene und nur für den Admin (Feiertage, Nachweise, Regeln). */}
         {tab === 'stamm' && own && isAdmin && record.object_id != null && (
-          <div style={{ marginTop: 24 }}>
-            <DetailBody gap={24}>
-              <SectionSep label="Zeiterfassung" anchor="feiertage" todo={sectionItems(todo, 'feiertage')} />
+          <DetailBody>
+            {/* Nicht der erste Abschnitt des Behälters – die Haarlinie zum vorigen bleibt. */}
+            <div>
               <CompanyTime company={record.object_id} todo={sectionItems(todo, 'feiertage')} />
-            </DetailBody>
-          </div>
+            </div>
+          </DetailBody>
         )}
       </div>
     </div>
   );
 }
 
+
+/** Der Verlauf einer Firma – der ihrer Personen, nur lesend; «Änderungen zeigen» wie überall. */
+function CompanyHistory({ company, own }: { company: number; own: boolean }) {
+  const [changes, setChanges] = useState(false);
+  return (
+    <Card title="Verlauf" right={<ChangesSwitch on={changes} onChange={setChanges} />}>
+      <Communication company={company} ownCompany={own} changes={changes} />
+    </Card>
+  );
+}
 
 /**
  * ►►► **Alle Zahlungen einer eigenen Gesellschaft** – dieselbe Liste wie an der Person, mit

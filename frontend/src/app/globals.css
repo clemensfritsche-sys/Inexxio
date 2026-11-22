@@ -341,6 +341,25 @@
   .kt-card { padding: 18px; }
 }
 
+/* ── Abschnitte im ERP – DIESELBEN wie im Konto (`.kt-sec`) ────────────────
+   ►►► Ein Datensatz ist eine weisse Seite aus Abschnitten: links der Titel, rechts die Sache,
+   eine Haarlinie dazwischen – kein Kasten, keine Karte in der Karte. ◄◄◄ `Card` und `SectionSep`
+   (`components/erp/detail-frame`) rendern diese Form; `DetailBody` ist der Behälter (`.erp-secs`).
+   Gestapelt wird nach der Breite des Fensters, nicht des Bildschirms – neben dem Feed ist das
+   Detail schmaler als der Bildschirm (Container-Abfrage). */
+.erp-secs { container-type: inline-size; }
+.erp-secs > .kt-sec:first-child, .erp-secs > .erp-sep:first-child { border-top: 0; }
+.erp-sec .kt-sec-h h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.erp-sec .kt-body { gap: 20px; }
+.erp-sec--wide { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.erp-sep { display: flex; align-items: center; gap: 8px; padding-top: 56px; border-top: 1px solid var(--border-1); scroll-margin-top: 16px; }
+.erp-sep h2 { margin: 0; font: 600 28px/1.1 var(--font-display); letter-spacing: -0.03em; color: var(--fg-1); }
+@container (max-width: 760px) {
+  .erp-sec { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 40px 0; }
+  .erp-sec .kt-sec-h h2, .erp-sep h2 { font-size: 24px; }
+  .erp-sep { padding-top: 40px; }
+}
+
 /* ── Kopf und Fuss des Konto-/ERP-Bereichs ────────────────────
    ►►► Es gibt sie hier NICHT. ◄◄◄ Kopf und Fuss sind die der Website (Header.astro,
    Footer.astro) – übernommen beim Bauen (`website/scripts/export-shell.mjs` →

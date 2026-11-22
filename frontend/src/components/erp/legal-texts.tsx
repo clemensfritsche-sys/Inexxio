@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Scale } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useDocumentsOf } from '@/lib/queries';
 import { Card } from '@/components/erp/detail-frame';
@@ -34,7 +33,7 @@ export function LegalTexts({ company, isAdmin }: { company: number; isAdmin: boo
   }
 
   return (
-    <Card icon={Scale} title="Rechtstexte"
+    <Card title="Rechtstexte"
       info="Die AGB stehen auf jedem Papier dieser Gesellschaft und auf der Website ihrer Länder; der Datenschutz des Betreibers gilt für die Website.">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {TEXTS.map((t) => {

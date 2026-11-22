@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Building2, User } from 'lucide-react';
 import { api } from '@/lib/api';
 import { legalForms } from '@/lib/legal-forms';
 import { Field as AField, SelectField } from '@/components/form/field';
@@ -66,7 +65,7 @@ export function NewPerson({ isAdmin, initial, onSaved, onBack }: {
           onClick={() => void create()} />}
         right={<button type="button" className="erp-actbtn erp-actbtn-neutral" onClick={onBack}>Abbrechen</button>} />
       <DetailBody>
-        <Card icon={User} title="Person">
+        <Card title="Person">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <AField name="first_name" label="Vorname" value={first} onChange={setFirst} required placeholder="Max" />
             <AField name="last_name" label="Nachname" value={last} onChange={setLast} required placeholder="Muster" />
@@ -137,7 +136,7 @@ export function NewCompany({ isAdmin, initial, onSaved, onBack }: {
           onClick={() => void create()} />}
         right={<button type="button" className="erp-actbtn erp-actbtn-neutral" onClick={onBack}>Abbrechen</button>} />
       <DetailBody>
-        <Card icon={Building2} title="Firma">
+        <Card title="Firma">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <AField name="company_name" label="Firmenname" value={name} onChange={setName} required placeholder="Muster" />
             <div>

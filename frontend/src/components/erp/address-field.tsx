@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MapPin, Pencil, Search, CheckCircle2, LocateFixed, Loader2 } from 'lucide-react';
 import { useGoogleMaps } from '@/lib/use-google-maps';
 import { Input, Select } from '@/components/form/field';
-import { RequiredMark } from '@/components/erp/controls';
+import { RequiredMark, inputCls } from '@/components/erp/controls';
 import { useT } from '@/lib/lang';
 
 export type Address = {
@@ -241,8 +241,8 @@ export function AddressField({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('Adresse suchen – z. B. Musterstrasse 12, Zürich')}
             autoComplete="off"
-            className={kt ? 'kt-input' : undefined}
-            style={S.search}
+            className={kt ? 'kt-input' : inputCls}
+            style={kt ? S.search : { paddingLeft: 34 }}
             // Enter wählt den Vorschlag, statt das Formular abzuschicken.
             onKeyDown={(e) => {
               if (e.key === 'Enter' && document.querySelector('.pac-container:not([style*="display: none"])')) {
@@ -314,7 +314,7 @@ function Line({ name, label, value, onChange, wide, kt }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: kt ? 6 : 4, gridColumn: wide ? '1 / -1' : undefined }}>
       <label style={(kt ? KT : ST).fieldLabel}>{label}</label>
       <Input name={name} value={value} onChange={onChange}
-        className={kt ? 'kt-input' : undefined} style={kt ? undefined : ST.input} />
+        className={kt ? 'kt-input' : inputCls} />
     </div>
   );
 }
@@ -326,7 +326,7 @@ function Pick({ name, label, value, onChange, options, kt }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: kt ? 6 : 4 }}>
       <label style={(kt ? KT : ST).fieldLabel}>{label}</label>
       <Select name={name} value={value} onChange={onChange}
-        className={kt ? 'kt-input kt-select' : undefined} style={kt ? undefined : ST.input}>
+        className={kt ? 'kt-input kt-select' : `${inputCls} cursor-pointer`}>
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </Select>
     </div>
@@ -341,11 +341,6 @@ const ST: Record<string, React.CSSProperties> = {
     marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
     font: '600 12px var(--font-body)', color: 'var(--accent)',
     background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-  },
-  search: {
-    width: '100%', padding: '10px 12px 10px 34px', borderRadius: 'var(--r-md)',
-    border: '1px solid var(--border-1)', background: 'var(--bg-1)',
-    font: '400 14px var(--font-body)', color: 'var(--fg-1)', outline: 'none', boxSizing: 'border-box',
   },
   searchIcon: {
     position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
@@ -370,11 +365,6 @@ const ST: Record<string, React.CSSProperties> = {
   note: { font: '400 12px var(--font-body)', color: 'var(--fg-4)', margin: 0 },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 },
   fieldLabel: { font: '500 12.5px var(--font-body)', color: 'var(--fg-3)' },
-  input: {
-    width: '100%', padding: '8px 11px', borderRadius: 'var(--r-md)',
-    border: '1px solid var(--border-1)', background: 'var(--bg-1)',
-    font: '400 13.5px var(--font-body)', color: 'var(--fg-1)', outline: 'none', boxSizing: 'border-box',
-  },
 };
 
 /** Dieselben Teile in der Gestaltung des Kontos: graue Flächen ohne Rahmen, ruhige Wörter. */

@@ -65,6 +65,15 @@
   --success:var(--green-600); --success-bg:var(--green-50);
   --warning:var(--amber-700); --warning-bg:var(--amber-50);
   --danger:var(--red-600);    --danger-bg:var(--red-50);
+  /* Art-Farben (nur ERP) – je Datensatz-Art eine leise Farbe mit hellem Ton: Symbol, Überschrift
+     im Kopf, gewählte Zeile im Feed. Kühl gestimmt wie das Grau; keine erinnert an Rot.
+     Gelesen von lib/erp-record.TYPE_META. */
+  --type-user:#2F7466;     --type-user-bg:#E8F2EF;
+  --type-article:#8A6A2F;  --type-article-bg:#F3EEE3;
+  --type-order:var(--slate-600); --type-order-bg:var(--slate-50);
+  --type-instance:#5E6B72; --type-instance-bg:#EDF0F2;
+  --type-company:#4A5A8A;  --type-company-bg:#ECEEF5;
+  --type-document:#7A5A7E; --type-document-bg:#F3ECF3;
 
   /* ---------- SCHRIFT ---------- */
   --font-display:'Inter Tight','Inter','Helvetica Neue',Arial,sans-serif;

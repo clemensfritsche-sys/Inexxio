@@ -35,8 +35,9 @@ gelesen** – ein Token, das niemand liest, wird gelöscht, nicht gepflegt.
    aktive Zeile) und konkurriert nie mit Rot.
 2. **Struktur vor Fläche.** Haarlinien und Weissraum trennen, nicht Rahmen und Schatten. Schatten
    nur, was schwebt (Menü, Dialog, Toast).
-3. **Nie nur Farbe.** Ein Zustand ist Punkt + Wort (`fields.StatusDot`), ein Fehler ein Satz an
-   der Stelle.
+3. **Nie nur Farbe.** Ein Zustand trägt immer sein Wort – im ERP als Etikett mit Symbol
+   (`fields.StatusBadge`, Feed und Kopf), in einer Zeile als Punkt + Wort (`fields.StatusDot`); ein
+   Fehler ist ein Satz an der Stelle.
 4. **Symbol vor Text** im ERP: Lucide-Symbole, der Name im Hover (`data-tip`). Keine Emoji, kein
    zweites Icon-Set.
 5. **Ruhig.** Flach, kurze Bewegungen, bei «weniger Bewegung» steht alles.
@@ -153,10 +154,28 @@ Raster, weiche Übergänge. Gefühl: leicht, vertrauenswürdig, kompetent, nahba
 - **Konto** sieht aus wie die Website (Kopf, Fuss, Schrift, Radien), ohne Glas; der Name als
   grosses Wort im Kopf, Karten `.kt-*`.
 - **ERP – dicht, 14 px:** Struktur vor Fläche, Haarlinien statt Kartenrahmen mit Schatten, 8-px-Raster,
-  Infotexte im Hover, Objektnummer als Kennung (`.erp-objid`), Zahlen tabellarisch. Rot nur aktiv,
-  Slate für Info und Links.
+  Infotexte im Hover, Objektnummer als Kennung (`.erp-objid`), Zahlen tabellarisch. Rot nur aktiv
+  und «zu tun», Slate für Info und Links. Der Kopf ist der der Website.
+- **Ein Datensatz ist eine weisse Seite aus Abschnitten – dieselben wie im Konto** (November 2026):
+  links der Titel (28 px, ohne Untertitel, daneben ⓘ und «zu tun»), rechts die Sache, eine Haarlinie
+  dazwischen (`Card` = `.kt-sec`); keine Karte in der Karte. Breiter Inhalt (Diagramme, Listen):
+  Titel darüber (`Card wide`, `SectionSep`). Gestapelt wird nach der Breite des Fensters, nicht des
+  Bildschirms (Container-Abfrage `.erp-secs`). Keine Sprungleiste – man scrollt.
+- **Felder wie im Konto:** die eine Feldform (`inputClass`) ist eine graue Fläche ohne Rahmen, beim
+  Tippen weiss mit dunkler Linie; am Personendatensatz die Konto-Felder selbst (`KtField`,
+  `KtDate`, `KtSelect`).
+- **Art-Farben** (`--type-*`, je Datensatz-Art eine leise Farbe mit hellem Ton, kühl gestimmt, keine
+  erinnert an Rot): im Symbol, in der Überschrift des Kopfs und als Ton der gewählten Zeile im Feed.
+  Der Kopf selbst bleibt weiss.
+- **Feed ohne Kästen:** Suche als graue Fläche (Scan als Symbol darin), Filter nur als Symbole,
+  Zeilen über die ganze Breite; «+» links unten. Der Kopf des Feeds ist so hoch wie der Kopf eines
+  Datensatzes (`ERP_HEAD_H`) – die Linien treffen sich.
+- **Verlauf:** Nachrichten, Notizen, Dokumente; die Änderungen aus dem Log nur mit «Änderungen
+  zeigen» (standardmässig aus).
 - **Die Bausteine** (nicht neu erfinden): `detail-frame.tsx` (Anatomie eines Datensatzes:
-  `DetailHeader`, `RecordIcon`, `Card`, `SpecSection`, `ReadField`, `DETAIL_MAXW`) · `controls.tsx`
+  `DetailHeader`, `RecordIcon`, `Card`, `SectionSep`, `DETAIL_PANE`, `DetailBody`, `ERP_HEAD_H`,
+  `SpecSection`, `ReadField`, `DETAIL_MAXW`) · `form/kt-section.tsx` (`KtField`, `KtDate`,
+  `KtSelect`) · `history.tsx` (`HistoryCard`, `ChangesSwitch`) · `controls.tsx`
   (`inputClass` – die eine Feldform –, `Label`, `Segmented`, `Dialog`) · `fields.tsx` (`StatusDot`,
   `MICRO_LABEL`) · `hints.tsx` (die eine Hover-Blase) · `module-ui.tsx` (`ActionButton`, `LedgerRow`,
   `Amount`, `ValueBar`) · `object-select.tsx` (jedes Referenzfeld) · `form/field.tsx` (jedes
