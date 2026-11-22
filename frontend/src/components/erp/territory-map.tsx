@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * **Weltkarte der Gebietsaufteilung** (ADR 006, Karte aus `world-map.tsx`). Jede Region
+ * **Weltkarte der Gebietsaufteilung** (ADR 006, die eine Karte `geo-map.tsx`): jedes Land in der
+ * Farbe der Gesellschaft, die es fakturiert; ein Klick wählt seine Region. Jede Region
  * gehört **genau EINER** Gesellschaft, nicht zugewiesene dem **Betreiber**. Ein Land kann
  * abweichen (Land ≻ Region ≻ Betreiber); Ausnahme ist **abgeleitet**, kein Flag.
  *
@@ -14,7 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Globe2, Check, Plus, X, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { TerritoryMap as TerritoryMapData } from '@/types';
-import { WorldMap, regionAnchor } from '@/components/erp/world-map';
+import { GeoMap, WORLD } from '@/components/erp/geo-map';
 import { MICRO_LABEL } from '@/components/erp/fields';
 import { Skeleton } from './skeleton';
 import { errorText, useAction } from '@/lib/use-action';
@@ -76,6 +77,8 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
   // Ein Land ist eine **Ausnahme**, wenn sein Besitzer von dem seiner Region abweicht.
   const regionOwner = (code: string) => data.regions.find((r) => r.code === code)?.company_object_id ?? null;
   const countries = data.countries ?? [];
+  // Jedes Land mit Region und seinem Besitzer (Land ≻ Region ≻ Betreiber, vom Server).
+  const byCountry = Object.fromEntries(countries.map((c) => [c.code, c]));
   const exceptions = countries.filter((c) => c.company_object_id !== regionOwner(c.region));
   const named = countries
     .map((c) => ({ ...c, label: countryLabel(c.code, displayNames) }))
@@ -92,7 +95,8 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
   const selLabel = selRegion?.label ?? (selCountry ? countryLabel(selCountry.code, displayNames) : '');
   const selOwner = selRegion?.company_object_id ?? selCountry?.company_object_id ?? null;
   // Wo das Kärtchen sitzt: über der gewählten Fläche (bei einem Land über seiner Region).
-  const anchor = regionAnchor(selRegion?.code ?? selCountry?.region ?? 'EUR');
+  const at = WORLD.anchors[selRegion?.code ?? selCountry?.region ?? 'EUR'] ?? WORLD.anchors.EUR;
+  const anchor = { x: (at[0] / WORLD.w) * 100, y: (at[1] / WORLD.h) * 100 };
   const regionExceptions = selRegion ? exceptions.filter((c) => c.region === selRegion.code) : [];
 
   return (
@@ -111,25 +115,38 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
           ein Klick öffnet die Zuweisung dort. */}
       <div style={{ position: 'relative', border: '1px solid var(--border-1)',
         borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
-        <WorldMap
-          selected={selRegion?.code ?? null}
-          onSelect={(code) => { setSelected(selected === code ? null : code); setAdding(false); }}
-          fill={(code) => toneOf(regionOwner(code)).land}
-          stroke={(code) => toneOf(regionOwner(code)).ring}
-          tip={(code) => `${data.regions.find((r) => r.code === code)?.label ?? code} · ${nameOf(regionOwner(code))}`}
-          label={(code) => {
-            const r = data.regions.find((x) => x.code === code);
-            if (!r) return null;
-            const exc = exceptions.filter((c) => c.region === code).length;
-            // Ist eine Gesellschaft geöffnet, treten die Gebiete der anderen zurück.
-            const dim = highlight != null && r.company_object_id !== highlight;
-            return {
-              title: r.label,
-              sub: nameOf(r.company_object_id) + (exc ? ` · ${exc} Ausnahme${exc === 1 ? '' : 'n'}` : ''),
-              ink: dim ? 'var(--fg-4)' : toneOf(r.company_object_id).dot,
-            };
+        <GeoMap label="Weltkarte der Gebietsaufteilung"
+          onSelect={(code) => {
+            const region = byCountry[code]?.region;
+            if (!region) return;
+            setSelected(selected === region ? null : region); setAdding(false);
           }}
-        />
+          fill={(code) => (byCountry[code] ? toneOf(byCountry[code].company_object_id).land : 'var(--bg-4)')}
+          // Ist eine Gesellschaft geöffnet, treten die Gebiete der anderen zurück.
+          opacity={(code) => (highlight != null && byCountry[code]
+            && byCountry[code].company_object_id !== highlight ? 0.35 : 1)}
+          stroke={(code) => (selRegion && byCountry[code]?.region === selRegion.code ? 'var(--fg-1)' : undefined)}
+          tip={(code) => (byCountry[code]
+            ? `${countryLabel(code, displayNames)} · ${nameOf(byCountry[code].company_object_id)}`
+            : countryLabel(code, displayNames))}>
+          {(unit) => data.regions.map((r) => {
+            const at = WORLD.anchors[r.code];
+            if (!at) return null;
+            const exc = exceptions.filter((c) => c.region === r.code).length;
+            const dim = highlight != null && r.company_object_id !== highlight;
+            const ink = dim ? 'var(--fg-4)' : toneOf(r.company_object_id).dot;
+            return (
+              <g key={r.code} pointerEvents="none" textAnchor="middle">
+                <text x={at[0]} y={at[1]} fill={ink} stroke="var(--bg-1)" strokeWidth={3 * unit}
+                  paintOrder="stroke" style={{ font: `700 ${13 * unit}px var(--font-body)` }}>{r.label}</text>
+                <text x={at[0]} y={at[1] + 14 * unit} fill={ink} stroke="var(--bg-1)" strokeWidth={3 * unit}
+                  paintOrder="stroke" style={{ font: `500 ${11 * unit}px var(--font-body)` }}>
+                  {nameOf(r.company_object_id) + (exc ? ` · ${exc} Ausnahme${exc === 1 ? '' : 'n'}` : '')}
+                </text>
+              </g>
+            );
+          })}
+        </GeoMap>
 
         {/* Die Zuweisung **am Ort**: ein Kärtchen über der gewählten Fläche. */}
         {selected && (

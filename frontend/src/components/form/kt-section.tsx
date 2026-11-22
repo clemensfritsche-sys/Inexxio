@@ -6,6 +6,7 @@
 
 import { useEffect, useId, useState } from 'react';
 import { Input } from './field';
+import { useT } from '@/lib/lang';
 
 /** Ein Abschnitt: links Titel und ein Satz (darunter z. B. «Gespeichert»), rechts die Sache. */
 export function KtSection({ id, title, text, aside, children }: {
@@ -34,9 +35,10 @@ export function KtField({ id: given, name, label, value, onChange, onEnter, type
 }) {
   const auto = useId();
   const id = given ?? auto;
+  const t = useT();
   return (
     <div className="kt-f">
-      <label htmlFor={id}>{label}{missing && <em> · fehlt</em>}</label>
+      <label htmlFor={id}>{label}{missing && <em> · {t('fehlt')}</em>}</label>
       <Input
         id={id} name={name} className="kt-input" type={type} value={value}
         placeholder={placeholder} readOnly={readOnly} autoComplete={autoComplete} list={list}
@@ -61,11 +63,24 @@ function textToIso(text: string): string | null {
   return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-/** Ziffern setzen ihre Punkte selbst («15081980» → «15.08.1980»); wer Punkte tippt, behält seine. */
-function maskDate(raw: string): string {
-  if (raw.includes('.')) return raw.replace(/[^\d.]/g, '').slice(0, 10);
-  const d = raw.replace(/\D/g, '').slice(0, 8);
-  return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join('.');
+/**
+ * ►►► **Tag · Monat · Jahr, wie man sie tippt.** ◄◄◄ Ein Trennzeichen (`.` `/` `-` Leerschlag)
+ * schliesst Tag oder Monat ab und wird zum Punkt; eine dritte Ziffer nach zwei setzt den Punkt
+ * selbst. So werden «15081980», «15.08.1980», «17/12/1997» und «1.5.1980» zum selben Muster –
+ * und wer den Punkt löscht, kann ihn löschen (gesetzt wird er erst mit der nächsten Ziffer).
+ */
+export function maskDate(raw: string): string {
+  const parts = ['', '', ''];
+  let at = 0;
+  for (const ch of raw) {
+    if (/\d/.test(ch)) {
+      if (at < 2 && parts[at].length === 2) at += 1;
+      if (parts[at].length < (at === 2 ? 4 : 2)) parts[at] += ch;
+    } else if (/[./\-\s,]/.test(ch) && at < 2 && parts[at]) {
+      at += 1;
+    }
+  }
+  return parts[0] + (at > 0 ? `.${parts[1]}` : '') + (at > 1 ? `.${parts[2]}` : '');
 }
 
 /**
@@ -79,6 +94,7 @@ export function KtDate({ id, name, label, value, onChange, onEnter, missing }: {
   missing?: boolean;
 }) {
   const [text, setText] = useState(() => isoToText(value));
+  const t = useT();
   // Ein neuer Wert von aussen (anderer Datensatz) ersetzt die Eingabe – der eigene nicht.
   useEffect(() => {
     setText((t) => (textToIso(t) ?? '') === value ? t : isoToText(value));
@@ -87,10 +103,10 @@ export function KtDate({ id, name, label, value, onChange, onEnter, missing }: {
   const invalid = iso === null && text.length >= 8;
   return (
     <div className="kt-f">
-      <label htmlFor={id}>{label}{invalid ? <em> · ungültig</em> : missing && !text && <em> · fehlt</em>}</label>
+      <label htmlFor={id}>{label}{invalid ? <em> · {t('ungültig')}</em> : missing && !text && <em> · {t('fehlt')}</em>}</label>
       <Input
         id={id} name={name} className="kt-input" inputMode="numeric"
-        autoComplete="bday" placeholder="TT.MM.JJJJ" value={text}
+        autoComplete="bday" placeholder={t('TT.MM.JJJJ')} value={text}
         onChange={(raw) => {
           const next = maskDate(raw);
           setText(next);

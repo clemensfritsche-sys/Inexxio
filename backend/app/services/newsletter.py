@@ -151,7 +151,7 @@ def confirm(db: Session, link: Link) -> int:
     Person (Anmeldung von der Website) entsteht sie erst jetzt (``people.ensure``). Gibt die
     Objektnummer zurück; committet nicht."""
     from . import people
-    oid = link.person or people.ensure(db, link.email).object_id
+    oid = link.person or people.ensure(db, link.email, language=link.lang).object_id
     set_state(db, oid, True, link.source if link.source in dn.SOURCES else "website", lang=link.lang)
     return oid
 
@@ -216,11 +216,12 @@ def _ask(url: str, lang: str = "de") -> mail_layout.Extra:
 
 
 def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
-           by_name: bool = True, lang: str = "de") -> Message:
+           by_name: bool = True, lang: Optional[str] = None) -> Message:
     """**Die Bitte um Bestätigung** – eine Mail an die Person, als Nachricht in ihrem
     Verlauf, unterschrieben vom Unternehmen. Committet und sendet. 409, wenn sie schon
     angemeldet ist; 503 ohne verbundenes Postfach. Von der Website (``by_name=False``) ohne
-    Namen in der Anrede: der Name stammt womöglich aus einem öffentlichen Formular."""
+    Namen in der Anrede: der Name stammt womöglich aus einem öffentlichen Formular. Ohne
+    ``lang`` (aus dem ERP) in der Sprache der Person."""
     from . import outbox
     if oid in subscribed(db, [oid]):
         raise Conflict("Diese Person ist schon angemeldet.")
@@ -228,10 +229,11 @@ def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
     person = db.query(UserProfile).filter(UserProfile.object_id == oid).first()
     if person is None:
         raise NotFound(f"Person «{oid}» gibt es nicht.")
+    lang = lang or person.language or "de"      # aus dem ERP: in der Sprache der Person
     w = said(lang)
     return outbox.deliver(db, channel=channel, to=[oid], subject=w["confirmSubject"],
                           lead=_lead(person.display_name if by_name else "", lang),
-                          kicker=w["kicker"], extra=_ask(confirm_url(source, person=oid, lang=lang), lang))
+                          extra=_ask(confirm_url(source, person=oid, lang=lang), lang), lang=lang)
 
 
 def invite_address(db: Session, email: str, source: str, channel: Optional[str] = None,
@@ -244,7 +246,7 @@ def invite_address(db: Session, email: str, source: str, channel: Optional[str] 
     channel, _ = _box(db, channel)
     w = said(lang)
     mail = mail_layout.compose(w["confirmSubject"], _lead("", lang), outbox.firm(db, channel),
-                               None, kicker=w["kicker"],
-                               extra=_ask(confirm_url(source, email=email, lang=lang), lang))
+                               None, extra=_ask(confirm_url(source, email=email, lang=lang), lang),
+                               lang=lang)
     if not mailbox.send_direct(db, channel, email, w["confirmSubject"], mail):
         raise Unavailable("Die Bitte um Bestätigung ging nicht hinaus.")

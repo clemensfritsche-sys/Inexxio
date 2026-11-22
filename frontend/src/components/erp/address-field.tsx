@@ -13,6 +13,7 @@ import { MapPin, Pencil, Search, CheckCircle2, LocateFixed, Loader2 } from 'luci
 import { useGoogleMaps } from '@/lib/use-google-maps';
 import { Input, Select } from '@/components/form/field';
 import { RequiredMark } from '@/components/erp/controls';
+import { useT } from '@/lib/lang';
 
 export type Address = {
   /** Strasse inkl. Hausnummer – genau so, wie Google sie liefert (eine Zeile). */
@@ -79,7 +80,7 @@ export function hasAddress(a: Address | null | undefined): boolean {
 
 export function AddressField({
   value, onChange, apiKey, countryOptions, showStreet2 = false, showRegion = false,
-  label = 'Adresse', required = false, look = 'erp',
+  label, required = false, look = 'erp',
 }: {
   value: Address;
   onChange: (a: Address) => void;
@@ -94,6 +95,8 @@ export function AddressField({
   /** `kt` = Gestaltung des Kontos (graue Flächen, `.kt-*`) – dieselbe Logik, andere Haut. */
   look?: 'erp' | 'kt';
 }) {
+  const t = useT();
+  label ??= t('Adresse');
   const kt = look === 'kt';
   const S = kt ? KT : ST;
   const { loaded, error } = useGoogleMaps(apiKey);
@@ -137,7 +140,7 @@ export function AddressField({
             setLocating(false);
             const hit = status === 'OK' ? results?.[0] : null;
             if (!hit?.address_components) {
-              setLocateError('Zu diesem Standort wurde keine Adresse gefunden.');
+              setLocateError(t('Zu diesem Standort wurde keine Adresse gefunden.'));
               return;
             }
             applyPlace(hit);
@@ -146,7 +149,7 @@ export function AddressField({
       },
       () => {
         setLocating(false);
-        setLocateError('Standort nicht verfügbar – bitte im Browser freigeben.');
+        setLocateError(t('Standort nicht verfügbar – bitte im Browser freigeben.'));
       },
       { enableHighAccuracy: true, timeout: 10_000 },
     );
@@ -199,20 +202,20 @@ export function AddressField({
           {labelNode}
           {usable && (
             <button type="button" onClick={() => { setWantsManual(false); setSearching(true); }} style={S.link}>
-              <Search size={12} /> Stattdessen suchen
+              <Search size={12} /> {t('Stattdessen suchen')}
             </button>
           )}
         </div>
         {error === 'auth' && (
-          <p style={S.note}>Adress-Suche nicht verfügbar (Google «Places API» nicht freigeschaltet) – bitte manuell erfassen.</p>
+          <p style={S.note}>{t('Adress-Suche nicht verfügbar (Google «Places API» nicht freigeschaltet) – bitte manuell erfassen.')}</p>
         )}
         <div style={S.grid}>
-          <Line name="street" kt={kt} label="Strasse und Hausnummer" value={value.street} onChange={set('street')} wide />
-          {showStreet2 && <Line name="street2" kt={kt} label="Adresszusatz" value={value.street2 ?? ''} onChange={set('street2')} wide />}
-          <Line name="zip" kt={kt} label="PLZ" value={value.zip} onChange={set('zip')} />
-          <Line name="city" kt={kt} label="Ort" value={value.city} onChange={set('city')} />
-          {showRegion && <Line name="region" kt={kt} label="Region" value={value.region ?? ''} onChange={set('region')} />}
-          <Pick name="country" kt={kt} label="Land" value={value.country} onChange={set('country')} options={countryOptions} />
+          <Line name="street" kt={kt} label={t('Strasse und Hausnummer')} value={value.street} onChange={set('street')} wide />
+          {showStreet2 && <Line name="street2" kt={kt} label={t('Adresszusatz')} value={value.street2 ?? ''} onChange={set('street2')} wide />}
+          <Line name="zip" kt={kt} label={t('PLZ')} value={value.zip} onChange={set('zip')} />
+          <Line name="city" kt={kt} label={t('Ort')} value={value.city} onChange={set('city')} />
+          {showRegion && <Line name="region" kt={kt} label={t('Region')} value={value.region ?? ''} onChange={set('region')} />}
+          <Pick name="country" kt={kt} label={t('Land')} value={value.country} onChange={set('country')} options={countryOptions} />
         </div>
       </div>
     );
@@ -226,7 +229,7 @@ export function AddressField({
           {!kt && <MapPin size={14} style={{ color: 'var(--fg-3)' }} />}
           {labelNode}
           {hasAddress(value) && (
-            <button type="button" onClick={() => setSearching(false)} style={S.link}>Abbrechen</button>
+            <button type="button" onClick={() => setSearching(false)} style={S.link}>{t('Abbrechen')}</button>
           )}
         </div>
         <div style={{ position: 'relative' }}>
@@ -236,7 +239,7 @@ export function AddressField({
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Adresse suchen – z. B. Musterstrasse 12, Zürich"
+            placeholder={t('Adresse suchen – z. B. Musterstrasse 12, Zürich')}
             autoComplete="off"
             className={kt ? 'kt-input' : undefined}
             style={S.search}
@@ -253,11 +256,11 @@ export function AddressField({
           {usable && typeof navigator !== 'undefined' && 'geolocation' in navigator && (
             <button type="button" onClick={useMyLocation} disabled={locating} style={S.locate}>
               {locating ? <Loader2 size={13} className="animate-spin" /> : <LocateFixed size={13} />}
-              {locating ? 'Standort wird ermittelt…' : 'Aktuellen Standort verwenden'}
+              {locating ? t('Standort wird ermittelt…') : t('Aktuellen Standort verwenden')}
             </button>
           )}
           <button type="button" onClick={() => setWantsManual(true)} style={S.escape}>
-            Adresse nicht gefunden? Manuell erfassen
+            {t('Adresse nicht gefunden? Manuell erfassen')}
           </button>
         </div>
         {locateError && <p style={{ ...S.note, color: 'var(--warning)' }}>{locateError}</p>}
@@ -277,7 +280,7 @@ export function AddressField({
         {!kt && <MapPin size={14} style={{ color: 'var(--fg-3)' }} />}
         {labelNode}
         <button type="button" onClick={() => setSearching(true)} style={S.link}>
-          <Pencil size={12} /> Ändern
+          <Pencil size={12} /> {t('Ändern')}
         </button>
       </div>
       <div style={S.summary}>
@@ -292,10 +295,10 @@ export function AddressField({
       </div>
       {/* Adresszusatz nur, wenn befüllt oder ausdrücklich gewünscht. */}
       {showStreet2 && (value.street2 || street2Open ? (
-        <Line name="street2" kt={kt} label="Adresszusatz (c/o, Postfach)" value={value.street2 ?? ''} onChange={set('street2')} wide />
+        <Line name="street2" kt={kt} label={t('Adresszusatz (c/o, Postfach)')} value={value.street2 ?? ''} onChange={set('street2')} wide />
       ) : (
         <button type="button" onClick={() => setStreet2Open(true)} style={S.escape}>
-          + Adresszusatz
+          + {t('Adresszusatz')}
         </button>
       ))}
     </div>

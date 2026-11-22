@@ -20,6 +20,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { api } from './api';
+import { currentLang } from './lang';
 import { cachedRole, clearAccountCache } from './account-cache';
 
 const firebaseConfig = {
@@ -119,7 +120,8 @@ function getActionCodeSettings() {
     ? window.location.origin
     : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
   return {
-    url: `${baseUrl}/login/verify`,
+    // Die Sprache steht immer darin – vor dem `lang`, das Firebase selbst anhängt (`lib/lang`).
+    url: `${baseUrl}/login/verify?lang=${currentLang()}`,
     handleCodeInApp: true,
   };
 }
@@ -129,7 +131,7 @@ function getActionCodeSettings() {
  *  schickt ihn Firebase wie bisher: angemeldet wird in jedem Fall. */
 async function sentByUs(email: string): Promise<boolean> {
   try {
-    return (await api.sendLoginLink(email)).sent;
+    return (await api.sendLoginLink(email, currentLang())).sent;
   } catch {
     // Ausnahme notice: der Rückweg über Firebase IST die Antwort, keine Meldung nötig.
     return false;

@@ -178,7 +178,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 |---|---|---|---|
 | GET | `/health` | – | Health Check + Stand der Datenbank (`schema`: `current` · `behind`, `revision`, `head`) – der Deploy wird rot, wenn sie nicht auf dem Stand des Codes steht (`scripts/check-schema.sh`) |
 | GET · PATCH | `/api/v1/auth/me` | user | Eigenes Profil lesen / ändern (Selbstbedienung, `people.apply_profile_update`) |
-| POST | `/api/v1/auth/link` | – | **Anmeldelink im Kleid des Hauses** (`services/login_link`): Firebase erzeugt den Link, die Mail geht aus dem Postfach der Gesellschaft zum Land; 5/h je Absender; `sent=false` → die Oberfläche schickt ihn über Firebase |
+| POST | `/api/v1/auth/link` | – | **Anmeldelink im Kleid des Hauses** (`services/login_link`): Firebase erzeugt den Link, die Mail geht aus dem Postfach der Gesellschaft zum Land, in der Sprache der Seite (`lang`: de · fr · en · it, `login_link.WORDS`); 5/h je Absender; `sent=false` → die Oberfläche schickt ihn über Firebase |
 | POST | `/api/v1/auth/me/email-check` | user | Ist die neue Anmelde-E-Mail frei? (`people.email_problem`, vor dem Firebase-Bestätigungslink) |
 | POST · PATCH · DELETE | `/api/v1/auth/me/addresses` · `/{address_id}` | user | Eigenes Adressbuch |
 | POST | `/api/v1/auth/passkeys/register/options` · `/register/verify` | user | Passkey registrieren |

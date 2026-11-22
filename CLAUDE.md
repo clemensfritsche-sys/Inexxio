@@ -276,6 +276,12 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   ihre Verbindungen mit Claude (trennen), sichtbar und änderbar nur für sie selbst und den Admin
   (`policy` «person.access», `may_access`). Einen Passkey einrichten kann nur die Person auf ihrem
   Gerät (Konto).
+- **Die Sprache gehört zur Person** (`user_profiles.language`: de · fr · en · it, `schemas.admin.Language`):
+  eine neue Person bekommt die Sprache der Seite, von der sie uns zum ersten Mal schreibt (Formular,
+  Newsletter, `people.ensure(language=…)`); das öffentliche Formular ändert eine bestehende nie. Die
+  Person ändert sie im Konto (die Sprachwahl dort merkt sie sich), das Personal im ERP (Stammdaten,
+  «Sprache»). Automatische Mails mit übersetztem Text folgen ihr (Bestätigung und Newsletter-Bitte in
+  der Sprache der Seite bzw. der Person); Belege und Antworten von Hand sind noch deutsch.
 - **Es bestellt immer eine Person**; die Firma ist höchstens Rechnungsempfänger «z. H.».
   **Eine fremde Firma ist ihre Identität** – Name, Rechtsform, UID (`sites.EXTERNAL_FIELDS`).
   Eigene Gesellschaften (`is_own`, nur Admin) tragen Anschrift, Bank, Währung, Gebiete und
@@ -334,7 +340,10 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   danach, und der Abgleich holt eine eigene Kennung nie herein; nach drei Abweisungen durch Gmail ist
   sie **nicht gesendet** (`communication._FAILED`, an der Mail mit «Neu senden»,
   `POST /erp/messages/{id}/resend`; die Versuche zählen danach von vorn) und der Grund steht als
-  interne Nachricht im Verlauf. **Was die Gesellschaft schreibt, schreibt die
+  interne Nachricht im Verlauf. **Ein Rückläufer** (Unzustellbar-Meldung mit unserer Kennung,
+  `mail_parse.bounce`) wird keine Nachricht: er steht an der Mail, die nicht ankam (`mail.bounced`,
+  «nicht zugestellt» mit Adresse und Grund, `communication.undelivered`), sie beantwortet nichts,
+  und eine interne Nachricht sagt es (`mailbox._bounced`). **Was die Gesellschaft schreibt, schreibt die
   Gesellschaft**: automatische Mails (Bestätigung, Newsletter-Bitte, Beleg ohne Mensch) und was direkt
   in Gmail hinausging, haben die Gesellschaft als Absenderin, nicht den Admin des Postfachs. Ist
   das Postfach einer Mail getrennt, wählt die Antwort ihres von Hand – nie still ein anderes.
@@ -345,14 +354,22 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Eine Stelle für jede Mail des Hauses** (`services/outbox.py`): `deliver` (anlegen, bauen, zum
   Versand geben – Beleg, Dokument, Eingangsbestätigung, Newsletter-Bitte), `build` (auch die
   Antwort aus dem Verlauf), `firm`, `signer`. **Gebaut beim Anlegen, nie beim Versand.**
-- **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Kopf · Betreff als
-  Überschrift · Inhalt · Unterschrift mit dem Menschen im Namen der Gesellschaft · Fuss; was
+- **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Betreff als Überschrift, rechts
+  auf gleicher Höhe das Logo (gestapelt mit «Kranbau · Fahrzeugbau · Service» und «ehemals HS
+  Steiner», 240 px; am Handy darüber) · Inhalt · «Beste Grüsse aus <Ort der Gesellschaft>» · Unterschrift
+  (Mensch im Namen der Gesellschaft, ohne Funktion; Gesellschaft, Anschrift, Telefon, E-Mail,
+  Website – **sie ist der Fuss**) · unten ein **Streifen** als kleine Werbefläche (Bild, Stichwort,
+  Titel, Satz, Link; heute die Nachfolge HS Steiner → INEXXIO). Gruss und Streifen stehen EINMAL in
+  `website/src/config/inquiry.mjs` (`letter`, in jeder Sprache), das Bild in
+  `frontend/public/mail/`; Links öffnen ein neues Fenster, Radien wie v4. Was
   im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`). Antworten nennen den
   ganzen Faden (`References`); Zitate fallen beim Abholen weg – **wo das Mailprogramm sie
   markiert** (HTML-Teil: Gmail `gmail_quote`, Outlook `divRplyFwdMsg`, Apple `blockquote
   type=cite` …, `mail_parse.QUOTE_CLASSES` · `QUOTE_STOPS`), sonst an ihren Mustern im Text
   (`mail_parse._QUOTE`); eine Grussformel-Erkennung (`domain/communication.is_greeting`). **Ein Unterzeichner**
-  für jede Mail (`mail_layout.as_signer`: Name + Profilbild). **Das Bild der Unterschrift**
+  für jede Mail (`mail_layout.as_signer`: Name + Profilbild). **Die Eingangsbestätigung** grüsst
+  mit dem Namen aus dem Formular, aber nur, wenn er wie ein Name aussieht (`inquiry.salutation_name`:
+  Buchstaben, Bindestrich, Apostroph, höchstens 4 Wörter und 40 Zeichen) – sonst «Guten Tag». **Das Bild der Unterschrift**
   (`services/portrait.py`): schräge Streifen, die sich einmal öffnen, links eine rote Kante –
   ein GIF (das erste Bild ist das fertige, für Outlook), durchsichtig für hell und dunkel,
   ausgeliefert über `GET /api/v1/mail/portrait/<signiert>.gif` (Foto oder Initialen),
@@ -607,7 +624,8 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
   wie sein Rechnername** (Verweis); eine Anfrage ohne gezählten Besuch ist «Ohne gezählten Besuch».
 - **Gezeigt** im Reiter «Website» am Betreiber (`components/erp/site-stats.tsx`, jedes Personal,
   `GET /erp/site-stats?days=7|30|90|365`): Anfragen · Anrufe · Besuche · Quote · Newsletter mit
-  Vorzeitraum, Verlauf, Quellen, Europakarte (`lib/europe-map.ts`, Natural Earth, generiert),
+  Vorzeitraum, Verlauf, Quellen, Weltkarte (`components/erp/geo-map.tsx`, dieselbe wie die
+  Gebietskarte; Ausschnitt Welt · Europa),
   Seiten nach Anfragen, Formular, Gerät und Sprache, Ladezeit, die Anfragen mit Quelle.
 - Offen: Suchbegriffe aus der Google Search Console (Etappe 3).
 
@@ -838,7 +856,9 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   des Besuchers über `sites.company_for_country`, sonst der Betreiber). Eine Telefonnummer
   für alles, keine Öffnungszeiten.
 - **Das Formular** (`POST /api/v1/contact`) wird eine offene Nachricht im Postfach der
-  Gesellschaft zum Besucherland; E-Mail Pflicht, Anhänge nur Bilder; Spam erzeugt nichts.
+  Gesellschaft zum Besucherland; E-Mail Pflicht, Anhänge nur Bilder; Spam erzeugt nichts. Bei einem
+  Tippfehler in der Domain eines grossen Anbieters fragt es «Meinten Sie …@gmail.com?»
+  (`src/lib/mail-typo.mjs`, nur ein Hinweis).
   Gespeichert wird vor jedem Versand; geht das nicht → 503, die Seite zeigt Telefon und
   mailto (an die ERP-Adresse). Das Vokabular ist generiert (`scripts/export-erp.mjs` →
   `backend/app/assets/website_contact.json`).
@@ -853,6 +873,9 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   Seite** (`?lang=` an Formular und Newsletter, Wörter je Sprache in `website_contact.json` →
   `services/inquiry.words`): Meldungen, Bestätigungen, Danke-Seiten und der Wortlaut der Einwilligung
   in der Sprache, in der zugestimmt wurde; die eine 404-Seite wechselt unter `/<sprache>/…`.
+  **Konto und Anmeldung folgen** (Kunden sehen sie): die Website verlinkt sie mit `?lang=`, sie zeigen
+  Kopf, Fuss und Texte in der Sprache, die Anmeldemail ebenso (`frontend/CLAUDE.md`, `lib/lang.ts`);
+  das ERP bleibt deutsch.
   Französisch, Englisch, Italienisch: `live` (gegengelesen und freigegeben November 2026; hreflang
   nur auf indexierten Seiten, die Organisation ist im JSON-LD EINE für alle Sprachen).
 - **Jede Seite steht in `website/src/lib/pages.ts`** oder trägt `noindex`; `check-site.mjs`

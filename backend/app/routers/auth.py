@@ -23,7 +23,7 @@ def send_login_link(data: LoginLinkIn, request: Request, db: Session = DB) -> Lo
     email = people.normalize_email(data.email.strip())
     if not people.is_email(email) or not visitor.allow_send("login", request, LINK_LIMIT):
         return LoginLinkResult(sent=False)
-    return LoginLinkResult(sent=login_link.send(db, email, visitor.country(request)))
+    return LoginLinkResult(sent=login_link.send(db, email, visitor.country(request), data.lang))
 
 
 @router.get("/me", response_model=UserProfileResponse)

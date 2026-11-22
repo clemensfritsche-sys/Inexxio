@@ -11,7 +11,7 @@ import { Card, DetailBody } from '@/components/erp/detail-frame';
 import { Segmented } from '@/components/erp/controls';
 import { Skeleton } from '@/components/erp/skeleton';
 import { useErpNav } from '@/components/erp/obj-id';
-import { EUROPE } from '@/lib/europe-map';
+import { GeoMap, WORLD } from '@/components/erp/geo-map';
 import { formatAmount } from '@/lib/utils';
 import { NOTHING, dayShort, when, formatWhen } from '@/lib/when';
 
@@ -226,29 +226,24 @@ function Sources({ s }: { s: Stats }) {
 function Countries({ s }: { s: Stats }) {
   const max = Math.max(1, ...s.countries.map((c) => c.visits));
   const by = Object.fromEntries(s.countries.map((c) => [c.key, c]));
-  const outside = s.countries.filter((c) => !EUROPE.paths[c.key]);
+  const outside = s.countries.filter((c) => c.key && !WORLD.paths[c.key]);
   const list = s.countries.slice(0, 8);
   return (
-    <Card icon={MapIcon} title="Woher – auf der Karte" info="Je Land: je dunkler, desto mehr Besuche; ein roter Punkt zeigt die Anfragen. Das Land kommt aus der Adresse (gespeichert wird nur das Land).">
+    <Card icon={MapIcon} title="Woher – auf der Karte" info="Je Land: je dunkler, desto mehr Besuche; ein roter Punkt zeigt die Anfragen. Das Land kommt aus der Adresse (gespeichert wird nur das Land). Oben rechts: Welt oder Europa.">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, alignItems: 'start' }}>
-        <svg viewBox={`0 0 ${EUROPE.w} ${EUROPE.h}`} width="100%" role="img" aria-label="Europakarte der Besuche"
-          style={{ display: 'block', background: 'var(--bg-2)', borderRadius: 8 }}>
-          {Object.entries(EUROPE.paths).map(([code, d]) => {
-            const c = by[code];
-            const share = c ? Math.sqrt(c.visits / max) : 0;
-            return (
-              <path key={code} d={d} stroke="var(--bg-1)" strokeWidth={0.6}
-                fill={c?.visits ? 'var(--accent)' : 'var(--bg-4)'} fillOpacity={c?.visits ? 0.18 + 0.82 * share : 1}
-                data-tip={`${countryName(code)} · ${n(c?.visits ?? 0)} Besuche · ${n(c?.inquiries ?? 0)} Anfragen`} />
-            );
-          })}
-          {s.countries.filter((c) => c.inquiries > 0 && EUROPE.centers[c.key]).map((c) => {
-            const [cx, cy] = EUROPE.centers[c.key];
-            return <circle key={c.key} cx={cx} cy={cy} r={2.5 + Math.sqrt(c.inquiries) * 1.6} fill="var(--inexxio-red)"
-              stroke="var(--bg-1)" strokeWidth={0.8}
-              data-tip={`${countryName(c.key)} · ${n(c.inquiries)} Anfrage${c.inquiries > 1 ? 'n' : ''}`} />;
-          })}
-        </svg>
+        <div style={{ borderRadius: 'var(--r-lg)', overflow: 'hidden', gridColumn: '1 / -1' }}>
+          <GeoMap label="Weltkarte der Besuche" zoomable
+            fill={(code) => (by[code]?.visits ? 'var(--accent)' : 'var(--bg-4)')}
+            opacity={(code) => (by[code]?.visits ? 0.18 + 0.82 * Math.sqrt(by[code].visits / max) : 1)}
+            tip={(code) => `${countryName(code)} · ${n(by[code]?.visits ?? 0)} Besuche · ${n(by[code]?.inquiries ?? 0)} Anfragen`}>
+            {(unit) => s.countries.filter((c) => c.inquiries > 0 && WORLD.centers[c.key]).map((c) => {
+              const [cx, cy] = WORLD.centers[c.key];
+              return <circle key={c.key} cx={cx} cy={cy} r={(3 + Math.sqrt(c.inquiries) * 2) * unit}
+                fill="var(--inexxio-red)" stroke="var(--bg-1)" strokeWidth={0.8} vectorEffect="non-scaling-stroke"
+                data-tip={`${countryName(c.key)} · ${n(c.inquiries)} Anfrage${c.inquiries > 1 ? 'n' : ''}`} />;
+            })}
+          </GeoMap>
+        </div>
         <div style={{ display: 'grid', gap: 10 }}>
           {list.map((c) => (
             <div key={c.key || 'x'} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: '4px 12px', fontSize: 13.5 }}>
@@ -259,7 +254,7 @@ function Countries({ s }: { s: Stats }) {
           ))}
           {!list.length && <span style={MUTED}>Noch kein Land.</span>}
           {outside.length > 0 && (
-            <span style={MUTED}>Ausserhalb der Karte: {outside.map((c) => `${countryName(c.key)} ${n(c.visits)}`).join(' · ')}</span>
+            <span style={MUTED}>Zu klein für die Karte: {outside.map((c) => `${countryName(c.key)} ${n(c.visits)}`).join(' · ')}</span>
           )}
         </div>
       </div>

@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { isStaff } from '@/lib/record-status';
 import { cachedRole, rememberRole } from '@/lib/account-cache';
 import { Skeleton } from '@/components/erp/skeleton';
+import { useT } from '@/lib/lang';
 
 export function AuthGate({ staffOnly = false, children }: {
   /** Nur Personal (admin, employee) – sonst ins Konto. */
@@ -20,6 +21,7 @@ export function AuthGate({ staffOnly = false, children }: {
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const t = useT();
 
   useEffect(() => {
     let checked: string | null = null;   // je Person EINMAL – der Token erneuert sich stündlich
@@ -42,7 +44,7 @@ export function AuthGate({ staffOnly = false, children }: {
   if (loading) {
     return (
       <div style={{ minHeight: MAIN_H, maxWidth: 880, margin: '0 auto', padding: 24 }}>
-        <Skeleton rows={6} label="Anmeldung wird geprüft" />
+        <Skeleton rows={6} label={t('Anmeldung wird geprüft')} />
       </div>
     );
   }

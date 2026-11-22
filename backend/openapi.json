@@ -11176,6 +11176,24 @@
             "title": "Phone",
             "description": "Telefon, international lesbar (z. B. +41 44 123 45 67)."
           },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "de",
+                  "fr",
+                  "en",
+                  "it"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language",
+            "description": "Sprache, in der wir der Person schreiben: 'de' Deutsch, 'fr' Französisch, 'en' Englisch, 'it' Italienisch."
+          },
           "company_object_id": {
             "anyOf": [
               {
@@ -12385,6 +12403,18 @@
             "maxLength": 254,
             "title": "Email",
             "description": "E-Mail-Adresse, mit der sich die Person anmeldet."
+          },
+          "lang": {
+            "type": "string",
+            "enum": [
+              "de",
+              "fr",
+              "en",
+              "it"
+            ],
+            "title": "Lang",
+            "description": "Sprache der Mail und der Seite danach – die der Seite, auf der sich die Person anmeldet.",
+            "default": "de"
           }
         },
         "type": "object",
@@ -12941,6 +12971,17 @@
             "type": "boolean",
             "title": "Failed",
             "default": false
+          },
+          "undelivered": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undelivered"
           },
           "attachments": {
             "items": {
@@ -17983,6 +18024,24 @@
             ],
             "title": "Phone",
             "description": "Telefon, international lesbar (z. B. +41 44 123 45 67)."
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "de",
+                  "fr",
+                  "en",
+                  "it"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language",
+            "description": "Sprache, in der wir der Person schreiben: 'de' Deutsch, 'fr' Französisch, 'en' Englisch, 'it' Italienisch."
           },
           "company_object_id": {
             "anyOf": [

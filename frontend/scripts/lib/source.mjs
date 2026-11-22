@@ -158,6 +158,8 @@ export async function load(rel, stubs = {}) {
 
 function moduleUrl(rel, stubs, seen) {
   if (seen.has(rel)) return seen.get(rel);
+  // Eine JSON-Datei (Wörterbücher, `lib/lang`) ist ihr Wert.
+  if (rel.endsWith('.json')) return stubUrl(`export default ${read(rel)};`);
   const js = ts.transpileModule(read(rel), {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
     fileName: rel,

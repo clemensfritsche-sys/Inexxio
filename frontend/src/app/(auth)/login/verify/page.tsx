@@ -8,6 +8,7 @@ import { goTo, loginTarget } from '@/lib/login-target';
 import { cachedRole, rememberRole } from '@/lib/account-cache';
 import { errorText } from '@/lib/use-action';
 import { useDialog } from '@/lib/use-dialog';
+import { t as tr, useT, withLang } from '@/lib/lang';
 
 /** Rolle holen und das Ziel bestimmen – dieselbe Antwort wie Dialog und Route. */
 async function finish(): Promise<string> {
@@ -18,7 +19,7 @@ async function finish(): Promise<string> {
   } catch {
     role = cachedRole(); // wird beim nächsten Laden nachgeholt
   }
-  return loginTarget(role);
+  return withLang(loginTarget(role));
 }
 
 export default function VerifyPage() {
@@ -27,13 +28,14 @@ export default function VerifyPage() {
   const [email, setEmail] = useState('');
   // Fokus hinein, Tab im Kreis – das eine Verhalten (`lib/use-dialog`); schliessen gibt es hier nicht.
   const dialog = useDialog(null);
+  const t = useT();
 
   useEffect(() => {
     async function verify() {
       try {
         const user = await completeMagicLink();
         if (!user) {
-          goTo('/login');
+          goTo(withLang('/login'));
           return;
         }
         const target = await finish();
@@ -44,7 +46,7 @@ export default function VerifyPage() {
         if (msg.includes('E-Mail-Adresse nicht gefunden')) {
           setStatus('needs-email');
         } else {
-          setError(msg || 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.');
+          setError(msg || tr('Anmeldung fehlgeschlagen. Bitte erneut versuchen.'));
           setStatus('error');
         }
       }
@@ -63,7 +65,7 @@ export default function VerifyPage() {
         setTimeout(() => goTo(target), 1500);
       }
     } catch (err: unknown) {
-      setError(errorText(err, 'Anmeldung fehlgeschlagen.'));
+      setError(errorText(err, t('Anmeldung fehlgeschlagen.')));
       setStatus('error');
     }
   }
@@ -80,47 +82,47 @@ export default function VerifyPage() {
         {status === 'loading' && (
           <>
             <Loader2 className="animate-spin ix-verify-icon" style={{ color: 'var(--inexxio-red)' }} aria-hidden />
-            <h1 id="ix-verify-title">Einen Moment</h1>
-            <p className="ix-login-sub">Die Anmeldung wird verarbeitet.</p>
+            <h1 id="ix-verify-title">{t('Einen Moment')}</h1>
+            <p className="ix-login-sub">{t('Die Anmeldung wird verarbeitet.')}</p>
           </>
         )}
 
         {status === 'success' && (
           <>
             <CheckCircle2 className="ix-verify-icon" style={{ color: 'var(--success)' }} aria-hidden />
-            <h1 id="ix-verify-title">Angemeldet.</h1>
-            <p className="ix-login-sub">Sie werden weitergeleitet …</p>
+            <h1 id="ix-verify-title">{t('Angemeldet.')}</h1>
+            <p className="ix-login-sub">{t('Sie werden weitergeleitet …')}</p>
           </>
         )}
 
         {status === 'error' && (
           <>
             <AlertCircle className="ix-verify-icon" style={{ color: 'var(--inexxio-red)' }} aria-hidden />
-            <h1 id="ix-verify-title">Anmeldung fehlgeschlagen</h1>
+            <h1 id="ix-verify-title">{t('Anmeldung fehlgeschlagen')}</h1>
             <p className="ix-login-sub" role="alert">{error}</p>
-            <a href="/login" className="ix-login-link">Zurück zur Anmeldung</a>
+            <a href={withLang('/login')} className="ix-login-link">{t('Zurück zur Anmeldung')}</a>
           </>
         )}
 
         {status === 'needs-email' && (
           <>
-            <h1 id="ix-verify-title">E-Mail bestätigen</h1>
+            <h1 id="ix-verify-title">{t('E-Mail bestätigen')}</h1>
             <p className="ix-login-sub">
-              Bitte geben Sie Ihre E-Mail-Adresse ein, um die Anmeldung abzuschliessen.
+              {t('Bitte geben Sie Ihre E-Mail-Adresse ein, um die Anmeldung abzuschliessen.')}
             </p>
             <form onSubmit={handleEmailSubmit} className="ix-login-field">
-              <label htmlFor="verify-email" className="sr-only">E-Mail-Adresse</label>
+              <label htmlFor="verify-email" className="sr-only">{t('E-Mail-Adresse')}</label>
               <input
                 id="verify-email"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="E-Mail-Adresse"
+                placeholder={t('E-Mail-Adresse')}
                 autoComplete="email"
                 autoFocus
               />
-              <button type="submit" className="ix-login-go" disabled={!email.trim()} aria-label="Anmelden">
+              <button type="submit" className="ix-login-go" disabled={!email.trim()} aria-label={t('Anmelden')}>
                 <ArrowRight aria-hidden />
               </button>
             </form>

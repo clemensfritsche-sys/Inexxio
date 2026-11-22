@@ -367,8 +367,8 @@ class ApiClient {
   }
 
   /** Den Anmeldelink im Kleid des Hauses schicken lassen; `sent=false` → über Firebase schicken. */
-  sendLoginLink(email: string) {
-    return this.call('post', '/api/v1/auth/link', { body: { email } });
+  sendLoginLink(email: string, lang: In<'post', '/api/v1/auth/link'>['lang']) {
+    return this.call('post', '/api/v1/auth/link', { body: { email, lang } });
   }
 
   passkeyLoginOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {

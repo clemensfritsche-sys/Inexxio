@@ -22,6 +22,7 @@ import { api } from '@/lib/api';
 import { platformPasskeyAvailable, registerPasskey, isPasskeyCancellation } from '@/lib/passkey';
 import { useAction } from '@/lib/use-action';
 import { useDialog } from '@/lib/use-dialog';
+import { useT } from '@/lib/lang';
 
 const KEY = 'inexxio_passkey_nudge';
 const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;   // 30 Tage Ruhe nach «Später»
@@ -47,7 +48,8 @@ function suppressed(): boolean {
 export function PasskeyNudge() {
   const [show, setShow] = useState(false);
   const [done, setDone] = useState(false);
-  const { busy, error: err, setError: setErr, run } = useAction('Passkey konnte nicht eingerichtet werden.');
+  const t = useT();
+  const { busy, error: err, setError: setErr, run } = useAction(t('Passkey konnte nicht eingerichtet werden.'));
 
   useEffect(() => {
     let cancelled = false;
@@ -92,9 +94,9 @@ export function PasskeyNudge() {
   }
 
   return (
-    <div ref={dialog.ref} className="ix-passkey-nudge" role="dialog" aria-label="Passkey einrichten">
+    <div ref={dialog.ref} className="ix-passkey-nudge" role="dialog" aria-label={t('Passkey einrichten')}>
       {!done && (
-        <button type="button" className="ix-nudge-close" onClick={later} aria-label="Schliessen">
+        <button type="button" className="ix-nudge-close" onClick={later} aria-label={t('Schliessen')}>
           <X size={16} />
         </button>
       )}
@@ -105,24 +107,23 @@ export function PasskeyNudge() {
 
       {done ? (
         <div className="ix-nudge-body">
-          <div className="ix-nudge-title">Passkey eingerichtet</div>
-          <p className="ix-nudge-text">Beim nächsten Mal melden Sie sich in Sekunden an.</p>
+          <div className="ix-nudge-title">{t('Passkey eingerichtet')}</div>
+          <p className="ix-nudge-text">{t('Beim nächsten Mal melden Sie sich in Sekunden an.')}</p>
         </div>
       ) : (
         <div className="ix-nudge-body">
-          <div className="ix-nudge-title">In Sekunden anmelden</div>
+          <div className="ix-nudge-title">{t('In Sekunden anmelden')}</div>
           <p className="ix-nudge-text">
-            Richten Sie einen Passkey ein und melden Sie sich künftig mit Face&nbsp;ID, Touch&nbsp;ID
-            oder Windows&nbsp;Hello an – ohne Link, ohne Passwort.
+            {t('Richten Sie einen Passkey ein und melden Sie sich künftig mit Face ID, Touch ID oder Windows Hello an – ohne Link, ohne Passwort.')}
           </p>
           {err && <p className="ix-nudge-err">{err}</p>}
           <div className="ix-nudge-actions">
             <button type="button" className="ix-nudge-primary" onClick={create} disabled={busy}>
               {busy ? <Loader2 size={15} className="animate-spin" /> : <Fingerprint size={15} />}
-              Passkey einrichten
+              {t('Passkey einrichten')}
             </button>
             <button type="button" className="ix-nudge-later" onClick={later} disabled={busy}>
-              Später
+              {t('Später')}
             </button>
           </div>
         </div>

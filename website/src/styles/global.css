@@ -280,6 +280,8 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 
 /* Ziehbare Spur (scripts/carousel.ts): Hand als Zeiger, beim Ziehen ohne Einrasten. */
 @media (hover: hover) and (pointer: fine) { [data-rail] { cursor: grab; } }
+/* Endloses Karussell (scripts/carousel.ts): die Kopien nur, solange die Spur scrollt. */
+[data-carousel]:not(.is-loop) [data-clone] { display: none; }
 [data-rail].is-dragging { cursor: grabbing; scroll-snap-type: none !important; scroll-behavior: auto; user-select: none; }
 [data-rail].is-dragging a { pointer-events: none; }
 
@@ -380,6 +382,8 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 /* ---------- Formularfelder ---------- */
 .field { display: grid; gap: 6px; }
 .field__label { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+.field__hint { font-size: 0.875rem; color: var(--ink); }
+.field__fix { font: inherit; font-weight: 600; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; }
 .field__error { font-size: 0.875rem; color: var(--red-hover); font-weight: 600; display: flex; gap: 6px; align-items: flex-start; }
 .input, .textarea {
   width: 100%; min-height: 48px; padding: 11px 15px;

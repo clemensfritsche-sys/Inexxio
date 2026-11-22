@@ -18,7 +18,9 @@
 // `:root`/`body` werden zu `.ix-shell` (Tokens, Schrift), Regeln am <html> (z. B.
 // `html[data-account]`, Scroll-Sperre des Mobil-Menüs) behalten ihr `html` vorne.
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { SOURCE, builtLanguages } from '../src/config/languages.mjs';
+import { siteMode } from '../src/lib/text.mjs';
 import { resolve } from 'node:path';
 import postcss from 'postcss';
 import { SCOPE, scope } from './shell-scope.mjs';
@@ -44,8 +46,25 @@ for (const tag of ['header', 'footer']) {
   }
 }
 
-const header = pick(/<header class="site-header[\s\S]*?<\/header>/, 'Kopf');
-const footer = pick(/<footer class="site-footer[\s\S]*?<\/footer>/, 'Fuss');
+const HEADER = /<header class="site-header[\s\S]*?<\/header>/;
+const FOOTER = /<footer class="site-footer[\s\S]*?<\/footer>/;
+const header = pick(HEADER, 'Kopf');
+const footer = pick(FOOTER, 'Fuss');
+
+// ►►► Kopf und Fuss jeder weiteren Sprache (`.build/shell-<sprache>.html`, scripts/languages.mjs) –
+// Konto und Anmeldung zeigen sie, wenn die Person von einer Seite dieser Sprache kommt
+// (frontend/components/layout/site-shell.ShellLanguage). Skript und Stylesheet bleiben die deutschen:
+// sie tragen keine Wörter. ◄◄◄
+const langs = {};
+for (const l of builtLanguages(siteMode()).filter((x) => x.code !== SOURCE)) {
+  const file = resolve(process.cwd(), '.build', `shell-${l.code}.html`);
+  if (!existsSync(file)) throw new Error(`export-shell: ${file} fehlt – die Sprache «${l.code}» wurde nicht gebaut.`);
+  const html = readFileSync(file, 'utf8');
+  const h = html.match(HEADER)?.[0];
+  const f = html.match(FOOTER)?.[0];
+  if (!h || !f) throw new Error(`export-shell: Kopf oder Fuss fehlt in ${file}.`);
+  langs[l.code] = { locale: l.locale, header: h, footer: f };
+}
 const cssHref = pick(/<link rel="stylesheet" href="(\/_astro\/[^"]+\.css)"/, 'Stylesheet');
 const early = pick(/<script src="(\/_astro\/early\.[^"]+\.js)"/, 'early.js');
 const module = pick(/<script type="module" src="(\/_astro\/Base[^"]+\.js)"/, 'Seiten-Skript');
@@ -82,6 +101,7 @@ const shell = {
   early,
   module,
   contact,
+  langs,
 };
 writeFileSync(resolve(OUT, 'shell.json'), `${JSON.stringify(shell, null, 2)}\n`);
 console.log(`export-shell: Kopf ${(header.length / 1024).toFixed(1)} KB · Fuss ${(footer.length / 1024).toFixed(1)} KB · ${cssFile}`);

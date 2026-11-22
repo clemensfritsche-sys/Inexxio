@@ -4623,6 +4623,11 @@ export interface components {
              */
             phone?: string | null;
             /**
+             * Language
+             * @description Sprache, in der wir der Person schreiben: 'de' Deutsch, 'fr' Französisch, 'en' Englisch, 'it' Italienisch.
+             */
+            language?: ("de" | "fr" | "en" | "it") | null;
+            /**
              * Company Object Id
              * @description Objektnummer der Firma, zu der die Person gehört; leer = Privatperson.
              */
@@ -5232,6 +5237,13 @@ export interface components {
              * @description E-Mail-Adresse, mit der sich die Person anmeldet.
              */
             email: string;
+            /**
+             * Lang
+             * @description Sprache der Mail und der Seite danach – die der Seite, auf der sich die Person anmeldet.
+             * @default de
+             * @enum {string}
+             */
+            lang: "de" | "fr" | "en" | "it";
         };
         /**
          * LoginLinkResult
@@ -5522,6 +5534,8 @@ export interface components {
              * @default false
              */
             failed: boolean;
+            /** Undelivered */
+            undelivered?: string | null;
             /**
              * Attachments
              * @default []
@@ -7815,6 +7829,11 @@ export interface components {
              * @description Telefon, international lesbar (z. B. +41 44 123 45 67).
              */
             phone?: string | null;
+            /**
+             * Language
+             * @description Sprache, in der wir der Person schreiben: 'de' Deutsch, 'fr' Französisch, 'en' Englisch, 'it' Italienisch.
+             */
+            language?: ("de" | "fr" | "en" | "it") | null;
             /**
              * Company Object Id
              * @description Objektnummer der Firma, zu der die Person gehört; leer = Privatperson.

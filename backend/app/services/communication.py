@@ -342,6 +342,28 @@ _FAILED = ("(NOT {m}.outgoing AND {m}.gmail_id IS NULL AND EXISTS ("
            "AND g.row_key = {m}.id::text))")
 
 
+#: ►►► **Nicht zugestellt** (über eine Nachricht ``{m}``): sie ging hinaus, aber ein Rückläufer
+#: kam zurück (``mail.bounced``, ``mailbox._bounced``). Sie hat niemanden erreicht und
+#: beantwortet nichts (``_ANSWERED``); an der Mail steht der Grund (``undelivered``). ◄◄◄
+_BOUNCED = ("EXISTS (SELECT 1 FROM log b WHERE b.event = 'mail.bounced' "
+            "AND b.table_name = 'messages' AND b.row_key = {m}.id::text)")
+
+
+def undelivered(db: Session, ids: list[int]) -> dict[int, str]:
+    """Welche dieser Nachrichten kamen nicht an – und der Satz dazu (``_BOUNCED``)?"""
+    if not ids:
+        return {}
+    rows = db.execute(text(
+        "SELECT DISTINCT ON (m.id) m.id, b.payload FROM messages m JOIN log b "
+        "ON b.event = 'mail.bounced' AND b.table_name = 'messages' AND b.row_key = m.id::text "
+        "WHERE m.id = ANY(:ids) ORDER BY m.id, b.id"), {"ids": list(ids)})
+    out = {}
+    for mid, payload in rows:
+        p = payload or {}
+        out[mid] = " – ".join(x for x in (p.get("recipients"), p.get("reason")) if x) or "zurückgekommen"
+    return out
+
+
 def failed(db: Session, ids: list[int]) -> set[int]:
     """Welche dieser Nachrichten gingen nicht hinaus (``_FAILED``)?"""
     if not ids:
@@ -372,6 +394,7 @@ _ANSWERED = """EXISTS (
    WHERE r.topic = m.topic AND r.is_active AND r.at <= :now AND r.id <> m.id
      AND r.channel <> 'note' AND NOT r.inbound AND NOT r.outgoing
      AND NOT """ + _FAILED.format(m="r") + """
+     AND NOT """ + _BOUNCED.format(m="r") + """
      AND (r.at > m.at OR (r.at = m.at AND r.id > m.id))
      AND (m.inbound OR r.sender_object_id <> m.sender_object_id OR EXISTS (
             SELECT 1 FROM message_parties own WHERE own.message_id = m.id
@@ -499,6 +522,7 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
         by_msg[p.message_id][p.role].append(p.object_id)
     done = answered(db, [m.id for m in msgs])
     lost = failed(db, [m.id for m in msgs])
+    back = undelivered(db, [m.id for m in msgs])
     now = clock.utcnow()
     labels = _labels(db, [m.channel for m in msgs])
     firms = _firms(db, people)
@@ -506,6 +530,7 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
            for m in msgs]
     for o in out:
         o.failed = o.id in lost
+        o.undelivered = back.get(o.id)
     return out
 
 

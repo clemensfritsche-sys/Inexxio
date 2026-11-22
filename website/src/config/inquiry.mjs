@@ -102,23 +102,31 @@ export const inquiry = t('inquiry', {
   mail: {
     /** Betreff = Überschrift der Mail. Bewusst ein eigenes Anliegen: die Bestätigung
      *  beantwortet die Anfrage nicht, sie bleibt offen, bis ein Mensch antwortet. */
-    confirmSubject: 'Angekommen – danke für Ihre Anfrage',
+    confirmSubject: 'Angekommen – Danke für Ihre Anfrage',
     confirmIntro:
-      'Danke für Ihre Nachricht. Sie liegt jetzt nicht in einem Stapel, sondern bei den Menschen, die sich damit auskennen.',
-    confirmNext: 'Wir melden uns innert {{promises.responseTime}}.',
-    confirmMore: 'Fällt Ihnen noch etwas ein? Antworten Sie einfach auf diese E-Mail – es landet am selben Ort.',
-    /** Stichwort rechts im Kopf der Mail. */
-    kicker: 'Anfrage erhalten',
-    copyTitle: 'Ihre Angaben',
-    factCompany: 'Firma',
-    factPhone: 'Rückruf an',
-    factPhotos: 'Fotos',
-    photoOne: '1 Bild',
-    photoMany: '{n} Bilder',
-    nextTitle: 'So geht es weiter',
-    received: 'Angekommen',
+      'Schön, dass Sie sich bei uns melden. Ihre Anfrage ist angekommen, und wir kümmern uns darum. Sie hören so rasch wie möglich von uns.',
+    confirmMore: 'Fällt Ihnen noch etwas ein, ein Foto oder ein Mass? Antworten Sie einfach auf diese Mail.',
     /** Davor steht die Telefonnummer der Gesellschaft – aus dem ERP, wie in der Unterschrift. */
-    urgent: 'Eilt es? Dann rufen Sie uns direkt an:',
+    urgent: 'Eilt es? Dann rufen Sie uns an:',
+  },
+  /**
+   * ►►► **Der Brief des Hauses – gilt für JEDE Mail des ERP** (`backend/services/mail_layout`). ◄◄◄
+   * Der Gruss vor der Unterschrift (`{city}` = Ort der Gesellschaft) und der Streifen unten: eine
+   * kleine Werbefläche mit Bild, Stichwort, Titel, Satz und Link. Wer ihn tauscht, tauscht ihn hier –
+   * in jeder Sprache, das Bild liegt in `frontend/public/mail/`.
+   */
+  letter: {
+    greeting: 'Beste Grüsse aus {city}',
+    greetingPlain: 'Beste Grüsse',
+    promo: {
+      kicker: 'Nachfolge geregelt',
+      title: 'Aus HS Steiner wird {{brand.name}}',
+      text: 'Heiri Steiner übergibt an Clemens Fritsche. Standort, Telefonnummer und der Service für Ihre HS-Anlagen bleiben.',
+      label: 'Zur Übergabe',
+      alt: 'Der Funksender wechselt die Hand',
+      href: '/ueber-uns#uebergabe',
+      src: '/mail/nachfolge.jpg',
+    },
   },
   /** Höchstlängen je Feld – im Formular (maxlength) und im Backend dieselben. */
   limits: {

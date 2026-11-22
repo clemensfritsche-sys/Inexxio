@@ -12,6 +12,7 @@ import { SaveStatusIndicator } from '@/components/form/save-status';
 import { KtField } from '@/components/form/kt-section';
 import type { AddressEntry, AddressInput, UserProfile } from '@/types';
 import { errorText } from '@/lib/use-action';
+import { useT, type T } from '@/lib/lang';
 
 /**
  * **Die Anschriften EINES Kontos – dasselbe Bauteil für Privat und Geschäftskonto, für
@@ -27,9 +28,9 @@ import { errorText } from '@/lib/use-action';
  *
  * Die Regeln stehen im Dienst (`services/address_book`); hier wird gezeichnet.
  */
-const ADDRESS_COUNTRIES: [string, string][] = [
-  ['CH', 'Schweiz'], ['DE', 'Deutschland'], ['AT', 'Österreich'],
-  ['FR', 'Frankreich'], ['IT', 'Italien'], ['LI', 'Liechtenstein'],
+const countries = (t: T): [string, string][] => [
+  ['CH', t('Schweiz')], ['DE', t('Deutschland')], ['AT', t('Österreich')],
+  ['FR', t('Frankreich')], ['IT', t('Italien')], ['LI', t('Liechtenstein')],
 ];
 
 type Account = 'private' | 'business';
@@ -39,8 +40,8 @@ type Account = 'private' | 'business';
  * leer auf die Login-/Kontakt-Adresse zurück – der Platzhalter nennt die **Regel**, nicht
  * nur die Adresse (sonst sähe er aus wie eine Vorbelegung).
  */
-function inheritedEmail(login: string | null | undefined): string {
-  return login ? `übernimmt ${login}` : 'rechnung@firma.ch';
+function inheritedEmail(t: T, login: string | null | undefined): string {
+  return login ? t('übernimmt {mail}', { mail: login }) : t('rechnung@firma.ch');
 }
 
 export function AddressBook({ owner, account, addresses, loginEmail, readOnly, mapsKey, onSaved, cards }: {
@@ -63,6 +64,7 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
+  const t = useT();
   const row = { owner, account, loginEmail, readOnly, mapsKey, onSaved, cards };
 
   async function remove(id: number) {
@@ -70,13 +72,13 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
     try {
       onSaved(await api.removeAddress(owner, id));
     } catch (e) {
-      setError(errorText(e, 'Nicht möglich.'));
+      setError(errorText(e, t('Nicht möglich.')));
     }
   }
 
   if (!main) {
-    if (readOnly) return <span className="text-sm text-fg-3">Keine Adresse erfasst</span>;
-    const first = <NewAddress {...row} label="Rechnungsadresse" extra={{}} onDone={() => {}} />;
+    if (readOnly) return <span className="text-sm text-fg-3">{t('Keine Adresse erfasst')}</span>;
+    const first = <NewAddress {...row} label={t('Rechnungsadresse')} extra={{}} onDone={() => {}} />;
     return cards ? <FormCard>{first}</FormCard> : first;
   }
 
@@ -84,10 +86,10 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
   // Lieferadressen. Ob es eine eigene Lieferadresse gibt, sagt die Liste selbst; wer an
   // die Rechnungsadresse liefert, sieht es am Wort.
   const lines: { a: AddressEntry; tag: string; note?: string; removable: boolean }[] = [
-    { a: main, tag: delivery ? 'Rechnung' : 'Rechnung · Lieferung', removable: false,
-      note: business ? `Rechnung per E-Mail an ${main.email || loginEmail}` : `Rechnung per E-Mail an ${loginEmail}` },
-    ...(delivery ? [{ a: delivery, tag: 'Lieferung', note: 'Standard', removable: true }] : []),
-    ...rest.map((a) => ({ a, tag: 'Lieferung', removable: true })),
+    { a: main, tag: delivery ? t('Rechnung') : t('Rechnung · Lieferung'), removable: false,
+      note: t('Rechnung per E-Mail an {mail}', { mail: business ? main.email || loginEmail : loginEmail }) },
+    ...(delivery ? [{ a: delivery, tag: t('Lieferung'), note: t('Standard'), removable: true }] : []),
+    ...rest.map((a) => ({ a, tag: t('Lieferung'), removable: true })),
   ];
 
   return (
@@ -106,27 +108,27 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
             {cards && editing !== a.id && <span className="kt-card-tag">{tag}</span>}
             {editing === a.id ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <AddressRow entry={a} label={cards ? tag : 'Anschrift'} email={business && a.id === main.id} {...row} />
+                <AddressRow entry={a} label={cards ? tag : t('Anschrift')} email={business && a.id === main.id} {...row} />
                 <button type="button" className={cards ? 'kt-pill kt-pill--ghost' : 'self-start text-xs text-accent hover:underline'}
                   style={cards ? { alignSelf: 'flex-start' } : undefined}
-                  onClick={() => setEditing(null)}>Fertig</button>
+                  onClick={() => setEditing(null)}>{t('Fertig')}</button>
               </div>
             ) : (
               <div className={cards ? 'kt-card-text' : undefined}
                 style={cards ? undefined : { font: '400 13.5px/20px var(--font-body)', color: 'var(--fg-2)' }}>
                 <div style={cards ? undefined : { fontWeight: 600, color: 'var(--fg-1)' }}>{a.street1}</div>
                 {a.street2 && <div>{a.street2}</div>}
-                <div>{[a.zip, a.city].filter(Boolean).join(' ')} · {ADDRESS_COUNTRIES.find(([c]) => c === a.country)?.[1] ?? a.country}</div>
+                <div>{[a.zip, a.city].filter(Boolean).join(' ')} · {countries(t).find(([c]) => c === a.country)?.[1] ?? a.country}</div>
                 {note && <small style={cards ? undefined : { display: 'block', fontSize: 12, color: 'var(--fg-4)', marginTop: 2 }}>{note}</small>}
               </div>
             )}
           </div>
           {!readOnly && editing !== a.id && (
             <div style={{ display: 'flex', gap: cards ? 6 : 2, flexShrink: 0 }}>
-              <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} data-tip="Ändern" aria-label="Ändern"
+              <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} data-tip={t('Ändern')} aria-label={t('Ändern')}
                 onClick={() => setEditing(a.id)}><Pencil size={cards ? 16 : 14} /></button>
               {removable && (
-                <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} data-tip="Entfernen" aria-label="Entfernen"
+                <button type="button" className={cards ? 'kt-round' : 'erp-actbtn erp-actbtn-icon'} data-tip={t('Entfernen')} aria-label={t('Entfernen')}
                   onClick={() => void remove(a.id)}><Trash2 size={cards ? 16 : 14} /></button>
               )}
             </div>
@@ -134,14 +136,14 @@ export function AddressBook({ owner, account, addresses, loginEmail, readOnly, m
         </div>
       ))}
       {!readOnly && (adding ? (() => {
-        const add = <NewAddress {...row} label="Neue Lieferadresse" extra={{ is_default_delivery: !delivery }}
+        const add = <NewAddress {...row} label={t('Neue Lieferadresse')} extra={{ is_default_delivery: !delivery }}
           onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />;
         return cards ? <FormCard>{add}</FormCard> : add;
       })() : (
         <button type="button" onClick={() => setAdding(true)}
           className={cards ? 'kt-add' : 'self-start inline-flex items-center gap-1.5 text-sm text-accent hover:underline'}
           style={cards ? undefined : { marginTop: 4 }}>
-          <Plus size={cards ? 16 : 13} /> Lieferadresse hinzufügen
+          <Plus size={cards ? 16 : 13} /> {t('Lieferadresse hinzufügen')}
         </button>
       ))}
       {error && <ErrorText msg={error} />}
@@ -187,6 +189,7 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
   removable?: boolean;
 }) {
   const BillField = cards ? KtField : AField;
+  const t = useT();
   const [form, setForm] = useState({ address: toAddress(entry), email: entry.email ?? '' });
   const [error, setError] = useState('');
   const { status, errorMsg, saveNow } = useAutosaveValue(form, async (v) => {
@@ -200,7 +203,7 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
     try {
       onSaved(await api.removeAddress(owner, entry.id));
     } catch (e) {
-      setError(errorText(e, 'Nicht möglich.'));
+      setError(errorText(e, t('Nicht möglich.')));
     }
   }
 
@@ -208,12 +211,12 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
     <div className="ix-row flex flex-col gap-3">
       <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
         className="flex flex-col gap-3">
-        <AddressField value={form.address} apiKey={mapsKey} countryOptions={ADDRESS_COUNTRIES}
+        <AddressField value={form.address} apiKey={mapsKey} countryOptions={countries(t)}
           showStreet2 showRegion label={label} look={cards ? 'kt' : 'erp'}
           onChange={(a) => setForm((p) => ({ ...p, address: a }))} />
         {email && (
-          <BillField name="email" label="Rechnungs-E-Mail" type="email" value={form.email} readOnly={readOnly}
-            placeholder={inheritedEmail(loginEmail)} onEnter={saveNow}
+          <BillField name="email" label={t('Rechnungs-E-Mail')} type="email" value={form.email} readOnly={readOnly}
+            placeholder={inheritedEmail(t, loginEmail)} onEnter={saveNow}
             onChange={(v) => setForm((p) => ({ ...p, email: v }))} />
         )}
       </fieldset>
@@ -222,7 +225,7 @@ function AddressRow({ owner, entry, label, email, removable, loginEmail, readOnl
           <SaveStatusIndicator status={status} errorMsg={errorMsg} />
           {removable && (
             <button type="button" className="erp-actbtn erp-actbtn-icon"
-              data-tip="Lieferadresse entfernen" aria-label="Lieferadresse entfernen"
+              data-tip={t('Lieferadresse entfernen')} aria-label={t('Lieferadresse entfernen')}
               onClick={() => void remove()}>
               <Trash2 size={14} />
             </button>
@@ -245,6 +248,7 @@ function NewAddress({ owner, account, mapsKey, onSaved, label, extra, onDone, on
   const [draft, setDraft] = useState<Address>({ street: '', zip: '', city: '', country: 'CH' });
   const [error, setError] = useState('');
   const sent = useRef(false);
+  const t = useT();
   // Die Rückrufe in einem Ref: ein neues Objekt je Rendern des Aufrufers soll die Pause
   // nicht neu starten – nur eine neue Eingabe tut das.
   const call = useRef({ owner, account, extra, onSaved, onDone });
@@ -254,27 +258,27 @@ function NewAddress({ owner, account, mapsKey, onSaved, label, extra, onDone, on
   // des Orts).
   useEffect(() => {
     if (sent.current || !complete(draft)) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       sent.current = true;
       const c = call.current;
       api.addAddress(c.owner, { ...toInput(draft), ...c.extra, account: c.account })
         .then((u) => { c.onSaved(u); c.onDone(); })
         .catch((e) => {
           sent.current = false;
-          setError(errorText(e, 'Nicht möglich.'));
+          setError(errorText(e, t('Nicht möglich.')));
         });
     }, 1200);
-    return () => clearTimeout(t);
-  }, [draft]);
+    return () => clearTimeout(timer);
+  }, [draft, t]);
 
   return (
     <div className="flex flex-col gap-3">
       <AddressField value={draft} onChange={setDraft} apiKey={mapsKey} look={cards ? 'kt' : 'erp'}
-        countryOptions={ADDRESS_COUNTRIES} showStreet2 showRegion label={label} />
+        countryOptions={countries(t)} showStreet2 showRegion label={label} />
       {onCancel && (
         <button type="button" className={cards ? 'kt-pill kt-pill--ghost' : 'self-start text-xs text-fg-3 hover:underline'}
           style={cards ? { alignSelf: 'flex-start' } : undefined} onClick={onCancel}>
-          Abbrechen
+          {t('Abbrechen')}
         </button>
       )}
       {error && <ErrorText msg={error} />}

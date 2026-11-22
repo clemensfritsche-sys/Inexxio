@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = resolve(ROOT, '../website/dist/_shell/shell.json');
 const TARGET = resolve(ROOT, 'src/generated/site-shell.json');
-const EMPTY = { _comment: 'Leer: website/dist fehlt (erst «npm run build» in website/).', header: '', footer: '', css: '', early: '', module: '', contact: '' };
+const EMPTY = { _comment: 'Leer: website/dist fehlt (erst «npm run build» in website/).', header: '', footer: '', css: '', early: '', module: '', contact: '', langs: {} };
 
 mkdirSync(dirname(TARGET), { recursive: true });
 if (existsSync(SOURCE)) {

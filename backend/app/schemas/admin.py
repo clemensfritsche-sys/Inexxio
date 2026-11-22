@@ -44,9 +44,18 @@ class EmailCheck(BaseModel):
     email: str
 
 
+#: ►►► **Die Sprachen, in denen wir schreiben** – dieselben wie die der Website
+#: (``website/src/config/languages.mjs``; Wächter ``test_contact.test_the_person_keeps_the_language``). ◄◄◄
+Language = Literal["de", "fr", "en", "it"]
+LANGUAGE_HELP = ("Sprache, in der wir der Person schreiben: 'de' Deutsch, 'fr' Französisch, "
+                 "'en' Englisch, 'it' Italienisch.")
+
+
 class LoginLinkIn(BaseModel):
     """Die Adresse, an die der Anmeldelink geht."""
     email: str = Field(max_length=254, description="E-Mail-Adresse, mit der sich die Person anmeldet.")
+    lang: Language = Field(
+        "de", description="Sprache der Mail und der Seite danach – die der Seite, auf der sich die Person anmeldet.")
 
 
 class LoginLinkResult(BaseModel):
@@ -281,6 +290,9 @@ class UserProfileUpdate(BaseModel):
     last_name: Optional[str] = Field(None, description="Nachname. Bei einem Shop ohne Menschen der Shop, z. B. «Galaxus».")
     date_of_birth: Optional[date] = Field(None, description="Geburtsdatum (Personal: Pflicht für die Zeiterfassung).")
     phone: Optional[str] = Field(None, description="Telefon, international lesbar (z. B. +41 44 123 45 67).")
+    #: ►►► **Die Sprache der Person** – gesetzt, wenn sie uns zum ersten Mal schreibt (Formular,
+    #: Newsletter), geändert im Konto (Sprachwahl) oder im ERP. Automatische Mails an sie folgen ihr.
+    language: Optional[Language] = Field(None, description=LANGUAGE_HELP)
 
     # ─── Firma ─────────────────────────────────────────────────────────────────
     #: ►►► **Die Firma ist ein Datensatz.** ◄◄◄ Gewählt (``company_object_id``, ``None`` =

@@ -63,7 +63,7 @@ SOURCE_RE = re.compile(r"^/[a-z0-9/_-]{0,80}$")
 #: der Wörter des Servers in ``VOCAB["languages"]`` (WEBSITE_PLAN Entscheid 136).
 LANGS: tuple[str, ...] = ("de", *VOCAB.get("languages", {}))
 #: Was der Server in einer Sprache sagt – je Bereich das Deutsche, darüber die Übersetzung.
-WORD_PARTS = ("pages", "messages", "server", "mail", "newsletter")
+WORD_PARTS = ("pages", "messages", "server", "mail", "letter", "newsletter")
 
 
 def hello(name: str, lang: str = "de") -> str:
@@ -226,7 +226,7 @@ def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
     Ein Foto, das sich nicht lesen lässt, wirft (``attachments.store_image``: 400/413);
     dann ist nichts gespeichert, und der Aufrufer sagt es am Feld."""
     firm = company_for(db, country)
-    person = people.ensure(db, inq.email, inq.name, inq.phone).object_id
+    person = people.ensure(db, inq.email, inq.name, inq.phone, language=inq.lang).object_id
     files = []
     for p in inq.photos:
         att = attachments.store_image(db, p.data, p.filename)
@@ -255,30 +255,32 @@ def confirm(db: Session, inquiry: Message, inq: Inquiry, words: dict[str, str]) 
     box = mailbox.active(db, inquiry.channel)
     if box is None or box.problem:
         return False
-    more = extra(inq, inquiry.at, words)
+    more = mail_layout.Extra(call=words["urgent"])
     more.action = offer(db, inquiry.sender_object_id, inq.newsletter, inq.lang)
     outbox.deliver(db, channel=inquiry.channel, to=[inquiry.sender_object_id],
-                   subject=words["confirmSubject"], lead=lead(words, inq.lang),
-                   kicker=words["kicker"], extra=more)
+                   subject=words["confirmSubject"], lead=lead(words, inq.lang, inq.name),
+                   extra=more, lang=inq.lang)
     return True
 
 
-def lead(words: dict[str, str], lang: str = "de") -> str:
-    """Der Anfang der Bestätigung – **ohne den Namen aus dem Formular**: wer eine fremde
-    Adresse eintippt, soll durch uns keinen Text an sie schicken können."""
-    return f"{hello('', lang).strip()}\n\n{words['confirmIntro']}\n\n{words['confirmMore']}"
+#: ►►► **Ein Name, der wie ein Name aussieht** – nur dann steht er in der Anrede. ◄◄◄ Das Formular
+#: kann jeder mit einer fremden Adresse ausfüllen; ins Namensfeld gehört dann kein beliebiger Text
+#: (Link, Werbung, Satz), den wir in unserem Namen an diese Adresse schicken. Buchstaben,
+#: Bindestrich und Apostroph, höchstens vier Wörter und 40 Zeichen.
+NAME_WORDS, NAME_MAX = 4, 40
+_NAME = re.compile(r"^[^\W\d_]+(?:['’-][^\W\d_]+)*$")
 
 
-def extra(inq: Inquiry, at: datetime, words: dict[str, str]) -> mail_layout.Extra:
-    """Was die Bestätigung **allgemeingültig** trägt – nie, was in der Anfrage steht (kein
-    Text, keine Firma, kein Telefon: die Bestätigung ist kein Relais für fremden Inhalt):
-    wie viele Fotos angekommen sind, was als Nächstes geschieht, und der Weg, wenn es eilt."""
-    n = len(inq.photos)
-    photos = (words["photoOne"] if n == 1 else words["photoMany"].replace("{n}", str(n)))
-    when = at.astimezone(clock.ZONE).strftime("%-d.%-m.%Y, %H:%M")
-    return mail_layout.Extra(
-        facts=mail_layout.Facts(title=words["copyTitle"], rows=[(words["factPhotos"], photos)])
-        if n else None,
-        steps=mail_layout.Steps(title=words["nextTitle"], items=[
-            (f"{words['received']} · {when}", True), (words["confirmNext"], False)]),
-        call=words["urgent"])
+def salutation_name(name: str) -> str:
+    """Der Name für die Anrede – oder leer, wenn er nicht wie ein Name aussieht."""
+    parts = (name or "").split()
+    if not parts or len(parts) > NAME_WORDS or len(" ".join(parts)) > NAME_MAX:
+        return ""
+    return " ".join(parts) if all(_NAME.match(p) for p in parts) else ""
+
+
+def lead(words: dict[str, str], lang: str = "de", name: str = "") -> str:
+    """Der Anfang der Bestätigung – mit dem Namen aus dem Formular nur, wenn er wie ein Name
+    aussieht (``salutation_name``)."""
+    return (f"{hello(salutation_name(name), lang).strip()}\n\n{words['confirmIntro']}\n\n"
+            f"{words['confirmMore']}")
