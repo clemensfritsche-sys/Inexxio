@@ -100,20 +100,23 @@
     "max": 60
   },
   "mail": {
-    "confirmSubject": "Angekommen – danke für Ihre Anfrage",
-    "confirmIntro": "Danke für Ihre Nachricht. Sie liegt jetzt nicht in einem Stapel, sondern bei den Menschen, die sich damit auskennen.",
-    "confirmNext": "Wir melden uns innert kurzer Zeit.",
-    "confirmMore": "Fällt Ihnen noch etwas ein? Antworten Sie einfach auf diese E-Mail – es landet am selben Ort.",
-    "kicker": "Anfrage erhalten",
-    "copyTitle": "Ihre Angaben",
-    "factCompany": "Firma",
-    "factPhone": "Rückruf an",
-    "factPhotos": "Fotos",
-    "photoOne": "1 Bild",
-    "photoMany": "{n} Bilder",
-    "nextTitle": "So geht es weiter",
-    "received": "Angekommen",
-    "urgent": "Eilt es? Dann rufen Sie uns direkt an:"
+    "confirmSubject": "Angekommen – Danke für Ihre Anfrage",
+    "confirmIntro": "Schön, dass Sie sich bei uns melden. Ihre Anfrage ist angekommen, und wir kümmern uns darum. Sie hören so rasch wie möglich von uns.",
+    "confirmMore": "Fällt Ihnen noch etwas ein, ein Foto oder ein Mass? Antworten Sie einfach auf diese Mail.",
+    "urgent": "Eilt es? Dann rufen Sie uns an:"
+  },
+  "letter": {
+    "greeting": "Beste Grüsse aus {city}",
+    "greetingPlain": "Beste Grüsse",
+    "promo": {
+      "kicker": "Nachfolge geregelt",
+      "title": "Aus HS Steiner wird INEXXIO",
+      "text": "Heiri Steiner übergibt an Clemens Fritsche. Standort, Telefonnummer und der Service für Ihre HS-Anlagen bleiben.",
+      "label": "Zur Übergabe",
+      "alt": "Der Funksender wechselt die Hand",
+      "href": "/ueber-uns#uebergabe",
+      "src": "/mail/nachfolge.jpg"
+    }
   },
   "newsletter": {
     "name": "Post von INEXXIO",
@@ -122,7 +125,6 @@
     "confirmLead": "Sie möchten «Post von INEXXIO» erhalten, unseren Newsletter. Damit niemand Sie ohne Ihr Wissen anmeldet, bestätigen Sie es bitte mit einem Klick.",
     "confirmIgnore": "Waren Sie das nicht? Dann ignorieren Sie diese Mail einfach – ohne Bestätigung schicken wir nichts.",
     "confirmButton": "Ja, ich bin dabei",
-    "kicker": "Newsletter",
     "inviteTitle": "Post von INEXXIO",
     "inviteAsked": "Sie möchten unseren Newsletter – bitte bestätigen Sie es noch mit einem Klick.",
     "footer": "Sie erhalten «Post von INEXXIO», weil Sie sich dafür angemeldet haben.",
@@ -174,20 +176,23 @@
         "hello": "Bonjour"
       },
       "mail": {
-        "confirmSubject": "Bien reçu – merci pour votre demande",
-        "confirmIntro": "Merci pour votre message. Il n'est pas sur une pile, mais chez les personnes qui s'y connaissent.",
-        "confirmNext": "Nous vous répondons dans peu de temps.",
-        "confirmMore": "Autre chose vous vient à l'esprit? Répondez simplement à cet e-mail – il arrive au même endroit.",
-        "kicker": "Demande reçue",
-        "copyTitle": "Vos indications",
-        "factCompany": "Société",
-        "factPhone": "Rappel au",
-        "factPhotos": "Photos",
-        "photoOne": "1 image",
-        "photoMany": "{n} images",
-        "nextTitle": "La suite",
-        "received": "Reçue",
-        "urgent": "C'est urgent? Appelez-nous directement:"
+        "confirmSubject": "Bien reçu – Merci pour votre demande",
+        "confirmIntro": "Merci de nous avoir contactés. Votre demande est bien arrivée, et nous nous en occupons. Vous aurez de nos nouvelles dès que possible.",
+        "confirmMore": "Autre chose à ajouter, une photo ou une mesure? Répondez simplement à cet e-mail.",
+        "urgent": "C'est urgent? Appelez-nous:"
+      },
+      "letter": {
+        "greeting": "Meilleures salutations de {city}",
+        "greetingPlain": "Meilleures salutations",
+        "promo": {
+          "kicker": "Succession assurée",
+          "title": "HS Steiner devient INEXXIO",
+          "text": "Heiri Steiner passe le relais à Clemens Fritsche. Le site, le numéro de téléphone et le service pour vos installations HS restent.",
+          "label": "Lire la suite",
+          "alt": "La radiocommande change de main",
+          "href": "/fr/a-propos#uebergabe",
+          "src": "/mail/nachfolge.jpg"
+        }
       },
       "newsletter": {
         "name": "Courrier d'INEXXIO",
@@ -196,7 +201,6 @@
         "confirmLead": "Vous souhaitez recevoir le «Courrier d'INEXXIO», notre newsletter. Pour que personne ne vous inscrive à votre insu, veuillez le confirmer d'un clic.",
         "confirmIgnore": "Ce n'était pas vous? Ignorez simplement ce message – sans confirmation, nous n'envoyons rien.",
         "confirmButton": "Oui, je m'inscris",
-        "kicker": "Newsletter",
         "inviteTitle": "Courrier d'INEXXIO",
         "inviteAsked": "Vous souhaitez recevoir notre newsletter – veuillez encore le confirmer d'un clic.",
         "footer": "Vous recevez le «Courrier d'INEXXIO» parce que vous vous y êtes inscrit.",
@@ -248,20 +252,23 @@
         "hello": "Hello"
       },
       "mail": {
-        "confirmSubject": "Received – thank you for your enquiry",
-        "confirmIntro": "Thank you for your message. It is not sitting in a pile but with the people who know about it.",
-        "confirmNext": "We will get back to you within a short time.",
-        "confirmMore": "Anything else come to mind? Simply reply to this email – it ends up in the same place.",
-        "kicker": "Enquiry received",
-        "copyTitle": "Your details",
-        "factCompany": "Company",
-        "factPhone": "Call back on",
-        "factPhotos": "Photos",
-        "photoOne": "1 image",
-        "photoMany": "{n} images",
-        "nextTitle": "What happens next",
-        "received": "Received",
-        "urgent": "In a hurry? Then call us directly:"
+        "confirmSubject": "Received – Thank you for your enquiry",
+        "confirmIntro": "Thank you for getting in touch. Your enquiry has arrived, and we are taking care of it. You will hear from us as soon as possible.",
+        "confirmMore": "Anything to add, a photo or a measurement? Simply reply to this email.",
+        "urgent": "Urgent? Then give us a call:"
+      },
+      "letter": {
+        "greeting": "Best regards from {city}",
+        "greetingPlain": "Best regards",
+        "promo": {
+          "kicker": "Succession settled",
+          "title": "HS Steiner becomes INEXXIO",
+          "text": "Heiri Steiner hands over to Clemens Fritsche. The location, the phone number and the service for your HS installations stay the same.",
+          "label": "Read more",
+          "alt": "The radio remote changes hands",
+          "href": "/en/about-us#uebergabe",
+          "src": "/mail/nachfolge.jpg"
+        }
       },
       "newsletter": {
         "name": "Mail from INEXXIO",
@@ -270,7 +277,6 @@
         "confirmLead": "You would like to receive «Mail from INEXXIO», our newsletter. So that nobody signs you up without your knowledge, please confirm with one click.",
         "confirmIgnore": "Was this not you? Then simply ignore this email – without confirmation we send nothing.",
         "confirmButton": "Yes, count me in",
-        "kicker": "Newsletter",
         "inviteTitle": "Mail from INEXXIO",
         "inviteAsked": "You would like our newsletter – please confirm with one click.",
         "footer": "You receive «Mail from INEXXIO» because you signed up for it.",
@@ -322,20 +328,23 @@
         "hello": "Buongiorno"
       },
       "mail": {
-        "confirmSubject": "Arrivata – grazie per la Sua richiesta",
-        "confirmIntro": "Grazie per il Suo messaggio. Ora non si trova su una pila, ma presso le persone che se ne intendono.",
-        "confirmNext": "Le rispondiamo entro poco tempo.",
-        "confirmMore": "Le viene in mente ancora qualcosa? Risponda semplicemente a questa e-mail – arriva allo stesso posto.",
-        "kicker": "Richiesta ricevuta",
-        "copyTitle": "I Suoi dati",
-        "factCompany": "Ditta",
-        "factPhone": "Richiamare al",
-        "factPhotos": "Foto",
-        "photoOne": "1 immagine",
-        "photoMany": "{n} immagini",
-        "nextTitle": "Come si prosegue",
-        "received": "Arrivata",
-        "urgent": "È urgente? Allora ci chiami direttamente:"
+        "confirmSubject": "Ricevuta – Grazie per la sua richiesta",
+        "confirmIntro": "Grazie di averci contattato. La sua richiesta è arrivata e ce ne occupiamo noi. Avrà nostre notizie il prima possibile.",
+        "confirmMore": "Ha ancora qualcosa da aggiungere, una foto o una misura? Risponda semplicemente a questa e-mail.",
+        "urgent": "È urgente? Ci chiami:"
+      },
+      "letter": {
+        "greeting": "Cordiali saluti da {city}",
+        "greetingPlain": "Cordiali saluti",
+        "promo": {
+          "kicker": "Successione garantita",
+          "title": "HS Steiner diventa INEXXIO",
+          "text": "Heiri Steiner passa il testimone a Clemens Fritsche. Sede, numero di telefono e assistenza per i suoi impianti HS restano.",
+          "label": "Scopri di più",
+          "alt": "Il radiocomando passa di mano",
+          "href": "/it/chi-siamo#uebergabe",
+          "src": "/mail/nachfolge.jpg"
+        }
       },
       "newsletter": {
         "name": "Posta da INEXXIO",
@@ -344,7 +353,6 @@
         "confirmLead": "Desidera ricevere «Posta da INEXXIO», la nostra newsletter. Affinché nessuno La iscriva a Sua insaputa, La preghiamo di confermarlo con un clic.",
         "confirmIgnore": "Non è stato Lei? Allora ignori semplicemente questa e-mail – senza conferma non mandiamo nulla.",
         "confirmButton": "Sì, mi iscrivo",
-        "kicker": "Newsletter",
         "inviteTitle": "Posta da INEXXIO",
         "inviteAsked": "Desidera la nostra newsletter – La preghiamo di confermarlo ancora con un clic.",
         "footer": "Riceve «Posta da INEXXIO» perché si è iscritto.",

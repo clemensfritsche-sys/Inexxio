@@ -53,6 +53,8 @@ const PAGES = { thanks: '/kontakt/danke', newsletterPending: '/newsletter/danke'
  */
 function words(lang) {
   const mail = tFor(lang, inquiry.mail);
+  const letter = tFor(lang, inquiry.letter);
+  const [promoPath, promoHash] = inquiry.letter.promo.href.split('#');
   const pages = Object.fromEntries(Object.entries(PAGES).map(([k, p]) => [k, localPath(p, lang) ?? p]));
   return {
     pages,
@@ -61,18 +63,17 @@ function words(lang) {
     mail: {
       confirmSubject: plainIn(lang, mail.confirmSubject),
       confirmIntro: plainIn(lang, mail.confirmIntro),
-      confirmNext: plainIn(lang, mail.confirmNext),
       confirmMore: plainIn(lang, mail.confirmMore),
-      kicker: mail.kicker,
-      copyTitle: mail.copyTitle,
-      factCompany: mail.factCompany,
-      factPhone: mail.factPhone,
-      factPhotos: mail.factPhotos,
-      photoOne: mail.photoOne,
-      photoMany: mail.photoMany,
-      nextTitle: mail.nextTitle,
-      received: mail.received,
       urgent: plainIn(lang, mail.urgent),
+    },
+    letter: {
+      greeting: plainIn(lang, letter.greeting),
+      greetingPlain: plainIn(lang, letter.greetingPlain),
+      promo: {
+        ...Object.fromEntries(['kicker', 'title', 'text', 'label', 'alt'].map((k) => [k, plainIn(lang, letter.promo[k])])),
+        href: `${localPath(promoPath, lang) ?? promoPath}${promoHash ? `#${promoHash}` : ''}`,
+        src: letter.promo.src,
+      },
     },
     newsletter: Object.fromEntries(Object.entries(tFor(lang, newsletter)).map(([k, t]) => [k, plainIn(lang, t)])),
   };
@@ -96,6 +97,7 @@ const data = {
   patterns: v.patterns,
   subject: v.subject,
   mail: de.mail,
+  letter: de.letter,
   newsletter: de.newsletter,
   /** Jede weitere Sprache: dieselben Schlüssel, übersetzt (alle, die die Website baut oder in Prüfung hat). */
   languages: Object.fromEntries(languages.filter((l) => l.code !== SOURCE && l.status !== 'planned').map((l) => [l.code, words(l.code)])),

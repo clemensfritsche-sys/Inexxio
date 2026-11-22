@@ -46,8 +46,8 @@ def signer(db: Session, msg: Message) -> Optional[layout.Signer]:
     return layout.as_signer(person) if policy.is_staff(person) else None
 
 
-def build(db: Session, msg: Message, *, kicker: str = "",
-          extra: Optional[layout.Extra] = None) -> None:
+def build(db: Session, msg: Message, *, extra: Optional[layout.Extra] = None,
+          lang: str = "de") -> None:
     """►►► **Die Mail bauen – beim Anlegen, einmal.** ◄◄◄ Aus ihrem Text wird die Mail der
     einen Vorlage (``mail_layout.compose``): ``html`` ist, was hinausgeht, ``body`` der
     Inhalt, wie er im Verlauf steht – Wort für Wort. Ein Newsletter trägt den Abmeldelink
@@ -59,14 +59,14 @@ def build(db: Session, msg: Message, *, kicker: str = "",
                                                      MessageParty.role == "to").scalar()
         unsubscribe = footer(to) if to else None
     mail = layout.compose(msg.subject or "", msg.body or "", firm(db, msg.channel),
-                          signer(db, msg), kicker=kicker, extra=extra, unsubscribe=unsubscribe)
+                          signer(db, msg), extra=extra, unsubscribe=unsubscribe, lang=lang)
     msg.body, msg.html = mail.body, mail.html
     db.flush()
 
 
 def deliver(db: Session, *, channel: str, to: list[int], subject: str, lead: str,
-            author: Optional[UserProfile] = None, kicker: str = "",
-            extra: Optional[layout.Extra] = None) -> Message:
+            author: Optional[UserProfile] = None,
+            extra: Optional[layout.Extra] = None, lang: str = "de") -> Message:
     """**Eine Mail des Hauses an Personen** – anlegen, bauen, zum Versand geben. ``author``
     ist, wer sie auslöst; ist es kein Personal (ein Kunde auf seiner Seite, der Takt, die
     Website), schreibt die Gesellschaft."""
@@ -77,6 +77,6 @@ def deliver(db: Session, *, channel: str, to: list[int], subject: str, lead: str
                   channel=channel, subject=subject, body=lead, at=clock.utcnow(),
                   created_by=author.id if staff else None, outgoing=True)
     write(db, msg, {"to": to, "cc": [], "bcc": [], "about": []})
-    build(db, msg, kicker=kicker, extra=extra)
+    build(db, msg, extra=extra, lang=lang)
     mailbox.send_after(db)
     return msg

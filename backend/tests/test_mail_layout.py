@@ -26,7 +26,7 @@ from tests.test_mailbox import CH, COMPANY, _gmail, _person
 
 FIRM = layout.Firm(name="INEXXIO AG", address=["Waldweg 1", "9546 Tuttwil"],
                    phone="+41 52 378 22 47", tel="+41523782247", email="info@inexxio.com",
-                   picture="https://lh3.googleusercontent.com/a/konto")
+                   picture="https://lh3.googleusercontent.com/a/konto", city="Tuttwil")
 MONIKA = layout.Signer(name="Monika Fritsche")
 
 
@@ -50,16 +50,11 @@ def test_the_headline_is_the_subject_without_re():
 
 
 def test_the_history_is_the_mail_word_for_word():
-    """►►► Verlauf und Mail aus EINER Angabe – auch mit allen Bausteinen der Bestätigung.
+    """►►► Verlauf und Mail aus EINER Angabe – auch mit den Bausteinen der Bestätigung.
     Bug-Form: «Danke für Ihre Nachricht» galt als Grussformel und fiel aus der Mail."""
-    extra = layout.Extra(
-        facts=layout.Facts("Ihre Angaben", [("Firma", "Muster AG"), ("Fotos", "2 Bilder")],
-                           "Der Kran ruckelt."),
-        steps=layout.Steps("So geht es weiter", [("Angekommen · 18.10.2026, 17:50", True),
-                                                 ("Wir melden uns.", False)]),
-        call="Eilt es? Dann rufen Sie uns direkt an:")
+    extra = layout.Extra(call="Eilt es? Dann rufen Sie uns an:")
     lead = "Guten Tag Anna\n\nDanke für Ihre Nachricht.\n\nFällt Ihnen noch etwas ein?"
-    mail = layout.compose("Ihre Anfrage", lead, FIRM, None, kicker="Anfrage erhalten", extra=extra)
+    mail = layout.compose("Ihre Anfrage", lead, FIRM, None, extra=extra)
     assert words(inner(mail.html)) == words(mail.body)
     assert "Danke für Ihre Nachricht" in mail.body and "Danke für Ihre Nachricht" in mail.html
     assert mail.body in mail.text          # die Textfassung trägt denselben Inhalt
@@ -94,8 +89,9 @@ def test_a_person_signs_in_the_name_of_the_company_with_a_picture():
     """Name, darunter die Gesellschaft mit IHRER Nummer und Adresse – und das Bild daneben:
     das Profilbild, sonst die Initialen."""
     text = layout.text("Offerte", "Hallo", FIRM, layout.Signer("Clemens Fritsche"))
-    sign = text.split("Freundliche Grüsse\n", 1)[1].split("\n")[:3]
-    assert sign == ["Clemens Fritsche", "INEXXIO AG", "+41 52 378 22 47 · info@inexxio.com"]
+    sign = text.split("Beste Grüsse aus Tuttwil\n", 1)[1].split("\n")[:4]
+    assert sign[:3] == ["Clemens Fritsche", "INEXXIO AG", "Waldweg 1, 9546 Tuttwil"]
+    assert sign[3].startswith("+41 52 378 22 47 · info@inexxio.com · "), "ohne Funktion, mit Website"
     assert layout.sender_name(layout.Signer("Clemens Fritsche")) == "Clemens Fritsche · INEXXIO"
     assert layout.sender_name(None) == "INEXXIO"
     plain = layout.compose("x", "y", FIRM, layout.Signer("Clemens Fritsche")).html
@@ -164,11 +160,38 @@ def test_no_stage_and_a_logo_without_a_background():
         assert im.mode == "RGBA" and im.getpixel((0, 0))[3] == 0
 
 
-def test_the_footer_is_two_quiet_lines_without_an_explanation():
+def test_the_signature_is_the_footer_and_below_stands_the_strip():
+    """►►► **Die Unterschrift ist der Fuss** (Gesellschaft, Anschrift, Telefon, E-Mail, Website –
+    direkt nach «Beste Grüsse aus <Ort>»), darunter der **Streifen** mit Bild, Stichwort und Link
+    in der Sprache der Mail – in jeder Mail. Bug-Form: ein zweiter Block mit der Anschrift unten,
+    vom Text abgekoppelt; oder ein Streifen, der nur deutsch spricht. ◄◄◄"""
     html = layout.compose("x", "y", FIRM, None).html
-    foot = html.split("border-top:1px solid", 1)[1]
-    assert "INEXXIO AG" in foot and "Waldweg 1" in foot and "+41 52 378 22 47" in foot
+    sign, strip = html.split("<!--/inhalt-->", 1)[1].split("Nachfolge geregelt", 1)
+    assert "Beste Grüsse aus Tuttwil" in sign and "Waldweg 1, 9546 Tuttwil" in sign
+    assert "/mail/nachfolge.jpg" in sign + strip and "/ueber-uns#uebergabe" in sign + strip
+    assert html.count("Waldweg 1") == 1, "die Anschrift steht einmal – in der Unterschrift"
+    fr = layout.compose("x", "y", FIRM, None, lang="fr")
+    assert "Succession assurée" in fr.html and "/fr/" in fr.html and "Tuttwil" in fr.html
+    assert "Succession assurée" in fr.text and "Nachfolge" not in fr.html
+    nowhere = layout.Firm(name="INEXXIO AG")
+    assert "Beste Grüsse\n" in layout.text("x", "y", nowhere, None), "ohne Ort ohne «aus»"
     assert "betrifft Ihr Konto" not in html
+
+
+def test_the_headline_and_the_logo_share_a_row():
+    """Kopf: links die Überschrift (= Betreff), rechts auf gleicher Höhe das Logo – in einer
+    Zeile, nie übereinander und ohne Stichwort daneben."""
+    html = layout.compose("Angekommen – Danke für Ihre Anfrage", "y", FIRM, None).html
+    row = html.split("<!--inhalt-->", 1)[0]
+    assert row.index("</h1>") < row.index(layout.LOGO) and row.count("<tr>") >= 1
+    assert "</h1></td><td" in row
+
+
+def test_every_link_opens_a_new_window():
+    """Ein Link der Mail öffnet ein neues Fenster – im Text, in der Unterschrift, im Streifen."""
+    html = layout.compose("x", "Siehe https://inexxio.com/krantechnik", FIRM, None).html
+    links = re.findall(r'<a [^>]*href="https?://[^"]*"[^>]*>', html)
+    assert links and all('target="_blank"' in a for a in links), links
 
 
 def test_what_is_done_in_the_erp_is_read_in_gmail_once(monkeypatch):
@@ -230,7 +253,7 @@ def test_the_mail_is_one_centered_column_with_a_hairline():
     Elemente tragen im dunklen Modus die dunkle Palette."""
     html = layout.compose("x", "y", FIRM, MONIKA).html
     assert 'align="center"' in html and "max-width:600px" in html
-    assert f"border:1px solid {layout.LINE};border-radius:12px" in html
+    assert f"border:1px solid {layout.LINE};border-radius:{layout.CARD_R}px" in html
     dark = html.split("prefers-color-scheme:dark", 1)[1]
     for cls in (".ix-bg", ".ix-ink", ".ix-line", ".ix-btn"):
         assert cls in dark

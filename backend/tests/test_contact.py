@@ -379,17 +379,31 @@ def test_browser_and_server_cut_the_subject_alike():
 
 def test_the_confirmation_carries_nothing_a_stranger_typed(world):
     """►►► **Die Eingangsbestätigung ist kein Spam-Relais.** ◄◄◄ Wer eine fremde Adresse
-    eintippt, schickt über uns keinen Text, keinen Namen, keine Firma und keinen Link an sie.
-    Bug-Form: die Bestätigung kopierte die Angaben (und machte Adressen darin zu Links)."""
-    data = form(message="Gewinn abholen: https://spam.example/x", name="Gratis Geld",
+    eintippt, schickt über uns keinen Text, keine Firma und keinen Link an sie – und einen Namen
+    nur, wenn er wie ein Name aussieht (``salutation_name``). Bug-Form: die Bestätigung kopierte
+    die Angaben (und machte Adressen darin zu Links)."""
+    data = form(message="Gewinn abholen: https://spam.example/x", name="Gewinn: spam.example/x",
                 company="Klick Hier AG")
     assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
     (inq,) = inquiries(world.db, data["email"])
     conf = world.db.query(Message).join(MessageParty, MessageParty.message_id == Message.id).filter(
         MessageParty.object_id == inq.sender_object_id, Message.id != inq.id).one()
-    for foreign in ("spam.example", "Gratis", "Klick Hier", data["phone"]):
+    for foreign in ("spam.example", "Gewinn", "Klick Hier", data["phone"]):
         assert foreign not in conf.body and foreign not in conf.html, foreign
+    assert conf.body.startswith("Guten Tag\n"), "ohne Namen steht die Anrede allein"
     assert "spam.example" in inq.body, "die Anfrage selbst bleibt vollständig"
+
+
+def test_a_real_name_is_greeted():
+    """«Guten Tag Clemens Fritsche» – Vor- und Nachname, ohne Herr/Frau. Nur Buchstaben,
+    Bindestrich, Apostroph; höchstens vier Wörter und 40 Zeichen, sonst keine Anrede mit Namen."""
+    for ok in ("Clemens Fritsche", "Anne-Marie D'Amico", "Zoë Müller", "José da Silva Costa"):
+        assert svc.salutation_name(ok) == ok, ok
+    for bad in ("www.spam.ch", "Gewinn: 1000 CHF", "Max 2", "a b c d e", "x" * 41, "<b>Hi</b>", ""):
+        assert svc.salutation_name(bad) == "", bad
+    words = svc.words("de")["mail"]
+    assert svc.lead(words, "de", "  Clemens   Fritsche ").startswith("Guten Tag Clemens Fritsche\n")
+    assert svc.lead(words, "fr", "Clemens Fritsche").startswith("Bonjour Clemens Fritsche\n")
 
 
 def test_the_form_never_writes_into_an_existing_person(world):

@@ -25,7 +25,6 @@ LANGS = ("de", "fr", "en", "it")
 WORDS = {
     "de": {
         "subject": "Ihr Anmeldelink für INEXXIO",
-        "kicker": "Anmelden",
         "lead": "Guten Tag\n\nMit dem Knopf unten melden Sie sich bei INEXXIO an – ohne Passwort. "
                 "Der Link gilt eine Stunde und nur ein einziges Mal.",
         "button": "Jetzt anmelden",
@@ -34,7 +33,6 @@ WORDS = {
     },
     "fr": {
         "subject": "Votre lien de connexion INEXXIO",
-        "kicker": "Se connecter",
         "lead": "Bonjour\n\nLe bouton ci-dessous vous connecte à INEXXIO – sans mot de passe. "
                 "Le lien est valable une heure et une seule fois.",
         "button": "Se connecter maintenant",
@@ -43,7 +41,6 @@ WORDS = {
     },
     "en": {
         "subject": "Your INEXXIO sign-in link",
-        "kicker": "Sign in",
         "lead": "Hello\n\nThe button below signs you in to INEXXIO – no password needed. "
                 "The link is valid for one hour and can be used only once.",
         "button": "Sign in now",
@@ -51,7 +48,6 @@ WORDS = {
     },
     "it": {
         "subject": "Il suo link di accesso a INEXXIO",
-        "kicker": "Accedere",
         "lead": "Buongiorno\n\nCon il pulsante qui sotto accede a INEXXIO – senza password. "
                 "Il link vale un'ora e una sola volta.",
         "button": "Accedere ora",
@@ -81,7 +77,7 @@ def compose(db: Session, channel: str, link: str, lang: str = "de") -> mail_layo
     w = WORDS[lang]
     action = mail_layout.Action(title="", text="", label=w["button"], url=link, note=w["note"])
     return mail_layout.compose(w["subject"], w["lead"], outbox.firm(db, channel), None,
-                               kicker=w["kicker"], extra=mail_layout.Extra(action=action))
+                               extra=mail_layout.Extra(action=action), lang=lang)
 
 
 def send(db: Session, email: str, country: str | None = None, lang: str = "de") -> bool:

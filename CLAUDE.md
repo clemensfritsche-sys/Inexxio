@@ -348,14 +348,21 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
 - **Eine Stelle für jede Mail des Hauses** (`services/outbox.py`): `deliver` (anlegen, bauen, zum
   Versand geben – Beleg, Dokument, Eingangsbestätigung, Newsletter-Bitte), `build` (auch die
   Antwort aus dem Verlauf), `firm`, `signer`. **Gebaut beim Anlegen, nie beim Versand.**
-- **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Kopf · Betreff als
-  Überschrift · Inhalt · Unterschrift mit dem Menschen im Namen der Gesellschaft · Fuss; was
+- **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Betreff als Überschrift, rechts
+  auf gleicher Höhe das Logo · Inhalt · «Beste Grüsse aus <Ort der Gesellschaft>» · Unterschrift
+  (Mensch im Namen der Gesellschaft, ohne Funktion; Gesellschaft, Anschrift, Telefon, E-Mail,
+  Website – **sie ist der Fuss**) · unten ein **Streifen** als kleine Werbefläche (Bild, Stichwort,
+  Titel, Satz, Link; heute die Nachfolge HS Steiner → INEXXIO). Gruss und Streifen stehen EINMAL in
+  `website/src/config/inquiry.mjs` (`letter`, in jeder Sprache), das Bild in
+  `frontend/public/mail/`; Links öffnen ein neues Fenster, Radien wie v4. Was
   im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`). Antworten nennen den
   ganzen Faden (`References`); Zitate fallen beim Abholen weg – **wo das Mailprogramm sie
   markiert** (HTML-Teil: Gmail `gmail_quote`, Outlook `divRplyFwdMsg`, Apple `blockquote
   type=cite` …, `mail_parse.QUOTE_CLASSES` · `QUOTE_STOPS`), sonst an ihren Mustern im Text
   (`mail_parse._QUOTE`); eine Grussformel-Erkennung (`domain/communication.is_greeting`). **Ein Unterzeichner**
-  für jede Mail (`mail_layout.as_signer`: Name + Profilbild). **Das Bild der Unterschrift**
+  für jede Mail (`mail_layout.as_signer`: Name + Profilbild). **Die Eingangsbestätigung** grüsst
+  mit dem Namen aus dem Formular, aber nur, wenn er wie ein Name aussieht (`inquiry.salutation_name`:
+  Buchstaben, Bindestrich, Apostroph, höchstens 4 Wörter und 40 Zeichen) – sonst «Guten Tag». **Das Bild der Unterschrift**
   (`services/portrait.py`): schräge Streifen, die sich einmal öffnen, links eine rote Kante –
   ein GIF (das erste Bild ist das fertige, für Outlook), durchsichtig für hell und dunkel,
   ausgeliefert über `GET /api/v1/mail/portrait/<signiert>.gif` (Foto oder Initialen),

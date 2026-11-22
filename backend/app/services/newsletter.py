@@ -231,7 +231,7 @@ def invite(db: Session, oid: int, source: str, channel: Optional[str] = None, *,
     w = said(lang)
     return outbox.deliver(db, channel=channel, to=[oid], subject=w["confirmSubject"],
                           lead=_lead(person.display_name if by_name else "", lang),
-                          kicker=w["kicker"], extra=_ask(confirm_url(source, person=oid, lang=lang), lang))
+                          extra=_ask(confirm_url(source, person=oid, lang=lang), lang), lang=lang)
 
 
 def invite_address(db: Session, email: str, source: str, channel: Optional[str] = None,
@@ -244,7 +244,7 @@ def invite_address(db: Session, email: str, source: str, channel: Optional[str] 
     channel, _ = _box(db, channel)
     w = said(lang)
     mail = mail_layout.compose(w["confirmSubject"], _lead("", lang), outbox.firm(db, channel),
-                               None, kicker=w["kicker"],
-                               extra=_ask(confirm_url(source, email=email, lang=lang), lang))
+                               None, extra=_ask(confirm_url(source, email=email, lang=lang), lang),
+                               lang=lang)
     if not mailbox.send_direct(db, channel, email, w["confirmSubject"], mail):
         raise Unavailable("Die Bitte um Bestätigung ging nicht hinaus.")
