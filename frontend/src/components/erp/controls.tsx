@@ -20,7 +20,8 @@ const INPUT_TONE = {
   normal: 'border-transparent bg-bg-2 text-fg-1 focus:bg-bg-1 focus:border-fg-1',
   /** Pflicht und leer, oder das Format stimmt nicht – gemeldet, nicht gesperrt. */
   warn: 'border-warning bg-warning-bg text-fg-1 focus:bg-bg-1',
-  read: 'border-transparent bg-bg-2 text-fg-3 cursor-default',
+  /** Nur lesen sieht aus wie Text: keine Fläche, kein Rahmen, beim Klicken keine Linie. */
+  read: 'border-transparent bg-transparent px-0 text-fg-1 cursor-default focus:border-transparent',
 } as const;
 
 export function inputClass(tone: keyof typeof INPUT_TONE = 'normal'): string {

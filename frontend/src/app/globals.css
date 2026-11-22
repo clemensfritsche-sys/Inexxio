@@ -293,6 +293,11 @@
 .kt-input:read-only { color: var(--fg-2); }
 /* In einer grauen Karte (Anschrift bearbeiten) ist das Feld weiss. */
 .kt-card .kt-input { background: #fff; }
+/* Nur lesen sieht aus wie Text, nicht wie ein Feld: keine Fläche, kein Rahmen, kein Fokus
+   (nur `input` – eine Auswahl gilt dem Browser ebenfalls als «read-only»). */
+input.kt-input:read-only, .kt-card input.kt-input:read-only { height: auto; min-height: 24px; padding: 2px 0 0;
+  background: transparent; border-color: transparent; color: var(--fg-1); cursor: default; }
+input.kt-input:read-only:focus { background: transparent; border-color: transparent; }
 .kt-select { appearance: none; -webkit-appearance: none; padding-right: 44px; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 16px center; }
