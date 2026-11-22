@@ -31,7 +31,7 @@ description: >-
 - **Status = Punkt + Wort** (`fields.StatusDot`). **Icons nur Lucide**, kein Emoji.
 - **Zahlen tabellarisch** (`.ix-tnum`), Schweizer Formate, Datum nur über `lib/when.ts`.
 - **Website:** eine Überschrift-Form (`.v4-h2` + höchstens ein grauer Satz, linksbündig); Glas nur
-  in der Kopfleiste; Text auf Fotos auf `.plate--dark`; kein Kasten im Kasten; Fotos zoomen beim
+  in der Kopfleiste, der Handy-Leiste und auf kleinen Knöpfen über Fotos; Text auf Fotos auf `.plate--dark`; kein Kasten im Kasten; Fotos zoomen beim
   Überfahren mit `.zoom-on-hover`; Karussells über `scripts/carousel.ts` (endlos). Jeder Text durch
   `t()` und in jeder Sprache.
 - **Wörter:** nie «Fixpreis», nie «Werkstatt» («Standort», «Betrieb», «bei INEXXIO»).

@@ -733,7 +733,7 @@ Website generiert ihre daraus); **jedes Token wird gelesen** (Wächter `design.t
 Farbe = Bedeutung: **kühle, neutrale Grautöne** (v4) tragen die Fläche, **Rot (`inexxio`) ist
 der eine laute Akzent** (nie in Überschriften), **Slate (`accent`) die leise Stimme**. Radien 6 px
 (Bedienelemente) · 8 px (Karten, Flächen, Dialoge). Website: eine Überschrift-Form, Rot nur für die
-Anfrage, Glas nur in der Kopfleiste, nie im ERP. Wörter: kein
+Anfrage, Glas nur, was schwebt (Kopfleiste, Handy-Leiste, Knöpfe auf Fotos), nie im ERP. Wörter: kein
 «Fixpreis», keine «Werkstatt». ERP: Struktur vor Fläche (Haarlinien statt
 Schatten), Status als Punkt + Wort, Lucide-Symbole statt Text, tabellarische Zahlen,
 Infotexte im Hover, 8-px-Raster, Inter / Inter Tight. **Die Alt-Palette ist weg** (`slate-*`,

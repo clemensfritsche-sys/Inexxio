@@ -104,8 +104,10 @@ Raster, weiche Übergänge. Gefühl: leicht, vertrauenswürdig, kompetent, nahba
 - **Karten:** 8 px, Foto randlos, Text direkt auf dem Bild über einem dunklen Verlauf oder auf der
   dunklen Fläche `.plate--dark`. **Kein Kasten im Kasten** – Text und Knopf nie gemeinsam in einem
   Rahmen. Flächen im Inhalt sind weiss mit feiner Linie (`.plate`), ohne Schatten.
-- **Glas nur in der Kopfleiste** (`Header.astro`, Tokens `--glass-*`, nur unter `html[data-site]`).
-  Im ERP und Konto ist derselbe Kopf deckend weiss. Sonst nirgends Glas.
+- **Glas nur, wo etwas über der Seite schwebt:** die Kopfleiste (`Header.astro`, Tokens `--glass-*`,
+  nur unter `html[data-site]` – im ERP und Konto ist derselbe Kopf deckend weiss), die Leiste unten am
+  Handy (`MobileBar`) und kleine Knöpfe auf Fotos (Telefon und Pause auf der Bühne, der runde Pfeil
+  `.garrow`). Kein Glas im Inhalt: keine Glaskarten, keine Glasfelder, kein Glas-Akkordeon.
 - **Beim Überfahren:** ein Foto in einem Rahmen zoomt langsam um 5 % (1.4 s, `.zoom-on-hover` am
   Rahmen) – überall gleich, ob Link oder nicht. Freigestellte Bilder und Zeichnungen heben sich nur,
   wenn die ganze Fläche ein Link ist (Kachel im Kopf, Feldkarte); sonst stehen sie still.
