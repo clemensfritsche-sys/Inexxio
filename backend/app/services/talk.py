@@ -154,6 +154,60 @@ def open_ids(db: Session, viewer: UserProfile, limit: int = 50) -> list[int]:
 
 
 # ---------------------------------------------------------------------------
+# Aus Claude – je Verbindung ein Gespräch im «+»
+# ---------------------------------------------------------------------------
+#
+# ►►► **Ein Vorschlag aus Claude steht im «+» wie einer aus einem Gespräch** (Rückmeldung
+# 22.11.2026). Das Gespräch selbst führt die Person in Claude; im ERP gibt es nur seine Vorschläge.
+# Darum ist je Verbindung mit Claude (``mcp.grant``) ein «Gespräch» da: ohne Nachrichten, mit den
+# Vorschlägen dieser Verbindung, offen, solange einer offen ist – dieselbe Liste, dieselbe Karte,
+# dieselbe Zahl am «+». Seine Nummer ist die der Verbindung (eine Log-Zeile, nie die eines
+# Gesprächs). ◄◄◄
+
+_CLAUDE_OPEN = text("""
+SELECT DISTINCT (h.payload ->> 'mcp')::bigint AS g FROM log h
+ WHERE h.event = 'handgriff' AND h.actor_id = :me AND h.payload ->> 'mcp' IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM log x WHERE x.event IN ('handgriff.done', 'handgriff.dropped')
+                     AND (x.payload ->> 'handgriff')::bigint = h.id)""")
+
+#: Die jüngsten Vorschläge einer Verbindung – mehr braucht der Blick zurück nicht.
+_CLAUDE_HANDGRIFFE = text("""
+SELECT id FROM log WHERE event = 'handgriff' AND (payload ->> 'mcp')::bigint = :g
+ ORDER BY id DESC LIMIT 30""")
+
+_GRANT = text("SELECT id, at, object_id, payload FROM log WHERE id = :g AND event = 'mcp.grant'")
+
+
+def claude_view(db: Session, grant: int, viewer: UserProfile) -> TalkOut:
+    """►► **Die Vorschläge einer Verbindung mit Claude, als Gespräch** – privat wie jedes. ◄◄"""
+    g = db.execute(_GRANT, {"g": grant}).first()
+    if g is None or not policy.may(viewer, "private", g.object_id):
+        raise NotFound(f"Gespräch «{grant}» gibt es nicht.")
+    ids = sorted(r.id for r in db.execute(_CLAUDE_HANDGRIFFE, {"g": grant}))
+    found = handgriff.view(db, [h for h in handgriff.load(db, ids) if not h.replaced])
+    return TalkOut(id=grant, at=max([g.at, *(h.at for h in found)]), messages=[], handgriffe=found,
+                   open=any(h.state in ("open", "waiting") for h in found), source="claude",
+                   client=(g.payload or {}).get("client") or "Claude")
+
+
+def open_list(db: Session, viewer: UserProfile) -> list[TalkOut]:
+    """►►► **Was im «+» offen ist** – Gespräche im ERP und Verbindungen mit Claude mit offenem
+    Vorschlag, eine Liste, die neuesten zuerst (die Zahl am «+»). ◄◄◄"""
+    talks = [view(db, t) for t in open_ids(db, viewer)]
+    claude = [claude_view(db, r.g, viewer) for r in db.execute(_CLAUDE_OPEN, {"me": viewer.object_id or 0})]
+    return sorted([*talks, *claude], key=lambda t: t.at, reverse=True)
+
+
+def any_view(db: Session, talk_id: int, viewer: UserProfile) -> TalkOut:
+    """Ein Gespräch im ERP – oder die Vorschläge einer Verbindung mit Claude."""
+    try:
+        assert_may(db, talk_id, viewer)
+    except NotFound:
+        return claude_view(db, talk_id, viewer)
+    return view(db, talk_id)
+
+
+# ---------------------------------------------------------------------------
 # Sagen
 # ---------------------------------------------------------------------------
 

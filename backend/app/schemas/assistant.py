@@ -86,6 +86,11 @@ class TalkOut(BaseModel):
     #: Die KI hat noch nicht geantwortet (ausgefallen, Deckel) – der Takt holt nach.
     waiting: bool = False
     problem: Optional[str] = None
+    #: Woher: ein Gespräch im «+» (``erp``) – oder die Vorschläge einer Verbindung mit Claude
+    #: (``claude``, je Verbindung eines; das Gespräch selbst steht in Claude, ``id`` = die Verbindung).
+    source: Literal["erp", "claude"] = "erp"
+    #: Bei ``claude``: der Name des Clients («Claude», «Claude Code» …).
+    client: Optional[str] = None
 
 
 class RunOut(BaseModel):

@@ -467,8 +467,10 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   Die KI arbeitet in eigenem Faden und eigener Sitzung; reisst die Leitung, arbeitet sie zu
   Ende. Eine Sperre je Gespräch: Stream und Takt antworten nie beide. 📷/📄 legen die Datei in den Korb und hängen sie an die Nachricht – die KI liest sie
   und bereitet das Dokument vor («Öffnen» öffnet den Dokument-Entwurf mit der Datei; mit
-  der Freigabe ist der Vorschlag erledigt, `…/done`). Die Zahl am «+» = meine offenen Gespräche und
-  Aufnahmen, die nicht abgeschrieben werden konnten (`lib/assistant.useUnfinished`).
+  der Freigabe ist der Vorschlag erledigt, `…/done`). Die Zahl am «+» = meine offenen Gespräche (im ERP und aus Claude) und
+  Aufnahmen, die nicht abgeschrieben werden konnten (`lib/assistant.useUnfinished`) – im Rot der Aufgaben.
+  **Ein Vorschlag hat genau einen Ort, den Datensatz, den er betrifft** – dort wird entschieden; ein offener
+  eigener Vorschlag (aus dem «+» oder aus Claude) ist eine Aufgabe nur für die Person (`tasks._proposals`).
 - **Die Stecknadel = Rückmeldung zur Software** (`lib/pin-point.ts`): auf eine Stelle zeigen →
   «Stelle: Seite · Datensatz · Herkunft (`data-where-*`) · Element» vor dem Text; der Hinweis ist
   der Artikel **«ERP»** (auf `/erp`) bzw. **«Website»**.
@@ -481,7 +483,9 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   `erp_tools`, dazu `gespraeche` = ihre früheren Gespräche im «+», `talk.past`), aber mit ihren Rechten. Der Server
   sagt selbst, wo er läuft (`mcp.title`: «INEXXIO ERP» bzw. «… – Testumgebung», aus `APP_ENV`), auch auf
   der Seite «Claude verbinden» (gestaltet wie die Anmeldung). Er liest und bereitet vor; ein Vorschlag aus Claude ist
-  privat (`payload.mcp`) und wird in «Auf einen Blick» am Datensatz übernommen – nie über MCP. Anmelden ist OAuth 2.1 über die bestehende Anmeldung, **ohne Tabelle**:
+  privat (`payload.mcp`) und wird in «Auf einen Blick» am Datensatz übernommen – nie über MCP. **Im «+»
+  steht er wie einer aus einem Gespräch**: je Verbindung ein «Gespräch» ohne Nachrichten (`talk.claude_view`,
+  in derselben Liste `talk.open_list`, dieselbe Zahl am «+»); das Gespräch selbst führt die Person in Claude. Anmelden ist OAuth 2.1 über die bestehende Anmeldung, **ohne Tabelle**:
   Client-Kennung, Code und Zugang sind signiert (`core/signed`), der Code (PKCE S256) gilt genau
   einmal (`mcp.grant`, eindeutiger Index), getrennt ist getrennt (`mcp.revoked`); nur Personal.
   **Offen** ist eine Verbindung, solange sie nicht getrennt und zuletzt (Erlauben oder jüngste

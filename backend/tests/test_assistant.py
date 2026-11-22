@@ -500,3 +500,30 @@ def test_the_mcp_server_says_where_it_runs(monkeypatch):
     assert "Testumgebung" in mcp.title() and mcp.instructions().startswith("TESTUMGEBUNG")
     monkeypatch.setattr(get_settings(), "app_env", "production")
     assert mcp.title() == "INEXXIO ERP" and mcp.instructions().startswith("Produktion")
+
+
+def test_proposals_from_claude_stand_in_the_plus_like_a_talk(db, house):
+    """Ein Vorschlag aus Claude steht im «+» wie einer aus einem Gespräch: je Verbindung ein
+    «Gespräch» ohne Nachrichten, offen, solange ein Vorschlag offen ist; privat; und jeder offene
+    eigene Vorschlag ist eine Aufgabe nur für die Person, die ihn vorbereiten liess."""
+    from app.services import log as logsvc, tasks
+    boss, staff, firm = house
+    grant = logsvc.event(db, "mcp.grant", staff.object_id, {"nonce": "n1", "client": "Claude"})
+    hid, out = handgriff.prepare(db, staff, method="POST", path="/api/v1/erp/messages",
+                                 body=_note(firm.object_id, "Aus Claude"), line="Notiz aus Claude",
+                                 home=staff.object_id, mcp=grant)
+    assert hid, out.detail
+
+    (entry,) = [t for t in talk.open_list(db, staff) if t.source == "claude"]
+    assert entry.id == grant and entry.client == "Claude" and entry.open and entry.messages == []
+    assert [h.id for h in entry.handgriffe] == [hid]
+    assert talk.any_view(db, grant, staff).id == grant
+    with pytest.raises(NotFound):
+        talk.any_view(db, grant, factories.new_person(db, "employee"))
+
+    own = [t for t in tasks._proposals(db) if t.only == staff.object_id]
+    assert [(t.object_id, t.part) for t in own] == [(firm.object_id, "handgriffe")]
+
+    handgriff.drop(db, staff, hid)
+    assert not [t for t in talk.open_list(db, staff) if t.source == "claude"]
+    assert not [t for t in tasks._proposals(db) if t.only == staff.object_id]

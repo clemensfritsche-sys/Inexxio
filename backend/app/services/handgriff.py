@@ -618,7 +618,11 @@ def drop(db: Session, viewer: UserProfile, hid: int, by: str = "person") -> Hand
 def settle(db: Session, viewer: UserProfile, hid: int, result: Optional[int]) -> Handgriff:
     """**Im Entwurf erledigt** – die Person hat den Vorschlag in seinem Entwurf geöffnet und dort
     freigegeben (Person, Firma, Artikel, Auftrag, Dokument). ``result`` = was dabei entstand."""
-    h = assert_may(db, hid, viewer)
+    assert_may(db, hid, viewer)
+    # Dieselbe Sperre wie «Übernehmen» und «Weg»: zwei Fenster, die zugleich freigeben, ergeben
+    # einmal «erledigt» und einmal einen klaren Satz – nie zwei Einträge oder einen Absturz.
+    locks.xact(db, locks.HANDGRIFF, hid)
+    h = get(db, hid)
     if not h.is_open:
         raise Conflict(f"Handgriff «{hid}» ist nicht mehr offen.")
     log.event(db, "handgriff.done", h.object_id, {"handgriff": h.id, "result": result,
@@ -727,3 +731,18 @@ SELECT h.object_id, count(*) AS n FROM log h
 def open_mail_counts(db: Session) -> dict[int, int]:
     """Offene Handgriffe aus Mails je Datensatz – sie zählen dort in «zu tun» (EINE Abfrage)."""
     return {r.object_id: int(r.n) for r in db.execute(_OPEN_MAIL_COUNTS)}
+
+
+_OPEN_PRIVATE = text("""
+SELECT h.object_id, h.actor_id, min(h.at) AS since FROM log h
+ WHERE h.event = 'handgriff' AND h.actor_id IS NOT NULL
+   AND (h.payload ->> 'talk' IS NOT NULL OR h.payload ->> 'mcp' IS NOT NULL)
+   AND NOT EXISTS (SELECT 1 FROM log x WHERE x.event IN ('handgriff.done', 'handgriff.dropped')
+                     AND (x.payload ->> 'handgriff')::bigint = h.id)
+ GROUP BY h.object_id, h.actor_id""")
+
+
+def open_private(db: Session) -> list[Any]:
+    """►► **Offene eigene Vorschläge je Datensatz und Person** (aus dem «+» oder aus Claude) – sie
+    sind eine Aufgabe nur für die Person, die sie vorbereiten liess (EINE Abfrage). ◄◄"""
+    return list(db.execute(_OPEN_PRIVATE))

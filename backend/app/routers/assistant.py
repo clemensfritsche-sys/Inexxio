@@ -49,15 +49,14 @@ def door(user: UserProfile = Depends(require_employee)):
 
 @router.get("/talks/open", response_model=list[TalkOut])
 def open_talks(db: Session = DB, user: UserProfile = Depends(require_employee)):
-    """Meine offenen Gespräche – die neuesten zuerst (die Zahl am «+»)."""
-    return [talk.view(db, t) for t in talk.open_ids(db, user)]
+    """Meine offenen Gespräche – im ERP und aus Claude, die neuesten zuerst (die Zahl am «+»)."""
+    return talk.open_list(db, user)
 
 
 @router.get("/talks/{talk_id}", response_model=TalkOut)
 def get_talk(talk_id: int, db: Session = DB, user: UserProfile = Depends(require_employee)):
-    """Ein Gespräch – nur, wer es führt, und der Admin."""
-    talk.assert_may(db, talk_id, user)
-    return talk.view(db, talk_id)
+    """Ein Gespräch (oder die Vorschläge einer Verbindung mit Claude) – nur, wer es führt, und der Admin."""
+    return talk.any_view(db, talk_id, user)
 
 
 @router.post("/files", response_model=FileRef)

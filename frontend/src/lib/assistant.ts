@@ -49,10 +49,10 @@ export function useOpenRecordings() {
  * kein Gespräch – sie zählt nicht. Dieselben Listen wie «Offene Gespräche» im «+» – EINE Quelle; an
  * der Person zählt es nicht (`services/todo`). ◄◄◄
  */
-export function useUnfinished(): { count: number; failed: boolean } {
+export function useUnfinished(): { count: number } {
   const talks = useOpenTalks().data ?? [];
   const failed = (useOpenRecordings().data ?? []).filter((r) => r.state === 'failed');
-  return { count: talks.length + failed.length, failed: failed.length > 0 };
+  return { count: talks.length + failed.length };
 }
 
 /**

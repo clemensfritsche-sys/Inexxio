@@ -199,11 +199,15 @@ def _loops(db: Session) -> list[Task]:
 
 
 def _proposals(db: Session) -> list[Task]:
-    """Offene Vorschläge aus Mails – am Datensatz, «Kommunizieren» (sie kommen aus Mails)."""
+    """Offene Vorschläge am Datensatz: aus Mails für jedes Personal («Kommunizieren»), aus dem «+»
+    oder aus Claude nur für die Person, die sie vorbereiten liess (privat, ``only``)."""
     from . import handgriff
     now = clock.utcnow()
-    return [Task(key=f"proposal:{oid}", object_id=oid, part="handgriffe", since=now,
+    mail = [Task(key=f"proposal:{oid}", object_id=oid, part="handgriffe", since=now,
                  competence=comp.KOMMUNIZIEREN) for oid in handgriff.open_mail_counts(db)]
+    own = [Task(key=f"proposal:{r.object_id}:{r.actor_id}", object_id=r.object_id, part="handgriffe",
+                since=r.since, competence=None, only=r.actor_id) for r in handgriff.open_private(db)]
+    return mail + own
 
 
 def _own_people(db: Session, staff: list[UserProfile], now: datetime) -> list[Task]:

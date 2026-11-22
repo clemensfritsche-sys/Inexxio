@@ -6790,7 +6790,7 @@
           "assistent"
         ],
         "summary": "Open Talks",
-        "description": "Meine offenen Gespräche – die neuesten zuerst (die Zahl am «+»).",
+        "description": "Meine offenen Gespräche – im ERP und aus Claude, die neuesten zuerst (die Zahl am «+»).",
         "operationId": "open_talks_api_v1_erp_assistant_talks_open_get",
         "responses": {
           "200": {
@@ -6821,7 +6821,7 @@
           "assistent"
         ],
         "summary": "Get Talk",
-        "description": "Ein Gespräch – nur, wer es führt, und der Admin.",
+        "description": "Ein Gespräch (oder die Vorschläge einer Verbindung mit Claude) – nur, wer es führt, und der Admin.",
         "operationId": "get_talk_api_v1_erp_assistant_talks__talk_id__get",
         "security": [
           {
@@ -16861,6 +16861,26 @@
               }
             ],
             "title": "Problem"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "erp",
+              "claude"
+            ],
+            "title": "Source",
+            "default": "erp"
+          },
+          "client": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client"
           }
         },
         "type": "object",

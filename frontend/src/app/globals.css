@@ -742,7 +742,7 @@ fieldset:disabled .ix-editable.is-missing {
 .erp-fab-count {
   position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
   display: flex; align-items: center; justify-content: center; color: #fff; font: 700 11px/1 var(--font-body);
-  box-shadow: 0 0 0 2px var(--bg-1);
+  background: var(--inexxio-red); box-shadow: 0 0 0 2px var(--bg-1);
 }
 @media (prefers-reduced-motion: reduce) {
   .erp-rec-level > span { transition: none; }

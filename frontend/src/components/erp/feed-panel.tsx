@@ -142,13 +142,14 @@ function TypeChips({ typeFilter, onTypeFilter, count }: {
  * **«+» = der Assistent** – öffnet das «+» (`capture/capture-sheet.tsx`): oben die Eingabe, darunter
  * das Gespräch und die offenen Gespräche, unten neu anlegen. Er schwebt über der Liste (Schatten
  * der schwebenden Ebene); der rote Schatten ist nur der Hover-Akzent des roten Knopfs.
- * **Die Zahl daran** sind meine offenen Gespräche und Aufnahmen (`useUnfinished`) – gelb, rot bei
- * einer gescheiterten Aufnahme; an meiner Person zählt es nicht.
+ * **Die Zahl daran** sind meine offenen Gespräche – im ERP und aus Claude – und Aufnahmen, die nicht
+ * abgeschrieben werden konnten (`useUnfinished`): im Rot der Aufgaben («zu tun», wie `TodoChip`),
+ * mit weissem Rand, damit sie auf dem roten Knopf steht.
  */
 function CaptureButton({ onCapture }: { onCapture: () => void }) {
   const unfiled = useUnfinished();
   const tip = unfiled.count
-    ? `Assistent · ${unfiled.count} offen` : 'Assistent – sagen, was ist, oder neu anlegen';
+    ? `Assistent · ${unfiled.count} zu tun` : 'Assistent – sagen, was ist, oder neu anlegen';
   return (
     <div className="absolute right-5 bottom-5 z-20">
       <button
@@ -160,8 +161,7 @@ function CaptureButton({ onCapture }: { onCapture: () => void }) {
       >
         <Plus size={24} />
         {unfiled.count > 0 && (
-          <span aria-hidden className="erp-fab-count tabular-nums"
-            style={{ background: unfiled.failed ? 'var(--danger)' : 'var(--warning)' }}>
+          <span aria-hidden className="erp-fab-count tabular-nums">
             {unfiled.count > 9 ? '9+' : unfiled.count}
           </span>
         )}
