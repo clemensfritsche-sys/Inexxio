@@ -139,6 +139,9 @@ jobs:
           cp "$D/favicon.svg" "$O/favicon.svg"; cp "$D/favicon.svg" "$O/icon.svg"
           cp "$D/favicon-32.png" "$O/favicon-32.png"; cp "$D/apple-touch-icon.png" "$O/apple-touch-icon.png"
           grep -q 'INEXXIO DEV' "$O/favicon.svg"
+          # Eigene Adresse, sonst zeigt der Browser das zwischengespeicherte rote Favicon weiter.
+          find "$O" -name '*.html' -print0 | xargs -0 sed -i -E 's#(/(favicon\.svg|favicon-32\.png|apple-touch-icon\.png))\?v=([0-9]+)#\1?v=\3-dev#g; s#/icon\.svg\?#/icon.svg?dev-#g'
+          grep -rq 'favicon.svg?v=[0-9]*-dev' "$O/index.html"
 
       # Nicht indexiert – per HTTP-Kopfzeile auf JEDER Antwort (Website, Konto, ERP,
       # Bilder, PDFs). Fehlt sie danach, bricht der Schritt ab, statt still zu indexieren.
