@@ -382,8 +382,13 @@ def tools(db: Session, person: UserProfile, grant: int) -> list[ai.Tool]:
 
 
 def _schema(t: ai.Tool) -> dict[str, Any]:
+    """Ein Werkzeug für den Client – mit **Hinweisen** (MCP ``annotations``): liest es nur, gruppiert
+    der Client es so und fragt nicht bei jedem Aufruf nach. Keines ändert etwas unwiderruflich –
+    ein Vorschlag wird erst am Datensatz übernommen, von der Person selbst."""
     return {"name": t.name, "description": t.description,
-            "inputSchema": {"type": "object", "properties": t.properties, "required": list(t.required)}}
+            "inputSchema": {"type": "object", "properties": t.properties, "required": list(t.required)},
+            "annotations": {"readOnlyHint": t.reads, "destructiveHint": False,
+                            "idempotentHint": t.reads, "openWorldHint": False}}
 
 
 def _result(rid: Any, result: Any) -> dict[str, Any]:

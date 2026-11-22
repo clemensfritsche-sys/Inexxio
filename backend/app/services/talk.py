@@ -388,7 +388,8 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int) -> list[ai.
             *ai_tools.erp_tools(prepare, lookup=False),
             ai.Tool("weglegen", "Einen Vorschlag dieses Gesprächs weglegen (die Person will ihn "
                     "nicht, oder du ersetzt ihn durch einen neuen).",
-                    {"handgriff": {"type": "integer"}}, drop, doing="legt weg: Vorschlag")]
+                    {"handgriff": {"type": "integer"}}, drop, doing="legt weg: Vorschlag",
+                    reads=False)]
 
 
 def _claim(db: Session, talk_id: int) -> bool:

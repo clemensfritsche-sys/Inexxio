@@ -492,7 +492,9 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   Erneuerung) vor höchstens 30 Tagen benutzt ist (`mcp._OPEN`, dieselbe Abfrage für Liste und jede
   Anfrage) – trennt jemand in Claude selbst, fällt sie so von selbst weg. Gesehen und getrennt im
   Konto (Sicherheit) und am ERP-Datensatz (Abschnitt «Sicherheit», selbst · Admin). Erlauben auf `/erp/verbinden`; das Hosting leitet
-  `/.well-known/oauth-*` an den Dienst. Protokoll: JSON-RPC über einen `POST`, ohne SDK.
+  `/.well-known/oauth-*` an den Dienst. Protokoll: JSON-RPC über einen `POST`, ohne SDK. **Jedes Werkzeug sagt, ob es nur liest**
+  (MCP `annotations`, `ai.Tool.reads`, `mcp._schema`): alle lesen ausser «vorbereiten»; keines ändert etwas
+  unwiderruflich – so gruppiert der Client sie und fragt bei «liest nur» nicht bei jedem Aufruf nach.
 - **Vorschläge aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person liest die
   KI im Takt und bereitet Vorschläge am Datensatz vor (Probelauf mit den Rechten der Person, die
   das Postfach verbunden hat); sie stehen in «Auf einen Blick» und zählen dort in «zu tun» – wer ihn
