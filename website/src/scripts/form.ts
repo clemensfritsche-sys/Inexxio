@@ -15,6 +15,7 @@
  */
 import { accountInfo } from './account';
 import { subjectOf } from '../lib/inquiry-subject.mjs';
+import { suggest } from '../lib/mail-typo.mjs';
 
 type Errors = Record<string, string>;
 /** `formVocab()` (src/lib/inquiry-vocab.mjs) – dasselbe Objekt, das der Server bekommt. */
@@ -55,6 +56,8 @@ function setup(form: HTMLFormElement): void {
     form.hidden = false;
     step(1);
   });
+
+  mailHint(form);
 
   // ---------- Live: Fehler verschwinden beim Korrigieren ----------
   form.addEventListener('input', (e) => clearError(form, (e.target as HTMLInputElement).name));
@@ -111,6 +114,30 @@ function setup(form: HTMLFormElement): void {
       if (submit) submit.disabled = false;
     }
   });
+}
+
+// ------------------------------------------------------------------ Tippfehler in der Adresse
+
+/** «Meinten Sie …@gmail.com?» beim Verlassen des Feldes (`lib/mail-typo`) – ein Klick übernimmt
+ *  den Vorschlag; gesendet wird trotzdem, was dasteht. */
+function mailHint(form: HTMLFormElement): void {
+  const input = form.querySelector<HTMLInputElement>('[name="email"]');
+  const hint = form.querySelector<HTMLElement>('[data-mail-hint]');
+  if (!input || !hint) return;
+  const show = () => {
+    const better = suggest(input.value);
+    hint.hidden = !better;
+    if (!better) return;
+    const [before, after] = (hint.dataset.text ?? '{mail}').split('{mail}');
+    const fix = document.createElement('button');
+    fix.type = 'button';
+    fix.className = 'link field__fix';
+    fix.textContent = better;
+    fix.addEventListener('click', () => { input.value = better; hint.hidden = true; input.focus(); });
+    hint.replaceChildren(before ?? '', fix, after ?? '');
+  };
+  input.addEventListener('blur', show);
+  input.addEventListener('input', () => { hint.hidden = true; });
 }
 
 // ------------------------------------------------------------------ Schritte

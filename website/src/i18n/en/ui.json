@@ -90,5 +90,6 @@
   "Mailand": "Milan",
   "FRANKREICH": "FRANCE",
   "ITALIEN": "ITALY",
-  "Genf": "Geneva"
+  "Genf": "Geneva",
+  "Meinten Sie {mail}?": "Did you mean {mail}?"
 }

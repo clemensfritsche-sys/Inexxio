@@ -44,7 +44,7 @@ from ..models import Mailbox, Message, MessageParty, UserProfile
 from .people import ensure, normalize_email
 from ..domain.errors import Conflict, Forbidden, Invalid, NotFound, Unavailable
 from ..domain import policy
-from .mail_parse import MAX_BODY, NEVER, _attachments, _bulk, _parts, _strip_quote, _text
+from .mail_parse import MAX_BODY, NEVER, Bounce, _attachments, _bulk, _parts, _strip_quote, _text, bounce
 from ..core import report
 from ..core import clock
 
@@ -556,6 +556,10 @@ def ingest(db: Session, mb: Mailbox, raw: dict[str, Any],
     name, sender_addr = parseaddr(head.get("from", ""))
     sender_addr = normalize_email(sender_addr)
     inbound = sender_addr not in ours
+    back = bounce(payload, head) if inbound and not labels & NEVER else None
+    if back is not None:
+        _bounced(db, back)
+        return False        # der Rückläufer selbst wird keine Nachricht – er steht an der Mail
     if labels & NEVER or not sender_addr or (inbound and _bulk(labels, head, sender_addr)):
         return False
     rfc = (head.get("message-id") or "").strip()[:255] or None
@@ -584,6 +588,37 @@ def ingest(db: Session, mb: Mailbox, raw: dict[str, Any],
     except IntegrityError:
         return False        # ein paralleler Abgleich war schneller – dieselbe Mail
     return True
+
+
+def _bounced(db: Session, back: Bounce) -> None:
+    """►►► **Ein Rückläufer steht an der Mail, die nicht ankam** (``mail.bounced``). ◄◄◄
+    Einmal je Mail; im Verlauf dazu eine interne Nachricht an den, der sie geschrieben hat
+    (sonst an den Inhaber des Postfachs) – wie beim Aufgeben des Versands. Eine Mail ohne
+    Nachricht im ERP (Anmeldelink, Newsletter-Bitte an eine blosse Adresse) bleibt still."""
+    from ..models import Log
+    from .communication import write
+    from . import log
+    msg = db.query(Message).filter(Message.rfc_id == back.original).first()
+    if msg is None or db.query(Log.id).filter(
+            Log.event == "mail.bounced", Log.table_name == "messages",
+            Log.row_key == str(msg.id)).first() is not None:
+        return
+    log.event(db, "mail.bounced", msg.sender_object_id,
+              {"recipients": back.recipients, "reason": back.reason},
+              table="messages", row=msg.id)
+    mb = active(db, msg.channel)
+    writer = db.query(UserProfile.object_id).filter(
+        UserProfile.id == msg.created_by).scalar() if msg.created_by else None
+    to = writer or (mb.owner_object_id if mb is not None else msg.sender_object_id)
+    about = [p.object_id for p in db.query(MessageParty).filter(
+        MessageParty.message_id == msg.id, MessageParty.role.in_(("to", "cc", "bcc"))).all()]
+    whom = f" an {back.recipients}" if back.recipients else ""
+    why = f" Grund: {back.reason}" if back.reason else ""
+    note = Message(sender_object_id=to, channel="intern", subject=msg.subject,
+                   body=f"Diese Mail kam{whom} nicht an.{why} Bitte die Adresse prüfen.",
+                   at=clock.utcnow(), created_by=None)
+    write(db, note, {"to": [to], "cc": [], "bcc": [], "about": about})
+    report.warn(f"MAILBOX bounced {msg.id}: {back.reason}")
 
 
 def attachment(db: Session, msg: Message, index: int) -> tuple[bytes, str, str]:

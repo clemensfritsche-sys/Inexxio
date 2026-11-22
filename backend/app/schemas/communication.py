@@ -127,6 +127,9 @@ class MessageOut(BaseModel):
     #: **Nicht gesendet** – Gmail wies sie wiederholt ab, der Versand gab auf
     #: (``communication.failed``); «Neu senden» gibt sie wieder zum Versand.
     failed: bool = False
+    #: **Nicht zugestellt** – sie ging hinaus, ein Rückläufer kam zurück (``communication.undelivered``):
+    #: an wen und der Grund des empfangenden Servers; ``None`` = kein Rückläufer.
+    undelivered: Optional[str] = None
     #: Anhänge – nur Name und Grösse; die Datei liegt in Gmail.
     attachments: list[Attachment] = []
     #: Wo die Mail in Gmail steht (nur für eine abgeglichene bzw. gesendete).

@@ -504,3 +504,80 @@ def test_a_stale_mailbox_catches_up_since_the_last_sync_page_by_page(monkeypatch
     ids, latest = mb._new_ids("tok", "1", since)
     assert sorted(ids) == ["a", "b", "c"] and latest == "77"
     assert seen[0] == f"after:{int(since.timestamp()) - 3600}"
+
+
+def _b64(text):
+    return base64.urlsafe_b64encode(text.encode()).decode()
+
+
+def _bounce_of(rfc, to="lea@gmai.com", frm="Mail Delivery Subsystem <mailer-daemon@googlemail.com>"):
+    """Ein Rückläufer, wie Gmail ihn liefert: ``multipart/report`` mit dem Grund und den
+    Kopfzeilen der Mail, die nicht ankam."""
+    gid = f"g{random.randint(1, 10**12)}"
+    status = (f"Reporting-MTA: dns; googlemail.com\n\nFinal-Recipient: rfc822; {to}\n"
+              "Action: failed\nStatus: 5.1.1\nDiagnostic-Code: smtp; 550 5.1.1 The email account "
+              "that you tried to reach does not exist.\n")
+    return {"id": gid, "threadId": gid, "labelIds": ["INBOX"], "internalDate": "1760000000000",
+            "payload": {"mimeType": "multipart/report", "headers": [
+                {"name": "From", "value": frm}, {"name": "To", "value": COMPANY},
+                {"name": "Subject", "value": "Delivery Status Notification (Failure)"},
+                {"name": "Message-ID", "value": f"<{gid}@mx.google.com>"},
+                {"name": "Content-Type", "value": "multipart/report; report-type=delivery-status"},
+                {"name": "X-Failed-Recipients", "value": to}],
+                "parts": [
+                    {"mimeType": "text/plain", "body": {"data": _b64("Address not found")}},
+                    {"mimeType": "message/delivery-status", "body": {"data": _b64(status)}},
+                    {"mimeType": "text/rfc822-headers",
+                     "body": {"data": _b64(f"From: {COMPANY}\nTo: {to}\nMessage-ID: {rfc}\n")}}]}}
+
+
+def _sent(db, box, to_person, subject="Angekommen – danke für Ihre Anfrage"):
+    """Eine Mail, die das ERP hinausschickte (mit unserer Kennung)."""
+    from app.core import clock
+    msg = Message(sender_object_id=dc.company_of(box.channel), channel=box.channel, subject=subject,
+                  body="Danke.", at=clock.utcnow(), rfc_id=dc.new_message_id(), inbound=False,
+                  gmail_id=f"s{random.randint(1, 10**12)}")
+    comm.write(db, msg, {"to": [to_person.object_id], "cc": [], "bcc": [], "about": []})
+    return msg
+
+
+def test_a_bounce_marks_the_mail_that_did_not_arrive(world):
+    """►►► **Ein Rückläufer steht an der Mail, die nicht ankam** – mit Adresse und Grund, dazu
+    eine interne Nachricht; er selbst wird keine Nachricht und keine Person, und zweimal
+    abgeholt gibt es den Vermerk einmal. Bug-Form: die Unzustellbar-Mail fiel als Massenpost
+    still weg, und im ERP sah die Bestätigung aus wie angekommen. ◄◄◄"""
+    db, staff, box = world
+    lea = _person(db, email="lea@gmai.com")
+    msg = _sent(db, box, lea)
+    back = _bounce_of(msg.rfc_id)
+    assert not mb.ingest(db, box, back)
+    assert not mb.ingest(db, box, dict(back, id="again"))
+    out = comm.load(db, [msg.id])[0]
+    assert out.undelivered and "lea@gmai.com" in out.undelivered and "550" in out.undelivered
+    notes = db.query(Message).filter(Message.channel == "intern", Message.subject == msg.subject).all()
+    assert len(notes) == 1 and "nicht an" in notes[0].body
+    assert db.query(UserProfile).filter(UserProfile.email.like("mailer-daemon%")).count() == 0
+
+
+def test_a_bounced_reply_answers_nothing(world):
+    """Eine Antwort, die nicht ankam, erledigt die Frage nicht – sie bleibt offen."""
+    db, staff, box = world
+    ask = _gmail("Lea <lea@kunde.ch>", to=COMPANY, subject="Heukran", rfc="<q1@kunde>")
+    mb.ingest(db, box, ask)
+    lea = db.query(UserProfile).filter(UserProfile.email == "lea@kunde.ch").one()
+    reply = _sent(db, box, lea, subject="Re: Heukran")
+    assert not _one(db, ask["id"]).open
+    mb.ingest(db, box, _bounce_of(reply.rfc_id, to="lea@kunde.ch"))
+    assert _one(db, ask["id"]).open
+
+
+def test_a_bounce_of_someone_else_is_ignored():
+    """Ohne unsere Kennung ist es kein Rückläufer einer unserer Mails – und eine gewöhnliche
+    Mail ist nie einer."""
+    from app.services.mail_parse import bounce
+    other = _bounce_of("<x@elsewhere.com>")
+    head = {h["name"].lower(): h["value"] for h in other["payload"]["headers"]}
+    assert bounce(other["payload"], head) is None
+    plain = _gmail("lea@kunde.ch", to=COMPANY, body=f"Siehe Message-ID: {dc.new_message_id()}")
+    head = {h["name"].lower(): h["value"] for h in plain["payload"]["headers"]}
+    assert bounce(plain["payload"], head) is None

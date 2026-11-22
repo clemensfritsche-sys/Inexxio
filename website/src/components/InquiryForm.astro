@@ -47,6 +47,7 @@ const T = t('ui', {
   privacy: 'Wir bearbeiten Ihre Angaben für Ihre Anfrage und führen sie in unserem Kundenverzeichnis –',
   privacyLink: 'Datenschutz',
   part: 'Anfrage zu:',
+  mailHint: 'Meinten Sie {mail}?',
 });
 
 interface Props {
@@ -116,6 +117,7 @@ const f = (name: string) => `${id}-${name}`;
           <label class="field__label" for={f('email')}>{T.email}</label>
           <input class="input" id={f('email')} name="email" type="email" maxlength={L.email} autocomplete="email" required aria-describedby={f('email-error')} />
           <p class="field__error" id={f('email-error')} data-error-for="email" hidden></p>
+          <p class="field__hint" data-mail-hint data-text={T.mailHint} aria-live="polite" hidden></p>
         </div>
       </div>
       <div class="iform__row">

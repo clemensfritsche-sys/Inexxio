@@ -334,7 +334,10 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   danach, und der Abgleich holt eine eigene Kennung nie herein; nach drei Abweisungen durch Gmail ist
   sie **nicht gesendet** (`communication._FAILED`, an der Mail mit «Neu senden»,
   `POST /erp/messages/{id}/resend`; die Versuche zählen danach von vorn) und der Grund steht als
-  interne Nachricht im Verlauf. **Was die Gesellschaft schreibt, schreibt die
+  interne Nachricht im Verlauf. **Ein Rückläufer** (Unzustellbar-Meldung mit unserer Kennung,
+  `mail_parse.bounce`) wird keine Nachricht: er steht an der Mail, die nicht ankam (`mail.bounced`,
+  «nicht zugestellt» mit Adresse und Grund, `communication.undelivered`), sie beantwortet nichts,
+  und eine interne Nachricht sagt es (`mailbox._bounced`). **Was die Gesellschaft schreibt, schreibt die
   Gesellschaft**: automatische Mails (Bestätigung, Newsletter-Bitte, Beleg ohne Mensch) und was direkt
   in Gmail hinausging, haben die Gesellschaft als Absenderin, nicht den Admin des Postfachs. Ist
   das Postfach einer Mail getrennt, wählt die Antwort ihres von Hand – nie still ein anderes.
@@ -838,7 +841,9 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   des Besuchers über `sites.company_for_country`, sonst der Betreiber). Eine Telefonnummer
   für alles, keine Öffnungszeiten.
 - **Das Formular** (`POST /api/v1/contact`) wird eine offene Nachricht im Postfach der
-  Gesellschaft zum Besucherland; E-Mail Pflicht, Anhänge nur Bilder; Spam erzeugt nichts.
+  Gesellschaft zum Besucherland; E-Mail Pflicht, Anhänge nur Bilder; Spam erzeugt nichts. Bei einem
+  Tippfehler in der Domain eines grossen Anbieters fragt es «Meinten Sie …@gmail.com?»
+  (`src/lib/mail-typo.mjs`, nur ein Hinweis).
   Gespeichert wird vor jedem Versand; geht das nicht → 503, die Seite zeigt Telefon und
   mailto (an die ERP-Adresse). Das Vokabular ist generiert (`scripts/export-erp.mjs` →
   `backend/app/assets/website_contact.json`).

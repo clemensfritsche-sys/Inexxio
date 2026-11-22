@@ -230,7 +230,7 @@ function MailFoot({ m }: { m: Message }) {
   const [loading, setLoading] = useState<number | null>(null);
   const [error, setError] = useState('');
   const again = useAction('Konnte nicht neu gesendet werden.');
-  if (!files.length && !m.pending && !m.failed) return null;
+  if (!files.length && !m.pending && !m.failed && !m.undelivered) return null;
   const open = async (i: number, name: string) => {
     setError('');
     setLoading(i);
@@ -262,6 +262,10 @@ function MailFoot({ m }: { m: Message }) {
             style={{ border: 0, padding: '2px 8px', borderRadius: 6, background: 'var(--bg-3)',
                      color: 'var(--fg-1)', font: 'inherit', cursor: 'pointer' }}>Neu senden</button>
         </>
+      )}
+      {m.undelivered && (
+        <span style={{ color: 'var(--danger)', fontWeight: 600 }}
+          data-tip={`Ein Rückläufer kam zurück: ${m.undelivered}`}>nicht zugestellt</span>
       )}
       {(error || again.error) && <span style={{ color: 'var(--danger)' }}>{error || again.error}</span>}
       {draft && (

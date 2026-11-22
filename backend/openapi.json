@@ -12954,6 +12954,17 @@
             "title": "Failed",
             "default": false
           },
+          "undelivered": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undelivered"
+          },
           "attachments": {
             "items": {
               "$ref": "#/components/schemas/Attachment"

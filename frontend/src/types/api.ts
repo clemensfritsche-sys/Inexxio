@@ -5529,6 +5529,8 @@ export interface components {
              * @default false
              */
             failed: boolean;
+            /** Undelivered */
+            undelivered?: string | null;
             /**
              * Attachments
              * @default []

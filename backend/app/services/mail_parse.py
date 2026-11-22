@@ -7,8 +7,12 @@ gelesen wird (``NEVER``). Reine Funktionen – darum auch einzeln prüfbar.
 
 import base64
 import re
+from dataclasses import dataclass
+from email.utils import parseaddr
 from html.parser import HTMLParser
 from typing import Any, Optional
+
+from ..domain import communication as dc
 
 
 MAX_BODY = 20_000
@@ -124,6 +128,48 @@ def _parts(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for p in payload.get("parts") or []:
         out += _parts(p)
     return out
+
+
+@dataclass
+class Bounce:
+    """Eine Unzustellbar-Meldung: welche unserer Mails, an wen, warum."""
+    original: str           # die ``Message-ID`` unserer Mail
+    recipients: str         # an wen sie nicht ging
+    reason: str             # der Satz des empfangenden Servers (gekürzt)
+
+
+_ID = re.compile(r"<[^<>\s]+@[^<>\s]+>")
+_DIAG = re.compile(r"^Diagnostic-Code:\s*(?:smtp;\s*)?(.+)$", re.I | re.M)
+_STATUS = re.compile(r"^Status:\s*(.+)$", re.I | re.M)
+
+
+def bounce(payload: dict[str, Any], head: dict[str, str]) -> Optional[Bounce]:
+    """►►► **Ein Rückläufer – erkannt an seiner Form, zugeordnet über unsere Kennung.** ◄◄◄
+
+    Eine Unzustellbar-Meldung (RFC 3464: ``multipart/report`` mit ``delivery-status``, oder
+    ``X-Failed-Recipients``, oder ein Absender wie ``mailer-daemon``) trägt die Kopfzeilen der
+    Mail, die nicht ankam. Gesucht wird darin **eine Kennung, die das ERP vergeben hat**
+    (``communication.ours``) – sonst ist es kein Rückläufer einer unserer Mails (``None``)."""
+    ctype = head.get("content-type", "").lower()
+    sender = parseaddr(head.get("from", ""))[1].split("@")[0]
+    if not ("delivery-status" in ctype or "x-failed-recipients" in head
+            or re.search(r"mailer-daemon|postmaster", sender, re.I)):
+        return None
+    texts, ids = [], [head.get("references", ""), head.get("in-reply-to", "")]
+    for part in _parts(payload):
+        ids += [h.get("value", "") for h in part.get("headers") or []
+                if h.get("name", "").lower() in {"message-id", "references", "in-reply-to"}]
+        if part.get("mimeType", "").startswith(("text/", "message/")):
+            texts.append(_decode(part))
+    ids += [m for t in texts for m in re.findall(r"^Message-ID:\s*(<[^>]+>)", t, re.I | re.M)]
+    original = next((m for raw in ids for m in _ID.findall(raw) if dc.ours(m)), None)
+    if original is None:
+        return None
+    found = re.findall(r"^Final-Recipient:\s*(?:rfc822;\s*)?(\S+)", "\n".join(texts), re.I | re.M)
+    recipients = head.get("x-failed-recipients", "") or ", ".join(dict.fromkeys(found))
+    diag = _DIAG.search("\n".join(texts)) or _STATUS.search("\n".join(texts))
+    reason = " ".join((diag.group(1) if diag else "").split())[:300]
+    return Bounce(original=original, recipients=recipients.strip()[:300], reason=reason)
 
 
 def _text(payload: dict[str, Any]) -> str:
