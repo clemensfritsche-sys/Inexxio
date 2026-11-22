@@ -624,7 +624,8 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
   wie sein Rechnername** (Verweis); eine Anfrage ohne gezählten Besuch ist «Ohne gezählten Besuch».
 - **Gezeigt** im Reiter «Website» am Betreiber (`components/erp/site-stats.tsx`, jedes Personal,
   `GET /erp/site-stats?days=7|30|90|365`): Anfragen · Anrufe · Besuche · Quote · Newsletter mit
-  Vorzeitraum, Verlauf, Quellen, Europakarte (`lib/europe-map.ts`, Natural Earth, generiert),
+  Vorzeitraum, Verlauf, Quellen, Weltkarte (`components/erp/geo-map.tsx`, dieselbe wie die
+  Gebietskarte; Ausschnitt Welt · Europa),
   Seiten nach Anfragen, Formular, Gerät und Sprache, Ladezeit, die Anfragen mit Quelle.
 - Offen: Suchbegriffe aus der Google Search Console (Etappe 3).
 

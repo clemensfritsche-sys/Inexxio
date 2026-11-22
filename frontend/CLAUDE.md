@@ -127,8 +127,8 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `stock-view.tsx`, `stock-bar.tsx`, `unit-number(s).tsx` | Bestand (Artikel- und Instanz-Umfang) · Leiste · Stücknummern |
 | `place-trail.tsx`, `obj-id.tsx` | Ortskette eines Stücks · Objektnummer als Kennung (`.erp-objid`) |
 | `time/` | **Zeiterfassung**: `time-card` (die Karte im Personendatensatz), `time-swipe` (Kommen ↔ Gehen), `time-calendar` (Monat, abgeschlossene Tage blass), `time-day` (Tag + «Erfassen», Vorschau vom Server), `time-contracts` (Verträge, Buchungen), `company-time` (Feiertage, Absenzarten, Regeln an der Gesellschaft), `time-ui` (Formate in Minuten, Symbole – getippt gegen `TimeIconName`) |
-| `territory-map.tsx`, `world-map.tsx` | Gebietskarte |
-| `site-stats.tsx` | **Website-Statistik** – Reiter «Website» am Betreiber (lädt erst beim Öffnen): Kennzahlen mit Vorzeitraum, Verlauf, Quellen, Europakarte (`lib/europe-map.ts`, generiert), Seiten, Formular, Gerät, Ladezeit, Anfragen; `qk.siteStats` |
+| `geo-map.tsx`, `territory-map.tsx` | **Die eine Weltkarte** (`lib/world-map.ts`, erzeugt von `scripts/world-map.py` aus Natural Earth 1:50m, Equal Earth; Ausschnitt Welt · Europa): Länder als Umrisse, Farbe/Hover/Klick je Land vom Aufrufer · die Gebietskarte darauf (jedes Land in der Farbe der Gesellschaft, die es fakturiert; Klick wählt seine Region) |
+| `site-stats.tsx` | **Website-Statistik** – Reiter «Website» am Betreiber (lädt erst beim Öffnen): Kennzahlen mit Vorzeitraum, Verlauf, Quellen, Weltkarte (`geo-map.tsx`, umschaltbar auf Europa), Seiten, Formular, Gerät, Ladezeit, Anfragen; `qk.siteStats` |
 | `detail-tabs.tsx`, `error-boundary.tsx` | Hilfen |
 
 ## Design System (VERBINDLICH)
