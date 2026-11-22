@@ -46,7 +46,7 @@ from sqlalchemy.orm import Session
 from ..core import clock, signed
 from ..core.config import get_settings
 from ..models import UserProfile
-from . import ai, ai_tools, handgriff, log
+from . import ai, ai_tools, handgriff, log, talk
 from ..domain import policy
 from ..domain.errors import NotFound
 
@@ -64,10 +64,27 @@ LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 INSTRUCTIONS = (
     "Das ERP von INEXXIO. Du arbeitest als die angemeldete Person, mit ihren Rechten. Suche "
-    "Datensätze mit `find`, lies sie mit `record` und `history`, frage das Wissen mit `wissen`. "
+    "Datensätze mit `find`, lies sie mit `record` und `history`, frage das Wissen mit `wissen`, "
+    "frühere Gespräche der Person (im «+» des ERP) mit `gespraeche`. "
     "Was das ERP kann, findest du mit `handlungen` und `handlung`; lesende Routen rufst du mit "
     "`abrufen`. Ändern heisst: mit `vorbereiten` einen Handgriff vorbereiten – die Person führt "
     "ihn im ERP aus. Nenne Datensätze immer mit Nummer und Name.")
+
+
+def production() -> bool:
+    """Ist dies die Produktion (echte Daten) – oder eine Testumgebung (``APP_ENV``)?"""
+    return get_settings().app_env.lower() == "production"
+
+
+def title() -> str:
+    """►► **Der Server sagt selbst, wo er läuft** – auch wenn der Connector in Claude anders heisst."""
+    return "INEXXIO ERP" if production() else "INEXXIO ERP – Testumgebung"
+
+
+def instructions() -> str:
+    where = ("Produktion: echte Daten, echte Kunden." if production()
+             else "TESTUMGEBUNG (Staging): Testdaten – nichts davon ist echt, nichts geht an Kunden.")
+    return f"{where} {INSTRUCTIONS}"
 
 
 class Problem(Exception):
@@ -101,7 +118,7 @@ def protected_resource() -> dict[str, Any]:
     """RFC 9728 – wo man sich für das ERP anmeldet."""
     return {"resource": resource(), "authorization_servers": [base()],
             "scopes_supported": [SCOPE], "bearer_methods_supported": ["header"],
-            "resource_name": "INEXXIO ERP"}
+            "resource_name": title()}
 
 
 def authorization_server() -> dict[str, Any]:
@@ -181,10 +198,11 @@ def _ask(r: str) -> dict[str, Any]:
         raise Problem("invalid_request", f"{e} Bitte im Claude-Client neu verbinden.")
 
 
-def describe(r: str) -> dict[str, str]:
-    """Was die Person erlaubt: welcher Client, zurück wohin."""
+def describe(r: str) -> dict[str, Any]:
+    """Was die Person erlaubt: welcher Client, zurück wohin – und an welchen Server."""
     a = _ask(r)
-    return {"client": a["n"], "host": urlsplit(a["ru"]).hostname or "", "redirect": a["ru"]}
+    return {"client": a["n"], "host": urlsplit(a["ru"]).hostname or "", "redirect": a["ru"],
+            "server": title(), "production": production()}
 
 
 def _back(a: dict[str, Any], **params: str) -> str:
@@ -359,7 +377,8 @@ def tools(db: Session, person: UserProfile, grant: int) -> list[ai.Tool]:
         h = handgriff.get(db, hid)
         return f" Die Person führt ihn im ERP aus: {base()}/erp?open={h.object_id}"
 
-    return [*ai_tools.tools_for(db, person), *ai_tools.erp_tools(prepare, person, where)]
+    return [*ai_tools.tools_for(db, person), talk.past_tool(db, person),
+            *ai_tools.erp_tools(prepare, person, where)]
 
 
 def _schema(t: ai.Tool) -> dict[str, Any]:
@@ -386,8 +405,8 @@ def handle(db: Session, person: UserProfile, grant: int, msg: Any) -> Optional[d
         asked = params.get("protocolVersion")
         return _result(rid, {"protocolVersion": asked if asked in PROTOCOLS else PROTOCOLS[0],
                              "capabilities": {"tools": {"listChanged": False}},
-                             "serverInfo": {"name": "inexxio", "title": "INEXXIO ERP", "version": "1"},
-                             "instructions": INSTRUCTIONS})
+                             "serverInfo": {"name": "inexxio", "title": title(), "version": "1"},
+                             "instructions": instructions()})
     if method == "ping":
         return _result(rid, {})
     if method == "tools/list":

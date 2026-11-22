@@ -3601,6 +3601,16 @@ export interface components {
             host: string;
             /** Redirect */
             redirect: string;
+            /**
+             * Server
+             * @default INEXXIO ERP
+             */
+            server: string;
+            /**
+             * Production
+             * @default true
+             */
+            production: boolean;
         };
         /** Attachment */
         Attachment: {

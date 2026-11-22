@@ -30,7 +30,8 @@ def _code(person, client_id: str, challenge: str) -> str:
     page = mcp.ask({"client_id": client_id, "redirect_uri": REDIRECT, "response_type": "code",
                     "code_challenge": challenge, "code_challenge_method": "S256", "state": "xyz"})
     r = parse_qs(urlsplit(page).query)["r"][0]
-    assert mcp.describe(r) == {"client": "Claude", "host": "claude.ai", "redirect": REDIRECT}
+    assert {k: v for k, v in mcp.describe(r).items() if k in ("client", "host", "redirect")} == \
+        {"client": "Claude", "host": "claude.ai", "redirect": REDIRECT}
     back = parse_qs(urlsplit(mcp.approve(person, r, True)).query)
     assert back["state"] == ["xyz"]
     return back["code"][0]
@@ -57,7 +58,7 @@ def test_a_claude_client_connects_asks_refreshes_and_is_cut_off(db, make_person)
     assert hello["result"]["protocolVersion"] == "2025-06-18"
     names = {t["name"] for t in mcp.handle(db, who, grant, {"jsonrpc": "2.0", "id": 2,
                                                             "method": "tools/list"})["result"]["tools"]}
-    assert {"find", "record", "history", "wissen", "handlungen", "handlung", "abrufen",
+    assert {"find", "record", "history", "wissen", "gespraeche", "handlungen", "handlung", "abrufen",
             "vorbereiten"} <= names
     assert "ausfuehren" not in names                       # ausgeführt wird im ERP
     found = mcp.handle(db, who, grant, {"jsonrpc": "2.0", "id": 3, "method": "tools/call",

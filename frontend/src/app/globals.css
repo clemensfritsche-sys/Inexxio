@@ -127,10 +127,10 @@
 }
 .ix-login-mail svg { flex: none; width: 17px; height: 17px; }
 
-/* Rote Hauptaktion als Pille – auch auf /login/verify. */
+/* Rote Hauptaktion (volle Breite, 6 px wie jeder Knopf) – Anmeldung, /login/verify, «Claude verbinden». */
 .ix-submit-btn {
   display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 48px; margin-top: 20px;
-  border: 0; border-radius: 999px; background: var(--inexxio-red); color: #fff; font: 600 15px/1 var(--font-body);
+  border: 0; border-radius: var(--r-md); background: var(--inexxio-red); color: #fff; font: 600 15px/1 var(--font-body);
   text-decoration: none; cursor: pointer; transition: background 0.2s;
 }
 .ix-submit-btn:hover:not(:disabled) { background: var(--inexxio-red-deep); color: #fff; }
@@ -140,6 +140,18 @@
   font: 500 13px/1.4 var(--font-body); color: var(--fg-3); text-decoration: underline; text-underline-offset: 3px;
 }
 .ix-login-link:hover { color: var(--fg-1); }
+.ix-login-link:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* «Claude verbinden» (/erp/verbinden): dieselbe Karte wie die Anmeldung, auf ruhigem Grund. */
+.ix-connect { display: flex; min-height: calc(100vh - var(--site-header-h, 64px)); padding: 48px 16px; background: var(--bg-2); }
+.ix-connect .ix-login-card { animation: none; }
+.ix-connect-stage {
+  display: inline-block; margin: 0 0 4px; padding: 4px 10px; border-radius: var(--r-sm);
+  background: var(--warning-bg); color: var(--warning); font: 600 12px/1.4 var(--font-body);
+}
+.ix-connect-list { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 10px; text-align: left; }
+.ix-connect-list li { display: flex; gap: 10px; align-items: flex-start; font: 400 14px/1.45 var(--font-body); color: var(--fg-2); }
+.ix-connect-list svg { flex: none; width: 17px; height: 17px; margin-top: 1px; color: var(--fg-3); }
 
 /* Spinner (weiss auf Rot; auf hellem Grund mit `ix-spinner--ink`). */
 .ix-spinner {

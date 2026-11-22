@@ -456,13 +456,15 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   bleibt immer stehen** (Stecknadel und Anhänge als Chips darin; Dateien auch mit Ctrl+V oder
   hineinziehen); **vor dem Senden gibt es nichts am Server**, was im Feld steht, ist der Entwurf
   (`lib/draft`, nur im Browser, bleibt beim Schliessen). Darüber das Gespräch (Blasen, die Antwort
-  der KI als Markdown – sie formatiert, wie sie will; Vorschlag-Karten `handgriff-card.tsx`), «←»
+  der KI als Markdown – sie formatiert, wie sie will; Vorschlag-Karten `handgriff-card.tsx` – **offene stehen gesammelt zuunterst**, übernommene und
+  weggelegte dort, wo sie geschahen), «←»
   zurück zur Übersicht: «Offene Gespräche» und «Neu anlegen». **Die Antwort kommt live**
   (`talk.stream`, NDJSON): die Nachricht steht sofort, darunter jeder Schritt der KI («liest …»,
   «bereitet vor: …»), dann ihr Text Wort für Wort (`{text}`); solange ist ➤ der Stopp (`talk.stop`). Das Gespräch läuft
   **direkt am Dienst** (`BACKEND_URL`, `GET …/assistant/door`) – nicht durch das Hosting mit seinen
   60 s; begrenzt durch Schritte, Deckel und «Stopp», die Uhr (240 s, Cloud Run 300 s) ist nur das
-  Netz. Die KI arbeitet in eigenem Faden und eigener Sitzung; reisst die Leitung, arbeitet sie zu
+  Netz. Die KI liest auch die früheren Gespräche der Person (`gespraeche`, nur die eigenen).
+  Die KI arbeitet in eigenem Faden und eigener Sitzung; reisst die Leitung, arbeitet sie zu
   Ende. Eine Sperre je Gespräch: Stream und Takt antworten nie beide. 📷/📄 legen die Datei in den Korb und hängen sie an die Nachricht – die KI liest sie
   und bereitet das Dokument vor («Öffnen» öffnet den Dokument-Entwurf mit der Datei; mit
   der Freigabe ist der Vorschlag erledigt, `…/done`). Die Zahl am «+» = meine offenen Gespräche und
@@ -476,7 +478,9 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
 - **Claude über MCP** (`services/mcp.py`, `routers/mcp.py`, Projektakte `docs/konzept/mcp.md`):
   der eigene Claude der Person (Claude.ai, Desktop, Code) verbindet sich mit `/api/v1/mcp` und
   arbeitet **als die Person** – mit denselben Werkzeugen wie das «+» (`ai_tools.tools_for` ·
-  `erp_tools`), aber mit ihren Rechten. Er liest und bereitet vor; ein Vorschlag aus Claude ist
+  `erp_tools`, dazu `gespraeche` = ihre früheren Gespräche im «+», `talk.past`), aber mit ihren Rechten. Der Server
+  sagt selbst, wo er läuft (`mcp.title`: «INEXXIO ERP» bzw. «… – Testumgebung», aus `APP_ENV`), auch auf
+  der Seite «Claude verbinden» (gestaltet wie die Anmeldung). Er liest und bereitet vor; ein Vorschlag aus Claude ist
   privat (`payload.mcp`) und wird in «Auf einen Blick» am Datensatz übernommen – nie über MCP. Anmelden ist OAuth 2.1 über die bestehende Anmeldung, **ohne Tabelle**:
   Client-Kennung, Code und Zugang sind signiert (`core/signed`), der Code (PKCE S256) gilt genau
   einmal (`mcp.grant`, eindeutiger Index), getrennt ist getrennt (`mcp.revoked`); nur Personal.

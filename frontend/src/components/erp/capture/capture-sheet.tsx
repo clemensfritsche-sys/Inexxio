@@ -438,15 +438,20 @@ function TalkView({ talk, phase, onBack, onLeave, onChanged }: {
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }); },
     [talk.messages.length, talk.handgriffe.length, steps?.length, said?.length]);
-  // **Erst die Antwort, dann ihre Vorschläge**: die KI bereitet einen Vorschlag vor, bevor ihr
-  // Text gespeichert ist – darum steht er hinter der nächsten Antwort der KI, nicht davor.
+  // **Was noch zu entscheiden ist, steht zuunterst** (Rückmeldung 22.11.2026): offene und wartende
+  // Vorschläge gesammelt unter der letzten Antwort, in der Reihe, in der sie entstanden – wie eine
+  // Liste «noch zu tun». Übernommene und weggelegte bleiben, wo sie geschahen: hinter der Antwort der
+  // KI, die sie vorbereitete (sie entsteht vor ihrem Text, darum hinter der nächsten Antwort).
   const answers = talk.messages.filter((m) => m.by === 'ai').map((m) => m.id);
   const after = (id: number) => (answers.find((a) => a > id) ?? id) + 0.5;
+  const live = (h: Talk['handgriffe'][number]) => h.state === 'open' || h.state === 'waiting';
+  const card = (h: Talk['handgriffe'][number]) =>
+    <HandgriffCard key={`h${h.id}`} h={h} onChanged={onChanged} onLeave={onLeave} />;
   const items = [
     ...talk.messages.map((m) => ({ order: m.id, el: <Bubble key={`m${m.id}`} m={m} /> })),
-    ...talk.handgriffe.map((h) => ({ order: after(h.id),
-      el: <HandgriffCard key={`h${h.id}`} h={h} onChanged={onChanged} onLeave={onLeave} /> })),
+    ...talk.handgriffe.filter((h) => !live(h)).map((h) => ({ order: after(h.id), el: card(h) })),
   ].sort((a, b) => a.order - b.order);
+  const pending = talk.handgriffe.filter(live).sort((a, b) => a.id - b.id);
   return (
     <div className="erp-talk">
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -459,6 +464,7 @@ function TalkView({ talk, phase, onBack, onLeave, onChanged }: {
       </div>
       {items.map((x) => x.el)}
       {working && <Skeleton steps={steps} said={said} />}
+      {pending.map(card)}
       {!working && talk.problem && <p className="erp-capture-hint" role="status">{talk.problem}</p>}
       <div ref={end} />
     </div>

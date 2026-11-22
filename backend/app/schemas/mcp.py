@@ -11,6 +11,10 @@ class AskOut(BaseModel):
     host: str
     #: Die volle Adresse, an die der Code geht – die Person sieht, wohin sie ihn gibt.
     redirect: str
+    #: Wie der Server sich nennt – «INEXXIO ERP» oder «INEXXIO ERP – Testumgebung» (``mcp.title``).
+    server: str = "INEXXIO ERP"
+    #: Produktion (echte Daten) oder eine Testumgebung.
+    production: bool = True
 
 
 class ApproveIn(BaseModel):

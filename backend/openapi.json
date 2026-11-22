@@ -8920,6 +8920,16 @@
           "redirect": {
             "type": "string",
             "title": "Redirect"
+          },
+          "server": {
+            "type": "string",
+            "title": "Server",
+            "default": "INEXXIO ERP"
+          },
+          "production": {
+            "type": "boolean",
+            "title": "Production",
+            "default": true
           }
         },
         "type": "object",

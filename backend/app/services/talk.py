@@ -264,6 +264,56 @@ def _last_said(db: Session, talk_id: int) -> int:
         "AND (id = :t OR (payload ->> 'talk')::bigint = :t)"), {"t": talk_id}).scalar() or 0)
 
 
+#: Die Gespräche einer Person, die neuesten zuerst – auf Wunsch nur die, in denen ein Wort fällt.
+_PAST = text("""
+SELECT t.id, t.at, t.payload ->> 'text' AS first FROM log t
+ WHERE t.event = 'talk' AND t.payload ->> 'talk' IS NULL AND t.actor_id = :me AND t.id <> :skip
+   AND (:q = '' OR EXISTS (SELECT 1 FROM log m WHERE m.event = 'talk'
+                             AND (m.id = t.id OR (m.payload ->> 'talk')::bigint = t.id)
+                             AND m.payload ->> 'text' ILIKE '%' || :q || '%'))
+ ORDER BY t.id DESC LIMIT 20""")
+
+_STATE = {"open": "offen", "waiting": "wartet", "done": "übernommen", "dropped": "weggelegt"}
+
+
+def _short(value: str, n: int = 90) -> str:
+    one = " ".join((value or "").split())
+    return one if len(one) <= n else one[: n - 1] + "…"
+
+
+def past(db: Session, person: UserProfile, *, q: str = "", talk_id: int = 0, skip: int = 0) -> str:
+    """►►► **Frühere Gespräche der Person** – für ihre KI im «+» und für ihren Claude (MCP)
+    dieselbe Antwort. Ohne ``talk_id`` die Liste (neueste zuerst, höchstens 20, auf Wunsch nur mit
+    einem Wort), mit ``talk_id`` ein Gespräch ganz: was gesagt wurde und jeder Vorschlag mit seinem
+    Ausgang. Ein Gespräch ist privat – gelesen werden nur die eigenen. ◄◄◄"""
+    if talk_id:
+        first = assert_may(db, talk_id, person)
+        if first.actor_id != person.object_id:
+            raise NotFound(f"Gespräch «{talk_id}» gibt es nicht.")
+        out = view(db, talk_id)
+        lines = [f"Gespräch {talk_id} vom {out.at:%d.%m.%Y}:"]
+        lines += [f"{'Person' if m.by == 'person' else 'KI'}: {m.text}" for m in out.messages]
+        lines += [f"Vorschlag {h.id} ({_STATE.get(h.state, h.state)}): {h.line}" for h in out.handgriffe]
+        return "\n".join(lines)
+    rows = db.execute(_PAST, {"me": person.object_id or 0, "skip": skip, "q": (q or "").strip()}).all()
+    if not rows:
+        return "Keine früheren Gespräche" + (f" mit «{q}»." if q else ".")
+    return "\n".join(f"Gespräch {r.id} · {r.at:%d.%m.%Y} · {_short(r.first)}" for r in rows)
+
+
+def past_tool(db: Session, person: UserProfile, skip: int = 0) -> ai.Tool:
+    """Das Werkzeug dazu – im «+» und über MCP dasselbe."""
+    return ai.Tool(
+        "gespraeche", "Frühere Gespräche der Person mit dem Assistenten im ERP («+»): ohne "
+        "`gespraech` die Liste (neueste zuerst, mit `suche` nur die, in denen das Wort fällt), mit "
+        "`gespraech` eines ganz – was gesagt wurde und jeder Vorschlag mit seinem Ausgang.",
+        {"suche": {"type": "string", "description": "Ein Wort, das im Gespräch fällt (optional)"},
+         "gespraech": {"type": "integer", "description": "Nummer eines Gesprächs aus der Liste"}},
+        lambda a: past(db, person, q=str(a.get("suche") or ""), talk_id=int(a.get("gespraech") or 0),
+                       skip=skip),
+        doing="liest frühere Gespräche")
+
+
 def tools(db: Session, person: UserProfile, talk_id: int, home: int) -> list[ai.Tool]:
     """Lesen wie jedes Personal (``ai_tools``), dazu die Handlungen des ERP: Felder nachlesen,
     abrufen, vorbereiten (mit Probelauf), weglegen. **Ausführen gibt es nicht** – die Person
@@ -280,7 +330,8 @@ def tools(db: Session, person: UserProfile, talk_id: int, home: int) -> list[ai.
         handgriff.drop(db, person, h.id, by="ai")
         return f"Handgriff {h.id} ist weggelegt."
 
-    return [*ai_tools.tools_for(db), *ai_tools.erp_tools(prepare, lookup=False),
+    return [*ai_tools.tools_for(db), past_tool(db, person, skip=talk_id),
+            *ai_tools.erp_tools(prepare, lookup=False),
             ai.Tool("weglegen", "Einen Vorschlag dieses Gesprächs weglegen (die Person will ihn "
                     "nicht, oder du ersetzt ihn durch einen neuen).",
                     {"handgriff": {"type": "integer"}}, drop, doing="legt weg: Vorschlag")]
