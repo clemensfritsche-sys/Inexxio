@@ -3,7 +3,7 @@
 > Generiert nach jedem `npm run build`. Nicht von Hand ändern – sobald ein Foto in
 > `src/config/photos.mjs` eine Datei hat, verschwindet seine Zeile von selbst.
 
-**Stand:** 0 Fotos blockieren den Start · 9 für später · 2 abgeschaltete Sektionen
+**Stand:** 0 Fotos blockieren den Start · 9 für später · 1 abgeschaltete Sektion
 
 ## Blockiert den Start
 
@@ -38,4 +38,3 @@ Keine.
 ## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)
 
 - `craneReferences` – abgeschaltet (der Grund steht beim Schalter).
-- `guarantees` – abgeschaltet (der Grund steht beim Schalter).
