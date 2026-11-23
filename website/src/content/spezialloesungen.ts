@@ -63,7 +63,7 @@ export const spezialloesungen: SubPage = t('spezialloesungen', {
     promiseFaq.garantie,
     {
       q: 'Bleibt die Lösung bei Ihnen in Betreuung?',
-      a: 'Ja. Wartung, Reparatur und Ersatzteile kommen aus demselben Betrieb, der sie gebaut hat.',
+      a: 'Ja. Wartung, Reparatur und Ersatzteile kommen aus demselben Betrieb, der sie gebaut hat. Weil wir selbst bauen, reparieren wir auch, was wir kennen: Hydraulik, Mechanik und Schlosserarbeiten für die Industrie, für Kies- und Betonwerke und für die Hoftechnik in der Landwirtschaft.',
     },
   ],
   related: [
