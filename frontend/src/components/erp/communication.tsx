@@ -78,7 +78,9 @@ import { errorText } from '@/lib/use-action';
 
 // ─── Die Ansicht ────────────────────────────────────────────────────────────
 
-export function Communication({ person, company, ownCompany, me }: {
+export function Communication({ person, company, ownCompany, me, changes = false }: {
+  /** Die Änderungen aus dem Log im Verlauf zeigen (`history.ChangesSwitch`). */
+  changes?: boolean;
   /** Person: Verlauf mit Eingabe. */
   person?: Person;
   /** Firma: der Verlauf ihrer Personen, nur lesend. */
@@ -140,7 +142,7 @@ export function Communication({ person, company, ownCompany, me }: {
           demselben Schlüssel (beide die Nummer) liess React den Verlauf doppelt aufbauen. */}
       <History objectId={objectId} mirror={!person} personId={personId} meId={me?.object_id}
         onReply={writable ? (m) => setTarget({ m, n: Date.now() }) : undefined}
-        onDone={writable ? done : undefined} sending={sending} />
+        onDone={writable ? done : undefined} sending={sending} changes={changes} />
       {writable && person && me && messages && (
         <Composer person={person} me={me} channels={channels}
           target={target} topics={topics} onSent={changed} onSending={setSending} />

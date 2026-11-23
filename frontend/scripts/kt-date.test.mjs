@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { load } from './lib/source.mjs';
 
 const { maskDate } = await load('components/form/kt-section.tsx', {
-  './field': 'export const Input = () => null;',
+  './field': 'export const Input = () => null; export const Select = () => null;',
   '@/lib/lang': 'export const useT = () => (s) => s;',
 });
 

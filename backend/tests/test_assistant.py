@@ -17,7 +17,7 @@ import random
 from contextlib import nullcontext
 
 import pytest
-from app.domain.errors import Rejected
+from app.domain.errors import NotFound, Rejected
 from fastapi.testclient import TestClient
 
 from app.core.actor import act
@@ -466,3 +466,64 @@ def test_at_a_glance_is_ready_before_anyone_opens(db, house, monkeypatch):
     assert pins.ahead(db, time.monotonic() + 30) == 0      # nichts mehr fällig
     assert len(script.seen) == 2
     assert pins.pinned(db, firm.object_id, boss).stale is False
+
+
+# ─── Frühere Gespräche (22.11.2026) ─────────────────────────────────────────────────────
+
+def test_the_ai_reads_earlier_talks_of_the_person_only(db, house):
+    """Die KI im «+» und Claude über MCP lesen dieselben früheren Gespräche – nur die eigenen der
+    Person, mit dem, was gesagt wurde, und dem Ausgang jedes Vorschlags; eine Suche nach einem Wort
+    findet nur Gespräche, in denen es fällt."""
+    boss, staff, firm = house
+    old = talk.say(db, staff, "Kran 3 bei Muster quietscht.")
+    hid, out = handgriff.prepare(db, staff, method="POST", path="/api/v1/erp/messages",
+                                 body=_note(firm.object_id, "Kran 3 quietscht"), line="Notiz: Kran 3",
+                                 home=firm.object_id, talk=old)
+    assert hid, out.detail
+    talk.say(db, staff, "Etwas anderes.")
+    foreign = talk.say(db, boss, "Geheim vom Chef.")
+
+    listed = talk.past(db, staff)
+    assert f"Gespräch {old}" in listed and "Etwas anderes" in listed and "Geheim" not in listed
+    assert "Etwas anderes" not in talk.past(db, staff, q="Kran")
+    whole = talk.past(db, staff, talk_id=old)
+    assert "Kran 3 bei Muster quietscht." in whole and f"Vorschlag {hid} (offen)" in whole
+    with pytest.raises(NotFound):
+        talk.past(db, staff, talk_id=foreign)
+
+
+def test_the_mcp_server_says_where_it_runs(monkeypatch):
+    """Der Server nennt selbst, ob er die Produktion ist – auch wenn der Connector anders heisst."""
+    from app.core.config import get_settings
+    from app.services import mcp
+    monkeypatch.setattr(get_settings(), "app_env", "development")
+    assert "Testumgebung" in mcp.title() and mcp.instructions().startswith("TESTUMGEBUNG")
+    monkeypatch.setattr(get_settings(), "app_env", "production")
+    assert mcp.title() == "INEXXIO ERP" and mcp.instructions().startswith("Produktion")
+
+
+def test_proposals_from_claude_stand_in_the_plus_like_a_talk(db, house):
+    """Ein Vorschlag aus Claude steht im «+» wie einer aus einem Gespräch: je Verbindung ein
+    «Gespräch» ohne Nachrichten, offen, solange ein Vorschlag offen ist; privat; und jeder offene
+    eigene Vorschlag ist eine Aufgabe nur für die Person, die ihn vorbereiten liess."""
+    from app.services import log as logsvc, tasks
+    boss, staff, firm = house
+    grant = logsvc.event(db, "mcp.grant", staff.object_id, {"nonce": "n1", "client": "Claude"})
+    hid, out = handgriff.prepare(db, staff, method="POST", path="/api/v1/erp/messages",
+                                 body=_note(firm.object_id, "Aus Claude"), line="Notiz aus Claude",
+                                 home=staff.object_id, mcp=grant)
+    assert hid, out.detail
+
+    (entry,) = [t for t in talk.open_list(db, staff) if t.source == "claude"]
+    assert entry.id == grant and entry.client == "Claude" and entry.open and entry.messages == []
+    assert [h.id for h in entry.handgriffe] == [hid]
+    assert talk.any_view(db, grant, staff).id == grant
+    with pytest.raises(NotFound):
+        talk.any_view(db, grant, factories.new_person(db, "employee"))
+
+    own = [t for t in tasks._proposals(db) if t.only == staff.object_id]
+    assert [(t.object_id, t.part) for t in own] == [(firm.object_id, "handgriffe")]
+
+    handgriff.drop(db, staff, hid)
+    assert not [t for t in talk.open_list(db, staff) if t.source == "claude"]
+    assert not [t for t in tasks._proposals(db) if t.only == staff.object_id]

@@ -1,19 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, Eye, FileCheck2, Unplug } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { McpAsk } from '@/types';
 import { errorText, useAction } from '@/lib/use-action';
-import { StageWord } from '@/components/beleg/paper';
-import css from '@/components/beleg/beleg.module.css';
 
 /**
  * ►►► **Claude verbinden** – hierher schickt ein Claude-Client (Claude.ai, Desktop, Code) die
  * Person, wenn sie das ERP als Connector hinzufügt (`services/mcp`). ◄◄◄
  *
- * Angemeldet ist sie über das ERP-Layout (`AuthGate staffOnly`, mit Rücksprung samt `?r=`). Sie
- * sieht, welcher Client was darf, und erlaubt oder lehnt ab; danach geht es zurück zum Client.
+ * Gestaltet wie die Anmeldung (`.ix-login-card`, `app/globals.css`): eine Karte, ein Satz, was
+ * Claude darf, die eine rote Handlung «Erlauben», darunter leise «Ablehnen». In einer Testumgebung
+ * steht das oben (der Server sagt es, `mcp.title`) – damit niemand Test und Produktion verwechselt.
+ * Angemeldet ist die Person über das ERP-Layout (`AuthGate staffOnly`, mit Rücksprung samt `?r=`).
  */
 export default function ConnectClaude() {
   const [r, setR] = useState<string | null>(null);
@@ -34,33 +34,33 @@ export default function ConnectClaude() {
   });
 
   return (
-    <div className={css.page}>
-      <StageWord word="Claude verbinden" />
-      <div className={css.wrap}>
+    <div className="ix-connect">
+      <div className="ix-login-card">
         {failed ? (
-          <div className={css.note} role="alert">
-            <h2 className={css.noteTitle}>Das geht so nicht.</h2>
-            <p className={css.noteText}>{failed}</p>
-          </div>
-        ) : ask && (
-          <div className={css.note}>
-            <h2 className={css.noteTitle}>{ask.client} möchte mit dem ERP arbeiten – in Ihrem Namen.</h2>
-            <p className={css.noteText}>
-              Er liest, was Sie im ERP sehen, und bereitet Vorschläge vor. Übernehmen tun Sie im ERP
-              («Auf einen Blick» am Datensatz). Trennen können Sie jederzeit unter Konto · Sicherheit.
-            </p>
-            <p className={css.noteText}>Zurück geht es an: <code style={{ wordBreak: 'break-all' }}>{ask.redirect}</code></p>
-          </div>
+          <>
+            <h1>Das geht so nicht.</h1>
+            <p className="ix-login-sub" role="alert">{failed}</p>
+          </>
+        ) : ask ? (
+          <>
+            {!ask.production && <p className="ix-connect-stage">{ask.server}</p>}
+            <h1>Claude verbinden</h1>
+            <p className="ix-login-sub">{ask.client} möchte mit dem ERP arbeiten – in Ihrem Namen, mit Ihren Rechten.</p>
+            <ul className="ix-connect-list">
+              <li><Eye aria-hidden />Liest, was Sie im ERP sehen.</li>
+              <li><FileCheck2 aria-hidden />Bereitet Vorschläge vor – übernehmen tun Sie, am Datensatz.</li>
+              <li><Unplug aria-hidden />Trennen jederzeit unter Konto · Sicherheit.</li>
+            </ul>
+            <button type="button" className="ix-submit-btn" disabled={busy} onClick={() => answer(true)}>
+              <Check size={18} strokeWidth={2.25} aria-hidden />Erlauben
+            </button>
+            <button type="button" className="ix-login-link" disabled={busy} onClick={() => answer(false)}>Ablehnen</button>
+            <p className="ix-login-legal">Zurück an {ask.host}</p>
+          </>
+        ) : (
+          <span className="erp-skel" style={{ display: 'block', height: 120 }} aria-busy="true" aria-label="Lädt" />
         )}
-        {ask && !failed && (
-          <div className={css.acts}>
-            <button type="button" className={`${css.btn} ${css.main}`} disabled={busy}
-              onClick={() => answer(true)}><Check size={18} strokeWidth={2.25} />Erlauben</button>
-            <button type="button" className={`${css.btn} ${css.quiet}`} disabled={busy}
-              onClick={() => answer(false)}><X size={18} strokeWidth={2.25} />Ablehnen</button>
-          </div>
-        )}
-        {error && <p className={css.err} role="alert">{error}</p>}
+        {error && <p className="ix-login-error" role="alert">{error}</p>}
       </div>
     </div>
   );

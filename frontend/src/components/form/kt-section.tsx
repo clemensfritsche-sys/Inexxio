@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useId, useState } from 'react';
-import { Input } from './field';
+import { Input, Select } from './field';
 import { useT } from '@/lib/lang';
 
 /** Ein Abschnitt: links Titel und ein Satz (darunter z. B. «Gespeichert»), rechts die Sache. */
@@ -44,6 +44,23 @@ export function KtField({ id: given, name, label, value, onChange, onEnter, type
         placeholder={placeholder} readOnly={readOnly} autoComplete={autoComplete} list={list}
         onChange={onChange} onEnter={onEnter}
       />
+    </div>
+  );
+}
+
+/** Eine Auswahl in derselben Form wie `KtField` (Sprache, Rolle). */
+export function KtSelect({ id: given, name, label, value, onChange, options }: {
+  name: string; id?: string; label: string; value: string; onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  const auto = useId();
+  const id = given ?? auto;
+  return (
+    <div className="kt-f">
+      <label htmlFor={id}>{label}</label>
+      <Select id={id} name={name} className="kt-input kt-select" value={value} onChange={onChange}>
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </Select>
     </div>
   );
 }

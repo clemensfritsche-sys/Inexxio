@@ -71,7 +71,7 @@ inexxio/
 │                       same-code.mjs (hat sich nur Text geändert, nie Code? – Prüfung für
 │                       Arbeiten an Kommentaren)
 └── docs/             ← adr/ (gültige, mit Kopfstatus; historische in history/adr/) · attic.md · backlog.md (offen, auch die Befunde)
-                         · design-system/ · prozessbild.md · gmail-setup.md · stripe-setup.md
+                         · design-system/ (README = Regeln, reference/assets/logo) · prozessbild.md · gmail-setup.md · stripe-setup.md
                          · passkeys.md · dokumente.md · history/
 ```
 Messwerkzeug: `backend/scripts/deadcode.py` – «was liest eigentlich niemand mehr?» für
@@ -271,7 +271,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   der Person. **Admin wird nur `initial_admin_email`** (beim Login), nie «wer zuerst
   kommt». Personen werden nicht deaktiviert; Personal kann eine Person anlegen
   (`POST /erp/records`, das Anmeldekonto entsteht bei der ersten Anmeldung).
-- **Der Zugang einer Person** (Karte «Zugang» am Personendatensatz, `components/erp/person-access`
+- **Der Zugang einer Person** (Abschnitt «Sicherheit» am Personendatensatz, `components/erp/person-access`
   – dasselbe Bauteil wie «Sicherheit» im Konto; `routers/access.py`): ihre Passkeys (entfernen) und
   ihre Verbindungen mit Claude (trennen), sichtbar und änderbar nur für sie selbst und den Admin
   (`policy` «person.access», `may_access`). Einen Passkey einrichten kann nur die Person auf ihrem
@@ -456,17 +456,21 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
   bleibt immer stehen** (Stecknadel und Anhänge als Chips darin; Dateien auch mit Ctrl+V oder
   hineinziehen); **vor dem Senden gibt es nichts am Server**, was im Feld steht, ist der Entwurf
   (`lib/draft`, nur im Browser, bleibt beim Schliessen). Darüber das Gespräch (Blasen, die Antwort
-  der KI als Markdown – sie formatiert, wie sie will; Vorschlag-Karten `handgriff-card.tsx`), «←»
+  der KI als Markdown – sie formatiert, wie sie will; Vorschlag-Karten `handgriff-card.tsx` – **offene stehen gesammelt zuunterst**, übernommene und
+  weggelegte dort, wo sie geschahen), «←»
   zurück zur Übersicht: «Offene Gespräche» und «Neu anlegen». **Die Antwort kommt live**
   (`talk.stream`, NDJSON): die Nachricht steht sofort, darunter jeder Schritt der KI («liest …»,
   «bereitet vor: …»), dann ihr Text Wort für Wort (`{text}`); solange ist ➤ der Stopp (`talk.stop`). Das Gespräch läuft
   **direkt am Dienst** (`BACKEND_URL`, `GET …/assistant/door`) – nicht durch das Hosting mit seinen
   60 s; begrenzt durch Schritte, Deckel und «Stopp», die Uhr (240 s, Cloud Run 300 s) ist nur das
-  Netz. Die KI arbeitet in eigenem Faden und eigener Sitzung; reisst die Leitung, arbeitet sie zu
+  Netz. Die KI liest auch die früheren Gespräche der Person (`gespraeche`, nur die eigenen).
+  Die KI arbeitet in eigenem Faden und eigener Sitzung; reisst die Leitung, arbeitet sie zu
   Ende. Eine Sperre je Gespräch: Stream und Takt antworten nie beide. 📷/📄 legen die Datei in den Korb und hängen sie an die Nachricht – die KI liest sie
   und bereitet das Dokument vor («Öffnen» öffnet den Dokument-Entwurf mit der Datei; mit
-  der Freigabe ist der Vorschlag erledigt, `…/done`). Die Zahl am «+» = meine offenen Gespräche und
-  Aufnahmen, die nicht abgeschrieben werden konnten (`lib/assistant.useUnfinished`).
+  der Freigabe ist der Vorschlag erledigt, `…/done`). Die Zahl am «+» = meine offenen Gespräche (im ERP und aus Claude) und
+  Aufnahmen, die nicht abgeschrieben werden konnten (`lib/assistant.useUnfinished`) – im Rot der Aufgaben.
+  **Ein Vorschlag hat genau einen Ort, den Datensatz, den er betrifft** – dort wird entschieden; ein offener
+  eigener Vorschlag (aus dem «+» oder aus Claude) ist eine Aufgabe nur für die Person (`tasks._proposals`).
 - **Die Stecknadel = Rückmeldung zur Software** (`lib/pin-point.ts`): auf eine Stelle zeigen →
   «Stelle: Seite · Datensatz · Herkunft (`data-where-*`) · Element» vor dem Text; der Hinweis ist
   der Artikel **«ERP»** (auf `/erp`) bzw. **«Website»**.
@@ -476,15 +480,21 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
 - **Claude über MCP** (`services/mcp.py`, `routers/mcp.py`, Projektakte `docs/konzept/mcp.md`):
   der eigene Claude der Person (Claude.ai, Desktop, Code) verbindet sich mit `/api/v1/mcp` und
   arbeitet **als die Person** – mit denselben Werkzeugen wie das «+» (`ai_tools.tools_for` ·
-  `erp_tools`), aber mit ihren Rechten. Er liest und bereitet vor; ein Vorschlag aus Claude ist
-  privat (`payload.mcp`) und wird in «Auf einen Blick» am Datensatz übernommen – nie über MCP. Anmelden ist OAuth 2.1 über die bestehende Anmeldung, **ohne Tabelle**:
+  `erp_tools`, dazu `gespraeche` = ihre früheren Gespräche im «+», `talk.past`), aber mit ihren Rechten. Der Server
+  sagt selbst, wo er läuft (`mcp.title`: «INEXXIO ERP» bzw. «… – Testumgebung», aus `APP_ENV`), auch auf
+  der Seite «Claude verbinden» (gestaltet wie die Anmeldung). Er liest und bereitet vor; ein Vorschlag aus Claude ist
+  privat (`payload.mcp`) und wird in «Auf einen Blick» am Datensatz übernommen – nie über MCP. **Im «+»
+  steht er wie einer aus einem Gespräch**: je Verbindung ein «Gespräch» ohne Nachrichten (`talk.claude_view`,
+  in derselben Liste `talk.open_list`, dieselbe Zahl am «+»); das Gespräch selbst führt die Person in Claude. Anmelden ist OAuth 2.1 über die bestehende Anmeldung, **ohne Tabelle**:
   Client-Kennung, Code und Zugang sind signiert (`core/signed`), der Code (PKCE S256) gilt genau
   einmal (`mcp.grant`, eindeutiger Index), getrennt ist getrennt (`mcp.revoked`); nur Personal.
   **Offen** ist eine Verbindung, solange sie nicht getrennt und zuletzt (Erlauben oder jüngste
   Erneuerung) vor höchstens 30 Tagen benutzt ist (`mcp._OPEN`, dieselbe Abfrage für Liste und jede
   Anfrage) – trennt jemand in Claude selbst, fällt sie so von selbst weg. Gesehen und getrennt im
-  Konto (Sicherheit) und am ERP-Datensatz (Karte «Zugang», selbst · Admin). Erlauben auf `/erp/verbinden`; das Hosting leitet
-  `/.well-known/oauth-*` an den Dienst. Protokoll: JSON-RPC über einen `POST`, ohne SDK.
+  Konto (Sicherheit) und am ERP-Datensatz (Abschnitt «Sicherheit», selbst · Admin). Erlauben auf `/erp/verbinden`; das Hosting leitet
+  `/.well-known/oauth-*` an den Dienst. Protokoll: JSON-RPC über einen `POST`, ohne SDK. **Jedes Werkzeug sagt, ob es nur liest**
+  (MCP `annotations`, `ai.Tool.reads`, `mcp._schema`): alle lesen ausser «vorbereiten»; keines ändert etwas
+  unwiderruflich – so gruppiert der Client sie und fragt bei «liest nur» nicht bei jedem Aufruf nach.
 - **Vorschläge aus Mails** (`services/follow.py`): eine neue Mail einer bekannten Person liest die
   KI im Takt und bereitet Vorschläge am Datensatz vor (Probelauf mit den Rechten der Person, die
   das Postfach verbunden hat); sie stehen in «Auf einen Blick» und zählen dort in «zu tun» – wer ihn
@@ -538,7 +548,7 @@ in `core/oidc` (`TICK_AUDIENCE`, `TICK_SERVICE_ACCOUNT`; ohne sie 503). Eingeric
 ## Zeiterfassung
 
 Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
-- **Ein Abschnitt im Personendatensatz** (zwischen Kommunikation und Stammdaten, EINE Karte,
+- **Ein Abschnitt im Personendatensatz** («Zeit», zwischen Verlauf und den Stammdaten, EIN Abschnitt,
   `components/erp/time/`), sichtbar nur im eigenen Datensatz und für den Admin
   (`timekeeping.may_see`). Der Admin kann dasselbe wie die Person, dazu Verträge und Buchungen.
 - **Gespeichert wird nur Eingegebenes**: `time_contracts` (Vertrag ab Stichtag – Wochenstunden,
@@ -725,18 +735,22 @@ Oberfläche und Dienst garantiert dasselbe.
   Inland steuerbar (Dienstleistung an eine Privatperson im Ausland) – je mit Pflichtsatz auf dem Beleg.
 
 ## Design System (VERBINDLICH)
-Grundlage ALLER Oberflächen (Website, Konto, ERP). Regeln: **`docs/design-system/README.md`**
-(vor UI-Arbeit lesen), Skill `inexxio-design-system`. Tokens **nur** in
-`frontend/src/styles/design-system/colors_and_type.css` (die Website generiert ihre daraus).
+Grundlage ALLER Oberflächen (Website, Konto, ERP, E-Mail, Papiere). Regeln, wie sie gebaut sind:
+**`docs/design-system/README.md`** (vor UI-Arbeit lesen), Skill `inexxio-design-system`; das
+Artefakt «INEXXIO Design System» zeigt dasselbe zum Anschauen und folgt dem Code. Tokens **nur** in
+`frontend/src/styles/design-system/colors_and_type.css` (zwei Schichten: Skalen → Rollen; die
+Website generiert ihre daraus); **jedes Token wird gelesen** (Wächter `design.test.mjs`).
 Farbe = Bedeutung: **kühle, neutrale Grautöne** (v4) tragen die Fläche, **Rot (`inexxio`) ist
-der eine laute Akzent** (nie in Überschriften), **Slate (`accent`) die leise Stimme**. Website:
-eine Überschrift-Form, Rot nur für die Anfrage, Glas (`.ix-glass*`) nur dort, nie im ERP;
-Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`. Wörter: kein
+der eine laute Akzent** (nie in Überschriften), **Slate (`accent`) die leise Stimme**. Radien 6 px
+(Bedienelemente) · 8 px (Karten, Flächen, Dialoge). Website: eine Überschrift-Form, Rot nur für die
+Anfrage, Glas nur, was schwebt (Kopfleiste, Handy-Leiste, Knöpfe auf Fotos), nie im ERP. Wörter: kein
 «Fixpreis», keine «Werkstatt». ERP: Struktur vor Fläche (Haarlinien statt
-Schatten), Status als Punkt + Wort, Lucide-Symbole statt Text, tabellarische Zahlen,
+Schatten), **ein Datensatz ist eine weisse Seite aus denselben Abschnitten wie das Konto** (`Card` =
+`.kt-sec`, Felder grau ohne Rahmen), **Art-Farben** `--type-*` (Symbol, Überschrift des Kopfs,
+gewählte Feed-Zeile), Status als Etikett mit Wort, Lucide-Symbole statt Text, tabellarische Zahlen,
 Infotexte im Hover, 8-px-Raster, Inter / Inter Tight. **Die Alt-Palette ist weg** (`slate-*`,
-`blue-*`, `gray-*`, `brand-*`, `#2563eb`: 0 Vorkommen). Eine unbekannte Tailwind-Klasse oder
-CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
+`blue-*`, `gray-*`, `brand-*`, `#2563eb`: 0 Vorkommen), ebenso Dunkelmodus und die v4-Mockups.
+Eine unbekannte Tailwind-Klasse oder CSS-Variable erzeugt still nichts – hinsehen, nicht nur bauen.
 
 ## Schema
 - **Die Migration ist der einzige Weg.** `backend/start.sh` fährt `alembic upgrade head` bei
@@ -794,7 +808,7 @@ Eigenes Teilprojekt (Astro 7, Node ≥ 22.12), getrennt vom ERP. **Zuerst lesen:
 später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website-auftrag.md`.
 - **Eine Quelle**: `website/src/config/site.mjs`; Texte setzen Werte mit `{{schlüssel}}` ein.
   Was nicht feststeht, steht nicht da (keine Platzhalter-Vermerke).
-- **Gestaltung v4** (Vorlage `docs/design-system/reference/mockups/Startseite v4.dc.html`):
+- **Gestaltung v4** (Regeln und Liste der Bausteine: `docs/design-system/README.md` §6):
   Startseite aus `components/home/*`. Die drei Bereiche, ihre Unterseiten, «Über uns», Service, Karriere und Ratgeber haben je ein
   eigenes Layout aus denselben Bausteinen (es gibt keine Bereichs-/Unterseiten-Vorlage mehr):
   `StageHero` (Kopf wie Porsche: grosses Wort, freigestelltes Bild mit weich auslaufenden Rändern) · `spezial/FieldCards`

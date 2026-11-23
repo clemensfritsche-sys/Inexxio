@@ -12,15 +12,14 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Briefcase, ChevronDown, ChevronRight, Clock, Sun, Timer } from 'lucide-react';
-import { Card } from '@/components/erp/detail-frame';
+import { ChevronDown, ChevronRight, Clock, Plus } from 'lucide-react';
+import { Card, TodoChip } from '@/components/erp/detail-frame';
 import { ErrorText, InfoHint } from '@/components/erp/hints';
-import { MICRO_LABEL } from '@/components/erp/fields';
 import { ApiError, api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import { parseDay } from '@/lib/when';
 import { todoChanged } from '@/lib/todo';
-import type { TimeAbsence, TimeContractIn, TimeEntryIn, TimeView } from '@/types';
+import type { TimeAbsence, TimeContractIn, TimeEntryIn, TimeView, TodoItem } from '@/types';
 import { DraftSheet } from '@/components/erp/document-draft';
 import { TimeCalendar } from './time-calendar';
 import { TimeContracts } from './time-contracts';
@@ -45,23 +44,25 @@ function shiftMonth(month: string, step: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function Figure({ icon: Icon, label, info, children, color }: {
-  icon: React.ElementType; label: string; info: string; children: React.ReactNode; color?: string;
+/** Eine Kennzahl – Beschriftung wie ein Feld im Konto, darunter die Zahl. */
+function Figure({ label, info, children, color }: {
+  label: string; info: string; children: React.ReactNode; color?: string;
 }) {
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-      <span style={{ width: 22, height: 22, color: 'var(--fg-4)', display: 'flex', alignItems: 'center',
-        justifyContent: 'center', flex: 'none', marginTop: 2 }}><Icon size={18} /></span>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ ...MICRO_LABEL, display: 'flex', alignItems: 'center', gap: 5 }}>{label}<InfoHint text={info} /></div>
-        <div className="tabular-nums" style={{ font: '600 15.5px var(--font-body)', color: color ?? 'var(--fg-1)',
-          marginTop: 6, lineHeight: 1.35 }}>{children}</div>
-      </div>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 5 }}>
+        {label}<InfoHint text={info} /></div>
+      <div className="tabular-nums" style={{ font: '600 18px var(--font-display)', color: color ?? 'var(--fg-1)',
+        marginTop: 6, lineHeight: 1.3 }}>{children}</div>
     </div>
   );
 }
 
-export function TimeCard({ person }: { person: number }) {
+export function TimeCard({ person, todo }: {
+  person: number;
+  /** Was in der Zeiterfassung zu tun ist – die Zahl neben dem Titel. */
+  todo?: TodoItem[];
+}) {
   const [month, setMonth] = useState<string | undefined>(undefined);
   const [sel, setSel] = useState<string | null>(null);
   const [cap, setCap] = useState<Capture | null>(null);
@@ -129,9 +130,11 @@ export function TimeCard({ person }: { person: number }) {
     }
   };
 
+  const title = 'Zeit';
+  const extra = todo ? <TodoChip items={todo} /> : undefined;
   if (!view) {
     return (
-      <Card icon={Clock} title="Zeiterfassung" unclipped>
+      <Card title={title} anchor="zeiterfassung" extra={extra}>
         {loadErr ? <ErrorText msg={loadErr} /> : <Skeleton block={180} lines={3} label="Zeiterfassung wird geladen" />}
       </Card>
     );
@@ -150,8 +153,28 @@ export function TimeCard({ person }: { person: number }) {
     setSel(d);
     setCap(null);
   };
+  // ►►► **Ohne Vertrag gibt es nichts zu zählen** – ein Satz statt Nullen; der Admin legt den
+  // ersten Vertrag gleich hier an. ◄◄◄
+  if (!view.contracts.length) {
+    return (
+      <Card title={title} anchor="zeiterfassung" extra={extra} info={view.vocab.texts.card}>
+        <div className="kt-card">
+          <span className="kt-card-ic"><Clock aria-hidden /></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span className="kt-card-tag">Zeiterfassung</span>
+            <div className="kt-card-text">Kein Vertrag
+              <small>Stempeln, Stundenkonto und Ferien beginnen mit dem ersten Vertrag.</small></div>
+          </div>
+        </div>
+        {view.is_admin && (open
+          ? <TimeContracts view={view} onContract={contract} onEntry={entry} startNew onCancel={() => setOpen(false)} />
+          : <button type="button" className="kt-add" onClick={() => setOpen(true)}>
+              <Plus size={16} aria-hidden />Vertrag anlegen</button>)}
+      </Card>
+    );
+  }
   return (
-    <Card icon={Clock} title="Zeiterfassung" info={view.vocab.texts.card} unclipped>
+    <Card title={title} anchor="zeiterfassung" extra={extra} info={view.vocab.texts.card}>
       {view.can_stamp && (
         <div style={{ display: 'grid', gap: 4 }}>
           <TimeSwipe present={!!view.present_since} since={view.present_since ?? null}
@@ -162,13 +185,13 @@ export function TimeCard({ person }: { person: number }) {
       {/* Unter dem Knopf – und auch ohne ihn (nach dem Austritt), damit kein Fehler still bleibt. */}
       {swipeErr && <ErrorText msg={swipeErr} />}
       {notice && !swipeErr && <Note>{notice}</Note>}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '20px 24px' }}>
-        <Figure icon={Timer} label="Stundenkonto" info={view.vocab.texts.account}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '20px 24px' }}>
+        <Figure label="Stundenkonto" info={view.vocab.texts.account}
           color={view.account < 0 ? 'var(--danger)' : undefined}>{sgn(view.account)} h</Figure>
-        <Figure icon={Sun} label="Ferien" info={view.vocab.texts.vacation}
+        <Figure label="Ferien" info={view.vocab.texts.vacation}
           color={view.vacation < 0 ? 'var(--danger)' : undefined}>
-          {vac.h} <span style={{ color: 'var(--fg-3)', fontWeight: 500 }}>{vac.d}</span></Figure>
-        <Figure icon={Briefcase} label="Vertrag" info={view.vocab.texts.contract}>
+          {vac.h} <span style={{ color: 'var(--fg-3)', fontWeight: 500, fontSize: 14 }}>{vac.d}</span></Figure>
+        <Figure label="Vertrag" info={view.vocab.texts.contract}>
           <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
             style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: 'var(--accent-ink)',
               cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>

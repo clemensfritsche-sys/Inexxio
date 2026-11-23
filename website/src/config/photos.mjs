@@ -106,8 +106,8 @@ export const photos = t('photos', {
     ratio: '4/3',
   },
   'kran-eng': {
-    alt: 'Verzinkter Kran mit Plattform in einem engen Betonschacht, daneben die Treppe',
-    brief: 'Kompakter Kran in einem engen, verwinkelten Raum mit Stützen oder Nischen, der Greifer erreicht eine Ecke, quer',
+    alt: 'Verzinkter Materiallift im Schrägstollen: die Kabine hängt an zwei Schienen unter der Betondecke, daneben die Treppe',
+    brief: 'Materiallift im engen Schrägstollen: Kabine an zwei Schienen unter der Betondecke, für Material und Werkzeug, daneben die Treppe, quer',
     ratio: '4/3',
   },
   // Heukrananlagen, «Funk statt Kabine» (generiert, ohne echte Person oder echten Ort).

@@ -2624,7 +2624,7 @@ export interface paths {
         };
         /**
          * Open Talks
-         * @description Meine offenen Gespräche – die neuesten zuerst (die Zahl am «+»).
+         * @description Meine offenen Gespräche – im ERP und aus Claude, die neuesten zuerst (die Zahl am «+»).
          */
         get: operations["open_talks_api_v1_erp_assistant_talks_open_get"];
         put?: never;
@@ -2644,7 +2644,7 @@ export interface paths {
         };
         /**
          * Get Talk
-         * @description Ein Gespräch – nur, wer es führt, und der Admin.
+         * @description Ein Gespräch (oder die Vorschläge einer Verbindung mit Claude) – nur, wer es führt, und der Admin.
          */
         get: operations["get_talk_api_v1_erp_assistant_talks__talk_id__get"];
         put?: never;
@@ -3601,6 +3601,16 @@ export interface components {
             host: string;
             /** Redirect */
             redirect: string;
+            /**
+             * Server
+             * @default INEXXIO ERP
+             */
+            server: string;
+            /**
+             * Production
+             * @default true
+             */
+            production: boolean;
         };
         /** Attachment */
         Attachment: {
@@ -7249,6 +7259,14 @@ export interface components {
             waiting: boolean;
             /** Problem */
             problem?: string | null;
+            /**
+             * Source
+             * @default erp
+             * @enum {string}
+             */
+            source: "erp" | "claude";
+            /** Client */
+            client?: string | null;
         };
         /**
          * TargetIn

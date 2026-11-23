@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__INEXXIO_DEV",
+      "mcp__INEXXIO__find",
+      "mcp__INEXXIO__record",
+      "mcp__INEXXIO__history",
+      "mcp__INEXXIO__wissen",
+      "mcp__INEXXIO__handlungen",
+      "mcp__INEXXIO__handlung",
+      "mcp__INEXXIO__abrufen"
+    ]
+  }
+}

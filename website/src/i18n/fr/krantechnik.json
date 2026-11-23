@@ -73,7 +73,7 @@
   "Kurve": "Courbe",
   "Um die Ecke": "Autour de l'angle",
   "Zeichnung von oben: Halle in L-Form, die rote Fahrbahn biegt um die Ecke": "Dessin vu de dessus: halle en L, la voie de roulement rouge tourne dans l'angle",
-  "Die Fahrbahn muss abbiegen. Wir bauen sie als Kurve, mit einem Fahrwerk, das ihr folgt.": "La voie de roulement doit tourner. Nous la construisons en courbe, avec un mécanisme de translation qui la suit.",
+  "Die Fahrbahn muss abbiegen. Wir bauen die Kranschiene nach Mass im Bogen, mit einem Fahrwerk, das ihr folgt. Wo sie sich teilt, setzen wir eine Weiche – manuell, mechanisch oder hydraulisch.": "La voie de roulement doit tourner. Nous fabriquons le rail sur mesure en courbe, avec un mécanisme de translation qui le suit. Là où elle bifurque, nous posons un aiguillage – manuel, mécanique ou hydraulique.",
   "Steigung": "Pente",
   "Über eine Steigung": "Sur une pente",
   "Zeichnung von der Seite: Halle am Hang, die rote Fahrbahn läuft waagrecht, steigt mit an und läuft oben wieder waagrecht": "Dessin vu de côté: halle en pente, le chemin de roulement rouge est horizontal, monte puis redevient horizontal en haut",
@@ -82,10 +82,9 @@
   "Decke mit Versatz": "Plafond avec décrochement",
   "Zeichnung: zwei Hallenteile mit verschieden hoher Decke, die rote Fahrbahn biegt in einer Kurve vom einen in den anderen und bleibt waagrecht": "Dessin: deux parties de halle de hauteurs différentes, le chemin de roulement rouge passe de l'une à l'autre en courbe et reste horizontal",
   "Die Höhe springt, Balken oder Unterzüge stören. Wir hängen die Fahrbahn so ab, dass die Hubhöhe nutzbar bleibt.": "La hauteur change, des poutres ou des sommiers gênent. Nous suspendons la voie de roulement de façon à conserver la hauteur de levage utile.",
-  "Wenig Platz": "Peu de place",
   "Eng und verwinkelt": "Étroit et biscornu",
-  "Zeichnung: enger Schacht mit schrägen Wänden und Treppe, die rote Katze mit Plattform passt genau hinein": "Dessin: gaine étroite aux murs obliques avec escalier, le chariot rouge avec plateforme s'y loge exactement",
-  "Stützen, Nischen, wenig Platz: Ein kompakter Kran mit passendem Greifer erreicht auch die letzte Ecke.": "Piliers, niches, peu de place: une grue compacte avec un grappin adapté atteint même le dernier recoin.",
+  "Zeichnung: Materiallift im engen Schrägstollen – die rote Kabine hängt an zwei Schienen unter der Betondecke, daneben die Treppe": "Dessin: monte-matériaux dans une galerie inclinée étroite – la cabine rouge est suspendue à deux rails sous le plafond en béton, l'escalier à côté",
+  "Schräg, steil und eng wie hier im Stollen neben der Treppe: Unser Materiallift fährt an zwei Schienen unter der Decke und bringt Material und Werkzeug hinauf – über Steigungen und um Ecken, auch senkrecht über mehrere Stockwerke.": "En pente, raide et étroit comme ici dans la galerie à côté de l'escalier: notre monte-matériaux roule sur deux rails sous le plafond et monte matériel et outils – sur les pentes et dans les virages, aussi à la verticale sur plusieurs étages.",
   "Ihre Situation ist nicht dabei?": "Votre situation n'y figure pas?",
   "Fragen Sie trotzdem. Schicken Sie uns ein paar Fotos, wir sagen Ihnen ehrlich, ob es geht.": "Demandez quand même. Envoyez-nous quelques photos, nous vous dirons honnêtement si c'est possible.",
   "Für Scheune und Halle.": "Pour la grange et la halle.",
@@ -266,5 +265,6 @@
   "Einlagern": "Engranger",
   "Sommer: Sie lagern ein": "Été: vous engrangez",
   "Füttern": "Affourager",
-  "Winter: Sie füttern": "Hiver: vous affouragez"
+  "Winter: Sie füttern": "Hiver: vous affouragez",
+  "Materiallift": "Monte-matériaux"
 }

@@ -2,8 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { Inbox, Phone, Users, Percent, Mail, TrendingUp, Compass, Map as MapIcon, FileText,
-         ListChecks, Smartphone, Gauge, MessageSquareText } from 'lucide-react';
+import { Inbox, Phone, Users, Percent, Mail } from 'lucide-react';
 import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 import type { SiteStats as Stats } from '@/types';
@@ -143,7 +142,7 @@ function Trend({ s }: { s: Stats }) {
   const line = s.series.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(d.visits).toFixed(1)}`).join(' ');
   const ticks = [0, Math.round((s.series.length - 1) / 2), s.series.length - 1];
   return (
-    <Card icon={TrendingUp} title="Besuche und Anfragen" info="Je Tag. Ein roter Punkt: an diesem Tag kam mindestens eine Anfrage.">
+    <Card wide title="Besuche und Anfragen" info="Je Tag. Ein roter Punkt: an diesem Tag kam mindestens eine Anfrage.">
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Besuche je Tag" style={{ display: 'block' }}>
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
@@ -187,7 +186,7 @@ function Sources({ s }: { s: Stats }) {
     .filter((c) => c.visits || c.inquiries);
   const rows = all ? s.sources : s.sources.slice(0, 10);
   return (
-    <Card icon={Compass} title="Woher" info="Jede Quelle erscheint – auch eine unbekannte heisst wie ihre Adresse. Besuche zählen beim Einstieg; Anfragen und Anrufe tragen die Quelle ihres Besuchs.">
+    <Card wide title="Woher" info="Jede Quelle erscheint – auch eine unbekannte heisst wie ihre Adresse. Besuche zählen beim Einstieg; Anfragen und Anrufe tragen die Quelle ihres Besuchs.">
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', fontSize: 13 }}>
         {byChannel.map((c) => (
           <span key={c.key} style={NUM}>
@@ -229,7 +228,7 @@ function Countries({ s }: { s: Stats }) {
   const outside = s.countries.filter((c) => c.key && !WORLD.paths[c.key]);
   const list = s.countries.slice(0, 8);
   return (
-    <Card icon={MapIcon} title="Woher – auf der Karte" info="Je Land: je dunkler, desto mehr Besuche; ein roter Punkt zeigt die Anfragen. Das Land kommt aus der Adresse (gespeichert wird nur das Land). Oben rechts: Welt oder Europa.">
+    <Card wide title="Woher – auf der Karte" info="Je Land: je dunkler, desto mehr Besuche; ein roter Punkt zeigt die Anfragen. Das Land kommt aus der Adresse (gespeichert wird nur das Land). Oben rechts: Welt oder Europa.">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, alignItems: 'start' }}>
         <div style={{ borderRadius: 'var(--r-lg)', overflow: 'hidden', gridColumn: '1 / -1' }}>
           <GeoMap label="Weltkarte der Besuche" zoomable
@@ -275,7 +274,7 @@ const R: React.CSSProperties = { textAlign: 'right' };
 
 function Pages({ s }: { s: Stats }) {
   return (
-    <Card icon={FileText} title="Seiten" info="Sortiert nach Anfragen. «Anfragen» zählt, auf welcher Seite der Besuch begann; «gesendet» steht im Hover. Lesezeit: sichtbar, im Schnitt je Aufruf.">
+    <Card wide title="Seiten" info="Sortiert nach Anfragen. «Anfragen» zählt, auf welcher Seite der Besuch begann; «gesendet» steht im Hover. Lesezeit: sichtbar, im Schnitt je Aufruf.">
       <div style={{ overflowX: 'auto', margin: '-8px -6px 0' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
           <thead><tr>
@@ -311,7 +310,7 @@ function Funnel({ s }: { s: Stats }) {
   const steps: [string, number][] = [['Formular gesehen', f.seen], ['Angefangen', f.started], ['Schritt 2', f.step2], ['Gesendet', f.sent]];
   const top = Math.max(1, f.seen, f.sent);
   return (
-    <Card icon={ListChecks} title="Formular" info="Wo Leute abbrechen. Gezählt je Besuch; «Gesendet» sind die Anfragen.">
+    <Card wide title="Formular" info="Wo Leute abbrechen. Gezählt je Besuch; «Gesendet» sind die Anfragen.">
       <div style={{ display: 'grid', gap: 8 }}>
         {steps.map(([label, v]) => (
           <div key={label} style={{ display: 'grid', gridTemplateColumns: '120px minmax(0,1fr) 48px', alignItems: 'center', gap: 10, fontSize: 13 }}>
@@ -347,7 +346,7 @@ function Split({ rows, names }: { rows: Stats['devices']; names: Record<string, 
 
 function Devices({ s }: { s: Stats }) {
   return (
-    <Card icon={Smartphone} title="Gerät und Sprache">
+    <Card wide title="Gerät und Sprache">
       <Split rows={s.devices} names={DEVICE} />
       <Split rows={s.languages} names={LANG} />
     </Card>
@@ -366,7 +365,7 @@ function Speed({ s }: { s: Stats }) {
   const sp = s.speed;
   const cls = sp.cls == null ? null : sp.cls / 1000;
   return (
-    <Card icon={Gauge} title="Ladezeit" info="Wie Google sie misst (Core Web Vitals, 75 % der Aufrufe sind schneller): bis das grösste Bild oder der grösste Text steht (LCP) und wie viel verrutscht (CLS). Gut: LCP bis 2,5 s, CLS bis 0,1.">
+    <Card wide title="Ladezeit" info="Wie Google sie misst (Core Web Vitals, 75 % der Aufrufe sind schneller): bis das grösste Bild oder der grösste Text steht (LCP) und wie viel verrutscht (CLS). Gut: LCP bis 2,5 s, CLS bis 0,1.">
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
         {(['mobile', 'desktop'] as const).map((d) => {
           const v = sp.by_device[d];
@@ -406,7 +405,7 @@ function Speed({ s }: { s: Stats }) {
 function Inquiries({ s }: { s: Stats }) {
   const nav = useErpNav();
   return (
-    <Card icon={MessageSquareText} title="Anfragen" info="Die Anfragen des Zeitraums mit Quelle und Einstieg ihres Besuchs. Ein Klick auf den Namen öffnet die Person (dort steht die Nachricht).">
+    <Card wide title="Anfragen" info="Die Anfragen des Zeitraums mit Quelle und Einstieg ihres Besuchs. Ein Klick auf den Namen öffnet die Person (dort steht die Nachricht).">
       <div style={{ overflowX: 'auto', margin: '-8px -6px 0' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
           <thead><tr>

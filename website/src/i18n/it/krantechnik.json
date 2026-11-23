@@ -73,7 +73,7 @@
   "Kurve": "Curva",
   "Um die Ecke": "Attorno all'angolo",
   "Zeichnung von oben: Halle in L-Form, die rote Fahrbahn biegt um die Ecke": "Disegno dall'alto: capannone a forma di L, la via di corsa rossa gira attorno all'angolo",
-  "Die Fahrbahn muss abbiegen. Wir bauen sie als Kurve, mit einem Fahrwerk, das ihr folgt.": "La via di corsa deve svoltare. La costruiamo come curva, con un carrello di traslazione che la segue.",
+  "Die Fahrbahn muss abbiegen. Wir bauen die Kranschiene nach Mass im Bogen, mit einem Fahrwerk, das ihr folgt. Wo sie sich teilt, setzen wir eine Weiche – manuell, mechanisch oder hydraulisch.": "La via di corsa deve svoltare. Costruiamo la rotaia su misura in curva, con un carrello di traslazione che la segue. Dove si dirama, montiamo uno scambio – manuale, meccanico o idraulico.",
   "Steigung": "Pendenza",
   "Über eine Steigung": "Su una pendenza",
   "Zeichnung von der Seite: Halle am Hang, die rote Fahrbahn läuft waagrecht, steigt mit an und läuft oben wieder waagrecht": "Disegno di lato: capannone in pendenza, la via di corsa rossa corre in piano, sale e in alto torna in piano",
@@ -82,10 +82,9 @@
   "Decke mit Versatz": "Soffitto con sfalsamento",
   "Zeichnung: zwei Hallenteile mit verschieden hoher Decke, die rote Fahrbahn biegt in einer Kurve vom einen in den anderen und bleibt waagrecht": "Disegno: due parti di capannone con soffitti di altezza diversa, la via di corsa rossa passa dall'una all'altra in curva e resta in piano",
   "Die Höhe springt, Balken oder Unterzüge stören. Wir hängen die Fahrbahn so ab, dass die Hubhöhe nutzbar bleibt.": "L'altezza cambia, travi o travi ribassate intralciano. Sospendiamo la via di corsa in modo che l'altezza di sollevamento resti utilizzabile.",
-  "Wenig Platz": "Poco spazio",
   "Eng und verwinkelt": "Stretto e angusto",
-  "Zeichnung: enger Schacht mit schrägen Wänden und Treppe, die rote Katze mit Plattform passt genau hinein": "Disegno: pozzo stretto con pareti oblique e scala, il carrello rosso con piattaforma ci sta esattamente",
-  "Stützen, Nischen, wenig Platz: Ein kompakter Kran mit passendem Greifer erreicht auch die letzte Ecke.": "Pilastri, nicchie, poco spazio: una gru compatta con la benna adatta raggiunge anche l'ultimo angolo.",
+  "Zeichnung: Materiallift im engen Schrägstollen – die rote Kabine hängt an zwei Schienen unter der Betondecke, daneben die Treppe": "Disegno: montacarichi in una stretta galleria inclinata – la cabina rossa è appesa a due rotaie sotto il soffitto di calcestruzzo, accanto la scala",
+  "Schräg, steil und eng wie hier im Stollen neben der Treppe: Unser Materiallift fährt an zwei Schienen unter der Decke und bringt Material und Werkzeug hinauf – über Steigungen und um Ecken, auch senkrecht über mehrere Stockwerke.": "Inclinato, ripido e stretto come qui nella galleria accanto alla scala: il nostro montacarichi scorre su due rotaie sotto il soffitto e porta su materiale e attrezzi – su pendenze e attorno agli angoli, anche in verticale su più piani.",
   "Ihre Situation ist nicht dabei?": "La Sua situazione non è tra queste?",
   "Fragen Sie trotzdem. Schicken Sie uns ein paar Fotos, wir sagen Ihnen ehrlich, ob es geht.": "Chieda comunque. Ci mandi qualche foto, Le diciamo onestamente se è possibile.",
   "Für Scheune und Halle.": "Per fienile e capannone.",
@@ -266,5 +265,6 @@
   "Einlagern": "Immagazzinare",
   "Sommer: Sie lagern ein": "Estate: Lei immagazzina",
   "Füttern": "Foraggiare",
-  "Winter: Sie füttern": "Inverno: Lei foraggia"
+  "Winter: Sie füttern": "Inverno: Lei foraggia",
+  "Materiallift": "Montacarichi"
 }

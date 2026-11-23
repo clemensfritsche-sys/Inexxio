@@ -108,8 +108,8 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `object-select.tsx` | **Jedes Referenzfeld** («welchen Datensatz meinst du?»), Kamera im Feld |
 | `address-field.tsx`, `address-book.tsx` | Jede Adress-Eingabe (Google Places) · das Adressbuch einer Person (zwei Konten) |
 | `company-field.tsx` | Firmenzuordnung einer Person (Konto und ERP) |
-| `person-access.tsx` | **Der Zugang einer Person** (Konto «Sicherheit» und ERP-Karte «Zugang», `owner` wie `AddressBook`): `PasskeyList` (entfernen; einrichten nur im Konto) · `ClaudeList` (erlaubt, zuletzt benutzt, trennen); Schlüssel `qk.access` |
-| `history.tsx` | **Der Verlauf** – EINE Komponente an jeder Detailansicht (Person, Firma, Auftrag, Artikel, Instanz, Dokument): `useHistory` (`useInfiniteQuery`, Seiten vom Server, «ältere laden» beim Rollen), Nachrichten als Blasen, Dokumente als Zeile, Änderungen je Handlung technisch (`feld: alt → neu`, Festbreite) |
+| `person-access.tsx` | **Der Zugang einer Person** (Konto «Sicherheit» und ERP-Abschnitt «Sicherheit», `owner` und `cards` wie `AddressBook`): `PasskeyList` (entfernen; einrichten nur im Konto) · `ClaudeList` (erlaubt, zuletzt benutzt, trennen); Schlüssel `qk.access` |
+| `history.tsx` | **Der Verlauf** – EINE Komponente an jeder Detailansicht (Person, Firma, Auftrag, Artikel, Instanz, Dokument): `useHistory` (`useInfiniteQuery`, Seiten vom Server, «ältere laden» beim Rollen), Nachrichten als Blasen, Dokumente als Zeile, Änderungen je Handlung technisch (`feld: alt → neu`, Festbreite) – **nur mit «Änderungen zeigen»** (`ChangesSwitch`, standardmässig aus); der Abschnitt «Verlauf» mit Schalter für jeden Datensatz ohne Eingabe: `HistoryCard` |
 | `communication.tsx` + `communication/` | Kommunikation an Person (oben auf der einen Seite, kein Reiter) und Firma (Reiter «Verlauf»): die Ansicht (`communication.tsx`: Postfach, `History`, Eingabe) · `timeline` (die Blase einer Nachricht, Tagestrenner, die wartende Mail) · `composer` (einzeilige Eingabe, **ein** Zustand `Draft`, «Rückgängig») · `mailboxes` (Postfach) · `shared` (Person, Arten, Versand Mail · Rundschreiben · Newsletter – `DELIVERIES` aus `lib/vocab`) |
 | `user-detail.tsx`, `organization-detail.tsx`, `article-detail.tsx`, `instance-detail.tsx`, `order-detail.tsx` | Die Detail-Ansichten der fünf Datensatztypen |
 | `new-record.tsx` | Person und Firma anlegen (Entwurf; `initial` = vorausgefüllt aus einem Handgriff) |
@@ -136,13 +136,21 @@ Alle UI baut auf dem Inexxio Design System – Regeln: **`../docs/design-system/
 Skill `inexxio-design-system`.
 - **Tokens** nur in `src/styles/design-system/colors_and_type.css` (erstes CSS-Modul in
   `app/layout.tsx`). Tailwind-Utilities daraus (`bg-bg-1/2/3`, `text-fg-1…4`, `text-accent`,
-  `text-inexxio`, `border-border-1/2`, `rounded-ds-lg`, `shadow-ds-sm/md`, `font-display`),
+  `text-inexxio`, `border-border-1/2`, `rounded-ds-md/lg`, `shadow-ds-md`, `font-display`),
   Zahlen `.ix-tnum`.
 - **Farbe = Bedeutung**: kühle, neutrale Grautöne (v4) = Fläche · Rot (`inexxio`) = der eine laute Akzent
   · Slate (`accent`) = Info/aktiv/Links im ERP.
-- **ERP**: Haarlinien + Weissraum statt Schatten; Status = Punkt + Wort (`fields.StatusDot`); ein Eingabefeld hat EINE Form (`controls.inputClass`); Lucide-Symbole;
-  8-px-Raster. Eine Detail-Ansicht hat **eine** Breite (`detail-frame.DETAIL_MAXW` über
-  `DetailBody`); eine Kürzungsgrenze an einer Zeile ist etwas anderes.
+- **ERP**: Haarlinien + Weissraum statt Schatten; Status mit Wort (Etikett `fields.StatusBadge`, in
+  Zeilen `StatusDot`); ein Eingabefeld hat EINE Form (`controls.inputClass` – grau ohne Rahmen wie
+  `.kt-input`); Lucide-Symbole; 8-px-Raster.
+- **Ein Datensatz = weisse Fläche (`DETAIL_PANE`) mit Abschnitten wie im Konto**: `Card` rendert
+  `.kt-sec` (Titel links, Sache rechts, Haarlinie; `wide` = Titel darüber), `SectionSep` einen Titel
+  über voller Breite; `DetailBody` ist der Behälter `.erp-secs` (Container-Abfrage: schmal gestapelt).
+  Keine Karte in der Karte, kein Untertitel, keine Sprungleiste. Eine Detail-Ansicht hat **eine**
+  Breite (`detail-frame.DETAIL_MAXW`, 1040 = Konto); eine Kürzungsgrenze an einer Zeile ist etwas
+  anderes. Kopf des Feeds und Kopf des Datensatzes sind gleich hoch (`ERP_HEAD_H`).
+- **Art-Farben** (`--type-*`, gelesen nur über `lib/erp-record.TYPE_META`): Symbol, Überschrift im
+  Kopf, gewählte Zeile im Feed, aktiver Filter. Der Kopf bleibt weiss.
 - **Alt-Palette: 0 Vorkommen** (`slate-*`, `blue-*`, `gray-*`, `brand-*`, `#2563eb`, auch
   als Hex – Ausnahme Gebietskarte).
 - **Eine unbekannte Tailwind-Klasse oder CSS-Variable erzeugt still nichts** (`bg-dark` gibt

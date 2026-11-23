@@ -26,7 +26,7 @@
   Anmeldedialog verweist darauf).
 - **5 · Farben aus dem Design-System, generiert** (`scripts/tokens.mjs` liest
   `frontend/src/styles/design-system/colors_and_type.css`). **34/37 · Formsprache = Design-System
-  v4** (`docs/design-system/README.md`, Vorlage `Startseite v4.dc.html`): Inter Tight 700/600,
+  v4** (`docs/design-system/README.md`): Inter Tight 700/600,
   kühle Grautöne, Rot als einziger lauter Akzent, Glas nur unter `html[data-site]`.
   **36/71a · Logo** = das gestapelte Logo mit «ehemals HS Steiner» (`public/logo/`).
 

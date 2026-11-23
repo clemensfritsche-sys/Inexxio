@@ -30,7 +30,8 @@ def _code(person, client_id: str, challenge: str) -> str:
     page = mcp.ask({"client_id": client_id, "redirect_uri": REDIRECT, "response_type": "code",
                     "code_challenge": challenge, "code_challenge_method": "S256", "state": "xyz"})
     r = parse_qs(urlsplit(page).query)["r"][0]
-    assert mcp.describe(r) == {"client": "Claude", "host": "claude.ai", "redirect": REDIRECT}
+    assert {k: v for k, v in mcp.describe(r).items() if k in ("client", "host", "redirect")} == \
+        {"client": "Claude", "host": "claude.ai", "redirect": REDIRECT}
     back = parse_qs(urlsplit(mcp.approve(person, r, True)).query)
     assert back["state"] == ["xyz"]
     return back["code"][0]
@@ -55,10 +56,15 @@ def test_a_claude_client_connects_asks_refreshes_and_is_cut_off(db, make_person)
     hello = mcp.handle(db, who, grant, {"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                         "params": {"protocolVersion": "2025-06-18"}})
     assert hello["result"]["protocolVersion"] == "2025-06-18"
-    names = {t["name"] for t in mcp.handle(db, who, grant, {"jsonrpc": "2.0", "id": 2,
-                                                            "method": "tools/list"})["result"]["tools"]}
-    assert {"find", "record", "history", "wissen", "handlungen", "handlung", "abrufen",
+    listed = mcp.handle(db, who, grant, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})["result"]["tools"]
+    names = {t["name"] for t in listed}
+    assert {"find", "record", "history", "wissen", "gespraeche", "handlungen", "handlung", "abrufen",
             "vorbereiten"} <= names
+    # Liest es nur, sagt das Werkzeug es dem Client – sonst fragt er bei jedem Aufruf nach. Nur der
+    # Vorschlag schreibt (ein Ereignis), und auch er ändert nichts unwiderruflich.
+    hints = {t["name"]: t["annotations"] for t in listed}
+    assert {n for n, h in hints.items() if not h["readOnlyHint"]} == {"vorbereiten"}
+    assert not any(h["destructiveHint"] for h in hints.values())
     assert "ausfuehren" not in names                       # ausgeführt wird im ERP
     found = mcp.handle(db, who, grant, {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
                                         "params": {"name": "find", "arguments": {"q": str(person.object_id)}}})

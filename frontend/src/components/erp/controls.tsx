@@ -11,14 +11,17 @@ import { useDialog } from '@/lib/use-dialog';
 
 /**
  * ►►► **EINE Form für jedes Eingabefeld**; je Lage ändert sich nur die Farbe (`inputClass`). ◄◄◄
- * Ein Wert auf dem Beleg ist gedruckter Text mit `.ix-editable` (`beleg/shared.DOC_FIELD`).
+ * **Wie im Konto** (`.kt-input`): eine ruhige graue Fläche ohne Rahmen, beim Tippen weiss mit
+ * dunkler Linie – im ERP nur kleiner (14 px). Ein Wert auf dem Beleg ist gedruckter Text mit
+ * `.ix-editable` (`beleg/shared.DOC_FIELD`).
  */
-const INPUT_FORM = 'w-full rounded-ds-md border px-3 py-2 text-sm outline-none placeholder:text-fg-4 transition-colors focus:ring-[3px] focus:ring-accent-soft';
+const INPUT_FORM = 'w-full rounded-ds-md border px-3 py-2 text-sm outline-none placeholder:text-fg-4 transition-colors';
 const INPUT_TONE = {
-  normal: 'border-border-2 bg-bg-1 text-fg-1 focus:border-accent',
+  normal: 'border-transparent bg-bg-2 text-fg-1 focus:bg-bg-1 focus:border-fg-1',
   /** Pflicht und leer, oder das Format stimmt nicht – gemeldet, nicht gesperrt. */
-  warn: 'border-warning bg-warning-bg text-fg-1',
-  read: 'border-border-1 bg-bg-2 text-fg-4 cursor-default',
+  warn: 'border-warning bg-warning-bg text-fg-1 focus:bg-bg-1',
+  /** Nur lesen sieht aus wie Text: keine Fläche, kein Rahmen, beim Klicken keine Linie. */
+  read: 'border-transparent bg-transparent px-0 text-fg-1 cursor-default focus:border-transparent',
 } as const;
 
 export function inputClass(tone: keyof typeof INPUT_TONE = 'normal'): string {

@@ -124,10 +124,13 @@ export function CaptureSheet({ hint, onClose, onCreate, host }: {
     setDraft(EMPTY_DRAFT);
     setPhase({ k: 'working', steps: [] });
     setProblem('');
-    let id = talkId;                              // ein neues Gespräch hat seine Nummer ab der ersten Zeile
+    // Die Vorschläge aus Claude sind kein Gespräch im ERP (geführt wird es in Claude): wer dort
+    // schreibt, beginnt ein neues.
+    const into = talkId && client.getQueryData<Talk>(qk.talk(talkId))?.source !== 'claude' ? talkId : null;
+    let id = into;                                // ein neues Gespräch hat seine Nummer ab der ersten Zeile
     try {
       await api.say(sent.place ? `${sent.place}\n\n${text}` : text, {
-        talk: talkId, hint: talkId ? null : about?.objectId, files, recordings: sent.recordings,
+        talk: into, hint: into ? null : about?.objectId, files, recordings: sent.recordings,
         onTalk: (x) => { id = x.id; if (alive.current) keep(x); }, onStep: step, onText: piece,
       });
       if (!alive.current) notify('Der Assistent hat geantwortet – das Gespräch steht im «+».', Date.now(), { tone: 'info' });
@@ -438,15 +441,20 @@ function TalkView({ talk, phase, onBack, onLeave, onChanged }: {
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }); },
     [talk.messages.length, talk.handgriffe.length, steps?.length, said?.length]);
-  // **Erst die Antwort, dann ihre Vorschläge**: die KI bereitet einen Vorschlag vor, bevor ihr
-  // Text gespeichert ist – darum steht er hinter der nächsten Antwort der KI, nicht davor.
+  // **Was noch zu entscheiden ist, steht zuunterst** (Rückmeldung 22.11.2026): offene und wartende
+  // Vorschläge gesammelt unter der letzten Antwort, in der Reihe, in der sie entstanden – wie eine
+  // Liste «noch zu tun». Übernommene und weggelegte bleiben, wo sie geschahen: hinter der Antwort der
+  // KI, die sie vorbereitete (sie entsteht vor ihrem Text, darum hinter der nächsten Antwort).
   const answers = talk.messages.filter((m) => m.by === 'ai').map((m) => m.id);
   const after = (id: number) => (answers.find((a) => a > id) ?? id) + 0.5;
+  const live = (h: Talk['handgriffe'][number]) => h.state === 'open' || h.state === 'waiting';
+  const card = (h: Talk['handgriffe'][number]) =>
+    <HandgriffCard key={`h${h.id}`} h={h} onChanged={onChanged} onLeave={onLeave} />;
   const items = [
     ...talk.messages.map((m) => ({ order: m.id, el: <Bubble key={`m${m.id}`} m={m} /> })),
-    ...talk.handgriffe.map((h) => ({ order: after(h.id),
-      el: <HandgriffCard key={`h${h.id}`} h={h} onChanged={onChanged} onLeave={onLeave} /> })),
+    ...talk.handgriffe.filter((h) => !live(h)).map((h) => ({ order: after(h.id), el: card(h) })),
   ].sort((a, b) => a.order - b.order);
+  const pending = talk.handgriffe.filter(live).sort((a, b) => a.id - b.id);
   return (
     <div className="erp-talk">
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -455,10 +463,17 @@ function TalkView({ talk, phase, onBack, onLeave, onChanged }: {
           <ArrowLeft size={16} />
         </button>
         <MessageSquare size={14} aria-hidden style={{ color: 'var(--fg-3)' }} />
-        <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)', flex: 1 }}>Gespräch{talk.hint_object_id ? <> · <ObjId value={talk.hint_object_id} /></> : null}</span>
+        <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)', flex: 1 }}>
+          {talk.source === 'claude' ? `Aus ${talk.client ?? 'Claude'}` : 'Gespräch'}
+          {talk.hint_object_id ? <> · <ObjId value={talk.hint_object_id} /></> : null}
+        </span>
       </div>
+      {talk.source === 'claude' && (
+        <p className="erp-capture-hint">Das Gespräch dazu führen Sie in Claude – hier stehen seine Vorschläge.</p>
+      )}
       {items.map((x) => x.el)}
       {working && <Skeleton steps={steps} said={said} />}
+      {pending.map(card)}
       {!working && talk.problem && <p className="erp-capture-hint" role="status">{talk.problem}</p>}
       <div ref={end} />
     </div>
@@ -546,7 +561,9 @@ function OpenList({ current, onTalk, onFailed }: {
         return (
           <button key={`t${t.id}`} type="button" onClick={() => onTalk(t)} className="erp-capture-row">
             <MessageSquare size={15} style={{ flex: 'none', color: 'var(--fg-3)' }} />
-            <span className="truncate" style={{ flex: 1, minWidth: 0 }}>{t.messages[0]?.text || 'Gespräch'}</span>
+            <span className="truncate" style={{ flex: 1, minWidth: 0 }}>
+              {t.source === 'claude' ? `Aus ${t.client ?? 'Claude'}` : t.messages[0]?.text || 'Gespräch'}
+            </span>
             <span className="tabular-nums erp-capture-when">
               {open ? `${open} Vorschl${open === 1 ? 'ag' : 'äge'} · ` : t.waiting ? 'wartet · ' : ''}{when(t.at)}
             </span>

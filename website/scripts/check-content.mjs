@@ -106,7 +106,7 @@ function writeReport(missing) {
     '## Abgeschaltete Sektionen (`features` in `src/config/site.mjs`)',
     '',
   ];
-  for (const [key] of disabled) lines.push(`- \`${key}\` – ohne echte Fotos abgeschaltet.`);
+  for (const [key] of disabled) lines.push(`- \`${key}\` – abgeschaltet (der Grund steht beim Schalter).`);
   if (!disabled.length) lines.push('Keine.');
   lines.push('');
   const out = join(ROOT, 'OFFENE_PUNKTE.md');

@@ -277,6 +277,10 @@ class Tool:
     doing: str = ""
     #: Welcher Wert der Eingabe dahinter steht – leer: der erste.
     shows: str = ""
+    #: **Liest nur** – ändert nichts (Standard). ``False`` für die zwei, die einen Vorschlag anlegen
+    #: oder weglegen; ein Claude-Client gruppiert danach und fragt bei «liest nur» nicht nach
+    #: (MCP ``annotations``, ``services/mcp._schema``).
+    reads: bool = True
 
     def step(self, args: dict[str, Any]) -> str:
         values = [args.get(self.shows)] if self.shows else list(args.values())

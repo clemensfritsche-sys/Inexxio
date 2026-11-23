@@ -143,7 +143,7 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
           onFocus={() => { setOpen(true); setQuery(''); }}
           onChange={(e) => { setQuery(e.target.value); if (!open) setOpen(true); }}
           className={inputCls}
-          style={{ borderColor: 'var(--border-2)', paddingRight: action ? 34 : 28 }}
+          style={{ paddingRight: action ? 34 : 28 }}
         />
         {action ? (
           // Die Liste schliesst, bevor die Aktion läuft – sie steht INNERHALB des Feldes,

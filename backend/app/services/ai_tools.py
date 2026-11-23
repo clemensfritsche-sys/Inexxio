@@ -291,7 +291,7 @@ def erp_tools(prepare: Prepare, viewer: Optional[UserProfile] = None,
              "{\"$handgriff\": nummer}.",
              {"handlung": {"type": "string"}, "pfad": {"type": "string"},
               "werte_json": {"type": "string"}, "zeile": {"type": "string"},
-              "wartet_auf": int_list}, prepared, doing="bereitet vor:", shows="zeile"),
+              "wartet_auf": int_list}, prepared, doing="bereitet vor:", shows="zeile", reads=False),
     ]
 
 

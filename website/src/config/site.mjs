@@ -219,6 +219,8 @@ export const site = t('site', {
     heiriAdvisory: true,
     /** Belege auf «Krane nach Mass» (content/krantechnik.ts `craneReferences`) – an, sobald Fotos da sind. */
     craneReferences: false,
+    /** Abschnitt «Einsatzbereit und zufrieden mit Garantie» (home/Guarantees) auf allen Seiten. */
+    guarantees: true,
   },
 
   /** Saison-Hinweise: von/bis als MM-TT, über den Jahreswechsel erlaubt. */

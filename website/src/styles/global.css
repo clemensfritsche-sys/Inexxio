@@ -1,11 +1,8 @@
 /* ==========================================================================
-   INEXXIO Website – globales Stylesheet
-   Formsprache = INEXXIO Design System (Stand Oktober 2026, Artefakt «INEXXIO Design System»):
-   Inter Tight 700 für Seitentitel, 600 für Abschnittstitel (32/40), Inter für Text (16/24),
-   Knöpfe 40/48 px mit 8 px Radius (keine Pillen), Overlines in Rot-600, Icons Strich 1.75,
-   Inhalt bis 1200 px, flach statt Schatten. Signatur: Swoosh (Verlauf red-400 → 500 → 700)
-   unter dem EINEN Titelwort, Punktraster hinter dem Hero.
-   Werte: tokens.css (generiert).
+   INEXXIO Website – globales Stylesheet (Gestaltung v4, Regeln: docs/design-system/README.md)
+   Werte: tokens.css, generiert aus frontend/src/styles/design-system/colors_and_type.css
+   (scripts/tokens.mjs). Hier stehen nur die Masse der Website und die wenigen Klassen, die
+   mehrere Bausteine teilen (Knöpfe, Platten, Punkte der Karussells, Zoom beim Überfahren).
    ========================================================================== */
 @import './tokens.css';
 
@@ -56,11 +53,8 @@
   --maxw: 1264px; /* v4: 1440 − 2 × 88 */
   --gutter: 16px;
   --header-h: 64px;
-  --radius: var(--r-md); /* Bedienelemente 8 px */
-  --t-slow: 520ms;
-  /* Abstandsskala 4/8/12/16/24/32/48/64/96/128 */
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px;
-  --s-6: 32px; --s-7: 48px; --s-8: 64px; --s-9: 96px; --s-10: 128px;
+  /* Abstände 8/12/16/24/32/48 */
+  --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
   --section-y: 72px;
   --measure: 68ch;
   --focus-ring: 0 0 0 2px var(--white), 0 0 0 4px var(--ink);
@@ -112,24 +106,24 @@ ul[role='list'], ol[role='list'] { list-style: none; padding: 0; }
 [hidden] { display: none !important; }
 
 /* ---------- Typografie ---------- */
-/* Titel: Inter Tight 700 (Zwischentitel 600), Laufweite −0.03 em, ruhiger Zeilenabstand
-   (DS v3 --h1/--h2/--h3, Leiter 24·32·48·64). */
+/* Titel im Fliesstext (Ratgeber, Rechtliches): Inter Tight 700 bzw. 600, ruhiger Zeilenabstand.
+   Abschnitte der Website tragen die eine Überschrift-Form .v4-h2 (unten). */
 h1, h2, h3, h4, .h1, .h2, .h3 { color: var(--ink); text-wrap: balance; }
 h1, h2, h3, .h1, .h2, .h3 { font-family: var(--font-display); }
 h1, .h1 {
-  font-size: clamp(2.125rem, 1.45rem + 2.6vw, 3rem); /* 34 → 48 px (ix-h1 48/52) */
+  font-size: clamp(2.125rem, 1.45rem + 2.6vw, 3rem); /* 34 → 48 px */
   line-height: 1.083;
   font-weight: 700;
   letter-spacing: var(--tracking-tight);
 }
 h2, .h2 {
-  font-size: clamp(1.625rem, 1.4rem + 0.8vw, 2rem); /* 26 → 32 px (ix-h2 32/40) */
+  font-size: clamp(1.625rem, 1.4rem + 0.8vw, 2rem); /* 26 → 32 px */
   line-height: 1.25;
   font-weight: 600;
   letter-spacing: var(--tracking-snug);
 }
 h3, .h3 {
-  font-size: clamp(1.25rem, 1.15rem + 0.35vw, 1.5rem); /* 20 → 24 px (ix-h3 24/32) */
+  font-size: clamp(1.25rem, 1.15rem + 0.35vw, 1.5rem); /* 20 → 24 px */
   line-height: 1.333;
   letter-spacing: var(--tracking-snug);
   font-weight: 600;
@@ -176,7 +170,7 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 /* Sichtbarer Fokus: 2 px Rahmen mit Abstand. */
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 1px; }
-.on-dark :focus-visible, .on-dark:focus-visible, .section--dark :focus-visible { outline-color: var(--white); }
+.on-dark :focus-visible, .on-dark:focus-visible { outline-color: var(--white); }
 
 .skip-link {
   position: absolute; left: var(--s-4); top: -100px; z-index: 100;
@@ -193,10 +187,6 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 /* ---------- Layout ---------- */
 .wrap { width: 100%; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-inline: auto; padding-inline: var(--gutter); }
 .section { padding-block: calc(var(--section-y) / 2); }
-.section--paper { background: transparent; }
-.section--dark { background: var(--dark); color: var(--on-dark); --overline: var(--red-on-dark); }
-.section--dark h1, .section--dark h2, .section--dark h3, .section--dark h4, .section--dark strong { color: var(--white); }
-.section--dark .lead, .section--dark p { color: rgba(243, 244, 246, 0.72); }
 
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-6) var(--s-5); }
 @media (min-width: 960px) {
@@ -208,10 +198,8 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18e
 .head { margin-bottom: 28px; }
 @media (min-width: 960px) { .head { margin-bottom: 40px; } }
 .head__in { display: grid; max-width: 52rem; }
-.section--dark .v4-h2 { color: var(--white); }
-.section--dark .v4-sub { color: rgba(255, 255, 255, 0.62); }
 
-/* ---------- v4: die EINE Überschrift-Form (README §3a) ---------- */
+/* ---------- v4: die EINE Überschrift-Form (docs/design-system/README.md) ---------- */
 /* Grosse Überschrift, darunter höchstens ein grauer Satz, immer linksbündig. Keine Kicker, keine roten Wörter. */
 .v4-h2 {
   font-family: var(--font-display); font-weight: 600; font-size: 2rem; line-height: 1.08;
@@ -294,8 +282,8 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 .cdot[aria-current='true']::before { background: var(--ink); }
 
 /* ---------- Knöpfe ---------- */
-/* DS: 8 px Radius (keine Pillen), Höhe 40 (gross 48). Rot = die eine Hauptaktion, Umriss =
-   alles andere. Der rote Knopf bekommt nur beim Zeigen einen sehr dezenten Schatten. */
+/* Knöpfe: 6 px Radius (keine Pillen), Höhe 40 (gross 48). Rot nur für die Anfrage, hellgrau für
+   Abschnitts-Links, Umriss für alles andere. Der rote Knopf bekommt nur beim Zeigen einen dezenten Schatten. */
 .btn {
   --btn-h: 40px;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -315,15 +303,15 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 .btn--primary:active { background: var(--red-deep); box-shadow: none; }
 .btn--secondary { border-color: var(--line-2); color: var(--ink); background: var(--white); }
 .btn--secondary:hover { background: var(--paper); border-color: var(--ink-4); }
-.on-dark .btn--secondary, .section--dark .btn--secondary { background: transparent; border-color: rgba(255, 255, 255, 0.32); color: var(--white); }
-.on-dark .btn--secondary:hover, .section--dark .btn--secondary:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.6); }
+.on-dark .btn--secondary { background: transparent; border-color: rgba(255, 255, 255, 0.32); color: var(--white); }
+.on-dark .btn--secondary:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.6); }
 .btn--lg { --btn-h: 48px; padding: 0 22px; font-size: 0.9375rem; }
 /* Leiser Knopf (auf hellem Grund): die zweite Aktion neben Rot – weiss mit feiner Linie. */
 .btn--quiet { color: var(--ink); background: var(--white); border-color: var(--line-2); }
 .btn--quiet:hover { background: var(--paper); border-color: var(--ink-4); color: var(--ink); }
 .btn-row { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
 
-/* Pfeil-Textlink (DS .btn-link): rot, der Pfeil rückt beim Zeigen nach. */
+/* Pfeil-Textlink: rot, der Pfeil rückt beim Zeigen nach. */
 .arrow-link {
   display: inline-block; padding-block: 10px; line-height: 1.5; font-weight: 600; color: var(--ink);
   text-decoration: none;
@@ -331,18 +319,7 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 .arrow-link .icon { display: inline-block; vertical-align: -0.22em; margin-left: 6px; transition: transform var(--t-base) var(--ease); }
 .arrow-link:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 .arrow-link:hover .icon { transform: translateX(4px); }
-.section--dark .arrow-link, .on-dark .arrow-link { color: var(--white); }
-
-/* Signatur (DS .ix-grid-bg--fade): feines Schweizer Punktraster, zum Rand hin ausgeblendet.
-   Ersetzt den roten Schein aus v2 – v3 kennt keinen Glow. Dekor, kein Inhalt. */
-.dots { position: relative; isolation: isolate; }
-.dots::before {
-  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0);
-  background-size: 24px 24px;
-  -webkit-mask-image: radial-gradient(ellipse at 75% 35%, #000 0%, transparent 70%);
-  mask-image: radial-gradient(ellipse at 75% 35%, #000 0%, transparent 70%);
-}
+.on-dark .arrow-link { color: var(--white); }
 
 /* ---------- Listen ---------- */
 /* Die Haken-Liste des Hauses: roter Haken, Haarlinie zwischen den Zeilen. */
@@ -353,8 +330,6 @@ a:hover .garrow--ink { background: rgba(10, 10, 11, 0.14); }
 }
 .checklist li:first-child { border-top: 0; padding-top: 0; }
 .checklist .icon { margin-top: 0.22em; color: var(--ink); width: 18px; height: 18px; }
-.section--dark .checklist li { border-top-color: var(--line-dark); }
-.section--dark .checklist .icon { color: var(--white); }
 
 
 /* Faktentabelle («Auf einen Blick», Fristen) */

@@ -14,7 +14,7 @@ import {
   OctagonAlert, Shield, Sun, Thermometer,
 } from 'lucide-react';
 import { InfoHint } from '@/components/erp/hints';
-import { MICRO_LABEL, StatusBadge } from '@/components/erp/fields';
+import { StatusBadge } from '@/components/erp/fields';
 import { inputClass } from '@/components/erp/controls';
 import { Input } from '@/components/form/field';
 import { TONE } from '@/lib/status-tone';
@@ -133,7 +133,7 @@ export function TimeField({ id, name, label, value, onChange, info, bad, placeho
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width, maxWidth: '100%' }}>
-      <label htmlFor={id} style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-2)',
+      <label htmlFor={id} style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-3)',
         display: 'inline-flex', alignItems: 'center', gap: 5 }}>
         {label}{info && <InfoHint text={info} />}
       </label>
@@ -155,8 +155,8 @@ export function IconBar<T extends string>({ value, options, onChange }: {
 }) {
   return (
     <div role="tablist" style={{ display: 'inline-flex', flexWrap: 'wrap', justifySelf: 'start',
-      width: 'fit-content', maxWidth: '100%', gap: 2, padding: 3, borderRadius: 999,
-      background: 'var(--bg-2)', border: '1px solid var(--border-1)' }}>
+      width: 'fit-content', maxWidth: '100%', gap: 2, padding: 3, borderRadius: 'var(--r-md)',
+      background: 'var(--bg-2)' }}>
       {options.map((o) => {
         const on = o.value === value;
         const Icon = o.icon;
@@ -164,7 +164,7 @@ export function IconBar<T extends string>({ value, options, onChange }: {
           <button key={o.value} type="button" role="tab" aria-selected={on} aria-label={o.label}
             data-tip={o.label} data-tip-pos="bottom" onClick={() => onChange(o.value)}
             style={{ width: 34, height: 30, display: 'inline-flex', alignItems: 'center',
-              justifyContent: 'center', border: 'none', borderRadius: 999, cursor: 'pointer',
+              justifyContent: 'center', border: 'none', borderRadius: 4, cursor: 'pointer',
               background: on ? 'var(--bg-1)' : 'none',
               boxShadow: on ? '0 1px 2px rgba(0,0,0,.12)' : undefined,
               color: on ? 'var(--accent-ink)' : 'var(--fg-3)' }}>
@@ -197,31 +197,31 @@ export function Note({ children }: { children: ReactNode }) {
   return <p style={{ fontSize: 13, color: 'var(--fg-3)', margin: 0 }}>{children}</p>;
 }
 
-/** Ein leiser Knopf mit Symbol und Wort («Erfassen», «Neuer Vertrag»). */
+/** Ein leiser Knopf mit Symbol und Wort («Erfassen», «Neuer Vertrag») – dieselbe Form wie
+ *  «Lieferadresse hinzufügen» im Konto (`.kt-add`). */
 export function QuietButton({ icon: Icon, label, onClick, disabled, tip }: {
   icon: ElementType; label: string; onClick: () => void; disabled?: boolean; tip?: string;
 }) {
   return (
     <div>
-      <button type="button" className="erp-actbtn erp-actbtn-neutral" disabled={disabled}
-        onClick={onClick} {...(tip ? { 'data-tip': tip } : {})}
-        style={{ height: 30, padding: '0 12px', fontSize: 12.5 }}>
-        <Icon size={14} />{label}
+      <button type="button" className="kt-add" disabled={disabled}
+        onClick={onClick} {...(tip ? { 'data-tip': tip } : {})}>
+        <Icon size={16} aria-hidden />{label}
       </button>
     </div>
   );
 }
 
-/** Ein Abschnitt in der Karte: Symbol + Mikro-Label + ⓘ, rechts ein Platz. */
-export function Sect({ icon: Icon, title, info, right, children }: {
-  icon: ElementType; title: ReactNode; info?: string; right?: ReactNode; children: ReactNode;
+/** Ein Teil in einem Abschnitt: kleiner Titel + ⓘ, rechts ein Platz – ohne Symbol, ohne
+ *  Versalien (wie die Titel im Konto, nur eine Stufe kleiner). */
+export function Sect({ title, info, right, children }: {
+  title: ReactNode; info?: string; right?: ReactNode; children: ReactNode;
 }) {
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Icon size={13} style={{ color: 'var(--fg-3)' }} />
-        <span style={{ ...MICRO_LABEL, color: 'var(--fg-3)', display: 'inline-flex',
-          alignItems: 'center', gap: 6 }}>{title}</span>
+        <h3 style={{ margin: 0, font: '600 15px/1.3 var(--font-display)', color: 'var(--fg-1)',
+          display: 'inline-flex', alignItems: 'center', gap: 6 }}>{title}</h3>
         {info && <InfoHint text={info} />}
         <span style={{ flex: 1 }} />
         {right}

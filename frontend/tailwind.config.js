@@ -23,7 +23,6 @@ module.exports = {
         inexxio: {
           DEFAULT: 'var(--inexxio-red)',
           red: 'var(--inexxio-red)',
-          bright: 'var(--inexxio-red-bright)',
           deep: 'var(--inexxio-red-deep)',
           black: 'var(--inexxio-black)',
         },
@@ -69,8 +68,7 @@ module.exports = {
       },
       borderRadius: {
         // Radien unter `ds-*`, damit Tailwinds eigene rounded-{sm,md,lg,…} ihre Bedeutung
-        // behalten: Bedienelement 8 px (md), Karte 12 px (lg).
-        'ds-xs': 'var(--r-xs)',
+        // behalten: Bedienelement 6 px (md), Karte 8 px (lg).
         'ds-sm': 'var(--r-sm)',
         'ds-md': 'var(--r-md)',
         'ds-lg': 'var(--r-lg)',
@@ -78,10 +76,7 @@ module.exports = {
       boxShadow: {
         // Schatten nur für schwebende Ebenen; `shadow-ds-red` nur als Hover-Akzent des roten
         // Knopfs, nie im Ruhezustand.
-        'ds-xs': 'var(--shadow-xs)',
-        'ds-sm': 'var(--shadow-sm)',
         'ds-md': 'var(--shadow-md)',
-        'ds-lg': 'var(--shadow-lg)',
         'ds-red': 'var(--shadow-red)',
       },
       letterSpacing: {

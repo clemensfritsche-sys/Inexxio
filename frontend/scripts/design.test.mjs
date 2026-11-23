@@ -16,6 +16,9 @@
  * 4. **Ein Zustand ist Punkt + Wort über `fields.StatusDot`** – kein selbst gebauter Punkt.
  * 5. **Das Mikro-Label steht einmal** (`fields.MICRO_LABEL`) – keine Versalien daneben (F-43).
  * 6. **Ein Dialog hat einen Namen, ein Reiter sagt, ob er gewählt ist** (Bildschirmleser).
+ * 7. **Jedes Token wird gelesen** – im Frontend (`var()`, Tailwind), von der Website
+ *    (`website/scripts/tokens.mjs`) oder von einem anderen Token. Ein Token, das niemand liest, ist
+ *    die Form, in der das Design System veraltet (November 2026: 127 von 230).
  *
  *     node --test scripts/design.test.mjs
  */
@@ -165,7 +168,30 @@ test('ein Dialog hat einen Namen, ein Reiter sagt, ob er gewählt ist', () => {
   assert.deepEqual(bad, [], `aria-label/aria-labelledby am Dialog, aria-selected am Reiter:\n${bad.join('\n')}`);
 });
 
+// ─── 7. Jedes Token wird gelesen ─────────────────────────────────────────────
+
+const TOKENS = 'styles/design-system/colors_and_type.css';
+
+/** Tokens aus dem `:root`-Block, die niemand liest (`readers` = alle Texte, die lesen dürfen). */
+function unread(sheet, readers) {
+  const root = sheet.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+  const defined = [...root.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]);
+  const read = new Set([...readers, root].flatMap((t) => [...t.matchAll(/var\((--[\w-]+)/g), ...t.matchAll(/'(--[\w-]+)':/g)].map((m) => m[1])));
+  return defined.filter((v) => !read.has(v));
+}
+
+test('jedes Token wird gelesen', () => {
+  const sheet = readFileSync(resolve(SRC, TOKENS), 'utf8');
+  const readers = [...CSS.filter((p) => !p.endsWith('colors_and_type.css')).map((p) => readFileSync(p, 'utf8')),
+    ...files().map(code), readFileSync(resolve(ROOT, 'frontend/tailwind.config.js'), 'utf8'),
+    readFileSync(resolve(ROOT, 'website/scripts/tokens.mjs'), 'utf8')];
+  assert.ok(sheet.includes('--fg-1:'), 'Das Token-Blatt nicht gelesen – der Wächter wäre blind.');
+  assert.deepEqual(unread(sheet, readers), [], `Tokens, die niemand liest – löschen:\n${unread(sheet, readers).join('\n')}`);
+});
+
 test('die Wächter erkennen ihre Bug-Form', () => {
+  assert.deepEqual(unread(':root {\n  --a:#fff; --b:var(--c); --c:1px;\n}', ['x { color: var(--b); }']), ['--a']);
+  assert.deepEqual(unread(':root {\n  --a:#fff;\n}', ["const MAP = { '--a': '--white' };"]), []);
   const sample = (t) => parse(t, { text: true });
   assert.deepEqual(variables("a { color: var(--warn); } b { --ok: 1; }"), { used: ['--warn'], defined: ['--ok'] });
   assert.deepEqual(variables('a { color: var(--warn, red); }').used, []);

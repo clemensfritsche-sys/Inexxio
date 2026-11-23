@@ -41,13 +41,13 @@
 .node {
   position: relative; z-index: 1; width: 56px; height: 56px; border-radius: 50%; flex: none;
   display: grid; place-items: center; color: var(--fg-1); background: var(--bg-1);
-  box-shadow: var(--elev-3);
+  box-shadow: var(--shadow-lg);
 }
 .cur .node { background: var(--fg-1); color: var(--bg-1); }
 .card {
   position: relative; padding: 20px; border-radius: 24px; background: var(--bg-3); min-height: 132px;
 }
-.cur .card { background: var(--bg-1); box-shadow: var(--elev-3); }
+.cur .card { background: var(--bg-1); box-shadow: var(--shadow-lg); }
 .done .card { opacity: 0.7; }
 .no {
   position: absolute; top: 16px; right: 20px;
@@ -102,7 +102,7 @@
   position: absolute; z-index: 2; top: 10px; right: max(4px, calc((100% - 210mm) / 2 - 22px));
   width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
   color: var(--fg-1); background: var(--bg-1); border: 1px solid var(--border-1);
-  box-shadow: var(--elev-4); cursor: pointer;
+  box-shadow: var(--shadow-xl); cursor: pointer;
 }
 .dl:disabled { cursor: progress; }
 

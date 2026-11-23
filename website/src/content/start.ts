@@ -1,7 +1,6 @@
 /**
  * Startseite – Texte, in der Reihenfolge der Sektionen (src/pages/index.astro).
- * Werte aus der Konfiguration mit {{…}}. Wortlaut der abgenommenen Vorlage «Startseite v4»
- * (docs/design-system/reference/mockups/).
+ * Werte aus der Konfiguration mit {{…}}.
  */
 import type { Faq } from './types';
 import { handoverLead } from './uebergabe';

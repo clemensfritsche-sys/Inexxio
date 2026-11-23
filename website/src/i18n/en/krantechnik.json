@@ -73,7 +73,7 @@
   "Kurve": "Curve",
   "Um die Ecke": "Round the corner",
   "Zeichnung von oben: Halle in L-Form, die rote Fahrbahn biegt um die Ecke": "Drawing from above: L-shaped hall, the red runway turns the corner",
-  "Die Fahrbahn muss abbiegen. Wir bauen sie als Kurve, mit einem Fahrwerk, das ihr folgt.": "The runway has to turn. We build it as a curve, with a travel unit that follows it.",
+  "Die Fahrbahn muss abbiegen. Wir bauen die Kranschiene nach Mass im Bogen, mit einem Fahrwerk, das ihr folgt. Wo sie sich teilt, setzen wir eine Weiche – manuell, mechanisch oder hydraulisch.": "The runway has to turn. We build the crane rail to measure as a curve, with a travel unit that follows it. Where it branches, we fit a switch – manual, mechanical or hydraulic.",
   "Steigung": "Slope",
   "Über eine Steigung": "Up a slope",
   "Zeichnung von der Seite: Halle am Hang, die rote Fahrbahn läuft waagrecht, steigt mit an und läuft oben wieder waagrecht": "Side-view drawing: hall on a slope, the red runway runs level, climbs and runs level again at the top",
@@ -82,10 +82,9 @@
   "Decke mit Versatz": "Ceiling with an offset",
   "Zeichnung: zwei Hallenteile mit verschieden hoher Decke, die rote Fahrbahn biegt in einer Kurve vom einen in den anderen und bleibt waagrecht": "Drawing: two hall sections with different ceiling heights, the red runway curves from one into the other and stays level",
   "Die Höhe springt, Balken oder Unterzüge stören. Wir hängen die Fahrbahn so ab, dass die Hubhöhe nutzbar bleibt.": "The height changes, beams or downstand beams get in the way. We suspend the runway so that the lifting height stays usable.",
-  "Wenig Platz": "Little space",
   "Eng und verwinkelt": "Tight and awkward",
-  "Zeichnung: enger Schacht mit schrägen Wänden und Treppe, die rote Katze mit Plattform passt genau hinein": "Drawing: narrow shaft with angled walls and a staircase, the red trolley with a platform fits exactly",
-  "Stützen, Nischen, wenig Platz: Ein kompakter Kran mit passendem Greifer erreicht auch die letzte Ecke.": "Columns, recesses, little space: a compact crane with a suitable grab reaches even the last corner.",
+  "Zeichnung: Materiallift im engen Schrägstollen – die rote Kabine hängt an zwei Schienen unter der Betondecke, daneben die Treppe": "Drawing: material lift in a narrow inclined tunnel – the red car hangs from two rails under the concrete ceiling, the staircase beside it",
+  "Schräg, steil und eng wie hier im Stollen neben der Treppe: Unser Materiallift fährt an zwei Schienen unter der Decke und bringt Material und Werkzeug hinauf – über Steigungen und um Ecken, auch senkrecht über mehrere Stockwerke.": "Inclined, steep and tight, like here in the tunnel beside the stairs: our material lift runs on two rails under the ceiling and carries material and tools up – over gradients and round corners, and vertically over several floors too.",
   "Ihre Situation ist nicht dabei?": "Your situation is not listed?",
   "Fragen Sie trotzdem. Schicken Sie uns ein paar Fotos, wir sagen Ihnen ehrlich, ob es geht.": "Ask anyway. Send us a few photos and we will tell you honestly whether it works.",
   "Für Scheune und Halle.": "For barn and hall.",
@@ -266,5 +265,6 @@
   "Einlagern": "Storing",
   "Sommer: Sie lagern ein": "Summer: you store",
   "Füttern": "Feeding",
-  "Winter: Sie füttern": "Winter: you feed"
+  "Winter: Sie füttern": "Winter: you feed",
+  "Materiallift": "Material lift"
 }
