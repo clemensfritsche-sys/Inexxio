@@ -892,6 +892,10 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   das ERP bleibt deutsch.
   Französisch, Englisch, Italienisch: `live` (gegengelesen und freigegeben November 2026; hreflang
   nur auf indexierten Seiten, die Organisation ist im JSON-LD EINE für alle Sprachen).
+- **Suchmaschinen**: Produktion `live` (indexierbar, Sitemap), Staging ganz `noindex` (X-Robots-Tag
+  auf jeder Antwort, robots.txt sperrt alles). Der Kundenbereich (`/erp`, `/konto`, `/login`,
+  `/abmelden`, `/dokument`) ist überall in robots.txt gesperrt **und** trägt `noindex` (`firebase.json`,
+  aus `site.erpPaths` geprüft in `seo.test.mjs`).
 - **Jede Seite steht in `website/src/lib/pages.ts`** oder trägt `noindex`; `check-site.mjs`
   prüft Links, JSON-LD, Sitemap, Weiterleitungen alter hs-steiner.ch-Pfade, Budget.
 

@@ -115,7 +115,7 @@
         ]
       },
       {
-        "source": "/dokument",
+        "source": "/@(erp|konto|login|abmelden|dokument){,/**}",
         "headers": [
           {
             "key": "X-Robots-Tag",

@@ -73,3 +73,14 @@ test('Article: gehört zu seiner Seite, mit Bild und Sprache', () => {
   assert.deepEqual(a.image, [`${BASE}/_astro/x.webp`, `${BASE}/og/default.png`]);
   assert.equal(a.inLanguage, 'de-CH');
 });
+
+test('live: Kundenbereich trägt noindex (X-Robots-Tag in firebase.json) – genau die privaten Seiten', async () => {
+  // robots.txt hält Crawler fern; ein Link von aussen könnte die Adresse trotzdem in den Index
+  // bringen. Der Kopf «noindex» gilt auf jeder Umgebung, Prod eingeschlossen.
+  const { readFileSync } = await import('node:fs');
+  const fb = JSON.parse(readFileSync(new URL('../../firebase.json', import.meta.url), 'utf8'));
+  const pages = site.erpPaths.filter((p) => p.private && p.page).map((p) => p.path.slice(1));
+  const noindex = fb.hosting.headers.filter((h) => h.source !== '**'
+    && h.headers.some((x) => x.key === 'X-Robots-Tag' && x.value.includes('noindex')));
+  assert.deepEqual(noindex.map((h) => h.source), [`/@(${pages.join('|')}){,/**}`]);
+});

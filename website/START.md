@@ -18,7 +18,7 @@
       Formular Telefon und `mailto:` (503).
 - [x] Kontaktdaten (Telefon, E-Mail, Anschrift) stehen am Datensatz der Gesellschaft im ERP –
       Website und Formular lesen sie von dort (`GET /api/v1/public/contact`)
-- [ ] AGB und Datenschutz rechtlich prüfen und anpassen: sie sind **Dokumente je eigener
+- [x] AGB und Datenschutz rechtlich prüfen und anpassen (geprüft 23.11.2026): sie sind **Dokumente je eigener
       Gesellschaft** (ERP → Gesellschaft → Karte «Rechtstexte», «Aus Vorlage übernehmen» nur
       Admin); die Vorlagen liegen in `backend/app/assets/legal/agb/<gültig ab>.md` bzw. `…/datenschutz/…`
 - [x] Login, Profil und ERP einmal mit einem echten Konto durchklicken (Mitarbeiter und
@@ -37,7 +37,8 @@
 
 - [ ] Google-Unternehmensprofil umbenennen («INEXXIO – ehemals HS Steiner»), Bing Places,
       Apple Business Connect, local.ch/search.ch – überall derselbe Name
-- [ ] E-Mail-Weiterleitungen der bisherigen Adressen und neue Signaturen
+- [x] E-Mail-Weiterleitungen der bisherigen Adressen (23.11.2026)
+- [ ] Neue Signaturen in Gmail (die Mails aus dem ERP tragen ihre Unterschrift schon selbst)
 
 ## Bereits erledigt (nicht mehr prüfen)
 
