@@ -9,17 +9,17 @@ import { article, breadcrumbs, organization, webPage } from '../src/lib/seo.mjs'
 
 const BASE = 'https://www.example.ch';
 
-test('Vorschau: alles gesperrt, keine Sitemap', () => {
+test('Vorschau: nur /api/ gesperrt, keine Sitemap (noindex trägt jede Seite selbst)', () => {
   const txt = robotsTxt('preview', BASE);
-  assert.match(txt, /^User-agent: \*\nDisallow: \/$/m);
+  assert.match(txt, /^User-agent: \*\nDisallow: \/api\/$/m);
+  assert.doesNotMatch(txt, /^Disallow: \/$/m);
   assert.doesNotMatch(txt, /Sitemap:/);
-  assert.doesNotMatch(txt, /Allow: \//);
 });
 
-test('Vorschau: Konto- und ERP-Pfade trotzdem ausdrücklich gesperrt (immer, auch im Modus preview)', () => {
-  const txt = robotsTxt('preview', BASE);
-  for (const p of site.privatePaths) assert.ok(txt.includes(`Disallow: ${p}\n`), p);
-  for (const p of ['/erp', '/konto', '/login', '/abmelden', '/dokument']) assert.ok(site.privatePaths.includes(p), `${p} fehlt in site.privatePaths`);
+test('Kundenbereich: jede private Seite ist noindex-Seite, nichts davon in robots.txt gesperrt', () => {
+  for (const p of ['/erp', '/konto', '/login', '/abmelden', '/dokument']) assert.ok(site.noindexPages.includes(p), `${p} fehlt in site.noindexPages`);
+  const txt = robotsTxt('live', BASE);
+  for (const p of site.noindexPages) assert.ok(!txt.includes(`Disallow: ${p}`), `${p} gesperrt – Google sähe das noindex nicht`);
 });
 
 test('live: jeder Crawler der Liste ausdrücklich zugelassen', () => {
@@ -79,7 +79,7 @@ test('live: Kundenbereich trägt noindex (X-Robots-Tag in firebase.json) – gen
   // bringen. Der Kopf «noindex» gilt auf jeder Umgebung, Prod eingeschlossen.
   const { readFileSync } = await import('node:fs');
   const fb = JSON.parse(readFileSync(new URL('../../firebase.json', import.meta.url), 'utf8'));
-  const pages = site.erpPaths.filter((p) => p.private && p.page).map((p) => p.path.slice(1));
+  const pages = site.noindexPages.map((p) => p.slice(1));
   const noindex = fb.hosting.headers.filter((h) => h.source !== '**'
     && h.headers.some((x) => x.key === 'X-Robots-Tag' && x.value.includes('noindex')));
   assert.deepEqual(noindex.map((h) => h.source), [`/@(${pages.join('|')}){,/**}`]);

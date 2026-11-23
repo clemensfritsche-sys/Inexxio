@@ -41,7 +41,7 @@
   (`site.navigation`).
 - **20 · Ein Stylesheet** für die ganze Website (`cssCodeSplit: false`).
 - **49 · Dev wird nie indexiert** (`X-Robots-Tag` im Dev-Deploy); unabhängig davon sperrt der
-  Modus `preview` per `noindex` und `robots.txt`. **86 · DEV-Eckband** nur bei `SITE_ENV=dev`.
+  Modus `preview` per `noindex` auf jeder Seite (robots.txt sperrt nur `/api/`, sonst sähe Google das `noindex` nicht). **86 · DEV-Eckband** nur bei `SITE_ENV=dev`.
 - **48/66 · Das «+» für Personal** (ersetzt die Testnotizen, November 2026): angemeldetes Personal
   sieht unten rechts dasselbe «+» wie im ERP – `src/scripts/capture.ts` öffnet `/erp/erfassen` in
   einem Rahmen (eigene Anmeldung, gleicher Ursprung; CSP `frame-src 'self'`). Die Stecknadel
