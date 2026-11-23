@@ -8,29 +8,28 @@
 
 ## Vor dem Umschalten
 
-- [ ] Freigabe von Heiri Steiner: Texte, Zitat, Fotos, Namenswechsel
-- [ ] Fototag; Fotos in `src/config/photos.mjs` eintragen (jedes ersetzt einen Rahmen «Foto
-      fehlt») – im Modus `live` bricht der Build bei jedem fehlenden Foto ab
-- [ ] `OFFENE_PUNKTE.md` leer, dann `SITE_MODE=live` und `SITE_URL=https://<Domain>` im
-      Produktions-Workflow
-- [ ] **Anfragen landen im ERP**: das Postfach der eigenen Gesellschaft ist verbunden
+- [x] Freigabe von Heiri Steiner: Texte, Zitat, Fotos, Namenswechsel (23.11.2026)
+- [x] Kein Foto fehlt auf einer Seite (`OFFENE_PUNKTE.md`: 0 blockieren); weitere Fotos vom Fototag
+      kommen nach und nach – im Modus `live` bricht der Build bei jedem fehlenden Foto ab
+- [x] `SITE_MODE=live` und `SITE_URL=https://inexxio.com` im Produktions-Workflow (23.11.2026)
+- [x] **Anfragen landen im ERP**: das Postfach der eigenen Gesellschaft ist verbunden
       (`docs/gmail-setup.md`) – sonst wird die Anfrage gespeichert, die Bestätigung an den
       Kunden geht aber nicht hinaus. Lässt sich eine Anfrage gar nicht speichern, zeigt das
       Formular Telefon und `mailto:` (503).
-- [ ] Kontaktdaten (Telefon, E-Mail, Anschrift) stehen am Datensatz der Gesellschaft im ERP –
+- [x] Kontaktdaten (Telefon, E-Mail, Anschrift) stehen am Datensatz der Gesellschaft im ERP –
       Website und Formular lesen sie von dort (`GET /api/v1/public/contact`)
 - [ ] AGB und Datenschutz rechtlich prüfen und anpassen: sie sind **Dokumente je eigener
       Gesellschaft** (ERP → Gesellschaft → Karte «Rechtstexte», «Aus Vorlage übernehmen» nur
       Admin); die Vorlagen liegen in `backend/app/assets/legal/agb/<gültig ab>.md` bzw. `…/datenschutz/…`
-- [ ] Login, Profil und ERP einmal mit einem echten Konto durchklicken (Mitarbeiter und
+- [x] Login, Profil und ERP einmal mit einem echten Konto durchklicken (Mitarbeiter und
       Kunde): Profilmenü, «ERP» im Menü, Abmelden – auf Website **und** im ERP
-- [ ] Test auf iPhone (Safari) und Android (Chrome); externe Links einmal öffnen
+- [x] Test auf iPhone (Safari) und Android (Chrome); externe Links einmal öffnen
 
 ## Beim Umschalten
 
-- [ ] Domain mit Firebase Hosting verbinden (keine eigene Weiterleitungs-Site für hs-steiner.ch –
+- [x] Domain mit Firebase Hosting verbinden (22.11.2026) (keine eigene Weiterleitungs-Site für hs-steiner.ch –
       Entscheid 21.11.2026)
-- [ ] Formular und Login in Produktion einmal testen (Anfrage steht im ERP, Bestätigung kommt an)
+- [x] Formular und Login in Produktion einmal testen (Anfrage steht im ERP, Bestätigung kommt an)
 - [ ] Google Search Console und Bing Webmaster Tools: Domain bestätigen, Sitemap einreichen,
       Adressänderung melden
 

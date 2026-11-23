@@ -975,8 +975,9 @@ cd backend && alembic upgrade head
 Phase 1 · Deployment develop → https://inexxio-dev.web.app
 
 **Was heute steht** (Einzelheiten in den Abschnitten oben)
-- **Website** INEXXIO (ehemals HS Steiner) in Gestaltung v4 (Glas-Kopf, Bühne mit Video), Modus
-  `preview` bis `website/START.md` erledigt ist.
+- **Website** INEXXIO (ehemals HS Steiner) in Gestaltung v4 (Glas-Kopf, Bühne mit Video), in
+  Produktion **live** unter https://inexxio.com (seit 23.11.2026, Suchmaschinen erlaubt); Staging
+  bleibt `preview` (noindex). Was noch aussen zu tun ist: `website/START.md`.
 - **Anmeldung** (Magic Link · Google · Passkeys) als Pop-up bzw. `/login?from=…` – danach nie
   auf «/», sondern `?from=` oder der Startplatz der Rolle; das Pop-up ist Glas. **Der Anmeldelink
   kommt im Kleid des Hauses** (`services/login_link`, `POST /api/v1/auth/link`: Link von Firebase,
