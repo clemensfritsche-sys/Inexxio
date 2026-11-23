@@ -34,8 +34,9 @@ jobs:
       # Die Hauptadresse (seit 22.11.2026 mit Firebase verbunden; www und alle anderen Domains
       # leiten dorthin). Mails, Links, Sitemap und Website-Daten sprechen sie.
       site_url: https://inexxio.com
-      # Am Go-live-Tag «live» (website/START.md, Plan «Go-live»); bis dahin noindex.
-      site_mode: preview
+      # «live» seit 23.11.2026 (Freigabe Heiri Steiner): Suchmaschinen dürfen die Website lesen –
+      # ohne noindex, robots.txt offen, Sitemap https://inexxio.com/sitemap.xml (website/START.md).
+      site_mode: live
       app_env: production
       # Bis zum Go-live auf null im Leerlauf; danach min 1 (kein Kaltstart, ~7–9 CHF/Monat).
       # Verbindungen: 2 Instanzen × 1 Worker × (5 + 5) = 20 ≤ 25 − 3 – passt auf jede

@@ -892,6 +892,10 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   das ERP bleibt deutsch.
   Französisch, Englisch, Italienisch: `live` (gegengelesen und freigegeben November 2026; hreflang
   nur auf indexierten Seiten, die Organisation ist im JSON-LD EINE für alle Sprachen).
+- **Suchmaschinen**: Produktion `live` (indexierbar, Sitemap), Staging ganz `noindex` (X-Robots-Tag
+  auf jeder Antwort, robots.txt sperrt alles). Der Kundenbereich (`/erp`, `/konto`, `/login`,
+  `/abmelden`, `/dokument`) ist überall in robots.txt gesperrt **und** trägt `noindex` (`firebase.json`,
+  aus `site.erpPaths` geprüft in `seo.test.mjs`).
 - **Jede Seite steht in `website/src/lib/pages.ts`** oder trägt `noindex`; `check-site.mjs`
   prüft Links, JSON-LD, Sitemap, Weiterleitungen alter hs-steiner.ch-Pfade, Budget.
 
@@ -975,8 +979,9 @@ cd backend && alembic upgrade head
 Phase 1 · Deployment develop → https://inexxio-dev.web.app
 
 **Was heute steht** (Einzelheiten in den Abschnitten oben)
-- **Website** INEXXIO (ehemals HS Steiner) in Gestaltung v4 (Glas-Kopf, Bühne mit Video), Modus
-  `preview` bis `website/START.md` erledigt ist.
+- **Website** INEXXIO (ehemals HS Steiner) in Gestaltung v4 (Glas-Kopf, Bühne mit Video), in
+  Produktion **live** unter https://inexxio.com (seit 23.11.2026, Suchmaschinen erlaubt); Staging
+  bleibt `preview` (noindex). Was noch aussen zu tun ist: `website/START.md`.
 - **Anmeldung** (Magic Link · Google · Passkeys) als Pop-up bzw. `/login?from=…` – danach nie
   auf «/», sondern `?from=` oder der Startplatz der Rolle; das Pop-up ist Glas. **Der Anmeldelink
   kommt im Kleid des Hauses** (`services/login_link`, `POST /api/v1/auth/link`: Link von Firebase,
