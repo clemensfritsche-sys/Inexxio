@@ -33,7 +33,8 @@ export const qk = {
   document: (id: number) => key('document', id),
   documentsOf: (id: number) => key('documentsOf', id),
   payments: (scope: Scope) => key('payments', scope),
-  history: (objectId: number) => key('history', objectId),
+  /** Mit oder ohne Änderungen aus dem Log – zwei Abfragen, je nur, was gezeigt wird. */
+  history: (objectId: number, changes = false) => key('history', objectId, changes),
   senders: () => key('senders'),
   mailboxes: (company: number) => key('mailboxes', company),
   newsletter: (person: number) => key('newsletter', person),

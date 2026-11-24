@@ -5607,6 +5607,18 @@
               "default": 30,
               "title": "Limit"
             }
+          },
+          {
+            "name": "changes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Auch die Änderungen aus dem Log – aus, wenn nur Nachrichten, Notizen und Dokumente gezeigt werden.",
+              "default": true,
+              "title": "Changes"
+            },
+            "description": "Auch die Änderungen aus dem Log – aus, wenn nur Nachrichten, Notizen und Dokumente gezeigt werden."
           }
         ],
         "responses": {

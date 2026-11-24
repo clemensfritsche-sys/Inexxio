@@ -17,7 +17,9 @@ router = APIRouter(prefix="/api/v1/erp/history", tags=["history"])
 @router.get("/{object_id}", response_model=HistoryPage)
 def history(object_id: int, before: Optional[str] = Query(None),
             limit: int = Query(svc.communication.PAGE, ge=1, le=100),
+            changes: bool = Query(True, description="Auch die Änderungen aus dem Log – aus, wenn "
+                                  "nur Nachrichten, Notizen und Dokumente gezeigt werden."),
             db: Session = DB, user: UserProfile = Depends(require_employee)):
     """Eine Seite des Verlaufs – Nachrichten, Dokumente und Änderungen, die neuesten zuerst;
     ``before`` ist der Cursor der vorigen Seite."""
-    return svc.page(db, object_id, user, before=before, limit=limit)
+    return svc.page(db, object_id, user, before=before, limit=limit, changes=changes)

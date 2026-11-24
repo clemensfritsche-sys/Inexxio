@@ -245,7 +245,7 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET | `/api/v1/erp/payments?person=\|company=` | staff | **Zahlungen** einer Person oder eigenen Gesellschaft (Ableitung, `services/payment_list`) |
 | GET | `/api/v1/attachments/{token}` | – | Bild ausliefern (unerratbarer Token) |
 | POST | `/api/v1/payments/webhook` | – (Signatur) | Rückmeldung des Zahlungsdienstes – bucht eine Geld-Zeile am Beleg, sonst nichts |
-| GET | `/api/v1/erp/history/{object_id}?before=&limit=` | staff | **Der Verlauf eines Datensatzes** – eine Seite (30), die neuesten zuerst: Nachrichten, Dokumente, Änderungen je Handlung (`services/history`); Dokumente nach `access`, Zeiterfassung nur selbst/Admin |
+| GET | `/api/v1/erp/history/{object_id}?before=&limit=&changes=` | staff | **Der Verlauf eines Datensatzes** – eine Seite (30), die neuesten zuerst: Nachrichten, Dokumente, Änderungen je Handlung (`services/history`; ohne `changes` keine Änderungen – geblättert wird nur durch, was gezeigt wird); Dokumente nach `access`, Zeiterfassung nur selbst/Admin |
 | POST | `/api/v1/erp/messages` | staff | Nachricht anlegen (jede Art dieselbe Form) |
 | GET | `/api/v1/erp/messages/channels` | staff | Kanäle, aus denen man schreiben kann |
 | GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |

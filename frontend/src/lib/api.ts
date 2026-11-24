@@ -590,9 +590,9 @@ class ApiClient {
 
   /** **Der Verlauf eines Datensatzes** – eine Seite, die neuesten zuerst; `before` ist der
    *  Cursor der vorigen Seite (`services/history`). */
-  history(objectId: number, before?: string, req?: Req) {
+  history(objectId: number, before?: string, changes = false, req?: Req) {
     return this.call('get', '/api/v1/erp/history/{object_id}',
-      { path: { object_id: objectId }, query: { before: before || undefined } }, req);
+      { path: { object_id: objectId }, query: { before: before || undefined, changes } }, req);
   }
 
   createMessage(body: In<'post', '/api/v1/erp/messages'>) {

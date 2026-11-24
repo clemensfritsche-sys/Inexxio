@@ -12461,6 +12461,8 @@ export interface operations {
             query?: {
                 before?: string | null;
                 limit?: number;
+                /** @description Auch die Änderungen aus dem Log – aus, wenn nur Nachrichten, Notizen und Dokumente gezeigt werden. */
+                changes?: boolean;
             };
             header?: never;
             path: {

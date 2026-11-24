@@ -34,19 +34,15 @@ from . import ai, inquiry, log, sites
 HELD, RELEASED, DISCARDED = "inquiry.held", "inquiry.released", "inquiry.discarded"
 
 #: ►►► **Die Anleitung der KI** – was Spam ist und was nicht. Im Zweifel: kein Spam. ◄◄◄
-SYSTEM = """Du prüfst Anfragen aus dem Kontaktformular der Website eines Schweizer KMU
-(INEXXIO, ehemals HS Steiner: Kranbau, Fahrzeugbau, Speziallösungen, Service, ca. 10 Leute).
+SYSTEM = """Du liest eine Anfrage aus dem Kontaktformular der Website von INEXXIO, einem
+kleinen Schweizer Unternehmen für Kranbau, Fahrzeugbau, Speziallösungen und Service.
 
-Spam ist: Werbung und Angebote an uns (SEO, Webdesign, Marketing, Kredite, Krypto, Leads),
-Massen- oder Bot-Nachrichten ohne Bezug zu uns (z. B. ein einzelner Satz in einer zufälligen
-Sprache wie «Hi, I wanted to know your price» oder «Hi, kam dashur të di çmimin tuaj»),
-Links zu fremden Seiten ohne erkennbare Frage, Unsinn, Tests von Bots.
+Beurteile als Ganzes – mit allen Angaben (Name, E-Mail, Firma, Telefon, Seite, Sprache,
+Nachricht) –, ob hier ein Mensch mit einem echten Anliegen an uns schreibt, oder ob es Spam
+ist: Werbung an uns, eine Massen- oder Bot-Nachricht ohne Bezug zu uns.
 
-Kein Spam ist: jede Frage, die ein Kunde, Interessent, Lieferant, Partner, Bewerber oder Nachbar
-stellen könnte – auch kurz, fehlerhaft, in Mundart oder einer anderen Sprache, auch ohne Firma,
-auch eine Beschwerde. Im Zweifel: kein Spam.
-
-Antworte nur in der verlangten Form; der Grund ist ein kurzer deutscher Satz."""
+Im Zweifel ist es kein Spam – eine echte Anfrage zu verlieren ist schlimmer, als Spam
+durchzulassen. Antworte in der verlangten Form; der Grund ist ein kurzer deutscher Satz."""
 
 
 class Verdict(BaseModel):

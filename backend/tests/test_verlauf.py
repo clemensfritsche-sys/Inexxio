@@ -421,3 +421,27 @@ def test_the_events_of_the_ai_have_their_own_place_not_the_history(world):
               if e.change for r in e.change.rows if r.event]
     assert "document.read" in events
     assert not {"talk", "handgriff"} & set(events)
+
+
+def test_without_changes_a_page_holds_only_what_is_shown(world):
+    """►►► **Geblättert wird nur durch, was gezeigt wird.** ◄◄◄ Ohne «Änderungen zeigen» fragt
+    die Oberfläche ``changes=False`` – dann kommt keine Änderung, und jede Seite ist voll von
+    Sichtbarem. Bug-Form: an einer Gesellschaft (das Postfach schreibt bei jedem Abgleich)
+    bestanden die Seiten aus lauter verborgenen Änderungen; die Oberfläche lud Seite um Seite,
+    ohne dass etwas erschien, und «Lädt …» zuckte."""
+    db, staff = world
+    order = World(db).produce(World(db).article(), 1)
+    _note(db, staff, [order.object_id], subject="Eins")
+    _note(db, staff, [order.object_id], subject="Zwei")
+    db.flush()
+    pages, before, kinds = 0, None, []
+    while True:
+        p = history.page(db, order.object_id, staff, before=before, limit=1, changes=False)
+        pages += 1
+        kinds += [e.kind for e in p.entries]
+        if not p.before:
+            break
+        before = p.before
+    assert kinds == ["message", "message"] and pages == 2
+    every = [e.kind for e in _all(db, order.object_id, staff, 1)]
+    assert "change" in every and len(every) > 2, "mit Änderungen kommen sie dazu"
