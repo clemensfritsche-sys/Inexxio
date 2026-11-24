@@ -30,8 +30,12 @@
 - [x] Domain mit Firebase Hosting verbinden (22.11.2026) (keine eigene Weiterleitungs-Site für hs-steiner.ch –
       Entscheid 21.11.2026)
 - [x] Formular und Login in Produktion einmal testen (Anfrage steht im ERP, Bestätigung kommt an)
-- [ ] Google Search Console und Bing Webmaster Tools: Domain bestätigen, Sitemap einreichen,
-      Adressänderung melden
+- [x] Google Search Console und Bing Webmaster Tools (24.11.2026): Domain inexxio.com bestätigt,
+      Sitemap eingereicht (68 Seiten), alte Wix-Sitemaps gelöscht, Indexierung für Start,
+      Krantechnik, Fahrzeugtechnik, Speziallösungen beantragt. Einziger Inhaber bzw. Administrator
+      ist info@inexxio.com (Anmeldung dort mit dieser Adresse).
+- [x] /favicon.ico (16 · 32 · 48) und ein 192-px-Icon für die Treffer bei Google
+- [ ] Adressänderung von hs-steiner.ch melden – erst, wenn hs-steiner.ch auf inexxio.com weiterleitet
 
 ## Ausserhalb der Website
 
