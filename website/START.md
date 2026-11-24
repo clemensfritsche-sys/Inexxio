@@ -35,7 +35,7 @@
 
 ## Ausserhalb der Website
 
-- [ ] Google-Unternehmensprofil umbenennen («INEXXIO – ehemals HS Steiner»), Bing Places,
+- [ ] Google-Unternehmensprofil umbenennen («INEXXIO»), Bing Places,
       Apple Business Connect, local.ch/search.ch – überall derselbe Name
 - [x] E-Mail-Weiterleitungen der bisherigen Adressen (23.11.2026)
 - [ ] Neue Signaturen in Gmail (die Mails aus dem ERP tragen ihre Unterschrift schon selbst)
