@@ -52,8 +52,9 @@ from . import portrait
 BRAND = "INEXXIO"
 LOGO, LOGO_DARK = "/mail/logo.png", "/mail/logo-dark.png"
 #: Das gestapelte Logo mit Unterzeile «Kranbau · Fahrzeugbau · Service» und «ehemals HS Steiner»
-#: (Design System, Logo v5 «F1»; Mindestbreite 240 px), als PNG in doppelter Auflösung.
-LOGO_W, LOGO_H = 240, 150
+#: (Design System, Logo v5 «F1»), als PNG in doppelter Auflösung. 176 px: dezent neben der
+#: Überschrift (240 war zu laut, Inhaber 24.11.2026); schmaler wird die Unterzeile unlesbar.
+LOGO_W, LOGO_H = 176, 110
 LOGO_ALT = "INEXXIO – Kranbau · Fahrzeugbau · Service – ehemals HS Steiner"
 FONT = "Inter, Arial, Helvetica, sans-serif"
 INK, TEXT_2, TEXT_3, LINE = "#0A0A0B", "#44464A", "#66686D", "#E3E4E7"

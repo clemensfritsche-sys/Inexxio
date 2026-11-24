@@ -50,12 +50,11 @@ export const inquiry = t('inquiry', {
     phone: '^[+()\\d][\\d\\s/().-]{5,}$',
   },
   /**
-   * Der Betreff einer Anfrage: «Anfrage: <erster Satz>», gekappt am Wort nach `max` Zeichen.
-   * Dieselbe Regel im ERP (backend/app/services/inquiry.subject_of) und im mailto-Ausweg
-   * (src/lib/inquiry-subject.mjs) – sonst stünde dieselbe Anfrage je nach Weg unter einem
-   * anderen Anliegen im Verlauf.
+   * Der Betreff jeder Anfrage – immer gleich, im ERP (backend/app/services/inquiry.SUBJECT)
+   * und im mailto-Ausweg (scripts/form.ts). Was jemand schreibt, gehört nicht in den Betreff
+   * (Spam schrieb ihn sonst mit). Offen bleibt eine Anfrage je Person, bis wir ihr antworten.
    */
-  subject: { word: 'Anfrage', max: 60 },
+  subject: 'Anfrage',
   /** Beschriftung der Seite, von der die Anfrage kam – in der Nachricht im ERP. */
   sourceLabel: 'Seite',
   /** Fehlermeldungen – im Browser direkt am Feld und vom Server, wortgleich. */

@@ -590,9 +590,9 @@ class ApiClient {
 
   /** **Der Verlauf eines Datensatzes** – eine Seite, die neuesten zuerst; `before` ist der
    *  Cursor der vorigen Seite (`services/history`). */
-  history(objectId: number, before?: string, req?: Req) {
+  history(objectId: number, before?: string, changes = false, req?: Req) {
     return this.call('get', '/api/v1/erp/history/{object_id}',
-      { path: { object_id: objectId }, query: { before: before || undefined } }, req);
+      { path: { object_id: objectId }, query: { before: before || undefined, changes } }, req);
   }
 
   createMessage(body: In<'post', '/api/v1/erp/messages'>) {
@@ -858,6 +858,17 @@ class ApiClient {
   }
   resendMessage(id: number) {
     return this.call('post', '/api/v1/erp/messages/{message_id}/resend', { path: { message_id: id } });
+  }
+
+  // ─── Aussortierte Anfragen der Website (Spam, `services/spam`) ────────────────
+  heldInquiries(company: number, req?: Req) {
+    return this.call('get', '/api/v1/erp/inquiries/held', { query: { company } }, req);
+  }
+  releaseHeld(id: number) {
+    return this.call('post', '/api/v1/erp/inquiries/held/{held_id}/release', { path: { held_id: id } });
+  }
+  discardHeld(id: number) {
+    return this.call('post', '/api/v1/erp/inquiries/held/{held_id}/discard', { path: { held_id: id } });
   }
 
   // ─── Newsletter ────────────────────────────────────────────────────────────

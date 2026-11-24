@@ -24,6 +24,7 @@ TICK = 778_899          # eine Aufgabe des Takts (``services/tick``)
 RECORDING = 778_900     # eine Aufnahme (``services/recordings``)
 HANDGRIFF = 5051        # «dieser Handgriff läuft gerade» (``services/handgriff``)
 TALK = 5052             # «die KI antwortet in diesem Gespräch» – Stream und Takt nie beide
+SPAM = 5053             # «über diese aussortierte Anfrage wird entschieden» (``services/spam``)
 # ─── Einzelne Schlüssel (ein Schlüssel; überschneiden sich nie mit den Räumen) ─────────
 STARTUP = 778_899_001   # der Start (``main``): Trigger einer nach dem anderen
 SEAL = 778_899_003      # das Siegel des Logs (im SQL von ``domain/log``)

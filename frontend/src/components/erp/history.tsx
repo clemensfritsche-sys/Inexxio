@@ -40,10 +40,13 @@ import { Skeleton } from './skeleton';
 
 /** Die Seiten des Verlaufs – eine Query je Nummer; dieselbe für den Verlauf und die
  *  Kommunikation darüber (React Query fragt nur einmal). */
-export function useHistory(objectId: number) {
+/** Der Verlauf in Seiten – **nur, was gezeigt wird**: ohne `changes` fragt der Server keine
+ *  Änderungen ab. Sonst blätterte der Beobachter durch Seiten voller verborgener Änderungen
+ *  (das Postfach einer Gesellschaft schreibt bei jedem Abgleich), und «Lädt …» zuckte. */
+export function useHistory(objectId: number, changes = false) {
   return useInfiniteQuery({
-    queryKey: qk.history(objectId),
-    queryFn: ({ pageParam, signal }) => api.history(objectId, pageParam, { signal }),
+    queryKey: qk.history(objectId, changes),
+    queryFn: ({ pageParam, signal }) => api.history(objectId, pageParam, changes, { signal }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.before ?? undefined,
     meta: { what: 'Verlauf' },
@@ -166,7 +169,7 @@ export function History({ objectId, mirror = true, personId, meId, onReply, onDo
   /** Die Mail, die gerade drei Sekunden wartet – sie steht schon am Ende des Verlaufs. */
   sending?: Sending | null;
 }) {
-  const q = useHistory(objectId);
+  const q = useHistory(objectId, changes);
   const more = useRef<HTMLButtonElement>(null);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = q;
   // ►►► Älteres kommt von selbst, sobald man nach oben rollt; der Knopf bleibt als Weg für
@@ -185,7 +188,7 @@ export function History({ objectId, mirror = true, personId, meId, onReply, onDo
     return <p style={{ color: 'var(--danger)', fontSize: 13 }}>{q.error.message || 'Konnte nicht geladen werden.'}</p>;
   }
   if (!q.data) return <Skeleton rows={3} label="Verlauf wird geladen" />;
-  const entries = entriesOf(q.data.pages).reverse().filter((e) => changes || !e.change);
+  const entries = entriesOf(q.data.pages).reverse();
   const rows: ReactNode[] = [];
   if (!entries.length && !sending) {
     rows.push(<p key="empty" style={{ color: 'var(--fg-3)', fontSize: 14, padding: '6px 0 12px', margin: 0 }}>

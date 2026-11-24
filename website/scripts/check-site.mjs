@@ -602,11 +602,13 @@ function checkFooterMatchesHeader() {
 function checkRobots() {
   const txt = read('robots.txt');
   if (!LIVE) {
-    if (!/User-agent: \*\nDisallow: \/\n/.test(txt) || /Sitemap:/.test(txt)) fail('robots.txt', 'Vorschau muss alles sperren');
+    // Nicht öffentlich ist die Vorschau durch noindex auf jeder Seite (oben), nicht durch robots.txt.
+    if (/^Disallow: \/$/m.test(txt) || /Sitemap:/.test(txt)) fail('robots.txt', 'Vorschau: keine Sitemap, kein «Disallow: /» (sonst sähe Google das noindex nicht)');
     return;
   }
   for (const bot of site.seo.bots) if (!txt.includes(`User-agent: ${bot}\n`)) fail('robots.txt', `${bot} nicht zugelassen`);
   for (const p of site.privatePaths) if (!txt.includes(`Disallow: ${p}\n`)) fail('robots.txt', `${p} nicht gesperrt`);
+  for (const p of site.noindexPages) if (txt.includes(`Disallow: ${p}`)) fail('robots.txt', `${p} gesperrt – Google sähe das noindex nicht`);
   if (!txt.includes(`Sitemap: ${SITE_URL}/sitemap.xml`)) fail('robots.txt', 'Sitemap fehlt');
   if (/^Disallow: \/$/m.test(txt)) fail('robots.txt', 'Modus live, aber alles gesperrt');
 }

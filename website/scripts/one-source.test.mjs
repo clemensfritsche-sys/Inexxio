@@ -22,7 +22,8 @@ test('ERP-Pfade: eine Liste – jede Datei darauf ist erkannt, eine ähnlich ben
     assert.ok(!onErpPath(`${name}x.html`), `${name}x.html`);
   }
   assert.ok(!onErpPath('kontakt.html') && !onErpPath('index.html'));
-  assert.deepEqual(site.privatePaths, ['/erp', '/konto', '/login', '/abmelden', '/dokument', '/api/']);
+  assert.deepEqual(site.privatePaths, ['/api/']);
+  assert.deepEqual(site.noindexPages, ['/erp', '/konto', '/login', '/abmelden', '/dokument']);
 });
 
 /** Die obersten Pfade der Next-Seiten (`frontend/src/app/**\/page.tsx`, ohne `(gruppe)`). */

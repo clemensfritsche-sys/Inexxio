@@ -95,10 +95,7 @@
     "email": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$",
     "phone": "^[+()\\d][\\d\\s/().-]{5,}$"
   },
-  "subject": {
-    "word": "Anfrage",
-    "max": 60
-  },
+  "subject": "Anfrage",
   "mail": {
     "confirmSubject": "Angekommen – Danke für Ihre Anfrage",
     "confirmIntro": "Schön, dass Sie sich bei uns melden. Ihre Anfrage ist angekommen, und wir kümmern uns darum. Sie hören so rasch wie möglich von uns.",

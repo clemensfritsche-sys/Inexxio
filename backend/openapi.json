@@ -5607,6 +5607,18 @@
               "default": 30,
               "title": "Limit"
             }
+          },
+          {
+            "name": "changes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Auch die Änderungen aus dem Log – aus, wenn nur Nachrichten, Notizen und Dokumente gezeigt werden.",
+              "default": true,
+              "title": "Changes"
+            },
+            "description": "Auch die Änderungen aus dem Log – aus, wenn nur Nachrichten, Notizen und Dokumente gezeigt werden."
           }
         ],
         "responses": {
@@ -6659,6 +6671,149 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/inquiries/held": {
+      "get": {
+        "tags": [
+          "communication"
+        ],
+        "summary": "Read Held",
+        "description": "Die aussortierten Anfragen einer Gesellschaft, über die noch niemand entschieden hat.",
+        "operationId": "read_held_api_v1_erp_inquiries_held_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "company",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Objektnummer der eigenen Gesellschaft.",
+              "title": "Company"
+            },
+            "description": "Objektnummer der eigenen Gesellschaft."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HeldOut"
+                  },
+                  "title": "Response Read Held Api V1 Erp Inquiries Held Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/inquiries/held/{held_id}/release": {
+      "post": {
+        "tags": [
+          "communication"
+        ],
+        "summary": "Release Held",
+        "description": "Kein Spam: die aussortierte Anfrage wird angelegt wie eben gekommen, samt Bestätigung.",
+        "operationId": "release_held_api_v1_erp_inquiries_held__held_id__release_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "held_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Held Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleasedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/inquiries/held/{held_id}/discard": {
+      "post": {
+        "tags": [
+          "communication"
+        ],
+        "summary": "Discard Held",
+        "description": "Spam: entschieden – es entsteht nichts, die Anfrage bleibt im Log.",
+        "operationId": "discard_held_api_v1_erp_inquiries_held__held_id__discard_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "held_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Held Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -11742,6 +11897,97 @@
         "title": "HandgriffOut",
         "description": "**Ein Vorschlag, wie die Oberfläche ihn zeigt** – im Gespräch mit «Öffnen», am Datensatz\nmit «Übernehmen» (oder im Entwurf)."
       },
+      "HeldFile": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "url"
+        ],
+        "title": "HeldFile"
+      },
+      "HeldOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Nummer der aussortierten Anfrage (Zeile im Log)."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "company": {
+            "type": "integer",
+            "title": "Company",
+            "description": "Objektnummer der eigenen Gesellschaft, die sie bekommen hätte."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone",
+            "default": ""
+          },
+          "firm": {
+            "type": "string",
+            "title": "Firm",
+            "description": "Was im Feld «Firma» stand.",
+            "default": ""
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "Die Seite der Website, von der sie kam.",
+            "default": ""
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Warum die KI sie für Spam hält.",
+            "default": ""
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/HeldFile"
+            },
+            "type": "array",
+            "title": "Files",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "company",
+          "name",
+          "email",
+          "message"
+        ],
+        "title": "HeldOut",
+        "description": "Eine aussortierte Anfrage – was die Person ins Formular schrieb, und warum die KI sie für\nSpam hält."
+      },
       "HintOut": {
         "properties": {
           "key": {
@@ -15652,6 +15898,20 @@
         ],
         "title": "RelatedOrder",
         "description": "Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.\n\nEr bringt seinen **vollständigen Ablauf** mit (``steps`` + ``flow`` +\n``active_step_id``), damit die Spalte daneben dieselbe Komponente rendern kann wie\ndie Mitte. Eine Zusammenfassung oder ein Symbol wäre eine zweite Darstellungsform\nfür dieselbe Sache – und die läuft irgendwann von der ersten weg.\n\n``unit_count`` ist die Zahl der Stücke, die **zwischen den beiden** unterwegs sind;\n``returns`` sagt, ob sie zurückkommen. Beides ist die Beschriftung der Verbindung."
+      },
+      "ReleasedOut": {
+        "properties": {
+          "message": {
+            "type": "integer",
+            "title": "Message",
+            "description": "Nummer der angelegten Nachricht."
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ReleasedOut"
       },
       "RequirementOut": {
         "properties": {

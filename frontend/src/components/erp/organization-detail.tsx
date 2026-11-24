@@ -26,6 +26,7 @@ import { SaveStatusIndicator } from '@/components/form/save-status';
 import { TerritoryMap } from '@/components/erp/territory-map';
 import { ObjId } from '@/components/erp/obj-id';
 import { PAYMENTS_TIP, PaymentList, usePayments } from '@/components/erp/payment-list';
+import { HeldInquiries } from '@/components/erp/held-inquiries';
 import { useAction } from '@/lib/use-action';
 import dynamic from 'next/dynamic';
 import { DetailSkeleton } from '@/components/erp/skeleton';
@@ -163,7 +164,8 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
   }).data;
   const setBase = (c: CompanySettings) => qc.setQueryData(qk.company(objectId), c);
   const [form, setForm] = useState<OrgForm>(() => buildForm(record));
-  const [tab, setTab] = useState<OrgTab>('stamm');
+  // Wartet Aussortiertes auf einen Entscheid, öffnet die Gesellschaft dort (Kommunikation).
+  const [tab, setTab] = useState<OrgTab>(() => (sectionItems(todo, 'aussortiert').length ? 'comm' : 'stamm'));
   // Eigen ↔ fremd, Betreiber, Schliessen: eine Handlung zur Zeit, ein Satz bei einem Fehler.
   const { busy: opBusy, error: opError, run } = useAction('Nicht möglich');
   const [currencyOpen, setCurrencyOpen] = useState(false);
@@ -455,13 +457,17 @@ export function OrganizationDetail({ record, isAdmin, onSaved, onBack, todo }: {
 }
 
 
-/** Der Verlauf einer Firma – der ihrer Personen, nur lesend; «Änderungen zeigen» wie überall. */
+/** Der Verlauf einer Firma – der ihrer Personen, nur lesend; «Änderungen zeigen» wie überall.
+ *  An einer eigenen Gesellschaft darüber, getrennt: was die KI als Spam aussortiert hat. */
 function CompanyHistory({ company, own }: { company: number; own: boolean }) {
   const [changes, setChanges] = useState(false);
   return (
-    <Card title="Verlauf" right={<ChangesSwitch on={changes} onChange={setChanges} />}>
-      <Communication company={company} ownCompany={own} changes={changes} />
-    </Card>
+    <>
+      {own && <HeldInquiries company={company} />}
+      <Card title="Verlauf" right={<ChangesSwitch on={changes} onChange={setChanges} />}>
+        <Communication company={company} ownCompany={own} changes={changes} />
+      </Card>
+    </>
   );
 }
 

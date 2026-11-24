@@ -252,10 +252,15 @@ def assert_visible(db: Session, oid: int, viewer: UserProfile) -> Optional[UserP
 
 
 def page(db: Session, oid: int, viewer: UserProfile, *, before: Optional[str] = None,
-         limit: int = communication.PAGE) -> HistoryPage:
+         limit: int = communication.PAGE, changes: bool = True) -> HistoryPage:
     """►►► **Eine Seite des Verlaufs** – die ``limit`` neuesten Einträge vor ``before``. ◄◄◄
     Jede Quelle liefert höchstens ``limit + 1``; gemischt wird nach (Zeit, Art, Nummer), und
-    ob es weitergeht, sagt der eine Eintrag zu viel."""
+    ob es weitergeht, sagt der eine Eintrag zu viel.
+
+    **Ohne ``changes`` keine Änderungen** – geblättert wird nur durch, was gezeigt wird. Sonst
+    bestünde eine Seite an einer Gesellschaft (das Postfach schreibt bei jedem Abgleich) aus
+    lauter verborgenen Änderungen, und die Oberfläche lüde Seite um Seite nach, ohne dass etwas
+    erscheint – «Lädt …» zuckte."""
     from .timekeeping import may_see
     person = assert_visible(db, oid, viewer)
     cursor = parse(before)
@@ -263,7 +268,8 @@ def page(db: Session, oid: int, viewer: UserProfile, *, before: Optional[str] = 
     if person is not None and not may_see(viewer, person):
         hidden |= PRIVATE
     n = limit + 1
-    merged = (_changes(db, oid, sorted(hidden), cursor, n) + _documents(db, oid, viewer, cursor, n)
+    merged = ((_changes(db, oid, sorted(hidden), cursor, n) if changes else [])
+              + _documents(db, oid, viewer, cursor, n)
               + _messages(db, oid, cursor, n))
     merged.sort(key=lambda e: (e.at, RANK[e.kind], int(e.key.rsplit("~", 1)[1])), reverse=True)
     shown = merged[:limit]

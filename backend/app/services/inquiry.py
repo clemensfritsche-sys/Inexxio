@@ -41,11 +41,12 @@ from .communication import write
 VOCAB: dict = json.loads(
     (Path(__file__).resolve().parent.parent / "assets" / "website_contact.json").read_text("utf-8")
 )
-#: Der Betreff der Anfrage im ERP: das Stichwort und, worum es geht – der Anfang der
-#: Nachricht. Sie selbst ist die beste Überschrift, und im Verlauf liest man sie sofort.
-#: Dieselbe Regel steht für den mailto-Ausweg in ``website/src/lib/inquiry-subject.mjs``.
-SUBJECT: str = VOCAB["subject"]["word"]
-SUMMARY_MAX: int = VOCAB["subject"]["max"]
+#: ►►► Der Betreff jeder Anfrage – immer «Anfrage» (auch im mailto-Ausweg). ◄◄◄ Was jemand
+#: schreibt, gehört nicht in den Betreff. Offen bleibt sie je Person, bis wir antworten
+#: (``communication._ANSWERED`` fragt Betreff UND Person); die Bestätigung trägt bewusst einen
+#: anderen Betreff (``confirmSubject``) – ein gleicher erledigte die Anfrage, bevor ein Mensch
+#: sie gelesen hat.
+SUBJECT: str = VOCAB["subject"]
 #: Die Beschriftungen der Felder – dieselben wie im Formular und im mailto-Ausweg.
 LABELS: dict[str, str] = dict(VOCAB["labels"])
 
@@ -199,19 +200,6 @@ def company_for(db: Session, country: Optional[str]):
     return firm
 
 
-def subject_of(message: str) -> str:
-    """«Anfrage: Kran läuft beim Anfahren ruckartig» – der erste Satz, gekappt am Wort.
-
-    Die Bestätigung trägt bewusst einen **anderen** Betreff (``confirmSubject``): ein
-    gleicher erledigte die Anfrage, bevor ein Mensch sie gelesen hat."""
-    first = next((ln.strip() for ln in (message or "").splitlines() if ln.strip()), "")
-    first = re.split(r"(?<=[.!?])\s", " ".join(first.split()), maxsplit=1)[0].rstrip(".")
-    if len(first) > SUMMARY_MAX:
-        cut = first[:SUMMARY_MAX + 1].rsplit(" ", 1)[0] or first[:SUMMARY_MAX]
-        first = cut.rstrip(",;:–- ") + " …"
-    return f"{SUBJECT}: {first}" if first else SUBJECT
-
-
 def _body(inq: Inquiry) -> str:
     facts = [(LABELS["company"], inq.company), (LABELS["phone"], inq.phone),
              (VOCAB["sourceLabel"], inq.source)]
@@ -219,21 +207,31 @@ def _body(inq: Inquiry) -> str:
     return inq.message.strip() + ("\n\n" + "\n".join(lines) if lines else "")
 
 
-def record(db: Session, inq: Inquiry, country: Optional[str]) -> Message:
-    """Die Anfrage festhalten – gespeichert mit der Anfrage, bevor irgendetwas hinausgeht
-    (die Bestätigung geht erst danach, ``mailbox.send_after``).
-
-    Ein Foto, das sich nicht lesen lässt, wirft (``attachments.store_image``: 400/413);
-    dann ist nichts gespeichert, und der Aufrufer sagt es am Feld."""
-    firm = company_for(db, country)
-    person = people.ensure(db, inq.email, inq.name, inq.phone, language=inq.lang).object_id
+def store_photos(db: Session, inq: Inquiry) -> list[dict]:
+    """Die Fotos in den Korb – als Angaben einer Nachricht. Ein Foto, das sich nicht lesen
+    lässt, wirft (``attachments.store_image``: 400/413)."""
     files = []
     for p in inq.photos:
         att = attachments.store_image(db, p.data, p.filename)
         files.append({"name": p.filename, "size": len(p.data), "mime": att.mime,
                       "url": attachments.public_url(att)})
+    return files
+
+
+def record(db: Session, inq: Inquiry, country: Optional[str], *,
+           files: Optional[list[dict]] = None, firm=None) -> Message:
+    """Die Anfrage festhalten – gespeichert mit der Anfrage, bevor irgendetwas hinausgeht
+    (die Bestätigung geht erst danach, ``mailbox.send_after``). ``files``/``firm`` setzt
+    «Kein Spam» (``services/spam.release``): die Fotos liegen schon im Korb, die Gesellschaft
+    steht fest.
+
+    Ein Foto, das sich nicht lesen lässt, wirft (``attachments.store_image``: 400/413);
+    dann ist nichts gespeichert, und der Aufrufer sagt es am Feld."""
+    firm = firm or company_for(db, country)
+    person = people.ensure(db, inq.email, inq.name, inq.phone, language=inq.lang).object_id
+    files = store_photos(db, inq) if files is None else files
     msg = Message(sender_object_id=person, channel=dc.company(firm.object_id),
-                  subject=subject_of(inq.message), body=_body(inq), at=clock.utcnow(),
+                  subject=SUBJECT, body=_body(inq), at=clock.utcnow(),
                   created_by=None, attachments=files or None, inbound=True)
     write(db, msg, {"to": [], "cc": [], "bcc": [], "about": []})
     db.flush()

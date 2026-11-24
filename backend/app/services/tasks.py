@@ -94,6 +94,14 @@ def _messages(db: Session) -> list[Task]:
     return out
 
 
+def _held(db: Session) -> list[Task]:
+    """Aussortierte Anfragen der Website (``services/spam``), über die noch niemand entschied –
+    an der Gesellschaft, die sie bekommen hätte, «Kommunizieren»: nichts gerät in Vergessenheit."""
+    from . import spam
+    return [Task(key=f"held:{h.id}", object_id=h.company, part="aussortiert", since=h.at,
+                 competence=comp.KOMMUNIZIEREN) for h in spam.open_held(db)]
+
+
 def _steps(db: Session) -> list[Task]:
     """**Stücke warten an einem Schritt**, den ein Mensch ausführt – einer je (Auftrag, Schritt).
 
@@ -275,7 +283,7 @@ def collect(db: Session, staff: Optional[list[UserProfile]] = None) -> list[Task
     """►► **Alles, was zu tun ist** – jede Quelle einmal gefragt, nichts gespeichert. ◄◄"""
     staff = _staff(db) if staff is None else staff
     now = clock.utcnow()
-    found = (_messages(db) + _steps(db) + _payments(db) + _loops(db) + _proposals(db)
+    found = (_messages(db) + _held(db) + _steps(db) + _payments(db) + _loops(db) + _proposals(db)
              + _own_people(db, staff, now) + _companies(db) + _hints(db))
     unique: dict[str, Task] = {}
     for t in found:

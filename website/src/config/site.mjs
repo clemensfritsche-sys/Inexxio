@@ -323,11 +323,12 @@ export const site = t('site', {
   /**
    * ►►► Die Pfade des ERP auf derselben Domain – EINE Liste. ◄◄◄ Die Website legt dort keine
    * Datei ab (`scripts/check-site.mjs`, `scripts/merge-hosting.mjs`), auf eine `page` darf sie
-   * verlinken (check-site), und robots.txt sperrt jede `private` in jedem Modus
-   * (`privatePaths`). Offen bleiben die AGB (öffentlich) und die Bundles des ERP – ohne sie
-   * lässt sich keine seiner Seiten darstellen. `/dokument` ist die Seite jedes Dokuments, das
-   * hinausgeht (`/dokument?t=…`: ansehen, unterschreiben, eine Offerte annehmen, bezahlen) –
-   * privat je Link, darum gesperrt und `noindex`.
+   * verlinken (check-site). **Eine `private` Seite trägt `noindex`** (X-Robots-Tag in
+   * `firebase.json`, `noindexPages`) und ist in robots.txt **nicht** gesperrt – sonst sähe Google
+   * das `noindex` nie (Google: «noindex» nicht mit robots.txt sperren). Gesperrt wird nur, was
+   * keine Seite ist (`privatePaths`: `/api/`). Offen bleiben die AGB (öffentlich) und die Bundles
+   * des ERP – ohne sie lässt sich keine seiner Seiten darstellen. `/dokument` ist die Seite jedes
+   * Dokuments, das hinausgeht (`/dokument?t=…`) – privat je Link, darum `noindex`.
    * @type {{ path: string, page: boolean, private: boolean }[]}
    */
   erpPaths: [
@@ -345,12 +346,20 @@ export const site = t('site', {
     { path: '/vendor', page: false, private: false },
   ],
   /**
-   * Was robots.txt sperrt – abgeleitet aus `erpPaths`. Ein Pfad, der keine Seite ist, wird als
-   * Verzeichnis gesperrt («/api/»), damit «Disallow» nicht auch «/apiXY» trifft.
+   * Was robots.txt sperrt – die privaten Pfade, die keine Seite sind, als Verzeichnis
+   * («/api/»), damit «Disallow» nicht auch «/apiXY» trifft.
    * @type {string[]}
    */
   get privatePaths() {
-    return this.erpPaths.filter((p) => p.private).map((p) => (p.page ? p.path : `${p.path}/`));
+    return this.erpPaths.filter((p) => p.private && !p.page).map((p) => `${p.path}/`);
+  },
+  /**
+   * Die privaten Seiten – sie tragen überall `noindex` (`firebase.json`, Wächter
+   * `scripts/seo.test.mjs`) und bleiben für Crawler lesbar, damit das `noindex` wirkt.
+   * @type {string[]}
+   */
+  get noindexPages() {
+    return this.erpPaths.filter((p) => p.private && p.page).map((p) => p.path);
   },
 
   seo: {

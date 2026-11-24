@@ -33,7 +33,8 @@ export const qk = {
   document: (id: number) => key('document', id),
   documentsOf: (id: number) => key('documentsOf', id),
   payments: (scope: Scope) => key('payments', scope),
-  history: (objectId: number) => key('history', objectId),
+  /** Mit oder ohne Änderungen aus dem Log – zwei Abfragen, je nur, was gezeigt wird. */
+  history: (objectId: number, changes = false) => key('history', objectId, changes),
   senders: () => key('senders'),
   mailboxes: (company: number) => key('mailboxes', company),
   newsletter: (person: number) => key('newsletter', person),
@@ -53,6 +54,8 @@ export const qk = {
   companyTime: (company: number, year: number) => key('time', 'company', company, year),
   /** Die Website-Statistik eines Zeitraums (Tage) – Reiter «Website» am Betreiber. */
   siteStats: (days: number) => key('siteStats', days),
+  /** Die aussortierten Anfragen einer Gesellschaft (Spam der Website, `services/spam`). */
+  held: (company: number) => key('held', company),
   /** Was sich selten ändert: der Modul-Katalog, die Auswahl für einen Entwurf. */
   catalog: (what: string, ...rest: unknown[]) => key('catalog', what, ...rest),
 };

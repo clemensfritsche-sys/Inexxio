@@ -40,7 +40,7 @@ from starlette.datastructures import UploadFile
 
 from ..core.actor import public
 from ..core.database import DB
-from ..services import inquiry as svc, site_stats, visitor
+from ..services import inquiry as svc, site_stats, spam, visitor
 from ..domain.errors import Rejected
 from ..core import report
 
@@ -73,15 +73,14 @@ def _shown(inq: Inquiry) -> list[tuple[str, str, str]]:
 
 def _mailto(inq: Inquiry) -> str:
     """Dieselbe Form wie der mailto-Link im Browser (scripts/form.ts) – und derselbe Betreff
-    wie die Nachricht im ERP (``inquiry.subject_of``): die E-Mail landet im Postfach derselben
-    Gesellschaft und soll dort unter demselben Anliegen stehen."""
+    wie die Nachricht im ERP (``inquiry.SUBJECT``): die E-Mail landet im Postfach derselben
+    Gesellschaft."""
     lines = [f"{label}: {value[:1200] if name == 'message' else value}" for name, label, value in _shown(inq)]
     body = "\n".join(lines)
     if inq.photos:
         n = len(inq.photos)
         body += f"\n\nDateien: bitte {'die Datei' if n == 1 else f'die {n} Dateien'} an diese E-Mail anhängen."
-    subject = svc.subject_of(inq.values["message"])
-    return f"mailto:{VOCAB['email']}?subject={quote(subject)}&body={quote(body)}"
+    return f"mailto:{VOCAB['email']}?subject={quote(svc.SUBJECT)}&body={quote(body)}"
 
 
 def as_record(inq: Inquiry) -> dict:
@@ -205,8 +204,19 @@ async def submit_inquiry(request: Request, db: Session = DB) -> Response:
 def _store(db: Session, inq: Inquiry, country: str | None, wants_json: bool,
            who: site_stats.Who | None = None) -> Response:
     """Ins ERP – und erst wenn das steht, «Danke». Scheitert es, sagt die Seite es mit
-    Telefon und mailto; die Anfrage steht dann im Log."""
+    Telefon und mailto; die Anfrage steht dann im Log.
+
+    **Zuerst liest die KI** (``services/spam``): Spam wird aussortiert – keine Person, keine
+    Nachricht, keine Bestätigung, aber «Danke» (ein Bot erfährt nichts, ein Mensch, den die KI
+    verwechselt, auch nicht: er steht unter «Aussortiert» und bekommt seine Bestätigung mit
+    «Kein Spam»)."""
+    reason = spam.screen(db, inq)
     try:
+        if reason:
+            held = spam.hold(db, inq, country, reason)
+            db.flush()
+            report.info(f"INQUIRY held id={inq.id} log={held}")
+            return _done(inq, wants_json)
         msg = svc.record(db, inq, country)
         db.flush()      # was beim Speichern scheitern kann, scheitert hier – vor dem «Danke»
     except Rejected as exc:  # ein Bild, das sich nicht lesen lässt

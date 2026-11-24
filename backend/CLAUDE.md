@@ -135,7 +135,7 @@ scripts/
 | Module | `capture.py`, `sampling.py`, `consumption.py`, `places.py`, Beleg: `voucher.py` (Kern: lesen, Ableitungen, Anlage, Rahmen) → `voucher_head.py` (Belegkopf, Anschrift, Positionen) → `voucher_money.py` (Geld-Zeilen, Erstattung, QR, anstehende Papiere) → `voucher_rules.py` (`REQUIRED_FOR` · `NEEDS` → `gaps`, Eigentum und Anfrage als Grund ↔ Tor) → `voucher_input.py` (was hereinkommt: Zahl, Betrag, Frist, Tag, Text, Partei) → `voucher_offer.py` (Verben bis zur Zusage) · `voucher_billing.py` (Verben ab der Zusage: Rechnung, Geld, Papiere, Storno) → `voucher_actions.py` (`VERBS`, `can`, `assert_allowed`, `apply`) → `voucher_view.py` (`embed_data`) (+ `voucher_docs.py`, `a4.py` (die A4-Vorlage jedes Papiers), `legal.py`, `payment_list.py`, `stripe_pay.py`, `qrbill.py`) |
 | Artikel, Instanzen, Bestand, Stückliste | `articles.py`, `article_process.py`, `article_names.py`, `instances.py`, `bom.py` |
 | Personen, Adressen, Firmen | `people.py`, `address.py`, `address_book.py`, `sites.py`, `geography.py`, `geoip.py`, `phone.py` |
-| Kommunikation | `communication.py` (anlegen, Seiten `page`, «offen» als Abfrage, `move_note`), `mailbox.py` (verbinden, abgleichen, senden) + `mail_parse.py` (eine Gmail-Nachricht lesen: Text, Zitate, Anhänge, Massenpost – rein), `outbox.py` (jede Mail des Hauses: `deliver`, `build`, `firm`, `signer`), `mail_layout.py` (die eine Vorlage, `as_signer`), `portrait.py` (das Bild der Unterschrift als GIF), `inquiry.py`, `newsletter.py`, `login_link.py` (der Anmeldelink im Kleid des Hauses) |
+| Kommunikation | `spam.py` (Anfragen der Website: die KI liest zuerst, Spam wird aussortiert – `screen` · `hold` · `open_held` · `release` · `discard`, Ereignisse `inquiry.held` · `.released` · `.discarded`), `communication.py` (anlegen, Seiten `page`, «offen» als Abfrage, `move_note`), `mailbox.py` (verbinden, abgleichen, senden) + `mail_parse.py` (eine Gmail-Nachricht lesen: Text, Zitate, Anhänge, Massenpost – rein), `outbox.py` (jede Mail des Hauses: `deliver`, `build`, `firm`, `signer`), `mail_layout.py` (die eine Vorlage, `as_signer`), `portrait.py` (das Bild der Unterschrift als GIF), `inquiry.py`, `newsletter.py`, `login_link.py` (der Anmeldelink im Kleid des Hauses) |
 | Verlauf | `history.py` (ein Verlauf je Nummer: Nachrichten, Dokumente, Änderungen aus dem Log; `HIDDEN`), Wörter der Tabellen in `domain/log.TABLE_WORDS` |
 | Zeiterfassung | `timekeeping.py` (rechnen + die EINE Schreibstelle `record`), `time_view.py` (Antwort der Karte), `holidays.py` (Feiertage, Regeln der Gesellschaft) |
 | Dokumente | `documents.py` (Anlage, Referenzen, Löschen, Suche), `access.py` (wer sieht was), `fields.py` (Pflichtfelder), `requirements.py` (was Module erwarten), `reading.py` (Lesen + Zuordnung), `composing.py` (Verfassen), `signing.py` (Senden, Unterschreiben), `ai.py` (die eine Tür zur KI), `record_labels.py` (Datensätze benennen: Typ aus der Registry, `objects.TYPES`) |
@@ -170,7 +170,7 @@ die App nicht.
 
 ## API-Endpunkte (aus dem Code)
 Quelle: `@router.<methode>(…)` in `app/routers/*.py` mit dem Präfix aus `APIRouter(prefix=…)`,
-registriert in `main.py`. **168 Routen**. Auth: `admin` = `require_admin`,
+registriert in `main.py`. **171 Routen**. Auth: `admin` = `require_admin`,
 `staff` = `require_employee` (admin oder employee), `user` = angemeldet, `–` = ohne
 Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 
@@ -245,11 +245,13 @@ Anmeldung. Einige Routen prüfen zusätzlich im Rumpf (vermerkt).
 | GET | `/api/v1/erp/payments?person=\|company=` | staff | **Zahlungen** einer Person oder eigenen Gesellschaft (Ableitung, `services/payment_list`) |
 | GET | `/api/v1/attachments/{token}` | – | Bild ausliefern (unerratbarer Token) |
 | POST | `/api/v1/payments/webhook` | – (Signatur) | Rückmeldung des Zahlungsdienstes – bucht eine Geld-Zeile am Beleg, sonst nichts |
-| GET | `/api/v1/erp/history/{object_id}?before=&limit=` | staff | **Der Verlauf eines Datensatzes** – eine Seite (30), die neuesten zuerst: Nachrichten, Dokumente, Änderungen je Handlung (`services/history`); Dokumente nach `access`, Zeiterfassung nur selbst/Admin |
+| GET | `/api/v1/erp/history/{object_id}?before=&limit=&changes=` | staff | **Der Verlauf eines Datensatzes** – eine Seite (30), die neuesten zuerst: Nachrichten, Dokumente, Änderungen je Handlung (`services/history`; ohne `changes` keine Änderungen – geblättert wird nur durch, was gezeigt wird); Dokumente nach `access`, Zeiterfassung nur selbst/Admin |
 | POST | `/api/v1/erp/messages` | staff | Nachricht anlegen (jede Art dieselbe Form) |
 | GET | `/api/v1/erp/messages/channels` | staff | Kanäle, aus denen man schreiben kann |
 | GET | `/api/v1/erp/messages/mailboxes?company=` | staff | Postfach einer eigenen Gesellschaft |
 | POST · DELETE | `/api/v1/erp/messages/mailboxes/{channel}/connect` · `/{channel}` | staff | Verbinden (Google-Zustimmung) / trennen – nur Admin (im Dienst geprüft) |
+| GET | `/api/v1/erp/inquiries/held?company=` | staff | **Aussortiert**: Anfragen der Website, die die KI für Spam hält und über die noch niemand entschied (`services/spam.open_held`) |
+| POST | `/api/v1/erp/inquiries/held/{held_id}/release` · `/discard` | staff | **Kein Spam** (wird angelegt wie eben gekommen, samt Bestätigung, `spam.release`) · **Spam** (`spam.discard`) – je Anfrage genau ein Entscheid |
 | POST | `/api/v1/erp/messages/{message_id}/resend` | staff | **Neu senden** – eine Mail, die nicht hinausging (`communication.failed`), wieder zum Versand geben |
 | POST | `/api/v1/mail/push` | – (Google-Token wie der Takt) | **Gmail meldet** über Pub/Sub: in diesem Postfach ist etwas Neues – es wird abgeholt (`mailbox.push`) |
 | POST | `/api/v1/erp/messages/sync` | staff | Abgleichen und Fälliges senden (30 s je Postfach) – solange das ERP offen ist; ohne Browser tut es der Takt |

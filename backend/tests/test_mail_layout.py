@@ -182,14 +182,15 @@ def test_the_headline_and_the_logo_share_a_row():
     """Kopf: am Computer links die Überschrift (= Betreff), rechts auf gleicher Höhe das Logo –
     eine Zeile, die von rechts nach links läuft (das Logo steht im Quelltext zuerst, damit es am
     Handy über der Überschrift steht, ``.ix-col``); kein Stichwort daneben. Das Logo ist das
-    gestapelte mit Unterzeile und «ehemals HS Steiner», nie schmaler als 240 px."""
+    gestapelte mit Unterzeile und «ehemals HS Steiner», dezent (höchstens 200 px), aber nie so
+    schmal, dass die Unterzeile unlesbar wird (mindestens 160 px)."""
     html = layout.compose("Angekommen – Danke für Ihre Anfrage", "y", FIRM, None).html
     row = html.split("<!--inhalt-->", 1)[0]
     head = row[row.index('dir="rtl"'):]
     head = head[:head.index("</table>")]
     assert head.index(layout.LOGO) < head.index("<h1") and head.count("<tr>") == 1
     assert ".ix-col{display:block!important" in html
-    assert layout.LOGO_W >= 240 and "ehemals HS Steiner" in layout.LOGO_ALT
+    assert 160 <= layout.LOGO_W <= 200 and "ehemals HS Steiner" in layout.LOGO_ALT
 
 
 def test_every_link_opens_a_new_window():
@@ -265,10 +266,9 @@ def test_the_mail_is_one_centered_column_with_a_hairline():
     assert 'class="ix-ink' in html and 'class="ix-bg' in html
 
 
-def test_the_inquiry_is_titled_by_its_own_first_sentence():
+def test_the_inquiry_subject_is_always_the_same_word():
+    """Was jemand schreibt, steht nie im Betreff (Bug-Form: Spam schrieb ihn mit –
+    «Anfrage: Hi, kam dashur të di çmimin tuaj»)."""
     from app.services import inquiry
-    assert inquiry.subject_of("Kran läuft beim Anfahren ruckartig. Seit gestern.") == \
-        "Anfrage: Kran läuft beim Anfahren ruckartig"
-    long = inquiry.subject_of("wort " * 30)
-    assert long.startswith("Anfrage: wort") and long.endswith(" …") and len(long) <= 9 + 62
-    assert inquiry.subject_of("  \n ") == "Anfrage"
+    assert inquiry.SUBJECT == "Anfrage"
+    assert not hasattr(inquiry, "subject_of")
