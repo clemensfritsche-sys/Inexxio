@@ -124,11 +124,18 @@ if (!process.argv.includes('--icons')) {
 await shot(iconHtml(32, 0, 'transparent'), 32, 32, 'favicon-32.png');
 await shot(iconHtml(180, 30, '#FFFFFF'), 180, 180, 'apple-touch-icon.png');
 // Google zeigt in den Treffern ein Icon von mindestens 48 px (ein Vielfaches von 48) – rund
-// zugeschnitten, darum mit weissem Grund und Rand wie das Apple-Icon.
-await shot(iconHtml(192, 28, '#FFFFFF'), 192, 192, 'favicon-192.png');
-const sizes = [16, 32, 48];
-for (const s of sizes) await shot(iconHtml(s, 0, 'transparent'), s, s, `ico-${s}.png`);
-writeFileSync(pub('favicon.ico'), ico(sizes.map((size) => ({ size, data: readFileSync(pub(`ico-${size}.png`)) }))));
-for (const s of sizes) rmSync(pub(`ico-${s}.png`));
-console.log('  favicon.ico (16, 32, 48)');
+// zugeschnitten, darum mit weissem Grund und Rand wie das Apple-Icon. Dazu favicon.ico. Dasselbe
+// für die Testumgebung aus ihrem Zeichen (dev-icons/, der Deploy kopiert es nur auf Staging).
+async function forGoogle(svg, dir, pad192, bg192) {
+  const html = (size, pad, bg) => iconHtml(size, pad, bg).replace(favicon, svg);
+  const at = (f) => (dir ? `../${dir}/${f}` : f);
+  await shot(html(192, pad192, bg192), 192, 192, at('favicon-192.png'));
+  const sizes = [16, 32, 48];
+  for (const s of sizes) await shot(html(s, 0, 'transparent'), s, s, at(`ico-${s}.png`));
+  writeFileSync(pub(at('favicon.ico')), ico(sizes.map((size) => ({ size, data: readFileSync(pub(at(`ico-${size}.png`))) }))));
+  for (const s of sizes) rmSync(pub(at(`ico-${s}.png`)));
+  console.log(`  ${at('favicon.ico')} (16, 32, 48)`);
+}
+await forGoogle(favicon, '', 28, '#FFFFFF');
+await forGoogle(readFileSync(resolve(root, 'dev-icons/favicon.svg'), 'utf8'), 'dev-icons', 0, 'transparent');
 await browser.close();
