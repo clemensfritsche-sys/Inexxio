@@ -2,13 +2,14 @@
 // die vier Open-Graph-Bilder (1200 × 630: Startseite + je Bereich, `og` in Base.astro). Einmalig bzw. nach einem Namens- oder
 // Logowechsel laufen lassen; die Ergebnisse liegen versioniert in public/.
 //
-//   node scripts/make-assets.mjs
+//   node scripts/make-assets.mjs            alles
+//   node scripts/make-assets.mjs --icons    nur die Favicons
 //
 // Braucht Playwright mit Chromium (nicht als Abhängigkeit der Website – der Build braucht
 // es nie). Gesucht wird in PLAYWRIGHT_MODULE oder im globalen npm-Verzeichnis; ein eigenes
 // Chromium nennt CHROMIUM_PATH.
 import { createRequire } from 'node:module';
-import { readFileSync, mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
@@ -100,8 +101,41 @@ async function shot(html, w, h, out, needsFont = false) {
   console.log(`  ${out}`);
 }
 
-for (const og of OG) await shot(ogHtml(og), 1200, 630, og.file, true);
+/** ►► **favicon.ico** – 16, 32 und 48 px in einer Datei (je ein PNG im ICO-Rahmen). Ältere
+ *  Browser und Crawler fragen ohne Link nach /favicon.ico; fehlt sie, zeigt Google ein altes. ◄◄ */
+function ico(pngs) {
+  const head = Buffer.alloc(6 + 16 * pngs.length);
+  head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2); head.writeUInt16LE(pngs.length, 4);
+  let offset = head.length;
+  pngs.forEach(({ size, data }, i) => {
+    const e = 6 + 16 * i;
+    head.writeUInt8(size % 256, e); head.writeUInt8(size % 256, e + 1);
+    head.writeUInt16LE(1, e + 4); head.writeUInt16LE(32, e + 6);
+    head.writeUInt32LE(data.length, e + 8); head.writeUInt32LE(offset, e + 12);
+    offset += data.length;
+  });
+  return Buffer.concat([head, ...pngs.map((p) => p.data)]);
+}
+
+if (!process.argv.includes('--icons')) {
+  for (const og of OG) await shot(ogHtml(og), 1200, 630, og.file, true);
+  await shot(logoHtml, 1200, 600, 'logo/inexxio-ehemals-hs-steiner.png');
+}
 await shot(iconHtml(32, 0, 'transparent'), 32, 32, 'favicon-32.png');
 await shot(iconHtml(180, 30, '#FFFFFF'), 180, 180, 'apple-touch-icon.png');
-await shot(logoHtml, 1200, 600, 'logo/inexxio-ehemals-hs-steiner.png');
+// Google zeigt in den Treffern ein Icon von mindestens 48 px (ein Vielfaches von 48) – rund
+// zugeschnitten, darum mit weissem Grund und Rand wie das Apple-Icon. Dazu favicon.ico. Dasselbe
+// für die Testumgebung aus ihrem Zeichen (dev-icons/, der Deploy kopiert es nur auf Staging).
+async function forGoogle(svg, dir, pad192, bg192) {
+  const html = (size, pad, bg) => iconHtml(size, pad, bg).replace(favicon, svg);
+  const at = (f) => (dir ? `../${dir}/${f}` : f);
+  await shot(html(192, pad192, bg192), 192, 192, at('favicon-192.png'));
+  const sizes = [16, 32, 48];
+  for (const s of sizes) await shot(html(s, 0, 'transparent'), s, s, at(`ico-${s}.png`));
+  writeFileSync(pub(at('favicon.ico')), ico(sizes.map((size) => ({ size, data: readFileSync(pub(at(`ico-${size}.png`))) }))));
+  for (const s of sizes) rmSync(pub(at(`ico-${s}.png`)));
+  console.log(`  ${at('favicon.ico')} (16, 32, 48)`);
+}
+await forGoogle(favicon, '', 28, '#FFFFFF');
+await forGoogle(readFileSync(resolve(root, 'dev-icons/favicon.svg'), 'utf8'), 'dev-icons', 0, 'transparent');
 await browser.close();
