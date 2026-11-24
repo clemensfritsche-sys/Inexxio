@@ -53,6 +53,8 @@ export const qk = {
   companyTime: (company: number, year: number) => key('time', 'company', company, year),
   /** Die Website-Statistik eines Zeitraums (Tage) – Reiter «Website» am Betreiber. */
   siteStats: (days: number) => key('siteStats', days),
+  /** Die aussortierten Anfragen einer Gesellschaft (Spam der Website, `services/spam`). */
+  held: (company: number) => key('held', company),
   /** Was sich selten ändert: der Modul-Katalog, die Auswahl für einen Entwurf. */
   catalog: (what: string, ...rest: unknown[]) => key('catalog', what, ...rest),
 };

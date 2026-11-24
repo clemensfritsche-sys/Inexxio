@@ -2552,6 +2552,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/inquiries/held": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Held
+         * @description Die aussortierten Anfragen einer Gesellschaft, über die noch niemand entschieden hat.
+         */
+        get: operations["read_held_api_v1_erp_inquiries_held_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/inquiries/held/{held_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Held
+         * @description Kein Spam: die aussortierte Anfrage wird angelegt wie eben gekommen, samt Bestätigung.
+         */
+        post: operations["release_held_api_v1_erp_inquiries_held__held_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/inquiries/held/{held_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discard Held
+         * @description Spam: entschieden – es entsteht nichts, die Anfrage bleibt im Log.
+         */
+        post: operations["discard_held_api_v1_erp_inquiries_held__held_id__discard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/assistant/talks": {
         parameters: {
             query?: never;
@@ -4921,6 +4981,69 @@ export interface components {
             /** Changes */
             changes?: components["schemas"]["Change"][];
         };
+        /** HeldFile */
+        HeldFile: {
+            /** Name */
+            name: string;
+            /** Url */
+            url: string;
+        };
+        /**
+         * HeldOut
+         * @description Eine aussortierte Anfrage – was die Person ins Formular schrieb, und warum die KI sie für
+         *     Spam hält.
+         */
+        HeldOut: {
+            /**
+             * Id
+             * @description Nummer der aussortierten Anfrage (Zeile im Log).
+             */
+            id: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Company
+             * @description Objektnummer der eigenen Gesellschaft, die sie bekommen hätte.
+             */
+            company: number;
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /**
+             * Firm
+             * @description Was im Feld «Firma» stand.
+             * @default
+             */
+            firm: string;
+            /** Message */
+            message: string;
+            /**
+             * Source
+             * @description Die Seite der Website, von der sie kam.
+             * @default
+             */
+            source: string;
+            /**
+             * Reason
+             * @description Warum die KI sie für Spam hält.
+             * @default
+             */
+            reason: string;
+            /**
+             * Files
+             * @default []
+             */
+            files: components["schemas"]["HeldFile"][];
+        };
         /** HintOut */
         HintOut: {
             /** Key */
@@ -6699,6 +6822,14 @@ export interface components {
              * @default false
              */
             returns: boolean;
+        };
+        /** ReleasedOut */
+        ReleasedOut: {
+            /**
+             * Message
+             * @description Nummer der angelegten Nachricht.
+             */
+            message: number;
         };
         /** RequirementOut */
         RequirementOut: {
@@ -12932,6 +13063,98 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TasksOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_held_api_v1_erp_inquiries_held_get: {
+        parameters: {
+            query: {
+                /** @description Objektnummer der eigenen Gesellschaft. */
+                company: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeldOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_held_api_v1_erp_inquiries_held__held_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                held_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleasedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_held_api_v1_erp_inquiries_held__held_id__discard_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                held_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

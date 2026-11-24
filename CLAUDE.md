@@ -42,7 +42,7 @@ Zahlung:   Stripe – eigene Bezahlkarte im ERP (Payment Element + Webhook). OPT
 E-Mail:    Gmail API – je eigener Gesellschaft ein Postfach, Abgleich + Versand.
            OPTIONAL: ohne OAuth-Client wird eine Mail nur erfasst (docs/gmail-setup.md)
 KI:        Claude API (Anthropic SDK) – EINE Tür services/ai.py: Lesen (Haiku 5.5),
-           Verfassen, Gespräch, Folgen (Sonnet 5.5, mit Werkzeugen), «Auf einen Blick» (Haiku 5.5), Deckel
+           Verfassen, Gespräch, Folgen (Sonnet 5.5, mit Werkzeugen), «Auf einen Blick» und Spam-Prüfung (Haiku 5.5), Deckel
            10 CHF je Tag, jeder Aufruf im Log (Kosten, Dauer); im Gespräch Websuche und Lesen
            von Seiten (Werkzeuge des Anbieters, je Suche 1 Rappen unter dem Deckel). Abschreiben: Gemini über
            Vertex AI; Bedeutungs-Zahlen: Vertex AI + pgvector. OPTIONAL: ohne ANTHROPIC_API_KEY
@@ -356,7 +356,7 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   Antwort aus dem Verlauf), `firm`, `signer`. **Gebaut beim Anlegen, nie beim Versand.**
 - **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Betreff als Überschrift, rechts
   auf gleicher Höhe das Logo (gestapelt mit «Kranbau · Fahrzeugbau · Service» und «ehemals HS
-  Steiner», 240 px; am Handy darüber) · Inhalt · «Beste Grüsse aus <Ort der Gesellschaft>» · Unterschrift
+  Steiner», 176 px, dezent; am Handy darüber) · Inhalt · «Beste Grüsse aus <Ort der Gesellschaft>» · Unterschrift
   (Mensch im Namen der Gesellschaft, ohne Funktion; Gesellschaft, Anschrift, Telefon, E-Mail,
   Website – **sie ist der Fuss**) · unten ein **Streifen** als kleine Werbefläche (Bild, Stichwort,
   Titel, Satz, Link; heute die Nachfolge HS Steiner → INEXXIO). Gruss und Streifen stehen EINMAL in
@@ -580,7 +580,8 @@ Verbindlich: **`docs/zeiterfassung-spezifikation.md`**. Kurz:
   angelegt, nie abgehakt (`services/tasks.collect`): Stücke warten an einem Schritt (nicht an der
   Zahlung, nicht bei offener Rückführung, am Verbrauch nur mit Material am Ort) · die Zahlung sagt
   «wir sind dran» (`voucher_view.situation` → `ours`: Offerte, Rechnung, Papier, Ausfuhrnachweis,
-  Mahnen, Bezahlen, Erstatten) · offene Nachrichten (`communication.open_threads`) · Wiederholung ·
+  Mahnen, Bezahlen, Erstatten) · offene Nachrichten (`communication.open_threads`) · aussortierte
+  Anfragen der Website (`spam.open_held`, an der Gesellschaft) · Wiederholung ·
   Vorschläge aus Mails · eigene Zeiterfassung und Pflichtangaben (nur die Person) · Feiertage und
   Rechtstexte (Admin). Der KI-Deckel ist ein **Hinweis** (nie zugeteilt, nur der Admin sieht ihn).
   Eine Aufgabe trägt keinen Satz: Schlüssel, Ort (`object_id` + `part` = `data-todo`), Kompetenz,
@@ -870,7 +871,14 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   des Besuchers über `sites.company_for_country`, sonst der Betreiber). Eine Telefonnummer
   für alles, keine Öffnungszeiten.
 - **Das Formular** (`POST /api/v1/contact`) wird eine offene Nachricht im Postfach der
-  Gesellschaft zum Besucherland; E-Mail Pflicht, Anhänge nur Bilder; Spam erzeugt nichts. Bei einem
+  Gesellschaft zum Besucherland, **Betreff immer «Anfrage»** (`inquiry.SUBJECT`; offen je Person, die
+  Bestätigung trägt «Angekommen – Danke für Ihre Anfrage»); E-Mail Pflicht, Anhänge nur Bilder.
+  **Spam erzeugt nichts**: Honigtopf, Mindestzeit, 5/h je Absender – und dann **liest die KI**
+  (`services/spam`, schnelles Modell): Spam wird **aussortiert** (`inquiry.held` im Log, keine Person,
+  keine Nachricht, keine Bestätigung) und steht an der Gesellschaft im Reiter «Verlauf» unter
+  «Aussortiert» und in «zu tun», bis jemand «Kein Spam» (wird angelegt wie eben gekommen, samt
+  Bestätigung) oder «Spam» wählt – je Anfrage genau ein Entscheid (`ix_log_inquiry_decided`). Ohne KI
+  geht jede Anfrage durch. Bei einem
   Tippfehler in der Domain eines grossen Anbieters fragt es «Meinten Sie …@gmail.com?»
   (`src/lib/mail-typo.mjs`, nur ein Hinweis).
   Gespeichert wird vor jedem Versand; geht das nicht → 503, die Seite zeigt Telefon und

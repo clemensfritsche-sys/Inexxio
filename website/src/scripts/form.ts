@@ -14,7 +14,6 @@
  *    nur in leere Felder, änderbar wie jede Eingabe
  */
 import { accountInfo } from './account';
-import { subjectOf } from '../lib/inquiry-subject.mjs';
 import { suggest } from '../lib/mail-typo.mjs';
 
 type Errors = Record<string, string>;
@@ -23,7 +22,7 @@ interface Vocab {
   labels: [string, string][];
   messages: Record<string, string>;
   patterns: { email: string; phone: string };
-  subject: { word: string; max: number };
+  subject: string;
 }
 
 /** Längste Wartezeit auf den Server, dann der Ausweg (Telefon, mailto). */
@@ -317,17 +316,16 @@ function fail(form: HTMLFormElement, panel: HTMLElement | null, vocab: Vocab, st
 
 /**
  * mailto-Link mit allen Eingaben und den Beschriftungen des Formulars – unter demselben
- * Betreff wie die Nachricht im ERP («Anfrage: erster Satz»), denn die E-Mail landet im
+ * Betreff wie die Nachricht im ERP («Anfrage»), denn die E-Mail landet im
  * Postfach derselben Gesellschaft.
  */
 function mailto(form: HTMLFormElement, vocab: Vocab): string {
   const data = new FormData(form);
   prune(data);
   const get = (n: string) => str(data.get(n)).trim();
-  const subject = subjectOf(get('message'), vocab.subject);
   const lines = vocab.labels.map(([field, label]) => [label, field === 'message' ? get(field).slice(0, 1200) : get(field)] as const);
   const photos = form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.length ?? 0;
   const body = lines.filter(([, v]) => v).map(([l, v]) => `${l}: ${v}`).join('\n') +
     (photos ? `\n\nDateien: bitte ${photos === 1 ? 'die Datei' : `die ${photos} Dateien`} an diese E-Mail anhängen.` : '');
-  return `mailto:${form.dataset.mail ?? ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return `mailto:${form.dataset.mail ?? ''}?subject=${encodeURIComponent(vocab.subject)}&body=${encodeURIComponent(body)}`;
 }

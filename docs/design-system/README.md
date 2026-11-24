@@ -185,7 +185,7 @@ Raster, weiche Übergänge. Gefühl: leicht, vertrauenswürdig, kompetent, nahba
 ## 8. E-Mail
 
 **Eine Vorlage für jede Mail des Hauses** (`mail_layout.compose`): Betreff als Überschrift, rechts
-auf gleicher Höhe das Logo mit Unterzeile und «ehemals HS Steiner» (240 × 150 px, am Handy darüber;
+auf gleicher Höhe das Logo mit Unterzeile und «ehemals HS Steiner» (176 × 110 px, dezent, am Handy darüber;
 `frontend/public/mail/logo.png` · `logo-dark.png`) · Inhalt · «Beste Grüsse aus ‹Ort›» ·
 Unterschrift (Mensch im Namen der Gesellschaft, ohne Funktion; Gesellschaft, Anschrift, Telefon,
 E-Mail, Website – **sie ist der Fuss**) · unten ein Streifen als kleine Werbefläche (Bild, Stichwort,

@@ -187,6 +187,7 @@ export type ChangeBlock = components['schemas']['ChangeBlock'];
 /** Eine Aufgabe, wie man sie sieht (`services/tasks.view`) – kein Satz, nur die Stelle. */
 export type TodoItem = components['schemas']['TaskMark'];
 export type Tasks = components['schemas']['TasksOut'];
+export type HeldInquiry = components['schemas']['HeldOut'];
 /** **Was an einem Datensatz zu tun ist** – die Aufgaben, die ich dort sehe (die eigene, beim
  *  Admin alle, die verwaisten), zusammengefasst je Datensatz (`lib/use-feed-lists`). */
 export interface Todo { object_id: number; count: number; orphan: boolean; items: TodoItem[] }

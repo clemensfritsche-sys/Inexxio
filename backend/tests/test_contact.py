@@ -9,12 +9,8 @@ from __future__ import annotations
 
 import inspect
 import io
-import json
 import random
 import re
-import shutil
-import subprocess
-from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import quote
 
@@ -27,6 +23,7 @@ from tests.support import after_save
 from app.core.database import get_db
 from app.domain import communication as dc
 from app.models import Message, MessageParty, UserProfile
+from app.schemas.communication import MessageIn
 from app.routers import contact
 from app.services import communication as comm
 from app.services import inquiry as svc
@@ -105,8 +102,7 @@ def test_an_inquiry_is_an_open_message_from_a_new_person(world):
     person = world.db.query(UserProfile).filter(UserProfile.email == "neu.kunde@muster.ch").one()
     assert (person.first_name, person.last_name, person.phone) == ("Anna", "Muster", "+41 52 000 00 00")
     (msg,) = inquiries(world.db, data["email"])
-    assert msg.channel == CHANNEL and msg.subject == svc.subject_of(data["message"])
-    assert msg.subject.startswith("Anfrage: Hubwerk bleibt stehen")
+    assert msg.channel == CHANNEL and msg.subject == "Anfrage"
     assert "Hubwerk bleibt stehen." in msg.body and "Firma: Muster AG" in msg.body
     assert "Seite: /krantechnik/krane-nach-mass" in msg.body
     out = comm.load(world.db, [msg.id])[0]
@@ -328,21 +324,19 @@ def test_the_vocabulary_is_complete_and_consistent():
 
 # ------------------------------------------------------------------ Browser und Server: EINE Quelle
 
-WEBSITE = Path(__file__).resolve().parents[2] / "website"
 
 
 def test_the_mailto_way_out_carries_the_subject_of_the_erp_message(world, monkeypatch):
-    """Der mailto-Ausweg landet im Postfach derselben Gesellschaft – also unter demselben
-    Anliegen wie die Nachricht, die das Formular angelegt hätte. «[Anfrage] Firma» machte zwei
-    Anfragen derselben Firma zu EINEM Betreff, und eine Antwort erledigte beide."""
+    """Der mailto-Ausweg landet im Postfach derselben Gesellschaft – unter demselben Betreff
+    wie die Nachricht, die das Formular angelegt hätte; was jemand schrieb, steht nicht darin."""
     def broken(_db, _inq, _country):
         raise RuntimeError("Datenbank weg")
     monkeypatch.setattr(svc, "record", broken)
     data = form(message="Kran läuft beim Anfahren ruckartig. Seit gestern.")
     res = world.client.post("/api/v1/contact", data=data)
     assert res.status_code == 503
-    assert f"subject={quote(svc.subject_of(data['message']))}&amp;" in res.text
-    assert quote("[Anfrage]") not in res.text
+    assert "subject=Anfrage&amp;" in res.text
+    assert quote("Kran läuft") not in res.text.split("body=")[0]
 
 
 def test_the_words_and_patterns_of_an_inquiry_stand_once():
@@ -359,22 +353,18 @@ def test_the_words_and_patterns_of_an_inquiry_stand_once():
         assert f'"{label}"' not in body, label
 
 
-@pytest.mark.skipif(shutil.which("node") is None or not WEBSITE.exists(), reason="ohne Node")
-def test_browser_and_server_cut_the_subject_alike():
-    """Den Betreff baut der Browser (mailto-Ausweg) nach derselben Regel wie das ERP –
-    zwei Sprachen, eine Regel, an denselben Fällen verglichen."""
-    cases = ["Kran läuft beim Anfahren ruckartig. Seit gestern.", "wort " * 30, "  \n ",
-             "\n\n  Erste Zeile!  Zweiter Satz\nnoch eine", "x" * 90,
-             "Ein ziemlich langer erster Satz, der weit über die Grenze, hinausgeht; sehr weit",
-             "Nur ein Punkt...", "Frage? Antwort."]
-    script = ("import { subjectOf } from %s;\nimport { inquiry } from %s;\n"
-              "const cases = JSON.parse(process.argv[1]);\n"
-              "console.log(JSON.stringify(cases.map((c) => subjectOf(c, inquiry.subject))));") % (
-        json.dumps((WEBSITE / "src" / "lib" / "inquiry-subject.mjs").as_uri()),
-        json.dumps((WEBSITE / "src" / "config" / "inquiry.mjs").as_uri()))
-    run = subprocess.run(["node", "--input-type=module", "-e", script, json.dumps(cases)],
-                         capture_output=True, text=True, check=True)
-    assert json.loads(run.stdout) == [svc.subject_of(c) for c in cases]
+def test_an_answer_closes_only_the_inquiry_of_its_person(world):
+    """Jede Anfrage heisst «Anfrage» – offen bleibt sie je Person. Bug-Form: eine Antwort an
+    Anna erledigte auch die Anfrage von Beat (gleicher Betreff)."""
+    a, b = form(), form(name="Beat Beispiel")
+    for data in (a, b):
+        assert world.client.post("/api/v1/contact", data=data, headers=JSON).status_code == 200
+    (qa,), (qb,) = inquiries(world.db, a["email"]), inquiries(world.db, b["email"])
+    reply = comm.create(world.db, MessageIn(channel=CHANNEL, to=[qa.sender_object_id],
+                                            subject="Anfrage", body="Gern."), world.staff)
+    reply.outgoing = False
+    world.db.flush()
+    assert comm.answered(world.db, [qa.id, qb.id]) == {qa.id}
 
 
 def test_the_confirmation_carries_nothing_a_stranger_typed(world):

@@ -25,7 +25,8 @@ type FeedList = (typeof FEED_LISTS)[number];
 /** Die Bereiche der Detailansichten – je einer ist das erste Glied ihrer Schlüssel. */
 export const DETAILS = ['order', 'instance', 'article', 'articleProcess', 'stock', 'units',
   'unitOptions', 'document', 'documentsOf', 'payments', 'history', 'senders', 'mailboxes',
-  'newsletter', 'access', 'company', 'pins', 'talks', 'recordings', 'time', 'catalog', 'siteStats'] as const;
+  'newsletter', 'access', 'company', 'pins', 'talks', 'recordings', 'time', 'catalog', 'siteStats',
+  'held'] as const;
 export type Detail = (typeof DETAILS)[number];
 type Area = FeedList | Detail;
 const AREAS: readonly Area[] = [...FEED_LISTS, ...DETAILS];
@@ -85,6 +86,8 @@ const TOUCHES: ReadonlyArray<readonly [string, readonly Area[]]> = [
   // Ein Postfach verbinden oder trennen setzt die Kontakt-E-Mail der Gesellschaft.
   ['erp/messages/mailboxes', ['companies', 'company', 'mailboxes', 'senders', ...LOGGED]],
   // Ein unbekannter Absender wird Person; eine Nachricht von uns schliesst Offenes.
+  // «Kein Spam» legt Person und Nachricht an, «Spam» nimmt eine Aufgabe weg.
+  ['erp/inquiries', ['held', 'people', 'todo', ...LOGGED]],
   ['erp/messages', ['people', 'todo', ...LOGGED]],
   ['erp/time', ['todo', 'time', ...LOGGED]],
   ['erp/tasks', ['todo']],

@@ -860,6 +860,17 @@ class ApiClient {
     return this.call('post', '/api/v1/erp/messages/{message_id}/resend', { path: { message_id: id } });
   }
 
+  // ─── Aussortierte Anfragen der Website (Spam, `services/spam`) ────────────────
+  heldInquiries(company: number, req?: Req) {
+    return this.call('get', '/api/v1/erp/inquiries/held', { query: { company } }, req);
+  }
+  releaseHeld(id: number) {
+    return this.call('post', '/api/v1/erp/inquiries/held/{held_id}/release', { path: { held_id: id } });
+  }
+  discardHeld(id: number) {
+    return this.call('post', '/api/v1/erp/inquiries/held/{held_id}/discard', { path: { held_id: id } });
+  }
+
   // ─── Newsletter ────────────────────────────────────────────────────────────
 
   /** Mein Newsletter – angemeldet oder nicht, und der Satz, dem ich zustimme. */

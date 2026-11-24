@@ -139,6 +139,9 @@ TASKS: dict[str, Task] = {
     # «Auf einen Blick»: was an einem Datensatz jetzt zählt – das schnelle Modell, meist schon
     # vorab im Takt gerechnet (``pins.ahead``), damit es beim Öffnen sofort dasteht.
     "pin": Task(model="claude-haiku-5-5", max_tokens=3000, timeout=45.0, retries=0, rounds=3),
+    # Ist eine Anfrage der Website Spam (``services/spam``)? Im Weg des Formulars: kurz,
+    # das schnelle Modell, kein zweiter Versuch – sonst geht sie ohne Urteil durch.
+    "screen": Task(model="claude-haiku-5-5", max_tokens=300, timeout=12.0, retries=0),
 }
 
 #: ►►► **Was ein Aufruf kostet** – USD je Million Tokens (Eingabe, Ausgabe). Haiku über
