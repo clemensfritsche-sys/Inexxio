@@ -15,7 +15,7 @@
 > **Entscheide des Inhabers** (bleibt so · wird umgesetzt · offen): `docs/aenderungsakte.md`.
 
 ## Was ist Inexxio?
-Zentrales Unternehmenssystem für ein produzierendes Schweizer KMU (AG, Maschinenbau,
+Zentrales Unternehmenssystem für ein produzierendes Schweizer KMU (GmbH, Maschinenbau,
 ca. 10 Mitarbeitende, ca. 1'000 Artikel). Ziel ist Website + ERP + Buchhaltung + HR +
 Qualitätsmanagement; **gebaut sind heute das Fundament, der Prozess mit fünf Modulen, das
 CRM mit Kommunikation, die Zeiterfassung, die Dokumente (eine Ablage) und die öffentliche
