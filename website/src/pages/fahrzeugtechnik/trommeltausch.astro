@@ -15,7 +15,7 @@ import Guarantees from '../../components/home/Guarantees.astro';
 import FaqStage from '../../components/FaqStage.astro';
 import ContactSection from '../../components/ContactSection.astro';
 import { areaOf } from '../../config/site.mjs';
-import { faqPage, product, service as serviceNode } from '../../lib/seo.mjs';
+import { faqPage, service as serviceNode } from '../../lib/seo.mjs';
 import { plain } from '../../lib/text.mjs';
 import { pageTitle } from '../../lib/titles';
 import { trommeltausch as page, drumOptions as d, drumPath as p, winterSlot as w } from '../../content/fahrzeugtechnik';
@@ -26,13 +26,6 @@ const area = areaOf(page.area);
 const nodes = [
   serviceNode(siteUrl, { name: page.service.name, serviceType: page.service.serviceType, path: page.path, description: plain(page.summary) }),
   faqPage(page.faq),
-  product(siteUrl, {
-    name: t('seiten', 'Trommeltausch für Fahrmischer'),
-    description: t('seiten', 'Neue Mischtrommel auf dem bestehenden Fahrgestell statt eines neuen Fahrmischers – für alle gängigen Marken.'),
-    path: page.path,
-    category: 'Fahrmischer-Trommel',
-    og: 'fahrzeugtechnik',
-  }),
 ];
 const titel = pageTitle('/fahrzeugtechnik/trommeltausch');
 ---
