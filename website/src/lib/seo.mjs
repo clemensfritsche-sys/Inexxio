@@ -10,7 +10,7 @@ import { plain } from './text.mjs';
 import { t } from '../i18n/t.mjs';
 import { currentLang, publishedLanguages } from '../config/languages.mjs';
 
-const T = t('ui', { offers: 'Leistungen', home: 'Startseite', crane: 'Krananlage' });
+const T = t('ui', { offers: 'Leistungen', home: 'Startseite' });
 
 /** @param {string} siteUrl @param {string} [path] */
 export const abs = (siteUrl, path = '/') => (path === '/' ? `${siteUrl}/` : `${siteUrl}${path}`);
@@ -189,25 +189,7 @@ export function service(siteUrl, s) {
     description: s.description,
     url: abs(siteUrl, s.path),
     provider: { '@id': `${siteUrl}/#organisation` },
-  });
-}
-
-/**
- * Eigenes Produkt (Heukrananlage, Trommeltausch): nur belegbare Angaben – Name, Beschreibung,
- * Hersteller, Bild. Keine Preise, keine Bewertungen. `og` = Bereich des Vorschaubilds.
- * @param {string} siteUrl
- * @param {{ name: string, description: string, path: string, category?: string, og?: string }} p
- */
-export function product(siteUrl, p) {
-  return clean({
-    '@type': 'Product',
-    name: p.name,
-    description: p.description,
-    url: abs(siteUrl, p.path),
-    image: `${siteUrl}/og/${p.og ?? 'default'}.png`,
-    brand: { '@type': 'Brand', name: site.brand.name },
-    manufacturer: { '@id': `${siteUrl}/#organisation` },
-    category: p.category ?? T.crane,
+    areaServed: areaServed(),
   });
 }
 

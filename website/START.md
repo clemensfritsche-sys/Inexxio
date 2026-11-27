@@ -35,12 +35,13 @@
       Krantechnik, Fahrzeugtechnik, Speziallösungen beantragt. Einziger Inhaber bzw. Administrator
       ist info@inexxio.com (Anmeldung dort mit dieser Adresse).
 - [x] /favicon.ico (16 · 32 · 48) und ein 192-px-Icon für die Treffer bei Google
-- [ ] Adressänderung von hs-steiner.ch melden – erst, wenn hs-steiner.ch auf inexxio.com weiterleitet
+- [x] hs-steiner.ch bleibt eine eigene Website mit Hinweis auf INEXXIO – keine Weiterleitung, keine
+      Adressänderung bei Google (Entscheid 24.11.2026)
 
 ## Ausserhalb der Website
 
-- [ ] Google-Unternehmensprofil umbenennen («INEXXIO»), Bing Places,
-      Apple Business Connect, local.ch/search.ch – überall derselbe Name
+- [ ] Google-Unternehmensprofil «INEXXIO» anlegen (das Profil von HS Steiner bleibt unberührt),
+      Bing Places, Apple Business Connect, local.ch/search.ch – überall derselbe Name
 - [x] E-Mail-Weiterleitungen der bisherigen Adressen (23.11.2026)
 - [ ] Neue Signaturen in Gmail (die Mails aus dem ERP tragen ihre Unterschrift schon selbst)
 

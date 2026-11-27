@@ -133,7 +133,7 @@ export const site = t('site', {
         `name` allein (Weisung 24.10.2026, geprüft in check-site). */
     full: '{{brand.name}} ({{brand.formerly}})',
     /** Firmenname mit Rechtsform – Fuss, Impressum, JSON-LD. (Das Logo liegt in public/logo/, Lockup.astro.) */
-    legalName: 'INEXXIO AG',
+    legalName: 'INEXXIO GmbH',
     formerLegalName: 'HS Steiner Fahrzeug- und Kranbau GmbH',
     alternateNames: ['HS Steiner', 'HS Steiner Fahrzeug- und Kranbau GmbH', 'HS Krananlagen'],
     /** Abgrenzung für Suchmaschinen und KI-Assistenten. */

@@ -432,6 +432,12 @@ function checkJsonLd(p) {
     const raw = JSON.stringify(data);
     if (/"(Review|AggregateRating)"|"aggregateRating"|"review"/.test(raw)) fail(p.path, 'JSON-LD enthält Bewertungen');
     if (/\{\{/.test(raw)) fail(p.path, 'JSON-LD enthält einen offenen Wert');
+    // Google verlangt für «Product» Preis, Bewertung oder Sterne (Search Console: «Entweder offers,
+    // review oder aggregateRating») – wir haben keine festen Preise und keine Bewertungen, also ist
+    // eine Leistung ein «Service», nie ein «Product».
+    const products = (v) => (Array.isArray(v) ? v.flatMap(products) : v && typeof v === 'object'
+      ? [...([v['@type']].flat().includes('Product') && !v.offers ? [v] : []), ...Object.values(v).flatMap(products)] : []);
+    if (products(data).length) fail(p.path, 'JSON-LD: «Product» ohne Preis (offers) – für Leistungen ohne festen Preis «Service» verwenden');
     const orgs = (data['@graph'] ?? []).filter((n) => [n['@type']].flat().includes('Organization'));
     if (orgs.length !== 1) fail(p.path, `${orgs.length} Organization-Knoten statt einem`);
     for (const node of data['@graph'] ?? []) checkNode(p, node);
