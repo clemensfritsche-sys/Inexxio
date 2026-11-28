@@ -61,6 +61,7 @@ class _Html(HTMLParser):
         self.hide_from: Optional[int] = None     # Tiefe des Zitat-Elements, das gerade wegfällt
         self.stopped = False                     # ab hier ist alles Zitat (Outlook)
         self.quoted = False
+        self.quote: list[str] = []               # was wegfiel – das Zitat, als Text
 
     @staticmethod
     def _marks(tag: str, attrs: Any) -> tuple[bool, bool]:
@@ -73,6 +74,8 @@ class _Html(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: Any) -> None:
         if self.stopped:
+            if tag in ("br", "p", "div", "tr", "li"):
+                self.quote.append("\n")
             return
         hide, stop = self._marks(tag, attrs)
         if stop:
@@ -83,6 +86,8 @@ class _Html(HTMLParser):
             if hide and self.hide_from is None:
                 self.hide_from, self.quoted = len(self.open), True
         if self.hide_from is not None:
+            if tag in ("br", "p", "div", "tr", "li"):
+                self.quote.append("\n")
             return
         if tag in ("style", "script"):
             self.skip += 1
@@ -103,16 +108,17 @@ class _Html(HTMLParser):
             self.skip -= 1
 
     def handle_data(self, data: str) -> None:
-        if not (self.skip or self.stopped or self.hide_from is not None):
-            self.out.append(data)
+        if self.skip:
+            return
+        (self.quote if (self.stopped or self.hide_from is not None) else self.out).append(data)
 
 
-def _html_text(html: str) -> tuple[str, bool]:
-    """Text eines HTML-Teils und ob ein markiertes Zitat wegfiel."""
+def _html_text(html: str) -> tuple[str, bool, str]:
+    """Text eines HTML-Teils, ob ein markiertes Zitat wegfiel, und das Zitat als Text."""
     h = _Html()
     h.feed(html)
     h.close()
-    return "".join(h.out), h.quoted
+    return "".join(h.out), h.quoted, "".join(h.quote)
 
 
 def _decode(part: dict[str, Any]) -> str:
@@ -172,20 +178,34 @@ def bounce(payload: dict[str, Any], head: dict[str, str]) -> Optional[Bounce]:
     return Bounce(original=original, recipients=recipients.strip()[:300], reason=reason)
 
 
+def _tidy(text: str) -> str:
+    return re.sub(r"\n{3,}", "\n\n", text.replace("\r", "").replace("\xa0", " ")).strip()
+
+
 def _text(payload: dict[str, Any]) -> str:
     """►►► **Der lesbare Text – ohne Zitat, wo das Mailprogramm es markiert hat.** ◄◄◄ Trägt
     der HTML-Teil ein Zitat-Zeichen (``QUOTE_CLASSES`` · ``QUOTE_STOPS``), gilt sein Text ohne
     das Zitat; sonst der Text-Teil wie bisher (und ``_strip_quote`` sucht das Zitat an seinen
     Mustern – der Rückfall für Mails ohne Zeichen)."""
+    return text_and_quote(payload)[0]
+
+
+def text_and_quote(payload: dict[str, Any]) -> tuple[str, str]:
+    """►►► **Der Text und das Zitat – getrennt, nichts geht verloren.** ◄◄◄ Der Text ist, was
+    der Verlauf zeigt (ohne Zitat); das Zitat ist, was darunter stand – bei einer Weiterleitung
+    die eigentliche Sache («Anfrage von Helvetia»). Es steht zugeklappt an der Mail
+    (``messages.quote``), und die KI liest es mit."""
     parts = [p for p in _parts(payload) if not p.get("filename")]
     html = next((t for p in parts if p.get("mimeType") == "text/html" and (t := _decode(p))), "")
     plain = next((t for p in parts if p.get("mimeType") == "text/plain" and (t := _decode(p))), "")
-    text = plain
     if html:
-        cleaned, quoted = _html_text(html)
-        if quoted or not plain:
-            text = cleaned
-    return re.sub(r"\n{3,}", "\n\n", text.replace("\r", "").replace("\xa0", " ")).strip()
+        cleaned, quoted, quote = _html_text(html)
+        if quoted:
+            return _strip_quote(_tidy(cleaned)), _tidy(quote)
+        if not plain:
+            plain = cleaned
+    head, quote = split_quote(_tidy(plain))
+    return head, quote
 
 
 #: Wo das Zitat beginnt: «Am … schrieb …:» (Gmail, Apple – auch umbrochen, wenn Name und
@@ -200,15 +220,25 @@ _QUOTE = re.compile(
     re.I)
 
 
-def _strip_quote(text: str) -> str:
-    """Ohne den zitierten Verlauf – der steht schon als eigene Nachricht im Verlauf."""
+def split_quote(text: str) -> tuple[str, str]:
+    """Der Text ohne den zitierten Verlauf – und das Zitat (an seinen Mustern, ``_QUOTE``,
+    oder an den Zeilen mit «>» am Schluss)."""
+    quote = ""
     m = _QUOTE.search("\n" + text + "\n")
     if m and m.start() > 0:
-        text = text[: m.start() - 1]
+        text, quote = text[: m.start() - 1], text[m.start() - 1:]
     lines = text.rstrip().split("\n")
+    tail: list[str] = []
     while lines and lines[-1].lstrip().startswith(">"):
-        lines.pop()
-    return "\n".join(lines).strip()
+        tail.insert(0, lines.pop())
+    if tail:
+        quote = "\n".join([*tail, quote]).strip()
+    return "\n".join(lines).strip(), quote.strip()
+
+
+def _strip_quote(text: str) -> str:
+    """Ohne den zitierten Verlauf – der steht schon als eigene Nachricht im Verlauf."""
+    return split_quote(text)[0]
 
 
 def _attachments(payload: dict[str, Any]) -> list[dict[str, Any]]:

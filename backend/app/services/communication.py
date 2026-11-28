@@ -603,6 +603,7 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
         id=m.id, channel=channel_out(m.channel, address, name), sender=sender,
         to=refs["to"], cc=refs["cc"], bcc=refs["bcc"], about=refs["about"],
         subject=m.subject, topic=dc.title(m.subject), body=body, signature=signature, at=at,
+        quote=m.quote or None,
         reply_subject=dc.reply_subject(m.subject),
         reply_all=[_ref(people, i, firms) for i in reply_all(m.sender_object_id, roles)
                    if i in people],

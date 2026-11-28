@@ -45,6 +45,9 @@ class Message(Base, TimestampMixin, SoftDeleteMixin):
     #: ``_topic`` schreibt es mit dem Betreff. Ohne Betreff ``""`` (auch das ist ein Anliegen).
     topic: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     body: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    #: **Das Zitat** einer abgeholten Mail – was unter dem Text stand (bei einer Weiterleitung die
+    #: eigentliche Sache); zugeklappt an der Mail, die KI liest es mit (``mail_parse.text_and_quote``).
+    quote: Mapped[Optional[str]] = mapped_column(Text)
     #: Der Zeitpunkt der Nachricht – darf in der Zukunft liegen (Erinnerung, später senden).
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False,
                                          default=utcnow, index=True)

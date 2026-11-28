@@ -5630,6 +5630,8 @@ export interface components {
             body: string;
             /** Signature */
             signature?: string | null;
+            /** Quote */
+            quote?: string | null;
             /**
              * At
              * Format: date-time

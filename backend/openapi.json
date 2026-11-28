@@ -13203,6 +13203,17 @@
             ],
             "title": "Signature"
           },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
           "at": {
             "type": "string",
             "format": "date-time",

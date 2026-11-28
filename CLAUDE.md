@@ -369,10 +369,13 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   `website/src/config/inquiry.mjs` (`letter`, in jeder Sprache), das Bild in
   `frontend/public/mail/`; Links öffnen ein neues Fenster, Radien wie v4. Was
   im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`). Antworten nennen den
-  ganzen Faden (`References`); Zitate fallen beim Abholen weg – **wo das Mailprogramm sie
+  ganzen Faden (`References`); Zitate trennt das Abholen vom Text – **wo das Mailprogramm sie
   markiert** (HTML-Teil: Gmail `gmail_quote`, Outlook `divRplyFwdMsg`, Apple `blockquote
   type=cite` …, `mail_parse.QUOTE_CLASSES` · `QUOTE_STOPS`), sonst an ihren Mustern im Text
-  (`mail_parse._QUOTE`); eine Grussformel-Erkennung (`domain/communication.is_greeting`). **Ein Unterzeichner**
+  (`mail_parse._QUOTE`) – und **behält sie**: das Zitat steht in `messages.quote` (Migration 193,
+  `mail_parse.text_and_quote`), an der Mail zugeklappt hinter «···» (mit der Signatur), und die KI liest
+  es mit (Vorschläge aus Mails, Verlauf) – bei einer Weiterleitung steht dort die eigentliche Sache;
+  eine Grussformel-Erkennung (`domain/communication.is_greeting`). **Ein Unterzeichner**
   für jede Mail (`mail_layout.as_signer`: Name + Profilbild). **Die Eingangsbestätigung** grüsst
   mit dem Namen aus dem Formular, aber nur, wenn er wie ein Name aussieht (`inquiry.salutation_name`:
   Buchstaben, Bindestrich, Apostroph, höchstens 4 Wörter und 40 Zeichen) – sonst «Guten Tag». **Das Bild der Unterschrift**

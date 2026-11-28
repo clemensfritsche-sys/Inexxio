@@ -109,19 +109,26 @@ function MessageActions({ m, onReply, onDone }: {
 }
 
 /** Die Signatur – eingeklappt hinter «…», wie in jedem Mailprogramm. */
-function Signature({ text }: { text: string }) {
+/** ►►► **Was unter der Nachricht stand – zugeklappt, wie in Gmail** («···»): die Signatur des
+ *  Absenders und das Zitat (bei einer Weiterleitung die eigentliche Sache, `messages.quote`).
+ *  Nichts davon geht verloren; der Verlauf zeigt nur das Wesentliche zuerst. ◄◄◄ */
+function Folded({ signature, quote }: { signature?: string | null; quote?: string | null }) {
   const [open, setOpen] = useState(false);
+  const what = quote ? 'zitierten Text' : 'Signatur';
   return (
     <div style={{ marginTop: 4 }}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
-        data-tip={open ? 'Signatur ausblenden' : 'Signatur anzeigen'}
-        aria-label={open ? 'Signatur ausblenden' : 'Signatur anzeigen'}
+        data-tip={open ? `${what[0].toUpperCase()}${what.slice(1)} ausblenden` : `${what[0].toUpperCase()}${what.slice(1)} anzeigen`}
+        aria-label={open ? `${what} ausblenden` : `${what} anzeigen`}
         style={{ border: 0, borderRadius: 6, background: 'var(--bg-3)', height: 14, padding: '0 6px',
           display: 'inline-flex', alignItems: 'center', cursor: 'pointer', color: 'var(--fg-3)' }}>
         <MoreHorizontal size={14} />
       </button>
-      {open && <div style={{ color: 'var(--fg-3)', fontSize: 13, whiteSpace: 'pre-wrap',
-        overflowWrap: 'anywhere', marginTop: 4 }}>{linkify(text)}</div>}
+      {open && signature && <div style={{ color: 'var(--fg-3)', fontSize: 13, whiteSpace: 'pre-wrap',
+        overflowWrap: 'anywhere', marginTop: 4 }}>{linkify(signature)}</div>}
+      {open && quote && <div style={{ color: 'var(--fg-3)', fontSize: 13, whiteSpace: 'pre-wrap',
+        overflowWrap: 'anywhere', marginTop: 6, paddingLeft: 10, borderLeft: '2px solid var(--border-1)' }}>
+        {linkify(quote)}</div>}
     </div>
   );
 }
@@ -198,7 +205,7 @@ export function Bubble({ m, mirror, named, onReply, onDone }: {
         {!m.body && !m.channel.outside && (
           <div style={{ color: 'var(--fg-3)', fontStyle: 'italic' }}>Erledigt ohne Antwort</div>
         )}
-        {m.signature && <Signature text={m.signature} />}
+        {(m.signature || m.quote) && <Folded signature={m.signature} quote={m.quote} />}
         <MailFoot m={m} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6,
           fontSize: 11, lineHeight: '16px', color: 'var(--fg-3)', marginTop: 2, minWidth: 0 }}>

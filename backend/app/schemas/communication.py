@@ -110,6 +110,9 @@ class MessageOut(BaseModel):
     #: Die Signatur einer Mail, abgetrennt vom Text (``domain.split_signature``) – die
     #: Oberfläche klappt sie ein. Leer = keine erkannt.
     signature: Optional[str] = None
+    #: Das Zitat einer abgeholten Mail – was darunter stand (bei einer Weiterleitung die
+    #: eigentliche Sache); die Oberfläche zeigt es zugeklappt.
+    quote: Optional[str] = None
     at: datetime
     #: **Das Anliegen** – der Betreff ohne «Re:»/«AW:» (``domain.title``). Gleiches
     #: Anliegen, gleiche Farbe; eine Antwort erledigt alle offenen davon.
