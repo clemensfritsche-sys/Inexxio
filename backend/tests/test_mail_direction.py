@@ -19,6 +19,7 @@ from app.models import Message, UserProfile
 from app.schemas.communication import MessageIn
 from app.services import communication as comm
 from app.services import mailbox as mb
+from app.services import mail_parse
 from tests import test_mailbox
 from tests.test_mailbox import CH, COMPANY, _gmail, _one, _person
 from tests.factories import post_office
@@ -145,13 +146,13 @@ def test_an_outlook_quote_is_cut():
     de = ("Ja, das passt.\n\nVon: Inexxio AG <info@example.ch>\nGesendet: Montag, 9. November "
           "2026 10:00\nAn: Lea Muster\nBetreff: Offerte\n\nAlter Text")
     en = "Thanks!\n\n________________________________\nFrom: Inexxio\nSent: Monday\n\nold"
-    assert mb._strip_quote(de) == "Ja, das passt."
+    assert mail_parse._strip_quote(de) == "Ja, das passt."
     # Gmail bricht einen langen Kopf um («… schrieb Clemens Fritsche · INEXXIO <» / «adresse>:»).
     wrapped = ("OK, danke!\n\nAm Di., 10. Nov. 2026 um 08:31 Uhr schrieb Clemens Fritsche · "
                "INEXXIO <\ninexxio65@gmail.com>:\n\n> Wunderbar\n")
-    assert mb._strip_quote(wrapped) == "OK, danke!"
-    assert mb._strip_quote(en) == "Thanks!"
-    assert mb._strip_quote("Von: Bern nach Basel fahren wir morgen.") == \
+    assert mail_parse._strip_quote(wrapped) == "OK, danke!"
+    assert mail_parse._strip_quote(en) == "Thanks!"
+    assert mail_parse._strip_quote("Von: Bern nach Basel fahren wir morgen.") == \
         "Von: Bern nach Basel fahren wir morgen.", "ein Satz ist kein Zitatkopf"
 
 
@@ -290,3 +291,21 @@ def test_the_quote_is_cut_where_the_mail_program_marked_it():
     # Ohne Zeichen gilt der Text-Teil wie bisher (das Muster schneidet später, ``_strip_quote``).
     plain = "Hallo\n\nGrüsse"
     assert _text(_mime(plain, "<div>Hallo</div><div>Grüsse</div>")) == plain
+
+
+def test_the_quote_is_kept_not_lost():
+    """►►► Was unter dem Text stand, geht nicht verloren: der Verlauf zeigt nur den Text, das
+    Zitat steht zugeklappt an der Mail (``messages.quote``). Bug-Form (Inhaber 28.11.2026):
+    Heiri leitete «Anfrage von Helvetia» weiter – die Anfrage selbst fiel beim Abholen weg. ◄◄◄"""
+    from app.services.mail_parse import text_and_quote
+    forward = ('<div dir="ltr">Hallo Clemens<br><br>Anfrage von Helvetia<br><br>Gruss Heiri</div>'
+               '<div class="gmail_quote"><div class="gmail_attr">---------- Forwarded message '
+               '---------<br>Von: Helvetia</div><div>Firmenauflösung per 01.01.2027 – bitte '
+               'Policen prüfen.</div></div>')
+    text, quote = text_and_quote(_mime("x", forward))
+    assert "Anfrage von Helvetia" in text and "Firmenauflösung" not in text
+    assert "Firmenauflösung per 01.01.2027" in quote and "Von: Helvetia" in quote
+    plain = "Gerne, bis Freitag.\n\nAm 10.11.2026 um 08:31 schrieb Anna Muster <a@b.ch>:\n> Passt Freitag?"
+    text, quote = text_and_quote(_mime(plain, ""))
+    assert text == "Gerne, bis Freitag." and "Passt Freitag?" in quote
+    assert text_and_quote(_mime("Nur Text", "")) == ("Nur Text", "")

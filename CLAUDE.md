@@ -350,29 +350,38 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   **Nie verloren**: dasselbe Postfach neu verbunden macht weiter, wo es aufhörte; ist Gmails Stand zu
   alt, kommen alle Mails seit dem letzten Abgleich (seitenweise). Erledigt im ERP =
   gelesen in Gmail. **Ein Anhang** bleibt in Gmail, bis ihn jemand öffnet – dann geht er in den
-  Entwurf eines Dokuments (`mailbox.attachment`); ebenso die Fotos des Kontaktformulars.
+  Entwurf eines Dokuments (`mailbox.attachment`); ebenso die Fotos des Kontaktformulars. Mit der
+  Freigabe merkt sich das Ereignis `document.origin`, aus welcher Mail und welchem Anhang die Datei
+  kam (`communication.note_origin`): an der Mail steht dann **das Dokument statt des Anhangs**
+  (Nummer, «Art · Name», ein Klick öffnet es – `communication.filed`).
 - **Eine Stelle für jede Mail des Hauses** (`services/outbox.py`): `deliver` (anlegen, bauen, zum
   Versand geben – Beleg, Dokument, Eingangsbestätigung, Newsletter-Bitte), `build` (auch die
   Antwort aus dem Verlauf), `firm`, `signer`. **Gebaut beim Anlegen, nie beim Versand.**
-- **Eine Mail-Vorlage** (`services/mail_layout.py`, `compose`): Betreff als Überschrift, rechts
-  auf gleicher Höhe das Logo (gestapelt mit «Kranbau · Fahrzeugbau · Service» und «ehemals HS
-  Steiner», 176 px, dezent; am Handy darüber) · Inhalt · «Beste Grüsse aus <Ort der Gesellschaft>» · Unterschrift
-  (Mensch im Namen der Gesellschaft, ohne Funktion; Gesellschaft, Anschrift, Telefon, E-Mail,
-  Website – **sie ist der Fuss**) · unten ein **Streifen** als kleine Werbefläche (Bild, Stichwort,
-  Titel, Satz, Link; heute die Nachfolge HS Steiner → INEXXIO). Gruss und Streifen stehen EINMAL in
+- **Eine Mail-Vorlage – wie ein Brief** (`services/mail_layout.py`, `compose`; Inhaber 28.11.2026):
+  **Briefkopf** (INEXXIO mit «Kranbau · Fahrzeugbau · Service» links, 176 px, «ehemals HS Steiner»
+  rechts mittig – am Handy darunter –, eine Haarlinie) · Betreff als Überschrift · Inhalt und
+  «Beste Grüsse aus <Ort der Gesellschaft>» **in derselben Schrift** · eine Haarlinie · **Unterschrift**
+  (Bild rund, Name des Menschen im Namen der Gesellschaft – ohne Funktion –, darunter die E-Mail des
+  Postfachs und das Telefon der Gesellschaft; eine automatische Mail unterschreibt die Gesellschaft)
+  · ein **Streifen** als kleine Werbefläche (Bild, Stichwort, Titel, Satz, Link; heute die Nachfolge
+  HS Steiner → INEXXIO) · unter der Karte die **Fusszeile** (Gesellschaft, Anschrift, E-Mail,
+  Website, grau). Gruss und Streifen stehen EINMAL in
   `website/src/config/inquiry.mjs` (`letter`, in jeder Sprache), das Bild in
   `frontend/public/mail/`; Links öffnen ein neues Fenster, Radien wie v4. Was
   im Verlauf steht, ist Wort für Wort, was hinausging (`messages.html`). Antworten nennen den
-  ganzen Faden (`References`); Zitate fallen beim Abholen weg – **wo das Mailprogramm sie
+  ganzen Faden (`References`); Zitate trennt das Abholen vom Text – **wo das Mailprogramm sie
   markiert** (HTML-Teil: Gmail `gmail_quote`, Outlook `divRplyFwdMsg`, Apple `blockquote
   type=cite` …, `mail_parse.QUOTE_CLASSES` · `QUOTE_STOPS`), sonst an ihren Mustern im Text
-  (`mail_parse._QUOTE`); eine Grussformel-Erkennung (`domain/communication.is_greeting`). **Ein Unterzeichner**
+  (`mail_parse._QUOTE`) – und **behält sie**: das Zitat steht in `messages.quote` (Migration 193,
+  `mail_parse.text_and_quote`), an der Mail zugeklappt hinter «···» (mit der Signatur), und die KI liest
+  es mit (Vorschläge aus Mails, Verlauf) – bei einer Weiterleitung steht dort die eigentliche Sache;
+  eine Grussformel-Erkennung (`domain/communication.is_greeting`). **Ein Unterzeichner**
   für jede Mail (`mail_layout.as_signer`: Name + Profilbild). **Die Eingangsbestätigung** grüsst
   mit dem Namen aus dem Formular, aber nur, wenn er wie ein Name aussieht (`inquiry.salutation_name`:
   Buchstaben, Bindestrich, Apostroph, höchstens 4 Wörter und 40 Zeichen) – sonst «Guten Tag». **Das Bild der Unterschrift**
-  (`services/portrait.py`): schräge Streifen, die sich einmal öffnen, links eine rote Kante –
-  ein GIF (das erste Bild ist das fertige, für Outlook), durchsichtig für hell und dunkel,
-  ausgeliefert über `GET /api/v1/mail/portrait/<signiert>.gif` (Foto oder Initialen),
+  (`services/portrait.py`): ein ruhiges, quadratisches JPEG (Foto, Gesicht mittig, sonst die
+  Initialen), in der Mail rund (Outlook am Computer eckig), ausgeliefert über
+  `GET /api/v1/mail/portrait/<signiert>.jpg` (ältere Mails fragen `.gif` und bekommen dasselbe),
   gerechnet beim ersten Abruf, dann vom CDN gehalten.
 - **Drei Versandarten einer E-Mail** (`domain/communication.DELIVERIES`): **Mail** (An/Cc
   sehen einander, Bcc bleibt Bcc) · **Rundschreiben** (Information an mehrere: je Person

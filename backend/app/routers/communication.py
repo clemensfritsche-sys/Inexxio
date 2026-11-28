@@ -103,15 +103,19 @@ def callback(code: str = "", state: str = "", error: str = "",
                             status_code=303)
 
 
-@callback_router.get("/portrait/{token}.gif", include_in_schema=False)
-def portrait_gif(token: str) -> Response:
-    """Das Bild in der Unterschrift einer Mail – einmal gerechnet, dann vom CDN gehalten."""
+@callback_router.get("/portrait/{name}", include_in_schema=False)
+def portrait_image(name: str) -> Response:
+    """Das Bild in der Unterschrift einer Mail – einmal gerechnet, dann vom CDN gehalten
+    (``….jpg``; ältere Mails fragen ``….gif`` und bekommen dasselbe Bild)."""
+    token, dot, ext = name.rpartition(".")
+    if not dot or ext not in ("jpg", "gif"):
+        raise NotFound("Dieses Bild gibt es nicht.")
     try:
-        data, final = portrait.gif(token)
+        data, final = portrait.image(token)
     except signed.BadLink:
         raise NotFound("Dieses Bild gibt es nicht.")
     age = 31_536_000 if final else 300
-    return Response(data, media_type="image/gif",
+    return Response(data, media_type="image/jpeg",
                     headers={"Cache-Control": f"public, max-age={age}, s-maxage={age}"})
 
 

@@ -184,14 +184,19 @@ Raster, weiche Übergänge. Gefühl: leicht, vertrauenswürdig, kompetent, nahba
 
 ## 8. E-Mail
 
-**Eine Vorlage für jede Mail des Hauses** (`mail_layout.compose`): Betreff als Überschrift, rechts
-auf gleicher Höhe das Logo mit Unterzeile und «ehemals HS Steiner» (176 × 110 px, dezent, am Handy darüber;
-`frontend/public/mail/logo.png` · `logo-dark.png`) · Inhalt · «Beste Grüsse aus ‹Ort›» ·
-Unterschrift (Mensch im Namen der Gesellschaft, ohne Funktion; Gesellschaft, Anschrift, Telefon,
-E-Mail, Website – **sie ist der Fuss**) · unten ein Streifen als kleine Werbefläche (Bild, Stichwort,
-Titel, Satz, Link). Inter, sonst Arial; Kästen 8 px, Knöpfe 6 px in Ink; Links öffnen ein neues
-Fenster; hell und dunkel. Gruss und Streifen stehen in `website/src/config/inquiry.mjs` (`letter`,
-je Sprache). Das Bild der Unterschrift: schräge Streifen mit roter Kante (`services/portrait.py`).
+**Eine Vorlage für jede Mail des Hauses – wie ein Brief** (`mail_layout.compose`, Inhaber 28.11.2026):
+**Briefkopf** – links INEXXIO mit Unterzeile «Kranbau · Fahrzeugbau · Service»
+(`inexxio-horizontal-tagline-*`, 176 × 64 px, `frontend/public/mail/kopf.png` · `kopf-dark.png`),
+rechts «ehemals HS Steiner» mittig dazu (unterste Zeile von `inexxio-stacked-tagline-*`, 157 × 12 px,
+`ehemals.png` · `ehemals-dark.png`; am Handy darunter), eine Haarlinie · Betreff als Überschrift
+(Inter Tight 700, 28 px) · Inhalt und «Beste Grüsse aus ‹Ort›» in der Schrift des Textes (Inter 17 px,
+Ink) · eine Haarlinie · **Unterschrift**: Bild rund (56 px, Foto oder Initialen, `services/portrait.py`),
+daneben Name, E-Mail des Postfachs, Telefon · ein Streifen als kleine Werbefläche (Bild, Stichwort in
+Grau-600, Titel, Satz, Link) · unter der Karte die **Fusszeile** (Gesellschaft, Anschrift, E-Mail,
+Website; 12 px, Grau-600). Farben nur aus den Tokens (Ink Grau-950, Text Grau-700, leise Grau-600,
+Haarlinie Grau-200); kein Rot ausser im Logo. Kästen 8 px, Knöpfe 6 px in Ink; Links öffnen ein neues
+Fenster; hell und dunkel. Gruss und Streifen stehen in `website/src/config/inquiry.mjs` (`letter`, je
+Sprache). **Mindestbreite** des Logos mit Unterzeile in der Mail: 176 px (sonst 240 px, §10).
 
 ## 9. Papier (A4)
 
@@ -217,7 +222,7 @@ Rechteck. **Nie umfärben, verzerren, nachbauen** – eine Änderung geht über 
 | `inexxio-symbol*`, `inexxio-app-icon`, `inexxio-*-red` | Symbol auf bekanntem Grund, App-Icon, auf Logo-Rot. |
 | mit Unterzeile «Kranbau · Fahrzeugbau · Service» | Nur im Artefakt (Gruppe «Logos»); daraus das Logo der Mail. |
 
-Schutzraum rundum ≈ ¼ der Versalhöhe; Mindestbreite Wortmarke 96 px, gestapelt 120 px, Symbol
+Schutzraum rundum ≈ ¼ der Versalhöhe; Mindestbreite Wortmarke 96 px, gestapelt 120 px, mit Unterzeile 240 px (in der Mail 176 px, §8), Symbol
 16 px; nur auf Weiss, hellem Grau, Ink oder Logo-Rot. Kein zweiter Schwung neben dem Logo.
 
 ## 11. Schreiben

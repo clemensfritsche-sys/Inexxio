@@ -15,6 +15,7 @@ from app.domain.errors import Rejected
 from tests.support import after_save
 from app.models import Mailbox, Message, UserProfile
 from app.services import people
+from app.services import mail_parse
 from app.schemas.communication import MessageIn
 from app.services import communication as comm
 from app.services import mailbox as mb
@@ -124,7 +125,7 @@ def test_bulk_mail_creates_no_contact(world):
 def test_the_quoted_history_is_cut():
     text = ("Gerne, Donnerstag passt.\n\nAm Mo., 13. Okt. 2026 um 10:00 Uhr schrieb Lea "
             "<lea@kunde.ch>:\n> Wann kommt der Techniker?\n")
-    assert mb._strip_quote(text) == "Gerne, Donnerstag passt."
+    assert mail_parse._strip_quote(text) == "Gerne, Donnerstag passt."
 
 
 def test_a_forged_state_connects_nothing(db):

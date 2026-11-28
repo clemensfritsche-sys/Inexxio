@@ -41,6 +41,10 @@ class Attachment(BaseModel):
     #: in den Entwurf eines Dokuments.
     url: Optional[str] = None
     mime: Optional[str] = None
+    #: Ist der Anhang schon ein Dokument (beim Freigeben aus dieser Mail gemerkt,
+    #: ``communication.filed``), seine Nummer und «Art · Name» – die Mail zeigt dann das Dokument.
+    document_object_id: Optional[int] = None
+    document_name: Optional[str] = None
 
 
 class MailboxOut(BaseModel):
@@ -106,6 +110,9 @@ class MessageOut(BaseModel):
     #: Die Signatur einer Mail, abgetrennt vom Text (``domain.split_signature``) – die
     #: Oberfläche klappt sie ein. Leer = keine erkannt.
     signature: Optional[str] = None
+    #: Das Zitat einer abgeholten Mail – was darunter stand (bei einer Weiterleitung die
+    #: eigentliche Sache); die Oberfläche zeigt es zugeklappt.
+    quote: Optional[str] = None
     at: datetime
     #: **Das Anliegen** – der Betreff ohne «Re:»/«AW:» (``domain.title``). Gleiches
     #: Anliegen, gleiche Farbe; eine Antwort erledigt alle offenen davon.

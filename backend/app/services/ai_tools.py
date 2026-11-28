@@ -131,7 +131,10 @@ def entry_line(e: Any) -> str:
     if e.message is not None:
         m = e.message
         who = getattr(m.sender, "name", "") or ""
-        body = " ".join((m.body or "").split())[:_CUT]
+        body = " ".join((m.body or "").split())
+        if getattr(m, "quote", None):       # weitergeleitet: die Sache steht im Zitat
+            body += " | Zitat: " + " ".join(m.quote.split())
+        body = body[:_CUT]
         return f"{when} · Nachricht ({m.channel.label}) von {who} · «{m.subject or ''}»: {body}"
     if e.document is not None:
         d = e.document

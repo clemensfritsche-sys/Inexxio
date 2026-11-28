@@ -97,6 +97,8 @@ def _content(db: Session, msg: Message, sender: UserProfile, reader: UserProfile
              ) -> list[dict[str, Any]]:
     from . import memory
     body = f"Betreff: {msg.subject or ''}\n\n{msg.body or ''}"
+    if msg.quote:               # weitergeleitet: die eigentliche Sache steht im Zitat
+        body += f"\n\nZitat darunter:\n{msg.quote}"
     cases = memory.as_prompt(memory.search(db, body, actor=reader, kinds=("handgriff",)))
     head = (f"Eine Mail an uns von {sender.display_name} ({sender.object_id}), "
             f"am {msg.at.isoformat(timespec='minutes')}.")
