@@ -1014,7 +1014,9 @@ Phase 1 · Deployment develop → https://inexxio-dev.web.app
 - **Verlauf** an jedem Datensatz (Nachrichten, Notizen, Dokumente, Änderungen aus dem Log – in
   Seiten); Notiz an jedem Datensatz (ohne eigene Eingabe ausser an der Person).
 - **ERP-Feed** (Master-Detail, eine Route `/erp`): Benutzer · Artikel · Aufträge · Instanzen
-  · Unternehmen · Dokumente; Objektnummer, QR-Etikett und Kamera-Scan an jedem Datensatz.
+  · Unternehmen · Dokumente; Objektnummer, QR-Etikett und Kamera-Scan an jedem Datensatz. Ist
+  nichts geöffnet, steht dort **unsere Haltung** («Qualität in allem, was wir tun.», der Kreis
+  Funktioniert · Einfach · Günstig – `components/erp/haltung.tsx`; am Handy oben in der Liste).
 - **Artikel** mit Spezifikation, Bestand in drei Ebenen, Reihe und gemeldeter Stückliste.
 - **Wiederkehrende Aufträge**: die Schlaufe im Entwurf (Karte «Wiederholen» unter dem Ende, Linie
   links zurück zum Start), Nachfolger im Takt, Zahlung mit stiller Zusage, «zu tun», Beenden.

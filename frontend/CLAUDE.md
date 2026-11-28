@@ -104,6 +104,7 @@ src/types/api.ts ← generiert aus backend/openapi.json – NICHT editieren
 | `controls.tsx` | Bedienelemente: **die eine Feldform** `inputClass` (normal · warn · read) / `inputCls`, **die eine Beschriftung** `Label` (13 px, `fg-2`, Satzschreibung; Pflicht = `RequiredMark`, ein `*` in `--warning`), `IconSwitch`, `Segmented`, `Dialog` (modal; das Verhalten aus `lib/use-dialog`), `Palette`, `numericOnly`, `FieldAction` |
 | `search-select.tsx`, `hints.tsx` | `SearchSelect`/`OptionRow` (Liste per Portal am `body`) · **die eine Hover-Blase** `TipHost` (Wurzel-Layout) + `Tooltip`, `InfoHint`, `ErrorText` |
 | `feed-panel.tsx`, `detail-pane.tsx` | Die zwei Hälften der Feed-Seite: Liste (Suche, Typ-Filter, Zeilen, «+») · Detail (was angelegt wird oder ausgewählt ist, im `ErrorBoundary`; **jede Ansicht und das «+» laden erst beim Öffnen**, `next/dynamic` mit `DetailSkeleton`) |
+| `haltung.tsx` | **Unsere Haltung** – «Qualität in allem, was wir tun.» und der Kreis Funktioniert · Einfach · Günstig («So arbeiten wir»), Bilder `public/brand/haltung-*.webp`: im leeren Detailbereich; am Handy oben in der Liste (`compact`, ohne Unterzeilen, nur ohne Suche und Filter) |
 | `module-ui.tsx` | Bauteile eines Prozessschrittmoduls (Tabelle unten) |
 | `object-select.tsx` | **Jedes Referenzfeld** («welchen Datensatz meinst du?»), Kamera im Feld |
 | `address-field.tsx`, `address-book.tsx` | Jede Adress-Eingabe (Google Places) · das Adressbuch einer Person (zwei Konten) |
