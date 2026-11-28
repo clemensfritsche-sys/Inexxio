@@ -1,57 +1,87 @@
 'use client';
 
-import { useId } from 'react';
-import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 
-/** Die drei Grundsätze – EINE Liste für den Kreis und seine Beschreibung. */
+/** Die drei Grundsätze – EINE Liste für Bühne und Handy. Die Bilder sind freigestellt (WebP mit
+ *  Transparenz, Rand läuft weich aus). */
 const PRINCIPLES = [
-  { word: 'Funktioniert', line: 'Jeden Tag. Ohne Ausnahme.', image: '/brand/haltung-funktioniert.webp', x: 280, y: 100 },
-  { word: 'Einfach', line: 'Schlank statt kompliziert.', image: '/brand/haltung-einfach.webp', x: 150, y: 325 },
-  { word: 'Günstig', line: 'Vorhandenes nutzen, Unnötiges weglassen.', image: '/brand/haltung-guenstig.webp', x: 410, y: 325 },
+  { word: 'Funktioniert', line: 'Jeden Tag. Ohne Ausnahme.', image: '/brand/haltung-funktioniert.webp' },
+  { word: 'Einfach', line: 'Schlank statt kompliziert.', image: '/brand/haltung-einfach.webp' },
+  { word: 'Günstig', line: 'Vorhandenes nutzen, Unnötiges weglassen.', image: '/brand/haltung-guenstig.webp' },
 ] as const;
 
-const R = 52;
+/** So lange steht ein Grundsatz auf der Bühne (die Linie unter ihm läuft genau so lange). */
+const STEP_MS = 6000;
 
-/**
- * ►►► **Unsere Haltung** – was im ERP steht, wenn nichts geöffnet ist (Inhaber 28.11.2026): der
- * grosse Satz und darunter ein Kreis, auf dem die drei Grundsätze zusammen stehen, in der Mitte
- * «So arbeiten wir». ◄◄◄ Am Computer füllt sie den leeren Detailbereich, am Handy steht sie
- * oben in der Liste und scrollt mit weg (`compact`: ohne Unterzeilen, sie wären zu klein).
- */
-export function Haltung({ compact = false }: { compact?: boolean }) {
-  const id = useId().replace(/:/g, '');
-  const label = PRINCIPLES.map((p) => `${p.word}: ${p.line}`).join(' ') + ' In der Mitte: So arbeiten wir.';
+function Head() {
   return (
-    <div className={cn('erp-haltung', compact && 'erp-haltung-compact')}>
+    <>
       <p className="erp-haltung-eyebrow">Unsere Haltung</p>
       <p className="erp-haltung-motto">Qualität in allem, was wir tun<em>.</em></p>
-      <svg className="erp-haltung-kreis" viewBox={compact ? '0 12 560 404' : '0 -12 560 446'} role="img" aria-label={label}>
-        <defs>
-          {PRINCIPLES.map((p, i) => (
-            <clipPath key={p.word} id={`${id}-${i}`}><circle cx={p.x} cy={p.y} r={R} /></clipPath>
+    </>
+  );
+}
+
+/**
+ * ►►► **Unsere Haltung** – was im ERP steht, wenn nichts geöffnet ist (Inhaber 28.11.2026). ◄◄◄
+ * Am Computer eine **Bühne** wie auf der Website: links der Satz und die drei Grundsätze, rechts
+ * EIN Bild gross; alle 6 s der nächste (eine Linie zeigt die Zeit), Klick wählt, bei «weniger
+ * Bewegung» wechselt sie nicht von selbst. Am Handy (`compact`) alles auf einmal: drei
+ * Zeilen, Bild links – oben in der Liste, scrollt mit weg.
+ */
+export function Haltung({ compact = false }: { compact?: boolean }) {
+  if (compact) {
+    return (
+      <div className="erp-haltung-mob">
+        <Head />
+        <ul className="erp-haltung-list">
+          {PRINCIPLES.map((p) => (
+            <li key={p.word}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.image} alt="" width={88} height={88} />
+              <p className="erp-haltung-word">{p.word}</p>
+              <p className="erp-haltung-line">{p.line}</p>
+            </li>
           ))}
-        </defs>
-        <circle className="erp-haltung-ring" cx={280} cy={250} r={150} />
-        <g className="erp-haltung-g erp-haltung-g4">
-          <text className="erp-haltung-mid" x={280} y={compact ? 242 : 246} textAnchor="middle">So arbeiten</text>
-          <text className="erp-haltung-mid" x={280} y={compact ? 274 : 268} textAnchor="middle">wir</text>
-        </g>
-        {PRINCIPLES.map((p, i) => {
-          const top = p.y < 250;
-          return (
-            <g key={p.word} className={`erp-haltung-g erp-haltung-g${i + 1}`}>
-              <circle className="erp-haltung-node" cx={p.x} cy={p.y} r={R} />
-              <image href={p.image} x={p.x - R} y={p.y - R} width={R * 2} height={R * 2}
-                clipPath={`url(#${id}-${i})`} preserveAspectRatio="xMidYMid slice" />
-              <circle className="erp-haltung-edge" cx={p.x} cy={p.y} r={R} />
-              <text className="erp-haltung-word" x={p.x} y={top ? (compact ? p.y - R - 14 : 14) : p.y + R + (compact ? 30 : 26)} textAnchor="middle">{p.word}</text>
-              {!compact && (
-                <text className="erp-haltung-line" x={p.x} y={top ? 34 : p.y + R + 46} textAnchor="middle">{p.line}</text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
+        </ul>
+      </div>
+    );
+  }
+  return <Stage />;
+}
+
+function Stage() {
+  const [at, setAt] = useState(0);
+  const [still, setStill] = useState(false);
+  useEffect(() => { setStill(window.matchMedia('(prefers-reduced-motion: reduce)').matches); }, []);
+  useEffect(() => {
+    if (still) return;
+    const t = window.setTimeout(() => setAt((i) => (i + 1) % PRINCIPLES.length), STEP_MS);
+    return () => window.clearTimeout(t);
+  }, [at, still]);
+  return (
+    <div className="erp-haltung-stage">
+      <div className="erp-haltung-text">
+        <Head />
+        <ul className="erp-haltung-tabs">
+          {PRINCIPLES.map((p, i) => (
+            <li key={p.word}>
+              <button type="button" aria-pressed={i === at} onClick={() => setAt(i)}
+                style={{ ['--erp-haltung-t' as string]: `${STEP_MS}ms` }}>
+                <span className="erp-haltung-word">{p.word}</span>
+                <span className="erp-haltung-no">0{i + 1}</span>
+                <span className="erp-haltung-line">{p.line}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="erp-haltung-pic" aria-hidden="true">
+        {PRINCIPLES.map((p, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={p.word} src={p.image} alt="" data-on={i === at || undefined} />
+        ))}
+      </div>
     </div>
   );
 }
