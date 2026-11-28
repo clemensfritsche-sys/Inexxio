@@ -44,7 +44,8 @@ jobs:
       min_instances: 0
       max_instances: 2
       cpu: '1'
-      memory: 512Mi
+      # 1 Gi seit 28.11.2026: Alarm «Memory limit of 512 MiB exceeded with 568 MiB used».
+      memory: 1Gi
       web_workers: 1
       firebase_project_id: inexxio-prod
       # STRIPE_PUBLISHABLE_KEY kommt auf prod aus dem Secret Manager (Eingabe leer).
