@@ -2,7 +2,7 @@
  * ►►► Die Garantien – an EINER Stelle. ◄◄◄
  *
  * Zwei Garantien tragen das Angebot und gelten für alle drei Bereiche (Krane, Fahrmischer,
- * Spezialmaschinen): ① INEXXIO Zufriedenheitsgarantie · ② INEXXIO 365. Die Gratis-Inspektion
+ * Spezialmaschinen): ① INEXXIO Funktionsgarantie · ② INEXXIO 365. Die Gratis-Inspektion
  * ist der leise Einstieg (Priorität 3) und steht als schmale Zeile darunter.
  * Gezeigt werden sie als die Garantie-Karten (components/home/Guarantees.astro) und in den Fragen;
  * `promises` einer Seite nennt für llms.txt, welche dort gelten. Wer einen Satz ändert, ändert ihn überall.
@@ -30,16 +30,16 @@ export interface PromiseItem {
 }
 
 export const promises = t('promises', {
-  title: 'Einsatzbereit und zufrieden mit Garantie.',
+  title: 'Funktioniert und einsatzbereit mit Garantie.',
   lead: 'Zwei Garantien für alles, was wir bauen, warten und reparieren – Fahrmischer, Krane und Spezialmaschinen.',
   items: {
     garantie: {
       figure: '50',
       unit: '%',
-      label: 'INEXXIO Zufriedenheitsgarantie',
-      title: 'Nicht zufrieden? Die Hälfte übernehmen wir.',
-      text: 'Sind Sie mit dem Ergebnis nicht zufrieden, übernehmen wir 50 % des vereinbarten Preises. Das gilt für alles, was wir für Sie bauen, warten und reparieren: Krane, Bootslifte, Heukrananlagen, Modernisierung, Trommeltausch und Speziallösungen.',
-      checks: ['Für alles, was wir bauen, warten und reparieren', 'Bezogen auf den vereinbarten Preis', 'Bedingungen: AGB, Ziffer 11'],
+      label: 'INEXXIO Funktionsgarantie',
+      title: 'Funktioniert garantiert. Sonst übernehmen wir die Hälfte.',
+      text: 'Was in der Offerte steht, funktioniert. Sonst bessern wir nach – auf unsere Kosten. Klappt es trotzdem nicht, übernehmen wir 50 % des vereinbarten Preises. Das gilt für alles, was wir für Sie bauen, warten und reparieren: Krane, Bootslifte, Heukrananlagen, Modernisierung, Trommeltausch und Speziallösungen.',
+      checks: ['Für alles, was wir bauen, warten und reparieren', 'Nachbessern auf unsere Kosten', 'Bedingungen: AGB, Ziffer 11'],
     },
     inexxio365: {
       figure: '365',
@@ -67,8 +67,8 @@ export const promiseFaq = t('promises', {
     a: 'Wir prüfen Ihre Maschine einmal kostenlos – Fahrmischer, Krane und Spezialmaschinen, einmal pro Kunde. Rufen Sie an oder schreiben Sie uns – wir vereinbaren den Termin.',
   },
   garantie: {
-    q: 'Wie funktioniert die Zufriedenheitsgarantie?',
-    a: 'Sind Sie mit dem Ergebnis nicht zufrieden, übernehmen wir 50 % des vereinbarten Preises – für alles, was wir für Sie bauen, warten und reparieren. Melden Sie sich innert 30 Tagen nach der Abnahme; die Bedingungen stehen in unseren AGB (Ziffer 11). Für reine Teilelieferungen gilt die Garantie nicht.',
+    q: 'Wie funktioniert die Funktionsgarantie?',
+    a: 'Was in der Offerte steht, funktioniert – das prüfen wir bei der Abnahme gemeinsam mit Ihnen. Sonst bessern wir nach, auf unsere Kosten. Klappt es trotzdem nicht, übernehmen wir 50 % des vereinbarten Preises – für alles, was wir für Sie bauen, warten und reparieren. Melden Sie sich innert 30 Tagen nach der Abnahme; die Bedingungen stehen in unseren AGB (Ziffer 11). Für reine Teilelieferungen gilt die Garantie nicht.',
   },
   inexxio365: {
     q: 'Was ist INEXXIO 365?',

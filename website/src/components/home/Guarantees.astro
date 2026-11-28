@@ -1,7 +1,8 @@
 ---
 /**
  * Garantien (v4): versetzte Karten, die Überschrift dazwischen (home/Stagger).
- *  · Zufriedenheitsgarantie: Schema einer Rechnung, deren Hälfte zurückgeht
+ *  · Funktionsgarantie: Schema einer Rechnung, deren Hälfte zurückgeht (die letzte Stufe:
+ *    funktioniert es trotz Nachbessern nicht, übernehmen wir 50 %)
  *  · INEXXIO 365 (die eine dunkle Karte): ein Jahresband, ein Ausfall – den zahlen wir
  *  · Erste Inspektion gratis: Foto
  * Texte: content/promises.ts (EINE Stelle).
@@ -16,7 +17,7 @@ const half = tMarkup('schemata', halfDe);
 const year = tMarkup('schemata', yearDe);
 
 interface Props {
-  /** Ziel der Karte Zufriedenheitsgarantie (die Antwort in den Fragen der Seite). */
+  /** Ziel der Karte Funktionsgarantie (die Antwort in den Fragen der Seite). */
   garantieHref?: string;
   photo?: string;
 }

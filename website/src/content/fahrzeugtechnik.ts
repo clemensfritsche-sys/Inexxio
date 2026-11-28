@@ -49,7 +49,7 @@ export const fahrzeugtechnik: AreaPage = t('fahrzeugtechnik', {
   path: '/fahrzeugtechnik',
   title: 'Fahrzeugtechnik: Fahrmischer',
   description:
-    'Neue Trommel statt neuer Fahrmischer – mit verbindlicher Offerte und Zufriedenheitsgarantie. Dazu Verschleissteile, rasch beschafft. Aus {{address.home}}.',
+    'Neue Trommel statt neuer Fahrmischer – mit verbindlicher Offerte und Funktionsgarantie. Dazu Verschleissteile, rasch beschafft. Aus {{address.home}}.',
   hero: {
     eyebrow: 'Fahrzeugtechnik',
     h1: 'Länger fahren statt neu kaufen.',
@@ -58,7 +58,7 @@ export const fahrzeugtechnik: AreaPage = t('fahrzeugtechnik', {
     primary: anfrage('Fahrmischer anfragen'),
   },
   summary:
-    '{{brand.name}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – mit verbindlicher Offerte und mit Zufriedenheitsgarantie: Nicht zufrieden, übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren und Trichter beschaffen wir auf Bestellung. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
+    '{{brand.name}} setzt neue Mischtrommeln auf bestehende Fahrgestelle (Trommeltausch) – mit verbindlicher Offerte und mit Funktionsgarantie: Funktioniert es nicht wie vereinbart, bessern wir auf unsere Kosten nach, sonst übernehmen wir 50 %. Mit INEXXIO 365 ist der Fahrmischer einsatzbereit – Ausfälle übernehmen wir. Verschleissteile wie Rinnen, Schurren und Trichter beschaffen wir auf Bestellung. Der Standort ist in {{address.home}}; im Einsatz sind wir {{area.summary}}.',
   steps: facts(vehiclePath.items),
   faq: [
     {
@@ -131,16 +131,16 @@ export const trommeltausch: SubPage = t('fahrzeugtechnik', {
   crumb: 'Trommeltausch',
   title: 'Trommeltausch für Fahrmischer',
   description:
-    'Neue Trommel auf das bestehende Fahrgestell statt neuer Fahrmischer – mit verbindlicher Offerte. Nicht zufrieden? Die Hälfte übernehmen wir.',
+    'Neue Trommel auf das bestehende Fahrgestell statt neuer Fahrmischer – mit verbindlicher Offerte. Funktioniert garantiert. Sonst übernehmen wir die Hälfte.',
   hero: {
     eyebrow: 'Fahrzeugtechnik · Trommeltausch',
     h1: 'Neue Trommel. Gleicher Fahrmischer.',
-    lead: 'Ist nur die Trommel am Ende, setzen wir eine neue auf Ihr Fahrgestell – mit verbindlicher Offerte. Nicht zufrieden? Die Hälfte übernehmen wir.',
+    lead: 'Ist nur die Trommel am Ende, setzen wir eine neue auf Ihr Fahrgestell – mit verbindlicher Offerte. Funktioniert garantiert. Sonst übernehmen wir die Hälfte.',
     photo: 'fahrmischer-werkstatt',
     primary: anfrage('Trommeltausch anfragen'),
   },
   summary:
-    '{{brand.name}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – etwa für {{marks.mixerList}}. Verbindliche Offerte vor jeder Arbeit, und mit der Zufriedenheitsgarantie übernehmen wir 50 %, wenn Sie nicht zufrieden sind. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – bei uns in {{address.home}}.',
+    '{{brand.name}} setzt neue Mischtrommeln auf bestehende Fahrgestelle – etwa für {{marks.mixerList}}. Verbindliche Offerte vor jeder Arbeit, und mit der Funktionsgarantie bessern wir auf unsere Kosten nach, wenn etwas nicht wie vereinbart funktioniert – sonst übernehmen wir 50 %. Ist die Trommel noch zu retten, überholen wir sie (Trommel-Revision). Am besten im Winter – bei uns in {{address.home}}.',
   glance: {
     forWhom: 'Fuhrparkleiter in Betonwerken, Bau- und Transportunternehmen mit eigenen Fahrmischern.',
     what: 'Trommel und Fahrgestell prüfen, neue Trommel aufsetzen, Antrieb und Hydraulik anschliessen, in Betrieb nehmen.',

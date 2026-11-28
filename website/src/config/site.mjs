@@ -142,7 +142,7 @@ export const site = t('site', {
     summary:
       'Fahrzeugtechnik, Krantechnik und Speziallösungen aus Tuttwil-Wängi TG: Krane nach Mass, Kranservice mit INEXXIO 365 und Heukrananlagen, Trommeltausch und Verschleissteile für Fahrmischer, Spezialmaschinen nach Mass für die Baustelle. Seit {{history.founded}}.',
     /** Claim – OG-Bild und llms.txt. */
-    claim: 'Fahrmischer, Krane und Spezialmaschinen mit Zufriedenheitsgarantie. Ihr Problem. Unsere Lösung.',
+    claim: 'Fahrmischer, Krane und Spezialmaschinen mit Funktionsgarantie. Ihr Problem. Unsere Lösung.',
   },
 
   history: {
@@ -219,7 +219,7 @@ export const site = t('site', {
     heiriAdvisory: true,
     /** Belege auf «Krane nach Mass» (content/krantechnik.ts `craneReferences`) – an, sobald Fotos da sind. */
     craneReferences: false,
-    /** Abschnitt «Einsatzbereit und zufrieden mit Garantie» (home/Guarantees) auf allen Seiten. */
+    /** Abschnitt «Funktioniert und einsatzbereit mit Garantie» (home/Guarantees) auf allen Seiten. */
     guarantees: true,
   },
 

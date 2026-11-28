@@ -10,13 +10,13 @@ import { t } from '../i18n/t.mjs';
 export const start = t('start', {
   title: '{{brand.name}}: Fahrmischer, Krane, Spezialmaschinen',
   description:
-    'Krane nach Mass und INEXXIO 365, Trommeltausch für Fahrmischer, Spezialmaschinen für den Bau – mit Zufriedenheitsgarantie. Aus {{address.home}}.',
+    'Krane nach Mass und INEXXIO 365, Trommeltausch für Fahrmischer, Spezialmaschinen für den Bau – mit Funktionsgarantie. Aus {{address.home}}.',
 
   /** Bühne: Video (oder Foto), wenig Text. */
   hero: {
     eyebrow: 'Seit {{history.founded}} · {{address.town}}',
     h1: 'Fahrmischer, Krane und Spezialmaschinen.',
-    sub: 'Mit Zufriedenheitsgarantie.',
+    sub: 'Mit Funktionsgarantie.',
     photo: 'heukran-einsatz',
   },
 
@@ -47,7 +47,7 @@ export const start = t('start', {
   },
 
   summary:
-    '{{brand.name}} arbeitet in drei Bereichen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles, was wir bauen, warten und reparieren: Die Zufriedenheitsgarantie – nicht zufrieden, übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis. Der Standort ist in {{address.home}}.',
+    '{{brand.name}} arbeitet in drei Bereichen. Fahrzeugtechnik: Trommeltausch und Verschleissteile für Fahrmischer. Krantechnik: Krane nach Mass, Kranservice und Heukrananlagen. Speziallösungen: Spezialmaschinen und Anbauten nach Mass. Zwei Garantien gelten für alles, was wir bauen, warten und reparieren: Die Funktionsgarantie – funktioniert es nicht wie vereinbart, bessern wir nach, sonst übernehmen wir 50 % – und INEXXIO 365 – Ihre Maschine ist einsatzbereit, Ausfälle übernehmen wir. Die erste Inspektion ist gratis. Der Standort ist in {{address.home}}.',
 
   why: {
     h2: 'Entwicklung, Produktion und Service aus einer Hand.',
@@ -56,7 +56,7 @@ export const start = t('start', {
       { pre: 'Seit', figure: '{{history.founded}}', text: 'In {{address.town}} gegründet.' },
       { figure: '100', unit: '+', text: 'Krananlagen gebaut – darum kennen wir jedes Bauteil.' },
       { figure: '1', unit: 'Ansprechpartner', text: 'für Fahrmischer, Krane und Spezialmaschinen.' },
-      { figure: '50', unit: '%', text: 'übernehmen wir, wenn Sie mit dem Ergebnis nicht zufrieden sind – die Zufriedenheitsgarantie.' },
+      { figure: '50', unit: '%', text: 'übernehmen wir, wenn es trotz Nachbesserung nicht wie vereinbart funktioniert – die Funktionsgarantie.' },
     ] as { pre?: string; figure: string; unit?: string; text: string }[],
     quote: 'Ich führe weiter, was Heiri Steiner in {{history.experienceDative}} aufgebaut hat – und ergänze es dort, wo es Ihnen nützt.',
     caption: '{{people.owner.name}}, Maschinenbauingenieur – Erfahrung aus der Entwicklung von Liebherr-Bohrgeräten.',

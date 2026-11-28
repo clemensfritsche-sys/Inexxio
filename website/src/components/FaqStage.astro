@@ -40,7 +40,7 @@ const pageArt = art(illo);
     gleich); sonst die Zeichnung der Seite. */
 const pick = (text: string): FaqVisual => {
   const q = original(text);
-  if (/zufriedenheit/i.test(q)) return 'garantie';
+  if (/funktionsgarantie/i.test(q)) return 'garantie';
   if (/365/.test(q)) return 'inexxio365';
   if (/still|notfall|stillstand|telefonnummer|anrufen/i.test(q)) return 'telefon';
   if (/hs steiner|heiri|übergabe|verträge|in zukunft|ersatzteile für ältere/i.test(q)) return 'uebergabe';

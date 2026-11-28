@@ -129,8 +129,9 @@ def test_sale_from_offer_to_done(db):
     paper = voucher_docs.paper_of(db, offers[0])
     assert len(offers) == 1 and "Offerte" in paper and "AGB" in paper
     from app.services import legal
-    agb_day = clock.day(legal.template(legal.AGB)[0])          # die geltende Vorlage
-    assert f"vom {agb_day}" in paper, "Das Dokument nennt das Datum der AGB."
+    adopted = legal.text_of(db, voucher_head.issuer_company(db, row), legal.AGB)
+    assert adopted is not None and f"vom {adopted.day}" in paper, \
+        "Das Dokument nennt das Datum der AGB, die die Gesellschaft übernommen hat."
     assert voucher_view.situation(db, row, order=order, step=step)["key"] == "sent"
     _do(db, order, step, "agree", party=who.object_id)
     assert row.stage == vo.AGREED and row.head, "Mit der Zusage friert der Kopf ein."
