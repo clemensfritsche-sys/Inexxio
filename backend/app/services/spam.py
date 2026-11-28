@@ -11,6 +11,9 @@ Mensch entscheidet:
   (``inquiry.record``, dieselbe Stelle), samt Bestätigung → ``inquiry.released``;
 * **Spam** (``discard``) → ``inquiry.discarded``.
 
+**Wer schon aussortiert ist, bleibt aussortiert** (``seen``, vor der KI): dieselbe E-Mail oder
+derselbe Name mit derselben Firma wie eine aussortierte Anfrage ohne «Kein Spam».
+
 Je aussortierter Anfrage genau ein Entscheid (Sperre + eindeutiger Index
 ``ix_log_inquiry_decided``). **Im Zweifel kein Spam**: fällt die KI aus, ist der Deckel erreicht
 oder ist die Antwort unbrauchbar, geht die Anfrage normal durch – eine echte Anfrage geht nie
@@ -27,7 +30,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..core import locks, report
+from ..core import clock, locks, report
 from ..domain.errors import Conflict, NotFound
 from . import ai, inquiry, log, sites
 
@@ -57,9 +60,43 @@ def _prompt(inq: inquiry.Inquiry) -> str:
     return "\n".join(lines)
 
 
+#: ►►► **Wer schon aussortiert ist, bleibt aussortiert** – dieselbe E-Mail oder (mit Firma)
+#: derselbe Name mit derselben Firma wie eine aussortierte Anfrage, über die niemand «Kein Spam»
+#: sagte. Eine feste Regel vor der KI: die KI urteilt nicht jedes Mal gleich, und ein Bot schickt
+#: dasselbe dutzendfach. Verloren geht nichts – die Anfrage steht unter «Aussortiert». ◄◄◄
+_SEEN = f"""SELECT h.at FROM log h
+ WHERE h.event = '{HELD}'
+   AND (lower(btrim(h.payload ->> 'email')) = :email
+        OR (:firm <> '' AND lower(regexp_replace(btrim(h.payload ->> 'company'), '\\s+', ' ', 'g')) = :firm
+            AND lower(regexp_replace(btrim(h.payload ->> 'name'), '\\s+', ' ', 'g')) = :name))
+   AND NOT EXISTS (SELECT 1 FROM log d WHERE d.event = '{RELEASED}'
+                   AND (d.payload ->> 'held')::bigint = h.id)
+ ORDER BY h.at DESC LIMIT 1"""
+
+
+def _key(value: Optional[str]) -> str:
+    return " ".join((value or "").split()).lower()
+
+
+def seen(db: Session, inq: inquiry.Inquiry) -> Optional[str]:
+    """►► **Schon einmal aussortiert?** – der Grund, oder ``None`` (``_SEEN``). ◄◄"""
+    email = _key(inq.email)
+    if not email:
+        return None
+    at = db.execute(text(_SEEN), {"email": email, "firm": _key(inq.company),
+                                  "name": _key(inq.name)}).scalar()
+    if at is None:
+        return None
+    return f"Wie die aussortierte Anfrage vom {clock.day(at)} (gleicher Absender)."
+
+
 def screen(db: Session, inq: inquiry.Inquiry) -> Optional[str]:
     """►► **Ist das Spam?** – der Grund, oder ``None`` (kein Spam, oder die KI weiss es nicht). ◄◄
-    Nie eine Ausnahme: ohne KI geht jede Anfrage durch."""
+    Zuerst die feste Regel (``seen``), dann die KI. Nie eine Ausnahme: ohne KI geht jede Anfrage
+    durch, ausser ihr Absender ist schon aussortiert."""
+    again = seen(db, inq)
+    if again:
+        return again
     try:
         found = ai.ask(db, task="screen", actor=None, system=SYSTEM, schema=Verdict,
                        content=[{"type": "text", "text": _prompt(inq)}])

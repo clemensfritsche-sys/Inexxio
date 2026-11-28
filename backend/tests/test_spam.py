@@ -100,3 +100,46 @@ def test_the_verdict_of_the_ai_decides(world, monkeypatch):
     assert spam.screen(world.db, svc.Inquiry(name="A", email="a@b.ch", message="Kran?")) is None
     monkeypatch.setattr(ai, "ask", lambda *a, **k: spam.Verdict(spam=True, reason=" Bot  "))
     assert spam.screen(world.db, svc.Inquiry(name="A", email="a@b.ch", message="x")) == "Bot"
+
+
+def _held_once(world, monkeypatch, **extra) -> dict:
+    """Eine Anfrage, die die KI aussortiert – danach sagt die KI «kein Spam» (sie urteilt nicht
+    jedes Mal gleich)."""
+    monkeypatch.setattr(ai, "ask", lambda *a, **k: spam.Verdict(spam=True, reason="Bot"))
+    data = _post(world, **extra)
+    monkeypatch.setattr(ai, "ask", lambda *a, **k: spam.Verdict(spam=False, reason="Kunde"))
+    return data
+
+
+def test_a_held_sender_stays_held_even_if_the_ai_changes_its_mind(world, monkeypatch):
+    """Bug-Form (Produktion, 28.11.2026): «Robertattaw» mit dwals100@aol.com um 10:23
+    aussortiert, um 10:29 mit demselben Text durch – Person, offene Nachricht, Bestätigung an
+    eine fremde Adresse."""
+    data = _held_once(world, monkeypatch)
+    _post(world, email=data["email"].upper(), message="Hola, quería saber tu precio.")
+    assert inquiries(world.db, data["email"]) == []
+    held = [h for h in spam.open_held(world.db, FIRM) if h.payload["email"].lower() == data["email"].lower()]
+    assert len(held) == 2 and "gleicher Absender" in held[0].payload["reason"]
+
+
+def test_same_name_and_firm_stay_held_under_a_new_address(world, monkeypatch):
+    """Bug-Form: derselbe Bot (Name «Robertattaw», Firma «google») mit jeder Anfrage unter einer
+    neuen Adresse."""
+    _held_once(world, monkeypatch, name="Robertattaw", company="google")
+    data = _post(world, name=" robertattaw ", company="Google")
+    assert inquiries(world.db, data["email"]) == []
+
+
+def test_a_name_alone_or_a_released_sender_is_not_held(world, monkeypatch):
+    """Gegenprobe: ohne Firma reicht der Name nicht (zwei echte «Anna Muster»), und wer «Kein
+    Spam» bekam, wird wieder von der KI beurteilt."""
+    _held_once(world, monkeypatch, name="Anna Muster", company="")
+    data = _post(world, name="Anna Muster", company="")
+    assert len(inquiries(world.db, data["email"])) == 1
+    first = _held_once(world, monkeypatch)
+    (held,) = [h for h in spam.open_held(world.db, FIRM) if h.payload["email"] == first["email"]]
+    monkeypatch.setattr(spam, "sites", SimpleNamespace(
+        by_object_id=lambda _db, oid: SimpleNamespace(object_id=oid)))
+    spam.release(world.db, held.id)
+    _post(world, email=first["email"])
+    assert len(inquiries(world.db, first["email"])) == 2
