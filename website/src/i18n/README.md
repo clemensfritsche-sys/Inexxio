@@ -85,7 +85,7 @@ ein Text, der an `t()` vorbei im Code steht, fällt so auf.
 | Verbindliche Offerte | offre ferme |
 | Offerte | offre |
 | Anfrage / Anfrage stellen | demande / Faire une demande |
-| Zufriedenheitsgarantie | garantie de satisfaction |
+| Funktionsgarantie | garantie de bon fonctionnement |
 | Inspektion · Prüfung · Wartung · Reparatur | inspection · contrôle · entretien · réparation |
 | Probelauf | essai de fonctionnement |
 | Inbetriebnahme | mise en service |
@@ -119,7 +119,7 @@ ein Text, der an `t()` vorbei im Code steht, fällt so auf.
 | Anbaugeräte · Baumaschinen · Minibagger · Rüttelplatte | attachments · construction machinery · mini excavator · plate compactor |
 | Verbindliche Offerte · Offerte | binding quote · quote |
 | Anfrage stellen | Send an enquiry |
-| Zufriedenheitsgarantie | satisfaction guarantee |
+| Funktionsgarantie | performance guarantee |
 | Probelauf · Inbetriebnahme · Einweisung · Stillstand | test run · commissioning · instruction · breakdown |
 | Ratgeber · Über uns · Karriere | Guides · About us · Careers |
 | ehemals HS Steiner | formerly HS Steiner |
@@ -146,7 +146,7 @@ ein Text, der an `t()` vorbei im Code steht, fällt so auf.
 | Anbaugeräte · Baumaschinen · Minibagger · Rüttelplatte | attrezzature · macchine edili · miniescavatore · piastra vibrante |
 | Verbindliche Offerte · Offerte | offerta vincolante · offerta |
 | Anfrage stellen | Invia una richiesta |
-| Zufriedenheitsgarantie | garanzia di soddisfazione |
+| Funktionsgarantie | garanzia di buon funzionamento |
 | Probelauf · Inbetriebnahme · Einweisung · Stillstand | prova di funzionamento · messa in servizio · istruzione · fermo macchina |
 | Ratgeber · Über uns · Karriere | Guide · Chi siamo · Lavora con noi |
 | ehemals HS Steiner | già HS Steiner |

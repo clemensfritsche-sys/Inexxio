@@ -107,8 +107,11 @@ ist getestet (`scripts/account.test.mjs`). Wer den Cache fälscht, sieht einen M
   `/service` (mit Notfall), `/ueber-uns` (mit Übergabe), `/karriere`, `/ratgeber`, `/kontakt`,
   Rechtliches.
 - **61 · Garantien** (`src/content/promises.ts`, die eine Quelle): INEXXIO
-  Zufriedenheitsgarantie und INEXXIO 365 für alle drei Bereiche, die Gratis-Inspektion als
-  leiser Einstieg. **101 · Verbotene Wörter** (Preise, «Abo», «aller Marken» …) prüft
+  Funktionsgarantie («Funktioniert garantiert. Sonst übernehmen wir die Hälfte.» – was in der
+  Offerte steht, funktioniert; sonst bessern wir auf unsere Kosten nach; klappt es trotzdem
+  nicht, 50 % des vereinbarten Preises; keine Frist genannt) und INEXXIO 365 für alle drei
+  Bereiche, die Gratis-Inspektion als leiser Einstieg. Sie ersetzt seit 28.11.2026 die
+  Zufriedenheitsgarantie (Heiri: «zufrieden» lässt sich nicht prüfen und würde ausgenutzt). **101 · Verbotene Wörter** (Preise, «Abo», «aller Marken» …) prüft
   `check-site.mjs` (FORBIDDEN).
 - **58/76 · Kranservice defensiv**: keine Aussage «aller Marken/Hersteller» bei Kranen.
 - **67 · Keine gelben Vermerke**: was nicht feststeht, steht nicht da. Offen ist allein die
