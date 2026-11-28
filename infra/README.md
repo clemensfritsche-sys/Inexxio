@@ -322,8 +322,9 @@ Grössenordnungen in **europe-west6 (Zürich)** — der teuersten EU-Region, ca.
 | Artifact Registry                        | ~0,2 (1,8 GB)  |
 | Firebase Hosting, Secret Manager, GCS    | ~1–2           |
 
-Heute: beide Backends mit `--min-instances 0` (je bis 2 Instanzen, je 1 CPU,
-512 MiB, ein Worker). Prod geht beim Go-live auf `min_instances: 1` (`deploy-prod.yml`).
+Heute: beide Backends mit `--min-instances 0` (je bis 2 Instanzen, je 1 CPU, ein Worker;
+Dev 512 MiB, Prod 1 GiB – seit 28.11.2026, nach dem Alarm «Memory limit of 512 MiB exceeded
+with 568 MiB used»). Prod geht beim Go-live auf `min_instances: 1` (`deploy-prod.yml`).
 Verbindungen: je Worker bis 5 + 5 (`app/core/database.py`), also höchstens
 Instanzen × 10 = 20 – passt ab `db-f1-micro` (25); mehr Instanzen erst ab `db-g1-small` (50).
 
