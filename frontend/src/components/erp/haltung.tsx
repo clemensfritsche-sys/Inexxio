@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 
 /** Die drei Grundsätze – EINE Liste für Bühne und Handy. Die Bilder sind freigestellt (WebP mit
  *  Transparenz, Rand läuft weich aus). */
+// Der Dateiname trägt eine Prüfsumme: Bilder hält der Browser bis zu 8 Tage (`firebase.json`) –
+// eine neue Fassung bekommt einen neuen Namen, sonst sähe man die alte.
 const PRINCIPLES = [
-  { word: 'Funktioniert', line: 'Jeden Tag. Ohne Ausnahme.', image: '/brand/haltung-funktioniert.webp' },
-  { word: 'Einfach', line: 'Schlank statt kompliziert.', image: '/brand/haltung-einfach.webp' },
-  { word: 'Günstig', line: 'Vorhandenes nutzen, Unnötiges weglassen.', image: '/brand/haltung-guenstig.webp' },
+  { word: 'Funktioniert', line: 'Jeden Tag. Ohne Ausnahme.', image: '/brand/haltung-funktioniert-35366ce8.webp' },
+  { word: 'Einfach', line: 'Schlank statt kompliziert.', image: '/brand/haltung-einfach-2cbbd62a.webp' },
+  { word: 'Günstig', line: 'Vorhandenes nutzen, Unnötiges weglassen.', image: '/brand/haltung-guenstig-05fc6421.webp' },
 ] as const;
 
 /** So lange steht ein Grundsatz auf der Bühne (die Linie unter ihm läuft genau so lange). */
