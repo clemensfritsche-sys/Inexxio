@@ -141,7 +141,9 @@ TASKS: dict[str, Task] = {
     "pin": Task(model="claude-haiku-5-5", max_tokens=3000, timeout=45.0, retries=0, rounds=3),
     # Ist eine Anfrage der Website Spam (``services/spam``)? Im Weg des Formulars: kurz,
     # das schnelle Modell, kein zweiter Versuch – sonst geht sie ohne Urteil durch.
-    "screen": Task(model="claude-haiku-5-5", max_tokens=300, timeout=12.0, retries=0),
+    # Eine Anfrage der Website: die Antwort mit Grund braucht Platz (sonst bricht sie ab und die
+    # Anfrage ginge ungeprüft durch); ein zweiter Versuch bleibt unter der Grenze des Hostings.
+    "screen": Task(model="claude-haiku-5-5", max_tokens=1000, timeout=12.0, retries=1),
 }
 
 #: ►►► **Was ein Aufruf kostet** – USD je Million Tokens (Eingabe, Ausgabe). Haiku über

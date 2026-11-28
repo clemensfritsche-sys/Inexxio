@@ -874,7 +874,7 @@ später»). Der ursprüngliche Auftrag liegt in `docs/history/2026-10-04-website
   Gesellschaft zum Besucherland, **Betreff immer «Anfrage»** (`inquiry.SUBJECT`; offen je Person, die
   Bestätigung trägt «Angekommen – Danke für Ihre Anfrage»); E-Mail Pflicht, Anhänge nur Bilder.
   **Spam erzeugt nichts**: Honigtopf, Mindestzeit, 5/h je Absender – und dann **liest die KI**
-  (`services/spam`, schnelles Modell): Spam wird **aussortiert** (`inquiry.held` im Log, keine Person,
+  (`services/spam`, schnelles Modell; davor die feste Regel `spam.seen`: **wer schon aussortiert ist, bleibt es** – gleiche E-Mail oder gleicher Name mit gleicher Firma, ohne «Kein Spam»): Spam wird **aussortiert** (`inquiry.held` im Log, keine Person,
   keine Nachricht, keine Bestätigung) und steht an der Gesellschaft im Reiter «Verlauf» unter
   «Aussortiert» und in «zu tun», bis jemand «Kein Spam» (wird angelegt wie eben gekommen, samt
   Bestätigung) oder «Spam» wählt – je Anfrage genau ein Entscheid (`ix_log_inquiry_decided`). Ohne KI
