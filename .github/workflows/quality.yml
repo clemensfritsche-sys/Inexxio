@@ -1,8 +1,10 @@
 name: Quality gates
 
-# ►►► EIN Gate. ◄◄◄ Es läuft auf jedem Push eines Feature-Branches und jedem Pull Request,
-# und deploy-dev.yml/deploy-prod.yml rufen es auf, bevor etwas ausgerollt wird. Frontend,
-# Backend und Website laufen parallel.
+# ►►► EIN Gate. ◄◄◄ Es läuft auf jedem Push eines Feature-Branches, und deploy-dev.yml/
+# deploy-prod.yml rufen es auf, bevor etwas ausgerollt wird. Frontend, Backend und Website
+# laufen parallel. **Nicht auf Pull Requests**: der einzige PR ist der Release develop → main,
+# dessen Stand schon auf Dev geprüft wurde und den deploy-prod.yml vor dem Ausrollen noch
+# einmal prüft – ein dritter Lauf desselben Codes wäre nur Lärm in Actions.
 #
 # ``build: false`` (nur aus dem Deploy): Frontend und Website baut dann der Deploy selbst
 # (.github/workflows/deploy.yml, Job «Build»), mit den Werten seiner Umgebung, und rollt
@@ -11,7 +13,6 @@ name: Quality gates
 on:
   push:
     branches-ignore: [develop, main]
-  pull_request:
   workflow_call:
     inputs:
       build:

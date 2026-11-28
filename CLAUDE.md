@@ -789,7 +789,8 @@ Eine unbekannte Tailwind-Klasse oder CSS-Variable erzeugt still nichts – hinse
 
 ## Tests und CI
 - Das Gate steht **einmal** in `.github/workflows/quality.yml`: auf jedem Push eines
-  Feature-Branches, jedem Pull Request und vor Dev- **und** Prod-Deploy; drei Jobs parallel
+  Feature-Branches und vor Dev- **und** Prod-Deploy (nicht auf Pull Requests – der Release-PR
+  wäre ein dritter Lauf desselben Codes); drei Jobs parallel
   (mit pip-/npm-Cache). Frontend `type-check` · `lint` (ESLint trägt die Hausregeln: Datum
   nur über `lib/when`, Rollen nur über `isStaff`, kein `disabled={busy}` an Feldern) ·
   `npm test` · Build; Backend `ruff check` (nur F-Regeln, `backend/ruff.toml`), `pytest
@@ -958,7 +959,9 @@ speichert keine IP und legt nichts auf dem Gerät ab (siehe «Website-Statistik�
    (inexxio-dev, jeder Push), `main` = **Produktion** (inexxio-prod). Ein **Release** ist ein Pull
    Request `develop` → `main`, eröffnet erst, wenn ein Stand live gehen soll, gemergt **nur mit
    Freigabe des Inhabers**, danach noch einmal die Freigabe im Environment `production`. Nie direkt
-   auf `main` committen; kein PR, der offen liegen bleibt (jeder Push liesse die Prüfung doppelt laufen).
+   auf `main` committen; kein PR, der offen liegen bleibt. **Ein Release = ein Lauf in Actions**
+   («Deploy → Production»): nach dem Merge wird `develop` erst mit der nächsten echten Änderung
+   wieder angelegt (löscht GitHub ihn), nie sofort – sonst liefe Dev noch einmal mit demselben Stand.
 8. **Website: jede Sprache mitdenken** – eine Änderung an einem Text der Website ist erst fertig,
    wenn sie in jeder gebauten Sprache (`website/src/config/languages.mjs`) nachgezogen ist (Glossar
    und Regeln: `website/src/i18n/README.md`); der Build erzwingt es.
