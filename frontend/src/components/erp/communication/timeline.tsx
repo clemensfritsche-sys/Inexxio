@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Check, Clock, ExternalLink, Loader2, Megaphone, MoreHorizontal, Newspaper, Paperclip, Phone, Reply } from 'lucide-react';
+import { Check, Clock, ExternalLink, FileCheck, Loader2, Megaphone, MoreHorizontal, Newspaper, Paperclip, Phone, Reply } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAction } from '@/lib/use-action';
 import { formatWhen, whenTitle } from '@/lib/when';
@@ -226,7 +226,7 @@ export function Bubble({ m, mirror, named, onReply, onDone }: {
 function MailFoot({ m }: { m: Message }) {
   const files = m.attachments ?? [];
   const nav = useErpNav();
-  const [draft, setDraft] = useState<File | null>(null);
+  const [draft, setDraft] = useState<{ file: File; index: number } | null>(null);
   const [loading, setLoading] = useState<number | null>(null);
   const [error, setError] = useState('');
   const again = useAction('Konnte nicht neu gesendet werden.');
@@ -234,14 +234,26 @@ function MailFoot({ m }: { m: Message }) {
   const open = async (i: number, name: string) => {
     setError('');
     setLoading(i);
-    try { setDraft(await api.messageAttachment(m.id, i, name)); } catch (e) { setError((e as Error).message); }
+    try { setDraft({ file: await api.messageAttachment(m.id, i, name), index: i }); }
+    catch (e) { setError((e as Error).message); }
     finally { setLoading(null); }
   };
   const form = files.some((f) => f.url);
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8,
       fontSize: 12, color: 'var(--fg-3)' }}>
-      {files.map((f, i) => (
+      {files.map((f, i) => f.document_object_id ? (
+        // Schon ein Dokument (aus dieser Mail freigegeben): das Dokument statt des Anhangs.
+        <button key={i} type="button" onClick={() => nav?.(f.document_object_id!)}
+          data-tip={`Schon abgelegt: ${f.name}`}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%', border: 0,
+                   padding: '2px 8px', borderRadius: 6, background: 'var(--bg-3)', color: 'var(--fg-1)',
+                   font: 'inherit', cursor: 'pointer' }}>
+          <FileCheck size={12} style={{ flex: 'none', color: 'var(--success)' }} />
+          <span className="erp-objid" style={{ flex: 'none' }}>{f.document_object_id}</span>
+          <span className="truncate">{f.document_name}</span>
+        </button>
+      ) : (
         <button key={i} type="button" onClick={() => void open(i, f.name)} disabled={loading != null}
           data-tip="Als Dokument öffnen"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%', border: 0,
@@ -270,8 +282,9 @@ function MailFoot({ m }: { m: Message }) {
       {(error || again.error) && <span style={{ color: 'var(--danger)' }}>{error || again.error}</span>}
       {draft && (
         <DraftSheet onCancel={() => setDraft(null)}
-          seed={{ files: [draft], source: form ? 'form' : 'mail', sender: m.sender.object_id,
-                  from: `${form ? 'Aus der Anfrage' : 'Aus der Mail'} von ${m.sender.name} · ${draft.name}` }}
+          seed={{ files: [draft.file], source: form ? 'form' : 'mail', sender: m.sender.object_id,
+                  origin: { message: m.id, index: draft.index },
+                  from: `${form ? 'Aus der Anfrage' : 'Aus der Mail'} von ${m.sender.name} · ${draft.file.name}` }}
           onOpen={(id) => { setDraft(null); nav?.(id); }}
           onFiled={(doc) => { setDraft(null); nav?.(doc.object_id); }} />
       )}

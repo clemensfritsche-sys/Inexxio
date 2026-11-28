@@ -390,3 +390,33 @@ def test_a_drawing_without_text_is_read_once(world, monkeypatch):
     assert "pump" in (doc.keywords or "")
     world.client.post(f"/api/v1/erp/documents/{oid}/read")
     assert len(calls) == 1 and not world.client.get(f"/api/v1/erp/documents/{oid}").json()["read_later"]
+
+
+def test_an_attachment_filed_from_a_mail_shows_as_its_document(world):
+    """►►► Ein Anhang, der aus der Mail als Dokument freigegeben wurde, steht an der Mail als
+    das Dokument (Nummer, «Art · Name») – nicht mehr als loser Anhang. Bug-Form (Inhaber
+    28.11.2026): die Fahrzeugausweise von Heiri sahen nach dem Ablegen gleich aus wie vorher;
+    man sah nicht, was schon erledigt war. ◄◄◄"""
+    from app.models import Message
+    from app.services import communication as comm
+    db = world.db
+    msg = Message(sender_object_id=world.staff.object_id, channel="c1", subject="FZ Ausweis",
+                  body="Grus Heiri", attachments=[{"name": "40 HS Trans.pdf"}, {"name": "40 TG.pdf"}])
+    db.add(msg)
+    db.flush()
+    r = world.client.post("/api/v1/erp/documents", data={
+        "art": "Fahrzeugausweis", "name": "Sachentransportanhänger", "source": "mail", "refs": "[]",
+        "origin": json.dumps({"message": msg.id, "index": 0})},
+        files=[("files", ("40 HS Trans.png", _png(), "image/png"))])
+    assert r.status_code == 201, r.text
+    oid = r.json()["document"]["object_id"]
+    (out,) = comm.load(db, [msg.id])
+    first, second = out.attachments
+    assert (first.document_object_id, first.document_name) == (oid, "Fahrzeugausweis · Sachentransportanhänger")
+    assert second.document_object_id is None, "nur der Anhang, aus dem es kam"
+    with pytest.raises(Rejected) as e:          # ein Anhang, den es nicht gibt, merkt sich nichts
+        world.client.post("/api/v1/erp/documents", data={
+            "art": "X", "name": "Y", "source": "mail", "refs": "[]",
+            "origin": json.dumps({"message": msg.id, "index": 7})},
+            files=[("files", ("z.png", _png((9, 9, 9)), "image/png"))])
+    assert e.value.status == 400 and "Anhang" in e.value.detail

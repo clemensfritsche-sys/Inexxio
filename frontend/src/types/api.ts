@@ -1548,6 +1548,7 @@ export interface paths {
          * @description ►►► **Freigeben.** ◄◄◄ ``refs`` ist eine JSON-Liste ``[{"object_id": …}]`` (ganze
          *     Datensätze); ``target`` ein Pflichtfeld, das in derselben Transaktion gesetzt wird.
          *     ``text``/``keywords``/``facts`` kommen aus dem Vorschlag – gelesen wird nicht zweimal.
+         *     ``origin`` ``{"message": …, "index": …}``: der Anhang einer Mail, aus dem die Datei kam.
          */
         post: operations["file_document_api_v1_erp_documents_post"];
         delete?: never;
@@ -3685,6 +3686,10 @@ export interface components {
             url?: string | null;
             /** Mime */
             mime?: string | null;
+            /** Document Object Id */
+            document_object_id?: number | null;
+            /** Document Name */
+            document_name?: string | null;
         };
         /** Body_add_file_api_v1_erp_assistant_files_post */
         Body_add_file_api_v1_erp_assistant_files_post: {
@@ -3743,6 +3748,11 @@ export interface components {
              * @default
              */
             facts: string;
+            /**
+             * Origin
+             * @default
+             */
+            origin: string;
         };
         /** Body_read_draft_api_v1_erp_documents_read_post */
         Body_read_draft_api_v1_erp_documents_read_post: {

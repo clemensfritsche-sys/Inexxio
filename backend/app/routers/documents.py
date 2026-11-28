@@ -20,7 +20,7 @@ from ..schemas.documents import (
     TemplateIn, ComposeIn, ComposeOut,
 )
 from ..services import log
-from ..services import (access, ai, composing, a4, documents as docs, fields, legal,
+from ..services import (access, ai, communication, composing, a4, documents as docs, fields, legal,
                         people, reading, record_labels, signing, sites)
 from ..services import requirements as reqs
 from ..domain.errors import Conflict, Invalid
@@ -145,15 +145,19 @@ def file_document(
     art: str = Form(...), name: str = Form(...), source: str = Form("file"),
     refs: str = Form("[]"), target: str = Form(""), signers: str = Form("[]"),
     text: str = Form(""), keywords: str = Form(""), facts: str = Form(""),
+    origin: str = Form(""),
     db: Session = DB, user: UserProfile = Depends(require_employee),
 ):
     """►►► **Freigeben.** ◄◄◄ ``refs`` ist eine JSON-Liste ``[{"object_id": …}]`` (ganze
     Datensätze); ``target`` ein Pflichtfeld, das in derselben Transaktion gesetzt wird.
-    ``text``/``keywords``/``facts`` kommen aus dem Vorschlag – gelesen wird nicht zweimal."""
+    ``text``/``keywords``/``facts`` kommen aus dem Vorschlag – gelesen wird nicht zweimal.
+    ``origin`` ``{"message": …, "index": …}``: der Anhang einer Mail, aus dem die Datei kam."""
     try:
         wanted = [docs.RefIn(object_id=int(r["object_id"])) for r in (_json(refs, "Die Referenzen") or [])]
         aim = TargetIn(**_json(target, "Das Feld")) if target else None
         signing_ids = [int(x) for x in (_json(signers, "Die Unterzeichner") or [])]
+        came = _json(origin, "Die Herkunft") if origin else None
+        came = (int(came["message"]), int(came["index"])) if came else None
     except (KeyError, TypeError, ValueError):
         raise Invalid("Die Referenzen sind unlesbar.")
     raw, mime, filename = _upload(files)
@@ -169,6 +173,8 @@ def file_document(
     if aim is not None:
         fields.apply(db, actor=user, doc=doc, object_id=aim.object_id, part=aim.part,
                      field=aim.field, extra=aim.extra)
+    if came is not None:
+        communication.note_origin(db, doc.object_id, *came)
     db.flush()
     return FiledOut(document=detail(db, doc), existed=existed)
 

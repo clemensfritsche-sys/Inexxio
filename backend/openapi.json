@@ -4040,7 +4040,7 @@
           "documents"
         ],
         "summary": "File Document",
-        "description": "►►► **Freigeben.** ◄◄◄ ``refs`` ist eine JSON-Liste ``[{\"object_id\": …}]`` (ganze\nDatensätze); ``target`` ein Pflichtfeld, das in derselben Transaktion gesetzt wird.\n``text``/``keywords``/``facts`` kommen aus dem Vorschlag – gelesen wird nicht zweimal.",
+        "description": "►►► **Freigeben.** ◄◄◄ ``refs`` ist eine JSON-Liste ``[{\"object_id\": …}]`` (ganze\nDatensätze); ``target`` ein Pflichtfeld, das in derselben Transaktion gesetzt wird.\n``text``/``keywords``/``facts`` kommen aus dem Vorschlag – gelesen wird nicht zweimal.\n``origin`` ``{\"message\": …, \"index\": …}``: der Anhang einer Mail, aus dem die Datei kam.",
         "operationId": "file_document_api_v1_erp_documents_post",
         "security": [
           {
@@ -9128,6 +9128,28 @@
               }
             ],
             "title": "Mime"
+          },
+          "document_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Object Id"
+          },
+          "document_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Name"
           }
         },
         "type": "object",
@@ -9225,6 +9247,11 @@
           "facts": {
             "type": "string",
             "title": "Facts",
+            "default": ""
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin",
             "default": ""
           }
         },

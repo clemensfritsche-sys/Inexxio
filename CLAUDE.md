@@ -350,7 +350,10 @@ Entfernt (nur noch Vermerk): Ausliefern · Beschaffen · Verkauf · «Zahlung (a
   **Nie verloren**: dasselbe Postfach neu verbunden macht weiter, wo es aufhörte; ist Gmails Stand zu
   alt, kommen alle Mails seit dem letzten Abgleich (seitenweise). Erledigt im ERP =
   gelesen in Gmail. **Ein Anhang** bleibt in Gmail, bis ihn jemand öffnet – dann geht er in den
-  Entwurf eines Dokuments (`mailbox.attachment`); ebenso die Fotos des Kontaktformulars.
+  Entwurf eines Dokuments (`mailbox.attachment`); ebenso die Fotos des Kontaktformulars. Mit der
+  Freigabe merkt sich das Ereignis `document.origin`, aus welcher Mail und welchem Anhang die Datei
+  kam (`communication.note_origin`): an der Mail steht dann **das Dokument statt des Anhangs**
+  (Nummer, «Art · Name», ein Klick öffnet es – `communication.filed`).
 - **Eine Stelle für jede Mail des Hauses** (`services/outbox.py`): `deliver` (anlegen, bauen, zum
   Versand geben – Beleg, Dokument, Eingangsbestätigung, Newsletter-Bitte), `build` (auch die
   Antwort aus dem Verlauf), `firm`, `signer`. **Gebaut beim Anlegen, nie beim Versand.**

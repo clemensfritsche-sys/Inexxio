@@ -41,6 +41,10 @@ class Attachment(BaseModel):
     #: in den Entwurf eines Dokuments.
     url: Optional[str] = None
     mime: Optional[str] = None
+    #: Ist der Anhang schon ein Dokument (beim Freigeben aus dieser Mail gemerkt,
+    #: ``communication.filed``), seine Nummer und «Art · Name» – die Mail zeigt dann das Dokument.
+    document_object_id: Optional[int] = None
+    document_name: Optional[str] = None
 
 
 class MailboxOut(BaseModel):
