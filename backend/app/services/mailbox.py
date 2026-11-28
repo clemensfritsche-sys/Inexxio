@@ -44,7 +44,7 @@ from ..models import Mailbox, Message, MessageParty, UserProfile
 from .people import ensure, normalize_email
 from ..domain.errors import Conflict, Forbidden, Invalid, NotFound, Unavailable
 from ..domain import policy
-from .mail_parse import MAX_BODY, NEVER, Bounce, _attachments, _bulk, _parts, _strip_quote, _text, bounce
+from .mail_parse import MAX_BODY, NEVER, Bounce, _attachments, _bulk, _parts, bounce, text_and_quote
 from ..core import report
 from ..core import clock
 
@@ -575,10 +575,11 @@ def ingest(db: Session, mb: Mailbox, raw: dict[str, Any],
             addr = normalize_email(addr)
             if addr and "@" in addr and addr not in ours:
                 roles[role].append(ensure(db, addr, n).object_id)
+    text, quote = text_and_quote(payload)
     msg = Message(
         sender_object_id=sender, channel=mb.channel,
         subject=dc.subject_line(head.get("subject")) or dc.NO_SUBJECT,
-        body=_strip_quote(_text(payload))[:MAX_BODY],
+        body=text[:MAX_BODY], quote=quote[:MAX_BODY] or None,
         at=datetime.fromtimestamp(int(raw.get("internalDate", 0)) / 1000, timezone.utc),
         created_by=None, gmail_id=raw.get("id"), thread_id=raw.get("threadId"),
         rfc_id=rfc, attachments=_attachments(payload) or None, inbound=inbound)

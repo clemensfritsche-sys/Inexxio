@@ -960,6 +960,8 @@ class ApiClient {
     text?: string; keywords?: string; facts?: Record<string, unknown>;
     /** Wer unterschreiben soll (Personen). */
     signers?: number[];
+    /** Der Anhang einer Mail, aus dem die Datei kam – die Mail zeigt danach das Dokument. */
+    origin?: { message: number; index: number } | null;
   }) {
     const form = new FormData();
     files.forEach((f, i) => form.append('files', f, f instanceof File ? f.name : `seite-${i + 1}`));
@@ -972,6 +974,7 @@ class ApiClient {
     if (data.text) form.append('text', data.text);
     if (data.keywords) form.append('keywords', data.keywords);
     if (data.facts && Object.keys(data.facts).length) form.append('facts', JSON.stringify(data.facts));
+    if (data.origin) form.append('origin', JSON.stringify(data.origin));
     return this.upload('/api/v1/erp/documents', form);
   }
 

@@ -38,6 +38,8 @@ export interface DraftSeed {
   sender?: number | null;
   /** Die Anforderung, aus der man kam (sie geht der Zuordnung vor). */
   hint?: string;
+  /** Der Anhang einer Mail, aus dem die Datei kommt – nach der Freigabe zeigt die Mail das Dokument. */
+  origin?: { message: number; index: number };
   /** Ein Pflichtfeld, das die Freigabe gleich setzt – mit Schloss, nicht änderbar. */
   target?: DocumentTarget & { label?: string; lock?: string };
   art?: string;
@@ -133,6 +135,7 @@ export function DocumentDraft({ seed, onFiled, onCancel, onOpen }: {
         text: proposal?.text, keywords: proposal?.keywords,
         facts: proposal?.facts as Record<string, unknown> | undefined,
         signers: signers.map((x) => x.object_id),
+        origin: seed?.origin ?? null,
       });
       // Dieselbe Datei gibt es schon: mit einem Feld ist sie jetzt dort (der Dienst hat es
       // gesetzt), ohne Feld bietet die Seite das vorhandene Dokument an.

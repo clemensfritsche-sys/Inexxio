@@ -40,7 +40,7 @@ def inner(html: str) -> str:
 
 def pictures(html: str) -> list[tuple[str, str]]:
     """Was die Bilder der Unterschrift zeigen: (Foto, Initialen) – aus ihrer Adresse."""
-    return [portrait.read(t) for t in re.findall(re.escape(portrait.PATH) + r'([^"/]+)\.gif', html)]
+    return [portrait.read(t) for t in re.findall(re.escape(portrait.PATH) + r'([^"/]+)\.jpg', html)]
 
 
 def test_the_headline_is_the_subject_without_re():
@@ -86,12 +86,11 @@ def test_a_reply_goes_out_as_it_stands_in_the_history(monkeypatch):
 
 
 def test_a_person_signs_in_the_name_of_the_company_with_a_picture():
-    """Name, darunter die Gesellschaft mit IHRER Nummer und Adresse – und das Bild daneben:
-    das Profilbild, sonst die Initialen."""
+    """Wie ein Brief: der Name, darunter die E-Mail des Postfachs und die Nummer der
+    Gesellschaft – ohne Funktion – und das Bild daneben: das Profilbild, sonst die Initialen."""
     text = layout.text("Offerte", "Hallo", FIRM, layout.Signer("Clemens Fritsche"))
-    sign = text.split("Beste Grüsse aus Tuttwil\n", 1)[1].split("\n")[:4]
-    assert sign[:3] == ["Clemens Fritsche", "INEXXIO AG", "Waldweg 1, 9546 Tuttwil"]
-    assert sign[3].startswith("+41 52 378 22 47 · info@inexxio.com · "), "ohne Funktion, mit Website"
+    sign = text.split("Beste Grüsse aus Tuttwil\n\n", 1)[1].split("\n")[:3]
+    assert sign == ["Clemens Fritsche", "info@inexxio.com", "+41 52 378 22 47"]
     assert layout.sender_name(layout.Signer("Clemens Fritsche")) == "Clemens Fritsche · INEXXIO"
     assert layout.sender_name(None) == "INEXXIO"
     plain = layout.compose("x", "y", FIRM, layout.Signer("Clemens Fritsche")).html
@@ -112,18 +111,29 @@ def test_every_mail_signs_through_one_signer():
     assert built == [], f"Unterzeichner an zweiter Stelle gebaut: {built}"
 
 
-def test_the_picture_opens_once_and_stands():
-    """Das Bild des Hauses (``portrait``): ein GIF, zuerst das fertige Bild (Outlook zeigt nur
-    dieses), dann einmal die Bewegung, dann Ruhe – keine Schleife, durchsichtig daneben."""
+def test_the_picture_is_a_quiet_square_shown_round():
+    """Das Bild der Unterschrift (``portrait``): ein ruhiges, quadratisches JPEG – die Mail
+    zeigt es rund. Bug-Form: das Gesicht sass schief in schrägen Streifen (Inhaber 28.11.2026)."""
     import io
     from PIL import Image
-    gif = Image.open(io.BytesIO(portrait.render(None, "CF")))
-    assert gif.n_frames > 10 and "loop" not in gif.info
-    first = gif.convert("RGBA")
-    gif.seek(gif.n_frames - 1)
-    assert first.tobytes() == gif.convert("RGBA").tobytes()
-    assert first.getpixel((0, 0))[3] == 0                 # durchsichtig, wo kein Streifen ist
-    assert (portrait.WIDTH * 2, portrait.HEIGHT * 2) == first.size
+    im = Image.open(io.BytesIO(portrait.render(None, "CF")))
+    assert im.format == "JPEG" and im.size == (portrait.SIZE * 3, portrait.SIZE * 3)
+    assert getattr(im, "n_frames", 1) == 1                # keine Bewegung
+    html = layout.compose("x", "y", FIRM, layout.Signer("Clemens Fritsche", "https://p/c.jpg")).html
+    assert "border-radius:50%" in html.split(portrait.PATH)[1].split(">")[0]
+
+
+def test_old_mails_still_find_their_picture(client=None):
+    """Mails von früher fragen das Bild als ``….gif`` – sie bekommen dasselbe Bild wie ``.jpg``.
+    Bug-Form: nach dem Wechsel zeigten alte Mails ein leeres Bild."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    token = portrait.url("", "Clemens Fritsche").rsplit("/", 1)[1].rsplit(".", 1)[0]
+    with TestClient(app) as c:
+        new, old = c.get(f"{portrait.PATH}{token}.jpg"), c.get(f"{portrait.PATH}{token}.gif")
+        assert new.status_code == old.status_code == 200 and new.content == old.content
+        assert new.headers["content-type"] == "image/jpeg"
+        assert c.get(f"{portrait.PATH}{token}.png").status_code == 404
 
 
 def test_an_automatic_mail_is_signed_by_the_company_with_its_mailbox_picture(db):
@@ -160,16 +170,21 @@ def test_no_stage_and_a_logo_without_a_background():
         assert im.mode == "RGBA" and im.getpixel((0, 0))[3] == 0
 
 
-def test_the_signature_is_the_footer_and_below_stands_the_strip():
-    """►►► **Die Unterschrift ist der Fuss** (Gesellschaft, Anschrift, Telefon, E-Mail, Website –
-    direkt nach «Beste Grüsse aus <Ort>»), darunter der **Streifen** mit Bild, Stichwort und Link
-    in der Sprache der Mail – in jeder Mail. Bug-Form: ein zweiter Block mit der Anschrift unten,
-    vom Text abgekoppelt; oder ein Streifen, der nur deutsch spricht. ◄◄◄"""
-    html = layout.compose("x", "y", FIRM, None).html
-    sign, strip = html.split("<!--/inhalt-->", 1)[1].split("Nachfolge geregelt", 1)
-    assert "Beste Grüsse aus Tuttwil" in sign and "Waldweg 1, 9546 Tuttwil" in sign
-    assert "/mail/nachfolge.jpg" in sign + strip and "/ueber-uns#uebergabe" in sign + strip
-    assert html.count("Waldweg 1") == 1, "die Anschrift steht einmal – in der Unterschrift"
+def test_the_greeting_belongs_to_the_text_then_a_line_then_the_signature():
+    """►►► **Wie ein Brief** (Inhaber 28.11.2026): der Gruss steht in der Schrift des Textes,
+    erst danach trennt eine Haarlinie die Unterschrift ab; darunter der **Streifen** in der Sprache
+    der Mail, ganz unten unter der Karte die Fusszeile mit der Anschrift – einmal. Bug-Form: ein
+    blasser, abgetrennter Gruss wirkte automatisch; ein Streifen, der nur deutsch spricht. ◄◄◄"""
+    html = layout.compose("x", "y", FIRM, layout.Signer("Clemens Fritsche")).html
+    after = html.split("<!--/inhalt-->", 1)[1]
+    greet, rest = after.split("Beste Grüsse aus Tuttwil", 1)
+    assert 'class="ix-ink"' in greet[-300:] and "font-size:17px" in greet[-300:]
+    line, sign = rest.split("border-top:1px solid", 1)
+    assert "Clemens Fritsche" not in line and "Clemens Fritsche" in sign
+    assert sign.index("info@inexxio.com") < sign.index("+41 52 378 22 47") < sign.index("Nachfolge geregelt")
+    assert "/mail/nachfolge.jpg" in sign and "/ueber-uns#uebergabe" in sign
+    foot = sign.split("Nachfolge geregelt", 1)[1]
+    assert html.count("Waldweg 1") == 1 and "Waldweg 1, 9546 Tuttwil" in foot, "Anschrift einmal, unten"
     fr = layout.compose("x", "y", FIRM, None, lang="fr")
     assert "Succession assurée" in fr.html and "/fr/" in fr.html and "Tuttwil" in fr.html
     assert "Succession assurée" in fr.text and "Nachfolge" not in fr.html
@@ -178,19 +193,16 @@ def test_the_signature_is_the_footer_and_below_stands_the_strip():
     assert "betrifft Ihr Konto" not in html
 
 
-def test_the_headline_and_the_logo_share_a_row():
-    """Kopf: am Computer links die Überschrift (= Betreff), rechts auf gleicher Höhe das Logo –
-    eine Zeile, die von rechts nach links läuft (das Logo steht im Quelltext zuerst, damit es am
-    Handy über der Überschrift steht, ``.ix-col``); kein Stichwort daneben. Das Logo ist das
-    gestapelte mit Unterzeile und «ehemals HS Steiner», dezent (höchstens 200 px), aber nie so
-    schmal, dass die Unterzeile unlesbar wird (mindestens 160 px)."""
+def test_the_letterhead_carries_brand_and_former_name():
+    """Briefkopf: links INEXXIO mit «Kranbau · Fahrzeugbau · Service», rechts «ehemals HS
+    Steiner», darunter eine Haarlinie; die Überschrift (= Betreff) steht darunter in eigener Zeile.
+    Am Handy rutscht «ehemals» unter die Wortmarke (``.ix-col``)."""
     html = layout.compose("Angekommen – Danke für Ihre Anfrage", "y", FIRM, None).html
-    row = html.split("<!--inhalt-->", 1)[0]
-    head = row[row.index('dir="rtl"'):]
-    head = head[:head.index("</table>")]
-    assert head.index(layout.LOGO) < head.index("<h1") and head.count("<tr>") == 1
+    top = html.split("<h1", 1)[0]
+    assert top.index(layout.LOGO) < top.index(layout.FORMER) and "border-bottom:1px solid" in top
     assert ".ix-col{display:block!important" in html
-    assert 160 <= layout.LOGO_W <= 200 and "ehemals HS Steiner" in layout.LOGO_ALT
+    assert "Kranbau" in layout.LOGO_ALT and "ehemals HS Steiner" == layout.FORMER_ALT
+    assert layout.LOGO_W <= 176, "dezent (Inhaber 28.11.2026)"
 
 
 def test_every_link_opens_a_new_window():

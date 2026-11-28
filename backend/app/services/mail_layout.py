@@ -20,11 +20,13 @@ Die übrigen Regeln:
   Initialen); eine automatische Mail unterschreibt das Unternehmen, mit dem Bild seines
   Postfachs. Telefon
   und E-Mail sind die der Gesellschaft – keine Funktion, keine Direktnummer, nie «Ihr Team».
-* **Das Bild** ist das des Hauses (``services/portrait``): schräge Streifen, die sich einmal
-  öffnen, links eine rote Kante. Daneben eine Haarlinie, dann Name, Gesellschaft, Anschrift und –
-  abgesetzt – Telefon, E-Mail und Website. **Die Unterschrift ist der Fuss**: sie folgt direkt
-  auf den Gruss («Beste Grüsse aus <Ort>»); einen zweiten Block mit der Anschrift gibt es nicht.
-* **Kopf**: links die Überschrift (= Betreff), rechts auf gleicher Höhe das Logo.
+* **Wie ein Brief** (Inhaber 28.11.2026, Artefakt «Mail-Layout INEXXIO»): der Gruss («Beste
+  Grüsse aus <Ort>») gehört zum Text – gleiche Schrift, gleiche Farbe –, erst danach trennt eine
+  Haarlinie die **Unterschrift** ab: das Bild rund (``services/portrait``: Profilbild, sonst
+  Initialen), daneben Name, die E-Mail des Postfachs und die Telefonnummer, je eine Zeile.
+* **Kopf = Briefkopf**: INEXXIO mit «Kranbau · Fahrzeugbau · Service» links, «ehemals HS
+  Steiner» rechts, darunter eine Haarlinie; dann die Überschrift (= Betreff) in eigener Zeile.
+* **Fusszeile unter der Karte**: Gesellschaft, Anschrift, E-Mail, Website – leise, grau.
 * **Unten ein Streifen** (``letter.promo`` in ``website/src/config/inquiry.mjs``, in jeder
   Sprache): Bild, Stichwort, Titel, Satz, Link – eine kleine Werbefläche in jeder Mail.
 * **Der Absendername folgt daraus**: «Clemens Fritsche · INEXXIO» bzw. «INEXXIO».
@@ -43,22 +45,29 @@ import re
 from dataclasses import dataclass, field
 from html import escape
 from typing import Any, Optional
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from ..core.config import get_settings
 from ..domain import communication as dc
 from . import portrait
 
 BRAND = "INEXXIO"
-LOGO, LOGO_DARK = "/mail/logo.png", "/mail/logo-dark.png"
-#: Das gestapelte Logo mit Unterzeile «Kranbau · Fahrzeugbau · Service» und «ehemals HS Steiner»
-#: (Design System, Logo v5 «F1»), als PNG in doppelter Auflösung. 176 px: dezent neben der
-#: Überschrift (240 war zu laut, Inhaber 24.11.2026); schmaler wird die Unterzeile unlesbar.
-LOGO_W, LOGO_H = 176, 110
-LOGO_ALT = "INEXXIO – Kranbau · Fahrzeugbau · Service – ehemals HS Steiner"
+#: Der Briefkopf: links die Wortmarke mit Unterzeile «Kranbau · Fahrzeugbau · Service»
+#: (``inexxio-horizontal-tagline-*``, Design System, Logo v5 «F1»), rechts «ehemals HS Steiner»
+#: (unterste Zeile von ``inexxio-stacked-tagline-*``, so gross, dass es mittig zur Wortmarke
+#: lesbar steht). Je als PNG in doppelter Auflösung, hell und dunkel. ``logo.png`` bleibt im
+#: Ordner liegen: frühere Mails zeigen es.
+LOGO, LOGO_DARK = "/mail/kopf.png", "/mail/kopf-dark.png"
+LOGO_W, LOGO_H = 176, 64
+LOGO_ALT = "INEXXIO – Kranbau · Fahrzeugbau · Service"
+FORMER, FORMER_DARK = "/mail/ehemals.png", "/mail/ehemals-dark.png"
+FORMER_W, FORMER_H = 157, 12
+FORMER_ALT = "ehemals HS Steiner"
 FONT = "Inter, Arial, Helvetica, sans-serif"
-INK, TEXT_2, TEXT_3, LINE = "#0A0A0B", "#44464A", "#66686D", "#E3E4E7"
-RED_TEXT = "#C8140F"
+DISPLAY = f"'Inter Tight',{FONT}"
+#: Farben aus dem Design System (``colors_and_type.css``): Ink = Grau-950, Text = Grau-700,
+#: leise = Grau-600, Haarlinie = Grau-200.
+INK, TEXT_2, TEXT_3, LINE = "#0A0A0B", "#44464A", "#5E6064", "#E3E4E7"
 
 
 @dataclass
@@ -211,10 +220,14 @@ def _content_text(lead: str, extra: Optional[Extra], firm: Firm) -> str:
 
 def _signature_lines(firm: Firm, signer: Optional[Signer], body: str,
                      lang: str = "de") -> list[str]:
-    reach = " · ".join(x for x in (firm.phone, firm.email, _host()) if x)
-    where = ", ".join(firm.address)
-    return [*([] if greeted(body) else [closing(firm, lang)]), *([signer.name] if signer else []),
-            firm.name, *([where] if where else []), *([reach] if reach else [])]
+    """Gruss, dann wer unterschreibt: Name, E-Mail des Postfachs, Telefon."""
+    return [*([] if greeted(body) else [closing(firm, lang), ""]),
+            signer.name if signer else firm.name, *(x for x in (firm.email, firm.phone) if x)]
+
+
+def _footer_parts(firm: Firm) -> list[str]:
+    """Die Fusszeile unter der Karte: Gesellschaft, Anschrift, E-Mail, Website."""
+    return [x for x in (firm.name, ", ".join(firm.address), firm.email, _host()) if x]
 
 
 def _host() -> str:
@@ -232,7 +245,8 @@ def text(subject: str, body: str, firm: Firm, signer: Optional[Signer],
          unsubscribe: Optional[Unsubscribe] = None, lang: str = "de") -> str:
     off = [f"{unsubscribe.text} {unsubscribe.label}: {unsubscribe.url}"] if unsubscribe else []
     return "\n".join([dc.title(subject), "", body, "", *_signature_lines(firm, signer, body, lang),
-                      "", "—", *_promo_text(lang), *off]).strip() + "\n"
+                      "", "—", *_promo_text(lang), "", " · ".join(_footer_parts(firm)),
+                      *off]).strip() + "\n"
 
 
 # ---------------------------------------------------------------------------
@@ -247,9 +261,15 @@ CARD_R, BTN_R = 8, 6
 NEW = ' target="_blank" rel="noopener"'
 
 
-def _p(content: str, size: int = 16, color: str = INK, extra: str = "", cls: str = "ix-ink") -> str:
+#: Die Schrift des Textes – eine Spur grösser als die übrigen Zeilen, damit die Nachricht das
+#: Lauteste der Mail ist.
+TEXT_SIZE = 17
+
+
+def _p(content: str, size: int = TEXT_SIZE, color: str = INK, extra: str = "",
+       cls: str = "ix-ink") -> str:
     return (f'<p class="{cls}" style="margin:0 0 {GAP}px;font-family:{FONT};font-size:{size}px;'
-            f'line-height:{size + 8}px;color:{color};{extra}">{content}</p>')
+            f'line-height:{round(size * 1.6)}px;color:{color};{extra}">{content}</p>')
 
 
 def _rich(par: str) -> str:
@@ -364,48 +384,42 @@ def _paper(pp: Paper) -> str:
 
 
 def _avatar(firm: Firm, signer: Optional[Signer]) -> str:
-    """Das Bild neben der Unterschrift (``portrait``) – vom Profilbild, Postfach-Bild oder
-    den Initialen; ohne Mensch und ohne Postfach-Bild keines."""
+    """Das Bild neben der Unterschrift, rund (``portrait``): Profilbild, Postfach-Bild oder die
+    Initialen; ohne Mensch und ohne Postfach-Bild keines. Outlook am Computer zeigt es eckig."""
     pic = (signer.photo if signer else firm.picture) or ""
     if not (pic or signer):
         return ""
     src = escape(portrait.url(pic, signer.name if signer else firm.name))
-    w, h = portrait.WIDTH, portrait.HEIGHT
-    return (f'<img src="{src}" width="{w}" height="{h}" alt="" style="display:block;'
-            f'width:{w}px;height:{h}px;border:0">')
+    w = portrait.SIZE
+    return (f'<img src="{src}" width="{w}" height="{w}" alt="" style="display:block;'
+            f'width:{w}px;height:{w}px;border:0;border-radius:50%">')
 
 
 def _signature(firm: Firm, signer: Optional[Signer], body: str, lang: str = "de") -> str:
-    """Gruss, dann Bild · Haarlinie · Name, Gesellschaft, Anschrift und – abgesetzt – Telefon,
-    E-Mail und Website. Die Unterschrift ist zugleich der Fuss der Mail."""
+    """►►► **Wie ein Brief** – der Gruss gehört zum Text (gleiche Schrift, gleiche Farbe), dann
+    eine Haarlinie, darunter das Bild rund und daneben Name, E-Mail des Postfachs, Telefon. ◄◄◄"""
     link = f'class="ix-t2" style="color:{TEXT_2};text-decoration:none"'
-    base = get_settings().frontend_base_url.rstrip("/")
-    web = f'<a {link} href="{base}"{NEW}>{escape(_host())}</a>'
-    mail = (f'<a {link} href="mailto:{escape(firm.email)}">{escape(firm.email)}</a>'
-            if firm.email else "")
-    reach = [x for x in (
-        f'<a {link} href="tel:{escape(firm.tel or firm.phone)}">{escape(firm.phone)}</a>'
-        if firm.phone else "", " · ".join(x for x in (mail, web) if x)) if x]
-    head = escape(signer.name) if signer else escape(firm.name)
-    who = [f'<span class="ix-ink" style="font-size:16px;line-height:22px;font-weight:600;'
-           f'letter-spacing:-0.01em;color:{INK}">{head}</span>',
-           *([escape(firm.name)] if signer else []),
-           *([escape(", ".join(firm.address))] if firm.address else [])]
-    gap = ('<div style="height:8px;line-height:8px;font-size:0">&nbsp;</div>'
-           if reach else "")
+    lines = [f'<div class="ix-ink" style="font-size:16px;line-height:22px;font-weight:600;'
+             f'color:{INK}">{escape(signer.name if signer else firm.name)}</div>']
+    if firm.email:
+        lines.append(f'<div><a {link} href="mailto:{escape(firm.email)}">{escape(firm.email)}</a></div>')
+    if firm.phone:
+        lines.append(f'<div><a {link} href="tel:{escape(firm.tel or firm.phone)}">'
+                     f'{escape(firm.phone)}</a></div>')
     avatar = _avatar(firm, signer)
-    pic = (f'<td width="{portrait.WIDTH}" valign="middle" style="width:{portrait.WIDTH}px;'
+    pic = (f'<td width="{portrait.SIZE}" valign="middle" style="width:{portrait.SIZE}px;'
            f'padding:0 14px 0 0">{avatar}</td>' if avatar else "")
-    rule = (f'border-left:1px solid {LINE};padding:2px 0 2px 18px;' if avatar else "")
-    greeting = "" if greeted(body) else _p(escape(closing(firm, lang)), extra="margin:0 0 18px")
-    return (greeting + f'<table role="presentation" cellpadding="0" cellspacing="0"><tr>{pic}'
-            f'<td class="ix-t2{" ix-line" if avatar else ""}" valign="middle" style="{rule}'
-            f'font-family:{FONT};font-size:13px;line-height:19px;color:{TEXT_2}">'
-            f'{"<br>".join(who)}{gap}{"<br>".join(reach)}</td></tr></table>')
+    who = (f'<table role="presentation" cellpadding="0" cellspacing="0"><tr>{pic}'
+           f'<td class="ix-t2" valign="middle" style="font-family:{FONT};font-size:14px;'
+           f'line-height:20px;color:{TEXT_2}">{"".join(lines)}</td></tr></table>')
+    greeting = "" if greeted(body) else _p(escape(closing(firm, lang)))
+    return (greeting + f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+            f'<tr><td class="ix-line" style="border-top:1px solid {LINE};padding:20px 0 0">'
+            f'{who}</td></tr></table>')
 
 
 #: Das Bild des Streifens – so gross, wie es in der Mail steht (doppelt gerechnet).
-PROMO_W, PROMO_H = 120, 90
+PROMO_W, PROMO_H = 96, 72
 
 
 def _promo(lang: str = "de", unsubscribe: Optional[Unsubscribe] = None) -> str:
@@ -421,15 +435,15 @@ def _promo(lang: str = "de", unsubscribe: Optional[Unsubscribe] = None) -> str:
             f'<img src="{escape(base + p["src"])}" width="{PROMO_W}" height="{PROMO_H}" '
             f'alt="{escape(p["alt"])}" style="display:block;width:{PROMO_W}px;height:{PROMO_H}px;'
             f'border:0;border-radius:{BTN_R}px"></td><td valign="middle">'
-            f'<div class="ix-kick" style="font-family:{FONT};font-size:11px;line-height:16px;'
-            f'font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:{RED_TEXT};'
-            f'margin:0 0 4px">{escape(p["kicker"])}</div>'
-            f'<div class="ix-ink" style="font-family:\'Inter Tight\',{FONT};font-size:16px;'
-            f'line-height:21px;font-weight:700;letter-spacing:-0.01em;color:{INK};margin:0 0 4px">'
+            f'<div class="ix-t3" style="font-family:{FONT};font-size:11px;line-height:16px;'
+            f'font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:{TEXT_3};'
+            f'margin:0 0 3px">{escape(p["kicker"])}</div>'
+            f'<div class="ix-ink" style="font-family:{DISPLAY};font-size:16px;line-height:21px;'
+            f'font-weight:700;letter-spacing:-0.01em;color:{INK};margin:0 0 3px">'
             f'{escape(p["title"])}</div>'
-            f'<div class="ix-t2" style="{small};color:{TEXT_2};margin:0 0 6px">{escape(p["text"])}</div>'
-            f'<div class="ix-ink" style="{small};font-weight:600;color:{INK}">'
-            f'{escape(p["label"])}&nbsp;→</div></td></tr></table></a>')
+            f'<div class="ix-t2" style="{small};color:{TEXT_2}">{escape(p["text"])} '
+            f'<span class="ix-ink" style="font-weight:600;color:{INK};white-space:nowrap">'
+            f'{escape(p["label"])}&nbsp;→</span></div></td></tr></table></a>')
     off = (f'<p class="ix-t3" style="margin:16px 0 0;font-family:{FONT};font-size:12px;'
            f'line-height:18px;color:{TEXT_3}">{escape(unsubscribe.text)} <a class="ix-t3" '
            f'href="{escape(unsubscribe.url)}"{NEW} style="color:{TEXT_3};text-decoration:underline">'
@@ -440,53 +454,73 @@ def _promo(lang: str = "de", unsubscribe: Optional[Unsubscribe] = None) -> str:
 
 #: Der dunkle Modus – dort, wo der Client ihn meldet (Apple Mail, Outlook, iOS). Gmail
 #: liest ihn nicht und kehrt die Farben selbst um; darum hängt nichts an einer Fläche.
+#: Am Handy rutscht «ehemals HS Steiner» unter die Wortmarke (``.ix-col``).
 _DARK_BG, _DARK_LINE = "#1F1F1F", "#3A3936"
 _DARK = ('<style>:root{color-scheme:light dark;supported-color-schemes:light dark}'
-         '@media (max-width:620px){.ix-pad{padding-left:20px!important;'
-         'padding-right:20px!important}.ix-h1{font-size:21px!important;line-height:27px!important}'
-         '.ix-col{display:block!important;width:100%!important;padding:0!important;text-align:left!important}'
-         '.ix-logo-cell{padding:0 0 18px!important}}'
+         '@media (max-width:620px){.ix-pad{padding-left:24px!important;'
+         'padding-right:24px!important}.ix-h1{font-size:23px!important;line-height:29px!important}'
+         '.ix-col{display:block!important;width:100%!important;text-align:left!important}'
+         '.ix-former{padding:12px 0 0!important}}'
          '@media (prefers-color-scheme:dark){'
          f'body,.ix-bg{{background:{_DARK_BG}!important}}'
          '.ix-ink{color:#EDEBE7!important}.ix-t2{color:#C4C0BA!important}'
-         '.ix-t3{color:#9C978F!important}.ix-kick{color:#F0453F!important}'
+         '.ix-t3{color:#9C978F!important}'
          f'.ix-line{{border-color:{_DARK_LINE}!important}}.ix-fill{{background:{_DARK_LINE}!important}}'
          '.ix-ok{background:#46B176!important}.ix-ring{border-color:#EDEBE7!important}'
          '.ix-btn{background:#EDEBE7!important;color:#111111!important}'
          '.ix-logo-l{display:none!important}.ix-logo-d{display:block!important}}</style>')
 
 
-def _logo(base: str) -> str:
-    img = (f'width="{LOGO_W}" height="{LOGO_H}" alt="{LOGO_ALT}" style="display:block;'
-           f'border:0;width:{LOGO_W}px;height:{LOGO_H}px')
-    return (f'<img class="ix-logo-l" src="{base}{LOGO}" {img}">'
-            f'<img class="ix-logo-d" src="{base}{LOGO_DARK}" {img};display:none">')
+def _pair(base: str, light: str, dark: str, w: int, h: int, alt: str) -> str:
+    """Ein Bild hell und dunkel – das Mailprogramm zeigt das passende (``_DARK``)."""
+    img = (f'width="{w}" height="{h}" alt="{alt}" style="display:block;border:0;'
+           f'width:{w}px;height:{h}px')
+    return (f'<img class="ix-logo-l" src="{base}{light}" {img}">'
+            f'<img class="ix-logo-d" src="{base}{dark}" {img};display:none">')
+
+
+def _letterhead(base: str) -> str:
+    """►► **Der Briefkopf** – INEXXIO mit Unterzeile links, «ehemals HS Steiner» rechts, mittig
+    zur Wortmarke; darunter eine Haarlinie. Am Handy steht «ehemals» unter der Wortmarke. ◄◄"""
+    brand = _pair(base, LOGO, LOGO_DARK, LOGO_W, LOGO_H, LOGO_ALT)
+    former = _pair(base, FORMER, FORMER_DARK, FORMER_W, FORMER_H, FORMER_ALT)
+    return (f'<tr><td class="ix-pad ix-line" style="padding:26px {PAD}px 22px;border-bottom:1px '
+            f'solid {LINE}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+            f'<tr><td class="ix-col" valign="middle" style="text-align:left">{brand}</td>'
+            f'<td class="ix-col ix-former" valign="middle" align="right" style="text-align:right">'
+            f'<div style="display:inline-block">{former}</div></td></tr></table></td></tr>')
+
+
+def _footer(firm: Firm) -> str:
+    """Die leise Zeile unter der Karte – Gesellschaft, Anschrift, E-Mail, Website. Selbst
+    verlinkt und grau, damit kein Mailprogramm die Anschrift zum blauen Link macht."""
+    link = f'class="ix-t3" style="color:{TEXT_3};text-decoration:none"'
+    base = get_settings().frontend_base_url.rstrip("/")
+    where = ", ".join(firm.address)
+    maps = "https://www.google.com/maps/search/?api=1&query=" + quote(f"{firm.name}, {where}")
+    parts = [escape(firm.name),
+             *([f'<a {link} href="{escape(maps)}"{NEW}>{escape(where)}</a>'] if where else []),
+             *([f'<a {link} href="mailto:{escape(firm.email)}">{escape(firm.email)}</a>']
+               if firm.email else []),
+             f'<a {link} href="{escape(base)}"{NEW}>{escape(_host())}</a>']
+    return (f'<tr><td class="ix-pad ix-t3" style="padding:14px {PAD}px 0;font-family:{FONT};'
+            f'font-size:12px;line-height:18px;color:{TEXT_3}">{" · ".join(parts)}</td></tr>')
 
 
 def _html(subject: str, lead: str, firm: Firm, signer: Optional[Signer],
           extra: Optional[Extra], unsubscribe: Optional[Unsubscribe] = None,
           lang: str = "de") -> str:
-    """Eine Spalte, 600 px, mittig, umrandet von einer Haarlinie: oben die Überschrift und
-    rechts auf gleicher Höhe das Logo, dann Inhalt, Gruss und Unterschrift, unten der Streifen."""
+    """Eine Spalte, 600 px, mittig, umrandet von einer Haarlinie: der Briefkopf, die Überschrift,
+    Inhalt und Gruss, eine Haarlinie, die Unterschrift, der Streifen; darunter die Fusszeile."""
     base = get_settings().frontend_base_url.rstrip("/")
     pars = _paragraphs(lead)
     pre = escape((pars[0] if pars else "")[:140])
     content = "".join(_p(_rich(p)) for p in pars) + _extra(extra, firm)
-    title = (f'<h1 class="ix-ink ix-h1" style="margin:0;font-family:\'Inter Tight\',{FONT};'
-             f'font-size:24px;line-height:30px;font-weight:700;letter-spacing:-0.02em;'
+    title = (f'<h1 class="ix-ink ix-h1" style="margin:0 0 24px;font-family:{DISPLAY};'
+             f'font-size:28px;line-height:34px;font-weight:700;letter-spacing:-0.025em;'
              f'color:{INK}">{escape(dc.title(subject))}</h1>')
-    # Am Computer: Überschrift links, Logo rechts. Am Handy steht das Logo darüber – darum steht es
-    # im Quelltext zuerst und die Zeile läuft von rechts nach links (``dir="rtl"``), damit beide
-    # Zellen untereinander rutschen (``.ix-col``), ohne dass ein Mailprogramm etwas umsortiert.
-    head = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="rtl" '
-            f'style="margin:0 0 {GAP}px"><tr><td class="ix-col ix-logo-cell" dir="ltr" '
-            f'width="{LOGO_W}" align="right" valign="middle" style="width:{LOGO_W}px">'
-            f'{_logo(base)}</td><td class="ix-col" dir="ltr" valign="middle" align="left" '
-            f'style="padding:0 24px 0 0;text-align:left">{title}</td></tr></table>')
-    body = (f'<tr><td class="ix-pad" style="padding:32px {PAD}px {PAD - GAP}px">{head}'
-            f'<!--inhalt-->{content}<!--/inhalt-->'
-            f'{_signature(firm, signer, lead, lang)}<div style="height:{GAP}px;line-height:'
-            f'{GAP}px;font-size:0">&nbsp;</div></td></tr>')
+    body = (f'<tr><td class="ix-pad" style="padding:34px {PAD}px 28px">{title}'
+            f'<!--inhalt-->{content}<!--/inhalt-->{_signature(firm, signer, lead, lang)}</td></tr>')
     return (
         f'<!doctype html><html lang="{escape(lang)}"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -496,9 +530,11 @@ def _html(subject: str, lead: str, firm: Firm, signer: Optional[Signer],
         '<body class="ix-bg" style="margin:0;padding:0;background:#FFFFFF">'
         f'<span style="display:none;max-height:0;overflow:hidden;opacity:0">{pre}</span>'
         '<table role="presentation" class="ix-bg" width="100%" cellpadding="0" cellspacing="0" '
-        'style="background:#FFFFFF"><tr><td align="center" style="padding:24px 12px">'
+        'style="background:#FFFFFF"><tr><td align="center" style="padding:24px 12px 28px">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="max-width:600px"><tr><td>'
         '<table role="presentation" class="ix-bg ix-line" width="100%" cellpadding="0" '
-        f'cellspacing="0" style="max-width:600px;background:#FFFFFF;border:1px solid {LINE};'
+        f'cellspacing="0" style="background:#FFFFFF;border:1px solid {LINE};'
         f'border-radius:{CARD_R}px;border-collapse:separate;overflow:hidden">'
-        f'{body}{_promo(lang, unsubscribe)}'
-        '</table></td></tr></table></body></html>')
+        f'{_letterhead(base)}{body}{_promo(lang, unsubscribe)}'
+        f'</table></td></tr>{_footer(firm)}</table></td></tr></table></body></html>')

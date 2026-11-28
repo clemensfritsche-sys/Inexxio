@@ -364,6 +364,35 @@ def undelivered(db: Session, ids: list[int]) -> dict[int, str]:
     return out
 
 
+#: ►►► **Ein Anhang, der schon ein Dokument ist** – beim Freigeben aus einer Mail merkt sich das
+#: Ereignis ``document.origin`` (``note_origin``), aus welcher Nachricht und welchem Anhang die
+#: Datei kam. An der Mail steht dann das Dokument statt des Anhangs (``filed``). ◄◄◄
+ORIGIN = "document.origin"
+
+
+def note_origin(db: Session, document_object_id: int, message_id: int, index: int) -> None:
+    """Der Anhang ``index`` der Nachricht ``message_id`` ist das Dokument – nur, wenn es den
+    Anhang gibt (sonst merkt sich nichts etwas Falsches)."""
+    msg = db.get(Message, message_id)
+    if msg is None or not 0 <= index < len(msg.attachments or []):
+        raise Invalid("Diesen Anhang gibt es nicht.", field="origin")
+    from . import log
+    log.event(db, ORIGIN, document_object_id, {"message": message_id, "index": index})
+
+
+def filed(db: Session, ids: list[int]) -> dict[tuple[int, int], tuple[int, str]]:
+    """Welche Anhänge dieser Nachrichten sind schon Dokumente – ``(Nachricht, Anhang)`` →
+    ``(Nummer, «Art · Name»)``; ein gelöschtes Dokument zählt nicht, das jüngste gilt."""
+    if not ids:
+        return {}
+    rows = db.execute(text(
+        "SELECT (l.payload ->> 'message')::bigint, (l.payload ->> 'index')::int, d.object_id, "
+        "d.art, d.name FROM log l JOIN documents d ON d.object_id = l.object_id "
+        "WHERE l.event = :e AND (l.payload ->> 'message')::bigint = ANY(:ids) "
+        "AND d.deleted_at IS NULL ORDER BY l.id"), {"e": ORIGIN, "ids": list(ids)})
+    return {(m, i): (oid, " · ".join(x for x in (art, name) if x)) for m, i, oid, art, name in rows}
+
+
 def failed(db: Session, ids: list[int]) -> set[int]:
     """Welche dieser Nachrichten gingen nicht hinaus (``_FAILED``)?"""
     if not ids:
@@ -523,6 +552,7 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
     done = answered(db, [m.id for m in msgs])
     lost = failed(db, [m.id for m in msgs])
     back = undelivered(db, [m.id for m in msgs])
+    docs = filed(db, [m.id for m in msgs])
     now = clock.utcnow()
     labels = _labels(db, [m.channel for m in msgs])
     firms = _firms(db, people)
@@ -531,6 +561,9 @@ def load(db: Session, ids: list[int]) -> list[MessageOut]:
     for o in out:
         o.failed = o.id in lost
         o.undelivered = back.get(o.id)
+        for i, a in enumerate(o.attachments):
+            if (o.id, i) in docs:
+                a.document_object_id, a.document_name = docs[(o.id, i)]
     return out
 
 
@@ -570,6 +603,7 @@ def _out(m: Message, roles: dict[str, list[int]], answered: bool,
         id=m.id, channel=channel_out(m.channel, address, name), sender=sender,
         to=refs["to"], cc=refs["cc"], bcc=refs["bcc"], about=refs["about"],
         subject=m.subject, topic=dc.title(m.subject), body=body, signature=signature, at=at,
+        quote=m.quote or None,
         reply_subject=dc.reply_subject(m.subject),
         reply_all=[_ref(people, i, firms) for i in reply_all(m.sender_object_id, roles)
                    if i in people],
