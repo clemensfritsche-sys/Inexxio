@@ -27,16 +27,18 @@ function Head() {
  * Am Computer eine **Bühne** wie auf der Website: links der Satz und die drei Grundsätze, rechts
  * EIN Bild gross; alle 6 s der nächste (eine Linie zeigt die Zeit), Klick wählt, bei «weniger
  * Bewegung» wechselt sie nicht von selbst. Am Handy (`compact`) alles auf einmal: drei
- * Zeilen, Bild links – oben in der Liste, scrollt mit weg.
+ * Zeilen, Bild links – derselbe Takt hebt eine nach der anderen hervor (Linie, Bild grösser);
+ * oben in der Liste, scrollt mit weg.
  */
 export function Haltung({ compact = false }: { compact?: boolean }) {
+  const [at, setAt] = useCycle();
   if (compact) {
     return (
       <div className="erp-haltung-mob">
         <Head />
-        <ul className="erp-haltung-list">
-          {PRINCIPLES.map((p) => (
-            <li key={p.word}>
+        <ul className="erp-haltung-list" style={{ ['--erp-haltung-t' as string]: `${STEP_MS}ms` }}>
+          {PRINCIPLES.map((p, i) => (
+            <li key={p.word} data-on={i === at || undefined} onClick={() => setAt(i)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.image} alt="" width={88} height={88} />
               <p className="erp-haltung-word">{p.word}</p>
@@ -47,10 +49,11 @@ export function Haltung({ compact = false }: { compact?: boolean }) {
       </div>
     );
   }
-  return <Stage />;
+  return <Stage at={at} setAt={setAt} />;
 }
 
-function Stage() {
+/** Der Takt: alle `STEP_MS` der nächste Grundsatz; bei «weniger Bewegung» nur auf Klick. */
+function useCycle(): [number, (i: number) => void] {
   const [at, setAt] = useState(0);
   const [still, setStill] = useState(false);
   useEffect(() => { setStill(window.matchMedia('(prefers-reduced-motion: reduce)').matches); }, []);
@@ -59,6 +62,10 @@ function Stage() {
     const t = window.setTimeout(() => setAt((i) => (i + 1) % PRINCIPLES.length), STEP_MS);
     return () => window.clearTimeout(t);
   }, [at, still]);
+  return [at, setAt];
+}
+
+function Stage({ at, setAt }: { at: number; setAt: (i: number) => void }) {
   return (
     <div className="erp-haltung-stage">
       <div className="erp-haltung-text">

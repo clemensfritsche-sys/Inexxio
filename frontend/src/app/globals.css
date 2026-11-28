@@ -778,14 +778,21 @@ fieldset:disabled .ix-editable.is-missing {
 .erp-haltung-mob { display: grid; gap: 6px; padding: 18px 16px 8px; border-bottom: 1px solid var(--border-1); background: var(--bg-2); }
 .erp-haltung-mob .erp-haltung-motto { font-size: 26px; }
 .erp-haltung-list { list-style: none; margin: 4px 0 0; padding: 0; }
-.erp-haltung-list li { display: grid; grid-template-columns: 88px 1fr; gap: 0 12px; align-items: center; padding: 4px 0; border-top: 1px solid var(--border-2); }
+.erp-haltung-list li { position: relative; display: grid; grid-template-columns: 88px 1fr; gap: 0 12px; align-items: center; padding: 4px 0; border-top: 1px solid var(--border-2); cursor: pointer; animation: erp-haltung-in .5s ease both; }
+.erp-haltung-list li:nth-child(2) { animation-delay: .12s; } .erp-haltung-list li:nth-child(3) { animation-delay: .24s; }
 .erp-haltung-list li:first-child { border-top: 0; }
-.erp-haltung-list img { grid-row: span 2; width: 88px; height: 88px; display: block; }
-.erp-haltung-list .erp-haltung-word { align-self: end; font-size: 16px; }
+.erp-haltung-list img { grid-row: span 2; width: 88px; height: 88px; display: block; transform: scale(.88); transition: transform .6s ease; }
+.erp-haltung-list .erp-haltung-word { align-self: end; font-size: 16px; color: var(--fg-3); transition: color .4s; }
 .erp-haltung-list .erp-haltung-line { align-self: start; font-size: 13px; }
+.erp-haltung-list li[data-on] img { transform: none; }
+.erp-haltung-list li[data-on] .erp-haltung-word { color: var(--fg-1); }
+.erp-haltung-list li::after { content: ""; position: absolute; left: 100px; right: 0; bottom: -1px; height: 2px; width: 0; background: var(--fg-1); }
+.erp-haltung-list li[data-on]::after { width: auto; right: 100%; animation: erp-haltung-run var(--erp-haltung-t) linear forwards; }
+@keyframes erp-haltung-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes erp-haltung-run { to { right: 0; } }
 @keyframes erp-haltung-bar { to { width: 100%; } }
 @media (max-width: 1100px) { .erp-haltung-stage { grid-template-columns: 1fr; } .erp-haltung-pic { order: -1; max-width: 320px; justify-self: center; } }
-@media (prefers-reduced-motion: reduce) { .erp-haltung-pic img { transition: none; } .erp-haltung-tabs [aria-pressed="true"]::after { animation: none; width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .erp-haltung-list li { animation: none; } .erp-haltung-list li[data-on]::after { animation: none; right: 0; } .erp-haltung-pic img { transition: none; } .erp-haltung-tabs [aria-pressed="true"]::after { animation: none; width: 100%; } }
 /* Skeleton: die Form des Ergebnisses, grau, mit leisem Schimmer. */
 .erp-skel {
   display: block; border-radius: 6px;
