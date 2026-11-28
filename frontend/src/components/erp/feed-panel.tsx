@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/erp/fields';
 import { userInitials } from '@/components/erp/user-detail';
 import type { ErpRecordType, Todo } from '@/types';
 import { Skeleton } from './skeleton';
+import { Haltung } from './haltung';
 
 /** Was «+» anlegen kann – ein Anlageweg je Sorte (`capture/capture-sheet.CREATE`). */
 export type Creatable = 'article' | 'order' | 'person' | 'company' | 'document';
@@ -242,6 +243,9 @@ export function FeedPanel({ show, search, onSearch, typeFilter, onTypeFilter, ro
             {search || typeFilter ? 'Keine Treffer' : 'Keine Datensätze'}
           </div>
         )}
+        {/* Am Handy steht die Haltung oben in der Liste und scrollt mit weg (am Computer füllt
+            sie den leeren Detailbereich) – nur ohne Suche und Filter. */}
+        {!search && !typeFilter && <div className="md:hidden"><Haltung compact /></div>}
         {top && (
           <FeedItem key={`mine-${top.key}`} row={top} sel={isSelected(top)} onClick={() => onSelect(top)}
             todo={todos.get(top.objectId!)} mine />

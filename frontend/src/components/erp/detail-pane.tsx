@@ -1,7 +1,7 @@
 'use client';
 
-import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Haltung } from '@/components/erp/haltung';
 import type { Row } from '@/lib/use-feed-lists';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
@@ -118,9 +118,8 @@ export function DetailPane({ show, creating, sel, activeRow, orderSeed, seeds, i
             todo={todoOf(row.data.object_id)} onSaved={h.onCompanySaved} onBack={h.onBack} />
         )}
         {!hasDetail && (
-          <div className="flex-1 flex flex-col items-center justify-center bg-bg-2">
-            <Package size={48} strokeWidth={1} className="text-fg-4" />
-            <p className="mt-3 text-sm text-fg-3">Datensatz auswählen oder neu anlegen</p>
+          <div className="flex-1 flex flex-col items-center justify-center bg-bg-2 overflow-y-auto px-8 py-9">
+            <Haltung />
           </div>
         )}
       </ErrorBoundary>
