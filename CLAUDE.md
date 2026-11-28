@@ -960,8 +960,9 @@ speichert keine IP und legt nichts auf dem Gerät ab (siehe «Website-Statistik�
    Request `develop` → `main`, eröffnet erst, wenn ein Stand live gehen soll, gemergt **nur mit
    Freigabe des Inhabers**, danach noch einmal die Freigabe im Environment `production`. Nie direkt
    auf `main` committen; kein PR, der offen liegen bleibt. **Ein Release = ein Lauf in Actions**
-   («Deploy → Production»): nach dem Merge wird `develop` erst mit der nächsten echten Änderung
-   wieder angelegt (löscht GitHub ihn), nie sofort – sonst liefe Dev noch einmal mit demselben Stand.
+   («Deploy → Production»). `develop` bleibt nach dem Merge bestehen (GitHub löscht ihn nicht mehr,
+   «Automatically delete head branches» ist aus, 28.11.2026); nach dem Release nichts auf `develop`
+   schieben, nur um ihn nachzuziehen – sonst liefe Dev noch einmal mit demselben Stand.
 8. **Website: jede Sprache mitdenken** – eine Änderung an einem Text der Website ist erst fertig,
    wenn sie in jeder gebauten Sprache (`website/src/config/languages.mjs`) nachgezogen ist (Glossar
    und Regeln: `website/src/i18n/README.md`); der Build erzwingt es.
